@@ -1,0 +1,5 @@
+doi,title,year,authors,affiliations,publisher,cited_references
+10.5555/e2e-complete-one,Offline Complete One,2024,Alice Example,Example Institute,Fixture Publisher,Reference DOI 10.5555/e2e-reference-one
+10.5555/e2e-complete-two,Offline Complete Two,2023,Bob Example,Example Laboratory,Fixture Publisher,Reference DOI 10.5555/e2e-reference-two
+10.17116/rosstomat20251801140,Provider Enrichment Candidate,2025,,,,
+10.5555/e2e-parse-rejected,Parse Rejected Article,,Rejected Author,Example Institute,Fixture Publisher,Reference DOI 10.5555/e2e-reference-rejected

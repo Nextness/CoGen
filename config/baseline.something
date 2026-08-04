@@ -1,0 +1,91 @@
+// -- Enums --
+available_filters: enum(string) = {
+    NO_FILTER = "No filter";
+    RANGE_10_YEARS = "Range 10 years (2017 - 2026)";
+    ARTICLE_ONLY = "Article only";
+    ENGLISH_ONLY = "English only";
+}
+
+cache_policy_read_options: enum = {
+    ACTIVE_RUN;
+    GLOBAL;
+    NETWORK;
+    RUN_SPECIFIC;
+}
+
+cache_policy_write_options: enum = {
+    ACTIVE_RUN;
+    GLOBAL;
+}
+
+// -- Setups --
+cache_policy_config: setup = {
+    reads: []cache_policy_read_options;
+    read_run_id?: integer = -1;
+    writes: []cache_policy_write_options;
+    negative_ttl_days: integer;
+}
+
+reuse_policy_config: setup = {
+    policy: string;
+}
+
+raw_data_filters: setup = {
+    filters: []available_filters;
+    count: integer;
+}
+
+source_declaration: setup = {
+    name: string;
+    date: timestamp;
+    expected_file: string;
+    file_type: string;
+    query: string;
+    filters: []raw_data_filters;
+    expected_result_count: integer;
+    requested_fields: []string;
+    patch_fields: mapping(string, string);
+    keep_fields: []string;
+}
+
+enrichment_provider_config: setup = {
+    name: string;
+    base_url: string;
+    user_agent: string;
+    contact_email: string;
+    rate_per_second?: integer = 10;
+    concurrency?: integer = 10;
+    timeout_seconds?: integer = 30;
+    max_retries?: integer = 5;
+    fields: []string;
+    extra_urls?: mapping(string, string) = mapping(string, string){};
+    batch_size?: integer = 50;
+    fill_missing_only?: boolean = false;
+}
+
+workspace_config: setup = {
+    format_version: integer;
+    search_id: string;
+    search_revision: string;
+    enrichment_enabled: boolean;
+    reuse_policy: reuse_policy_config;
+    cache_policy: cache_policy_config;
+    sources: []source_declaration;
+    // enable_enrichment: boolean;
+    enrichment_providers: []enrichment_provider_config;
+}
+
+// -- Assertions --
+#assert workspace_config {
+    min_version := 1;
+    max_version := 2;
+    #if #not (format_version >= min_version #and format_version <= max_version) {
+        #error("Expected versions a version between {min_version} and {max_version}, but got {format_version}.");
+    }
+    // #if #len(sources) == 0 {
+    //     #error("Expected at least one source_declaration, but got 0.");
+    // }
+    // #if enable_enrichment #and #len(enrichment_providers) == 0 {
+    //     #error("Expected at least one source_declaration, but got 0.");
+    // }
+}

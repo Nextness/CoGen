@@ -1,0 +1,470 @@
+// Package server exposes an existing workspace database through a local,
+// read-only HTTP API. It deliberately does not use database.Open: that path
+// runs migrations and configures write-oriented SQLite pragmas.
+package server
+
+import (
+	"context"
+	"database/sql"
+	"embed"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"analysis/logging"
+
+	_ "modernc.org/sqlite"
+)
+
+const requestTimeout = 5 * time.Second
+
+var log = logging.Logger("viewer")
+
+//go:embed frontend
+var frontend embed.FS
+
+// Server serves one existing workspace database. db is opened in SQLite's
+// read-only mode and query_only is set for every connection.
+type Server struct {
+	db       *sql.DB
+	pdfDB    *sql.DB
+	pdfPath  string
+	tables   map[string]tableInfo
+	AssetsFS fs.FS // if non-nil, serves frontend assets from this filesystem
+}
+
+// tableInfo stores the discovered columns for one browsable SQLite table.
+type tableInfo struct {
+	Name    string       `json:"name"`
+	Columns []columnInfo `json:"columns"`
+	Count   int64        `json:"row_count"`
+}
+
+// columnInfo records a SQLite column's name, declared type, and primary-key position.
+type columnInfo struct {
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	PrimaryKey bool   `json:"primary_key"`
+}
+
+// tableHasColumns reports whether a discovered table contains every requested column.
+func (s *Server) tableHasColumns(table string, required ...string) bool {
+	info, ok := s.tables[table]
+	if !ok {
+		return false
+	}
+	available := make(map[string]struct{}, len(info.Columns))
+	for _, column := range info.Columns {
+		available[column.Name] = struct{}{}
+	}
+	for _, name := range required {
+		if _, ok := available[name]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// Open opens an existing database without creating it or modifying it.
+func Open(path string) (*Server, error) {
+	if path == "" {
+		return nil, errors.New("database path is required")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("workspace database does not exist")
+		}
+		return nil, fmt.Errorf("inspect workspace database: %w", err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("workspace database path is a directory")
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve workspace database path: %w", err)
+	}
+	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	db, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return nil, fmt.Errorf("open workspace database read-only: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetConnMaxLifetime(0)
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("read workspace database: %w", err)
+	}
+	s := &Server{db: db}
+	if err := s.discoverTables(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
+	if err := s.openBoundPDFStore(ctx, filepath.Dir(absolute)); err != nil {
+		db.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// Close releases resources owned by the receiver.
+func (s *Server) Close() error {
+	if s.pdfDB != nil {
+		if err := s.pdfDB.Close(); err != nil {
+			_ = s.db.Close()
+			return err
+		}
+	}
+	return s.db.Close()
+}
+
+// PDFStoreBound reports whether a readable companion PDF database is attached.
+func (s *Server) PDFStoreBound() bool { return s.pdfDB != nil }
+
+// Handler returns the local API and embedded frontend handler.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("GET /api/searches", s.searches)
+	mux.HandleFunc("GET /api/plans", s.plans)
+	mux.HandleFunc("GET /api/runs", s.runs)
+	mux.HandleFunc("GET /api/overview", s.overview)
+	mux.HandleFunc("GET /api/runs/{id}/audit", s.runAudit)
+	mux.HandleFunc("GET /api/runs/{id}/artifacts", s.runArtifacts)
+	mux.HandleFunc("GET /api/artifacts/{id}/inspect", s.artifactInspection)
+	mux.HandleFunc("GET /api/artifacts/{id}/content", s.artifactContent)
+	mux.HandleFunc("GET /api/runs/{id}/cache-uses", s.runCacheUses)
+	mux.HandleFunc("GET /api/runs/{id}/corpus/{kind}", s.runCorpus)
+	mux.HandleFunc("GET /api/runs/{id}/evaluation", s.runEvaluation)
+	mux.HandleFunc("GET /api/runs/{id}/identity-evidence", s.runIdentityEvidence)
+	mux.HandleFunc("GET /api/runs/{id}/stages", s.runStages)
+	mux.HandleFunc("GET /api/audit", s.audit)
+	mux.HandleFunc("GET /api/trash", s.trash)
+	mux.HandleFunc("GET /api/tables", s.tablesHandler)
+	mux.HandleFunc("GET /api/tables/{table}", s.tableRows)
+	mux.HandleFunc("GET /api/articles/{id}", s.articleDetail)
+	mux.HandleFunc("GET /api/works/{work_id}/pdf-status", s.workPDFStatus)
+	mux.HandleFunc("GET /api/pdf/{work_id}", s.workPDF)
+	mux.HandleFunc("GET /api/authors/{id}", s.authorDetail)
+	mux.HandleFunc("GET /api/references/{id}", s.referenceDetail)
+	mux.HandleFunc("GET /api/graph", s.graph)
+	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, http.StatusNotFound, "not_found", "API route not found")
+	})
+	assets, _ := fs.Sub(frontend, "frontend")
+	if s.AssetsFS != nil {
+		assets = s.AssetsFS
+	}
+	mux.Handle("GET /", http.FileServer(http.FS(assets)))
+	return withJSONErrors(mux)
+}
+
+// openBoundPDFStore resolves and opens the companion PDF database declared by metadata.
+func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) error {
+	if !s.hasTable("pdf_store_binding") {
+		return nil
+	}
+	var relativePath string
+	err := s.db.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&relativePath)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read PDF store binding: %w", err)
+	}
+	if filepath.IsAbs(relativePath) {
+		return fmt.Errorf("bound PDF store path must be relative")
+	}
+	absolute := filepath.Clean(filepath.Join(metadataDir, relativePath))
+	relative, err := filepath.Rel(metadataDir, absolute)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("bound PDF store path escapes the metadata database directory")
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return fmt.Errorf("inspect bound PDF store: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("bound PDF store path is a directory")
+	}
+	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	pdfDB, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return fmt.Errorf("open PDF store read-only: %w", err)
+	}
+	pdfDB.SetMaxOpenConns(1)
+	pdfDB.SetConnMaxLifetime(0)
+	if err := pdfDB.PingContext(ctx); err != nil {
+		pdfDB.Close()
+		return fmt.Errorf("read PDF store: %w", err)
+	}
+	requiredTables := []struct {
+		name    string
+		columns []string
+	}{
+		{"pdf_blobs", []string{"content_hash", "byte_size", "data"}},
+		{"pdf_documents", []string{"doi", "status", "content_hash", "inventoried_at"}},
+	}
+	for _, required := range requiredTables {
+		var found int
+		if err := pdfDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master
+			WHERE type='table' AND name=?`, required.name).Scan(&found); err != nil {
+			pdfDB.Close()
+			return fmt.Errorf("inspect PDF store schema: %w", err)
+		}
+		if found != 1 {
+			pdfDB.Close()
+			return fmt.Errorf("bound PDF store is missing required table %q", required.name)
+		}
+		columns, err := pdfTableColumns(ctx, pdfDB, required.name)
+		if err != nil {
+			pdfDB.Close()
+			return err
+		}
+		for _, column := range required.columns {
+			if !columns[column] {
+				pdfDB.Close()
+				return fmt.Errorf("bound PDF store table %q is missing required column %q; run the workspace pipeline to apply companion migrations", required.name, column)
+			}
+		}
+	}
+	s.pdfDB, s.pdfPath = pdfDB, absolute
+	return nil
+}
+
+// pdfTableColumns returns the discovered columns for a companion PDF table.
+func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", table))
+	if err != nil {
+		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
+	}
+	defer rows.Close()
+	columns := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, columnType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
+	}
+	return columns, nil
+}
+
+// HTTPServer returns a conservatively configured local HTTP server.
+func (s *Server) HTTPServer(addr string) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           s.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       30 * time.Second,
+	}
+}
+
+// discoverTables reads the SQLite schema and returns tables eligible for read-only browsing.
+func (s *Server) discoverTables(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		return fmt.Errorf("discover workspace tables: %w", err)
+	}
+	names := make([]string, 0)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return err
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	s.tables = make(map[string]tableInfo)
+	for _, name := range names {
+		columns, err := s.columns(ctx, name)
+		if err != nil {
+			return err
+		}
+		var count int64
+		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+quoteIdentifier(name)).Scan(&count); err != nil {
+			return fmt.Errorf("count table %q: %w", name, err)
+		}
+		s.tables[name] = tableInfo{Name: name, Columns: columns, Count: count}
+	}
+	return nil
+}
+
+// columns returns ordered metadata for the requested table's columns.
+func (s *Server) columns(ctx context.Context, table string) ([]columnInfo, error) {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+quoteIdentifier(table)+")")
+	if err != nil {
+		return nil, fmt.Errorf("read schema for %q: %w", table, err)
+	}
+	defer rows.Close()
+	var result []columnInfo
+	for rows.Next() {
+		var cid, pk int
+		var name, typ string
+		var notNull int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
+			return nil, err
+		}
+		result = append(result, columnInfo{Name: name, Type: typ, PrimaryKey: pk > 0})
+	}
+	return result, rows.Err()
+}
+
+// quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes.
+func quoteIdentifier(identifier string) string {
+	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
+}
+
+// hasTable reports whether a table was discovered as browsable.
+func (s *Server) hasTable(name string) bool { _, ok := s.tables[name]; return ok }
+
+// hasColumn reports whether a discovered table contains a named column.
+func (s *Server) hasColumn(table, column string) bool {
+	t, ok := s.tables[table]
+	if !ok {
+		return false
+	}
+	for _, c := range t.Columns {
+		if c.Name == column {
+			return true
+		}
+	}
+	return false
+}
+
+// apiError is the stable JSON envelope returned for client-visible failures.
+type apiError struct {
+	Error struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// apiProblem carries an HTTP status and safe client-facing error message.
+type apiProblem struct {
+	Code, Message string
+	Status        int
+}
+
+// Error returns the receiver's diagnostic message.
+func (e *apiProblem) Error() string { return e.Message }
+
+// badRequest constructs an API problem with HTTP status 400.
+func badRequest(message string) error {
+	return &apiProblem{Code: "invalid_request", Message: message, Status: http.StatusBadRequest}
+}
+
+// notFound constructs an API problem with HTTP status 404.
+func notFound(message string) error {
+	return &apiProblem{Code: "not_found", Message: message, Status: http.StatusNotFound}
+}
+
+// withJSONErrors converts handler-returned errors into the server's JSON error response.
+func withJSONErrors(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "read-only API accepts GET only")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// writeJSON writes a JSON response with the supplied HTTP status.
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+// writeError writes the stable JSON error envelope.
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	var response apiError
+	response.Error.Code = code
+	response.Error.Message = message
+	writeJSON(w, status, response)
+}
+
+// respond maps successful values, client problems, and internal failures to safe JSON responses.
+func (s *Server) respond(w http.ResponseWriter, r *http.Request, value any, err error) {
+	if err == nil {
+		writeJSON(w, http.StatusOK, value)
+		return
+	}
+	var problem *apiProblem
+	if errors.As(err, &problem) {
+		writeError(w, problem.Status, problem.Code, problem.Message)
+		return
+	}
+	log.Error("viewer request failed", "path", r.URL.Path, "error", err)
+	writeError(w, http.StatusInternalServerError, "internal_error", "unable to read workspace data")
+}
+
+// queryContext derives a request context bounded by the server query timeout.
+func queryContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.Context(), requestTimeout)
+}
+
+// positiveID parses a strictly positive decimal identifier or returns a bad-request problem.
+func positiveID(raw string) (int64, error) {
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id < 1 {
+		return 0, badRequest("id must be a positive integer")
+	}
+	return id, nil
+}
+
+// rowsAsMaps scans SQL rows into maps keyed by result-column name.
+func rowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]map[string]any, 0)
+	for rows.Next() {
+		values := make([]any, len(columns))
+		pointers := make([]any, len(columns))
+		for i := range values {
+			pointers[i] = &values[i]
+		}
+		if err := rows.Scan(pointers...); err != nil {
+			return nil, err
+		}
+		row := make(map[string]any, len(columns))
+		for i, value := range values {
+			if bytes, ok := value.([]byte); ok {
+				row[columns[i]] = string(bytes)
+			} else {
+				row[columns[i]] = value
+			}
+		}
+		result = append(result, row)
+	}
+	return result, rows.Err()
+}

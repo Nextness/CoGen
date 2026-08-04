@@ -1,0 +1,89 @@
+// -- Enums --
+available_coverage_modes: enum = {
+    ATOMIC;
+}
+
+// -- Setups --
+minimums_coverage_config: setup = {
+    minimum: float;
+    rationale?: string = "";
+    description?: string = "";
+}
+
+coverage_policy_config: setup = {
+    version: integer;
+    coverage_mode: available_coverage_modes;
+    exclude_packages: []string;
+    package_minimums: mapping(string, minimums_coverage_config);
+    file_minimums: mapping(string, minimums_coverage_config);
+}
+
+// -- Policy --
+coverage_policy: coverage_policy_config = {
+    version = 1,
+    coverage_mode = .ATOMIC,
+    exclude_packages = []string{
+        "analysis/dev",
+        "analysis/tools/coveragecheck",
+        "analysis/tools/doccheck",
+        "analysis/tools/something-json",
+    },
+    package_minimums = mapping(string, minimums_coverage_config) {
+        ["analysis"]                 => { minimum = 10.0 },
+        ["analysis/article"]         => { minimum = 97.0 },
+        ["analysis/bibtex"]          => { minimum = 95.0 },
+        ["analysis/database"]        => { minimum = 70.0 },
+        ["analysis/enrich"]          => { minimum = 70.0 },
+        ["analysis/logging"]         => { minimum = 100.0 },
+        ["analysis/manifest"]        => { minimum = 92.5 },
+        ["analysis/normalization"]   => { minimum = 82.0 },
+        ["analysis/pdfstore"]        => { minimum = 73.0 },
+        ["analysis/server"]          => { minimum = 76.0 },
+        ["analysis/something"]       => { minimum = 87.5 },
+        ["analysis/tools/pdf-store"] => { minimum = 50.0 },
+        ["analysis/validation"]      => { minimum = 92.0 },
+        ["analysis/workspace"]       => { minimum = 72.0 },
+    },
+    file_minimums = mapping(string, minimums_coverage_config) {
+        ["analysis/workspace/support.go"] => {
+            minimum = 69.0,
+            rationale = "Pipeline lifecycle and source-loading failures must remain covered."
+        },
+        ["analysis/workspace/cache.go"] => {
+            minimum = 73.0,
+            rationale = "Cache policy ordering and provenance are correctness-sensitive."
+        },
+        ["analysis/workspace/store.go"] => {
+            minimum = 66.0,
+            rationale = "The main workspace orchestration path needs a stronger floor than package main."
+        },
+        ["analysis/database/attempts.go"] => {
+            minimum = 61.0,
+            rationale = "Attempt, source, artifact, and stage persistence protect run provenance."
+        },
+        ["analysis/database/database.go"] => {
+            minimum = 72.0,
+            rationale = "SQLite opening, migration, and integrity setup affect all runs."
+        },
+        ["analysis/enrich/client.go"] => {
+            minimum = 72.0,
+            rationale = "Provider HTTP, rate-limit, and response handling are high-risk boundaries."
+        },
+        ["analysis/enrich/orcid.go"] => {
+            minimum = 55.0,
+            rationale = "ORCID parsing and candidate evidence need explicit regression protection."
+        },
+        ["analysis/pdfstore/store.go"] => {
+            minimum = 68.0,
+            rationale = "Normalized registration, transactional manual inventory, blob integrity, and bundle binding protect the companion store."
+        },
+        ["analysis/server/graph.go"] => {
+            minimum = 86.0,
+            rationale = "The bounded graph query must preserve run and validation scoping."
+        },
+        ["analysis/server/overview.go"] => {
+            minimum = 78.0,
+            rationale = "Overview metrics and denominators must remain interpretable."
+        },
+    },
+};

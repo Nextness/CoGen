@@ -1,0 +1,175 @@
+// --- Setup ---
+database_migration_config: setup = {
+    migrations_dir: string;
+}
+
+db_migration: setup = {
+    filename: string;
+    description: string;
+    previous: string;
+    upgrade: string;
+}
+
+#assert db_migration {
+    #if #not #match(filename, "^V[0-9]{{5}}_.*\.sql$") {
+        #error("Expected the format V00001_<something>.sql, but got {filename}");
+    }
+    #if #not (#match(previous, "^V[0-9]{{5}}_.*\.sql$") #or previous == "ROOT") {
+        #error("Expected the format V00001_<something>.sql, but got {previous}");
+    }
+    #if #not (#match(upgrade, "^V[0-9]{{5}}_.*\.sql$") #or upgrade == "NONE") {
+        #error("Expected the format V00001_<something>.sql, but got {upgrade}");
+    }
+}
+
+// --- Config --
+database_migrations: database_migration_config = {
+    migrations_dir = "../migrations/corpus.metadata",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00001_workspace_baseline.sql",
+    description = "Fresh workspace baseline.",
+    previous = "ROOT",
+    upgrade  = "V00002_author_authorship.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00002_author_authorship.sql",
+    description = "Authors and authorships: author_occurrences, people, and authorships linked to immutable work_revisions.",
+    previous = "V00001_workspace_baseline.sql",
+    upgrade  = "V00003_append_only_authors.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00003_append_only_authors.sql",
+    description = "Append-only triggers for author_occurrences and authorships.",
+    previous = "V00002_author_authorship.sql",
+    upgrade  = "V00004_people_identity_guards.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00004_people_identity_guards.sql",
+    description = "Database-level guards for non-blank people.orcid.",
+    previous = "V00003_append_only_authors.sql",
+    upgrade  = "V00005_reference_mentions.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00005_reference_mentions.sql",
+    description = "Immutable reference mentions for work revisions.",
+    previous = "V00004_people_identity_guards.sql",
+    upgrade  = "V00006_plan_input_manifest.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00006_plan_input_manifest.sql",
+    description = "Link each execution plan to its frozen input-manifest artifact.",
+    previous = "V00005_reference_mentions.sql",
+    upgrade  = "V00007_plan_enrichment_policy.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00007_plan_enrichment_policy.sql",
+    description = "Make declared enrichment policy directly queryable on plans.",
+    previous = "V00006_plan_input_manifest.sql",
+    upgrade  = "V00008_run_step_fingerprints.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00008_run_step_fingerprints.sql",
+    description = "Stage input/output fingerprints for reuse provenance.",
+    previous = "V00007_plan_enrichment_policy.sql",
+    upgrade  = "V00009_retire_mutable_corpus.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00009_retire_mutable_corpus.sql",
+    description = "Remove the deprecated mutable corpus tables after the active pipeline path moved to immutable workspace revisions.",
+    previous = "V00008_run_step_fingerprints.sql",
+    upgrade  = "V00010_global_cache.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00010_global_cache.sql",
+    description = "Versioned global provider-response cache and run-use provenance.",
+    previous = "V00009_retire_mutable_corpus.sql",
+    upgrade  = "V00011_artifact_blobs.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00011_artifact_blobs.sql",
+    description = "Artifact blob storage: content-addressed blob data stored inline in the database, deduplicated by artifact_id (matching the artifacts table's content_hash UNIQUE invariant).",
+    previous = "V00010_global_cache.sql",
+    upgrade  = "V00012_drop_stored_path.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00012_drop_stored_path.sql",
+    description = "Remove the stored_path column from the artifacts table now that all artifact payload data is stored inline in the artifact_blobs table.",
+    previous = "V00011_artifact_blobs.sql",
+    upgrade = "V00013_search_revision_updated_at.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00013_search_revision_updated_at.sql",
+    description = "Add updated_at column to search_revisions to track config changes that reuse the same revision label.",
+    previous = "V00012_drop_stored_path.sql",
+    upgrade  = "V00014_run_source_result_counts.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00014_run_source_result_counts.sql",
+    description = "Preserve declared and observed source-export counts for each run.",
+    previous = "V00013_search_revision_updated_at.sql",
+    upgrade  = "V00015_run_configuration_artifacts.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00015_run_configuration_artifacts.sql",
+    description = "Link every attempt to its exact configuration and manifest snapshots, even when content-addressed artifacts are shared between runs.",
+    previous = "V00014_run_source_result_counts.sql",
+    upgrade = "V00016_author_identity_candidates.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00016_author_identity_candidates.sql",
+    description = "Preserve name-search ORCID matches as reviewable candidate evidence instead of treating a provider result as a verified identity.",
+    previous = "V00015_run_configuration_artifacts.sql",
+    upgrade  = "V00017_run_source_export_date.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00017_run_source_export_date.sql",
+    description = "Preserve the declared export download date for each source.",
+    previous = "V00016_author_identity_candidates.sql",
+    upgrade  = "V00018_source_filter_counts.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00018_source_filter_counts.sql",
+    description = "Per-source filter stage article counts for the retention flow.",
+    previous = "V00017_run_source_export_date.sql",
+    upgrade  = "V00019_pdf_store_binding.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00019_pdf_store_binding.sql",
+    description = "Bind a metadata corpus to its portable companion PDF store.",
+    previous = "V00018_source_filter_counts.sql",
+    upgrade  = "V00020_pdf_gather_audit_links.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00020_pdf_gather_audit_links.sql",
+    description = "Make PDF audit-outbox delivery idempotent in the append-only audit stream.",
+    previous = "V00019_pdf_store_binding.sql",
+    upgrade  = "V00021_rename_pdf_audit_links.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00021_rename_pdf_audit_links.sql",
+    description = "Retain PDF audit delivery while removing gather-specific runtime terminology.",
+    previous = "V00020_pdf_gather_audit_links.sql",
+    upgrade = "NONE"
+};

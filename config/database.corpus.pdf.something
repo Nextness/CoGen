@@ -1,0 +1,24 @@
+database_migration_config: setup = {
+    migrations_dir: string;
+}
+
+database_migrations: database_migration_config = {
+    migrations_dir = "../migrations/corpus.pdf",
+};
+
+db_migration: setup = {
+    filename: string;
+    previous?: string = "";
+    upgrade?: string = "";
+}
+
+#iteration("_db_migration"): db_migration = {
+    previous = "",
+    filename = "V00001_pdf_store_baseline.sql",
+    upgrade  = "V00002_normalized_inventory.sql",
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00002_normalized_inventory.sql",
+    previous = "V00001_pdf_store_baseline.sql",
+};

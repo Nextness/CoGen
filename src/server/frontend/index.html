@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Research workspace</title>
+  <link rel="stylesheet" href="/styles/tokens.css">
+  <link rel="stylesheet" href="/styles/base.css">
+  <link rel="stylesheet" href="/styles/elements.css">
+  <link rel="stylesheet" href="/styles/collections.css">
+  <link rel="stylesheet" href="/styles/views.css">
+  <link rel="stylesheet" href="/styles/graph.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="brand">
+      <p class="eyebrow">Local research workspace</p>
+      <h1>Research workspace</h1>
+    </div>
+    <div class="server-status" aria-label="Viewer status">
+      <span id="health-status" class="status" role="status" aria-live="polite">Checking database…</span>
+      <span class="read-only">Read-only</span>
+    </div>
+    <button id="mobile-nav-toggle" class="rw-mobile-nav-toggle" type="button" aria-expanded="false">Menu</button>
+  </header>
+
+  <nav class="primary-nav" aria-label="Primary navigation">
+    <a data-view-link="overview">Overview</a>
+    <a data-view-link="corpus">Corpus</a>
+    <a data-view-link="relationships">Relationships</a>
+    <a data-view-link="provenance">Provenance</a>
+    <a data-view-link="evaluation">Evaluation</a>
+    <a data-view-link="advanced">Advanced</a>
+    <a data-view-link="trash">Trash</a>
+  </nav>
+
+  <section class="ui segment context-panel" aria-labelledby="context-heading">
+    <div class="ui header context-heading">
+      <div>
+        <p class="ui sub header">Research context</p>
+        <h2 id="context-heading">Select a captured run</h2>
+      </div>
+      <button id="clear-context" class="ui basic button" type="button">Clear context</button>
+    </div>
+    <div class="ui four column grid selection-grid">
+      <div class="ui field">
+        <label>Search
+          <div class="ui selection dropdown">
+            <select id="search-select"><option value="">Loading…</option></select>
+          </div>
+        </label>
+      </div>
+      <div class="ui field">
+        <label>Search revision
+          <div class="ui selection dropdown">
+            <select id="revision-select" disabled><option value="">Select a search</option></select>
+          </div>
+        </label>
+      </div>
+      <div class="ui field">
+        <label>Execution plan
+          <div class="ui selection dropdown">
+            <select id="plan-select" disabled><option value="">Select a revision</option></select>
+          </div>
+        </label>
+      </div>
+      <div class="ui field">
+        <label>Run attempt
+          <div class="ui selection dropdown">
+            <select id="run-select" disabled><option value="">Select a revision</option></select>
+          </div>
+        </label>
+      </div>
+    </div>
+    <p id="selection-summary" class="context-summary">Choose a run to inspect its captured state and evidence.</p>
+  </section>
+
+  <main id="main-content">
+    <div id="notice" class="notice" role="alert" hidden></div>
+    <div id="loading" class="loading" role="status" aria-live="polite" hidden><span class="ui loader"></span>Loading selected research context…</div>
+    <div id="app" aria-live="polite"></div>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

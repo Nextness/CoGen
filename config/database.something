@@ -1,0 +1,19 @@
+databases_config: setup = {
+    corpus_metadata_config: string;
+    corpus_pdf_config: string;
+}
+
+#assert databases_config {
+    #if #not #match(corpus_metadata_config, "^.*\.something$") {
+        #error("Expected '.something' configuration file but got {corpus_metadata_config}");
+    }
+
+    #if #not #match(corpus_pdf_config, "^.*\.something$") {
+        #error("Expected '.something' configuration file but got {corpus_pdf_config}");
+    }
+}
+
+databases: databases_config = {
+    corpus_metadata_config = "database.corpus.metadata.something",
+    corpus_pdf_config = "database.corpus.pdf.something",
+};

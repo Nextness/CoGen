@@ -1,0 +1,23 @@
+{
+  "name": "research-analysis-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:unit": "node --test tests/unit/**/*.test.js tests/unit/**/**/*.test.js",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install --with-deps chromium firefox webkit",
+    "codegen": "playwright codegen http://localhost:8080",
+    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=../src/server/frontend/vendor/d3-force.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.52.0",
+    "d3-force": "^3.0.0",
+    "esbuild": "^0.28.1",
+    "jsdom": "^26.0.0"
+  }
+}
