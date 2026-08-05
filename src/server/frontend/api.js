@@ -15,11 +15,26 @@ export function endpoint(path, query) {
   return url.pathname + url.search;
 }
 
+/** Represents an HTTP API failure while preserving its status and structured details. */
+export class APIError extends Error {
+  /** Initializes one structured API error returned by a non-successful response. */
+  constructor(message, status, code, details) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.code = code || 'request_failed';
+    this.details = details;
+  }
+}
+
 /** Fetches and decodes one JSON API response. */
-export async function api(path, query) {
+export async function api(path, query, options) {
+  const request = options || {};
+  const headers = { Accept: 'application/json', ...(request.headers || {}) };
   const response = await fetch(endpoint(path, query), {
-    headers: { Accept: 'application/json' },
-    signal: state.controller?.signal,
+    ...request,
+    headers: headers,
+    signal: request.signal || state.controller?.signal,
   });
   var body;
   try {
@@ -34,12 +49,21 @@ export async function api(path, query) {
     } else {
       message = 'Request failed (' + response.status + ').';
     }
-    throw new Error(message);
+    throw new APIError(message, response.status, body?.error?.code, body?.error?.details);
   }
   if (body?.data !== undefined) {
     return body.data;
   }
   return body;
+}
+
+/** Sends a same-origin JSON mutation and returns its decoded response. */
+export function mutate(path, method, body) {
+  return api(path, null, {
+    method: method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 }
 
 /** Loads and caches the discovered database table list. */

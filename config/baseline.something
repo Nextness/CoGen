@@ -63,6 +63,11 @@ enrichment_provider_config: setup = {
     fill_missing_only?: boolean = false;
 }
 
+reviewer_config: setup = {
+    username?: string = "";
+    email?: string = "";
+}
+
 workspace_config: setup = {
     format_version: integer;
     search_id: string;
@@ -73,6 +78,10 @@ workspace_config: setup = {
     sources: []source_declaration;
     // enable_enrichment: boolean;
     enrichment_providers: []enrichment_provider_config;
+    reviewer?: reviewer_config = reviewer_config {
+        username = "",
+        email = "",
+    };
 }
 
 // -- Assertions --

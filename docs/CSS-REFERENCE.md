@@ -91,7 +91,7 @@ The following custom properties are active aliases in `tokens.css`. New rules us
 | Forms | `button`, `input`, `select` | Inherited type and minimum touch target height. |
 | Focus | `:focus-visible` | Three-pixel orange focus outline with tokenized offset. |
 | Skip link | `.rw-skip-link`, `.skip-link` | Hidden-until-focused navigation to main content. |
-| Header | `.rw-header`, `.rw-header__brand`, `.rw-header__eyebrow`, `.rw-header__status` | Product identity, research framing, health, and read-only state. |
+| Header | `.rw-header`, `.rw-header__brand`, `.rw-header__eyebrow`, `.rw-header__status` | Product identity, research framing, health, and local-review state. |
 | Status | `.rw-status-dot`, `.rw-status-dot--unavailable`, `.rw-label` | Health indicator and persistent textual status label. |
 | Navigation | `.rw-nav`, `.rw-nav__item`, `.rw-nav__item--active` | Primary navigation and active destination. |
 
@@ -137,6 +137,10 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. S
 | Summaries | `.rw-summary-strip`, `.rw-record-summary`, `.rw-record-comparison` | Definition-list summaries and comparisons. |
 | Empty state | `.rw-empty-state`, `.rw-empty-panel` | Explicit absence, unavailable state, and recovery actions. |
 | Details | `.rw-record-detail`, `.rw-keywords`, `.property-grid`, collection mounts | Article, author, reference, and related-record content. |
+| Review layout | `.rw-article-split`, `.rw-article-split__pdf`, `.rw-article-split__review`, `.rw-review-panel`, `.rw-review-history` | Responsive article review and PDF columns, complete state form, inherited labels, and immutable history. |
+| Notes | `.rw-note-list`, `.rw-note-content`, `.rw-note-preview`, `.rw-note-history`, `.rw-note-link--unresolved`, `.rw-note-comparison`, `.rw-note-diff*` | Safe rendered notes, unresolved text treatment, drafts and history, bounded comparison, and added or removed lines. |
+| Anchors | `.rw-anchor-panel`, `.rw-anchor-list`, `.rw-anchor-history`, `.rw-pdf-anchor-layer`, `.rw-pdf-anchor-highlight` | Keyboard-operable anchor evidence, immutable history, and supplemental page highlights. |
+| PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar`, `.rw-pdf-pages`, `.rw-pdf-page`, `.textLayer` descendants | Sticky desktop reader, controls, bounded nearby pages, canvas, selectable text, and overlay stacking. |
 | Disclosure | `.rw-disclosure`, `.rw-filter-disclosure` | Keyboard-accessible expandable detail and filter content. |
 | Audit | `.rw-audit-*`, `.rw-event-facts`, `.rw-record-audit*` | Filtered event stream, facts, entities, and investigation controls. |
 | Artifacts | `.rw-artifact-*`, `.artifact-actions`, `.artifact-inspector-toolbar` | Artifact lists, bounded inspection, copy, and download actions. |
@@ -166,9 +170,10 @@ Dark mode maintains visible focus and semantic contrast and removes or reduces d
 
 ## 13. Responsive behavior
 
-The principal responsive boundaries are 1100px for dense analysis layouts and 720px for mobile navigation and stacked controls.
+The principal responsive boundaries are 70rem for the article review split, 1100px for other dense analysis layouts, and 720px for mobile navigation and stacked controls.
 
 - At or below 1100px, relationship layout becomes one column and its filter area stops using sticky positioning.
+- At or below 70rem, the article review and PDF split becomes one column and the PDF viewer stops using sticky positioning or a bounded viewport height.
 - At or below 720px, navigation uses the Menu control, context selectors stack, dashboard and record grids collapse, toolbars wrap, graph controls use available width, and the canvas height reduces.
 - Wide tables remain horizontally scrollable, and pagination controls wrap while retaining result summaries and boundary actions.
 - Responsive rules preserve labels, status meaning, disclosures, evidence, and actions rather than hiding content required for analysis.
@@ -180,6 +185,7 @@ The principal responsive boundaries are 1100px for dense analysis layouts and 72
 - Disabled buttons retain visible state and suppress pointer action without removing their labels.
 - Loading controls use visible state plus surrounding live or status content.
 - Labels, messages, selected rows, statuses, graph entities, and truncation use text, shapes, attributes, or borders in addition to color.
+- PDF anchor highlights are supplemental to a keyboard-operable textual list that names the anchor, page, current or inherited state, content availability, selected text, and history.
 - `prefers-reduced-motion` rules suppress unnecessary transitions and smooth behavior while preserving state changes.
 - Horizontal overflow is owned by tables and graph regions so keyboard focus and page layout remain usable.
 

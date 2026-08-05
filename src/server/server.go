@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"analysis/database"
 	"analysis/logging"
 
 	_ "modernc.org/sqlite"
@@ -35,6 +37,7 @@ var frontend embed.FS
 // read-only mode and query_only is set for every connection.
 type Server struct {
 	db       *sql.DB
+	writeDB  *database.Database
 	pdfDB    *sql.DB
 	pdfPath  string
 	tables   map[string]tableInfo
@@ -110,7 +113,18 @@ func Open(path string) (*Server, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := s.verifyReviewSchema(ctx); err != nil {
+		db.Close()
+		return nil, err
+	}
+	writeDB, err := database.OpenExisting(absolute)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("open metadata review connection: %w", err)
+	}
+	s.writeDB = writeDB
 	if err := s.openBoundPDFStore(ctx, filepath.Dir(absolute)); err != nil {
+		writeDB.Close()
 		db.Close()
 		return nil, err
 	}
@@ -119,13 +133,21 @@ func Open(path string) (*Server, error) {
 
 // Close releases resources owned by the receiver.
 func (s *Server) Close() error {
+	var first error
 	if s.pdfDB != nil {
 		if err := s.pdfDB.Close(); err != nil {
-			_ = s.db.Close()
-			return err
+			first = err
 		}
 	}
-	return s.db.Close()
+	if s.writeDB != nil {
+		if err := s.writeDB.Close(); err != nil && first == nil {
+			first = err
+		}
+	}
+	if err := s.db.Close(); err != nil && first == nil {
+		first = err
+	}
+	return first
 }
 
 // PDFStoreBound reports whether a readable companion PDF database is attached.
@@ -146,6 +168,22 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/cache-uses", s.runCacheUses)
 	mux.HandleFunc("GET /api/runs/{id}/corpus/{kind}", s.runCorpus)
 	mux.HandleFunc("GET /api/runs/{id}/evaluation", s.runEvaluation)
+	mux.HandleFunc("GET /api/runs/{run_id}/review-context", s.runReviewContext)
+	mux.HandleFunc("GET /api/runs/{run_id}/review-context-candidates", s.reviewContextCandidates)
+	mux.HandleFunc("POST /api/runs/{run_id}/review-context", s.createReviewContext)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/review", s.articleReview)
+	mux.HandleFunc("PUT /api/runs/{run_id}/articles/{work_revision_id}/review", s.updateArticleReview)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/review/versions", s.articleReviewVersions)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/notes", s.articleNotes)
+	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/notes", s.createArticleNote)
+	mux.HandleFunc("GET /api/runs/{run_id}/notes/{note_id}", s.note)
+	mux.HandleFunc("GET /api/runs/{run_id}/notes/{note_id}/versions", s.noteVersions)
+	mux.HandleFunc("POST /api/runs/{run_id}/notes/{note_id}/versions", s.createNoteVersion)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/anchors", s.articleAnchors)
+	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/anchors", s.createArticleAnchor)
+	mux.HandleFunc("GET /api/runs/{run_id}/anchors/{anchor_id}/versions", s.anchorVersions)
+	mux.HandleFunc("POST /api/runs/{run_id}/anchors/{anchor_id}/versions", s.createAnchorVersion)
+	mux.HandleFunc("GET /api/runs/{run_id}/links/backlinks", s.reviewBacklinks)
 	mux.HandleFunc("GET /api/runs/{id}/identity-evidence", s.runIdentityEvidence)
 	mux.HandleFunc("GET /api/runs/{id}/stages", s.runStages)
 	mux.HandleFunc("GET /api/audit", s.audit)
@@ -167,6 +205,36 @@ func (s *Server) Handler() http.Handler {
 	}
 	mux.Handle("GET /", http.FileServer(http.FS(assets)))
 	return withJSONErrors(mux)
+}
+
+// verifyReviewSchema rejects an unmigrated metadata database before writable controls are served.
+func (s *Server) verifyReviewSchema(ctx context.Context) error {
+	requiredTables := []string{
+		"pipeline_run_reviewers", "review_settings", "review_contexts", "work_review_versions",
+		"work_review_version_substatuses", "review_context_work_heads", "review_notes",
+		"review_note_versions", "review_context_note_heads", "review_note_links", "review_anchors",
+		"review_anchor_versions", "review_context_anchor_heads",
+	}
+	for _, table := range requiredTables {
+		if !s.hasTable(table) {
+			return fmt.Errorf("metadata database is missing review migration table %q; run analysis migrate --db <metadata.db>", table)
+		}
+	}
+	requiredTriggers := []string{
+		"review_contexts_abort_update", "review_contexts_abort_delete", "work_review_versions_abort_update",
+		"work_review_versions_abort_delete", "review_note_versions_abort_update", "review_note_versions_abort_delete",
+		"review_anchor_versions_abort_update", "review_anchor_versions_abort_delete",
+	}
+	for _, trigger := range requiredTriggers {
+		var count int
+		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?`, trigger).Scan(&count); err != nil {
+			return fmt.Errorf("inspect review migration triggers: %w", err)
+		}
+		if count != 1 {
+			return fmt.Errorf("metadata database is missing review migration trigger %q; run analysis migrate --db <metadata.db>", trigger)
+		}
+	}
+	return nil
 }
 
 // openBoundPDFStore resolves and opens the companion PDF database declared by metadata.
@@ -269,12 +337,28 @@ func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]
 func (s *Server) HTTPServer(addr string) *http.Server {
 	return &http.Server{
 		Addr:              addr,
-		Handler:           s.Handler(),
+		Handler:           enforceLoopbackAuthority(addr, s.Handler()),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       30 * time.Second,
 	}
+}
+
+// enforceLoopbackAuthority rejects invalid Host authorities before routing local viewer requests.
+func enforceLoopbackAuthority(authority string, next http.Handler) http.Handler {
+	expectedHost, expectedPort, expectedErr := net.SplitHostPort(authority)
+	expectedIP := net.ParseIP(expectedHost)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, port, err := net.SplitHostPort(r.Host)
+		ip := net.ParseIP(host)
+		if expectedErr != nil || expectedIP == nil || !expectedIP.IsLoopback() || err != nil || ip == nil ||
+			!ip.IsLoopback() || !ip.Equal(expectedIP) || port != expectedPort {
+			writeError(w, http.StatusBadRequest, "invalid_host", "request Host must match the bound loopback authority")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // discoverTables reads the SQLite schema and returns tables eligible for read-only browsing.
@@ -363,6 +447,7 @@ type apiError struct {
 	Error struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
+		Details any    `json:"details,omitempty"`
 	} `json:"error"`
 }
 
@@ -370,6 +455,7 @@ type apiError struct {
 type apiProblem struct {
 	Code, Message string
 	Status        int
+	Details       any
 }
 
 // Error returns the receiver's diagnostic message.
@@ -388,8 +474,8 @@ func notFound(message string) error {
 // withJSONErrors converts handler-returned errors into the server's JSON error response.
 func withJSONErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "read-only API accepts GET only")
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodPut {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "request method is not supported")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -405,9 +491,15 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 // writeError writes the stable JSON error envelope.
 func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeDetailedError(w, status, code, message, nil)
+}
+
+// writeDetailedError writes the stable JSON error envelope with optional structured details.
+func writeDetailedError(w http.ResponseWriter, status int, code, message string, details any) {
 	var response apiError
 	response.Error.Code = code
 	response.Error.Message = message
+	response.Error.Details = details
 	writeJSON(w, status, response)
 }
 
@@ -419,7 +511,7 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, value any, err 
 	}
 	var problem *apiProblem
 	if errors.As(err, &problem) {
-		writeError(w, problem.Status, problem.Code, problem.Message)
+		writeDetailedError(w, problem.Status, problem.Code, problem.Message, problem.Details)
 		return
 	}
 	log.Error("viewer request failed", "path", r.URL.Path, "error", err)

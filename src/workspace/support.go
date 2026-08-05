@@ -166,6 +166,10 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 	if err != nil {
 		return 0, err
 	}
+	if err := db.PipelineRunReviewers.Insert(runID, run.Reviewer.Username, run.Reviewer.Email); err != nil {
+		finishPipelineRun(db, runID, "failed", err.Error())
+		return 0, err
+	}
 	if err := db.Metrics.Set(runID, "enrichment_enabled", "", BoolMetric(run.Manifest.EnrichmentEnabled)); err != nil {
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err

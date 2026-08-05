@@ -1,8 +1,8 @@
 # Research Analysis
 
-A Go-based research-corpus pipeline that turns Scopus, IEEE Xplore, and Web of Science exports into an immutable, provenance-rich SQLite corpus, with a local read-only web viewer for browsing works, relationships, provenance, and evaluation evidence.
+A Go-based research-corpus pipeline that turns Scopus, IEEE Xplore, and Web of Science exports into an immutable, provenance-rich SQLite corpus, with a loopback-only local viewer for browsing pipeline evidence and recording run-scoped article reviews, versioned notes, links, and PDF anchors.
 
-The pipeline parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates and normalizes metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, and append-only audit events. The same binary serves the embedded viewer over an existing metadata database.
+The pipeline parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates and normalizes metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, and append-only audit events. The same binary serves the embedded viewer over an existing migrated metadata database; pipeline evidence remains immutable while local review changes append immutable versions and move only run-context heads.
 
 ## Requirements
 
@@ -49,10 +49,17 @@ make run
 Serve the viewer over an existing metadata database:
 
 ```sh
+make migrate DB=corpus.metadata.db
 make serve DB=corpus.metadata.db
 ```
 
-Open http://127.0.0.1:8080 in a browser. `make dev` serves a bundled fixture database with filesystem assets for local exploration. See [docs/APP-USAGE.md](docs/APP-USAGE.md) for viewer navigation and data interpretation.
+Open http://127.0.0.1:8080 in a browser. The writable viewer rejects non-loopback addresses, opens metadata through separate read and review connections, and keeps the companion PDF database read-only. `make dev` serves a disposable copy of the generated fixture pair so manual review cannot contaminate the base fixture. See [docs/APP-USAGE.md](docs/APP-USAGE.md) for review contexts, note syntax, PDF anchors, navigation, and data interpretation.
+
+Create a new sanitized OSF bundle without changing the source databases or configuration:
+
+```sh
+make prepare-to-osf DB=corpus.metadata.db CONFIG=config/workspace.something OUT=build/osf-export
+```
 
 ## License
 

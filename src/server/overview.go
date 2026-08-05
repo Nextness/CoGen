@@ -108,7 +108,14 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	err := s.db.PingContext(ctx)
-	s.respond(w, r, map[string]any{"readable": err == nil, "table_count": len(s.tables), "tables": s.tableNames()}, err)
+	corpusID := ""
+	if err == nil {
+		corpusID, err = s.writeDB.Reviews.CorpusID(ctx)
+	}
+	s.respond(w, r, map[string]any{
+		"readable": err == nil, "table_count": len(s.tables), "tables": s.tableNames(),
+		"corpus_id": corpusID, "review": map[string]any{"available": err == nil, "metadata_writable": err == nil, "pdf_store_read_only": true},
+	}, err)
 }
 
 // tableNames returns discovered table names in deterministic order.

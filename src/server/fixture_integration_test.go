@@ -495,13 +495,15 @@ func TestGenerateFixture(t *testing.T) {
 	if err := rows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pdfs.Add(ctx, "10.1000/1", 1, []byte("%PDF-1.7\nfixture full text")); err != nil {
+	if _, err := pdfs.Add(ctx, "10.1000/1", 1, deterministicFixturePDF("Selectable fixture methods on page one", "Selectable fixture conclusions on page two")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pdfs.DB.Exec(`UPDATE pdf_documents
 		SET inventoried_at='2024-01-20T10:25:00Z', updated_at='2024-01-20T10:25:00Z'
 		WHERE doi='10.1000/1';
-		UPDATE pdf_audit_outbox SET occurred_at='2024-01-20T10:25:00Z'`); err != nil {
+		UPDATE pdf_audit_outbox SET occurred_at='2024-01-20T10:25:00Z',
+			event_key='fixture-pdf-' || action || '-' || entity_id,
+			correlation_id='fixture-pdf-' || action || '-' || entity_id`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pdfs.FlushAuditOutbox(ctx, db.DB); err != nil {

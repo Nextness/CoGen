@@ -6,8 +6,18 @@ import {
 import { api } from '../api.js';
 import { pagination } from '../components/pagination.js';
 import { bindRecordAuditInvestigation, recordAuditInvestigation } from '../components/audit-events.js';
+import { mountArticleReview } from '../components/review-panel.js';
 
 const collectionState = new Map();
+let activeArticleReview = null;
+
+/** Releases the article review and PDF lifecycle before another SPA view renders. */
+export async function destroyActiveArticleReview() {
+  if (activeArticleReview) {
+    await activeArticleReview.destroy();
+    activeArticleReview = null;
+  }
+}
 
 /** Returns a context-preserving link to a related detail record. */
 function detailLink(kind, id) {
@@ -283,9 +293,10 @@ function articleView(record, data) {
   const pdfPanel = pdfStatusPanel(record, pdf);
 
   return summary
-    + pdfPanel
+    + '<div class="rw-article-split"><div class="rw-article-split__pdf">' + pdfPanel + '<div data-pdf-viewer-host></div></div>'
+    + '<div class="rw-article-split__review"><div data-review-host></div>'
     + panel('Provenance summary', 'Where this revision came from and how it was captured.', provenance, 'rw-detail-section')
-    + bibliography
+    + bibliography + '</div></div>'
     + '<div data-detail-collection-host="article-authors"></div>'
     + '<div data-detail-collection-host="article-references"></div>'
     + '<div data-detail-collection-host="article-stage-outcomes"></div>'
@@ -374,6 +385,7 @@ function referenceView(record) {
 
 /** Asynchronously implements detail view for the viewer. */
 export async function detailView(kind) {
+  await destroyActiveArticleReview();
   const labels = { article: 'Article revision', author: 'Author occurrence', reference: 'Reference mention' };
   var idKey = kind + '_id';
   const id = value(idKey);
@@ -432,6 +444,14 @@ export async function detailView(kind) {
       { label: 'First recorded', render: function(row) { return recorded(formatTime(row.created_at)); } },
       { label: 'Last updated', render: function(row) { return recorded(formatTime(row.updated_at)); } },
     ], list(data.stage_outcomes, ['rows', 'items']));
+    if (Number(record.id) > 0 && Number(record.work_id) > 0 && Number(record.pipeline_run_id) > 0) {
+      activeArticleReview = await mountArticleReview(
+        document.querySelector('[data-review-host]'),
+        document.querySelector('[data-pdf-viewer-host]'),
+        record,
+        data
+      );
+    }
   }
   if (kind === 'author') {
     mountCollection('author-articles', 'Linked article revisions', 'Articles that contain this observed author occurrence.', [

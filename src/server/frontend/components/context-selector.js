@@ -315,7 +315,7 @@ export async function hydrateSelectors() {
     const run = selectedRun();
     var summary;
     if (run) {
-      summary = 'Inspecting run attempt ' + pickID(run) + ' (' + (run.status || 'recorded') + '). All values are read-only evidence.';
+      summary = 'Inspecting run attempt ' + pickID(run) + ' (' + (run.status || 'recorded') + '). Pipeline evidence is immutable; completed runs may have local review versions.';
     } else {
       summary = 'Choose a run attempt to inspect its captured metrics, corpus, and provenance.';
     }

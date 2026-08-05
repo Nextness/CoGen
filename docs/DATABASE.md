@@ -6,7 +6,7 @@ This document describes the current SQLite schema after every configured migrati
 
 The authoritative schema sources are [config/database.something](../config/database.something), [config/database.corpus.metadata.something](../config/database.corpus.metadata.something), [config/database.corpus.pdf.something](../config/database.corpus.pdf.something), [migrations/corpus.metadata/](../migrations/corpus.metadata/), and [migrations/corpus.pdf/](../migrations/corpus.pdf/). Repository code under [src/database/](../src/database/) and [src/pdfstore/](../src/pdfstore/) is authoritative for application-level validation and update behavior that SQLite does not encode.
 
-The metadata database contains 27 application tables plus `schema_migrations`. The PDF database contains five application tables plus its independent `schema_migrations`. SQLite also creates the internal `sqlite_sequence` table for `AUTOINCREMENT` keys; it is implementation state rather than a project table and is not part of the documented application contract.
+The metadata database contains 40 application tables plus `schema_migrations`. The PDF database contains five application tables plus its independent `schema_migrations`. SQLite also creates the internal `sqlite_sequence` table for `AUTOINCREMENT` keys; it is implementation state rather than a project table and is not part of the documented application contract.
 
 In the column summaries below, `NULL` means the column is nullable, and a default is shown only when the DDL declares one. A column without an explicit `DEFAULT` has no SQL default even when repository code normally supplies a value. `PK` means primary key, `FK` means foreign key, and all foreign keys use SQLite's default `NO ACTION` behavior because the migrations declare no cascading action.
 
@@ -14,14 +14,14 @@ In the column summaries below, `NULL` means the column is nullable, and a defaul
 
 | Database | Normal filename | Migration chain | Owner | Current role |
 |---|---|---|---|---|
-| Metadata | `corpus.metadata.db` | V00001-V00021 under `migrations/corpus.metadata/` | `src/database/` and `src/workspace/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, artifacts, cache, metrics, audit, and the PDF-store binding. |
+| Metadata | `corpus.metadata.db` | V00001-V00024 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
 | PDF | `corpus.pdf.db` | V00001-V00002 under `migrations/corpus.pdf/` | `src/pdfstore/` | Portable companion inventory for normalized DOIs, content-addressed validated PDF bytes, and cross-database audit delivery. |
 
 `config/database.something` selects the two migration configurations independently. Writable opening creates the parent directory, enables WAL, sets a 5,000 millisecond busy timeout, enables foreign keys on every pooled connection, and applies configured migrations in SOMETHING declaration order. Tracking-table creation and each individual migration use `BEGIN IMMEDIATE` to serialize concurrent schema changes.
 
 Migration identity is the filename. An already recorded filename is skipped, and its stored checksum is not revalidated on later opens. The `previous` and `upgrade` configuration fields document chain adjacency but do not determine execution order. There is no runtime downgrade command even though migration files contain `-- ==DOWN==` sections.
 
-The viewer opens an existing metadata database with `mode=ro` and `query_only`, never creates a database, and never applies migrations. If `pdf_store_binding` exists and is valid, the viewer opens the companion PDF database read-only as well.
+The viewer opens an existing metadata database with one `mode=ro` and `query_only` connection for evidence reads and one existing-only `mode=rw` single connection for review repositories. It never creates a database, never applies migrations, verifies required review tables and append-only triggers during startup, and opens the valid bound companion PDF database read-only.
 
 Metadata and PDF files form one portable bundle after PDF inventory begins. `pdf_store_binding.relative_path` is resolved relative to the metadata database directory, while `works.doi`, `pdf_documents.doi`, and `pdf_audit_outbox.pipeline_run_id` are cross-file logical references that SQLite cannot enforce as foreign keys.
 
@@ -39,6 +39,7 @@ pipeline_runs 1 ----< run_artifacts >---- 1 artifacts
 pipeline_runs 1 ----< pipeline_run_metrics
 pipeline_runs 1 ----< audit_events
 pipeline_runs 1 ----< run_cache_uses >---- 1 cache_entries >---- 0..1 artifacts
+pipeline_runs 1 ---- 1 pipeline_run_reviewers
 ```
 
 `searches`, `search_revisions`, and `execution_plans` define reusable intent and exact execution identity. `pipeline_runs` records numbered attempts. Every run-owned evidence table points back to the attempt directly or through another run-owned row, while content-addressed artifacts and cache entries may be shared across attempts.
@@ -64,7 +65,20 @@ pipeline_runs 1 ----< work_revisions >---- 1 works
 
 `works` supplies stable identity, while `work_revisions` supplies immutable stage snapshots. Authorships and reference mentions belong to a specific revision rather than directly to a work. Stage outcomes belong to the run and work so discarded or failed processing remains inspectable without manufacturing an accepted revision.
 
-### 3.3 Companion PDF inventory and audit delivery
+### 3.3 Run-scoped review contexts and immutable versions
+
+```text
+pipeline_runs 1 ---- 0..1 review_contexts ---- 0..1 parent review_contexts
+review_contexts 1 ----< review_context_work_heads >---- 0..1 work_review_versions ---- 0..1 parent version
+review_contexts 1 ----< review_context_note_heads >---- 1 review_note_versions ---- 0..1 parent version
+review_notes 1 ----< review_note_versions 1 ----< review_note_links
+review_contexts 1 ----< review_context_anchor_heads >---- 1 review_anchor_versions ---- 0..1 parent version
+review_anchors 1 ----< review_anchor_versions
+```
+
+One explicitly initialized context belongs to one completed non-trashed run. Initialization copies only parent version IDs for stable work matches; bodies and geometry are not duplicated, and later parent edits do not propagate. Review, note, and anchor version tables are immutable, while the three head tables move only through optimistic repository transactions that also append an `audit_events` row. Notes and anchors use tombstone child versions instead of physical deletion.
+
+### 3.4 Companion PDF inventory and audit delivery
 
 ```text
 metadata database                                      PDF database
@@ -127,6 +141,18 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 - Purpose: Stores one execution attempt, its lifecycle, and its reversible visibility state.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `step TEXT NOT NULL`; `started_at TEXT NOT NULL`; `finished_at TEXT NULL`; `status TEXT NOT NULL DEFAULT 'running'`; `summary TEXT NULL`; `search_query TEXT NULL`; `execution_plan_id INTEGER NULL FK execution_plans.id`; `attempt_number INTEGER NULL`; `visibility_state TEXT NOT NULL DEFAULT 'active'`; `trashed_at TEXT NULL`; `trash_reason TEXT NULL`; `created_at TEXT NULL DEFAULT datetime('now')`; `UNIQUE(execution_plan_id, attempt_number)` through an explicit unique index.
 - Relationships and expectations: Current attempts link to a plan and receive a positive per-plan attempt number atomically; nullable plan and attempt fields support the lower-level unplanned run entry point. Repository-accepted statuses are `running`, `completed`, and `failed`; terminal states set `finished_at`. Visibility vocabulary is `active`, `archived`, and `trashed`; trash and restore update the timestamp and reason consistently. The schema does not check those vocabularies.
+
+#### `pipeline_run_reviewers`
+
+- Purpose: Captures the optional reviewer display identity configured for one pipeline attempt, including failed attempts.
+- Columns and defaults: `pipeline_run_id INTEGER PK FK pipeline_runs.id`; `username TEXT NOT NULL DEFAULT '' CHECK length <= 200`; `email TEXT NOT NULL DEFAULT '' CHECK length <= 320`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: V00022 backfills one empty row for every existing run, and workspace creation inserts one row immediately after starting a new attempt. Supported code never updates reviewer identity. Empty or OSF-redacted values render as `Anonymous or redacted`; email is attribution text and is not syntax-validated or copied into review audit metadata.
+
+#### `review_settings`
+
+- Purpose: Stores one persistent opaque corpus identity used to namespace browser-local review drafts.
+- Columns and defaults: `id INTEGER PK CHECK id = 1`; `corpus_id TEXT NOT NULL UNIQUE CHECK length = 32`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: V00022 inserts the singleton with 16 random bytes encoded as lowercase hexadecimal. The normal runtime reads but does not rotate it. Copy-only OSF preparation changes only the copied corpus ID so source and export drafts cannot share a key.
 
 ### 5.2 Source ingestion evidence
 
@@ -194,7 +220,7 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 
 #### `audit_events`
 
-- Purpose: Stores the append-only audit stream for pipeline, enrichment, validation, lifecycle, and delivered PDF events.
+- Purpose: Stores the append-only audit stream for pipeline, enrichment, validation, lifecycle, delivered PDF, and local review events.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `occurred_at TEXT NOT NULL`; `actor TEXT NOT NULL`; `pipeline_run_id INTEGER NULL FK pipeline_runs.id`; `entity_type TEXT NOT NULL`; `entity_id TEXT NOT NULL`; `action TEXT NOT NULL`; `before_json TEXT NULL`; `after_json TEXT NULL`; `metadata_json TEXT NULL`; `correlation_id TEXT NULL`.
 - Relationships and expectations: Update and delete triggers make every row append-only. Repository insertion validates actions against the manifest vocabulary; the JSON-shaped columns are not checked with `json_valid`. `pipeline_run_id` may be `NULL` for events outside an attempt, and correlation IDs support tracing but are not unique.
 
@@ -276,6 +302,74 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 - Columns and defaults: `event_key TEXT PK`; `audit_event_id INTEGER NOT NULL FK audit_events.id`; `created_at TEXT NOT NULL`.
 - Relationships and expectations: `event_key` logically equals `pdf_audit_outbox.event_key` in the companion database, but cross-file foreign keys are impossible. The primary key prevents duplicate audit insertion when delivery is retried; link insertion and the referenced metadata audit event commit together.
 
+### 5.7 Review contexts, heads, and immutable versions
+
+#### `review_contexts`
+
+- Purpose: Associates one explicitly initialized researcher interpretation context with one pipeline run and optional frozen parent lineage.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `pipeline_run_id INTEGER NOT NULL UNIQUE FK pipeline_runs.id`; `parent_context_id INTEGER NULL FK review_contexts.id`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: Update and delete triggers make rows append-only. Repository creation requires a completed non-trashed target run, an earlier eligible parent when supplied, and no cycle. One run has at most one context.
+
+#### `work_review_versions`
+
+- Purpose: Stores immutable complete article-review states for stable work identity and the exact run revision used to create the state.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `work_id INTEGER NOT NULL FK works.id`; `work_revision_id INTEGER NOT NULL FK work_revisions.id`; `created_in_context_id INTEGER NOT NULL FK review_contexts.id`; `parent_version_id INTEGER NULL FK work_review_versions.id`; `status TEXT NOT NULL CHECK IN ('not_evaluated', 'in_progress', 'approved', 'not_approved', 'removed')`; `reason TEXT NULL CHECK length <= 32768`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: Update and delete triggers enforce immutability. Every child points to the selected context's prior head, identical saves are no-ops, and the repository validates context, work, exact revision, expected version, and sub-status compatibility.
+
+#### `work_review_version_substatuses`
+
+- Purpose: Stores the canonical multi-select sub-status set for one immutable work review version.
+- Columns and defaults: `review_version_id INTEGER NOT NULL FK work_review_versions.id`; `sub_status TEXT NOT NULL` checked against `redacted`, `unrelated`, `out_of_scope`, `duplicate`, `retracted`, `withdrawn`, `superseded`, `predatory_low_quality`, `copyright_licensing`, and `not_peer_reviewed`; `PK(review_version_id, sub_status)`.
+- Relationships and expectations: Update and delete triggers enforce immutability. Repository code rejects duplicates, sorts values, and permits a nonempty set only for `not_approved` or `removed`.
+
+#### `review_context_work_heads`
+
+- Purpose: Maps every normalized work in a review context to that run's exact revision and optional current immutable review version.
+- Columns and defaults: `review_context_id INTEGER NOT NULL FK review_contexts.id`; `work_id INTEGER NOT NULL FK works.id`; `work_revision_id INTEGER NOT NULL FK work_revisions.id`; `review_version_id INTEGER NULL FK work_review_versions.id`; `PK(review_context_id, work_id)`; `UNIQUE(review_context_id, work_revision_id)`.
+- Relationships and expectations: A null version means the default `not_evaluated` state has never been explicitly saved. Initialization materializes one row per selected-run normalized work and reuses the parent's current version ID for stable work matches. Repository compare-and-swap updates are the supported mutation path.
+
+#### `review_notes`
+
+- Purpose: Supplies stable numeric identity and stable work ownership for one logical review note.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `work_id INTEGER NOT NULL FK works.id`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: Update and delete triggers enforce append-only identity. Logical removal is represented by a deleted `review_note_versions` child rather than deleting this row.
+
+#### `review_note_versions`
+
+- Purpose: Stores immutable active note bodies and deletion tombstones.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `note_id INTEGER NOT NULL FK review_notes.id`; `parent_version_id INTEGER NULL FK review_note_versions.id`; `created_in_context_id INTEGER NOT NULL FK review_contexts.id`; `state TEXT NOT NULL CHECK IN ('active', 'deleted')`; `body TEXT NULL`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; state/body check requiring a nonblank active body and null deleted body.
+- Relationships and expectations: Update and delete triggers enforce immutability. Repository and request validation cap bodies at 262,144 UTF-8 bytes. Edits, tombstones, and restoration all append children using the expected current head.
+
+#### `review_context_note_heads`
+
+- Purpose: Selects one immutable note version for each logical note visible in a review context.
+- Columns and defaults: `review_context_id INTEGER NOT NULL FK review_contexts.id`; `note_id INTEGER NOT NULL FK review_notes.id`; `note_version_id INTEGER NOT NULL FK review_note_versions.id`; `PK(review_context_id, note_id)`.
+- Relationships and expectations: Initialization reuses parent head IDs for notes whose stable work exists in the child, including tombstones. Repository compare-and-swap updates are the supported mutation path.
+
+#### `review_note_links`
+
+- Purpose: Stores version-scoped parsed links and exact UTF-16 source positions without treating missing targets as invalid syntax.
+- Columns and defaults: `note_version_id INTEGER NOT NULL FK review_note_versions.id`; `ordinal INTEGER NOT NULL CHECK >= 1`; `target_type TEXT NOT NULL CHECK IN ('note', 'article', 'pdf_page', 'anchor', 'ext')`; `raw_target TEXT NOT NULL CHECK length <= 2048`; `display_text TEXT NULL CHECK length <= 1024`; `utf16_position INTEGER NOT NULL CHECK >= 0`; `utf16_length INTEGER NOT NULL CHECK > 0`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; `PK(note_version_id, ordinal)`.
+- Relationships and expectations: Update and delete triggers enforce immutability. Resolution occurs against the selected context when a note is read, so a missing note, DOI, page, or anchor may resolve later without rewriting this row.
+
+#### `review_anchors`
+
+- Purpose: Supplies corpus-unique text identity and stable work ownership for one logical PDF anchor.
+- Columns and defaults: `id TEXT PK`; `work_id INTEGER NOT NULL FK works.id`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: Update and delete triggers enforce append-only identity. Repository IDs match `[A-Za-z][A-Za-z0-9._-]{0,63}`; logical removal uses a deleted version.
+
+#### `review_anchor_versions`
+
+- Purpose: Stores immutable content-hash-bound PDF geometry or a deletion tombstone for one logical anchor.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `anchor_id TEXT NOT NULL FK review_anchors.id`; `parent_version_id INTEGER NULL FK review_anchor_versions.id`; `created_in_context_id INTEGER NOT NULL FK review_contexts.id`; `work_revision_id INTEGER NOT NULL FK work_revisions.id`; `pdf_content_hash TEXT NOT NULL CHECK length = 64`; `state TEXT NOT NULL CHECK IN ('active', 'deleted')`; nullable `page INTEGER`, `selected_text TEXT`, and `rectangles_json TEXT`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; state check requiring active geometry or null tombstone geometry.
+- Relationships and expectations: Update and delete triggers enforce immutability. Repository validation caps selected text at 16,384 UTF-8 bytes and accepts one through 64 finite normalized positive rectangles on one page. A content-hash mismatch remains history but cannot be projected onto different PDF bytes.
+
+#### `review_context_anchor_heads`
+
+- Purpose: Selects one immutable anchor version for each logical anchor visible in a review context.
+- Columns and defaults: `review_context_id INTEGER NOT NULL FK review_contexts.id`; `anchor_id TEXT NOT NULL FK review_anchors.id`; `anchor_version_id INTEGER NOT NULL FK review_anchor_versions.id`; `PK(review_context_id, anchor_id)`.
+- Relationships and expectations: Initialization reuses parent head IDs for matching stable works, including tombstones. Repository compare-and-swap updates are the supported mutation path.
+
 ## 6. PDF database tables
 
 ### 6.1 Migration state
@@ -329,6 +423,8 @@ Primary keys and `UNIQUE` constraints create SQLite autoindexes. The following t
 | Database table | Explicit secondary indexes | Triggers |
 |---|---|---|
 | Metadata `pipeline_runs` | Unique `(execution_plan_id, attempt_number)` | None |
+| Metadata `pipeline_run_reviewers` | None | None; supported code inserts once and never updates identity |
+| Metadata `review_settings` | None | None; normal runtime reads only and OSF sanitization rotates only the copied corpus ID |
 | Metadata `search_revisions` | `search_id` | None |
 | Metadata `execution_plans` | `execution_fingerprint`, `input_manifest_hash`, `enrichment_enabled` | None |
 | Metadata `source_records` | `run_source_id`, `content_hash` | None |
@@ -348,6 +444,17 @@ Primary keys and `UNIQUE` constraints create SQLite autoindexes. The following t
 | Metadata `reference_mentions` | `work_revision_id`, `resolved_work_id` | Reject update and delete |
 | Metadata `cache_entries` | `expires_at`, `payload_artifact_id` | None |
 | Metadata `run_cache_uses` | `pipeline_run_id`, `cache_entry_id` | None |
+| Metadata `review_contexts` | `parent_context_id` | Reject update and delete |
+| Metadata `work_review_versions` | `(work_id, id)`, `parent_version_id`, `(created_in_context_id, id)` | Reject update and delete |
+| Metadata `work_review_version_substatuses` | None | Reject update and delete |
+| Metadata `review_context_work_heads` | `review_version_id` | None; repository compare-and-swap updates are supported |
+| Metadata `review_notes` | None | Reject update and delete |
+| Metadata `review_note_versions` | `(note_id, id)`, `parent_version_id` | Reject update and delete |
+| Metadata `review_context_note_heads` | `note_version_id` | None; repository compare-and-swap updates are supported |
+| Metadata `review_note_links` | `(target_type, raw_target, note_version_id)` | Reject update and delete |
+| Metadata `review_anchors` | `(work_id, id)` | Reject update and delete |
+| Metadata `review_anchor_versions` | `(anchor_id, id)`, `parent_version_id` | Reject update and delete |
+| Metadata `review_context_anchor_heads` | `anchor_version_id` | None; repository compare-and-swap updates are supported |
 | PDF `pdf_blobs` | None | Reject update |
 | PDF `pdf_documents` | None | None |
 | PDF `pdf_download_attempts` | `(gather_run_id, id)`, `(doi, id)`, `(source, outcome)` | Reject update and delete |
@@ -363,7 +470,9 @@ Tables omitted from this index table have no explicit named secondary index and 
 4. Exact observed ORCID values may establish `people`; raw author observations remain in `author_occurrences`, and uncertain provider name matches remain isolated in resolution and candidate evidence until explicitly confirmed or rejected.
 5. Cache payloads use the shared artifact store, cache identity remains stable across upserts, and `run_cache_uses` records which attempt and layer used each result.
 6. A normalized work DOI is registered in `pdf_documents`; a validated manual PDF is stored in `pdf_blobs`; outbox delivery mirrors the mutation into metadata `audit_events` without requiring a transaction spanning both database files.
-7. Normal operators and the viewer treat stored corpus evidence as read-only. Schema migrations are append-only files, immutable table corrections create new rows, and parent deletion requires explicit dependency-aware repository behavior because no foreign key cascades.
+7. Each attempt stores one optional reviewer identity row. Starting review explicitly creates at most one context for a completed non-trashed run, freezes selected parent heads for stable work matches, and makes the reviewed run and its lineage purge-ineligible.
+8. Review changes require an available PDF, append immutable review, note, or anchor versions, compare-and-swap only the selected context head, and append identifier-only audit metadata in the same metadata transaction. The viewer never writes the PDF database.
+9. Normal operators and the viewer treat stored pipeline corpus evidence as read-only. Schema migrations are append-only files, immutable table corrections create new rows, and parent deletion requires explicit dependency-aware repository behavior because no foreign key cascades.
 
 ## 9. Schema change checklist
 

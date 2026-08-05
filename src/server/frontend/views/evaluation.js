@@ -3,7 +3,7 @@ import {
   app, esc, value, link, pageSizes, pageHeader, emptyState,
   statusChip, humanLabel, formatTime, filterChips
 } from '../state.js';
-import { api } from '../api.js';
+import { api, mutate } from '../api.js';
 import { dataTable, bindTableControls } from '../components/data-table.js';
 import { bindFocusContext } from '../router.js';
 
@@ -85,9 +85,14 @@ export async function evaluationView() {
         label: 'Inventory Status',
         render: function(row) { return statusChip(humanLabel(row.inventory_status)); }
       },
-      inventoried_at: { label: 'Inventoried at', className: 'col-captured-at', render: inventoriedTime }
+      inventoried_at: { label: 'Inventoried at', className: 'col-captured-at', render: inventoriedTime },
+      review_status: { label: 'Review status', render: function(row) { return statusChip(humanLabel(row.review_status || 'not_evaluated')); } },
+      review_inherited: { label: 'Review source', render: function(row) { return row.review_inherited ? '<span class="ui label">Inherited</span>' : '<span class="ui faded text">This context</span>'; } }
     }
   });
+
+  const reviewInitialized = (data.rows || []).some(function(row) { return row.review_context_initialized; });
+  const startReview = reviewInitialized ? '' : '<button type="button" class="ui primary button" data-start-evaluation-review>Start review</button>';
 
   app.innerHTML = pageHeader(
     'Reading inventory',
@@ -95,7 +100,15 @@ export async function evaluationView() {
     'Review every normalized article in the selected run and whether its PDF has been manually inventoried.'
   ) + '<section class="ui segment rw-data-section"><div class="ui top attached header"><div>'
     + '<h3>Normalized article inventory</h3><p>Available PDFs were validated and added through the manual PDF-store tool.</p>'
-    + '</div></div><div class="content">' + controls + filters + table + '</div></section>';
+    + '</div>' + startReview + '</div><div class="content">' + controls + filters + table + '</div></section>';
 
   bindTableControls('evaluation', page);
+  document.querySelector('[data-start-evaluation-review]')?.addEventListener('click', async function() {
+    const context = await api('/api/runs/' + encodeURIComponent(runID) + '/review-context');
+    const proposed = context.proposed_parent;
+    const prompt = proposed ? `Start review by inheriting ${proposed.inherited_work_count} matching work heads from run ${proposed.pipeline_run_id}?` : 'Start an empty review context for this run?';
+    if (!window.confirm(prompt)) return;
+    await mutate('/api/runs/' + encodeURIComponent(runID) + '/review-context', 'POST', { parent_context_id: proposed?.context_id || null });
+    await evaluationView();
+  });
 }

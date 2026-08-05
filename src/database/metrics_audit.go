@@ -309,6 +309,10 @@ type PurgeEligibility struct {
 	// ReusedByCount is the number of other runs that reuse one or more stages
 	// from this run.
 	ReusedByCount int `json:"reused_by_count"`
+	// OwnedReviewContextCount is the number of review contexts initialized for this run.
+	OwnedReviewContextCount int `json:"owned_review_context_count"`
+	// DependentReviewContextCount is the number of child contexts inheriting directly or indirectly from this run's context.
+	DependentReviewContextCount int `json:"dependent_review_context_count"`
 }
 
 // CheckPurgeEligibility verifies that no other run shares artifacts or reusable
@@ -360,12 +364,28 @@ func (r *PipelineRunRepository) CheckPurgeEligibility(runID int64) (*PurgeEligib
 		return nil, fmt.Errorf("check reused by count: %w", err)
 	}
 
-	eligible := sharedArtifactCount == 0 && reusedByCount == 0
+	var ownedReviewContexts int
+	if err := r.db.DB.QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id=?", runID).Scan(&ownedReviewContexts); err != nil {
+		return nil, fmt.Errorf("check owned review contexts: %w", err)
+	}
+	var dependentReviewContexts int
+	if err := r.db.DB.QueryRow(`WITH RECURSIVE descendants(id) AS (
+		SELECT child.id FROM review_contexts root JOIN review_contexts child ON child.parent_context_id=root.id
+		WHERE root.pipeline_run_id=?
+		UNION ALL
+		SELECT child.id FROM review_contexts child JOIN descendants parent ON child.parent_context_id=parent.id
+	) SELECT COUNT(*) FROM descendants`, runID).Scan(&dependentReviewContexts); err != nil {
+		return nil, fmt.Errorf("check dependent review contexts: %w", err)
+	}
+
+	eligible := sharedArtifactCount == 0 && reusedByCount == 0 && ownedReviewContexts == 0 && dependentReviewContexts == 0
 
 	pe := &PurgeEligibility{
-		Eligible:            eligible,
-		SharedArtifactCount: sharedArtifactCount,
-		ReusedByCount:       reusedByCount,
+		Eligible:                    eligible,
+		SharedArtifactCount:         sharedArtifactCount,
+		ReusedByCount:               reusedByCount,
+		OwnedReviewContextCount:     ownedReviewContexts,
+		DependentReviewContextCount: dependentReviewContexts,
 	}
 	lg.Debug("purge eligibility check successful",
 		"run_id", runID, "eligible", eligible,

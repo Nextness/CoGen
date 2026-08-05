@@ -8,7 +8,7 @@ import { provenanceView } from './views/provenance.js';
 import { evaluationView } from './views/evaluation.js';
 import { advancedView } from './views/advanced.js';
 import { trashView } from './views/trash.js';
-import { detailView } from './views/detail.js';
+import { detailView, destroyActiveArticleReview } from './views/detail.js';
 import { destroyGraph } from './components/graph.js';
 
 /** Replaces the current URL state without triggering a navigation reload. */
@@ -89,6 +89,7 @@ export async function render() {
   const sequence = ++state.request;
   syncPrimaryNavigation(view());
   destroyGraph();
+  await destroyActiveArticleReview();
 
   if (state.controller) {
     state.controller.abort();

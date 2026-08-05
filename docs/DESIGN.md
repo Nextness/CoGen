@@ -4,17 +4,18 @@
 
 This document is the implemented design reference for the local research workspace viewer. It defines current information architecture, interactions, visual language, responsive behavior, accessibility expectations, content rules, and acceptance criteria. [ARCHITECTURE.md](ARCHITECTURE.md) owns implementation structure, [CSS-REFERENCE.md](CSS-REFERENCE.md) owns active stylesheet details, [APP-USAGE.md](APP-USAGE.md) explains the user experience, [PROJECT-USAGE.md](PROJECT-USAGE.md) explains developer and operator workflows, and [STANDARDS.md](STANDARDS.md) defines frontend change rules.
 
-The viewer is an inspection interface for historical research runs. It does not execute the pipeline, modify corpus records, restore or purge runs, add PDFs, or resolve identity candidates. Every screen must make that read-only boundary obvious.
+The viewer inspects historical research runs and records local run-scoped interpretations. It does not execute the pipeline, modify pipeline corpus records, restore or purge runs, add PDFs, or resolve identity candidates. Every screen distinguishes immutable pipeline evidence from append-only review versions and mutable context heads.
 
 ## 2. Product goals
 
 - Preserve research context across every navigation action so users always know which search, revision, execution plan, and run attempt they are inspecting.
 - Separate evidence captured during execution from values derived from the database at view time.
 - Make provenance, validation, cache use, identity uncertainty, and PDF inventory status inspectable without requiring direct SQL.
+- Let a user explicitly initialize one review context for a completed run, confirm lineage, record complete article status, compare immutable note history, follow resolved links, and create content-hash-bound PDF anchors without changing earlier run contexts.
 - Keep large corpora, audit streams, artifacts, and relationship graphs bounded and navigable.
 - Use semantic HTML, visible focus, text alternatives, and table equivalents so essential information is not encoded only through color or graphics.
 - Work from embedded local assets with no CDN or application-framework dependency.
-- Preserve privacy by default through loopback serving, read-only database access, bounded previews, and explicit warnings about external exposure.
+- Preserve privacy through mandatory loopback serving, existing-only metadata writes, a read-only PDF database, bounded mutation and preview inputs, escaped content, and no authentication claims.
 
 ## 3. Design principles
 
@@ -24,7 +25,7 @@ The interface must state whether a number was recorded by the pipeline or derive
 
 ### 3.2 Context is persistent state
 
-The canonical research context is `search_id`, `search_revision_id`, `plan_id`, and `run_id` in the URL. Navigation, filters, pagination, sorting, selected graph nodes, and provenance sections also use URL state when that makes a view reloadable or shareable. Every internal link uses the shared `link()` helper.
+The canonical research context is `search_id`, `search_revision_id`, `plan_id`, and `run_id` in the URL. Navigation, filters, pagination, sorting, selected graph nodes, provenance sections, focused `note_id`, focused `anchor_id`, and `pdf_page` also use URL state when that makes a view reloadable or shareable. Every internal link uses the shared `link()` helper.
 
 ### 3.3 Bounded detail with progressive disclosure
 
@@ -36,7 +37,7 @@ Observed author names are occurrences, not automatically people. ORCID name-sear
 
 ### 3.5 Visualizations require textual equivalents
 
-The retention flow is supported by counts and tables. Relationship graphs include filters, cluster summaries, legends, selection details, and a paginated relationship table. Color is supplementary to labels, shape, text, and status wording.
+The retention flow is supported by counts and tables. Relationship graphs include filters, cluster summaries, legends, selection details, and a paginated relationship table. PDF highlights have a keyboard-operable anchor list with page, current or inherited state, availability, selected text, and history. Color is supplementary to labels, shape, text, and status wording.
 
 ## 4. Information architecture
 
@@ -48,13 +49,13 @@ The primary navigation order is Overview, Corpus, Relationships, Provenance, Eva
 | Corpus | Which normalized articles, observed authors, references, identity evidence, and source records belong to this run? | Run preferred; limited schema-backed fallback exists where supported. |
 | Relationships | How are valid normalized articles connected to authors, citations, and references? | Run required. |
 | Provenance | What audit events, artifacts, cache decisions, stages, and attempt metadata explain this run? | Audit may span runs; other sections require a run. |
-| Evaluation | Which normalized articles have a manually inventoried PDF? | Run required. |
+| Evaluation | Which normalized articles have a PDF, what is their current run-context review status, and has review been initialized? | Run required. |
 | Advanced | What values exist in each discovered metadata table? | Database required; run is not required. |
 | Trash | Which runs are trashed, and what restoration evidence exists? | Database required; run is not required. |
 
 ## 5. Application shell
 
-The shell begins with a skip link, then a site header containing the product identity, database health state, and a persistent Read-only marker. A mobile Menu button controls the primary navigation below 720px. The primary navigation follows the fixed order in section 4.
+The shell begins with a skip link, then a site header containing the product identity, database health state, and a persistent Local review marker. A mobile Menu button controls the primary navigation below 720px. The primary navigation follows the fixed order in section 4.
 
 The Research context panel contains dependent Search, Search revision, Execution plan, and Run attempt selectors plus Clear context. Selectors initially show skeleton/loading or instructional states, disable unavailable descendants, select a sole available option automatically, and clear downstream identifiers when a parent changes.
 
@@ -68,7 +69,7 @@ The SPA intercepts same-page query links without modifier keys, pushes browser h
 
 Each render aborts the previous request controller and receives a monotonically increasing sequence number. Only the newest sequence may display errors, change the title, or clear the loading state. Aborted requests are silent.
 
-View-specific URL keys must be namespaced when multiple tables coexist. Provenance uses keys such as `cache_page`, `stage_page`, and `audit_category`; graph state uses `mode`, filters, `article_limit`, and `node`; Corpus and Evaluation use `section`, `q`, `page`, `per_page`, `sort`, `order`, and expansion state as applicable.
+View-specific URL keys must be namespaced when multiple tables coexist. Provenance uses keys such as `cache_page`, `stage_page`, and `audit_category`; graph state uses `mode`, filters, `article_limit`, and `node`; Corpus and Evaluation use `section`, `q`, `page`, `per_page`, `sort`, `order`, and expansion state as applicable; article review links use `note_id`, `anchor_id`, and `pdf_page`.
 
 ## 7. Overview
 
@@ -98,9 +99,19 @@ Corpus search is server-backed for scoped endpoints. Page size choices are 20, 5
 
 ## 9. Detail views
 
-Article detail provides a return path to Corpus, a summary strip, property grid, authorships, reference mentions, stage outcomes, enrichment and validation evidence, raw record disclosure, and PDF status. The displayed revision remains anchored to the selected run context; audit may aggregate the selected work's related revisions inside that run.
+Article detail provides a return path to Corpus, a summary strip, property grid, authorships, reference mentions, stage outcomes, enrichment and validation evidence, raw record disclosure, PDF status, and a responsive split review and PDF workspace. The displayed revision remains anchored to the selected run context; audit may aggregate the selected work's related revisions inside that run.
 
-The PDF panel distinguishes Available from Not Available, shows inventory timing when present, and exposes a PDF link only when the read-only API can join the available inventory row to stored content. The frontend never creates or changes inventory state.
+The PDF panel distinguishes Available from Not Available, shows inventory timing when present, and exposes content only when the read-only PDF API can join the available inventory row to stored bytes. The custom PDF.js interface renders the current and neighboring pages, selectable text, page controls, zoom, rotation, and active anchor highlights without the default PDF.js viewer UI. Navigation destroys rendering and worker tasks. The frontend never creates or changes PDF inventory state.
+
+Review is started explicitly for one completed non-trashed run. The dialog shows the deterministic proposed parent, loads same-search alternatives first, and expands to all earlier searches only after a deliberate cross-search action. Starting empty is always available. Creation freezes inherited version IDs for stable work matches; inherited labels identify reused heads and later parent edits do not propagate.
+
+Complete review state uses `Not Evaluated`, `In-progress`, `Approved`, `Not approved`, or `Removed`, an optional reason, and multi-select sub-statuses only for `Not approved` and `Removed`. Sub-status labels are `Redacted`, `Unrelated`, `Out of scope`, `Duplicate`, `Retracted`, `Withdrawn`, `Superseded`, `Predatory/low quality`, `Copyright/licensing`, and `Not peer-reviewed`. Saving appends a version, shows reviewer and time attribution, treats identical input as a no-op, and preserves edited input when a stale expected version returns a conflict.
+
+Review notes use a bounded project grammar with headings, paragraphs, quotes, lists, fenced code, simple tables, and links shaped as `[[note:123|display]]`, `[[article:10.1000/example|display]]`, `[[pdf:page=5|display]]`, `[[anchor:methods-1|display]]`, and `[[ext:target|display]]`. Preview escapes raw HTML, displays parser diagnostics before saving, labels unresolved targets with text and an accessible name, and resolves targets when read so later-created targets do not rewrite history. Edits, removal tombstones, and restoration append versions; history provides bounded line comparison with side-by-side fallback for large bodies.
+
+Unsaved note drafts remain only in browser storage under a key containing the opaque corpus ID, run, revision, logical note, and expected version. A successful save clears only the matching draft. Storage failures and version conflicts keep textarea content and display a warning. OSF export does not scan or copy browser drafts.
+
+Selecting text on one rendered PDF page creates one through 64 normalized rectangles and opens an anchor form with a corpus-unique safe ID. Anchors retain exact work revision, PDF content hash, selected text, geometry, immutable history, and inherited or current labels. A hash mismatch displays the anchor as unavailable and does not project stale geometry. The textual anchor list is keyboard operable, can navigate to a page, shows history and tombstones, and remains the non-visual equivalent of highlights.
 
 Author detail describes one author occurrence and its linked articles, affiliations, person identity, and audit context. Reference detail describes one mention, its citing revision, captured fields, and resolved target when the selected run contains a suitable revision.
 
@@ -126,7 +137,7 @@ Provenance subnavigation contains Audit timeline, Artifacts, Cache uses, Stage o
 
 Audit provides server-backed text search plus multi-select category, action, actor, and entity filters and optional stage/outcome fields. Active filters appear as removable chips in URL state. The newest 25 events load first, and Load 25 older events follows the cursor without replacing already visible evidence.
 
-Each audit row identifies category, action, actor/source, entity, time, run context, outcome, and expandable metadata or before/after values. PDF events use the same event language but may be global to a work rather than owned by one pipeline attempt.
+Each audit row identifies category, action, actor/source, entity, time, run context, outcome, and expandable metadata or before/after values. PDF events use the same event language but may be global to a work rather than owned by one pipeline attempt. Review events identify context and old or new version IDs without duplicating note bodies, selected PDF text, reviewer email, or browser drafts.
 
 Artifacts show run context, role, producing/consuming steps, media type, byte size, content hash, time, preview availability, and download. Inspection requests 65,536 bytes, identifies truncation, formats complete JSON when possible, supports raw/formatted modes, line wrapping, clipboard copy, and original download. Binary or unsafe media remain download-only.
 
@@ -138,11 +149,11 @@ Run details show attempt identity, status, visibility, timestamps, duration, pla
 
 ## 12. Evaluation
 
-Evaluation is a reading inventory, not a quality score. It lists every normalize-stage article in the selected run with title, DOI, source, inventory status, and inventory time.
+Evaluation combines reading inventory and current selected-context review state; neither is an intrinsic quality score. It lists every normalize-stage article in the selected run with title, DOI, source, inventory status and time, review status, sub-statuses, reason, version attribution, and inherited state where initialized.
 
 Search is server-backed over title and DOI. Sorting is limited to title and DOI, and table controls use the shared page-size and pagination behavior. Article titles link to the selected revision detail while retaining research context.
 
-Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically, and it provides no add or edit action.
+Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically and provides no PDF add action. A completed run without a context presents Start review; after initialization, article rows link to the detail review workspace. Articles without an available PDF remain readable but review mutations are disabled.
 
 ## 13. Advanced and Trash
 
@@ -156,7 +167,7 @@ Shared tables render a visible subset of columns, optional expandable property g
 
 Row click may toggle expansion only when it does not steal behavior from links, buttons, inputs, labels, selections, or text interaction. Multiple rows may remain expanded. Expansion state may be URL-backed when reload continuity is useful.
 
-Empty states state what is absent and, when relevant, how to select context. Error states use the global alert or a local message near the failed operation. Loading buttons disable themselves and display a loading class until the operation settles.
+Empty states state what is absent and, when relevant, how to select context. Error states use the global alert or a local message near the failed operation. Loading buttons disable themselves and display a loading class until the operation settles. Review mutations announce success, parser failure, unavailable-PDF state, and optimistic conflict near the affected form without discarding user input.
 
 IDs, hashes, URLs, raw JSON, and machine values use monospace or code treatment and remain copyable. Times use the browser locale for display while stored raw values remain available in detail or raw views. Numeric values use locale grouping; unavailable values use descriptive text or a neutral symbol with context.
 
@@ -200,11 +211,11 @@ Missing optional columns or metrics must degrade to Not recorded, unavailable pa
 
 ## 19. Privacy and security presentation
 
-The header always displays Read-only. Copy explains that data is historical and local. The UI must not claim authentication, authorization, encryption, automatic PDF acquisition, live provider refresh, or mutation capabilities that the server does not provide.
+The header always displays Local review. Copy explains that pipeline evidence is immutable, review history is append-only and local, and context heads are the only review state moved by saves. The UI must not claim authentication, authorization, encryption, automatic PDF acquisition, live provider refresh, arbitrary corpus mutation, or PDF-store mutation.
 
 Artifact and PDF downloads are direct local API links. Preview content is escaped before insertion, JSON is formatted only after parsing, dynamic labels and table cells use the shared escaping helper, and no provider payload is interpreted as HTML.
 
-The interface must not render credentials, tokens, private keys, raw environment values, or newly exposed sensitive fields. New table/detail surfaces require an explicit review of whether values are safe for a local viewer and whether preview/download behavior remains bounded.
+The interface must not render credentials, tokens, private keys, raw environment values, or newly exposed sensitive fields. Reviewer username and email are deliberate local version attribution; empty or sanitized identity appears as `Anonymous or redacted`, and audit metadata does not duplicate the email. New table/detail surfaces require an explicit review of whether values are safe for a local viewer and whether preview, mutation, and download behavior remains bounded.
 
 ## 20. Frontend module ownership
 
@@ -213,7 +224,7 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
 | `app.js` | Global event binding, history interception, shell initialization, and first render. |
 | `state.js` | URL values, DOM state, escaping, formatting, shared panels/tables/flows, links, statuses, and global UI behavior. |
-| `api.js` | Abort-aware JSON fetching, endpoint construction, shared error extraction, and table discovery cache. |
+| `api.js` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
 | `router.js` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
 | `components/context-selector.js` | Dependent selector hydration, loading skeletons, clear controls, auto-selection, and selection summary. |
 | `components/data-table.js` | Shared rows, sorting, search, page size, expansion, and control binding. |
@@ -221,6 +232,10 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `components/audit-events.js` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
 | `components/graph.js` | Graph query, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and relationship table. |
 | `components/shell.js` | Health state and responsive primary-navigation toggle. |
+| `components/note-parser.js` | Bounded note parsing, diagnostics, safe preview, unresolved labels, and resolved context-preserving links. |
+| `components/note-editor.js` | Draft lifecycle, active versions, tombstones, restoration, history, and bounded comparison. |
+| `components/pdf-viewer.js` | PDF.js worker and page lifecycle, nearby-page rendering, selectable text, geometry projection, controls, and highlights. |
+| `components/review-panel.js` | Explicit lineage initialization, complete status state, conflicts, history, notes, PDF integration, and accessible anchors. |
 | `views/*.js` | Page-level fetching, rendering, and post-render event binding for the destinations in section 4. |
 | `styles/tokens.css` | Theme values, spacing, type, status, graph colors, focus, radius, and elevation. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
@@ -229,22 +244,24 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `styles/views.css` | Overview, details, provenance, audit, artifacts, evaluation, and stage-specific presentation. |
 | `styles/graph.css` | Relationship layout, controls, canvas, overview, legend, selection, and edge table. |
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; never edit it manually. |
+| `vendor/pdfjs/` | Generated pinned PDF.js core, exact worker, CMaps, standard fonts, and license assets; never edit them manually. |
 
 Components may import shared state, API, router helpers, pagination, and the pinned D3 module as required, but they must not import view modules. Views own `app.innerHTML`; reusable components return markup or bind behavior to caller-owned DOM.
 
 ## 21. Testing and acceptance
 
-Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API behavior, routing, selectors, tables, pagination, graph transformation and interactions, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
+Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API reads and mutations, routing and cleanup, selectors, tables, pagination, graph transformation and interactions, note parser conformance and safe rendering, draft and comparison helpers, PDF geometry projection, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
 
-The main Playwright suite runs against an isolated fixture viewer and verifies context selection, navigation, URL preservation, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The UI-quality suite adds axe-core checks and reviewed screenshots for core views.
+The main Playwright suite runs against an isolated fixture copy and verifies context selection, navigation, URL preservation, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks and reviewed screenshots for core views.
 
 Every frontend change must run `make test-frontend-unit`. Changes under `src/server/frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.cjs`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
-Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no hidden mutation, no new external asset request, no inaccessible graph-only fact, no raw unescaped provider content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
+Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
 
 ## 22. Known design limitations
 
-- The viewer has no application authentication or authorization and is intended for loopback use; a warning is the only built-in protection against deliberate non-loopback binding.
+- The viewer has no application authentication or authorization and therefore rejects non-loopback binding; local users and processes with access to the host remain inside the trust boundary.
+- Browser note drafts are best-effort local storage, are not part of database history or OSF export, and can be lost through storage clearing, quota, privacy mode, or another browser profile.
 - Corpus author and reference lists include relationships from all revision snapshots in a run, so repeated conceptual values are possible and must remain labeled as occurrences or mentions.
 - Graph limits can truncate large networks; the endpoint reports this, but the browser does not stream beyond the configured bounds.
 - The frontend is string-template based, so every new dynamic value must deliberately use `esc`; there is no framework-level automatic escaping.
@@ -255,12 +272,12 @@ Acceptance requires no hard-coded context-dropping internal links, no unbounded 
 
 ## 23. Change checklist
 
-- Confirm the proposed behavior exists in or is supported by the read-only API before designing a control for it.
-- Preserve search, revision, plan, and run context through `link()` and clear only invalid descendant state.
+- Confirm evidence reads or narrowly scoped immutable review writes exist in the server contract before designing a control.
+- Preserve search, revision, plan, run, note, anchor, and PDF-page context through `link()` and clear only invalid descendant state.
 - Keep server-backed collections bounded, sortable only by allowlisted fields, and explicit about truncation or unavailable evidence.
-- Escape every dynamic value and keep artifact/PDF handling download-safe and preview-bounded.
+- Escape every dynamic value, keep artifact and PDF handling download-safe and preview-bounded, and render note links only through the project parser and resolver.
 - Provide keyboard behavior, visible focus, labels, status text, and a non-visual equivalent for graphical information.
 - Place reusable logic in the established state/component boundary and avoid view-to-view imports or new framework dependencies.
 - Add or update unit, server integration, Playwright, accessibility, and visual tests in proportion to the changed behavior.
-- Review light, dark, desktop, tablet, and mobile behavior and retain the permanent Read-only presentation.
+- Review light, dark, desktop, tablet, and mobile behavior and retain the permanent Local review presentation plus immutable pipeline-evidence explanation.
 - Update this document and [ARCHITECTURE.md](ARCHITECTURE.md) when the implemented contract or module responsibilities change.

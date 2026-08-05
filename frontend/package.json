@@ -11,13 +11,15 @@
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium firefox webkit",
     "codegen": "playwright codegen http://localhost:8080",
-    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=../src/server/frontend/vendor/d3-force.js"
+    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=../src/server/frontend/vendor/d3-force.js",
+    "build:pdfjs-vendor": "node scripts/pdfjs-vendor.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.52.0",
     "d3-force": "^3.0.0",
     "esbuild": "^0.28.1",
-    "jsdom": "^26.0.0"
+    "jsdom": "^26.0.0",
+    "pdfjs-dist": "4.2.67"
   }
 }

@@ -321,36 +321,38 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestBaselineAppliesCorrectly`](../src/database/config_integration_test.go#L17) | test | 17-193 | `func TestBaselineAppliesCorrectly(t *testing.T)` | TestBaselineAppliesCorrectly verifies that a new temporary database opens with the single workspace baseline, has all required tables, indexes, and triggers, and reopens without reapplying the baseline. |
-| [`TestFutureMigrationRollsBackAtomically`](../src/database/config_integration_test.go#L199) | test | 199-280 | `func TestFutureMigrationRollsBackAtomically(t *testing.T)` | TestFutureMigrationRollsBackAtomically verifies that a deliberately broken future migration (V00002) applies its schema changes atomically: if the migration SQL fails, the new table does not persist and the tracking row is not recorded. |
-| [`TestV00003MigrationApplies`](../src/database/config_integration_test.go#L284) | test | 284-315 | `func TestV00003MigrationApplies(t *testing.T)` | TestV00003MigrationApplies verifies that the V00003 migration is applied after V00002, creating the four append-only triggers. |
-| [`TestV00002ToV00003Upgrade`](../src/database/config_integration_test.go#L321) | test | 321-456 | `func TestV00002ToV00003Upgrade(t *testing.T)` | TestV00002ToV00003Upgrade verifies that an existing database with V00001 and V00002 upgrades correctly when V00003 is added to the config. This is a true upgrade regression test, distinct from TestV00003MigrationApplies which opens a fresh database with all three migrations already configured. |
-| [`TestV00003ToV00004Upgrade`](../src/database/config_integration_test.go#L460) | test | 460-571 | `func TestV00003ToV00004Upgrade(t *testing.T)` | TestV00003ToV00004Upgrade verifies that an existing V00003 database gains the non-blank people.orcid guards when V00004 is added to the config. |
-| [`TestV00002MigrationApplies`](../src/database/config_integration_test.go#L576) | test | 576-621 | `func TestV00002MigrationApplies(t *testing.T)` | TestV00002MigrationApplies verifies that the V00002 migration is applied after the baseline, creating the people, author_occurrences, and authorships tables with their indexes. |
-| [`TestProductionDatabaseRegistryResolvesIndependentMigrationChains`](../src/database/config_integration_test.go#L628) | test | 628-644 | `func TestProductionDatabaseRegistryResolvesIndependentMigrationChains(t *testing.T)` | TestProductionDatabaseRegistryResolvesIndependentMigrationChains verifies production database registry resolves independent migration chains. |
-| [`TestProductionRegistryCreatesMetadataAndPDFStores`](../src/database/config_integration_test.go#L647) | test | 647-692 | `func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T)` | TestProductionRegistryCreatesMetadataAndPDFStores verifies production registry creates metadata and pdf stores. |
-| [`TestPDFInventoryMigrationPreservesLegacyDocumentStates`](../src/database/config_integration_test.go#L695) | test | 695-761 | `func TestPDFInventoryMigrationPreservesLegacyDocumentStates(t *testing.T)` | TestPDFInventoryMigrationPreservesLegacyDocumentStates verifies pdf inventory migration preserves legacy document states. |
-| [`TestProductionMetadataUpgradePreservesAppliedBasenames`](../src/database/config_integration_test.go#L764) | test | 764-803 | `func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T)` | TestProductionMetadataUpgradePreservesAppliedBasenames verifies production metadata upgrade preserves applied basenames. |
+| [`TestBaselineAppliesCorrectly`](../src/database/config_integration_test.go#L17) | test | 17-209 | `func TestBaselineAppliesCorrectly(t *testing.T)` | TestBaselineAppliesCorrectly verifies that a new temporary database opens with the single workspace baseline, has all required tables, indexes, and triggers, and reopens without reapplying the baseline. |
+| [`TestFutureMigrationRollsBackAtomically`](../src/database/config_integration_test.go#L215) | test | 215-296 | `func TestFutureMigrationRollsBackAtomically(t *testing.T)` | TestFutureMigrationRollsBackAtomically verifies that a deliberately broken future migration (V00002) applies its schema changes atomically: if the migration SQL fails, the new table does not persist and the tracking row is not recorded. |
+| [`TestV00003MigrationApplies`](../src/database/config_integration_test.go#L300) | test | 300-331 | `func TestV00003MigrationApplies(t *testing.T)` | TestV00003MigrationApplies verifies that the V00003 migration is applied after V00002, creating the four append-only triggers. |
+| [`TestV00002ToV00003Upgrade`](../src/database/config_integration_test.go#L337) | test | 337-472 | `func TestV00002ToV00003Upgrade(t *testing.T)` | TestV00002ToV00003Upgrade verifies that an existing database with V00001 and V00002 upgrades correctly when V00003 is added to the config. This is a true upgrade regression test, distinct from TestV00003MigrationApplies which opens a fresh database with all three migrations already configured. |
+| [`TestV00003ToV00004Upgrade`](../src/database/config_integration_test.go#L476) | test | 476-587 | `func TestV00003ToV00004Upgrade(t *testing.T)` | TestV00003ToV00004Upgrade verifies that an existing V00003 database gains the non-blank people.orcid guards when V00004 is added to the config. |
+| [`TestV00002MigrationApplies`](../src/database/config_integration_test.go#L592) | test | 592-637 | `func TestV00002MigrationApplies(t *testing.T)` | TestV00002MigrationApplies verifies that the V00002 migration is applied after the baseline, creating the people, author_occurrences, and authorships tables with their indexes. |
+| [`TestProductionDatabaseRegistryResolvesIndependentMigrationChains`](../src/database/config_integration_test.go#L644) | test | 644-660 | `func TestProductionDatabaseRegistryResolvesIndependentMigrationChains(t *testing.T)` | TestProductionDatabaseRegistryResolvesIndependentMigrationChains verifies production database registry resolves independent migration chains. |
+| [`TestProductionRegistryCreatesMetadataAndPDFStores`](../src/database/config_integration_test.go#L663) | test | 663-708 | `func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T)` | TestProductionRegistryCreatesMetadataAndPDFStores verifies production registry creates metadata and pdf stores. |
+| [`TestPDFInventoryMigrationPreservesLegacyDocumentStates`](../src/database/config_integration_test.go#L711) | test | 711-777 | `func TestPDFInventoryMigrationPreservesLegacyDocumentStates(t *testing.T)` | TestPDFInventoryMigrationPreservesLegacyDocumentStates verifies pdf inventory migration preserves legacy document states. |
+| [`TestProductionMetadataUpgradePreservesAppliedBasenames`](../src/database/config_integration_test.go#L780) | test | 780-819 | `func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T)` | TestProductionMetadataUpgradePreservesAppliedBasenames verifies production metadata upgrade preserves applied basenames. |
 
 ### [`src/database/database.go`](../src/database/database.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Database`](../src/database/database.go#L26) | struct | 26-56 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
-| [`Open`](../src/database/database.go#L60) | function | 60-74 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
-| [`OpenConfigured`](../src/database/database.go#L80) | function | 80-128 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
-| [`(*Database).initRepositories`](../src/database/database.go#L131) | method | 131-157 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
-| [`configurePragma`](../src/database/database.go#L163) | function | 163-177 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
-| [`sqliteBusy`](../src/database/database.go#L180) | function | 180-186 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
-| [`(*Database).Close`](../src/database/database.go#L189) | method | 189-197 | `func (*Database).Close() error` | Close closes the database connection. |
-| [`(*Database).SchemaVersion`](../src/database/database.go#L202) | method | 202-212 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
-| [`(*Database).runMigrations`](../src/database/database.go#L217) | method | 217-301 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
-| [`(*Database).withMigrationLock`](../src/database/database.go#L307) | method | 307-330 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
-| [`migrationEntry`](../src/database/database.go#L333) | struct | 333-337 | `type migrationEntry struct { filename string previous string upgrade string }` | migrationEntry stores one configured migration filename and its descriptive linkage fields. |
-| [`loadMigrationChain`](../src/database/database.go#L340) | function | 340-353 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
-| [`extractUpSQL`](../src/database/database.go#L359) | function | 359-381 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
-| [`fileChecksum`](../src/database/database.go#L384) | function | 384-391 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
-| [`timestamp`](../src/database/database.go#L394) | function | 394-396 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
+| [`Database`](../src/database/database.go#L27) | struct | 27-59 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
+| [`Open`](../src/database/database.go#L63) | function | 63-77 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
+| [`MigrateExisting`](../src/database/database.go#L80) | function | 80-99 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
+| [`OpenExisting`](../src/database/database.go#L103) | function | 103-137 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
+| [`OpenConfigured`](../src/database/database.go#L143) | function | 143-191 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
+| [`(*Database).initRepositories`](../src/database/database.go#L194) | method | 194-222 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
+| [`configurePragma`](../src/database/database.go#L228) | function | 228-242 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
+| [`sqliteBusy`](../src/database/database.go#L245) | function | 245-251 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
+| [`(*Database).Close`](../src/database/database.go#L254) | method | 254-262 | `func (*Database).Close() error` | Close closes the database connection. |
+| [`(*Database).SchemaVersion`](../src/database/database.go#L267) | method | 267-277 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
+| [`(*Database).runMigrations`](../src/database/database.go#L282) | method | 282-366 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
+| [`(*Database).withMigrationLock`](../src/database/database.go#L372) | method | 372-395 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
+| [`migrationEntry`](../src/database/database.go#L398) | struct | 398-402 | `type migrationEntry struct { filename string previous string upgrade string }` | migrationEntry stores one configured migration filename and its descriptive linkage fields. |
+| [`loadMigrationChain`](../src/database/database.go#L405) | function | 405-418 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
+| [`extractUpSQL`](../src/database/database.go#L424) | function | 424-446 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
+| [`fileChecksum`](../src/database/database.go#L449) | function | 449-456 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
+| [`timestamp`](../src/database/database.go#L459) | function | 459-461 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
 
 ### [`src/database/database_integration_test.go`](../src/database/database_integration_test.go)
 
@@ -358,6 +360,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestSchemaSmokePhase14`](../src/database/database_integration_test.go#L16) | test | 16-253 | `func TestSchemaSmokePhase14(t *testing.T)` | TestSchemaSmokePhase14 verifies Phase 1.4: open a fully migrated database, create one of every workspace entity, then verify FK integrity and expected indexes exist. This is the schema smoke test that validates the complete V00001-V00008 migration chain works together. |
 | [`TestCorpusModelSmokePhase25`](../src/database/database_integration_test.go#L257) | test | 257-344 | `func TestCorpusModelSmokePhase25(t *testing.T)` | TestCorpusModelSmokePhase25 proves that two search workspaces can retain independent provenance around one globally identified DOI. |
+
+### [`src/database/existing_integration_test.go`](../src/database/existing_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestExistingDatabaseLifecycle`](../src/database/existing_integration_test.go#L12) | test | 12-55 | `func TestExistingDatabaseLifecycle(t *testing.T)` | TestExistingDatabaseLifecycle verifies migration is explicit and existing-only opening never creates or migrates. |
 
 ### [`src/database/helpers_test.go`](../src/database/helpers_test.go)
 
@@ -384,8 +392,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*AuditEventRepository).ListByAction`](../src/database/metrics_audit.go#L221) | method | 221-238 | `func (*AuditEventRepository).ListByAction(action manifest.AuditAction) ([]*AuditEventRecord, error)` | ListByAction returns all audit events for a given action, ordered by ID. |
 | [`(*AuditEventRepository).ListAll`](../src/database/metrics_audit.go#L242) | method | 242-259 | `func (*AuditEventRepository).ListAll(limit int) ([]*AuditEventRecord, error)` | ListAll returns all audit events ordered by ID, with an optional limit. A limit of 0 returns all events. |
 | [`scanAuditEvents`](../src/database/metrics_audit.go#L262) | function | 262-299 | `func scanAuditEvents(rows *sql.Rows) ([]*AuditEventRecord, error)` | scanAuditEvents decodes audit events from a database row. |
-| [`PurgeEligibility`](../src/database/metrics_audit.go#L302) | struct | 302-312 | ``type PurgeEligibility struct { // Eligible is true when no other run references this run's artifacts or // reusable outputs. Eligible bool `json:"eligible"` // SharedArtifactCount is the number of artifacts from this run that are // referenced by other runs. SharedArtifactCount int `json:"shared_artifact_count"` // ReusedByCount is the number of other runs that reuse one or more stages // from this run. ReusedByCount int `json:"reused_by_count"` }`` | PurgeEligibility describes whether a pipeline run can be safely purged. |
-| [`(*PipelineRunRepository).CheckPurgeEligibility`](../src/database/metrics_audit.go#L317) | method | 317-374 | `func (*PipelineRunRepository).CheckPurgeEligibility(runID int64) (*PurgeEligibility, error)` | CheckPurgeEligibility verifies that no other run shares artifacts or reusable stage outputs from the given run. It is the safety check before purge. Returns an error if no pipeline run with the given ID exists. |
+| [`PurgeEligibility`](../src/database/metrics_audit.go#L302) | struct | 302-316 | ``type PurgeEligibility struct { // Eligible is true when no other run references this run's artifacts or // reusable outputs. Eligible bool `json:"eligible"` // SharedArtifactCount is the number of artifacts from this run that are // referenced by other runs. SharedArtifactCount int `json:"shared_artifact_count"` // ReusedByCount is the number of other runs that reuse one or more stages // from this run. ReusedByCount int `json:"reused_by_count"` // OwnedReviewContextCount is the number of review contexts initialized for this run. OwnedReviewContextCount int `json:"owned_review_context_count"` // DependentReviewContextCount is the number of child contexts inheriting directly or indirectly from this run's context. DependentReviewContextCount int `json:"dependent_review_context_count"` }`` | PurgeEligibility describes whether a pipeline run can be safely purged. |
+| [`(*PipelineRunRepository).CheckPurgeEligibility`](../src/database/metrics_audit.go#L321) | method | 321-394 | `func (*PipelineRunRepository).CheckPurgeEligibility(runID int64) (*PurgeEligibility, error)` | CheckPurgeEligibility verifies that no other run shares artifacts or reusable stage outputs from the given run. It is the safety check before purge. Returns an error if no pipeline run with the given ID exists. |
 
 ### [`src/database/metrics_audit_integration_test.go`](../src/database/metrics_audit_integration_test.go)
 
@@ -474,6 +482,90 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestReferenceMentionValidationAndUniqueness`](../src/database/reference_mentions_integration_test.go#L77) | test | 77-94 | `func TestReferenceMentionValidationAndUniqueness(t *testing.T)` | TestReferenceMentionValidationAndUniqueness verifies reference mention validation and uniqueness. |
 | [`TestReferenceMentionSnapshotsAreAppendOnly`](../src/database/reference_mentions_integration_test.go#L97) | test | 97-127 | `func TestReferenceMentionSnapshotsAreAppendOnly(t *testing.T)` | TestReferenceMentionSnapshotsAreAppendOnly verifies reference mention snapshots are append only. |
 | [`TestV00005ReferenceMentionsMigrationApplies`](../src/database/reference_mentions_integration_test.go#L130) | test | 130-155 | `func TestV00005ReferenceMentionsMigrationApplies(t *testing.T)` | TestV00005ReferenceMentionsMigrationApplies verifies v00005 reference mentions migration applies. |
+
+### [`src/database/reviewers.go`](../src/database/reviewers.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`PipelineRunReviewer`](../src/database/reviewers.go#L11) | struct | 11-16 | ``type PipelineRunReviewer struct { PipelineRunID int64 `json:"pipeline_run_id"` Username string `json:"username"` Email string `json:"email"` CreatedAt string `json:"created_at"` }`` | PipelineRunReviewer is the immutable reviewer identity captured for one run. |
+| [`PipelineRunReviewerRepository`](../src/database/reviewers.go#L19) | struct | 19 | `type PipelineRunReviewerRepository struct{ db *Database }` | PipelineRunReviewerRepository stores and reads per-run reviewer attribution. |
+| [`(*PipelineRunReviewerRepository).Insert`](../src/database/reviewers.go#L22) | method | 22-40 | `func (*PipelineRunReviewerRepository).Insert(runID int64, username, email string) error` | Insert records one immutable reviewer identity for a newly created run. |
+| [`(*PipelineRunReviewerRepository).Get`](../src/database/reviewers.go#L43) | method | 43-55 | `func (*PipelineRunReviewerRepository).Get(runID int64) (*PipelineRunReviewer, error)` | Get returns the reviewer captured for a run, or nil when a legacy writer omitted it. |
+
+### [`src/database/reviews.go`](../src/database/reviews.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ReviewConflictError`](../src/database/reviews.go#L31) | struct | 31-34 | `type ReviewConflictError struct { Expected *int64 Current *int64 }` | ReviewConflictError reports that a context head changed after the caller read it. |
+| [`(*ReviewConflictError).Error`](../src/database/reviews.go#L37) | method | 37 | `func (*ReviewConflictError).Error() string` | Error returns a safe optimistic-concurrency diagnostic. |
+| [`NoteSyntaxError`](../src/database/reviews.go#L40) | struct | 40 | `type NoteSyntaxError struct{ Errors []notes.SyntaxError }` | NoteSyntaxError reports parser diagnostics that make a note version unsaveable. |
+| [`(*NoteSyntaxError).Error`](../src/database/reviews.go#L43) | method | 43 | `func (*NoteSyntaxError).Error() string` | Error returns a safe note-language diagnostic. |
+| [`ReviewContext`](../src/database/reviews.go#L46) | struct | 46-51 | ``type ReviewContext struct { ID int64 `json:"id"` PipelineRunID int64 `json:"pipeline_run_id"` ParentContextID *int64 `json:"parent_context_id,omitempty"` CreatedAt string `json:"created_at"` }`` | ReviewContext is one explicitly initialized interpretation context for a completed run. |
+| [`ReviewContextCandidate`](../src/database/reviews.go#L54) | struct | 54-63 | ``type ReviewContextCandidate struct { ContextID int64 `json:"context_id"` PipelineRunID int64 `json:"pipeline_run_id"` SearchID string `json:"search_id"` SearchRevision string `json:"search_revision"` ExecutionPlanID int64 `json:"execution_plan_id"` AttemptNumber int `json:"attempt_number"` StartedAt string `json:"started_at"` InheritedWorkCount int `json:"inherited_work_count"` }`` | ReviewContextCandidate describes one eligible parent context without materializing inherited state. |
+| [`WorkReviewVersion`](../src/database/reviews.go#L66) | struct | 66-77 | ``type WorkReviewVersion struct { ID int64 `json:"id"` WorkID int64 `json:"work_id"` WorkRevisionID int64 `json:"work_revision_id"` CreatedInContextID int64 `json:"created_in_context_id"` ParentVersionID *int64 `json:"parent_version_id,omitempty"` Status string `json:"status"` Substatuses []string `json:"sub_statuses"` Reason *string `json:"reason"` CreatedAt string `json:"created_at"` ReviewerDisplay string `json:"reviewer_display"` }`` | WorkReviewVersion is one immutable complete article-review snapshot. |
+| [`WorkReviewState`](../src/database/reviews.go#L80) | struct | 80-86 | ``type WorkReviewState struct { ContextID int64 `json:"context_id"` WorkID int64 `json:"work_id"` WorkRevisionID int64 `json:"work_revision_id"` Version *WorkReviewVersion `json:"version,omitempty"` InheritedFromContextID *int64 `json:"inherited_from_context_id,omitempty"` }`` | WorkReviewState is the complete current state for one context work head. |
+| [`ReviewRepository`](../src/database/reviews.go#L89) | struct | 89 | `type ReviewRepository struct{ db *Database }` | ReviewRepository owns context initialization and immutable review, note, and anchor versions. |
+| [`(*ReviewRepository).CorpusID`](../src/database/reviews.go#L92) | method | 92-98 | `func (*ReviewRepository).CorpusID(ctx context.Context) (string, error)` | CorpusID returns the opaque corpus identity used to namespace browser-local drafts. |
+| [`(*ReviewRepository).GetContextByRun`](../src/database/reviews.go#L101) | method | 101-103 | `func (*ReviewRepository).GetContextByRun(ctx context.Context, runID int64) (*ReviewContext, error)` | GetContextByRun returns the one initialized review context for a run, if present. |
+| [`queryRower`](../src/database/reviews.go#L106) | interface | 106-108 | `type queryRower interface { QueryRowContext(context.Context, string, ...any) *sql.Row }` | queryRower is the shared single-row query boundary for database and transaction callers. |
+| [`getReviewContext`](../src/database/reviews.go#L111) | function | 111-126 | `func getReviewContext(ctx context.Context, q queryRower, runID int64) (*ReviewContext, error)` | getReviewContext reads the optional immutable context associated with one run. |
+| [`(*ReviewRepository).ProposeParent`](../src/database/reviews.go#L129) | method | 129-147 | `func (*ReviewRepository).ProposeParent(ctx context.Context, runID int64) (*ReviewContextCandidate, error)` | ProposeParent selects the latest initialized context from the same plan, then the same search. |
+| [`reviewTargetRecord`](../src/database/reviews.go#L150) | struct | 150-153 | `type reviewTargetRecord struct { RunID, PlanID, SearchDBID int64 StartedAt, Status, Visibility string }` | reviewTargetRecord holds lineage fields required to validate or compare a target run. |
+| [`(*ReviewRepository).reviewTarget`](../src/database/reviews.go#L156) | method | 156-171 | `func (*ReviewRepository).reviewTarget(ctx context.Context, q queryRower, runID int64) (reviewTargetRecord, error)` | reviewTarget loads one planned run and its stable search lineage. |
+| [`(*ReviewRepository).firstParentCandidate`](../src/database/reviews.go#L174) | method | 174-204 | `func (*ReviewRepository).firstParentCandidate(ctx context.Context, runID int64, target reviewTargetRecord, samePlan bool) (*ReviewContextCandidate, error)` | firstParentCandidate returns the newest eligible same-plan or same-search context. |
+| [`(*ReviewRepository).ListParentCandidates`](../src/database/reviews.go#L207) | method | 207-262 | `func (*ReviewRepository).ListParentCandidates(ctx context.Context, runID int64, scope string, cursor int64, limit int, query string) ([]ReviewContextCandidate, error)` | ListParentCandidates returns bounded earlier contexts in stable descending run order. |
+| [`(*ReviewRepository).CreateContext`](../src/database/reviews.go#L265) | method | 265-357 | `func (*ReviewRepository).CreateContext(ctx context.Context, runID int64, parentContextID *int64) (*ReviewContext, bool, error)` | CreateContext initializes one run context and freezes matching parent heads without copying version bodies. |
+| [`(*ReviewRepository).GetWorkReview`](../src/database/reviews.go#L360) | method | 360-384 | `func (*ReviewRepository).GetWorkReview(ctx context.Context, contextID, workRevisionID int64) (*WorkReviewState, error)` | GetWorkReview returns the complete current state for one context work revision. |
+| [`(*ReviewRepository).AppendWorkReview`](../src/database/reviews.go#L387) | method | 387-459 | `func (*ReviewRepository).AppendWorkReview(ctx context.Context, contextID, workRevisionID int64, expectedVersionID *int64, status string, substatuses []string, reason *string) (*WorkReviewState, bool, error)` | AppendWorkReview appends a complete immutable state and compare-and-swaps only the selected context head. |
+| [`(*ReviewRepository).mutableWorkHead`](../src/database/reviews.go#L462) | method | 462-483 | `func (*ReviewRepository).mutableWorkHead(ctx context.Context, tx *sql.Tx, contextID, workRevisionID int64) (int64, int64, *int64, error)` | mutableWorkHead validates an editable context work and returns its run, work, and current version IDs. |
+| [`(*ReviewRepository).ListWorkReviewVersions`](../src/database/reviews.go#L486) | method | 486-526 | `func (*ReviewRepository).ListWorkReviewVersions(ctx context.Context, contextID, workRevisionID, cursor int64, limit int) ([]WorkReviewVersion, error)` | ListWorkReviewVersions follows only the selected head's ancestor chain. |
+| [`(*ReviewRepository).getWorkReviewVersion`](../src/database/reviews.go#L529) | method | 529-567 | `func (*ReviewRepository).getWorkReviewVersion(ctx context.Context, q interface { queryRower }, id int64) (*WorkReviewVersion, error)` | getWorkReviewVersion reads one immutable version with canonical sub-statuses and reviewer attribution. |
+| [`rowQuerier`](../src/database/reviews.go#L570) | interface | 570-572 | `type rowQuerier interface { QueryContext(context.Context, string, ...any) (*sql.Rows, error) }` | rowQuerier is the shared multi-row query boundary for database and transaction callers. |
+| [`queryRowsContext`](../src/database/reviews.go#L575) | function | 575-581 | `func queryRowsContext(ctx context.Context, q any, query string, args ...any) (*sql.Rows, error)` | queryRowsContext checks that a review query source supports multi-row reads. |
+| [`validateReviewState`](../src/database/reviews.go#L584) | function | 584-612 | `func validateReviewState(status string, substatuses []string, reason *string) ([]string, *string, error)` | validateReviewState normalizes one complete review state and enforces vocabulary compatibility. |
+| [`insertReviewAudit`](../src/database/reviews.go#L615) | function | 615-630 | `func insertReviewAudit(ctx context.Context, tx *sql.Tx, runID int64, entityType, entityID string, action manifest.AuditAction, metadata any) error` | insertReviewAudit appends identifier-only review evidence within the caller's head-move transaction. |
+| [`nullableInt64`](../src/database/reviews.go#L633) | function | 633-638 | `func nullableInt64(value *int64) any` | nullableInt64 converts an optional integer into a SQL parameter. |
+| [`nullableString`](../src/database/reviews.go#L641) | function | 641-646 | `func nullableString(value *string) any` | nullableString converts an optional string into a SQL parameter. |
+| [`nullInt64Pointer`](../src/database/reviews.go#L649) | function | 649-655 | `func nullInt64Pointer(value sql.NullInt64) *int64` | nullInt64Pointer converts a scanned nullable integer into an optional value. |
+| [`sameOptionalID`](../src/database/reviews.go#L658) | function | 658-660 | `func sameOptionalID(left, right *int64) bool` | sameOptionalID compares nullable version identifiers. |
+| [`optionalStringEqual`](../src/database/reviews.go#L663) | function | 663-665 | `func optionalStringEqual(left, right *string) bool` | optionalStringEqual compares nullable normalized text. |
+| [`stringSlicesEqual`](../src/database/reviews.go#L668) | function | 668-678 | `func stringSlicesEqual(left, right []string) bool` | stringSlicesEqual compares canonical ordered string sets. |
+| [`reviewerDisplay`](../src/database/reviews.go#L681) | function | 681-693 | `func reviewerDisplay(username, email string) string` | reviewerDisplay formats optional run attribution and supplies the redacted fallback. |
+| [`ReviewNoteVersion`](../src/database/reviews.go#L696) | struct | 696-706 | ``type ReviewNoteVersion struct { ID int64 `json:"id"` NoteID int64 `json:"note_id"` ParentVersionID *int64 `json:"parent_version_id,omitempty"` CreatedInContextID int64 `json:"created_in_context_id"` State string `json:"state"` Body *string `json:"body"` CreatedAt string `json:"created_at"` ReviewerDisplay string `json:"reviewer_display"` Links []ReviewLink `json:"links"` }`` | ReviewNoteVersion is one immutable active note snapshot or deletion tombstone. |
+| [`ReviewNote`](../src/database/reviews.go#L709) | struct | 709-716 | ``type ReviewNote struct { ID int64 `json:"id"` WorkID int64 `json:"work_id"` WorkRevisionID int64 `json:"work_revision_id"` CreatedAt string `json:"created_at"` Version ReviewNoteVersion `json:"version"` InheritedFromContextID *int64 `json:"inherited_from_context_id,omitempty"` }`` | ReviewNote is one logical note with the selected context's current immutable head. |
+| [`ReviewLink`](../src/database/reviews.go#L719) | struct | 719-732 | ``type ReviewLink struct { Ordinal int `json:"ordinal"` TargetType string `json:"target_type"` RawTarget string `json:"raw_target"` DisplayText *string `json:"display_text,omitempty"` UTF16Position int `json:"utf16_position"` UTF16Length int `json:"utf16_length"` Resolved bool `json:"resolved"` WorkRevisionID *int64 `json:"work_revision_id,omitempty"` NoteID *int64 `json:"note_id,omitempty"` AnchorID *string `json:"anchor_id,omitempty"` Page *int `json:"page,omitempty"` URL *string `json:"url,omitempty"` }`` | ReviewLink is a version-scoped custom link plus its context-sensitive resolution. |
+| [`(*ReviewRepository).CreateNote`](../src/database/reviews.go#L735) | method | 735-786 | `func (*ReviewRepository).CreateNote(ctx context.Context, contextID, workRevisionID int64, body string) (*ReviewNote, error)` | CreateNote creates one logical note, immutable first version, head, links, and audit atomically. |
+| [`(*ReviewRepository).AppendNoteVersion`](../src/database/reviews.go#L789) | method | 789-892 | `func (*ReviewRepository).AppendNoteVersion(ctx context.Context, contextID, noteID int64, expectedVersionID int64, state, body string) (*ReviewNote, bool, error)` | AppendNoteVersion appends an active edit or deletion tombstone with optimistic concurrency. |
+| [`(*ReviewRepository).GetNote`](../src/database/reviews.go#L895) | method | 895-897 | `func (*ReviewRepository).GetNote(ctx context.Context, contextID, noteID int64) (*ReviewNote, error)` | GetNote returns an explicitly addressed current note head, including tombstones. |
+| [`(*ReviewRepository).getNote`](../src/database/reviews.go#L900) | method | 900-929 | `func (*ReviewRepository).getNote(ctx context.Context, q interface { queryRower rowQuerier }, contextID, noteID int64) (*ReviewNote, error)` | getNote reads one selected context head and resolves inherited attribution. |
+| [`(*ReviewRepository).ListNotes`](../src/database/reviews.go#L932) | method | 932-974 | `func (*ReviewRepository).ListNotes(ctx context.Context, contextID, workRevisionID, cursor int64, limit int, includeDeleted bool) ([]ReviewNote, error)` | ListNotes returns bounded current note heads for one context work, excluding tombstones unless requested. |
+| [`(*ReviewRepository).ListNoteVersions`](../src/database/reviews.go#L977) | method | 977-1016 | `func (*ReviewRepository).ListNoteVersions(ctx context.Context, contextID, noteID, cursor int64, limit int) ([]ReviewNoteVersion, error)` | ListNoteVersions follows only the selected context note head's ancestors. |
+| [`(*ReviewRepository).getNoteVersion`](../src/database/reviews.go#L1019) | method | 1019-1048 | `func (*ReviewRepository).getNoteVersion(ctx context.Context, q interface { queryRower rowQuerier }, contextID, versionID int64) (*ReviewNoteVersion, error)` | getNoteVersion reads one immutable note version and resolves its version-scoped links. |
+| [`insertNoteLinks`](../src/database/reviews.go#L1051) | function | 1051-1061 | `func insertNoteLinks(ctx context.Context, tx *sql.Tx, versionID int64, links []notes.Link) error` | insertNoteLinks stores parser output against the exact immutable note version. |
+| [`(*ReviewRepository).linksForVersion`](../src/database/reviews.go#L1064) | method | 1064-1098 | `func (*ReviewRepository).linksForVersion(ctx context.Context, q interface { queryRower rowQuerier }, contextID, noteID, versionID int64) ([]ReviewLink, error)` | linksForVersion reads links in source order and resolves them against the selected context. |
+| [`(*ReviewRepository).resolveLink`](../src/database/reviews.go#L1101) | method | 1101-1168 | `func (*ReviewRepository).resolveLink(ctx context.Context, q queryRower, contextID, sourceNoteID int64, link *ReviewLink) error` | resolveLink enriches a syntactically valid link without rewriting persisted link identity. |
+| [`(*ReviewRepository).ListBacklinks`](../src/database/reviews.go#L1171) | method | 1171-1208 | `func (*ReviewRepository).ListBacklinks(ctx context.Context, contextID int64, targetType, targetID string, cursor int64, limit int) ([]ReviewNote, error)` | ListBacklinks returns links from current note heads only. |
+| [`AnchorRectangle`](../src/database/reviews.go#L1211) | struct | 1211-1216 | ``type AnchorRectangle struct { X float64 `json:"x"` Y float64 `json:"y"` Width float64 `json:"width"` Height float64 `json:"height"` }`` | AnchorRectangle is one normalized highlight rectangle on a single PDF page. |
+| [`ReviewAnchorVersion`](../src/database/reviews.go#L1219) | struct | 1219-1232 | ``type ReviewAnchorVersion struct { ID int64 `json:"id"` AnchorID string `json:"anchor_id"` ParentVersionID *int64 `json:"parent_version_id,omitempty"` CreatedInContextID int64 `json:"created_in_context_id"` WorkRevisionID int64 `json:"work_revision_id"` PDFContentHash string `json:"pdf_content_hash"` State string `json:"state"` Page *int `json:"page,omitempty"` SelectedText *string `json:"selected_text,omitempty"` Rectangles []AnchorRectangle `json:"rectangles,omitempty"` CreatedAt string `json:"created_at"` ReviewerDisplay string `json:"reviewer_display"` }`` | ReviewAnchorVersion is one immutable active highlight snapshot or deletion tombstone. |
+| [`ReviewAnchor`](../src/database/reviews.go#L1235) | struct | 1235-1241 | ``type ReviewAnchor struct { ID string `json:"id"` WorkID int64 `json:"work_id"` CreatedAt string `json:"created_at"` Version ReviewAnchorVersion `json:"version"` InheritedFromContextID *int64 `json:"inherited_from_context_id,omitempty"` }`` | ReviewAnchor is one stable corpus-wide anchor with the selected context's current head. |
+| [`(*ReviewRepository).CreateAnchor`](../src/database/reviews.go#L1244) | method | 1244-1285 | `func (*ReviewRepository).CreateAnchor(ctx context.Context, contextID, workRevisionID int64, anchorID, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) (*ReviewAnchor, error)` | CreateAnchor creates one logical anchor and immutable first version atomically. |
+| [`(*ReviewRepository).AppendAnchorVersion`](../src/database/reviews.go#L1288) | method | 1288-1377 | `func (*ReviewRepository).AppendAnchorVersion(ctx context.Context, contextID int64, anchorID string, expectedVersionID int64, state, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) (*ReviewAnchor, bool, error)` | AppendAnchorVersion appends an active replacement or tombstone using optimistic concurrency. |
+| [`(*ReviewRepository).ListAnchors`](../src/database/reviews.go#L1380) | method | 1380-1418 | `func (*ReviewRepository).ListAnchors(ctx context.Context, contextID, workRevisionID int64, cursor string, limit int) ([]ReviewAnchor, error)` | ListAnchors returns bounded active current anchors for one context work. |
+| [`(*ReviewRepository).getAnchor`](../src/database/reviews.go#L1421) | method | 1421-1444 | `func (*ReviewRepository).getAnchor(ctx context.Context, contextID int64, anchorID string) (*ReviewAnchor, error)` | getAnchor reads one selected context anchor head with inherited attribution. |
+| [`(*ReviewRepository).ListAnchorVersions`](../src/database/reviews.go#L1447) | method | 1447-1486 | `func (*ReviewRepository).ListAnchorVersions(ctx context.Context, contextID int64, anchorID string, cursor int64, limit int) ([]ReviewAnchorVersion, error)` | ListAnchorVersions follows only the selected context anchor head's ancestors. |
+| [`(*ReviewRepository).getAnchorVersion`](../src/database/reviews.go#L1489) | method | 1489-1522 | `func (*ReviewRepository).getAnchorVersion(ctx context.Context, q queryRower, versionID int64) (*ReviewAnchorVersion, error)` | getAnchorVersion reads one immutable geometry snapshot or tombstone. |
+| [`validateAnchorVersion`](../src/database/reviews.go#L1525) | function | 1525-1566 | `func validateAnchorVersion(anchorID, contentHash, state string, page int, selectedText string, rectangles []AnchorRectangle) error` | validateAnchorVersion enforces safe identity, PDF binding, state, and normalized geometry. |
+| [`anchorsEqual`](../src/database/reviews.go#L1569) | function | 1569-1585 | `func anchorsEqual(current *ReviewAnchorVersion, state, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) bool` | anchorsEqual detects an identical save so the repository can avoid redundant history. |
+| [`IsReviewConflict`](../src/database/reviews.go#L1588) | function | 1588-1591 | `func IsReviewConflict(err error) bool` | IsReviewConflict reports whether an error is an optimistic head conflict. |
+
+### [`src/database/reviews_integration_test.go`](../src/database/reviews_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewCopyOnWriteLineage`](../src/database/reviews_integration_test.go#L12) | test | 12-107 | `func TestReviewCopyOnWriteLineage(t *testing.T)` | TestReviewCopyOnWriteLineage verifies context inheritance, immutable heads, note history, anchors, audit, and purge protection. |
+| [`TestReviewValidationAndNoOp`](../src/database/reviews_integration_test.go#L110) | test | 110-132 | `func TestReviewValidationAndNoOp(t *testing.T)` | TestReviewValidationAndNoOp verifies invalid vocabulary, geometry, syntax, and identical saves. |
+| [`TestReviewParentSelection`](../src/database/reviews_integration_test.go#L135) | test | 135-194 | `func TestReviewParentSelection(t *testing.T)` | TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection. |
+| [`createReviewLineageFixture`](../src/database/reviews_integration_test.go#L197) | function | 197-224 | `func createReviewLineageFixture(t *testing.T, db *Database) (int64, int64, int64, int64, int64)` | createReviewLineageFixture creates completed A1 and A2 runs with one overlapping stable work. |
 
 ### [`src/database/run_artifacts.go`](../src/database/run_artifacts.go)
 
@@ -636,35 +728,38 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`e2eMode`](../src/e2e_test.go#L33) | struct | 33-44 | `type e2eMode struct { name string enrichment bool live bool providerBaseURL string sources []e2eSource expectedParsed int expectedUnique int expectedValid int expectedDiscarded int expectedTitles []string }` | e2eMode describes one pipeline variant and its expected persisted result. |
-| [`e2eSource`](../src/e2e_test.go#L47) | struct | 47-52 | `type e2eSource struct { name string filename string fileType string count int }` | e2eSource describes one tracked input used by a generated workspace configuration. |
-| [`e2eResult`](../src/e2e_test.go#L55) | struct | 55-60 | `type e2eResult struct { dbPath string runID int64 workIDs map[string]int64 titles []string }` | e2eResult identifies the generated database and rows needed by API assertions. |
-| [`providerMock`](../src/e2e_test.go#L63) | struct | 63-66 | `type providerMock struct { mu sync.Mutex requests []string }` | providerMock records requests served by the local deterministic provider. |
-| [`TestE2EDeterministic`](../src/e2e_test.go#L69) | test | 69-82 | `func TestE2EDeterministic(t *testing.T)` | TestE2EDeterministic verifies the offline pipeline, database, API, and PDF inventory flow. |
-| [`TestE2EMocked`](../src/e2e_test.go#L85) | test | 85-102 | `func TestE2EMocked(t *testing.T)` | TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence. |
-| [`newE2EProviderServer`](../src/e2e_test.go#L105) | function | 105-115 | `func newE2EProviderServer(t *testing.T, handler http.Handler) *httptest.Server` | newE2EProviderServer starts the deterministic provider on an explicit IPv4 loopback listener. |
-| [`TestE2ELive`](../src/e2e_test.go#L118) | test | 118-131 | `func TestE2ELive(t *testing.T)` | TestE2ELive verifies the explicitly enabled real-provider path with structural assertions. |
-| [`runE2EVariant`](../src/e2e_test.go#L134) | function | 134-149 | `func runE2EVariant(t *testing.T, root string, mode e2eMode, environment []string) e2eResult` | runE2EVariant generates configuration, invokes the supported binary, and validates its databases. |
-| [`e2eRepositoryRoot`](../src/e2e_test.go#L152) | function | 152-165 | `func e2eRepositoryRoot(t *testing.T) string` | e2eRepositoryRoot resolves the repository root from the main package working directory. |
-| [`prepareE2EOutput`](../src/e2e_test.go#L168) | function | 168-186 | `func prepareE2EOutput(t *testing.T, root, variant string) string` | prepareE2EOutput recreates one known target-owned variant directory under build/e2e. |
-| [`writeE2EConfig`](../src/e2e_test.go#L189) | function | 189-247 | `func writeE2EConfig(t *testing.T, root, outputDir string, mode e2eMode) string` | writeE2EConfig writes a typed workspace configuration and its relative include. |
-| [`e2eProviderConfig`](../src/e2e_test.go#L250) | function | 250-287 | `func e2eProviderConfig(mode e2eMode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
-| [`validateE2EConfig`](../src/e2e_test.go#L290) | function | 290-297 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
-| [`e2eOfflineEnvironment`](../src/e2e_test.go#L300) | function | 300-321 | `func e2eOfflineEnvironment(providerURL string) []string` | e2eOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
-| [`(*providerMock).ServeHTTP`](../src/e2e_test.go#L324) | method | 324-351 | `func (*providerMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
-| [`(*providerMock).assertRequests`](../src/e2e_test.go#L354) | method | 354-371 | `func (*providerMock).assertRequests(t *testing.T)` | assertRequests verifies all expected provider families were exercised through loopback. |
-| [`assertE2EDatabases`](../src/e2e_test.go#L374) | function | 374-449 | `func assertE2EDatabases(t *testing.T, root, dbPath string, mode e2eMode) e2eResult` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
-| [`e2eRawCount`](../src/e2e_test.go#L452) | function | 452-458 | `func e2eRawCount(sources []e2eSource) int` | e2eRawCount returns the total declared fixture record count. |
-| [`assertE2ECount`](../src/e2e_test.go#L461) | function | 461-474 | `func assertE2ECount(t *testing.T, db *database.Database, table, where string, argument any, want int)` | assertE2ECount checks an exact table row count using one optional query argument. |
-| [`assertE2EAtLeast`](../src/e2e_test.go#L477) | function | 477-490 | `func assertE2EAtLeast(t *testing.T, db *database.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
-| [`assertE2EPDFCount`](../src/e2e_test.go#L493) | function | 493-499 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
-| [`e2ENormalizedWorks`](../src/e2e_test.go#L502) | function | 502-525 | `func e2ENormalizedWorks(t *testing.T, db *database.Database, runID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
-| [`assertE2EAuditOrder`](../src/e2e_test.go#L528) | function | 528-560 | `func assertE2EAuditOrder(t *testing.T, db *database.Database, runID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
-| [`assertE2EAPI`](../src/e2e_test.go#L563) | function | 563-607 | `func assertE2EAPI(t *testing.T, result e2eResult)` | assertE2EAPI compares read-only HTTP responses with the database assertions. |
-| [`requestE2EJSON`](../src/e2e_test.go#L610) | function | 610-623 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
-| [`nestedE2EID`](../src/e2e_test.go#L626) | function | 626-649 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
-| [`mustE2EJSON`](../src/e2e_test.go#L652) | function | 652-659 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
-| [`equalE2EStrings`](../src/e2e_test.go#L662) | function | 662-668 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
+| [`e2eMode`](../src/e2e_test.go#L34) | struct | 34-45 | `type e2eMode struct { name string enrichment bool live bool providerBaseURL string sources []e2eSource expectedParsed int expectedUnique int expectedValid int expectedDiscarded int expectedTitles []string }` | e2eMode describes one pipeline variant and its expected persisted result. |
+| [`e2eSource`](../src/e2e_test.go#L48) | struct | 48-53 | `type e2eSource struct { name string filename string fileType string count int }` | e2eSource describes one tracked input used by a generated workspace configuration. |
+| [`e2eResult`](../src/e2e_test.go#L56) | struct | 56-61 | `type e2eResult struct { dbPath string runID int64 workIDs map[string]int64 titles []string }` | e2eResult identifies the generated database and rows needed by API assertions. |
+| [`providerMock`](../src/e2e_test.go#L64) | struct | 64-67 | `type providerMock struct { mu sync.Mutex requests []string }` | providerMock records requests served by the local deterministic provider. |
+| [`TestE2EDeterministic`](../src/e2e_test.go#L70) | test | 70-84 | `func TestE2EDeterministic(t *testing.T)` | TestE2EDeterministic verifies the offline pipeline, database, API, and PDF inventory flow. |
+| [`TestE2EReviewEvidence`](../src/e2e_test.go#L87) | test | 87-137 | `func TestE2EReviewEvidence(t *testing.T)` | TestE2EReviewEvidence verifies browser mutations against the isolated database after Playwright completes. |
+| [`TestE2EMocked`](../src/e2e_test.go#L140) | test | 140-157 | `func TestE2EMocked(t *testing.T)` | TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence. |
+| [`newE2EProviderServer`](../src/e2e_test.go#L160) | function | 160-170 | `func newE2EProviderServer(t *testing.T, handler http.Handler) *httptest.Server` | newE2EProviderServer starts the deterministic provider on an explicit IPv4 loopback listener. |
+| [`TestE2ELive`](../src/e2e_test.go#L173) | test | 173-186 | `func TestE2ELive(t *testing.T)` | TestE2ELive verifies the explicitly enabled real-provider path with structural assertions. |
+| [`runE2EVariant`](../src/e2e_test.go#L189) | function | 189-204 | `func runE2EVariant(t *testing.T, root string, mode e2eMode, environment []string) e2eResult` | runE2EVariant generates configuration, invokes the supported binary, and validates its databases. |
+| [`e2eRepositoryRoot`](../src/e2e_test.go#L207) | function | 207-220 | `func e2eRepositoryRoot(t *testing.T) string` | e2eRepositoryRoot resolves the repository root from the main package working directory. |
+| [`prepareE2EOutput`](../src/e2e_test.go#L223) | function | 223-241 | `func prepareE2EOutput(t *testing.T, root, variant string) string` | prepareE2EOutput recreates one known target-owned variant directory under build/e2e. |
+| [`writeE2EConfig`](../src/e2e_test.go#L244) | function | 244-303 | `func writeE2EConfig(t *testing.T, root, outputDir string, mode e2eMode) string` | writeE2EConfig writes a typed workspace configuration and its relative include. |
+| [`prepareE2EReviewRuns`](../src/e2e_test.go#L306) | function | 306-332 | `func prepareE2EReviewRuns(t *testing.T, root string, result e2eResult)` | prepareE2EReviewRuns inventories a valid PDF through the supported tool and creates A2 as a fresh overlapping run. |
+| [`deterministicE2EPDF`](../src/e2e_test.go#L335) | function | 335-372 | `func deterministicE2EPDF(pageText ...string) []byte` | deterministicE2EPDF returns a valid multi-page PDF used by the real pdf-store CLI. |
+| [`e2eProviderConfig`](../src/e2e_test.go#L375) | function | 375-412 | `func e2eProviderConfig(mode e2eMode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
+| [`validateE2EConfig`](../src/e2e_test.go#L415) | function | 415-422 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
+| [`e2eOfflineEnvironment`](../src/e2e_test.go#L425) | function | 425-446 | `func e2eOfflineEnvironment(providerURL string) []string` | e2eOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
+| [`(*providerMock).ServeHTTP`](../src/e2e_test.go#L449) | method | 449-476 | `func (*providerMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
+| [`(*providerMock).assertRequests`](../src/e2e_test.go#L479) | method | 479-496 | `func (*providerMock).assertRequests(t *testing.T)` | assertRequests verifies all expected provider families were exercised through loopback. |
+| [`assertE2EDatabases`](../src/e2e_test.go#L499) | function | 499-574 | `func assertE2EDatabases(t *testing.T, root, dbPath string, mode e2eMode) e2eResult` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
+| [`e2eRawCount`](../src/e2e_test.go#L577) | function | 577-583 | `func e2eRawCount(sources []e2eSource) int` | e2eRawCount returns the total declared fixture record count. |
+| [`assertE2ECount`](../src/e2e_test.go#L586) | function | 586-599 | `func assertE2ECount(t *testing.T, db *database.Database, table, where string, argument any, want int)` | assertE2ECount checks an exact table row count using one optional query argument. |
+| [`assertE2EAtLeast`](../src/e2e_test.go#L602) | function | 602-615 | `func assertE2EAtLeast(t *testing.T, db *database.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
+| [`assertE2EPDFCount`](../src/e2e_test.go#L618) | function | 618-624 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
+| [`e2ENormalizedWorks`](../src/e2e_test.go#L627) | function | 627-650 | `func e2ENormalizedWorks(t *testing.T, db *database.Database, runID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
+| [`assertE2EAuditOrder`](../src/e2e_test.go#L653) | function | 653-685 | `func assertE2EAuditOrder(t *testing.T, db *database.Database, runID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
+| [`assertE2EAPI`](../src/e2e_test.go#L688) | function | 688-732 | `func assertE2EAPI(t *testing.T, result e2eResult)` | assertE2EAPI compares read-only HTTP responses with the database assertions. |
+| [`requestE2EJSON`](../src/e2e_test.go#L735) | function | 735-748 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
+| [`nestedE2EID`](../src/e2e_test.go#L751) | function | 751-774 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
+| [`mustE2EJSON`](../src/e2e_test.go#L777) | function | 777-784 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
+| [`equalE2EStrings`](../src/e2e_test.go#L787) | function | 787-793 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
 
 ### [`src/enrich/client.go`](../src/enrich/client.go)
 
@@ -804,13 +899,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`version`](../src/main.go#L28) | function | 28-34 | `func version() string` | version returns the semantic version string, appending "-development" for development builds so release and dev binaries are distinguishable. |
-| [`usage`](../src/main.go#L37) | function | 37-88 | `func usage()` | usage writes the supported command syntax to standard error. |
-| [`main`](../src/main.go#L91) | function | 91-111 | `func main()` | main dispatches the analysis command selected by process arguments and exits on command failure. |
-| [`serveMain`](../src/main.go#L114) | function | 114-157 | `func serveMain()` | serveMain serves main. |
-| [`frontendAssets`](../src/main.go#L160) | function | 160-172 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets returns either explicit filesystem assets or the embedded production frontend. |
-| [`runPipelineMain`](../src/main.go#L175) | function | 175-205 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
-| [`changeToRepositoryRoot`](../src/main.go#L208) | function | 208-214 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
+| [`version`](../src/main.go#L32) | function | 32-38 | `func version() string` | version returns the semantic version string, appending "-development" for development builds so release and dev binaries are distinguishable. |
+| [`usage`](../src/main.go#L41) | function | 41-100 | `func usage()` | usage writes the supported command syntax to standard error. |
+| [`main`](../src/main.go#L103) | function | 103-125 | `func main()` | main dispatches the analysis command selected by process arguments and exits on command failure. |
+| [`migrateMain`](../src/main.go#L128) | function | 128-141 | `func migrateMain()` | migrateMain applies pending metadata migrations to one existing database. |
+| [`serveMain`](../src/main.go#L144) | function | 144-183 | `func serveMain()` | serveMain serves main. |
+| [`validateLoopbackAddress`](../src/main.go#L186) | function | 186-196 | `func validateLoopbackAddress(address string) error` | validateLoopbackAddress accepts exact IP loopback authorities and rejects names and wildcard hosts. |
+| [`frontendAssets`](../src/main.go#L199) | function | 199-211 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets returns either explicit filesystem assets or the embedded production frontend. |
+| [`runPipelineMain`](../src/main.go#L214) | function | 214-244 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
+| [`changeToRepositoryRoot`](../src/main.go#L247) | function | 247-253 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
 
 ### [`src/main_test.go`](../src/main_test.go)
 
@@ -828,8 +925,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion`](../src/main_test.go#L836) | test | 836-871 | `func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(t *testing.T)` | TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion verifies workspace pipeline retains source records rejected during canonical conversion. |
 | [`TestFrontendAssets`](../src/main_test.go#L874) | test | 874-903 | `func TestFrontendAssets(t *testing.T)` | TestFrontendAssets verifies frontend assets. |
 | [`TestVersion`](../src/main_test.go#L906) | test | 906-914 | `func TestVersion(t *testing.T)` | TestVersion verifies the version command output format and current value. |
-| [`chdirToRepositoryRoot`](../src/main_test.go#L917) | function | 917-932 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
-| [`testWorkspaceRun`](../src/main_test.go#L935) | function | 935-953 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
+| [`TestValidateLoopbackAddress`](../src/main_test.go#L917) | test | 917-928 | `func TestValidateLoopbackAddress(t *testing.T)` | TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs. |
+| [`chdirToRepositoryRoot`](../src/main_test.go#L931) | function | 931-946 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
+| [`testWorkspaceRun`](../src/main_test.go#L949) | function | 949-967 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
 
 ### [`src/manifest/helpers_test.go`](../src/manifest/helpers_test.go)
 
@@ -857,13 +955,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`ValidRunVisibilities`](../src/manifest/lifecycle.go#L121) | function | 121-123 | `func ValidRunVisibilities() []RunVisibility` | ValidRunVisibilities returns all valid run visibility values. |
 | [`ValidateRunVisibility`](../src/manifest/lifecycle.go#L126) | function | 126-133 | `func ValidateRunVisibility(s string) error` | ValidateRunVisibility returns an error if s is not a valid run visibility. |
 | [`AuditAction`](../src/manifest/lifecycle.go#L136) | type | 136 | `type AuditAction string` | AuditAction identifies one kind of append-only audit event. |
-| [`ValidAuditActions`](../src/manifest/lifecycle.go#L179) | function | 179-188 | `func ValidAuditActions() []AuditAction` | ValidAuditActions returns all valid audit action values. |
-| [`ValidateAuditAction`](../src/manifest/lifecycle.go#L191) | function | 191-203 | `func ValidateAuditAction(s string) error` | ValidateAuditAction returns an error if s is not a valid audit action. |
-| [`AuditEvent`](../src/manifest/lifecycle.go#L209) | struct | 209-244 | ``type AuditEvent struct { // OccurredAt is the ISO 8601 UTC timestamp of the event. OccurredAt string `json:"occurred_at"` // Actor identifies the system component or user that produced the event // (e.g. "pipeline", "viewer", "admin"). Actor string `json:"actor"` // PipelineRunID links this event to a specific pipeline run attempt. // Zero means the event is not associated with a specific run. PipelineRunID int64 `json:"pipeline_run_id,omitempty"` // EntityType identifies the kind of entity affected (e.g. "article", // "author", "plan", "run", "source"). EntityType string `json:"entity_type"` // EntityID is the identifier of the affected entity. EntityID string `json:"entity_id"` // Action is the audit action name. Action AuditAction `json:"action"` // BeforeJSON is the JSON representation of the entity state before the // action, if applicable. BeforeJSON string `json:"before_json,omitempty"` // AfterJSON is the JSON representation of the entity state after the // action, if applicable. AfterJSON string `json:"after_json,omitempty"` // MetadataJSON is additional event-specific context as JSON. MetadataJSON string `json:"metadata_json,omitempty"` // CorrelationID is an optional idempotency key for deduplication. CorrelationID string `json:"correlation_id,omitempty"` }`` | AuditEvent is a single append-only audit record. Every event records when it occurred, which actor produced it, which pipeline run it belongs to, the affected entity, the action performed, optional before/after state, and a correlation id for deduplication. |
-| [`RetentionPolicy`](../src/manifest/lifecycle.go#L249) | struct | 249-253 | ``type RetentionPolicy struct { // TrashRetentionDays is the minimum number of days a trashed run is kept // before it becomes eligible for purge. Zero means indefinite retention. TrashRetentionDays int `json:"trash_retention_days"` }`` | RetentionPolicy describes how long trashed run data is retained before it becomes eligible for purge. Audit events are never deleted; RetentionPolicy does not govern audit records. |
-| [`PurgePolicy`](../src/manifest/lifecycle.go#L257) | struct | 257-266 | ``type PurgePolicy struct { // RequireVerification, when true, requires that purging a run first // verifies no shared artifacts or cache entries are referenced by other // runs. RequireVerification bool `json:"require_verification"` // KeepTombstone, when true, retains a lightweight purge event or tombstone // record instead of removing all evidence of the purged run. KeepTombstone bool `json:"keep_tombstone"` }`` | PurgePolicy describes the authorization and safety checks required before data is permanently removed. |
-| [`DefaultRetentionPolicy`](../src/manifest/lifecycle.go#L269) | function | 269-273 | `func DefaultRetentionPolicy() RetentionPolicy` | DefaultRetentionPolicy returns the default retention policy. |
-| [`DefaultPurgePolicy`](../src/manifest/lifecycle.go#L276) | function | 276-281 | `func DefaultPurgePolicy() PurgePolicy` | DefaultPurgePolicy returns the default purge policy. |
+| [`ValidAuditActions`](../src/manifest/lifecycle.go#L195) | function | 195-208 | `func ValidAuditActions() []AuditAction` | ValidAuditActions returns all valid audit action values. |
+| [`ValidateAuditAction`](../src/manifest/lifecycle.go#L211) | function | 211-227 | `func ValidateAuditAction(s string) error` | ValidateAuditAction returns an error if s is not a valid audit action. |
+| [`AuditEvent`](../src/manifest/lifecycle.go#L233) | struct | 233-268 | ``type AuditEvent struct { // OccurredAt is the ISO 8601 UTC timestamp of the event. OccurredAt string `json:"occurred_at"` // Actor identifies the system component or user that produced the event // (e.g. "pipeline", "viewer", "admin"). Actor string `json:"actor"` // PipelineRunID links this event to a specific pipeline run attempt. // Zero means the event is not associated with a specific run. PipelineRunID int64 `json:"pipeline_run_id,omitempty"` // EntityType identifies the kind of entity affected (e.g. "article", // "author", "plan", "run", "source"). EntityType string `json:"entity_type"` // EntityID is the identifier of the affected entity. EntityID string `json:"entity_id"` // Action is the audit action name. Action AuditAction `json:"action"` // BeforeJSON is the JSON representation of the entity state before the // action, if applicable. BeforeJSON string `json:"before_json,omitempty"` // AfterJSON is the JSON representation of the entity state after the // action, if applicable. AfterJSON string `json:"after_json,omitempty"` // MetadataJSON is additional event-specific context as JSON. MetadataJSON string `json:"metadata_json,omitempty"` // CorrelationID is an optional idempotency key for deduplication. CorrelationID string `json:"correlation_id,omitempty"` }`` | AuditEvent is a single append-only audit record. Every event records when it occurred, which actor produced it, which pipeline run it belongs to, the affected entity, the action performed, optional before/after state, and a correlation id for deduplication. |
+| [`RetentionPolicy`](../src/manifest/lifecycle.go#L273) | struct | 273-277 | ``type RetentionPolicy struct { // TrashRetentionDays is the minimum number of days a trashed run is kept // before it becomes eligible for purge. Zero means indefinite retention. TrashRetentionDays int `json:"trash_retention_days"` }`` | RetentionPolicy describes how long trashed run data is retained before it becomes eligible for purge. Audit events are never deleted; RetentionPolicy does not govern audit records. |
+| [`PurgePolicy`](../src/manifest/lifecycle.go#L281) | struct | 281-290 | ``type PurgePolicy struct { // RequireVerification, when true, requires that purging a run first // verifies no shared artifacts or cache entries are referenced by other // runs. RequireVerification bool `json:"require_verification"` // KeepTombstone, when true, retains a lightweight purge event or tombstone // record instead of removing all evidence of the purged run. KeepTombstone bool `json:"keep_tombstone"` }`` | PurgePolicy describes the authorization and safety checks required before data is permanently removed. |
+| [`DefaultRetentionPolicy`](../src/manifest/lifecycle.go#L293) | function | 293-297 | `func DefaultRetentionPolicy() RetentionPolicy` | DefaultRetentionPolicy returns the default retention policy. |
+| [`DefaultPurgePolicy`](../src/manifest/lifecycle.go#L300) | function | 300-305 | `func DefaultPurgePolicy() PurgePolicy` | DefaultPurgePolicy returns the default purge policy. |
 
 ### [`src/manifest/lifecycle_unit_test.go`](../src/manifest/lifecycle_unit_test.go)
 
@@ -887,16 +985,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestValidateRunVisibilityInvalid`](../src/manifest/lifecycle_unit_test.go#L161) | test | 161-165 | `func TestValidateRunVisibilityInvalid(t *testing.T)` | TestValidateRunVisibilityInvalid verifies validate run visibility invalid. |
 | [`TestValidateRunVisibilityEmpty`](../src/manifest/lifecycle_unit_test.go#L168) | test | 168-172 | `func TestValidateRunVisibilityEmpty(t *testing.T)` | TestValidateRunVisibilityEmpty verifies validate run visibility empty. |
 | [`TestRunVisibilityConstants`](../src/manifest/lifecycle_unit_test.go#L175) | test | 175-185 | `func TestRunVisibilityConstants(t *testing.T)` | TestRunVisibilityConstants verifies run visibility constants. |
-| [`TestValidAuditActions`](../src/manifest/lifecycle_unit_test.go#L188) | test | 188-206 | `func TestValidAuditActions(t *testing.T)` | TestValidAuditActions verifies valid audit actions. |
-| [`TestValidateAuditActionValid`](../src/manifest/lifecycle_unit_test.go#L209) | test | 209-215 | `func TestValidateAuditActionValid(t *testing.T)` | TestValidateAuditActionValid verifies validate audit action valid. |
-| [`TestValidateAuditActionInvalid`](../src/manifest/lifecycle_unit_test.go#L218) | test | 218-222 | `func TestValidateAuditActionInvalid(t *testing.T)` | TestValidateAuditActionInvalid verifies validate audit action invalid. |
-| [`TestValidateAuditActionEmpty`](../src/manifest/lifecycle_unit_test.go#L225) | test | 225-229 | `func TestValidateAuditActionEmpty(t *testing.T)` | TestValidateAuditActionEmpty verifies validate audit action empty. |
-| [`TestAuditActionConstants`](../src/manifest/lifecycle_unit_test.go#L232) | test | 232-259 | `func TestAuditActionConstants(t *testing.T)` | TestAuditActionConstants verifies audit action constants. |
-| [`TestAuditEventFields`](../src/manifest/lifecycle_unit_test.go#L262) | test | 262-294 | `func TestAuditEventFields(t *testing.T)` | TestAuditEventFields verifies audit event fields. |
-| [`TestDefaultRetentionPolicy`](../src/manifest/lifecycle_unit_test.go#L297) | test | 297-302 | `func TestDefaultRetentionPolicy(t *testing.T)` | TestDefaultRetentionPolicy verifies default retention policy. |
-| [`TestDefaultPurgePolicy`](../src/manifest/lifecycle_unit_test.go#L305) | test | 305-313 | `func TestDefaultPurgePolicy(t *testing.T)` | TestDefaultPurgePolicy verifies default purge policy. |
-| [`TestRetentionPolicyCustom`](../src/manifest/lifecycle_unit_test.go#L316) | test | 316-323 | `func TestRetentionPolicyCustom(t *testing.T)` | TestRetentionPolicyCustom verifies retention policy custom. |
-| [`TestPurgePolicyCustom`](../src/manifest/lifecycle_unit_test.go#L326) | test | 326-337 | `func TestPurgePolicyCustom(t *testing.T)` | TestPurgePolicyCustom verifies purge policy custom. |
+| [`TestValidAuditActions`](../src/manifest/lifecycle_unit_test.go#L188) | test | 188-210 | `func TestValidAuditActions(t *testing.T)` | TestValidAuditActions verifies valid audit actions. |
+| [`TestValidateAuditActionValid`](../src/manifest/lifecycle_unit_test.go#L213) | test | 213-219 | `func TestValidateAuditActionValid(t *testing.T)` | TestValidateAuditActionValid verifies validate audit action valid. |
+| [`TestValidateAuditActionInvalid`](../src/manifest/lifecycle_unit_test.go#L222) | test | 222-226 | `func TestValidateAuditActionInvalid(t *testing.T)` | TestValidateAuditActionInvalid verifies validate audit action invalid. |
+| [`TestValidateAuditActionEmpty`](../src/manifest/lifecycle_unit_test.go#L229) | test | 229-233 | `func TestValidateAuditActionEmpty(t *testing.T)` | TestValidateAuditActionEmpty verifies validate audit action empty. |
+| [`TestAuditActionConstants`](../src/manifest/lifecycle_unit_test.go#L236) | test | 236-263 | `func TestAuditActionConstants(t *testing.T)` | TestAuditActionConstants verifies audit action constants. |
+| [`TestAuditEventFields`](../src/manifest/lifecycle_unit_test.go#L266) | test | 266-298 | `func TestAuditEventFields(t *testing.T)` | TestAuditEventFields verifies audit event fields. |
+| [`TestDefaultRetentionPolicy`](../src/manifest/lifecycle_unit_test.go#L301) | test | 301-306 | `func TestDefaultRetentionPolicy(t *testing.T)` | TestDefaultRetentionPolicy verifies default retention policy. |
+| [`TestDefaultPurgePolicy`](../src/manifest/lifecycle_unit_test.go#L309) | test | 309-317 | `func TestDefaultPurgePolicy(t *testing.T)` | TestDefaultPurgePolicy verifies default purge policy. |
+| [`TestRetentionPolicyCustom`](../src/manifest/lifecycle_unit_test.go#L320) | test | 320-327 | `func TestRetentionPolicyCustom(t *testing.T)` | TestRetentionPolicyCustom verifies retention policy custom. |
+| [`TestPurgePolicyCustom`](../src/manifest/lifecycle_unit_test.go#L330) | test | 330-341 | `func TestPurgePolicyCustom(t *testing.T)` | TestPurgePolicyCustom verifies purge policy custom. |
 
 ### [`src/manifest/manifest.go`](../src/manifest/manifest.go)
 
@@ -1041,6 +1139,39 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStripJournalSubtitle`](../src/normalization/normalization_unit_test.go#L775) | test | 775-796 | `func TestStripJournalSubtitle(t *testing.T)` | TestStripJournalSubtitle verifies strip journal subtitle. |
 | [`TestTitleCaseJournal`](../src/normalization/normalization_unit_test.go#L803) | test | 803-834 | `func TestTitleCaseJournal(t *testing.T)` | TestTitleCaseJournal verifies title case journal. |
 
+### [`src/notes/parser.go`](../src/notes/parser.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ValidAnchorID`](../src/notes/parser.go#L26) | function | 26 | `func ValidAnchorID(value string) bool` | ValidAnchorID reports whether an anchor identifier is safe for storage, links, and URLs. |
+| [`SyntaxError`](../src/notes/parser.go#L29) | struct | 29-33 | ``type SyntaxError struct { Position int `json:"position"` Length int `json:"length"` Message string `json:"message"` }`` | SyntaxError identifies one recoverable note-language error using UTF-16 offsets. |
+| [`Link`](../src/notes/parser.go#L36) | struct | 36-42 | ``type Link struct { TargetType string `json:"target_type"` RawTarget string `json:"raw_target"` DisplayText *string `json:"display_text,omitempty"` Position int `json:"position"` Length int `json:"length"` }`` | Link is one syntactically valid custom link extracted from a note version. |
+| [`Block`](../src/notes/parser.go#L45) | struct | 45-51 | ``type Block struct { Kind string `json:"kind"` Level int `json:"level,omitempty"` Text string `json:"text,omitempty"` Items []string `json:"items,omitempty"` Rows [][]string `json:"rows,omitempty"` }`` | Block is a normalized note block used by cross-language conformance fixtures. |
+| [`Document`](../src/notes/parser.go#L54) | struct | 54-58 | ``type Document struct { Blocks []Block `json:"blocks"` Links []Link `json:"links"` Errors []SyntaxError `json:"errors"` }`` | Document is the normalized parser result. Any syntax error makes the document unsaveable. |
+| [`Parse`](../src/notes/parser.go#L61) | function | 61-74 | `func Parse(body string) Document` | Parse returns all recognized blocks, links, and recoverable syntax errors. |
+| [`parseBlocks`](../src/notes/parser.go#L77) | function | 77-187 | `func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError)` | parseBlocks recognizes the bounded block grammar while suppressing links inside code fences. |
+| [`heading`](../src/notes/parser.go#L190) | function | 190-198 | `func heading(line string) (int, string, bool)` | heading recognizes project headings from level one through four. |
+| [`listItem`](../src/notes/parser.go#L201) | function | 201-209 | `func listItem(line string) (string, string, bool)` | listItem recognizes bullet and deliberately simple ordered-list lines. |
+| [`hasUnescapedPipe`](../src/notes/parser.go#L212) | function | 212-225 | `func hasUnescapedPipe(line string) bool` | hasUnescapedPipe reports whether a line may begin the simple table grammar. |
+| [`splitTableRow`](../src/notes/parser.go#L228) | function | 228-262 | `func splitTableRow(line string) []string` | splitTableRow returns safely unescaped cells or nil for a malformed row. |
+| [`parseLinks`](../src/notes/parser.go#L265) | function | 265-290 | `func parseLinks(body string, problems []SyntaxError) ([]Link, []SyntaxError)` | parseLinks extracts custom links outside fenced code while retaining UTF-16 positions. |
+| [`parseLineLinks`](../src/notes/parser.go#L293) | function | 293-321 | `func parseLineLinks(body, line string, base int, problems []SyntaxError) ([]Link, []SyntaxError)` | parseLineLinks extracts and validates each custom link from one source line. |
+| [`findLinkEnd`](../src/notes/parser.go#L324) | function | 324-337 | `func findLinkEnd(line string, start int) int` | findLinkEnd locates the next unescaped closing delimiter. |
+| [`decodeLink`](../src/notes/parser.go#L340) | function | 340-400 | `func decodeLink(input string) (Link, string)` | decodeLink converts one custom-link payload into canonical persisted identity. |
+| [`splitEscaped`](../src/notes/parser.go#L403) | function | 403-429 | `func splitEscaped(input string) ([]string, error)` | splitEscaped separates link fields while preserving supported escaped delimiters. |
+| [`normalizeDOI`](../src/notes/parser.go#L432) | function | 432-438 | `func normalizeDOI(value string) string` | normalizeDOI canonicalizes article-link DOI targets without database access. |
+| [`utf16Offset`](../src/notes/parser.go#L441) | function | 441-449 | `func utf16Offset(body string, byteOffset int) int` | utf16Offset converts a UTF-8 byte position into a browser-compatible code-unit offset. |
+| [`utf16Length`](../src/notes/parser.go#L452) | function | 452 | `func utf16Length(value string) int` | utf16Length returns the browser-compatible code-unit length of a string. |
+
+### [`src/notes/parser_unit_test.go`](../src/notes/parser_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestParseSupportedBlocksAndLinks`](../src/notes/parser_unit_test.go#L12) | test | 12-24 | `func TestParseSupportedBlocksAndLinks(t *testing.T)` | TestParseSupportedBlocksAndLinks verifies bounded blocks, escaping, link normalization, and code suppression. |
+| [`TestParseReportsUTF16Diagnostics`](../src/notes/parser_unit_test.go#L27) | test | 27-35 | `func TestParseReportsUTF16Diagnostics(t *testing.T)` | TestParseReportsUTF16Diagnostics verifies non-BMP characters count as two UTF-16 code units. |
+| [`TestParseRejectsUnsafeAndMalformedInput`](../src/notes/parser_unit_test.go#L38) | test | 38-44 | `func TestParseRejectsUnsafeAndMalformedInput(t *testing.T)` | TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable. |
+| [`TestConformanceFixtures`](../src/notes/parser_unit_test.go#L47) | test | 47-78 | `func TestConformanceFixtures(t *testing.T)` | TestConformanceFixtures verifies the authoritative normalized link and diagnostic corpus. |
+
 ### [`src/pdfstore/audit.go`](../src/pdfstore/audit.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1164,12 +1295,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Server).articleDetail`](../src/server/details.go#L19) | method | 19-98 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
-| [`(*Server).authorDetail`](../src/server/details.go#L101) | method | 101-131 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles and audit evidence. |
-| [`(*Server).referenceDetail`](../src/server/details.go#L134) | method | 134-170 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
-| [`(*Server).rows`](../src/server/details.go#L173) | method | 173-180 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
-| [`(*Server).oneRow`](../src/server/details.go#L183) | method | 183-192 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
-| [`stringID`](../src/server/details.go#L195) | function | 195 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
+| [`(*Server).articleDetail`](../src/server/details.go#L19) | method | 19-104 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
+| [`(*Server).authorDetail`](../src/server/details.go#L107) | method | 107-137 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles and audit evidence. |
+| [`(*Server).referenceDetail`](../src/server/details.go#L140) | method | 140-176 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
+| [`(*Server).rows`](../src/server/details.go#L179) | method | 179-186 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
+| [`(*Server).oneRow`](../src/server/details.go#L189) | method | 189-198 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
+| [`stringID`](../src/server/details.go#L201) | function | 201 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
 
 ### [`src/server/details_integration_test.go`](../src/server/details_integration_test.go)
 
@@ -1183,8 +1314,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Server).runEvaluation`](../src/server/evaluation.go#L20) | method | 20-73 | `func (*Server).runEvaluation(w http.ResponseWriter, r *http.Request)` | runEvaluation lists the selected run's normalized articles and overlays their state from the independently bound PDF inventory. |
-| [`(*Server).overlayPDFInventory`](../src/server/evaluation.go#L76) | method | 76-122 | `func (*Server).overlayPDFInventory(ctx context.Context, items []map[string]any) error` | overlayPDFInventory overlays companion PDF availability onto evaluation rows by normalized DOI. |
+| [`(*Server).runEvaluation`](../src/server/evaluation.go#L20) | method | 20-76 | `func (*Server).runEvaluation(w http.ResponseWriter, r *http.Request)` | runEvaluation lists the selected run's normalized articles and overlays their state from the independently bound PDF inventory. |
+| [`(*Server).overlayReviewInventory`](../src/server/evaluation.go#L79) | method | 79-121 | `func (*Server).overlayReviewInventory(ctx context.Context, runID int64, items []map[string]any) error` | overlayReviewInventory adds current review status and inheritance evidence without changing evaluation pagination. |
+| [`(*Server).overlayPDFInventory`](../src/server/evaluation.go#L124) | method | 124-170 | `func (*Server).overlayPDFInventory(ctx context.Context, items []map[string]any) error` | overlayPDFInventory overlays companion PDF availability onto evaluation rows by normalized DOI. |
 
 ### [`src/server/evaluation_integration_test.go`](../src/server/evaluation_integration_test.go)
 
@@ -1196,8 +1328,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestGenerateFixture`](../src/server/fixture_integration_test.go#L28) | test | 28-540 | `func TestGenerateFixture(t *testing.T)` | TestGenerateFixture creates a workspace fixture database at src/server/testdata/workspace.fixture.db. It is used by the dev server and by Playwright tests. Run it with: cd src && FORCE_FIXTURE=1 go test ./server -run TestGenerateFixture -count=1 The FORCE_FIXTURE variable is required when the fixture already exists; the test skips automatically when the output file is present. |
-| [`sprintf`](../src/server/fixture_integration_test.go#L543) | function | 543-546 | `func sprintf(format string, args ...any) string` | sprintf is a convenience wrapper for fmt.Sprintf used in the fixture generator. |
+| [`TestGenerateFixture`](../src/server/fixture_integration_test.go#L28) | test | 28-542 | `func TestGenerateFixture(t *testing.T)` | TestGenerateFixture creates a workspace fixture database at src/server/testdata/workspace.fixture.db. It is used by the dev server and by Playwright tests. Run it with: cd src && FORCE_FIXTURE=1 go test ./server -run TestGenerateFixture -count=1 The FORCE_FIXTURE variable is required when the fixture already exists; the test skips automatically when the output file is present. |
+| [`sprintf`](../src/server/fixture_integration_test.go#L545) | function | 545-548 | `func sprintf(format string, args ...any) string` | sprintf is a convenience wrapper for fmt.Sprintf used in the fixture generator. |
 
 ### [`src/server/graph.go`](../src/server/graph.go)
 
@@ -1221,15 +1353,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`pdfViewerFixture`](../src/server/helpers_test.go#L19) | struct | 19-26 | `type pdfViewerFixture struct { server *Server runID int64 availableID int64 notAvailableID int64 unavailableID int64 revisionID int64 }` | pdfViewerFixture is a fixture type used by the package test suite. |
-| [`referenceResolutionFixture`](../src/server/helpers_test.go#L29) | struct | 29-36 | `type referenceResolutionFixture struct { path string citingRevisionID int64 externalMentionID int64 resolvedMentionID int64 normalizedTargetID int64 normalizedTargetTitle string }` | referenceResolutionFixture is a fixture type used by the package test suite. |
-| [`articleActivityFixture`](../src/server/helpers_test.go#L39) | struct | 39-44 | `type articleActivityFixture struct { path string normalizedRevisionID int64 discardedRevisionID int64 discardedReason string }` | articleActivityFixture is a fixture type used by the package test suite. |
-| [`viewerFixture`](../src/server/helpers_test.go#L47) | function | 47-137 | `func viewerFixture(t *testing.T) (string, int64, int64, int64)` | viewerFixture supports the package test suite's viewer fixture setup or assertions. |
-| [`viewerReferenceResolutionFixture`](../src/server/helpers_test.go#L140) | function | 140-225 | `func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture` | viewerReferenceResolutionFixture supports the package test suite's viewer reference resolution fixture setup or assertions. |
-| [`viewerArticleActivityFixture`](../src/server/helpers_test.go#L228) | function | 228-324 | `func viewerArticleActivityFixture(t *testing.T) articleActivityFixture` | viewerArticleActivityFixture supports the package test suite's viewer article activity fixture setup or assertions. |
-| [`viewerRequest`](../src/server/helpers_test.go#L327) | function | 327-332 | `func viewerRequest(t *testing.T, handler http.Handler, path string) *httptest.ResponseRecorder` | viewerRequest supports the package test suite's viewer request setup or assertions. |
-| [`requestJSON`](../src/server/helpers_test.go#L335) | function | 335-344 | `func requestJSON(t *testing.T, handler http.Handler, path string) (int, map[string]any)` | requestJSON supports the package test suite's request json setup or assertions. |
-| [`newPDFViewerFixture`](../src/server/helpers_test.go#L347) | function | 347-426 | `func newPDFViewerFixture(t *testing.T) pdfViewerFixture` | newPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions. |
+| [`deterministicFixturePDF`](../src/server/helpers_test.go#L22) | function | 22-65 | `func deterministicFixturePDF(pageText ...string) []byte` | deterministicFixturePDF returns a structurally valid multi-page PDF with selectable Helvetica text. |
+| [`pdfViewerFixture`](../src/server/helpers_test.go#L68) | struct | 68-76 | `type pdfViewerFixture struct { server *Server runID int64 availableID int64 notAvailableID int64 unavailableID int64 revisionID int64 notAvailableRevisionID int64 }` | pdfViewerFixture is a fixture type used by the package test suite. |
+| [`referenceResolutionFixture`](../src/server/helpers_test.go#L79) | struct | 79-86 | `type referenceResolutionFixture struct { path string citingRevisionID int64 externalMentionID int64 resolvedMentionID int64 normalizedTargetID int64 normalizedTargetTitle string }` | referenceResolutionFixture is a fixture type used by the package test suite. |
+| [`articleActivityFixture`](../src/server/helpers_test.go#L89) | struct | 89-94 | `type articleActivityFixture struct { path string normalizedRevisionID int64 discardedRevisionID int64 discardedReason string }` | articleActivityFixture is a fixture type used by the package test suite. |
+| [`viewerFixture`](../src/server/helpers_test.go#L97) | function | 97-187 | `func viewerFixture(t *testing.T) (string, int64, int64, int64)` | viewerFixture supports the package test suite's viewer fixture setup or assertions. |
+| [`viewerReferenceResolutionFixture`](../src/server/helpers_test.go#L190) | function | 190-275 | `func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture` | viewerReferenceResolutionFixture supports the package test suite's viewer reference resolution fixture setup or assertions. |
+| [`viewerArticleActivityFixture`](../src/server/helpers_test.go#L278) | function | 278-374 | `func viewerArticleActivityFixture(t *testing.T) articleActivityFixture` | viewerArticleActivityFixture supports the package test suite's viewer article activity fixture setup or assertions. |
+| [`viewerRequest`](../src/server/helpers_test.go#L377) | function | 377-382 | `func viewerRequest(t *testing.T, handler http.Handler, path string) *httptest.ResponseRecorder` | viewerRequest supports the package test suite's viewer request setup or assertions. |
+| [`requestJSON`](../src/server/helpers_test.go#L385) | function | 385-394 | `func requestJSON(t *testing.T, handler http.Handler, path string) (int, map[string]any)` | requestJSON supports the package test suite's request json setup or assertions. |
+| [`newPDFViewerFixture`](../src/server/helpers_test.go#L397) | function | 397-496 | `func newPDFViewerFixture(t *testing.T) pdfViewerFixture` | newPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions. |
 
 ### [`src/server/identity_evidence.go`](../src/server/identity_evidence.go)
 
@@ -1251,24 +1384,24 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`(*Server).sourceResultCounts`](../src/server/overview.go#L52) | method | 52-69 | `func (*Server).sourceResultCounts(ctx context.Context, runID int64) ([]map[string]any, error)` | sourceResultCounts returns the stored source inventory and result-count evidence for a run. |
 | [`(*Server).sourceFilterCounts`](../src/server/overview.go#L72) | method | 72-104 | `func (*Server).sourceFilterCounts(ctx context.Context, runID int64) ([]map[string]any, error)` | sourceFilterCounts decodes the stored per-source filter-stage counts for a run. |
-| [`(*Server).health`](../src/server/overview.go#L107) | method | 107-112 | `func (*Server).health(w http.ResponseWriter, r *http.Request)` | health reports database readability and the discovered table inventory. |
-| [`(*Server).tableNames`](../src/server/overview.go#L115) | method | 115-128 | `func (*Server).tableNames() []string` | tableNames returns discovered table names in deterministic order. |
-| [`(*Server).searches`](../src/server/overview.go#L131) | method | 131-184 | `func (*Server).searches(w http.ResponseWriter, r *http.Request)` | searches returns searches with their immutable revisions. |
-| [`(*Server).plans`](../src/server/overview.go#L187) | method | 187-205 | `func (*Server).plans(w http.ResponseWriter, r *http.Request)` | plans returns execution plans for the required search revision. |
-| [`(*Server).runs`](../src/server/overview.go#L208) | method | 208-259 | `func (*Server).runs(w http.ResponseWriter, r *http.Request)` | runs returns pipeline attempts filtered by research context and visibility. |
-| [`(*Server).overview`](../src/server/overview.go#L262) | method | 262-364 | `func (*Server).overview(w http.ResponseWriter, r *http.Request)` | overview returns captured metrics, coverage, relationships, and source evidence for a run. |
-| [`metricGroup`](../src/server/overview.go#L367) | function | 367-377 | `func metricGroup(metrics map[string]map[string]any, names ...string) map[string]any` | metricGroup selects named metrics and marks absent captures as unavailable. |
-| [`sourceBreakdown`](../src/server/overview.go#L380) | function | 380-396 | `func sourceBreakdown(metrics []map[string]any, totals map[string]int64) map[string]any` | sourceBreakdown calculates each source's share of captured input records. |
-| [`enrichmentFieldBreakdown`](../src/server/overview.go#L401) | function | 401-415 | `func enrichmentFieldBreakdown(byName map[string]map[string]any) map[string]any` | enrichmentFieldBreakdown extracts per-field enrichment counts from the byName metric map. Metrics named "enriched_fields_<field>" with no source are included. |
-| [`enrichmentProviderBreakdown`](../src/server/overview.go#L420) | function | 420-431 | `func enrichmentProviderBreakdown(metrics []map[string]any) map[string]any` | enrichmentProviderBreakdown extracts per-provider enrichment counts from the raw metrics list. Metrics named "enriched_fields" with a non-empty source are included. |
-| [`normalizationFieldBreakdown`](../src/server/overview.go#L434) | function | 434-476 | `func normalizationFieldBreakdown(metrics []map[string]any) map[string]map[string]any` | normalizationFieldBreakdown groups normalization outcome metrics by field and derives percentages. |
-| [`metricDenominator`](../src/server/overview.go#L479) | function | 479-491 | `func metricDenominator(metric string, values map[string]int64) (int64, bool)` | metricDenominator returns the captured population against which a metric is measured. |
-| [`(*Server).currentCoverage`](../src/server/overview.go#L494) | method | 494-503 | `func (*Server).currentCoverage(ctx context.Context, runID int64) (map[string]any, error)` | currentCoverage returns work-revision and journal coverage for a run. |
-| [`(*Server).relationshipTotals`](../src/server/overview.go#L506) | method | 506-522 | `func (*Server).relationshipTotals(ctx context.Context, runID int64) (map[string]int64, error)` | relationshipTotals counts canonical works, authorships, references, and resolved citations for a run. |
-| [`percent`](../src/server/overview.go#L525) | function | 525-531 | `func percent(value, denominator int64) *float64` | percent returns value as a percentage of denominator, or nil when denominator is zero. |
-| [`requiredQueryID`](../src/server/overview.go#L534) | function | 534-543 | `func requiredQueryID(r *http.Request, name string) (int64, error)` | requiredQueryID validates the endpoint query allowlist and returns one required positive identifier. |
-| [`validateKnownQuery`](../src/server/overview.go#L546) | function | 546-560 | `func validateKnownQuery(r *http.Request, allowed ...string) error` | validateKnownQuery rejects semicolon syntax and query parameters outside the endpoint allowlist. |
-| [`parseOptionalInt`](../src/server/overview.go#L563) | function | 563-572 | `func parseOptionalInt(raw, name string) (int64, error)` | parseOptionalInt parses a named decimal query value for an endpoint diagnostic. |
+| [`(*Server).health`](../src/server/overview.go#L107) | method | 107-119 | `func (*Server).health(w http.ResponseWriter, r *http.Request)` | health reports database readability and the discovered table inventory. |
+| [`(*Server).tableNames`](../src/server/overview.go#L122) | method | 122-135 | `func (*Server).tableNames() []string` | tableNames returns discovered table names in deterministic order. |
+| [`(*Server).searches`](../src/server/overview.go#L138) | method | 138-191 | `func (*Server).searches(w http.ResponseWriter, r *http.Request)` | searches returns searches with their immutable revisions. |
+| [`(*Server).plans`](../src/server/overview.go#L194) | method | 194-212 | `func (*Server).plans(w http.ResponseWriter, r *http.Request)` | plans returns execution plans for the required search revision. |
+| [`(*Server).runs`](../src/server/overview.go#L215) | method | 215-266 | `func (*Server).runs(w http.ResponseWriter, r *http.Request)` | runs returns pipeline attempts filtered by research context and visibility. |
+| [`(*Server).overview`](../src/server/overview.go#L269) | method | 269-371 | `func (*Server).overview(w http.ResponseWriter, r *http.Request)` | overview returns captured metrics, coverage, relationships, and source evidence for a run. |
+| [`metricGroup`](../src/server/overview.go#L374) | function | 374-384 | `func metricGroup(metrics map[string]map[string]any, names ...string) map[string]any` | metricGroup selects named metrics and marks absent captures as unavailable. |
+| [`sourceBreakdown`](../src/server/overview.go#L387) | function | 387-403 | `func sourceBreakdown(metrics []map[string]any, totals map[string]int64) map[string]any` | sourceBreakdown calculates each source's share of captured input records. |
+| [`enrichmentFieldBreakdown`](../src/server/overview.go#L408) | function | 408-422 | `func enrichmentFieldBreakdown(byName map[string]map[string]any) map[string]any` | enrichmentFieldBreakdown extracts per-field enrichment counts from the byName metric map. Metrics named "enriched_fields_<field>" with no source are included. |
+| [`enrichmentProviderBreakdown`](../src/server/overview.go#L427) | function | 427-438 | `func enrichmentProviderBreakdown(metrics []map[string]any) map[string]any` | enrichmentProviderBreakdown extracts per-provider enrichment counts from the raw metrics list. Metrics named "enriched_fields" with a non-empty source are included. |
+| [`normalizationFieldBreakdown`](../src/server/overview.go#L441) | function | 441-483 | `func normalizationFieldBreakdown(metrics []map[string]any) map[string]map[string]any` | normalizationFieldBreakdown groups normalization outcome metrics by field and derives percentages. |
+| [`metricDenominator`](../src/server/overview.go#L486) | function | 486-498 | `func metricDenominator(metric string, values map[string]int64) (int64, bool)` | metricDenominator returns the captured population against which a metric is measured. |
+| [`(*Server).currentCoverage`](../src/server/overview.go#L501) | method | 501-510 | `func (*Server).currentCoverage(ctx context.Context, runID int64) (map[string]any, error)` | currentCoverage returns work-revision and journal coverage for a run. |
+| [`(*Server).relationshipTotals`](../src/server/overview.go#L513) | method | 513-529 | `func (*Server).relationshipTotals(ctx context.Context, runID int64) (map[string]int64, error)` | relationshipTotals counts canonical works, authorships, references, and resolved citations for a run. |
+| [`percent`](../src/server/overview.go#L532) | function | 532-538 | `func percent(value, denominator int64) *float64` | percent returns value as a percentage of denominator, or nil when denominator is zero. |
+| [`requiredQueryID`](../src/server/overview.go#L541) | function | 541-550 | `func requiredQueryID(r *http.Request, name string) (int64, error)` | requiredQueryID validates the endpoint query allowlist and returns one required positive identifier. |
+| [`validateKnownQuery`](../src/server/overview.go#L553) | function | 553-567 | `func validateKnownQuery(r *http.Request, allowed ...string) error` | validateKnownQuery rejects semicolon syntax and query parameters outside the endpoint allowlist. |
+| [`parseOptionalInt`](../src/server/overview.go#L570) | function | 570-579 | `func parseOptionalInt(raw, name string) (int64, error)` | parseOptionalInt parses a named decimal query value for an endpoint diagnostic. |
 
 ### [`src/server/overview_integration_test.go`](../src/server/overview_integration_test.go)
 
@@ -1295,38 +1428,86 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestArticleIncludesManualPDFAuditEvent`](../src/server/pdf_integration_test.go#L66) | test | 66-90 | `func TestArticleIncludesManualPDFAuditEvent(t *testing.T)` | TestArticleIncludesManualPDFAuditEvent verifies article includes manual pdf audit event. |
 | [`TestViewerPDFConnectionIsReadOnly`](../src/server/pdf_integration_test.go#L93) | test | 93-99 | `func TestViewerPDFConnectionIsReadOnly(t *testing.T)` | TestViewerPDFConnectionIsReadOnly verifies viewer pdf connection is read only. |
 
+### [`src/server/reviews.go`](../src/server/reviews.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Server).runReviewContext`](../src/server/reviews.go#L20) | method | 20-47 | `func (*Server).runReviewContext(w http.ResponseWriter, r *http.Request)` | runReviewContext returns the initialized context or the deterministic proposed parent. |
+| [`(*Server).reviewContextCandidates`](../src/server/reviews.go#L50) | method | 50-74 | `func (*Server).reviewContextCandidates(w http.ResponseWriter, r *http.Request)` | reviewContextCandidates returns bounded eligible parent contexts. |
+| [`(*Server).createReviewContext`](../src/server/reviews.go#L77) | method | 77-110 | `func (*Server).createReviewContext(w http.ResponseWriter, r *http.Request)` | createReviewContext explicitly initializes a completed run's review context. |
+| [`(*Server).articleReview`](../src/server/reviews.go#L113) | method | 113-163 | `func (*Server).articleReview(w http.ResponseWriter, r *http.Request)` | articleReview returns current review state or an uninitialized default without manufacturing a head. |
+| [`(*Server).updateArticleReview`](../src/server/reviews.go#L166) | method | 166-200 | `func (*Server).updateArticleReview(w http.ResponseWriter, r *http.Request)` | updateArticleReview appends one complete immutable article-review state. |
+| [`(*Server).articleReviewVersions`](../src/server/reviews.go#L203) | method | 203-228 | `func (*Server).articleReviewVersions(w http.ResponseWriter, r *http.Request)` | articleReviewVersions returns bounded immutable ancestors from the selected context head. |
+| [`(*Server).articleNotes`](../src/server/reviews.go#L231) | method | 231-256 | `func (*Server).articleNotes(w http.ResponseWriter, r *http.Request)` | articleNotes returns bounded current active note heads. |
+| [`(*Server).createArticleNote`](../src/server/reviews.go#L259) | method | 259-289 | `func (*Server).createArticleNote(w http.ResponseWriter, r *http.Request)` | createArticleNote creates a logical note and first immutable version. |
+| [`(*Server).note`](../src/server/reviews.go#L292) | method | 292-309 | `func (*Server).note(w http.ResponseWriter, r *http.Request)` | note returns an explicitly addressed current head, including a tombstone. |
+| [`(*Server).noteVersions`](../src/server/reviews.go#L312) | method | 312-331 | `func (*Server).noteVersions(w http.ResponseWriter, r *http.Request)` | noteVersions returns bounded immutable note ancestors. |
+| [`(*Server).createNoteVersion`](../src/server/reviews.go#L334) | method | 334-374 | `func (*Server).createNoteVersion(w http.ResponseWriter, r *http.Request)` | createNoteVersion creates an active edit or deletion tombstone. |
+| [`(*Server).articleAnchors`](../src/server/reviews.go#L377) | method | 377-402 | `func (*Server).articleAnchors(w http.ResponseWriter, r *http.Request)` | articleAnchors returns bounded current active PDF anchors. |
+| [`(*Server).createArticleAnchor`](../src/server/reviews.go#L405) | method | 405-440 | `func (*Server).createArticleAnchor(w http.ResponseWriter, r *http.Request)` | createArticleAnchor creates a logical anchor and its first immutable geometry version. |
+| [`(*Server).anchorVersions`](../src/server/reviews.go#L443) | method | 443-462 | `func (*Server).anchorVersions(w http.ResponseWriter, r *http.Request)` | anchorVersions returns bounded immutable anchor ancestors. |
+| [`(*Server).createAnchorVersion`](../src/server/reviews.go#L465) | method | 465-513 | `func (*Server).createAnchorVersion(w http.ResponseWriter, r *http.Request)` | createAnchorVersion creates a replacement anchor version or tombstone using the currently selected PDF hash. |
+| [`(*Server).reviewBacklinks`](../src/server/reviews.go#L516) | method | 516-546 | `func (*Server).reviewBacklinks(w http.ResponseWriter, r *http.Request)` | reviewBacklinks returns bounded current-version backlinks. |
+| [`reviewRunRecord`](../src/server/reviews.go#L549) | struct | 549 | `type reviewRunRecord struct{ Status, Visibility string }` | reviewRunRecord contains the lifecycle fields that gate local review. |
+| [`(*Server).requireReviewableRun`](../src/server/reviews.go#L552) | method | 552-565 | `func (*Server).requireReviewableRun(ctx context.Context, runID int64) (reviewRunRecord, error)` | requireReviewableRun rejects missing, failed, running, or trashed run contexts. |
+| [`(*Server).requireInitializedContext`](../src/server/reviews.go#L568) | method | 568-580 | `func (*Server).requireInitializedContext(ctx context.Context, runID int64) (*database.ReviewContext, error)` | requireInitializedContext returns the explicitly created context for an eligible run. |
+| [`(*Server).reviewArticlePDF`](../src/server/reviews.go#L583) | method | 583-595 | `func (*Server).reviewArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, map[string]any, error)` | reviewArticlePDF validates exact run ownership and returns stable work plus inventory state. |
+| [`(*Server).requireAvailableArticlePDF`](../src/server/reviews.go#L598) | method | 598-608 | `func (*Server).requireAvailableArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, string, error)` | requireAvailableArticlePDF gates an exact revision mutation on selected PDF bytes. |
+| [`(*Server).requireAvailableWorkPDF`](../src/server/reviews.go#L611) | method | 611-629 | `func (*Server).requireAvailableWorkPDF(ctx context.Context, runID, workID int64) (int64, string, error)` | requireAvailableWorkPDF gates logical note or anchor mutation on run membership and PDF bytes. |
+| [`(*Server).reviewSummaryCounts`](../src/server/reviews.go#L632) | method | 632-651 | `func (*Server).reviewSummaryCounts(ctx context.Context, contextID, workID int64) (map[string]int, error)` | reviewSummaryCounts returns bounded current note, anchor, and backlink summary counts. |
+| [`reviewArticleIDs`](../src/server/reviews.go#L654) | function | 654-661 | `func reviewArticleIDs(r *http.Request) (int64, int64, error)` | reviewArticleIDs parses the positive run and revision identifiers from one review route. |
+| [`(*Server).reviewNoteRequest`](../src/server/reviews.go#L664) | method | 664-676 | `func (*Server).reviewNoteRequest(r *http.Request) (int64, int64, *database.ReviewContext, context.Context, context.CancelFunc, error)` | reviewNoteRequest prepares a bounded request context and resolves one logical note route. |
+| [`(*Server).reviewAnchorRequest`](../src/server/reviews.go#L679) | method | 679-691 | `func (*Server).reviewAnchorRequest(r *http.Request) (int64, string, *database.ReviewContext, context.Context, context.CancelFunc, error)` | reviewAnchorRequest prepares a bounded request context and resolves one safe anchor route. |
+| [`reviewPage`](../src/server/reviews.go#L694) | function | 694-715 | `func reviewPage(r *http.Request, stringCursor bool) (int64, int, error)` | reviewPage validates bounded review pagination and optional numeric cursors. |
+| [`decodeMutationJSON`](../src/server/reviews.go#L718) | function | 718-744 | `func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any) error` | decodeMutationJSON enforces media type, body bound, single value, and known JSON fields. |
+| [`mapReviewError`](../src/server/reviews.go#L747) | function | 747-763 | `func mapReviewError(err error) error` | mapReviewError converts repository conflicts and validation failures into stable API problems. |
+| [`setMutableResponseHeaders`](../src/server/reviews.go#L766) | function | 766 | `func setMutableResponseHeaders(w http.ResponseWriter)` | setMutableResponseHeaders prevents caching context-sensitive review responses. |
+
+### [`src/server/reviews_integration_test.go`](../src/server/reviews_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewAPIInitializesAndMutatesMetadataOnly`](../src/server/reviews_integration_test.go#L16) | test | 16-137 | `func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T)` | TestReviewAPIInitializesAndMutatesMetadataOnly verifies the public review lifecycle, conflicts, parser errors, and PDF read-only ownership. |
+| [`TestReviewMutationTransportGuards`](../src/server/reviews_integration_test.go#L140) | test | 140-160 | `func TestReviewMutationTransportGuards(t *testing.T)` | TestReviewMutationTransportGuards verifies content type, body bounds, unknown fields, trailing JSON, and origin checks. |
+| [`TestReviewReadValidation`](../src/server/reviews_integration_test.go#L163) | test | 163-186 | `func TestReviewReadValidation(t *testing.T)` | TestReviewReadValidation verifies bounded pagination, target validation, and the local server configuration contract. |
+| [`TestLoopbackAuthorityRejectsRebindingHost`](../src/server/reviews_integration_test.go#L189) | test | 189-201 | `func TestLoopbackAuthorityRejectsRebindingHost(t *testing.T)` | TestLoopbackAuthorityRejectsRebindingHost verifies the HTTP server boundary accepts only its exact bound authority. |
+| [`mutationJSON`](../src/server/reviews_integration_test.go#L204) | function | 204-222 | `func mutationJSON(t *testing.T, handler http.Handler, method, path, body, origin string, contentTypes ...string) (int, map[string]any)` | mutationJSON invokes one review mutation and decodes its object response for assertions. |
+
 ### [`src/server/server.go`](../src/server/server.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Server`](../src/server/server.go#L36) | struct | 36-42 | `type Server struct { db *sql.DB pdfDB *sql.DB pdfPath string tables map[string]tableInfo AssetsFS fs.FS // if non-nil, serves frontend assets from this filesystem }` | Server serves one existing workspace database. db is opened in SQLite's read-only mode and query_only is set for every connection. |
-| [`tableInfo`](../src/server/server.go#L45) | struct | 45-49 | ``type tableInfo struct { Name string `json:"name"` Columns []columnInfo `json:"columns"` Count int64 `json:"row_count"` }`` | tableInfo stores the discovered columns for one browsable SQLite table. |
-| [`columnInfo`](../src/server/server.go#L52) | struct | 52-56 | ``type columnInfo struct { Name string `json:"name"` Type string `json:"type"` PrimaryKey bool `json:"primary_key"` }`` | columnInfo records a SQLite column's name, declared type, and primary-key position. |
-| [`(*Server).tableHasColumns`](../src/server/server.go#L59) | method | 59-74 | `func (*Server).tableHasColumns(table string, required ...string) bool` | tableHasColumns reports whether a discovered table contains every requested column. |
-| [`Open`](../src/server/server.go#L77) | function | 77-118 | `func Open(path string) (*Server, error)` | Open opens an existing database without creating it or modifying it. |
-| [`(*Server).Close`](../src/server/server.go#L121) | method | 121-129 | `func (*Server).Close() error` | Close releases resources owned by the receiver. |
-| [`(*Server).PDFStoreBound`](../src/server/server.go#L132) | method | 132 | `func (*Server).PDFStoreBound() bool` | PDFStoreBound reports whether a readable companion PDF database is attached. |
-| [`(*Server).Handler`](../src/server/server.go#L135) | method | 135-170 | `func (*Server).Handler() http.Handler` | Handler returns the local API and embedded frontend handler. |
-| [`(*Server).openBoundPDFStore`](../src/server/server.go#L173) | method | 173-243 | `func (*Server).openBoundPDFStore(ctx context.Context, metadataDir string) error` | openBoundPDFStore resolves and opens the companion PDF database declared by metadata. |
-| [`pdfTableColumns`](../src/server/server.go#L246) | function | 246-266 | `func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error)` | pdfTableColumns returns the discovered columns for a companion PDF table. |
-| [`(*Server).HTTPServer`](../src/server/server.go#L269) | method | 269-278 | `func (*Server).HTTPServer(addr string) *http.Server` | HTTPServer returns a conservatively configured local HTTP server. |
-| [`(*Server).discoverTables`](../src/server/server.go#L281) | method | 281-316 | `func (*Server).discoverTables(ctx context.Context) error` | discoverTables reads the SQLite schema and returns tables eligible for read-only browsing. |
-| [`(*Server).columns`](../src/server/server.go#L319) | method | 319-337 | `func (*Server).columns(ctx context.Context, table string) ([]columnInfo, error)` | columns returns ordered metadata for the requested table's columns. |
-| [`quoteIdentifier`](../src/server/server.go#L340) | function | 340-342 | `func quoteIdentifier(identifier string) string` | quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes. |
-| [`(*Server).hasTable`](../src/server/server.go#L345) | method | 345 | `func (*Server).hasTable(name string) bool` | hasTable reports whether a table was discovered as browsable. |
-| [`(*Server).hasColumn`](../src/server/server.go#L348) | method | 348-359 | `func (*Server).hasColumn(table, column string) bool` | hasColumn reports whether a discovered table contains a named column. |
-| [`apiError`](../src/server/server.go#L362) | struct | 362-367 | ``type apiError struct { Error struct { Code string `json:"code"` Message string `json:"message"` } `json:"error"` }`` | apiError is the stable JSON envelope returned for client-visible failures. |
-| [`apiProblem`](../src/server/server.go#L370) | struct | 370-373 | `type apiProblem struct { Code, Message string Status int }` | apiProblem carries an HTTP status and safe client-facing error message. |
-| [`(*apiProblem).Error`](../src/server/server.go#L376) | method | 376 | `func (*apiProblem).Error() string` | Error returns the receiver's diagnostic message. |
-| [`badRequest`](../src/server/server.go#L379) | function | 379-381 | `func badRequest(message string) error` | badRequest constructs an API problem with HTTP status 400. |
-| [`notFound`](../src/server/server.go#L384) | function | 384-386 | `func notFound(message string) error` | notFound constructs an API problem with HTTP status 404. |
-| [`withJSONErrors`](../src/server/server.go#L389) | function | 389-397 | `func withJSONErrors(next http.Handler) http.Handler` | withJSONErrors converts handler-returned errors into the server's JSON error response. |
-| [`writeJSON`](../src/server/server.go#L400) | function | 400-404 | `func writeJSON(w http.ResponseWriter, status int, value any)` | writeJSON writes a JSON response with the supplied HTTP status. |
-| [`writeError`](../src/server/server.go#L407) | function | 407-412 | `func writeError(w http.ResponseWriter, status int, code, message string)` | writeError writes the stable JSON error envelope. |
-| [`(*Server).respond`](../src/server/server.go#L415) | method | 415-427 | `func (*Server).respond(w http.ResponseWriter, r *http.Request, value any, err error)` | respond maps successful values, client problems, and internal failures to safe JSON responses. |
-| [`queryContext`](../src/server/server.go#L430) | function | 430-432 | `func queryContext(r *http.Request) (context.Context, context.CancelFunc)` | queryContext derives a request context bounded by the server query timeout. |
-| [`positiveID`](../src/server/server.go#L435) | function | 435-441 | `func positiveID(raw string) (int64, error)` | positiveID parses a strictly positive decimal identifier or returns a bad-request problem. |
-| [`rowsAsMaps`](../src/server/server.go#L444) | function | 444-470 | `func rowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | rowsAsMaps scans SQL rows into maps keyed by result-column name. |
+| [`Server`](../src/server/server.go#L38) | struct | 38-45 | `type Server struct { db *sql.DB writeDB *database.Database pdfDB *sql.DB pdfPath string tables map[string]tableInfo AssetsFS fs.FS // if non-nil, serves frontend assets from this filesystem }` | Server serves one existing workspace database. db is opened in SQLite's read-only mode and query_only is set for every connection. |
+| [`tableInfo`](../src/server/server.go#L48) | struct | 48-52 | ``type tableInfo struct { Name string `json:"name"` Columns []columnInfo `json:"columns"` Count int64 `json:"row_count"` }`` | tableInfo stores the discovered columns for one browsable SQLite table. |
+| [`columnInfo`](../src/server/server.go#L55) | struct | 55-59 | ``type columnInfo struct { Name string `json:"name"` Type string `json:"type"` PrimaryKey bool `json:"primary_key"` }`` | columnInfo records a SQLite column's name, declared type, and primary-key position. |
+| [`(*Server).tableHasColumns`](../src/server/server.go#L62) | method | 62-77 | `func (*Server).tableHasColumns(table string, required ...string) bool` | tableHasColumns reports whether a discovered table contains every requested column. |
+| [`Open`](../src/server/server.go#L80) | function | 80-132 | `func Open(path string) (*Server, error)` | Open opens an existing database without creating it or modifying it. |
+| [`(*Server).Close`](../src/server/server.go#L135) | method | 135-151 | `func (*Server).Close() error` | Close releases resources owned by the receiver. |
+| [`(*Server).PDFStoreBound`](../src/server/server.go#L154) | method | 154 | `func (*Server).PDFStoreBound() bool` | PDFStoreBound reports whether a readable companion PDF database is attached. |
+| [`(*Server).Handler`](../src/server/server.go#L157) | method | 157-208 | `func (*Server).Handler() http.Handler` | Handler returns the local API and embedded frontend handler. |
+| [`(*Server).verifyReviewSchema`](../src/server/server.go#L211) | method | 211-238 | `func (*Server).verifyReviewSchema(ctx context.Context) error` | verifyReviewSchema rejects an unmigrated metadata database before writable controls are served. |
+| [`(*Server).openBoundPDFStore`](../src/server/server.go#L241) | method | 241-311 | `func (*Server).openBoundPDFStore(ctx context.Context, metadataDir string) error` | openBoundPDFStore resolves and opens the companion PDF database declared by metadata. |
+| [`pdfTableColumns`](../src/server/server.go#L314) | function | 314-334 | `func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error)` | pdfTableColumns returns the discovered columns for a companion PDF table. |
+| [`(*Server).HTTPServer`](../src/server/server.go#L337) | method | 337-346 | `func (*Server).HTTPServer(addr string) *http.Server` | HTTPServer returns a conservatively configured local HTTP server. |
+| [`enforceLoopbackAuthority`](../src/server/server.go#L349) | function | 349-362 | `func enforceLoopbackAuthority(authority string, next http.Handler) http.Handler` | enforceLoopbackAuthority rejects invalid Host authorities before routing local viewer requests. |
+| [`(*Server).discoverTables`](../src/server/server.go#L365) | method | 365-400 | `func (*Server).discoverTables(ctx context.Context) error` | discoverTables reads the SQLite schema and returns tables eligible for read-only browsing. |
+| [`(*Server).columns`](../src/server/server.go#L403) | method | 403-421 | `func (*Server).columns(ctx context.Context, table string) ([]columnInfo, error)` | columns returns ordered metadata for the requested table's columns. |
+| [`quoteIdentifier`](../src/server/server.go#L424) | function | 424-426 | `func quoteIdentifier(identifier string) string` | quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes. |
+| [`(*Server).hasTable`](../src/server/server.go#L429) | method | 429 | `func (*Server).hasTable(name string) bool` | hasTable reports whether a table was discovered as browsable. |
+| [`(*Server).hasColumn`](../src/server/server.go#L432) | method | 432-443 | `func (*Server).hasColumn(table, column string) bool` | hasColumn reports whether a discovered table contains a named column. |
+| [`apiError`](../src/server/server.go#L446) | struct | 446-452 | ``type apiError struct { Error struct { Code string `json:"code"` Message string `json:"message"` Details any `json:"details,omitempty"` } `json:"error"` }`` | apiError is the stable JSON envelope returned for client-visible failures. |
+| [`apiProblem`](../src/server/server.go#L455) | struct | 455-459 | `type apiProblem struct { Code, Message string Status int Details any }` | apiProblem carries an HTTP status and safe client-facing error message. |
+| [`(*apiProblem).Error`](../src/server/server.go#L462) | method | 462 | `func (*apiProblem).Error() string` | Error returns the receiver's diagnostic message. |
+| [`badRequest`](../src/server/server.go#L465) | function | 465-467 | `func badRequest(message string) error` | badRequest constructs an API problem with HTTP status 400. |
+| [`notFound`](../src/server/server.go#L470) | function | 470-472 | `func notFound(message string) error` | notFound constructs an API problem with HTTP status 404. |
+| [`withJSONErrors`](../src/server/server.go#L475) | function | 475-483 | `func withJSONErrors(next http.Handler) http.Handler` | withJSONErrors converts handler-returned errors into the server's JSON error response. |
+| [`writeJSON`](../src/server/server.go#L486) | function | 486-490 | `func writeJSON(w http.ResponseWriter, status int, value any)` | writeJSON writes a JSON response with the supplied HTTP status. |
+| [`writeError`](../src/server/server.go#L493) | function | 493-495 | `func writeError(w http.ResponseWriter, status int, code, message string)` | writeError writes the stable JSON error envelope. |
+| [`writeDetailedError`](../src/server/server.go#L498) | function | 498-504 | `func writeDetailedError(w http.ResponseWriter, status int, code, message string, details any)` | writeDetailedError writes the stable JSON error envelope with optional structured details. |
+| [`(*Server).respond`](../src/server/server.go#L507) | method | 507-519 | `func (*Server).respond(w http.ResponseWriter, r *http.Request, value any, err error)` | respond maps successful values, client problems, and internal failures to safe JSON responses. |
+| [`queryContext`](../src/server/server.go#L522) | function | 522-524 | `func queryContext(r *http.Request) (context.Context, context.CancelFunc)` | queryContext derives a request context bounded by the server query timeout. |
+| [`positiveID`](../src/server/server.go#L527) | function | 527-533 | `func positiveID(raw string) (int64, error)` | positiveID parses a strictly positive decimal identifier or returns a bad-request problem. |
+| [`rowsAsMaps`](../src/server/server.go#L536) | function | 536-562 | `func rowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | rowsAsMaps scans SQL rows into maps keyed by result-column name. |
 
 ### [`src/server/server_integration_test.go`](../src/server/server_integration_test.go)
 
@@ -2590,6 +2771,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestWorkspaceConfigMissingFields`](../src/something/workspace_config_integration_test.go#L127) | test | 127-142 | `func TestWorkspaceConfigMissingFields(t *testing.T)` | TestWorkspaceConfigMissingFields verifies workspace config missing fields. |
 | [`TestWorkspaceConfigFormatVersionOne`](../src/something/workspace_config_integration_test.go#L145) | test | 145-168 | `func TestWorkspaceConfigFormatVersionOne(t *testing.T)` | TestWorkspaceConfigFormatVersionOne verifies workspace config format version one. |
 | [`TestWorkspaceConfigEmptyCachePolicy`](../src/something/workspace_config_integration_test.go#L171) | test | 171-207 | `func TestWorkspaceConfigEmptyCachePolicy(t *testing.T)` | TestWorkspaceConfigEmptyCachePolicy verifies workspace config empty cache policy. |
+| [`TestWorkspaceConfigNestedOptionalReviewerDefault`](../src/something/workspace_config_integration_test.go#L210) | test | 210-233 | `func TestWorkspaceConfigNestedOptionalReviewerDefault(t *testing.T)` | TestWorkspaceConfigNestedOptionalReviewerDefault verifies the exact nested setup default form used by format-version-2 workspaces. |
 
 ### [`src/tools/coveragecheck/main.go`](../src/tools/coveragecheck/main.go)
 
@@ -2753,6 +2935,48 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAddRequiresCorpusDOIAndPreservesExistingDownload`](../src/tools/pdf-store/main_integration_test.go#L19) | test | 19-171 | `func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T)` | TestAddRequiresCorpusDOIAndPreservesExistingDownload verifies add requires corpus doi and preserves existing download. |
 | [`TestAddRejectsInvalidAndOversizedPDFs`](../src/tools/pdf-store/main_integration_test.go#L174) | test | 174-201 | `func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T)` | TestAddRejectsInvalidAndOversizedPDFs verifies add rejects invalid and oversized pd fs. |
 
+### [`src/tools/prepare-osf/main.go`](../src/tools/prepare-osf/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`options`](../src/tools/prepare-osf/main.go#L26) | struct | 26 | `type options struct{ DB, Config, Out string }` | options contains source and new-output paths accepted by the export command. |
+| [`hashMapping`](../src/tools/prepare-osf/main.go#L29) | struct | 29-32 | ``type hashMapping struct { Original string `json:"original"` Sanitized string `json:"sanitized"` }`` | hashMapping records a reviewer-bearing raw configuration hash and its sanitized replacement. |
+| [`exportManifest`](../src/tools/prepare-osf/main.go#L35) | struct | 35-42 | ``type exportManifest struct { CreatedAt string `json:"created_at"` SourceSchemaVersions map[string]string `json:"source_schema_versions"` SanitizedSchemaVersions map[string]string `json:"sanitized_schema_versions"` Files map[string]string `json:"files"` ConfigurationMappings []hashMapping `json:"configuration_hash_mappings"` BrowserDraftDisclaimer string `json:"browser_draft_disclaimer"` }`` | exportManifest records schema identity, copied file hashes, sanitization mappings, and limitations. |
+| [`main`](../src/tools/prepare-osf/main.go#L45) | function | 45-55 | `func main()` | main parses the copy-only export command and reports failures without publishing partial output. |
+| [`prepare`](../src/tools/prepare-osf/main.go#L58) | function | 58-209 | `func prepare(ctx context.Context, input options) error` | prepare validates source ownership, sanitizes temporary snapshots, and atomically publishes a new bundle. |
+| [`sanitizeMetadata`](../src/tools/prepare-osf/main.go#L212) | function | 212-321 | `func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, error)` | sanitizeMetadata redacts reviewer identity and rewires copied content-addressed configuration artifacts. |
+| [`validateArtifactBlobs`](../src/tools/prepare-osf/main.go#L324) | function | 324-344 | `func validateArtifactBlobs(ctx context.Context, tx *sql.Tx) error` | validateArtifactBlobs recomputes every copied artifact size and SHA-256 identity. |
+| [`sanitizeReviewerAssignments`](../src/tools/prepare-osf/main.go#L347) | function | 347-393 | `func sanitizeReviewerAssignments(source []byte) ([]byte, bool, error)` | sanitizeReviewerAssignments replaces only provable inline reviewer values and fails closed otherwise. |
+| [`tokenKind`](../src/tools/prepare-osf/main.go#L396) | type | 396 | `type tokenKind int` | tokenKind distinguishes source identifiers from skipped strings, comments, multiline data, and punctuation. |
+| [`nextCodeToken`](../src/tools/prepare-osf/main.go#L405) | function | 405-421 | `func nextCodeToken(text string, start int) (int, tokenKind)` | nextCodeToken returns the next executable SOMETHING source position without inspecting data tokens. |
+| [`somethingMultilineEnd`](../src/tools/prepare-osf/main.go#L424) | function | 424-458 | `func somethingMultilineEnd(text string, start int) (int, bool)` | somethingMultilineEnd skips one SOMETHING multiline literal including its named closing delimiter. |
+| [`skipTrivia`](../src/tools/prepare-osf/main.go#L461) | function | 461-477 | `func skipTrivia(text string, start int) int` | skipTrivia advances over whitespace and line comments. |
+| [`matchingBrace`](../src/tools/prepare-osf/main.go#L480) | function | 480-510 | `func matchingBrace(text string, open int) (int, error)` | matchingBrace finds an inline reviewer value boundary while ignoring quoted data and comments. |
+| [`quotedEnd`](../src/tools/prepare-osf/main.go#L513) | function | 513-525 | `func quotedEnd(text string, start int) (int, error)` | quotedEnd returns the position after an escaped single or double quoted token. |
+| [`hasWordAt`](../src/tools/prepare-osf/main.go#L528) | function | 528-534 | `func hasWordAt(text string, start int, word string) bool` | hasWordAt matches one identifier without accepting a longer identifier prefix. |
+| [`isIdentifierByte`](../src/tools/prepare-osf/main.go#L537) | function | 537-539 | `func isIdentifierByte(value byte) bool` | isIdentifierByte reports whether a byte may continue the identifiers used by the sanitizer. |
+| [`copyAndSanitizeConfiguration`](../src/tools/prepare-osf/main.go#L542) | function | 542-601 | `func copyAndSanitizeConfiguration(source, destinationRoot string) (string, error)` | copyAndSanitizeConfiguration copies one include tree without permitting lexical or symbolic-link escape. |
+| [`localIncludes`](../src/tools/prepare-osf/main.go#L604) | function | 604-631 | `func localIncludes(source string) ([]string, error)` | localIncludes extracts literal local include paths outside comments, strings, and multiline data. |
+| [`snapshotSQLite`](../src/tools/prepare-osf/main.go#L634) | function | 634-640 | `func snapshotSQLite(ctx context.Context, source *sql.DB, destination string) error` | snapshotSQLite uses VACUUM INTO to capture a WAL-consistent source without overwriting a destination. |
+| [`schemaVersion`](../src/tools/prepare-osf/main.go#L643) | function | 643-650 | `func schemaVersion(ctx context.Context, path string) (string, error)` | schemaVersion opens one SQLite file read-only and returns its latest recorded migration filename. |
+| [`schemaVersionDB`](../src/tools/prepare-osf/main.go#L653) | function | 653-659 | `func schemaVersionDB(ctx context.Context, db *sql.DB) (string, error)` | schemaVersionDB returns the latest recorded migration filename from an open SQLite connection. |
+| [`exportedFileHashes`](../src/tools/prepare-osf/main.go#L662) | function | 662-682 | `func exportedFileHashes(root string) (map[string]string, error)` | exportedFileHashes hashes every regular copied file and rejects unsupported file types. |
+| [`safeCompanionPath`](../src/tools/prepare-osf/main.go#L685) | function | 685-690 | `func safeCompanionPath(metadataPath, relative string) (string, error)` | safeCompanionPath resolves only a clean bundle-relative PDF binding. |
+| [`existingFile`](../src/tools/prepare-osf/main.go#L693) | function | 693-706 | `func existingFile(path string) (string, error)` | existingFile returns an absolute path only for an existing regular file. |
+| [`samePath`](../src/tools/prepare-osf/main.go#L709) | function | 709-716 | `func samePath(left, right string) bool` | samePath detects aliases using filesystem identity when both targets exist. |
+| [`sqliteReadURI`](../src/tools/prepare-osf/main.go#L719) | function | 719-721 | `func sqliteReadURI(path string) string` | sqliteReadURI returns an existing-only read URI with the project busy timeout. |
+| [`fileHash`](../src/tools/prepare-osf/main.go#L724) | function | 724-735 | `func fileHash(path string) (string, error)` | fileHash streams one file into a lowercase SHA-256 digest. |
+| [`mustRelative`](../src/tools/prepare-osf/main.go#L738) | function | 738-744 | `func mustRelative(root, path string) string` | mustRelative returns the previously validated path relative to its export root. |
+
+### [`src/tools/prepare-osf/main_integration_test.go`](../src/tools/prepare-osf/main_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestPrepareCopiesAndSanitizesWithoutMutatingSources`](../src/tools/prepare-osf/main_integration_test.go#L21) | test | 21-113 | `func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T)` | TestPrepareCopiesAndSanitizesWithoutMutatingSources verifies the atomic copy-only export boundary. |
+| [`mustExec`](../src/tools/prepare-osf/main_integration_test.go#L116) | function | 116-123 | `func mustExec(t *testing.T, db *sql.DB, query string, args ...any) sql.Result` | mustExec runs one fixture statement and fails the current test on error. |
+| [`TestSanitizeReviewerAssignments`](../src/tools/prepare-osf/main_integration_test.go#L126) | test | 126-138 | `func TestSanitizeReviewerAssignments(t *testing.T)` | TestSanitizeReviewerAssignments verifies inline redaction and fail-closed references. |
+| [`TestConfigurationCopyRejectsSymlinkEscape`](../src/tools/prepare-osf/main_integration_test.go#L141) | test | 141-158 | `func TestConfigurationCopyRejectsSymlinkEscape(t *testing.T)` | TestConfigurationCopyRejectsSymlinkEscape verifies that configuration includes cannot follow links outside the copied root. |
+
 ### [`src/tools/something-json/main.go`](../src/tools/something-json/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -2834,45 +3058,48 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Config`](../src/workspace/config.go#L23) | struct | 23-26 | `type Config struct { OriginalBytes []byte Runs []*Run }` | Config is one immutable evaluation of a workspace configuration file. OriginalBytes are retained so a run can persist exactly what was evaluated. |
-| [`Run`](../src/workspace/config.go#L29) | struct | 29-32 | `type Run struct { Manifest *manifest.ResolvedManifest Enrichment *enrich.Config }` | Run is one declared workspace iteration. |
-| [`Selector`](../src/workspace/config.go#L36) | function | 36-38 | `func Selector(searchID, revision string) string` | Selector identifies one workspace iteration by its stable search ID and revision label. Its CLI form is search_id@search_revision. |
-| [`Load`](../src/workspace/config.go#L42) | function | 42-86 | `func Load(path string) (*Config, error)` | Load reads a workspace configuration exactly once, evaluates those bytes, and converts every workspace iteration to typed run configuration. |
-| [`(*Config).Select`](../src/workspace/config.go#L90) | method | 90-121 | `func (*Config).Select(selectors []string) ([]*Run, error)` | Select returns all runs when selectors is empty. Otherwise it returns the requested iterations in declaration order and rejects unknown selectors. |
-| [`parseRun`](../src/workspace/config.go#L124) | function | 124-183 | `func parseRun(entry map[string]any, configDir string) (*Run, error)` | parseRun parses run from the supplied input. |
-| [`parseCachePolicy`](../src/workspace/config.go#L190) | function | 190-263 | `func parseCachePolicy(entry map[string]any, reusePolicy string) (manifest.CachePolicy, error)` | parseCachePolicy parses cache policy from the supplied input. |
-| [`parseSources`](../src/workspace/config.go#L266) | function | 266-341 | `func parseSources(entry map[string]any, configDir string) ([]manifest.SourceManifest, error)` | parseSources parses sources from the supplied input. |
-| [`parseProviders`](../src/workspace/config.go#L344) | function | 344-414 | `func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enrich.Config, error)` | parseProviders parses providers from the supplied input. |
-| [`requiredString`](../src/workspace/config.go#L417) | function | 417-423 | `func requiredString(values map[string]any, name string) (string, error)` | requiredString returns a required non-empty string from evaluated configuration. |
-| [`optionalString`](../src/workspace/config.go#L426) | function | 426-432 | `func optionalString(values map[string]any, name string) string` | optionalString reads the optional string value. |
-| [`nestedString`](../src/workspace/config.go#L435) | function | 435-441 | `func nestedString(values map[string]any, parent, name string) (string, error)` | nestedString reads a required string from a required nested mapping. |
-| [`requiredBool`](../src/workspace/config.go#L444) | function | 444-450 | `func requiredBool(values map[string]any, name string) (bool, error)` | requiredBool returns a required Boolean from evaluated configuration. |
-| [`optionalBool`](../src/workspace/config.go#L453) | function | 453-463 | `func optionalBool(values map[string]any, name string, fallback bool) (bool, error)` | optionalBool reads the optional bool value. |
-| [`requiredInt`](../src/workspace/config.go#L466) | function | 466-472 | `func requiredInt(values map[string]any, name string) (int, error)` | requiredInt returns a required integer from evaluated configuration. |
-| [`optionalInt`](../src/workspace/config.go#L475) | function | 475-485 | `func optionalInt(values map[string]any, name string, fallback int) (int, error)` | optionalInt reads the optional int value. |
-| [`requiredPath`](../src/workspace/config.go#L488) | function | 488-497 | `func requiredPath(values map[string]any, name, configDir string) (string, error)` | requiredPath returns a required path resolved relative to the configuration directory. |
-| [`stringList`](../src/workspace/config.go#L500) | function | 500-514 | `func stringList(values map[string]any, name string) ([]string, error)` | stringList reads a required list of non-empty strings. |
-| [`stringMap`](../src/workspace/config.go#L517) | function | 517-519 | `func stringMap(values map[string]any, name string) (map[string]string, error)` | stringMap reads a required mapping whose keys and values are strings. |
-| [`optionalStringMap`](../src/workspace/config.go#L522) | function | 522-524 | `func optionalStringMap(values map[string]any, name string) (map[string]string, error)` | optionalStringMap reads the optional string map value. |
-| [`requiredStringMap`](../src/workspace/config.go#L527) | function | 527-545 | `func requiredStringMap(values map[string]any, name string, required bool) (map[string]string, error)` | requiredStringMap validates a required or optional mapping of non-empty strings. |
-| [`validateCacheLayers`](../src/workspace/config.go#L548) | function | 548-572 | `func validateCacheLayers(layers []string, write bool) error` | validateCacheLayers validates cache-layer names, uniqueness, and read or write eligibility. |
-| [`validateRunLayer`](../src/workspace/config.go#L575) | function | 575-586 | `func validateRunLayer(reads []string) error` | validateRunLayer checks that a resolved run:N layer has a valid run ID. |
-| [`enumIntList`](../src/workspace/config.go#L590) | function | 590-607 | `func enumIntList(values map[string]any, name string, memberNames []string) ([]int, error)` | enumIntList reads a list of int enum ordinals from a map and validates they are within range of the provided member names list. |
-| [`parseRawDataFilters`](../src/workspace/config.go#L612) | function | 612-642 | `func parseRawDataFilters(source map[string]any, name string) ([]manifest.RawDataFilter, error)` | parseRawDataFilters reads the "filters" field as a list of raw_data_filters structs, each containing a "filters" array of available_filters enum ordinals and a "count" integer. |
-| [`contains`](../src/workspace/config.go#L645) | function | 645-652 | `func contains(values []string, target string) bool` | contains reports whether a string slice contains an exact target. |
+| [`Config`](../src/workspace/config.go#L24) | struct | 24-27 | `type Config struct { OriginalBytes []byte Runs []*Run }` | Config is one immutable evaluation of a workspace configuration file. OriginalBytes are retained so a run can persist exactly what was evaluated. |
+| [`Run`](../src/workspace/config.go#L30) | struct | 30-34 | `type Run struct { Manifest *manifest.ResolvedManifest Enrichment *enrich.Config Reviewer Reviewer }` | Run is one declared workspace iteration. |
+| [`Reviewer`](../src/workspace/config.go#L37) | struct | 37-40 | ``type Reviewer struct { Username string `json:"username"` Email string `json:"email"` }`` | Reviewer is the optional identity captured with each newly created pipeline run. |
+| [`Selector`](../src/workspace/config.go#L44) | function | 44-46 | `func Selector(searchID, revision string) string` | Selector identifies one workspace iteration by its stable search ID and revision label. Its CLI form is search_id@search_revision. |
+| [`Load`](../src/workspace/config.go#L50) | function | 50-94 | `func Load(path string) (*Config, error)` | Load reads a workspace configuration exactly once, evaluates those bytes, and converts every workspace iteration to typed run configuration. |
+| [`(*Config).Select`](../src/workspace/config.go#L98) | method | 98-129 | `func (*Config).Select(selectors []string) ([]*Run, error)` | Select returns all runs when selectors is empty. Otherwise it returns the requested iterations in declaration order and rejects unknown selectors. |
+| [`parseRun`](../src/workspace/config.go#L132) | function | 132-196 | `func parseRun(entry map[string]any, configDir string) (*Run, error)` | parseRun parses run from the supplied input. |
+| [`parseReviewer`](../src/workspace/config.go#L199) | function | 199-219 | `func parseReviewer(workspace map[string]any) (Reviewer, error)` | parseReviewer normalizes the optional reviewer setup without adding it to execution manifests. |
+| [`parseCachePolicy`](../src/workspace/config.go#L226) | function | 226-299 | `func parseCachePolicy(entry map[string]any, reusePolicy string) (manifest.CachePolicy, error)` | parseCachePolicy parses cache policy from the supplied input. |
+| [`parseSources`](../src/workspace/config.go#L302) | function | 302-377 | `func parseSources(entry map[string]any, configDir string) ([]manifest.SourceManifest, error)` | parseSources parses sources from the supplied input. |
+| [`parseProviders`](../src/workspace/config.go#L380) | function | 380-450 | `func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enrich.Config, error)` | parseProviders parses providers from the supplied input. |
+| [`requiredString`](../src/workspace/config.go#L453) | function | 453-459 | `func requiredString(values map[string]any, name string) (string, error)` | requiredString returns a required non-empty string from evaluated configuration. |
+| [`optionalString`](../src/workspace/config.go#L462) | function | 462-468 | `func optionalString(values map[string]any, name string) string` | optionalString reads the optional string value. |
+| [`nestedString`](../src/workspace/config.go#L471) | function | 471-477 | `func nestedString(values map[string]any, parent, name string) (string, error)` | nestedString reads a required string from a required nested mapping. |
+| [`requiredBool`](../src/workspace/config.go#L480) | function | 480-486 | `func requiredBool(values map[string]any, name string) (bool, error)` | requiredBool returns a required Boolean from evaluated configuration. |
+| [`optionalBool`](../src/workspace/config.go#L489) | function | 489-499 | `func optionalBool(values map[string]any, name string, fallback bool) (bool, error)` | optionalBool reads the optional bool value. |
+| [`requiredInt`](../src/workspace/config.go#L502) | function | 502-508 | `func requiredInt(values map[string]any, name string) (int, error)` | requiredInt returns a required integer from evaluated configuration. |
+| [`optionalInt`](../src/workspace/config.go#L511) | function | 511-521 | `func optionalInt(values map[string]any, name string, fallback int) (int, error)` | optionalInt reads the optional int value. |
+| [`requiredPath`](../src/workspace/config.go#L524) | function | 524-533 | `func requiredPath(values map[string]any, name, configDir string) (string, error)` | requiredPath returns a required path resolved relative to the configuration directory. |
+| [`stringList`](../src/workspace/config.go#L536) | function | 536-550 | `func stringList(values map[string]any, name string) ([]string, error)` | stringList reads a required list of non-empty strings. |
+| [`stringMap`](../src/workspace/config.go#L553) | function | 553-555 | `func stringMap(values map[string]any, name string) (map[string]string, error)` | stringMap reads a required mapping whose keys and values are strings. |
+| [`optionalStringMap`](../src/workspace/config.go#L558) | function | 558-560 | `func optionalStringMap(values map[string]any, name string) (map[string]string, error)` | optionalStringMap reads the optional string map value. |
+| [`requiredStringMap`](../src/workspace/config.go#L563) | function | 563-581 | `func requiredStringMap(values map[string]any, name string, required bool) (map[string]string, error)` | requiredStringMap validates a required or optional mapping of non-empty strings. |
+| [`validateCacheLayers`](../src/workspace/config.go#L584) | function | 584-608 | `func validateCacheLayers(layers []string, write bool) error` | validateCacheLayers validates cache-layer names, uniqueness, and read or write eligibility. |
+| [`validateRunLayer`](../src/workspace/config.go#L611) | function | 611-622 | `func validateRunLayer(reads []string) error` | validateRunLayer checks that a resolved run:N layer has a valid run ID. |
+| [`enumIntList`](../src/workspace/config.go#L626) | function | 626-643 | `func enumIntList(values map[string]any, name string, memberNames []string) ([]int, error)` | enumIntList reads a list of int enum ordinals from a map and validates they are within range of the provided member names list. |
+| [`parseRawDataFilters`](../src/workspace/config.go#L648) | function | 648-678 | `func parseRawDataFilters(source map[string]any, name string) ([]manifest.RawDataFilter, error)` | parseRawDataFilters reads the "filters" field as a list of raw_data_filters structs, each containing a "filters" array of available_filters enum ordinals and a "count" integer. |
+| [`contains`](../src/workspace/config.go#L681) | function | 681-688 | `func contains(values []string, target string) bool` | contains reports whether a string slice contains an exact target. |
 
 ### [`src/workspace/config_unit_test.go`](../src/workspace/config_unit_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestLoadBuildsResolvedWorkspaceRuns`](../src/workspace/config_unit_test.go#L16) | test | 16-41 | `func TestLoadBuildsResolvedWorkspaceRuns(t *testing.T)` | TestLoadBuildsResolvedWorkspaceRuns verifies load builds resolved workspace runs. |
-| [`TestProductionWorkspaceConfigLoads`](../src/workspace/config_unit_test.go#L44) | test | 44-86 | `func TestProductionWorkspaceConfigLoads(t *testing.T)` | TestProductionWorkspaceConfigLoads verifies production workspace config loads. |
-| [`TestSelectUsesDeclaredOrderAndRejectsUnknown`](../src/workspace/config_unit_test.go#L89) | test | 89-104 | `func TestSelectUsesDeclaredOrderAndRejectsUnknown(t *testing.T)` | TestSelectUsesDeclaredOrderAndRejectsUnknown verifies select uses declared order and rejects unknown. |
-| [`TestLoadRetainsEvaluatedBytesAfterConfigChanges`](../src/workspace/config_unit_test.go#L107) | test | 107-122 | `func TestLoadRetainsEvaluatedBytesAfterConfigChanges(t *testing.T)` | TestLoadRetainsEvaluatedBytesAfterConfigChanges verifies load retains evaluated bytes after config changes. |
-| [`TestLoadRejectsUnsupportedWorkspacePolicies`](../src/workspace/config_unit_test.go#L125) | test | 125-144 | `func TestLoadRejectsUnsupportedWorkspacePolicies(t *testing.T)` | TestLoadRejectsUnsupportedWorkspacePolicies verifies load rejects unsupported workspace policies. |
-| [`writeConfig`](../src/workspace/config_unit_test.go#L147) | function | 147-154 | `func writeConfig(t *testing.T, text string) string` | writeConfig supports the package test suite's write config setup or assertions. |
-| [`testConfig`](../src/workspace/config_unit_test.go#L157) | function | 157-286 | `func testConfig() string` | testConfig supports the package test suite's test config setup or assertions. |
-| [`TestConfigHelpers`](../src/workspace/config_unit_test.go#L289) | test | 289-472 | `func TestConfigHelpers(t *testing.T)` | TestConfigHelpers verifies config helpers. |
+| [`TestLoadBuildsResolvedWorkspaceRuns`](../src/workspace/config_unit_test.go#L16) | test | 16-44 | `func TestLoadBuildsResolvedWorkspaceRuns(t *testing.T)` | TestLoadBuildsResolvedWorkspaceRuns verifies load builds resolved workspace runs. |
+| [`TestLoadNormalizesReviewerWithoutChangingManifestIdentity`](../src/workspace/config_unit_test.go#L47) | test | 47-76 | `func TestLoadNormalizesReviewerWithoutChangingManifestIdentity(t *testing.T)` | TestLoadNormalizesReviewerWithoutChangingManifestIdentity verifies optional attribution is trimmed and excluded from plan fingerprints. |
+| [`TestProductionWorkspaceConfigLoads`](../src/workspace/config_unit_test.go#L79) | test | 79-121 | `func TestProductionWorkspaceConfigLoads(t *testing.T)` | TestProductionWorkspaceConfigLoads verifies production workspace config loads. |
+| [`TestSelectUsesDeclaredOrderAndRejectsUnknown`](../src/workspace/config_unit_test.go#L124) | test | 124-139 | `func TestSelectUsesDeclaredOrderAndRejectsUnknown(t *testing.T)` | TestSelectUsesDeclaredOrderAndRejectsUnknown verifies select uses declared order and rejects unknown. |
+| [`TestLoadRetainsEvaluatedBytesAfterConfigChanges`](../src/workspace/config_unit_test.go#L142) | test | 142-157 | `func TestLoadRetainsEvaluatedBytesAfterConfigChanges(t *testing.T)` | TestLoadRetainsEvaluatedBytesAfterConfigChanges verifies load retains evaluated bytes after config changes. |
+| [`TestLoadRejectsUnsupportedWorkspacePolicies`](../src/workspace/config_unit_test.go#L160) | test | 160-179 | `func TestLoadRejectsUnsupportedWorkspacePolicies(t *testing.T)` | TestLoadRejectsUnsupportedWorkspacePolicies verifies load rejects unsupported workspace policies. |
+| [`writeConfig`](../src/workspace/config_unit_test.go#L182) | function | 182-189 | `func writeConfig(t *testing.T, text string) string` | writeConfig supports the package test suite's write config setup or assertions. |
+| [`testConfig`](../src/workspace/config_unit_test.go#L192) | function | 192-329 | `func testConfig() string` | testConfig supports the package test suite's test config setup or assertions. |
+| [`TestConfigHelpers`](../src/workspace/config_unit_test.go#L332) | test | 332-515 | `func TestConfigHelpers(t *testing.T)` | TestConfigHelpers verifies config helpers. |
 
 ### [`src/workspace/orcid_candidates_integration_test.go`](../src/workspace/orcid_candidates_integration_test.go)
 
@@ -2881,6 +3108,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity`](../src/workspace/orcid_candidates_integration_test.go#L24) | test | 24-82 | `func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T)` | TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity verifies orcid name search retains candidates without creating identity. |
 | [`TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence`](../src/workspace/orcid_candidates_integration_test.go#L85) | test | 85-162 | `func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing.T)` | TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence verifies workspace pipeline preserves metadata and provider failure evidence. |
 | [`testWorkspaceRun`](../src/workspace/orcid_candidates_integration_test.go#L165) | function | 165-183 | `func testWorkspaceRun(sourcePath string) *Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
+
+### [`src/workspace/reviewer_integration_test.go`](../src/workspace/reviewer_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestFailedAttemptRetainsReviewer`](../src/workspace/reviewer_integration_test.go#L14) | test | 14-46 | `func TestFailedAttemptRetainsReviewer(t *testing.T)` | TestFailedAttemptRetainsReviewer verifies reviewer capture precedes later attempt evidence writes. |
 
 ### [`src/workspace/store.go`](../src/workspace/store.go)
 
@@ -2956,15 +3189,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`emptySourceError`](../src/workspace/support.go#L62) | struct | 62-67 | `type emptySourceError struct { fileType string source string path string detail string }` | emptySourceError means parsing completed successfully but yielded no raw records. The pipeline records its known observed count before failing the attempt because an empty configured export remains an input error. |
 | [`(*emptySourceError).Error`](../src/workspace/support.go#L70) | method | 70-72 | `func (*emptySourceError).Error() string` | Error returns the receiver's diagnostic message. |
 | [`observedCountFromLoadError`](../src/workspace/support.go#L75) | function | 75-81 | `func observedCountFromLoadError(err error) (int, bool)` | observedCountFromLoadError extracts the known zero record count from an empty-source failure. |
-| [`StartWorkspaceAttempt`](../src/workspace/support.go#L84) | function | 84-236 | `func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Run, fresh bool) (int64, error)` | StartWorkspaceAttempt snapshots configuration and inputs, reuses or creates a plan, and starts an eligible pipeline attempt. |
-| [`recordPreflightStep`](../src/workspace/support.go#L239) | function | 239-286 | `func recordPreflightStep(db *database.Database, runID, configArtifactID, inputManifestArtifactID int64, inputFingerprint, outputFingerprint string, reusedFromRunID *int64, failureSummary string) error` | recordPreflightStep records preflight step. |
-| [`buildInputManifest`](../src/workspace/support.go#L289) | function | 289-309 | `func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputManifest, error)` | buildInputManifest hashes configured source files and returns both captured evidence and aggregate read failure. |
-| [`persistArtifact`](../src/workspace/support.go#L312) | function | 312-322 | `func persistArtifact(db *database.Database, runID int64, data []byte, contentType string) (int64, error)` | persistArtifact stores content-addressed artifact metadata and bytes for a run. |
-| [`contentHash`](../src/workspace/support.go#L325) | function | 325-328 | `func contentHash(data []byte) string` | contentHash returns the lowercase hexadecimal SHA-256 digest of data. |
-| [`BoolMetric`](../src/workspace/support.go#L331) | function | 331-336 | `func BoolMetric(value bool) int` | BoolMetric converts a Boolean value to the metric convention of one or zero. |
-| [`freshReason`](../src/workspace/support.go#L339) | function | 339-347 | `func freshReason(explicitFresh bool, reusePolicy string) string` | freshReason returns the persisted reason for starting a non-reused attempt. |
-| [`loadCSVEntries`](../src/workspace/support.go#L350) | function | 350-385 | `func loadCSVEntries(path, source string) ([]map[string]string, error)` | loadCSVEntries loads csv entries from the supplied source. |
-| [`loadBibEntries`](../src/workspace/support.go#L388) | function | 388-410 | `func loadBibEntries(path, source string) ([]map[string]string, error)` | loadBibEntries loads bib entries from the supplied source. |
+| [`StartWorkspaceAttempt`](../src/workspace/support.go#L84) | function | 84-240 | `func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Run, fresh bool) (int64, error)` | StartWorkspaceAttempt snapshots configuration and inputs, reuses or creates a plan, and starts an eligible pipeline attempt. |
+| [`recordPreflightStep`](../src/workspace/support.go#L243) | function | 243-290 | `func recordPreflightStep(db *database.Database, runID, configArtifactID, inputManifestArtifactID int64, inputFingerprint, outputFingerprint string, reusedFromRunID *int64, failureSummary string) error` | recordPreflightStep records preflight step. |
+| [`buildInputManifest`](../src/workspace/support.go#L293) | function | 293-313 | `func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputManifest, error)` | buildInputManifest hashes configured source files and returns both captured evidence and aggregate read failure. |
+| [`persistArtifact`](../src/workspace/support.go#L316) | function | 316-326 | `func persistArtifact(db *database.Database, runID int64, data []byte, contentType string) (int64, error)` | persistArtifact stores content-addressed artifact metadata and bytes for a run. |
+| [`contentHash`](../src/workspace/support.go#L329) | function | 329-332 | `func contentHash(data []byte) string` | contentHash returns the lowercase hexadecimal SHA-256 digest of data. |
+| [`BoolMetric`](../src/workspace/support.go#L335) | function | 335-340 | `func BoolMetric(value bool) int` | BoolMetric converts a Boolean value to the metric convention of one or zero. |
+| [`freshReason`](../src/workspace/support.go#L343) | function | 343-351 | `func freshReason(explicitFresh bool, reusePolicy string) string` | freshReason returns the persisted reason for starting a non-reused attempt. |
+| [`loadCSVEntries`](../src/workspace/support.go#L354) | function | 354-389 | `func loadCSVEntries(path, source string) ([]map[string]string, error)` | loadCSVEntries loads csv entries from the supplied source. |
+| [`loadBibEntries`](../src/workspace/support.go#L392) | function | 392-414 | `func loadBibEntries(path, source string) ([]map[string]string, error)` | loadBibEntries loads bib entries from the supplied source. |
 
 ## JavaScript declarations
 
@@ -2972,21 +3205,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`mustExist`](../frontend/scripts/run-playwright.mjs#L50) | function | 50 | `async function mustExist(target, name, hint)` | Asynchronously implements must exist for the viewer. |
-| [`startServer`](../frontend/scripts/run-playwright.mjs#L59) | function | 59 | `function startServer()` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
-| [`fail`](../frontend/scripts/run-playwright.mjs#L89) | function | 89 | `function fail(error)` | Stops startup and rejects with the server process failure. |
-| [`waitForHealth`](../frontend/scripts/run-playwright.mjs#L99) | function | 99 | `async function waitForHealth(baseURL)` | Asynchronously implements wait for health for the viewer. |
-| [`stopServer`](../frontend/scripts/run-playwright.mjs#L116) | function | 116 | `async function stopServer()` | Asynchronously implements stop server for the viewer. |
-| [`exitCode`](../frontend/scripts/run-playwright.mjs#L128) | function | 128 | `function exitCode(child, name)` | Normalizes a child-process exit result. |
-| [`delay`](../frontend/scripts/run-playwright.mjs#L136) | function | 136 | `function delay(milliseconds)` | Returns a promise that resolves after the requested interval. |
-| [`npmCommand`](../frontend/scripts/run-playwright.mjs#L141) | function | 141 | `function npmCommand()` | Returns the platform-appropriate npm command. |
+| [`mustExist`](../frontend/scripts/run-playwright.mjs#L51) | function | 51 | `async function mustExist(target, name, hint)` | Asynchronously implements must exist for the viewer. |
+| [`startServer`](../frontend/scripts/run-playwright.mjs#L60) | function | 60 | `function startServer()` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
+| [`fail`](../frontend/scripts/run-playwright.mjs#L90) | function | 90 | `function fail(error)` | Stops startup and rejects with the server process failure. |
+| [`copyFixturePair`](../frontend/scripts/run-playwright.mjs#L100) | function | 100 | `async function copyFixturePair()` | Copies the generated fixture pair so browser mutations never alter their authoritative base. |
+| [`waitForHealth`](../frontend/scripts/run-playwright.mjs#L120) | function | 120 | `async function waitForHealth(baseURL)` | Asynchronously implements wait for health for the viewer. |
+| [`stopServer`](../frontend/scripts/run-playwright.mjs#L137) | function | 137 | `async function stopServer()` | Asynchronously implements stop server for the viewer. |
+| [`exitCode`](../frontend/scripts/run-playwright.mjs#L149) | function | 149 | `function exitCode(child, name)` | Normalizes a child-process exit result. |
+| [`delay`](../frontend/scripts/run-playwright.mjs#L157) | function | 157 | `function delay(milliseconds)` | Returns a promise that resolves after the requested interval. |
+| [`npmCommand`](../frontend/scripts/run-playwright.mjs#L162) | function | 162 | `function npmCommand()` | Returns the platform-appropriate npm command. |
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`generatedContext`](../frontend/tests/e2e.spec.cjs#L7) | function | 7 | `async function generatedContext(request)` | Resolves the generated database's persistent URL-state identifiers through public APIs. |
-| [`generatedURL`](../frontend/tests/e2e.spec.cjs#L37) | function | 37 | `function generatedURL(context, updates)` | Builds a context-preserving application URL for one generated viewer route. |
+| [`generatedContext`](../frontend/tests/e2e.spec.cjs#L8) | function | 8 | `async function generatedContext(request)` | Resolves the generated database's persistent URL-state identifiers through public APIs. |
+| [`generatedURL`](../frontend/tests/e2e.spec.cjs#L38) | function | 38 | `function generatedURL(context, updates)` | Builds a context-preserving application URL for one generated viewer route. |
 
 ### [`frontend/tests/ui-quality.spec.cjs`](../frontend/tests/ui-quality.spec.cjs)
 
@@ -3023,8 +3257,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`endpoint`](../src/server/frontend/api.js#L5) | function | 5 | `function endpoint(path, query)` | Builds an API path and query string from supplied values. |
-| [`api`](../src/server/frontend/api.js#L19) | function | 19 | `async function api(path, query)` | Fetches and decodes one JSON API response. |
-| [`tables`](../src/server/frontend/api.js#L46) | function | 46 | `async function tables()` | Loads and caches the discovered database table list. |
+| [`APIError`](../src/server/frontend/api.js#L19) | class | 19 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../src/server/frontend/api.js#L21) | method | 21 | `constructor(message, status, code, details)` | Initializes one structured API error returned by a non-successful response. |
+| [`api`](../src/server/frontend/api.js#L31) | function | 31 | `async function api(path, query, options)` | Fetches and decodes one JSON API response. |
+| [`mutate`](../src/server/frontend/api.js#L61) | function | 61 | `function mutate(path, method, body)` | Sends a same-origin JSON mutation and returns its decoded response. |
+| [`tables`](../src/server/frontend/api.js#L70) | function | 70 | `async function tables()` | Loads and caches the discovered database table list. |
 
 ### [`src/server/frontend/components/audit-events.js`](../src/server/frontend/components/audit-events.js)
 
@@ -3117,6 +3354,40 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`renderEdgePage`](../src/server/frontend/components/graph.js#L1181) | function | 1181 | `function renderEdgePage(graph)` | Renders edge page. |
 | [`edgeDetails`](../src/server/frontend/components/graph.js#L1234) | function | 1234 | `function edgeDetails(edge)` | Returns relationship-specific details for a graph edge row. |
 
+### [`src/server/frontend/components/note-editor.js`](../src/server/frontend/components/note-editor.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`draftKey`](../src/server/frontend/components/note-editor.js#L9) | function | 9 | `function draftKey(corpusID, runID, workRevisionID, noteID, expectedVersionID)` | Builds a browser-local draft key scoped to the opaque corpus and immutable head. |
+| [`readDraft`](../src/server/frontend/components/note-editor.js#L14) | function | 14 | `function readDraft(key, storage)` | Reads a draft without assuming browser storage is available. |
+| [`writeDraft`](../src/server/frontend/components/note-editor.js#L23) | function | 23 | `function writeDraft(key, value, storage)` | Writes a draft and reports storage failure without discarding editor content. |
+| [`clearDraft`](../src/server/frontend/components/note-editor.js#L33) | function | 33 | `function clearDraft(key, storage)` | Removes only the exact draft associated with a successful save. |
+| [`lineDiff`](../src/server/frontend/components/note-editor.js#L43) | function | 43 | `function lineDiff(previous, current, limit)` | Produces a bounded line comparison or complete side-by-side fallback. |
+| [`mountNoteEditor`](../src/server/frontend/components/note-editor.js#L66) | function | 66 | `async function mountNoteEditor(host, options)` | Mounts the note editor and current immutable note list for one article. |
+| [`key`](../src/server/frontend/components/note-editor.js#L80) | function | 80 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
+| [`renderPreview`](../src/server/frontend/components/note-editor.js#L84) | function | 84 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
+| [`resetEditor`](../src/server/frontend/components/note-editor.js#L91) | function | 91 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
+| [`loadNotes`](../src/server/frontend/components/note-editor.js#L98) | function | 98 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
+| [`showHistory`](../src/server/frontend/components/note-editor.js#L125) | function | 125 | `async function showHistory(note)` | Displays one selected head's immutable ancestry and optional restoration control. |
+| [`focusNote`](../src/server/frontend/components/note-editor.js#L146) | function | 146 | `async function focusNote(noteID)` | Resolves a URL-focused active or deleted note and exposes its history. |
+
+### [`src/server/frontend/components/note-parser.js`](../src/server/frontend/components/note-parser.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`parseNote`](../src/server/frontend/components/note-parser.js#L9) | function | 9 | `function parseNote(body)` | Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. |
+| [`flushParagraph`](../src/server/frontend/components/note-parser.js#L24) | function | 24 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
+| [`extractLinks`](../src/server/frontend/components/note-parser.js#L117) | function | 117 | `function extractLinks(text, baseOffset, links, errors)` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
+| [`validateLink`](../src/server/frontend/components/note-parser.js#L150) | function | 150 | `function validateLink(scheme, target, raw)` | Validates scheme-specific target grammar without requiring target existence. |
+| [`isEscaped`](../src/server/frontend/components/note-parser.js#L165) | function | 165 | `function isEscaped(text, index)` | Reports whether the character at an index has an odd backslash prefix. |
+| [`unescapedIndex`](../src/server/frontend/components/note-parser.js#L172) | function | 172 | `function unescapedIndex(text, character)` | Returns the first unescaped delimiter index or minus one. |
+| [`unescapeLink`](../src/server/frontend/components/note-parser.js#L180) | function | 180 | `function unescapeLink(text)` | Removes only the escapes supported inside custom-link fields. |
+| [`splitTableRow`](../src/server/frontend/components/note-parser.js#L185) | function | 185 | `function splitTableRow(line)` | Splits one simple table row while preserving escaped vertical bars. |
+| [`tableDelimiter`](../src/server/frontend/components/note-parser.js#L202) | function | 202 | `function tableDelimiter(line)` | Reports whether every table cell is a valid delimiter marker. |
+| [`renderNote`](../src/server/frontend/components/note-parser.js#L208) | function | 208 | `function renderNote(document, resolvedLinks)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`inline`](../src/server/frontend/components/note-parser.js#L212) | function | 212 | `function inline(text)` | Renders escaped inline text and associates parsed links with stored resolutions. |
+| [`renderLink`](../src/server/frontend/components/note-parser.js#L243) | function | 243 | `function renderLink(label, resolved)` | Renders one safe resolved link or an accessible unresolved label. |
+
 ### [`src/server/frontend/components/pagination.js`](../src/server/frontend/components/pagination.js)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3124,6 +3395,32 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`paginationPages`](../src/server/frontend/components/pagination.js#L5) | function | 5 | `function paginationPages(currentPage, totalPages, visibleCount)` | Returns the bounded sequence of page numbers surrounding the current page. |
 | [`pagination`](../src/server/frontend/components/pagination.js#L22) | function | 22 | `function pagination(result, options)` | Returns accessible pagination markup for server-backed or in-memory results. |
 | [`control`](../src/server/frontend/components/pagination.js#L46) | function | 46 | `function control(label, target, disabled, relation)` | Returns one pagination navigation control. |
+
+### [`src/server/frontend/components/pdf-viewer.js`](../src/server/frontend/components/pdf-viewer.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`unrotateRectangles`](../src/server/frontend/components/pdf-viewer.js#L8) | function | 8 | `function unrotateRectangles(rectangles, rotation)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
+| [`rotateRectangles`](../src/server/frontend/components/pdf-viewer.js#L25) | function | 25 | `function rotateRectangles(rectangles, rotation)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
+| [`selectionRectangles`](../src/server/frontend/components/pdf-viewer.js#L42) | function | 42 | `function selectionRectangles(selection, pageElement, rotation)` | Extracts bounded normalized rectangles from a same-page browser selection. |
+| [`mountPDFViewer`](../src/server/frontend/components/pdf-viewer.js#L64) | function | 64 | `async function mountPDFViewer(host, options, loader)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
+| [`render`](../src/server/frontend/components/pdf-viewer.js#L95) | function | 95 | `async function render()` | Replaces the bounded nearby-page set and its selectable text and anchor layers. |
+| [`changePage`](../src/server/frontend/components/pdf-viewer.js#L143) | function | 143 | `function changePage(next)` | Clamps and renders a requested current page. |
+| [`renderAnchors`](../src/server/frontend/components/pdf-viewer.js#L178) | function | 178 | `function renderAnchors(container, anchors, rotation)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../src/server/frontend/components/pdf-viewer.js#L195) | function | 195 | `function renderSelectableText(pdfjs, content, container, viewport)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+
+### [`src/server/frontend/components/review-panel.js`](../src/server/frontend/components/review-panel.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`mountArticleReview`](../src/server/frontend/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData)` | Mounts all editable review controls for one immutable run article revision. |
+| [`renderStartReview`](../src/server/frontend/components/review-panel.js#L44) | function | 44 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
+| [`appendCandidates`](../src/server/frontend/components/review-panel.js#L52) | function | 52 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
+| [`renderReview`](../src/server/frontend/components/review-panel.js#L83) | function | 83 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`updateSubstatuses`](../src/server/frontend/components/review-panel.js#L101) | function | 101 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L141) | function | 141 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L155) | function | 155 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L186) | function | 186 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
 
 ### [`src/server/frontend/components/shell.js`](../src/server/frontend/components/shell.js)
 
@@ -3222,26 +3519,27 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`detailLink`](../src/server/frontend/views/detail.js#L13) | function | 13 | `function detailLink(kind, id)` | Returns a context-preserving link to a related detail record. |
-| [`backToCorpus`](../src/server/frontend/views/detail.js#L26) | function | 26 | `function backToCorpus(kind)` | Returns the context-preserving corpus return URL for a detail view. |
-| [`detailReturn`](../src/server/frontend/views/detail.js#L39) | function | 39 | `function detailReturn(kind)` | Returns detail-view navigation markup back to the originating corpus section. |
-| [`recorded`](../src/server/frontend/views/detail.js#L54) | function | 54 | `function recorded(raw, fallback)` | Records ed. |
-| [`propertyGrid`](../src/server/frontend/views/detail.js#L62) | function | 62 | `function propertyGrid(entries, classes)` | Returns definition-list markup for labeled record properties. |
-| [`summaryStrip`](../src/server/frontend/views/detail.js#L71) | function | 71 | `function summaryStrip(entries)` | Returns compact summary-fact markup for a detail record. |
-| [`mappingValue`](../src/server/frontend/views/detail.js#L79) | function | 79 | `function mappingValue(raw)` | Converts a stored mapping representation to a displayable object. |
-| [`extensionMapping`](../src/server/frontend/views/detail.js#L97) | function | 97 | `function extensionMapping(raw)` | Returns the parsed extension mapping stored on a work revision. |
-| [`keywordValues`](../src/server/frontend/views/detail.js#L106) | function | 106 | `function keywordValues(raw)` | Returns normalized keyword values from stored array or delimited input. |
-| [`keywordMarkup`](../src/server/frontend/views/detail.js#L129) | function | 129 | `function keywordMarkup(raw)` | Returns label markup for normalized keyword values. |
-| [`rawRecord`](../src/server/frontend/views/detail.js#L142) | function | 142 | `function rawRecord(record, excluded)` | Returns expandable JSON markup for a raw record. |
-| [`collectionMarkup`](../src/server/frontend/views/detail.js#L161) | function | 161 | `function collectionMarkup(key, title, description, columns, rows, page)` | Returns expandable markup for a related-record collection. |
-| [`mountCollection`](../src/server/frontend/views/detail.js#L192) | function | 192 | `function mountCollection(key, title, description, columns, rows)` | Mounts collection. |
-| [`renderCollection`](../src/server/frontend/views/detail.js#L198) | function | 198 | `function renderCollection(key)` | Renders collection. |
-| [`stageReasonMarkup`](../src/server/frontend/views/detail.js#L216) | function | 216 | `function stageReasonMarkup(raw)` | Returns escaped validation or failure reason markup for a stage outcome. |
-| [`articleView`](../src/server/frontend/views/detail.js#L233) | function | 233 | `function articleView(record, data)` | Returns the article detail view from its immutable revision payload. |
-| [`pdfStatusPanel`](../src/server/frontend/views/detail.js#L298) | function | 298 | `function pdfStatusPanel(record, pdf)` | Returns PDF inventory and download-status markup for an article. |
-| [`authorView`](../src/server/frontend/views/detail.js#L319) | function | 319 | `function authorView(record, data)` | Returns the author occurrence detail view with related articles and audit evidence. |
-| [`referenceView`](../src/server/frontend/views/detail.js#L345) | function | 345 | `function referenceView(record)` | Returns the reference mention detail view with citation context. |
-| [`detailView`](../src/server/frontend/views/detail.js#L376) | function | 376 | `async function detailView(kind)` | Asynchronously implements detail view for the viewer. |
+| [`destroyActiveArticleReview`](../src/server/frontend/views/detail.js#L15) | function | 15 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
+| [`detailLink`](../src/server/frontend/views/detail.js#L23) | function | 23 | `function detailLink(kind, id)` | Returns a context-preserving link to a related detail record. |
+| [`backToCorpus`](../src/server/frontend/views/detail.js#L36) | function | 36 | `function backToCorpus(kind)` | Returns the context-preserving corpus return URL for a detail view. |
+| [`detailReturn`](../src/server/frontend/views/detail.js#L49) | function | 49 | `function detailReturn(kind)` | Returns detail-view navigation markup back to the originating corpus section. |
+| [`recorded`](../src/server/frontend/views/detail.js#L64) | function | 64 | `function recorded(raw, fallback)` | Records ed. |
+| [`propertyGrid`](../src/server/frontend/views/detail.js#L72) | function | 72 | `function propertyGrid(entries, classes)` | Returns definition-list markup for labeled record properties. |
+| [`summaryStrip`](../src/server/frontend/views/detail.js#L81) | function | 81 | `function summaryStrip(entries)` | Returns compact summary-fact markup for a detail record. |
+| [`mappingValue`](../src/server/frontend/views/detail.js#L89) | function | 89 | `function mappingValue(raw)` | Converts a stored mapping representation to a displayable object. |
+| [`extensionMapping`](../src/server/frontend/views/detail.js#L107) | function | 107 | `function extensionMapping(raw)` | Returns the parsed extension mapping stored on a work revision. |
+| [`keywordValues`](../src/server/frontend/views/detail.js#L116) | function | 116 | `function keywordValues(raw)` | Returns normalized keyword values from stored array or delimited input. |
+| [`keywordMarkup`](../src/server/frontend/views/detail.js#L139) | function | 139 | `function keywordMarkup(raw)` | Returns label markup for normalized keyword values. |
+| [`rawRecord`](../src/server/frontend/views/detail.js#L152) | function | 152 | `function rawRecord(record, excluded)` | Returns expandable JSON markup for a raw record. |
+| [`collectionMarkup`](../src/server/frontend/views/detail.js#L171) | function | 171 | `function collectionMarkup(key, title, description, columns, rows, page)` | Returns expandable markup for a related-record collection. |
+| [`mountCollection`](../src/server/frontend/views/detail.js#L202) | function | 202 | `function mountCollection(key, title, description, columns, rows)` | Mounts collection. |
+| [`renderCollection`](../src/server/frontend/views/detail.js#L208) | function | 208 | `function renderCollection(key)` | Renders collection. |
+| [`stageReasonMarkup`](../src/server/frontend/views/detail.js#L226) | function | 226 | `function stageReasonMarkup(raw)` | Returns escaped validation or failure reason markup for a stage outcome. |
+| [`articleView`](../src/server/frontend/views/detail.js#L243) | function | 243 | `function articleView(record, data)` | Returns the article detail view from its immutable revision payload. |
+| [`pdfStatusPanel`](../src/server/frontend/views/detail.js#L309) | function | 309 | `function pdfStatusPanel(record, pdf)` | Returns PDF inventory and download-status markup for an article. |
+| [`authorView`](../src/server/frontend/views/detail.js#L330) | function | 330 | `function authorView(record, data)` | Returns the author occurrence detail view with related articles and audit evidence. |
+| [`referenceView`](../src/server/frontend/views/detail.js#L356) | function | 356 | `function referenceView(record)` | Returns the reference mention detail view with citation context. |
+| [`detailView`](../src/server/frontend/views/detail.js#L387) | function | 387 | `async function detailView(kind)` | Asynchronously implements detail view for the viewer. |
 
 ### [`src/server/frontend/views/evaluation.js`](../src/server/frontend/views/evaluation.js)
 
@@ -3309,7 +3607,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`pipeline evidence is consistent across Corpus, Provenance, and Evaluation`](../frontend/tests/e2e.spec.cjs#L48) | test | 48 | `test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', callback)` | pipeline evidence is consistent across Corpus, Provenance, and Evaluation |
+| [`pipeline evidence is consistent across Corpus, Provenance, and Evaluation`](../frontend/tests/e2e.spec.cjs#L49) | test | 49 | `test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', callback)` | pipeline evidence is consistent across Corpus, Provenance, and Evaluation |
+| [`A2 inherits immutable A1 review heads and diverges without changing A1`](../frontend/tests/e2e.spec.cjs#L80) | test | 80 | `test('A2 inherits immutable A1 review heads and diverges without changing A1', callback)` | A2 inherits immutable A1 review heads and diverges without changing A1 |
+
+### [`frontend/tests/review.spec.cjs`](../frontend/tests/review.spec.cjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`persists status, note, anchor, and custom PDF rendering across reload`](../frontend/tests/review.spec.cjs#L7) | test | 7 | `test('persists status, note, anchor, and custom PDF rendering across reload', callback)` | persists status, note, anchor, and custom PDF rendering across reload |
 
 ### [`frontend/tests/ui-quality.spec.cjs`](../frontend/tests/ui-quality.spec.cjs)
 
@@ -3336,7 +3641,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`throws on non-ok response without error message`](../frontend/tests/unit/api.test.js#L85) | test | 85 | `it('throws on non-ok response without error message', callback)` | throws on non-ok response without error message |
 | [`throws on invalid JSON response`](../frontend/tests/unit/api.test.js#L102) | test | 102 | `it('throws on invalid JSON response', callback)` | throws on invalid JSON response |
 | [`aborts when state.controller is aborted`](../frontend/tests/unit/api.test.js#L119) | test | 119 | `it('aborts when state.controller is aborted', callback)` | aborts when state.controller is aborted |
-| [`fetches tables on first call and caches them`](../frontend/tests/unit/api.test.js#L146) | test | 146 | `it('fetches tables on first call and caches them', callback)` | fetches tables on first call and caches them |
+| [`sends same-origin JSON mutations`](../frontend/tests/unit/api.test.js#L138) | test | 138 | `it('sends same-origin JSON mutations', callback)` | sends same-origin JSON mutations |
+| [`fetches tables on first call and caches them`](../frontend/tests/unit/api.test.js#L160) | test | 160 | `it('fetches tables on first call and caches them', callback)` | fetches tables on first call and caches them |
 
 ### [`frontend/tests/unit/components/context-selector.test.js`](../frontend/tests/unit/components/context-selector.test.js)
 
@@ -3394,6 +3700,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`does nothing when no active graph`](../frontend/tests/unit/components/graph.test.js#L154) | test | 154 | `it('does nothing when no active graph', callback)` | does nothing when no active graph |
 | [`does nothing when canvas is missing`](../frontend/tests/unit/components/graph.test.js#L163) | test | 163 | `it('does nothing when canvas is missing', callback)` | does nothing when canvas is missing |
 
+### [`frontend/tests/unit/components/note-editor.test.js`](../frontend/tests/unit/components/note-editor.test.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`namespaces and clears only an exact saved draft`](../frontend/tests/unit/components/note-editor.test.js#L9) | test | 9 | `it('namespaces and clears only an exact saved draft', callback)` | namespaces and clears only an exact saved draft |
+| [`bounds quadratic comparison and identifies changed lines`](../frontend/tests/unit/components/note-editor.test.js#L21) | test | 21 | `it('bounds quadratic comparison and identifies changed lines', callback)` | bounds quadratic comparison and identifies changed lines |
+
+### [`frontend/tests/unit/components/note-parser.test.js`](../frontend/tests/unit/components/note-parser.test.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`parses every custom link form and suppresses links in code fences`](../frontend/tests/unit/components/note-parser.test.js#L10) | test | 10 | `it('parses every custom link form and suppresses links in code fences', callback)` | parses every custom link form and suppresses links in code fences |
+| [`reports unsafe protocols, malformed links, tables, and UTF-16 positions`](../frontend/tests/unit/components/note-parser.test.js#L16) | test | 16 | `it('reports unsafe protocols, malformed links, tables, and UTF-16 positions', callback)` | reports unsafe protocols, malformed links, tables, and UTF-16 positions |
+| [`escapes raw HTML and visibly labels unresolved links`](../frontend/tests/unit/components/note-parser.test.js#L25) | test | 25 | `it('escapes raw HTML and visibly labels unresolved links', callback)` | escapes raw HTML and visibly labels unresolved links |
+| [`matches the shared normalized link and diagnostic fixtures`](../frontend/tests/unit/components/note-parser.test.js#L33) | test | 33 | `it('matches the shared normalized link and diagnostic fixtures', callback)` | matches the shared normalized link and diagnostic fixtures |
+
 ### [`frontend/tests/unit/components/pagination.test.js`](../frontend/tests/unit/components/pagination.test.js)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3401,6 +3723,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`keeps a bounded page window around the current page`](../frontend/tests/unit/components/pagination.test.js#L8) | test | 8 | `it('keeps a bounded page window around the current page', callback)` | keeps a bounded page window around the current page |
 | [`renders range, page count, numbered pages, and boundary controls`](../frontend/tests/unit/components/pagination.test.js#L14) | test | 14 | `it('renders range, page count, numbered pages, and boundary controls', callback)` | renders range, page count, numbered pages, and boundary controls |
 | [`handles an empty result without inventing a visible row`](../frontend/tests/unit/components/pagination.test.js#L24) | test | 24 | `it('handles an empty result without inventing a visible row', callback)` | handles an empty result without inventing a visible row |
+
+### [`frontend/tests/unit/components/pdf-viewer.test.js`](../frontend/tests/unit/components/pdf-viewer.test.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`projects displayed rectangles back through all supported rotations`](../frontend/tests/unit/components/pdf-viewer.test.js#L9) | test | 9 | `it('projects displayed rectangles back through all supported rotations', callback)` | projects displayed rectangles back through all supported rotations |
+| [`round-trips stored rectangles into each displayed rotation`](../frontend/tests/unit/components/pdf-viewer.test.js#L17) | test | 17 | `it('round-trips stored rectangles into each displayed rotation', callback)` | round-trips stored rectangles into each displayed rotation |
 
 ### [`frontend/tests/unit/components/shell.test.js`](../frontend/tests/unit/components/shell.test.js)
 

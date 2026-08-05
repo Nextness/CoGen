@@ -76,7 +76,7 @@ func TestEmbeddedFrontendResearchWorkspaceContract(t *testing.T) {
 	index := viewerRequest(t, handler, "/")
 	for _, expected := range []string{
 		"Overview", "Corpus", "Relationships", "Provenance", "Evaluation", "Advanced", "Trash",
-		"Research context", "Search revision", "Execution plan", "Run attempt", "Read-only",
+		"Research context", "Search revision", "Execution plan", "Run attempt", "Local review",
 	} {
 		if !strings.Contains(index.Body.String(), expected) {
 			t.Errorf("embedded index is missing %q", expected)

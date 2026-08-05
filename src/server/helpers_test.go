@@ -3,26 +3,76 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"analysis/database"
 	"analysis/pdfstore"
 )
 
+// deterministicFixturePDF returns a structurally valid multi-page PDF with selectable Helvetica text.
+func deterministicFixturePDF(pageText ...string) []byte {
+	if len(pageText) == 0 {
+		pageText = []string{"Selectable fixture PDF text"}
+	}
+	objects := make([]string, 0, 3+len(pageText)*2)
+	pageIDs := make([]int, len(pageText))
+	contentIDs := make([]int, len(pageText))
+	fontID := 3 + len(pageText)
+	for index := range pageText {
+		pageIDs[index] = 3 + index
+		contentIDs[index] = fontID + 1 + index
+	}
+	kids := make([]string, len(pageIDs))
+	for index, id := range pageIDs {
+		kids[index] = fmt.Sprintf("%d 0 R", id)
+	}
+	objects = append(objects,
+		"<< /Type /Catalog /Pages 2 0 R >>",
+		fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(pageIDs)),
+	)
+	for index := range pageText {
+		objects = append(objects, fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>", fontID, contentIDs[index]))
+	}
+	objects = append(objects, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+	for _, text := range pageText {
+		escaped := strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)").Replace(text)
+		stream := "BT /F1 18 Tf 72 720 Td (" + escaped + ") Tj ET\n"
+		objects = append(objects, fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(stream), stream))
+	}
+	var output bytes.Buffer
+	output.WriteString("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
+	offsets := make([]int, len(objects)+1)
+	for index, object := range objects {
+		offsets[index+1] = output.Len()
+		fmt.Fprintf(&output, "%d 0 obj\n%s\nendobj\n", index+1, object)
+	}
+	xref := output.Len()
+	fmt.Fprintf(&output, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for index := 1; index < len(offsets); index++ {
+		fmt.Fprintf(&output, "%010d 00000 n \n", offsets[index])
+	}
+	fmt.Fprintf(&output, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return output.Bytes()
+}
+
 // pdfViewerFixture is a fixture type used by the package test suite.
 type pdfViewerFixture struct {
-	server         *Server
-	runID          int64
-	availableID    int64
-	notAvailableID int64
-	unavailableID  int64
-	revisionID     int64
+	server                 *Server
+	runID                  int64
+	availableID            int64
+	notAvailableID         int64
+	unavailableID          int64
+	revisionID             int64
+	notAvailableRevisionID int64
 }
 
 // referenceResolutionFixture is a fixture type used by the package test suite.
@@ -367,8 +417,23 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipelineRunID, err := metadata.PipelineRuns.StartRun("viewer", "query")
+	searchID, err := metadata.Searches.Create("viewer-pdf-search")
 	if err != nil {
+		t.Fatal(err)
+	}
+	searchRevisionID, _, err := metadata.Revisions.Create(searchID, "r1", "config", "manifest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := metadata.Plans.CreateWithInputManifest(searchRevisionID, "viewer-pdf-fingerprint", "manifest", "input", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipelineRunID, _, err := metadata.PipelineRuns.StartAttempt(planID, "viewer", "query")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.PipelineRunReviewers.Insert(pipelineRunID, "Fixture Reviewer", "fixture@example.test"); err != nil {
 		t.Fatal(err)
 	}
 	revisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
@@ -378,10 +443,14 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.WorkRevisions.Create(&database.WorkRevision{
+	notAvailableRevisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
 		WorkID: notAvailableID, PipelineRunID: pipelineRunID, ProducerStage: database.ProducerStageNormalize,
 		Title: "Viewer PDF article without inventory content",
-	}); err != nil {
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
 	if err := pdfstore.BindStore(ctx, metadata.DB, "corpus.pdf.db"); err != nil {
@@ -402,7 +471,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, []byte("%PDF-1.7\nviewer content")); err != nil {
+	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, deterministicFixturePDF("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.FlushAuditOutbox(ctx, metadata.DB); err != nil {
@@ -422,5 +491,6 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	return pdfViewerFixture{
 		server: viewer, runID: pipelineRunID, availableID: availableID,
 		notAvailableID: notAvailableID, unavailableID: unavailableID, revisionID: revisionID,
+		notAvailableRevisionID: notAvailableRevisionID,
 	}
 }

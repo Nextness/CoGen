@@ -913,6 +913,20 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+// TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs.
+func TestValidateLoopbackAddress(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:8080", "[::1]:0"} {
+		if err := validateLoopbackAddress(address); err != nil {
+			t.Errorf("validate %q: %v", address, err)
+		}
+	}
+	for _, address := range []string{"localhost:8080", "0.0.0.0:8080", "[::]:8080", "192.0.2.1:8080", "missing-port"} {
+		if err := validateLoopbackAddress(address); err == nil {
+			t.Errorf("expected %q to be rejected", address)
+		}
+	}
+}
+
 // chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions.
 func chdirToRepositoryRoot(t *testing.T) {
 	t.Helper()

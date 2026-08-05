@@ -10,7 +10,7 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a local read-only web viewer over an existing metadata database and its bundle-relative PDF store. The viewer is a vanilla JavaScript URL-state SPA embedded in the Go binary by default; `--assets-dir` changes only the frontend asset source for development.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; review contexts append immutable status, note, link, and anchor versions through a separate metadata write connection while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA embedded in the Go binary by default; `--assets-dir` changes only the frontend asset source for development.
 
 The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, vanilla JavaScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, and esbuild. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
@@ -24,7 +24,7 @@ Source exports + SOMETHING configuration
  metadata SQLite <----> companion PDF SQLite
           |
           v
- read-only Go HTTP server
+ loopback-only Go HTTP server
           |
           v
  embedded URL-state JavaScript SPA
@@ -35,38 +35,40 @@ Source exports + SOMETHING configuration
 | Path | Responsibility |
 |---|---|
 | [Makefile](../Makefile) | Supported repository-root build, execution, test, documentation, coverage, fixture, viewer, and frontend interface. |
-| `src/main.go` | Only production executable entry point; dispatches `run`, `serve`, and `version`. |
+| `src/main.go` | Only production executable entry point; dispatches `run`, `migrate`, `serve`, and `version`. |
 | `src/go.mod`, `src/go.sum` | Go module and dependency lock; Go commands execute with `src/` as the module directory. |
 | `src/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
 | `src/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
-| `src/database/` | Writable metadata SQLite connection, migrations, repositories, immutable relationships, attempts, artifacts, cache, metrics, and audit. |
+| `src/database/` | Writable and existing-only metadata SQLite connections, migrations, repositories, immutable relationships and review versions, mutable review heads, attempts, artifacts, cache, metrics, and audit. |
 | `src/enrich/` | Rate-limited provider HTTP client, payload-envelope validation, provider URL construction, and response decoding without database access. |
 | `src/logging/` | Process-wide structured logger and compile-time logging threshold. |
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
 | `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
-| `src/server/` | Existing-only read-only SQLite viewer API, bounded queries, details, audit, artifact access, PDF delivery, and embedded assets. |
+| `src/server/` | Existing-only metadata read and review-write connections, bounded APIs, details, audit, artifact access, read-only PDF delivery, and embedded assets. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
+| `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
 | `src/tools/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
 | `src/tools/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
 | `src/tools/pdf-store/` | Validated manual PDF insertion command. |
+| `src/tools/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
 | `src/tools/something-json/` | SOMETHING evaluation and JSON inspection command. |
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00021. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00024. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
-| `src/server/frontend/` | Embedded SPA source, stylesheets, and generated pinned D3-force browser bundle. |
+| `src/server/frontend/` | Embedded SPA source, stylesheets, generated pinned D3-force bundle, and generated pinned PDF.js assets. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
-| `src/server/testdata/` | Committed viewer fixture metadata database plus its generated ignored companion PDF fixture. |
+| `src/server/testdata/` | Ignored generated viewer metadata and PDF fixture pair produced from authoritative Go fixture code. |
 | `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
 
-The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-json`, `build/pdf-store`, `build/doccheck`, and `build/coveragecheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
+The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-json`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, and `build/coveragecheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
 
 ## 4. Dependency direction and component boundaries
 
-The internal production import direction is intentionally narrow: foundation packages such as `manifest`, `something`, `logging`, `article`, `normalization`, and `validation` do not depend on orchestration; `database`, `enrich`, and `pdfstore` own infrastructure boundaries; `workspace` composes pipeline concerns; `server` imports only `logging` from application packages; and `main` imports `logging`, `server`, and `workspace`.
+The internal production import direction is intentionally narrow: foundation packages such as `manifest`, `something`, `logging`, `article`, `notes`, `normalization`, and `validation` do not depend on orchestration; `database`, `enrich`, and `pdfstore` own infrastructure boundaries; `workspace` composes pipeline concerns; `server` uses database repositories but does not import workspace orchestration; and `main` imports `database`, `logging`, `server`, and `workspace`.
 
 ```text
                           +------------------+
@@ -80,7 +82,7 @@ The internal production import direction is intentionally narrow: foundation pac
              +------+------+                +-----+-----+
                     |                             |
        +------------+-------------+               v
-       v            v             v        read-only SQLite
+       v            v             v        existing metadata SQLite
   database       enrich       pdfstore
        ^            ^             ^
        +------------+-------------+
@@ -89,29 +91,31 @@ The internal production import direction is intentionally narrow: foundation pac
    validation, something, logging
 ```
 
-`src/main.go` is the only production entry point. Pipeline behavior belongs in `src/workspace/`; provider gatherers do not call database repositories, repository and store functions do not perform provider HTTP requests, and `src/server/` does not import workspace orchestration or call writable `database.Open`.
+`src/main.go` is the only production entry point. Pipeline behavior belongs in `src/workspace/`; provider gatherers do not call database repositories, repository and store functions do not perform provider HTTP requests, and `src/server/` does not import workspace orchestration or call migration-running `database.Open`.
 
 SQLite is the sole persisted pipeline record. Immutable `work_revisions`, ordered `authorships`, and ordered `reference_mentions` are the canonical corpus representation. `run_work_stages` records per-run, per-work outcomes independently from revision rows, so rejected work remains inspectable even though only valid normalized revisions enter the analysis-ready corpus.
 
-Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; global cache identity and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer is read-only by construction and never creates a database or runs migrations.
+Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; global cache identity and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only review-write mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
 
 ## 5. Executable boundaries
 
 `build/analysis run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed execution plan is a no-op by default, but DOI inventory reconciliation still runs; `--fresh` creates another attempt and records the rerun reason.
 
-`build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, warns for a non-loopback address, opens an existing database read-only, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
+`build/analysis migrate --db <metadata.db>` opens an existing metadata database and applies the configured metadata migration chain without running a workspace. It does not create a missing database.
+
+`build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and review-write connections, verifies required append-only review triggers, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`, appending `-development` when the compile-time `dev.Mode` constant marks a development build.
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 
-`build/something-json <path>` evaluates a SOMETHING file and writes JSON. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy.
+`build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-json <path>` evaluates a SOMETHING file and writes JSON. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy.
 
 The process logger is installed as the standard `slog` default and package loggers come from `logging.Logger(component)`. The compile-time minimum is `slog.LevelInfo`; there is no runtime `--log-level` option.
 
 ## 6. Configuration architecture
 
-`config/workspace.something` includes `config/baseline.something`, declares format-version-2 workspaces, source queries and filter counts, rename and keep mappings, enrichment settings, reuse policy, and cache policy. `workspace.Load` reads the selected file once, evaluates the exact bytes, ignores iteration scopes without a `workspace` value, rejects duplicate selectors, and produces typed `manifest.ResolvedManifest` and `enrich.Config` values.
+`config/workspace.something` includes `config/baseline.something`, declares format-version-2 workspaces, optional reviewer username and email, source queries and filter counts, rename and keep mappings, enrichment settings, reuse policy, and cache policy. `workspace.Load` reads the selected file once, evaluates the exact bytes, ignores iteration scopes without a `workspace` value, rejects duplicate selectors, trims and bounds reviewer values, and produces typed `manifest.ResolvedManifest` and `enrich.Config` values. Reviewer identity is persisted for every attempt but excluded from resolved and input manifests and execution fingerprints.
 
 Workspace selectors are stable `search_id@search_revision` strings. Supported source file types are `csv` and `bib`. Supported reuse policies are `reuse_completed`, `fresh`, and `retry`; command-line `--fresh` forces a new attempt.
 
@@ -250,13 +254,13 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00021 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections.
+The metadata chain is V00001-V00024 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections.
 
-The metadata schema includes `schema_migrations`, `pipeline_runs`, `searches`, `search_revisions`, `execution_plans`, `run_sources`, `source_records`, `source_filter_counts`, `artifacts`, `artifact_blobs`, `run_artifacts`, `run_steps`, `pipeline_run_metrics`, `audit_events`, `works`, `work_identifiers`, `work_revisions`, `run_work_stages`, `people`, `author_occurrences`, `authorships`, `author_identity_resolutions`, `author_identity_candidates`, `reference_mentions`, `cache_entries`, `run_cache_uses`, `pdf_store_binding`, and `pdf_audit_links`.
+The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, and mutable context head tables. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
 The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated manual inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
 
-Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, and PDF download attempts. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Run visibility and purge eligibility are separate lifecycle repository operations, but the viewer exposes no mutation endpoint.
+Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through repository transactions. A reviewed run or a run used in review lineage is purge-ineligible.
 
 ## 12. Cache and network behavior
 
@@ -301,13 +305,13 @@ pdf_audit_outbox row ---- flush ----> audit_events row
 
 ## 14. Viewer backend and protocol
 
-`server.Open` rejects empty, missing, and directory paths; opens metadata SQLite using `mode=ro` and `query_only`; discovers non-system tables and columns; and optionally opens the bound PDF store after path and schema validation. It never invokes the writable database package.
+`server.Open` rejects empty, missing, and directory paths; opens metadata SQLite using `mode=ro` and `query_only` for browsing; opens the same existing file with a single `mode=rw` connection for review repositories; verifies the review schema and its protection triggers without migrating; discovers non-system tables and columns; and optionally opens the bound PDF store read-only after path and schema validation. Startup closes every opened connection if a later validation step fails.
 
-The server accepts GET and HEAD. JSON errors use an `error` message, collection inputs and response sizes are bounded, table and sort identifiers are validated against discovered schema, artifact and PDF downloads use conservative headers, and API request contexts time out after five seconds. HTTP server timeouts are five seconds for headers, ten seconds for reads, fifteen seconds for writes, and thirty seconds idle.
+The server accepts GET and HEAD for evidence reads and narrowly routed POST and PUT review mutations. Mutations require JSON content type, reject unknown fields and trailing values, cap request bodies, enforce same-origin requests when `Origin` is present, return structured status and conflict codes, and use no-store caching. Collection inputs and response sizes are bounded, table and sort identifiers are validated against discovered schema, artifact and PDF downloads use conservative headers, and API request contexts time out after five seconds. HTTP server timeouts are five seconds for headers, ten seconds for reads, fifteen seconds for writes, and thirty seconds idle. The server rejects Host authorities that differ from its exact loopback listener to limit rebinding attacks.
 
 | Route | Responsibility and bounds |
 |---|---|
-| `/api/health` | Reports read-only server and database health. |
+| `/api/health` | Reports database health, review capability, and the opaque corpus ID used to namespace browser drafts. |
 | `/api/searches`, `/api/plans`, `/api/runs` | Resolves hierarchical research context. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
 | `/api/runs/{id}/audit`, `/api/audit` | Returns bounded cursor audit pages, facets, and supported filters. |
@@ -315,6 +319,10 @@ The server accepts GET and HEAD. JSON errors use an `error` message, collection 
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
 | `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run. |
 | `/api/runs/{id}/evaluation`, `/api/runs/{id}/identity-evidence`, `/api/runs/{id}/stages` | Returns evaluation, uncertain identity evidence, or stage outcomes. |
+| `/api/runs/{id}/review-context`, `/api/runs/{id}/review-context-candidates` | Returns, proposes, explicitly initializes, or lists bounded eligible parents for one completed non-trashed run. |
+| `/api/runs/{id}/articles/{revision}/review`, `/api/runs/{id}/articles/{revision}/review/versions` | Reads or appends complete review state and returns bounded immutable ancestry with optimistic concurrency. |
+| `/api/runs/{id}/articles/{revision}/notes`, `/api/runs/{id}/notes/{note}`, `/api/runs/{id}/notes/{note}/versions` | Creates, reads, edits, tombstones, restores, and lists bounded immutable note versions and resolved links. |
+| `/api/runs/{id}/articles/{revision}/anchors`, `/api/runs/{id}/anchors/{anchor}/versions`, `/api/runs/{id}/review-backlinks` | Creates and reads bounded PDF anchors, tombstones, ancestry, and current-version backlinks. |
 | `/api/tables`, `/api/tables/{table}` | Discovers tables and browses an allowlisted schema with bounded page sizes. |
 | `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
@@ -327,24 +335,18 @@ Audit supports run, category, action, actor, entity, and correlation filters. Ca
 
 Graph modes are `research_network`, `article_author`, `citation`, and `article_reference`. The endpoint caps article nodes at 2,000, related nodes at 10,000, and edges at 20,000, and reports truncation and its reason.
 
+Every review mutation validates the selected completed run, context head, work revision, vocabulary, expected version, and current PDF availability before one metadata transaction inserts a child version, compare-and-swap moves only that context head, and appends an audit event containing identifiers rather than note bodies, selected text, or reviewer email. The companion PDF availability check remains outside the metadata transaction because supported PDF inventory never removes or replaces an available document.
+
 ```text
-browser GET/HEAD
-      |
-      v
-method + path + query validation
-      |
-      v
-five-second request context
-      |
-      v
-read-only SQLite query -> bounded JSON or attachment response
+browser GET/HEAD -> read-only metadata or PDF query -> bounded response
+browser POST/PUT -> transport and context validation -> PDF availability read -> metadata version + head CAS + audit transaction
 ```
 
 ## 15. Frontend architecture
 
 The frontend is a framework-free native ES-module SPA. `index.html` owns the accessible shell, primary navigation, hierarchical selectors, status, loading, notice, and content regions. `app.js` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
 
-The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, and artifact inspector state where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
+The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
 
 `router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, replace `app.innerHTML`, and then bind interactions that require the new DOM.
 
@@ -371,7 +373,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
 | `app.js` | Global event binding, history interception, shell initialization, and first render. |
 | `state.js` | URL values, DOM state, escaping, formatting, shared panels, tables, flows, links, statuses, and global UI behavior. |
-| `api.js` | Abort-aware JSON fetching, endpoint construction, shared errors, and table discovery cache. |
+| `api.js` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
 | `router.js` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
 | `components/context-selector.js` | Dependent selector hydration, skeletons, clear controls, auto-selection, and summary. |
 | `components/data-table.js` | Shared rows, sorting, search, page size, expansion, and control binding. |
@@ -379,6 +381,10 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `components/audit-events.js` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
 | `components/graph.js` | Query state, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and edge table. |
 | `components/shell.js` | Health state and responsive navigation toggle. |
+| `components/note-parser.js` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
+| `components/note-editor.js` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
+| `components/pdf-viewer.js` | Custom vendored PDF.js lifecycle, nearby-page canvas and selectable text rendering, rotation, zoom, selection geometry, and anchor highlights. |
+| `components/review-panel.js` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
 | `views/*.js` | Page-level fetching, rendering, and post-render binding. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
@@ -387,6 +393,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `styles/views.css` | Overview, details, provenance, audit, artifacts, evaluation, and stage presentation. |
 | `styles/graph.css` | Relationship layout, controls, canvas, overview, legend, selection, and edge table. |
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; it is changed only through `make frontend-vendor`. |
+| `vendor/pdfjs/` | Generated PDF.js 4.2.67 core, matching worker, CMaps, standard fonts, and license assets; it is changed only through `make frontend-pdfjs-vendor`. |
 
 ### 15.2 Frontend module graph
 
@@ -405,18 +412,20 @@ app.js
   |     +-- evaluation.js --------+-- state.js, api.js, data-table.js, router.js
   |     +-- advanced.js ----------+-- state.js, api.js, data-table.js, router.js
   |     +-- trash.js -------------+-- state.js, api.js
-  |     +-- detail.js ------------+-- state.js, api.js, pagination.js
+  |     +-- detail.js ------------+-- state.js, api.js, pagination.js, review-panel.js
   +-- api.js
   +-- context-selector.js
   +-- shell.js -> api.js
 
 graph.js -> state.js, router.js, pagination.js, vendor/d3-force.js
 data-table.js -> state.js, router.js, pagination.js
+review-panel.js -> api.js, state.js, note-editor.js, pdf-viewer.js
+note-editor.js -> api.js, state.js, note-parser.js
 ```
 
 `state.js` is the shared leaf and imports no project module. Components do not import views. `router.js` and `context-selector.js` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
 
-Overview separates captured execution metrics from current derived coverage. Corpus covers articles, authors, references, source records, and identity evidence. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI and PDF inventory state. Advanced exposes discovered tables. Trash exposes read-only lifecycle history. Detail views remain within Corpus navigation.
+Overview separates captured execution metrics from current derived coverage. Corpus covers articles, authors, references, source records, and identity evidence. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides complete status history, note and link versions, an embedded custom PDF reader, and content-hash-bound anchors. Advanced exposes discovered tables. Trash exposes read-only lifecycle history. Detail views remain within Corpus navigation.
 
 The graph uses the generated checked-in D3-force bundle without a CDN. Canvas rendering is supplemental to DOM controls, legend, cluster overview, search, selection details, paginated edge table, fit, zoom, drag, expansion, and PNG export. Shape encodes entity type and color encodes connected component.
 
@@ -428,13 +437,13 @@ Go tests use `testing` with `unit`, `functional`, `integration`, and isolated `e
 
 `make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` writes an atomic whole-module profile and enforces the SOMETHING coverage policy. `make format-check`, `make vet`, and `make check` cover formatting, static checks, and complete read-only documentation consistency.
 
-Frontend unit tests use `node:test`, `node:assert`, and jsdom without a browser or server. Playwright uses an isolated viewer on an operating-system-assigned loopback port and unique output under `build/playwright/`; `viewer.spec.cjs` covers committed-fixture behavior, `ui-quality.spec.cjs` covers axe, responsive behavior, and reviewed visual snapshots, and the environment-guarded `e2e.spec.cjs` compares Corpus, Provenance, and Evaluation against a database generated by the real pipeline binary.
+Frontend unit tests use `node:test`, `node:assert`, and jsdom without a browser or server. Playwright copies the ignored generated fixture pair for each invocation, uses an isolated viewer on an operating-system-assigned loopback port, and writes unique output under `build/playwright/`; `viewer.spec.cjs` covers fixture evidence, serial `review.spec.cjs` covers local mutations and PDF rendering, `ui-quality.spec.cjs` covers axe, responsive behavior, and reviewed visual snapshots, and the environment-guarded `e2e.spec.cjs` mutates and verifies A1 and A2 review lineage over a database generated by the real pipeline binary.
 
 Current test counts are derived from source rather than maintained in prose. The normative test and verification policy is [STANDARDS.md](STANDARDS.md).
 
 ## 17. Security and data-integrity boundaries
 
-The viewer opens databases read-only, defaults to loopback, supports no mutation endpoint, validates identifiers and bounded inputs, escapes frontend content, and makes no production CDN request. Non-loopback binding only emits a warning and must be treated as an explicit operator decision because the viewer has no authentication or authorization.
+The viewer has no authentication or authorization, so writable serving requires an exact loopback IP listener and exact Host authority. It writes only append-only review evidence and mutable context heads in existing migrated metadata, keeps pipeline evidence and the PDF companion read-only, validates bounded inputs and origins, escapes frontend and note content, and makes no production CDN request.
 
 Provider requests use configured timeouts, retries, rate limits, controlled headers, and payload validation. Credentials and sensitive environment values are not stored in documentation or emitted deliberately through logs. Routine provider tests use controlled mock servers, while `make test-e2e-live E2E_LIVE=1` is the only explicit test exception and uses a bounded public corpus with structural assertions.
 
@@ -449,9 +458,11 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - PDF audit delivery uses an outbox because one atomic transaction cannot span two SQLite databases.
 - Provider gather and storage are separated so HTTP behavior remains mockable and database provenance remains centralized.
 - SOMETHING preserves ordered evaluation and panic-based internal phase failures so compiler behavior remains consistent across phases.
-- The viewer is local and read-only, with bounded endpoints and no authentication layer; loopback is the normal privacy boundary.
+- The viewer is local and review-writable, with bounded mutation endpoints and no authentication layer; exact loopback binding and Host authority are mandatory privacy boundaries.
+- Review contexts freeze selected parent heads by stable work identity, and later child versions move only the selected context so historical runs remain stable.
 - The frontend uses URL state and native modules so research context is shareable, reload-safe, and independent from a framework build step.
 - D3-force is pinned and generated as one checked-in browser asset so production serving requires neither Node nor a CDN.
+- PDF.js 4.2.67 is pinned and generated with its matching worker, CMaps, fonts, and license so PDF rendering requires neither a CDN nor the default PDF.js viewer UI.
 - Documentation generation and validation use one Go tool so maintained project tooling does not introduce another runtime language.
 - Documentation state updates are explicit acknowledgements because a hash detects changed bytes but cannot prove semantic accuracy.
 
@@ -462,13 +473,13 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - Provider keys and execution order are code, so adding configuration alone does not register a provider.
 - The metadata and companion PDF databases move and back up together after PDF inventory begins.
 - SQLite foreign keys, WAL for writable metadata, append-only triggers, and immutable revision semantics are required integrity behavior.
-- The viewer reads an existing database and is not a migration or repair path.
+- The viewer requires an existing fully migrated database and is not a migration or repair path; `analysis migrate` is the separate explicit migration command.
 - The graph, table browser, audit, artifact preview, and collection endpoints remain bounded even for local use.
 - The `intermidiate` spelling is part of the current filesystem path contract.
 
 ## 20. Current known issues
 
-- The viewer has no authentication or authorization; a non-loopback warning does not prevent deliberate exposure.
+- The viewer has no authentication or authorization and therefore rejects non-loopback listeners; local processes and users with host access remain inside its trust boundary.
 - Author and reference collections may contain repeated conceptual values across revision snapshots and must retain occurrence, mention, revision, or producer-stage labels.
 - Large graph responses are truncated at fixed bounds and are not streamed beyond those limits.
 - Frontend templates are strings, so every dynamic value requires deliberate use of `esc`; there is no framework-level automatic escaping.
@@ -481,7 +492,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
-- Add a viewer endpoint by keeping GET or HEAD semantics, read-only SQLite, allowlisted identifiers, bounded inputs and output, context timeouts, and integration coverage.
+- Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a review mutation only through the existing transport guards, PDF availability boundary, repository transaction, optimistic head compare-and-swap, immutable version model, and identifier-only audit metadata.
 - Add a frontend view by preserving URL context, registering router dispatch and primary navigation, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.

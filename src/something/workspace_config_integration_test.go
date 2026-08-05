@@ -205,3 +205,29 @@ workspace: workspace_config = {
 		t.Errorf("cache_policy.reads = %v, want empty", reads)
 	}
 }
+
+// TestWorkspaceConfigNestedOptionalReviewerDefault verifies the exact nested setup default form used by format-version-2 workspaces.
+func TestWorkspaceConfigNestedOptionalReviewerDefault(t *testing.T) {
+	text := `
+reviewer_config: setup = {
+    username?: string = "";
+    email?: string = "";
+}
+workspace_config: setup = {
+    format_version: integer;
+    reviewer?: reviewer_config = reviewer_config {
+        username = "",
+        email = "",
+    };
+}
+workspace: workspace_config = {
+    format_version = 2,
+};
+`
+	result := evalText(t, text)
+	workspace := result["workspace"].(map[string]any)
+	reviewer := workspace["reviewer"].(map[string]any)
+	if reviewer["username"] != "" || reviewer["email"] != "" {
+		t.Fatalf("reviewer default = %+v", reviewer)
+	}
+}

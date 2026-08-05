@@ -17,6 +17,7 @@ const articleWorkRunRevisionIDsSQL = `SELECT CAST(id AS TEXT)
 // revision ID. It intentionally does not expose the retired mutable articles
 // projection.
 func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
+	setMutableResponseHeaders(w)
 	id, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -94,7 +95,12 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enriched_fields": enrichedFields, "pdf_status": pdfStatus}, nil)
+	reviewContext, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enriched_fields": enrichedFields, "pdf_status": pdfStatus, "review_context": reviewContext, "review_context_initialized": reviewContext != nil}, nil)
 }
 
 // authorDetail returns one author occurrence with its articles and audit evidence.

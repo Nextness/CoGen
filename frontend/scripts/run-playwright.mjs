@@ -1,4 +1,4 @@
-import { access, mkdir } from 'node:fs/promises';
+import { access, copyFile, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,7 @@ await mustExist(binary, 'analysis binary', 'Run make build first.');
 await mustExist(fixtureDB, 'viewer fixture database', 'Run make fixture first.');
 await mustExist(assetsDir, 'frontend asset directory', 'The repository frontend assets are missing.');
 await mkdir(runDir, { recursive: true });
+const isolatedDB = await copyFixturePair();
 
 let server;
 let serverExited = false;
@@ -62,7 +63,7 @@ function startServer() {
     let settled = false;
     const timer = setTimeout(() => fail(new Error(`timed out starting isolated viewer server after ${timeoutMS}ms`)), timeoutMS);
 
-    server = spawn(binary, ['serve', '--db', fixtureDB, '--addr', '127.0.0.1:0', '--assets-dir', assetsDir], {
+    server = spawn(binary, ['serve', '--db', isolatedDB, '--addr', '127.0.0.1:0', '--assets-dir', assetsDir], {
       cwd: rootDir,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
@@ -93,6 +94,26 @@ function startServer() {
       reject(error);
     }
   });
+}
+
+/** Copies the generated fixture pair so browser mutations never alter their authoritative base. */
+async function copyFixturePair() {
+  const inferredPDF = fixtureDB.endsWith('.metadata.db') ? fixtureDB.replace(/\.metadata\.db$/, '.pdf.db') : fixtureDB.replace(/\.db$/, '.pdf.db');
+  const sourcePDF = process.env.FIXTURE_PDF_DB || inferredPDF;
+  await mustExist(sourcePDF, 'viewer PDF fixture database', 'Run make fixture first or set FIXTURE_PDF_DB.');
+  const explicitMetadata = process.env.PLAYWRIGHT_MUTATION_DB ? path.resolve(process.env.PLAYWRIGHT_MUTATION_DB) : '';
+  if (explicitMetadata) {
+    const relative = path.relative(rootDir, explicitMetadata);
+    if (relative.startsWith('..') || (!relative.startsWith(path.join('build', 'e2e')) && !relative.startsWith(path.join('build', 'playwright')))) {
+      throw new Error(`PLAYWRIGHT_MUTATION_DB must be under build/e2e or build/playwright, got ${explicitMetadata}`);
+    }
+  }
+  const destination = explicitMetadata ? path.dirname(explicitMetadata) : path.join(runDir, 'fixture');
+  await mkdir(destination, { recursive: true });
+  const metadataCopy = explicitMetadata || path.join(destination, path.basename(fixtureDB));
+  const pdfCopy = path.join(destination, path.basename(sourcePDF));
+  await Promise.all([copyFile(fixtureDB, metadataCopy, constants.COPYFILE_EXCL), copyFile(sourcePDF, pdfCopy, constants.COPYFILE_EXCL)]);
+  return metadataCopy;
 }
 
 /** Asynchronously implements wait for health for the viewer. */
