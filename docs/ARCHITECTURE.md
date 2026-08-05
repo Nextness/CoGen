@@ -35,7 +35,7 @@ Source exports + SOMETHING configuration
 | Path | Responsibility |
 |---|---|
 | [Makefile](../Makefile) | Supported repository-root build, execution, test, documentation, coverage, fixture, viewer, and frontend interface. |
-| `src/main.go` | Only production executable entry point; dispatches `run` and `serve`. |
+| `src/main.go` | Only production executable entry point; dispatches `run`, `serve`, and `version`. |
 | `src/go.mod`, `src/go.sum` | Go module and dependency lock; Go commands execute with `src/` as the module directory. |
 | `src/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
 | `src/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
@@ -100,6 +100,8 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 `build/analysis run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed execution plan is a no-op by default, but DOI inventory reconciliation still runs; `--fresh` creates another attempt and records the rerun reason.
 
 `build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, warns for a non-loopback address, opens an existing database read-only, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
+
+`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`, appending `-development` when the compile-time `dev.Mode` constant marks a development build.
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 

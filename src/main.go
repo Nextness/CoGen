@@ -11,12 +11,29 @@ import (
 	"os"
 	"strings"
 
+	"analysis/dev"
 	"analysis/logging"
 	"analysis/server"
 	"analysis/workspace"
 )
 
 var log = logging.Logger("pipeline")
+
+// major, minor, and patch are the semantic version components of the binary.
+// Bump them for each release; the version command prints MAJOR.MINOR.PATCH.
+const major int = 1
+const minor int = 0
+const patch int = 0
+
+// version returns the semantic version string, appending "-development" for
+// development builds so release and dev binaries are distinguishable.
+func version() string {
+	v := fmt.Sprintf("%d.%d.%d", major, minor, patch)
+	if dev.Mode {
+		v += "-development"
+	}
+	return v
+}
 
 // usage writes the supported command syntax to standard error.
 func usage() {
@@ -26,6 +43,9 @@ analysis runs a research-corpus pipeline ("run") or starts a
 read-only local viewer for an existing workspace database ("serve").
 
 Commands:
+
+  version Print the semantic version (MAJOR.MINOR.PATCH, with a
+          "-development" suffix for development builds).
 
   run     Execute one or more declared workspace iterations. Reads
           article metadata from CSV and BibTeX sources, normalizes and
@@ -76,8 +96,12 @@ func main() {
 		os.Exit(2)
 	}
 	command := os.Args[1]
+	if command == "version" {
+		fmt.Println(version())
+		return
+	}
 	if command != "run" && command != "serve" {
-		fmt.Fprintf(os.Stderr, "unknown command %q; expected run or serve\n", command)
+		fmt.Fprintf(os.Stderr, "unknown command %q; expected run, serve, or version\n", command)
 		os.Exit(2)
 	}
 	os.Args = append([]string{os.Args[0]}, os.Args[2:]...)

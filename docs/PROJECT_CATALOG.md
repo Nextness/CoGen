@@ -804,30 +804,32 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`usage`](../src/main.go#L22) | function | 22-70 | `func usage()` | usage writes the supported command syntax to standard error. |
-| [`main`](../src/main.go#L73) | function | 73-89 | `func main()` | main dispatches the analysis command selected by process arguments and exits on command failure. |
-| [`serveMain`](../src/main.go#L92) | function | 92-135 | `func serveMain()` | serveMain serves main. |
-| [`frontendAssets`](../src/main.go#L138) | function | 138-150 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets returns either explicit filesystem assets or the embedded production frontend. |
-| [`runPipelineMain`](../src/main.go#L153) | function | 153-183 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
-| [`changeToRepositoryRoot`](../src/main.go#L186) | function | 186-192 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
+| [`version`](../src/main.go#L28) | function | 28-34 | `func version() string` | version returns the semantic version string, appending "-development" for development builds so release and dev binaries are distinguishable. |
+| [`usage`](../src/main.go#L37) | function | 37-88 | `func usage()` | usage writes the supported command syntax to standard error. |
+| [`main`](../src/main.go#L91) | function | 91-111 | `func main()` | main dispatches the analysis command selected by process arguments and exits on command failure. |
+| [`serveMain`](../src/main.go#L114) | function | 114-157 | `func serveMain()` | serveMain serves main. |
+| [`frontendAssets`](../src/main.go#L160) | function | 160-172 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets returns either explicit filesystem assets or the embedded production frontend. |
+| [`runPipelineMain`](../src/main.go#L175) | function | 175-205 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
+| [`changeToRepositoryRoot`](../src/main.go#L208) | function | 208-214 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
 
 ### [`src/main_test.go`](../src/main_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestPipelineEndToEndWorkspace`](../src/main_test.go#L21) | test | 21-322 | `func TestPipelineEndToEndWorkspace(t *testing.T)` | TestPipelineEndToEndWorkspace verifies pipeline end to end workspace. |
-| [`TestWorkspaceAttemptRetryAndSourceHash`](../src/main_test.go#L325) | test | 325-385 | `func TestWorkspaceAttemptRetryAndSourceHash(t *testing.T)` | TestWorkspaceAttemptRetryAndSourceHash verifies workspace attempt retry and source hash. |
-| [`TestWorkspaceRevisionPlanAndAttemptGrouping`](../src/main_test.go#L388) | test | 388-472 | `func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T)` | TestWorkspaceRevisionPlanAndAttemptGrouping verifies workspace revision plan and attempt grouping. |
-| [`TestWorkspacePipelineNormalizesOnlyValidArticles`](../src/main_test.go#L475) | test | 475-535 | `func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T)` | TestWorkspacePipelineNormalizesOnlyValidArticles verifies workspace pipeline normalizes only valid articles. |
-| [`TestWorkspaceAttemptRejectsConcurrentPlan`](../src/main_test.go#L538) | test | 538-557 | `func TestWorkspaceAttemptRejectsConcurrentPlan(t *testing.T)` | TestWorkspaceAttemptRejectsConcurrentPlan verifies workspace attempt rejects concurrent plan. |
-| [`TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy`](../src/main_test.go#L560) | test | 560-605 | `func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T)` | TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy verifies workspace attempt records declared enrichment policy. |
-| [`TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure`](../src/main_test.go#L608) | test | 608-688 | `func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T)` | TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure verifies workspace pipeline records unreadable source preflight failure. |
-| [`TestWorkspacePipelineFailsForEmptyOrMalformedSource`](../src/main_test.go#L691) | test | 691-778 | `func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T)` | TestWorkspacePipelineFailsForEmptyOrMalformedSource verifies workspace pipeline fails for empty or malformed source. |
-| [`TestWorkspacePipelineRecordsInformationalExpectedResultCounts`](../src/main_test.go#L781) | test | 781-832 | `func TestWorkspacePipelineRecordsInformationalExpectedResultCounts(t *testing.T)` | TestWorkspacePipelineRecordsInformationalExpectedResultCounts verifies workspace pipeline records informational expected result counts. |
-| [`TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion`](../src/main_test.go#L835) | test | 835-870 | `func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(t *testing.T)` | TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion verifies workspace pipeline retains source records rejected during canonical conversion. |
-| [`TestFrontendAssets`](../src/main_test.go#L873) | test | 873-902 | `func TestFrontendAssets(t *testing.T)` | TestFrontendAssets verifies frontend assets. |
-| [`chdirToRepositoryRoot`](../src/main_test.go#L905) | function | 905-920 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
-| [`testWorkspaceRun`](../src/main_test.go#L923) | function | 923-941 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
+| [`TestPipelineEndToEndWorkspace`](../src/main_test.go#L22) | test | 22-323 | `func TestPipelineEndToEndWorkspace(t *testing.T)` | TestPipelineEndToEndWorkspace verifies pipeline end to end workspace. |
+| [`TestWorkspaceAttemptRetryAndSourceHash`](../src/main_test.go#L326) | test | 326-386 | `func TestWorkspaceAttemptRetryAndSourceHash(t *testing.T)` | TestWorkspaceAttemptRetryAndSourceHash verifies workspace attempt retry and source hash. |
+| [`TestWorkspaceRevisionPlanAndAttemptGrouping`](../src/main_test.go#L389) | test | 389-473 | `func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T)` | TestWorkspaceRevisionPlanAndAttemptGrouping verifies workspace revision plan and attempt grouping. |
+| [`TestWorkspacePipelineNormalizesOnlyValidArticles`](../src/main_test.go#L476) | test | 476-536 | `func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T)` | TestWorkspacePipelineNormalizesOnlyValidArticles verifies workspace pipeline normalizes only valid articles. |
+| [`TestWorkspaceAttemptRejectsConcurrentPlan`](../src/main_test.go#L539) | test | 539-558 | `func TestWorkspaceAttemptRejectsConcurrentPlan(t *testing.T)` | TestWorkspaceAttemptRejectsConcurrentPlan verifies workspace attempt rejects concurrent plan. |
+| [`TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy`](../src/main_test.go#L561) | test | 561-606 | `func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T)` | TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy verifies workspace attempt records declared enrichment policy. |
+| [`TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure`](../src/main_test.go#L609) | test | 609-689 | `func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T)` | TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure verifies workspace pipeline records unreadable source preflight failure. |
+| [`TestWorkspacePipelineFailsForEmptyOrMalformedSource`](../src/main_test.go#L692) | test | 692-779 | `func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T)` | TestWorkspacePipelineFailsForEmptyOrMalformedSource verifies workspace pipeline fails for empty or malformed source. |
+| [`TestWorkspacePipelineRecordsInformationalExpectedResultCounts`](../src/main_test.go#L782) | test | 782-833 | `func TestWorkspacePipelineRecordsInformationalExpectedResultCounts(t *testing.T)` | TestWorkspacePipelineRecordsInformationalExpectedResultCounts verifies workspace pipeline records informational expected result counts. |
+| [`TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion`](../src/main_test.go#L836) | test | 836-871 | `func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(t *testing.T)` | TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion verifies workspace pipeline retains source records rejected during canonical conversion. |
+| [`TestFrontendAssets`](../src/main_test.go#L874) | test | 874-903 | `func TestFrontendAssets(t *testing.T)` | TestFrontendAssets verifies frontend assets. |
+| [`TestVersion`](../src/main_test.go#L906) | test | 906-914 | `func TestVersion(t *testing.T)` | TestVersion verifies the version command output format and current value. |
+| [`chdirToRepositoryRoot`](../src/main_test.go#L917) | function | 917-932 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
+| [`testWorkspaceRun`](../src/main_test.go#L935) | function | 935-953 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
 
 ### [`src/manifest/helpers_test.go`](../src/manifest/helpers_test.go)
 

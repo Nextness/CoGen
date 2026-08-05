@@ -51,6 +51,8 @@ All intentional executables are written beneath `build/`; routine work does not 
 
 `build/coveragecheck` is normally executed by `make coverage`; developers should use the Make target so it receives the correct profile and policy paths.
 
+`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`), with a `-development` suffix for development builds.
+
 ## 5. Pipeline execution
 
 Build and run the configured workspaces:

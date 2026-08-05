@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -898,6 +899,17 @@ func TestFrontendAssets(t *testing.T) {
 	}
 	if _, err := frontendAssets(filePath); err == nil {
 		t.Fatal("frontendAssets accepted regular file")
+	}
+}
+
+// TestVersion verifies the version command output format and current value.
+func TestVersion(t *testing.T) {
+	got := version()
+	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-development)?$`).MatchString(got) {
+		t.Fatalf("version() = %q, want MAJOR.MINOR.PATCH with optional -development suffix", got)
+	}
+	if !strings.HasPrefix(got, "1.0.0") {
+		t.Errorf("version() = %q, want current version 1.0.0", got)
 	}
 }
 
