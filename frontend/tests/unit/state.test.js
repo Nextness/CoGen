@@ -313,7 +313,7 @@ describe('state.js — display helpers', function() {
 
   it('formats byte counts without treating kilobytes as decimal units', function() {
     assert.equal(formatBytes(512), '512 B');
-    assert.ok(formatBytes(1536).includes('1,5 KB'));
+    assert.match(formatBytes(1536), /^1[.,]5 KB$/);
   });
 
   it('turns stored field names into readable labels', function() {

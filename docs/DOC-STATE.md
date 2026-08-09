@@ -36,7 +36,7 @@ The dependency table expresses review impact rather than link direction. When a 
 | [docs/DATABASE.md](DATABASE.md) | `a2108e4e81719485d22b153824d12c7e015311e0e84ff6e33edbe498342147c7` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 | [docs/DESIGN.md](DESIGN.md) | `bca5e4a3024f0f4247fe47a3f77cb5aba37ddda04bcf4970b99748b11159c3dc` | [docs/CSS-REFERENCE.md](CSS-REFERENCE.md), [docs/APP-USAGE.md](APP-USAGE.md) |
 | [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) | `3f6d2e741090bfe0653d7666a70e17f3d784696e17e777c46884242ece4a2016` | None |
-| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `41e7a8762f60ea0dcfa25d6748a1ce24be1f0e45ea3e6e2b4a22d2a7b97bb088` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
+| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `f3c08cb6d6dbca430dc2ef8bd63742d1f27783b3d118ff6e3657164dc647b619` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
 | [docs/STANDARDS.md](STANDARDS.md) | `86d205a126eb15c6055b629b99635f405c7aa1ebb780eb6cede162a286f5f8e4` | [docs/DESIGN.md](DESIGN.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 | [docs/something.spec.md](something.spec.md) | `89d3ff3f68129830ea79e558f93e35e2ef461710c9cbee88b127f0c6563cd40f` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 

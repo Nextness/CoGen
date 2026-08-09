@@ -1295,12 +1295,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Server).articleDetail`](../src/server/details.go#L19) | method | 19-104 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
-| [`(*Server).authorDetail`](../src/server/details.go#L107) | method | 107-168 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates. |
-| [`(*Server).referenceDetail`](../src/server/details.go#L171) | method | 171-207 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
-| [`(*Server).rows`](../src/server/details.go#L210) | method | 210-217 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
-| [`(*Server).oneRow`](../src/server/details.go#L220) | method | 220-229 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
-| [`stringID`](../src/server/details.go#L232) | function | 232 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
+| [`(*Server).articleDetail`](../src/server/details.go#L24) | method | 24-112 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
+| [`(*Server).authorDetail`](../src/server/details.go#L115) | method | 115-176 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates. |
+| [`(*Server).referenceDetail`](../src/server/details.go#L179) | method | 179-215 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
+| [`(*Server).rows`](../src/server/details.go#L218) | method | 218-225 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
+| [`(*Server).oneRow`](../src/server/details.go#L228) | method | 228-237 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
+| [`stringID`](../src/server/details.go#L240) | function | 240 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
 
 ### [`src/server/details_integration_test.go`](../src/server/details_integration_test.go)
 
@@ -1468,11 +1468,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestReviewAPIInitializesAndMutatesMetadataOnly`](../src/server/reviews_integration_test.go#L16) | test | 16-137 | `func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T)` | TestReviewAPIInitializesAndMutatesMetadataOnly verifies the public review lifecycle, conflicts, parser errors, and PDF read-only ownership. |
-| [`TestReviewMutationTransportGuards`](../src/server/reviews_integration_test.go#L140) | test | 140-160 | `func TestReviewMutationTransportGuards(t *testing.T)` | TestReviewMutationTransportGuards verifies content type, body bounds, unknown fields, trailing JSON, and origin checks. |
-| [`TestReviewReadValidation`](../src/server/reviews_integration_test.go#L163) | test | 163-186 | `func TestReviewReadValidation(t *testing.T)` | TestReviewReadValidation verifies bounded pagination, target validation, and the local server configuration contract. |
-| [`TestLoopbackAuthorityRejectsRebindingHost`](../src/server/reviews_integration_test.go#L189) | test | 189-201 | `func TestLoopbackAuthorityRejectsRebindingHost(t *testing.T)` | TestLoopbackAuthorityRejectsRebindingHost verifies the HTTP server boundary accepts only its exact bound authority. |
-| [`mutationJSON`](../src/server/reviews_integration_test.go#L204) | function | 204-222 | `func mutationJSON(t *testing.T, handler http.Handler, method, path, body, origin string, contentTypes ...string) (int, map[string]any)` | mutationJSON invokes one review mutation and decodes its object response for assertions. |
+| [`TestReviewAPIInitializesAndMutatesMetadataOnly`](../src/server/reviews_integration_test.go#L16) | test | 16-151 | `func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T)` | TestReviewAPIInitializesAndMutatesMetadataOnly verifies the public review lifecycle, conflicts, parser errors, and PDF read-only ownership. |
+| [`TestReviewMutationTransportGuards`](../src/server/reviews_integration_test.go#L154) | test | 154-174 | `func TestReviewMutationTransportGuards(t *testing.T)` | TestReviewMutationTransportGuards verifies content type, body bounds, unknown fields, trailing JSON, and origin checks. |
+| [`TestReviewReadValidation`](../src/server/reviews_integration_test.go#L177) | test | 177-200 | `func TestReviewReadValidation(t *testing.T)` | TestReviewReadValidation verifies bounded pagination, target validation, and the local server configuration contract. |
+| [`TestLoopbackAuthorityRejectsRebindingHost`](../src/server/reviews_integration_test.go#L203) | test | 203-215 | `func TestLoopbackAuthorityRejectsRebindingHost(t *testing.T)` | TestLoopbackAuthorityRejectsRebindingHost verifies the HTTP server boundary accepts only its exact bound authority. |
+| [`mutationJSON`](../src/server/reviews_integration_test.go#L218) | function | 218-236 | `func mutationJSON(t *testing.T, handler http.Handler, method, path, body, origin string, contentTypes ...string) (int, map[string]any)` | mutationJSON invokes one review mutation and decodes its object response for assertions. |
 
 ### [`src/server/run_lifecycle.go`](../src/server/run_lifecycle.go)
 
@@ -3436,15 +3436,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`mountArticleReview`](../src/server/frontend/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData)` | Mounts all editable review controls for one immutable run article revision. |
+| [`mountArticleReview`](../src/server/frontend/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData, onAuditChange)` | Mounts all editable review controls for one immutable run article revision. |
 | [`renderStartReview`](../src/server/frontend/components/review-panel.js#L46) | function | 46 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
 | [`closeDialog`](../src/server/frontend/components/review-panel.js#L65) | function | 65 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
 | [`appendCandidates`](../src/server/frontend/components/review-panel.js#L70) | function | 70 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
 | [`renderReview`](../src/server/frontend/components/review-panel.js#L141) | function | 141 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
 | [`updateSubstatuses`](../src/server/frontend/components/review-panel.js#L191) | function | 191 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L260) | function | 260 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L293) | function | 293 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L324) | function | 324 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L269) | function | 269 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L302) | function | 302 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L333) | function | 333 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
 
 ### [`src/server/frontend/components/shell.js`](../src/server/frontend/components/shell.js)
 
