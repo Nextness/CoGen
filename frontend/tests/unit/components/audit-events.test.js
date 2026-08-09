@@ -29,6 +29,42 @@ describe('audit-events.js', function() {
     assert.ok(html.includes('Recorded data'));
   });
 
+  it('shows the complete previous and new review decision states', function() {
+    const html = auditEventMarkup({
+      id: 10,
+      action: 'work_review_version_created',
+      actor: 'reviewer',
+      pipeline_run_id: 3,
+      entity_type: 'work_review_version',
+      entity_id: 8,
+      occurred_at: '2024-01-20T10:00:00Z',
+      before_json: '{"status":"approved","reason":"Initial evidence","sub_statuses":[]}',
+      after_json: '{"status":"not_approved","reason":"Excluded <after review>","sub_statuses":["out_of_scope","not_peer_reviewed"]}'
+    });
+    assert.ok(html.includes('Review decision changed from Approved to Not Approved.'));
+    assert.ok(html.includes('Previous decision'));
+    assert.ok(html.includes('New decision'));
+    assert.ok(html.includes('Initial evidence'));
+    assert.ok(html.includes('Excluded &lt;after review&gt;'));
+    assert.ok(html.includes('Out Of Scope'));
+    assert.ok(html.includes('Not Peer Reviewed'));
+  });
+
+  it('does not invent decision details for historical review events without state payloads', function() {
+    const html = auditEventMarkup({
+      id: 11,
+      action: 'work_review_version_created',
+      actor: 'reviewer',
+      pipeline_run_id: 3,
+      entity_type: 'work_review_version',
+      entity_id: 7,
+      occurred_at: '2024-01-19T10:00:00Z'
+    });
+    assert.ok(html.includes('An immutable local review version was recorded.'));
+    assert.ok(!html.includes('Review decision changed from'));
+    assert.ok(!html.includes('Previous decision'));
+  });
+
   it('renders chronological list semantics without exposing review prose or contact fields', function() {
     const html = auditStream([{
       id: 9,

@@ -85,6 +85,13 @@ type WorkReviewState struct {
 	InheritedFromContextID *int64             `json:"inherited_from_context_id,omitempty"`
 }
 
+// workReviewAuditState is the bounded decision payload stored in audit before/after state.
+type workReviewAuditState struct {
+	Status      string   `json:"status"`
+	Reason      *string  `json:"reason"`
+	Substatuses []string `json:"sub_statuses"`
+}
+
 // ReviewRepository owns context initialization and immutable review, note, and anchor versions.
 type ReviewRepository struct{ db *Database }
 
@@ -403,11 +410,13 @@ func (r *ReviewRepository) AppendWorkReview(ctx context.Context, contextID, work
 			result = &WorkReviewState{ContextID: contextID, WorkID: workID, WorkRevisionID: workRevisionID}
 			return nil
 		}
+		beforeState := workReviewAuditState{Status: "not_evaluated", Substatuses: []string{}}
 		if current != nil {
 			previous, err := r.getWorkReviewVersion(ctx, tx, *current)
 			if err != nil {
 				return err
 			}
+			beforeState = workReviewAuditState{Status: previous.Status, Reason: previous.Reason, Substatuses: previous.Substatuses}
 			if previous.Status == status && optionalStringEqual(previous.Reason, normalizedReason) && stringSlicesEqual(previous.Substatuses, canonical) {
 				result = &WorkReviewState{ContextID: contextID, WorkID: workID, WorkRevisionID: workRevisionID, Version: previous}
 				if previous.CreatedInContextID != contextID {
@@ -444,7 +453,8 @@ func (r *ReviewRepository) AppendWorkReview(ctx context.Context, contextID, work
 			return &ReviewConflictError{Expected: expectedVersionID, Current: current}
 		}
 		metadata := map[string]any{"review_context_id": contextID, "work_id": workID, "work_revision_id": workRevisionID, "parent_version_id": current, "new_version_id": versionID}
-		if err := insertReviewAudit(ctx, tx, runID, "work_review_version", strconv.FormatInt(versionID, 10), manifest.AuditWorkReviewVersionCreated, metadata); err != nil {
+		afterState := workReviewAuditState{Status: status, Reason: normalizedReason, Substatuses: canonical}
+		if err := insertReviewChangeAudit(ctx, tx, runID, "work_review_version", strconv.FormatInt(versionID, 10), manifest.AuditWorkReviewVersionCreated, beforeState, afterState, metadata); err != nil {
 			return err
 		}
 		version, err := r.getWorkReviewVersion(ctx, tx, versionID)
@@ -613,20 +623,45 @@ func validateReviewState(status string, substatuses []string, reason *string) ([
 
 // insertReviewAudit appends identifier-only review evidence within the caller's head-move transaction.
 func insertReviewAudit(ctx context.Context, tx *sql.Tx, runID int64, entityType, entityID string, action manifest.AuditAction, metadata any) error {
+	return insertReviewChangeAudit(ctx, tx, runID, entityType, entityID, action, nil, nil, metadata)
+}
+
+// insertReviewChangeAudit appends identifier metadata and optional bounded decision-state changes.
+func insertReviewChangeAudit(ctx context.Context, tx *sql.Tx, runID int64, entityType, entityID string, action manifest.AuditAction, before, after, metadata any) error {
 	if err := manifest.ValidateAuditAction(string(action)); err != nil {
 		return err
 	}
-	encoded, err := json.Marshal(metadata)
+	encodedMetadata, err := marshalReviewAuditValue("metadata", metadata)
 	if err != nil {
-		return fmt.Errorf("marshal review audit metadata: %w", err)
+		return err
+	}
+	encodedBefore, err := marshalReviewAuditValue("before state", before)
+	if err != nil {
+		return err
+	}
+	encodedAfter, err := marshalReviewAuditValue("after state", after)
+	if err != nil {
+		return err
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO audit_events
-		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json)
-		VALUES (?, 'reviewer', ?, ?, ?, ?, ?)`, timestamp(), runID, entityType, entityID, string(action), string(encoded))
+		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json)
+		VALUES (?, 'reviewer', ?, ?, ?, ?, ?, ?, ?)`, timestamp(), runID, entityType, entityID, string(action), encodedBefore, encodedAfter, encodedMetadata)
 	if err != nil {
 		return fmt.Errorf("insert review audit event: %w", err)
 	}
 	return nil
+}
+
+// marshalReviewAuditValue returns a nullable JSON payload for one review audit field.
+func marshalReviewAuditValue(name string, value any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshal review audit %s: %w", name, err)
+	}
+	return string(encoded), nil
 }
 
 // nullableInt64 converts an optional integer into a SQL parameter.

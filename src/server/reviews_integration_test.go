@@ -150,6 +150,59 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 	}
 }
 
+// TestReviewDecisionAuditCapturesCompleteState verifies decision audit evidence records every changed review field.
+func TestReviewDecisionAuditCapturesCompleteState(t *testing.T) {
+	fixture := newPDFViewerFixture(t)
+	handler := fixture.server.Handler()
+	status, contextBody := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/review-context", fixture.runID), `{"parent_context_id":null}`, "")
+	if status != http.StatusCreated || contextBody["context_initialized"] != true {
+		t.Fatalf("create context: status=%d body=%v", status, contextBody)
+	}
+	status, first := mutationJSON(t, handler, http.MethodPut, fmt.Sprintf("/api/runs/%d/articles/%d/review", fixture.runID, fixture.revisionID), `{"expected_version_id":null,"status":"approved","sub_statuses":[],"reason":"Initially met the inclusion criteria"}`, "")
+	if status != http.StatusOK || first["changed"] != true {
+		t.Fatalf("first review: status=%d body=%v", status, first)
+	}
+	firstVersionID := int64(first["review"].(map[string]any)["version"].(map[string]any)["id"].(float64))
+	status, second := mutationJSON(t, handler, http.MethodPut, fmt.Sprintf("/api/runs/%d/articles/%d/review", fixture.runID, fixture.revisionID), fmt.Sprintf(`{"expected_version_id":%d,"status":"not_approved","sub_statuses":["out_of_scope","not_peer_reviewed"],"reason":"Excluded after full-text review"}`, firstVersionID), "")
+	if status != http.StatusOK || second["changed"] != true {
+		t.Fatalf("second review: status=%d body=%v", status, second)
+	}
+
+	status, articleDetail := requestJSON(t, handler, fmt.Sprintf("/api/articles/%d", fixture.revisionID))
+	if status != http.StatusOK {
+		t.Fatalf("article detail: status=%d body=%v", status, articleDetail)
+	}
+	var before, after struct {
+		Status      string   `json:"status"`
+		Reason      *string  `json:"reason"`
+		Substatuses []string `json:"sub_statuses"`
+	}
+	found := false
+	for _, raw := range articleDetail["audit_events"].([]any) {
+		event := raw.(map[string]any)
+		if event["action"] != "work_review_version_created" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(event["after_json"].(string)), &after); err != nil || after.Status != "not_approved" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(event["before_json"].(string)), &before); err != nil {
+			t.Fatalf("decode previous review audit state: %v", err)
+		}
+		found = true
+		break
+	}
+	if !found {
+		t.Fatalf("updated review audit event not found: %v", articleDetail["audit_events"])
+	}
+	if before.Status != "approved" || before.Reason == nil || *before.Reason != "Initially met the inclusion criteria" || len(before.Substatuses) != 0 {
+		t.Fatalf("previous review audit state = %+v", before)
+	}
+	if after.Reason == nil || *after.Reason != "Excluded after full-text review" || len(after.Substatuses) != 2 || after.Substatuses[0] != "not_peer_reviewed" || after.Substatuses[1] != "out_of_scope" {
+		t.Fatalf("new review audit state = %+v", after)
+	}
+}
+
 // TestReviewMutationTransportGuards verifies content type, body bounds, unknown fields, trailing JSON, and origin checks.
 func TestReviewMutationTransportGuards(t *testing.T) {
 	fixture := newPDFViewerFixture(t)

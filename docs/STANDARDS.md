@@ -89,9 +89,9 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Use repository nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
 - Validate dynamic identifiers against discovered or explicit allowlists before quoting them.
 - Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
-- Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap plus identifier-only audit metadata.
+- Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap. Review audit metadata remains identifier-only; decision events deliberately record the complete bounded previous and new decision in the audit before/after fields.
 - Context creation requires a completed non-trashed run, an earlier acyclic parent when supplied, and stable-work head materialization. Parent heads are frozen at creation and never propagate later changes.
-- Review, note, and anchor mutations require an available PDF for the selected work. Note bodies, selected PDF text, reviewer email, and browser drafts must not enter audit metadata.
+- Review, note, and anchor mutations require an available PDF for the selected work. Note bodies, selected PDF text, reviewer email, and browser drafts must not enter audit metadata or before/after state. A review decision's status, optional reason, and all sub-statuses are deliberate before/after audit evidence.
 - Bound collection, graph, preview, table-browser, review history, note, anchor, backlink, and candidate queries even though the viewer runs locally.
 
 ## 10. Migration standards

@@ -1407,6 +1407,58 @@
   font-size: var(--text-xs);
 }
 
+.rw-review-audit-change {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.rw-review-audit-state {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-small);
+  background: var(--color-bg-surface-muted);
+}
+
+.rw-review-audit-state h6 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.rw-review-audit-state dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.rw-review-audit-state dl > div {
+  display: grid;
+  gap: 2px;
+}
+
+.rw-review-audit-state dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-xxs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.rw-review-audit-state dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.rw-review-audit-substatuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .rw-audit-event__entity {
   display: flex;
   flex-direction: column;
@@ -1678,6 +1730,7 @@
   .rw-record-comparison,
   .rw-record-audit__controls,
   .rw-filter-field-grid,
+  .rw-review-audit-change,
   .rw-stage-flow {
     grid-template-columns: minmax(0, 1fr);
   }

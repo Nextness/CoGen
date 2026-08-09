@@ -67,8 +67,11 @@ function auditEntity(event) {
 }
 
 /** Returns a concise human-readable summary of an audit event. */
-function eventSummary(event, metadata) {
+function eventSummary(event, metadata, before, after) {
   const action = String(event.action || '').toLocaleLowerCase();
+  if (action === 'work_review_version_created' && before.status && after.status) {
+    return 'Review decision changed from ' + humanLabel(before.status || 'not_evaluated') + ' to ' + humanLabel(after.status || 'not_evaluated') + '.';
+  }
   if (metadata.field && metadata.provider) {
     return humanLabel(metadata.field) + ' enriched by ' + metadata.provider + '.';
   }
@@ -101,6 +104,28 @@ function eventSummary(event, metadata) {
     return 'An immutable local review version was recorded.';
   }
   return 'Recorded append-only audit event.';
+}
+
+/** Returns one complete previous or new review-decision state. */
+function reviewDecisionState(label, state) {
+  const substatuses = Array.isArray(state.sub_statuses) ? state.sub_statuses : [];
+  const subclasses = substatuses.length
+    ? '<div class="rw-review-audit-substatuses">' + substatuses.map(function(item) { return '<span class="ui neutral label">' + esc(humanLabel(item)) + '</span>'; }).join('') + '</div>'
+    : '<span class="ui faded text">None</span>';
+  return '<section class="rw-review-audit-state"><h6>' + esc(label) + '</h6><dl>'
+    + '<div><dt>Status</dt><dd>' + statusChip(state.status || 'not_evaluated') + '</dd></div>'
+    + '<div><dt>Reason</dt><dd>' + (state.reason ? esc(state.reason) : '<span class="ui faded text">Not recorded</span>') + '</dd></div>'
+    + '<div><dt>Subclassifications</dt><dd>' + subclasses + '</dd></div>'
+    + '</dl></section>';
+}
+
+/** Returns the visible before-and-after decision comparison for review audit events. */
+function reviewDecisionChange(event, before, after) {
+  if (String(event.action || '') !== 'work_review_version_created' || !before.status || !after.status) return '';
+  return '<div class="rw-review-audit-change" aria-label="Review decision change">'
+    + reviewDecisionState('Previous decision', before)
+    + reviewDecisionState('New decision', after)
+    + '</div>';
 }
 
 /** Returns metadata fields not already represented in the primary event presentation. */
@@ -176,7 +201,8 @@ export function auditEventMarkup(event) {
     + '<div class="rw-audit-event__main">'
     + '<div class="rw-audit-event__heading"><h5>' + esc(humanLabel(event.action || 'event')) + '</h5>'
     + '<span class="ui label">' + esc(humanLabel(category)) + '</span>' + statusChip(outcome) + '</div>'
-    + '<p>' + esc(eventSummary(event, metadata)) + '</p>'
+    + '<p>' + esc(eventSummary(event, metadata, before, after)) + '</p>'
+    + reviewDecisionChange(event, before, after)
     + '<div class="rw-audit-event__context"><span>Source: <strong>' + esc(source) + '</strong></span>'
     + '<span>Scope: <strong>' + esc(runContext) + '</strong></span>'
     + (stage ? '<span>Stage: <strong>' + esc(stage) + '</strong></span>' : '') + '</div>'
