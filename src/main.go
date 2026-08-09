@@ -75,6 +75,7 @@ Commands:
   serve   Start the loopback-only review viewer for an existing workspace
           database. Binds to a loopback address by default; the viewer
           serves the evaluation table, corpus browser, and graph views.
+          The binary does not embed frontend assets.
 
           Flags:
             --db <path>        Path to an existing SQLite workspace
@@ -82,9 +83,9 @@ Commands:
             --addr <host:port> Local address to listen on
                                (default "127.0.0.1:8080").
             --assets-dir
-            <dir>              Serve frontend assets from a filesystem
-                               directory instead of embedded assets.
-                               Use with "make dev" for hot refresh.
+            <dir>              Directory of frontend assets to serve
+                               (required). Use "frontend/dist" after
+                               "make frontend-build".
 
 Examples:
 
@@ -92,9 +93,8 @@ Examples:
   ./analysis migrate --db corpus.metadata.db
   ./analysis run --config config/workspace.something --db corpus.metadata.db \
       --workspace search_id@search_revision --fresh
-  ./analysis serve --db corpus.metadata.db
-  ./analysis serve --db corpus.metadata.db --addr 127.0.0.1:8090
-  ./analysis serve --db corpus.metadata.db --assets-dir src/server/frontend
+  ./analysis serve --db corpus.metadata.db --assets-dir frontend/dist
+  ./analysis serve --db corpus.metadata.db --addr 127.0.0.1:8090 --assets-dir frontend/dist
 
 `)
 }
@@ -145,10 +145,14 @@ func serveMain() {
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	dbPath := flags.String("db", "", "path to an existing SQLite workspace database")
 	addr := flags.String("addr", "127.0.0.1:8080", "local address to listen on")
-	assetsDir := flags.String("assets-dir", "", "directory of frontend assets to serve instead of embedded assets")
+	assetsDir := flags.String("assets-dir", "", "directory of frontend assets to serve (required)")
 	_ = flags.Parse(os.Args[1:])
 	if *dbPath == "" {
 		fmt.Fprintln(os.Stderr, "serve requires --db")
+		os.Exit(2)
+	}
+	if *assetsDir == "" {
+		fmt.Fprintln(os.Stderr, "serve requires --assets-dir")
 		os.Exit(2)
 	}
 	if err := validateLoopbackAddress(*addr); err != nil {
@@ -166,10 +170,8 @@ func serveMain() {
 		os.Exit(1)
 	}
 	defer viewer.Close()
-	if assets != nil {
-		viewer.AssetsFS = assets
-		log.Info("serving frontend from filesystem", "assets_dir", *assetsDir)
-	}
+	viewer.AssetsFS = assets
+	log.Info("serving frontend from filesystem", "assets_dir", *assetsDir)
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
 		log.Error("listen viewer", "addr", *addr, "error", err)
@@ -195,11 +197,8 @@ func validateLoopbackAddress(address string) error {
 	return nil
 }
 
-// frontendAssets returns either explicit filesystem assets or the embedded production frontend.
+// frontendAssets validates one frontend asset directory and exposes it as a file system.
 func frontendAssets(dir string) (fs.FS, error) {
-	if dir == "" {
-		return nil, nil
-	}
 	info, err := os.Stat(dir)
 	if err != nil {
 		return nil, fmt.Errorf("inspect frontend asset directory %q: %w", dir, err)

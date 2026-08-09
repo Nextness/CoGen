@@ -8,7 +8,7 @@ GO               ?= go
 GOWD             := src
 DB               ?= corpus.metadata.db
 ADDR             ?= 127.0.0.1:8080
-ASSETS_DIR       ?=
+ASSETS_DIR       ?= frontend/dist
 CONFIG           ?= config/workspace.something
 WORKSPACE        ?=
 FRESH            ?=
@@ -28,7 +28,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -36,7 +36,7 @@ help: ## List supported local development commands, variables, and examples.
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  make %-26s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@printf '%s\n' ''
 	@printf '%s\n' 'Common variables:'
-	@printf '%s\n' '  DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=src/server/frontend'
+	@printf '%s\n' '  DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=frontend/dist'
 	@printf '%s\n' '  CONFIG=config/workspace.something WORKSPACE=search_id@revision FRESH=1'
 	@printf '%s\n' '  PACKAGE=./server TEST=^TestName$$ COVERAGE_OUT=build/coverage/coverage.out COVERAGE_POLICY=config/coverage_policy.something'
 	@printf '%s\n' '  BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.cjs'
@@ -45,7 +45,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' ''
 	@printf '%s\n' 'Examples:'
 	@printf '%s\n' '  make run DB=corpus.metadata.db CONFIG=config/workspace.something FRESH=1'
-	@printf '%s\n' '  make serve DB=corpus.metadata.db ADDR=127.0.0.1:8090'
+	@printf '%s\n' '  make serve DB=corpus.metadata.db ADDR=127.0.0.1:8090 ASSETS_DIR=frontend/dist'
 	@printf '%s\n' '  make migrate DB=corpus.metadata.db'
 	@printf '%s\n' '  make prepare-to-osf DB=corpus.metadata.db CONFIG=config/workspace.something OUT=build/osf-export'
 	@printf '%s\n' '  make test-go PACKAGE=./server TEST=^TestGraph$$'
@@ -53,7 +53,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'
 
-all: build ## Build the normal embedded-asset executable.
+all: build ## Build build/analysis; the binary contains no frontend assets.
 
 build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
@@ -128,9 +128,9 @@ test-race: ## Run all Go tests with the race detector.
 test-docs: ## Run documentation tool unit tests.
 	cd $(GOWD) && $(GO) test -tags=unit ./tools/doccheck -count=1
 
-test-e2e: build something-json pdf-store ## Run offline pipeline-to-viewer E2E tests with generated databases.
+test-e2e: build frontend-build something-json pdf-store ## Run offline pipeline-to-viewer E2E tests with generated databases.
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2E(Deterministic|Mocked)$$' -count=1
-	cd frontend && E2E_SPEC=1 FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.cjs
+	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.cjs
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EReviewEvidence$$' -count=1
 
 test-e2e-live: build something-json ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
@@ -151,15 +151,15 @@ run: build ## Run the workspace pipeline. Override DB, CONFIG, WORKSPACE, and FR
 migrate: build ## Apply pending metadata migrations to an existing DB without running a workspace.
 	./$(BIN) migrate --db "$(DB)"
 
-serve: build ## Serve DB with embedded assets, or ASSETS_DIR for filesystem assets.
-	./$(BIN) serve --db "$(DB)" --addr "$(ADDR)" $(if $(ASSETS_DIR),--assets-dir "$(ASSETS_DIR)")
+serve: build frontend-build ## Serve DB with frontend assets from ASSETS_DIR (default frontend/dist).
+	./$(BIN) serve --db "$(DB)" --addr "$(ADDR)" --assets-dir "$(ASSETS_DIR)"
 
 database-backup: $(DB_METADATA) $(DB_PDF) ## This creates a copy of current database in case we want a backup
 	cp $(DB_METADATA) ./../backup_databases/
 	cp $(DB_PDF) ./../backup_databases/
 
-dev: build ## Serve a disposable fixture pair with filesystem assets for local review development.
-	cd frontend && node scripts/run-dev.mjs "$(BIN)" "$(FIXTURE_DB)" "src/server/frontend" "$(ADDR)"
+dev: build frontend-build ## Serve a disposable fixture pair with assembled assets for local review development.
+	cd frontend && node scripts/run-dev.mjs "$(BIN)" "$(FIXTURE_DB)" "$(ASSETS_DIR)" "$(ADDR)"
 
 prepare-to-osf: prepare-osf ## Create a sanitized corpus copy. DB and OUT are required; CONFIG is optional.
 	@test -n "$(DB)" || (printf '%s\n' 'DB is required.' >&2; exit 2)
@@ -168,6 +168,9 @@ prepare-to-osf: prepare-osf ## Create a sanitized corpus copy. DB and OUT are re
 
 frontend-install: ## Install locked frontend dependencies with npm ci.
 	cd frontend && npm ci
+
+frontend-build: ## Assemble frontend/dist from frontend sources with npm run build.
+	cd frontend && npm run build
 
 frontend-browsers: ## Install Playwright browsers. Override BROWSERS as needed.
 	cd frontend && npm exec -- playwright install $(BROWSERS)
@@ -179,26 +182,26 @@ frontend-pdfjs-vendor: ## Rebuild checked-in PDF.js 4.2.67 core, worker, CMaps, 
 	cd frontend && npm run build:pdfjs-vendor
 
 frontend-pdfjs-vendor-check: ## Verify checked-in PDF.js assets exactly match the pinned installed package.
-	cmp frontend/node_modules/pdfjs-dist/build/pdf.min.mjs src/server/frontend/vendor/pdfjs/pdf.min.mjs
-	cmp frontend/node_modules/pdfjs-dist/build/pdf.worker.min.mjs src/server/frontend/vendor/pdfjs/pdf.worker.min.mjs
-	cmp frontend/node_modules/pdfjs-dist/LICENSE src/server/frontend/vendor/pdfjs/LICENSE
-	diff -qr frontend/node_modules/pdfjs-dist/cmaps src/server/frontend/vendor/pdfjs/cmaps
-	diff -qr frontend/node_modules/pdfjs-dist/standard_fonts src/server/frontend/vendor/pdfjs/standard_fonts
+	cmp frontend/node_modules/pdfjs-dist/build/pdf.min.mjs frontend/vendor/pdfjs/pdf.min.mjs
+	cmp frontend/node_modules/pdfjs-dist/build/pdf.worker.min.mjs frontend/vendor/pdfjs/pdf.worker.min.mjs
+	cmp frontend/node_modules/pdfjs-dist/LICENSE frontend/vendor/pdfjs/LICENSE
+	diff -qr frontend/node_modules/pdfjs-dist/cmaps frontend/vendor/pdfjs/cmaps
+	diff -qr frontend/node_modules/pdfjs-dist/standard_fonts frontend/vendor/pdfjs/standard_fonts
 
-test-frontend: build ## Run Chromium Playwright on an isolated fixture server. Override BROWSER, WORKERS, TEST_FILE.
-	cd frontend && node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+test-frontend: build frontend-build ## Run Chromium Playwright on an isolated fixture server. Override BROWSER, WORKERS, TEST_FILE.
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
-test-frontend-all: build ## Run all Playwright browser projects on an isolated fixture server.
-	cd frontend && node scripts/run-playwright.mjs $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+test-frontend-all: build frontend-build ## Run all Playwright browser projects on an isolated fixture server.
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
-test-frontend-headed: build ## Run headed Chromium Playwright on an isolated fixture server.
-	cd frontend && node scripts/run-playwright.mjs --project="$(BROWSER)" --headed $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+test-frontend-headed: build frontend-build ## Run headed Chromium Playwright on an isolated fixture server.
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" --headed $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
-test-frontend-debug: build ## Run Chromium Playwright debug mode on an isolated fixture server.
-	cd frontend && node scripts/run-playwright.mjs --project="$(BROWSER)" --debug $(TEST_FILE)
+test-frontend-debug: build frontend-build ## Run Chromium Playwright debug mode on an isolated fixture server.
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" --debug $(TEST_FILE)
 
-test-frontend-visual: build ## Run Chromium visual and accessibility browser checks on an isolated fixture server.
-	cd frontend && node scripts/run-playwright.mjs --project=chromium tests/ui-quality.spec.cjs
+test-frontend-visual: build frontend-build ## Run Chromium visual and accessibility browser checks on an isolated fixture server.
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project=chromium tests/ui-quality.spec.cjs
 
 test-frontend-unit: ## Run frontend JS unit tests with Node built-in test runner.
 	cd frontend && npm run test:unit
@@ -207,5 +210,5 @@ frontend-report: ## Open a Playwright HTML report. Set REPORT_DIR to the report 
 	@test -n "$(REPORT_DIR)" || (printf '%s\n' 'REPORT_DIR is required; use the path printed by make test-frontend.' >&2; exit 2)
 	cd frontend && npm exec -- playwright show-report "../$(REPORT_DIR)"
 
-clean: ## Remove generated build artifacts, coverage, and isolated test reports.
-	rm -rf build/
+clean: ## Remove generated build artifacts, coverage, isolated test reports, and assembled frontend output.
+	rm -rf build/ frontend/dist frontend/dist-ts

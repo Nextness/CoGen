@@ -32,7 +32,7 @@ func hasPathPart(path, part string) bool {
 
 // projectJavaScriptFiles returns maintained project-authored JavaScript paths.
 func projectJavaScriptFiles(root string) ([]string, error) {
-	roots := []string{filepath.Join("src", "server", "frontend"), "frontend"}
+	roots := []string{"frontend"}
 	allowedSuffixes := map[string]bool{".js": true, ".cjs": true, ".mjs": true}
 	paths := make(map[string]bool)
 	for _, relativeRoot := range roots {
@@ -41,7 +41,7 @@ func projectJavaScriptFiles(root string) ([]string, error) {
 				return walkErr
 			}
 			if item.IsDir() {
-				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") {
+				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") || hasPathPart(path, "dist") || hasPathPart(path, "dist-ts") {
 					return filepath.SkipDir
 				}
 				return nil

@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-This document describes the active stylesheet layers, tokens, naming conventions, selector families, theme behavior, responsive rules, accessibility treatments, and dual-selector support in `src/server/frontend/`. Use [DESIGN.md](DESIGN.md) for product intent, [ARCHITECTURE.md](ARCHITECTURE.md) for module ownership, and [STANDARDS.md](STANDARDS.md) for frontend change rules.
+This document describes the active stylesheet layers, tokens, naming conventions, selector families, theme behavior, responsive rules, accessibility treatments, and dual-selector support in `frontend/styles/`. Use [DESIGN.md](DESIGN.md) for product intent, [ARCHITECTURE.md](ARCHITECTURE.md) for module ownership, and [STANDARDS.md](STANDARDS.md) for frontend change rules.
 
 The CSS source is authoritative. This reference describes current selectors without preserving previous naming stages or removal history.
 

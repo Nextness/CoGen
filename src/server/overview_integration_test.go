@@ -7,6 +7,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -81,6 +82,7 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	if len(payload.SourceResultCounts) != 1 || payload.SourceResultCounts[0].SourceName != "fixture" || payload.SourceResultCounts[0].Expected != 4 || payload.SourceResultCounts[0].Observed != 1 || payload.SourceResultCounts[0].Comparison != "below" {
 		t.Fatalf("source result count summary = %#v", payload.SourceResultCounts)
 	}
+	viewer.AssetsFS = os.DirFS(filepath.Join("..", "..", "frontend", "src"))
 	handler := viewer.Handler()
 	for _, check := range []struct {
 		path, needle string
@@ -98,7 +100,7 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	} {
 		asset := viewerRequest(t, handler, check.path)
 		if !strings.Contains(asset.Body.String(), check.needle) {
-			t.Fatalf("embedded frontend %s is missing %q", check.path, check.needle)
+			t.Fatalf("frontend %s is missing %q", check.path, check.needle)
 		}
 	}
 }

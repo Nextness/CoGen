@@ -2,7 +2,7 @@
 
 A Go-based research-corpus pipeline that turns Scopus, IEEE Xplore, and Web of Science exports into an immutable, provenance-rich SQLite corpus, with a loopback-only local viewer for browsing pipeline evidence and recording run-scoped article reviews, versioned notes, links, and PDF anchors.
 
-The pipeline parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates and normalizes metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, and append-only audit events. The same binary serves the embedded viewer over an existing migrated metadata database; pipeline evidence remains immutable while local review changes append immutable versions and move only run-context heads.
+The pipeline parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates and normalizes metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, and append-only audit events. The same binary serves the viewer over an existing migrated metadata database using the assembled frontend assets in `frontend/dist` (see `make frontend-build`); pipeline evidence remains immutable while local review changes append immutable versions and move only run-context heads.
 
 ## Requirements
 

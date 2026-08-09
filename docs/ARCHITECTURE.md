@@ -10,7 +10,7 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA embedded in the Go binary by default; `--assets-dir` changes only the frontend asset source for development.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
 
 The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, vanilla JavaScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, and esbuild. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
@@ -27,7 +27,7 @@ Source exports + SOMETHING configuration
  loopback-only Go HTTP server
           |
           v
- embedded URL-state JavaScript SPA
+ filesystem-assembled JavaScript SPA
 ```
 
 ## 3. Repository and build layout
@@ -45,7 +45,7 @@ Source exports + SOMETHING configuration
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
 | `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
-| `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and embedded assets. |
+| `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
 | `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
 | `src/tools/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
@@ -58,7 +58,7 @@ Source exports + SOMETHING configuration
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
 | `migrations/corpus.metadata/` | Metadata migrations V00001-V00024. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
-| `src/server/frontend/` | Embedded SPA source, stylesheets, generated pinned D3-force bundle, and generated pinned PDF.js assets. |
+| `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
 | `src/server/testdata/` | Ignored generated viewer metadata and PDF fixture pair produced from authoritative Go fixture code. |
 | `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
@@ -103,7 +103,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 `build/analysis migrate --db <metadata.db>` opens an existing metadata database and applies the configured metadata migration chain without running a workspace. It does not create a missing database.
 
-`build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and bounded-mutation connections, verifies required append-only review triggers, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
+`build/analysis serve` accepts `--db`, `--addr`, and requires `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and bounded-mutation connections, verifies required append-only review triggers, serves the assembled frontend assets from the given directory, and applies conservative HTTP timeouts.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`, appending `-development` when the compile-time `dev.Mode` constant marks a development build.
 
@@ -462,8 +462,8 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - SOMETHING preserves ordered evaluation and panic-based internal phase failures so compiler behavior remains consistent across phases.
 - The viewer is local and review-writable, with bounded mutation endpoints and no authentication layer; exact loopback binding and Host authority are mandatory privacy boundaries.
 - Review contexts freeze selected parent heads by stable work identity, and later child versions move only the selected context so historical runs remain stable.
-- The frontend uses URL state and native modules so research context is shareable, reload-safe, and independent from a framework build step.
-- D3-force is pinned and generated as one checked-in browser asset so production serving requires neither Node nor a CDN.
+- The frontend uses URL state and native modules so research context is shareable, reload-safe, and independent from a framework runtime; sources under `frontend/src` are assembled into `frontend/dist` by `make frontend-build` before serving.
+- D3-force is pinned and generated as one checked-in browser asset so the assembled frontend requires no CDN; Node is needed only to build assets and run frontend tests, not while the viewer serves them.
 - PDF.js 4.2.67 is pinned and generated with its matching worker, CMaps, fonts, and license so PDF rendering requires neither a CDN nor the default PDF.js viewer UI.
 - Documentation generation and validation use one Go tool so maintained project tooling does not introduce another runtime language.
 - Documentation state updates are explicit acknowledgements because a hash detects changed bytes but cannot prove semantic accuracy.

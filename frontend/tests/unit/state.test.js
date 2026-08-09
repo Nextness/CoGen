@@ -11,7 +11,7 @@ import {
   clearError, busy, link, pageHeader, breadcrumb, setBreadcrumb, emptyState, panel, table, subnav,
   filterChips, metricCard, flowStage, retentionFlow, breakdown, sourceResultCountSummary, timeline,
   detailTable, cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
-} from '../../../src/server/frontend/state.js';
+} from '../../src/state.js';
 
 describe('state.js — constants', function() {
 

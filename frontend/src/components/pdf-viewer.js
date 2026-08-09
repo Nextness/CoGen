@@ -62,7 +62,7 @@ export function selectionRectangles(selection, pageElement, rotation) {
 
 /** Mounts a project-styled PDF.js viewer and returns a lifecycle controller. */
 export async function mountPDFViewer(host, options, loader) {
-  const loadPDFJS = loader || function() { return import('../vendor/pdfjs/pdf.min.mjs'); };
+  const loadPDFJS = loader || function() { return import('../../vendor/pdfjs/pdf.min.mjs'); };
   const pdfjs = await loadPDFJS();
   pdfjs.GlobalWorkerOptions.workerSrc = workerURL;
   let pageNumber = Math.max(1, Number(options.page || 1));

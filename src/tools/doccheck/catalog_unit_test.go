@@ -55,7 +55,7 @@ func TestCollectGoDeclarationsClassifiesTests(t *testing.T) {
 // TestCollectJavaScriptDeclarationsIncludesJSDocClassesMethodsAndTests verifies collect java script declarations includes js doc classes methods and tests.
 func TestCollectJavaScriptDeclarationsIncludesJSDocClassesMethodsAndTests(t *testing.T) {
 	root := t.TempDir()
-	writeTestFile(t, root, "src/server/frontend/example.js", `/**
+	writeTestFile(t, root, "frontend/src/example.js", `/**
  * Renders a value.
  * @param {string} value - Value to render.
  * @returns {string} Rendered value.
@@ -88,9 +88,9 @@ export class Widget {
 // TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax verifies collect java script declarations excludes vendor and rejects unsupported syntax.
 func TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax(t *testing.T) {
 	root := t.TempDir()
-	writeTestFile(t, root, "src/server/frontend/vendor/generated.js", "function omitted() {}\n")
+	writeTestFile(t, root, "frontend/vendor/generated.js", "function omitted() {}\n")
 	writeTestFile(t, root, "frontend/node_modules/package/index.js", "function omittedDependency() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "export function supported() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "export function supported() {}\n")
 	declarations, _, err := collectJavaScriptDeclarations(root)
 	if err != nil {
 		t.Fatal(err)
@@ -99,11 +99,11 @@ func TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax(
 	if strings.Contains(output, "omitted") || !strings.Contains(output, "supported") {
 		t.Fatalf("JavaScript exclusions are incorrect:\n%s", output)
 	}
-	writeTestFile(t, root, "src/server/frontend/example.js", "export function broken(\n")
+	writeTestFile(t, root, "frontend/src/example.js", "export function broken(\n")
 	if _, _, err := collectJavaScriptDeclarations(root); err == nil || !strings.Contains(err.Error(), "unsupported JavaScript") {
 		t.Fatalf("unsupported JavaScript error = %v", err)
 	}
-	writeTestFile(t, root, "src/server/frontend/example.js", "export function* generated() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "export function* generated() {}\n")
 	if _, _, err := collectJavaScriptDeclarations(root); err == nil || !strings.Contains(err.Error(), "unsupported JavaScript") {
 		t.Fatalf("unsupported JavaScript generator error = %v", err)
 	}
@@ -113,7 +113,7 @@ func TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax(
 func TestCatalogCheckIsNonMutatingAndUpdateChangesOnlyMarkers(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "src/sample.go", "package sample\nfunc value() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "")
+	writeTestFile(t, root, "frontend/src/example.js", "")
 	writeTestFile(t, root, "frontend/example.js", "")
 	document := "# Catalog\n\nMaintained introduction.\n\n" + catalogBegin + "\n\nstale\n\n" + catalogEnd + "\n\nMaintained ending.\n"
 	writeTestFile(t, root, catalogDocument, document)
@@ -140,16 +140,16 @@ func TestCatalogCheckIsNonMutatingAndUpdateChangesOnlyMarkers(t *testing.T) {
 func TestCheckCatalogDescriptionsRejectsMissingComments(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "src/sample.go", "package sample\nfunc undocumented() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "/** Documents documented. */\nexport function documented() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "/** Documents documented. */\nexport function documented() {}\n")
 	writeTestFile(t, root, "frontend/example.js", "")
 	err := checkCatalogDescriptions(root)
 	if err == nil || !strings.Contains(err.Error(), "src/sample.go:2 undocumented") {
 		t.Fatalf("missing source description error = %v", err)
 	}
 	writeTestFile(t, root, "src/sample.go", "package sample\n// documented records its source description.\nfunc documented() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "export function undocumentedJavaScript() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "export function undocumentedJavaScript() {}\n")
 	err = checkCatalogDescriptions(root)
-	if err == nil || !strings.Contains(err.Error(), "src/server/frontend/example.js:1 undocumentedJavaScript") {
+	if err == nil || !strings.Contains(err.Error(), "frontend/src/example.js:1 undocumentedJavaScript") {
 		t.Fatalf("missing JavaScript source description error = %v", err)
 	}
 }
@@ -158,7 +158,7 @@ func TestCheckCatalogDescriptionsRejectsMissingComments(t *testing.T) {
 func TestCheckCatalogDescriptionsAcceptsMaintainedComments(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "src/sample.go", "package sample\n// documented records its source description.\nfunc documented() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "/** Documents rendered output. */\nexport function rendered() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "/** Documents rendered output. */\nexport function rendered() {}\n")
 	writeTestFile(t, root, "frontend/tests/unit/example.test.js", "test('keeps its title as the description', () => {})\n")
 	if err := checkCatalogDescriptions(root); err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestCheckCatalogDescriptionsAcceptsMaintainedComments(t *testing.T) {
 func TestCheckCatalogDescriptionsRejectsMisnamedGoComments(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "src/sample.go", "package sample\n// AnotherName does not identify the declaration.\nfunc documented() {}\n")
-	writeTestFile(t, root, "src/server/frontend/example.js", "")
+	writeTestFile(t, root, "frontend/src/example.js", "")
 	writeTestFile(t, root, "frontend/example.js", "")
 	err := checkCatalogDescriptions(root)
 	if err == nil || !strings.Contains(err.Error(), "comments do not begin with the declared symbol") {

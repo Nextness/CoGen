@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import '../setup.js';
-import { parseNote, renderNote } from '../../../../src/server/frontend/components/note-parser.js';
+import { parseNote, renderNote } from '../../../src/components/note-parser.js';
 
 describe('note-parser.js', function() {
   it('parses every custom link form and suppresses links in code fences', function() {

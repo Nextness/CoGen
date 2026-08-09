@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.js';
-import { setURL, bindFocusContext, render } from '../../../src/server/frontend/router.js';
-import { state, app } from '../../../src/server/frontend/state.js';
+import { setURL, bindFocusContext, render } from '../../src/router.js';
+import { state, app } from '../../src/state.js';
 
 describe('router.js — setURL', function() {
 

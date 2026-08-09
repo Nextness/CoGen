@@ -137,14 +137,14 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 
 ## 14. Frontend module standards
 
-Frontend production source is vanilla JavaScript with native ES modules and no application framework. `state.js` owns URL and shared rendering state, `api.js` owns JSON transport, `router.js` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior.
+Frontend production source is vanilla JavaScript with native ES modules and no application framework, assembled into `frontend/dist` by `make frontend-build`. `state.js` owns URL and shared rendering state, `api.js` owns JSON transport, `router.js` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior.
 
 - Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
 - Bind DOM listeners after replacing `app.innerHTML`, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
 - Escape dynamic values, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states.
 - Keep server-backed collections bounded and URL-addressable where reload or sharing matters.
-- Production Go builds use embedded assets and make no CDN request. `--assets-dir` selects filesystem source for development only.
+- The Go binary contains no frontend assets. `serve` requires `--assets-dir` (normally the assembled `frontend/dist` produced by `make frontend-build`), and serving makes no CDN request.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.
 - Change `vendor/pdfjs/` only through the exact `pdfjs-dist` dependency and `make frontend-pdfjs-vendor`; run `make frontend-pdfjs-vendor-check` to verify matching core and worker versions plus deterministic CMap, font, and license output.
 - The custom PDF viewer renders exactly one bounded current page and selectable text, advances one page per Previous or Next activation, cancels stale render work, destroys render, document, loading, and worker lifecycles on SPA navigation, and treats highlights as supplemental to keyboard-operable textual anchor evidence.

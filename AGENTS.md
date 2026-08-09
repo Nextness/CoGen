@@ -25,7 +25,7 @@ make run
 make run FRESH=1
 make migrate DB=./corpus.metadata.db
 make serve DB=./corpus.metadata.db
-make serve DB=./corpus.metadata.db ASSETS_DIR=./src/server/frontend
+make serve DB=./corpus.metadata.db ASSETS_DIR=./frontend/dist
 make dev
 make prepare-to-osf DB=./corpus.metadata.db CONFIG=./config/workspace.something OUT=./build/osf-export
 make test
@@ -63,7 +63,7 @@ There is no separate lint, pre-commit, or CI target. Format changed Go with `gof
 
 `run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed plan is a no-op by default while normalized DOI inventory reconciliation still runs; `--fresh` creates another attempt.
 
-`migrate` applies configured metadata migrations to an existing database without running a workspace. `serve` accepts `--db`, `--addr`, and `--assets-dir`, requires an exact loopback IP address, opens the existing metadata database through separate read-only and review-write connections, verifies review schema protection without running migrations, and keeps the bound PDF companion read-only. Filesystem assets are explicit; otherwise the embedded frontend is served.
+`migrate` applies configured metadata migrations to an existing database without running a workspace. `serve` requires `--db`, `--addr`, and `--assets-dir`, requires an exact loopback IP address, opens the existing metadata database through separate read-only and review-write connections, verifies review schema protection without running migrations, and keeps the bound PDF companion read-only. The binary contains no frontend assets; `--assets-dir` is the sole asset source.
 
 `config/workspace.something` includes `config/baseline.something` and declares format-version-2 workspaces, optional reviewer identity, sources, filters, providers, reuse, and cache policy. Reviewer identity is captured per attempt but excluded from manifests and execution fingerprints. `config/database.something` independently selects metadata and PDF migration chains. `config/coverage_policy.something` defines coverage floors.
 
@@ -75,7 +75,7 @@ There is no separate lint, pre-commit, or CI target. Format changed Go with `gof
 - `src/workspace/` owns typed configuration, preflight, attempts, cache policy, ingestion, enrichment orchestration, validation, normalization, metrics, artifacts, audit, and PDF synchronization.
 - `src/database/` owns writable metadata SQLite, migrations, repositories, immutable revisions and relationships, run-scoped review contexts and immutable review versions, cache records, artifacts, metrics, and append-only audit.
 - `src/pdfstore/` owns normalized DOI registration, validated manual PDF insertion, content-addressed bytes, companion migrations, and cross-database audit outbox.
-- `src/server/` owns existing-only metadata connections, bounded read and review-mutation APIs, table browsing, read-only PDF delivery, and the embedded frontend; it does not import workspace orchestration, run migrations, create databases, or write the PDF companion.
+- `src/server/` owns existing-only metadata connections, bounded read and review-mutation APIs, table browsing, read-only PDF delivery, and frontend asset serving; it does not import workspace orchestration, run migrations, create databases, or write the PDF companion.
 - `src/enrich/` owns provider HTTP and decoding; gather code has no database calls, and workspace storage does not bypass the rate-limited public client.
 - `src/manifest/` owns canonical manifests, fingerprints, lifecycle values, and audit actions without internal application dependencies.
 - `src/something/` owns the language compiler and evaluator; [docs/something.spec.md](docs/something.spec.md) is its behavioral specification.
@@ -83,7 +83,7 @@ There is no separate lint, pre-commit, or CI target. Format changed Go with `gof
 
 SQLite is the pipeline system of record. Work metadata changes create immutable `work_revisions`; ordered `authorships` and `reference_mentions` are canonical relationships. Validation gates normalization, and discarded work remains inspectable through stage and provenance evidence.
 
-The embedded viewer is a URL-state SPA. `search_id`, `search_revision_id`, `plan_id`, `run_id`, `note_id`, `anchor_id`, and `pdf_page` are persistent context. Every internal link uses the shared `link` helper; hard-coded `?view=...` links discard context.
+The viewer is a URL-state SPA assembled into `frontend/dist` from `frontend/src` and served with `serve --assets-dir`. `search_id`, `search_revision_id`, `plan_id`, `run_id`, `note_id`, `anchor_id`, and `pdf_page` are persistent context. Every internal link uses the shared `link` helper; hard-coded `?view=...` links discard context.
 
 ## 6. Data, migration, and security essentials
 
@@ -103,9 +103,9 @@ Frontend unit tests live under `frontend/tests/unit/` and use Node, jsdom, and `
 
 The `e2e` Go build tag is reserved for the supported pipeline-to-viewer flow. `make test-e2e` builds and invokes `build/analysis`, keeps deterministic and mocked-provider traffic offline, writes generated database bundles under `build/e2e/`, and runs the guarded Playwright continuity spec. `make test-e2e-live E2E_LIVE=1` is the only test target permitted to contact real Crossref, OpenAlex, and ORCID services; it is opt-in and is not part of default, race, integration, coverage, or frontend targets.
 
-When changing `src/server/frontend/`, run `make test-frontend-unit`, `make test-go PACKAGE=./server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
+When changing `frontend/`, run `make test-frontend-unit`, `make test-go PACKAGE=./server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
 
-The checked-in `src/server/frontend/vendor/d3-force.js` is generated by `make frontend-vendor`. The checked-in PDF.js core, worker, CMaps, standard fonts, and license assets under `src/server/frontend/vendor/pdfjs/` are generated by `make frontend-pdfjs-vendor`. Edit dependency or generation inputs, not the generated assets.
+The checked-in `frontend/vendor/d3-force.js` is generated by `make frontend-vendor`. The checked-in PDF.js core, worker, CMaps, standard fonts, and license assets under `frontend/vendor/pdfjs/` are generated by `make frontend-pdfjs-vendor`. Edit dependency or generation inputs, not the generated assets. `frontend/dist` is assembled by `make frontend-build` and is required by `serve`, `dev`, and Playwright targets.
 
 ## 8. File and source-control safety
 

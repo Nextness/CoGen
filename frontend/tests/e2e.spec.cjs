@@ -73,7 +73,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
   await expect(evaluation).toBeVisible();
   await expect(evaluation).toContainText('Offline Complete One');
   await expect(evaluation).toContainText('Offline Complete Two');
-  await expect(evaluation.locator('.ui.red.label', { hasText: 'Not Available' })).toHaveCount(1);
+  await expect(evaluation.locator('.ui.orange.label', { hasText: 'Not Available' })).toHaveCount(1);
   await expect(evaluation.locator('.ui.green.label', { hasText: 'Available' })).toHaveCount(1);
 });
 

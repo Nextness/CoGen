@@ -88,21 +88,22 @@ make migrate DB=corpus.metadata.db
 
 The migration command rejects a missing database and does not run a workspace. The viewer verifies required review tables and append-only triggers at startup but never migrates or repairs the database itself.
 
-Serve an existing metadata database with embedded production assets:
+Serve an existing metadata database with the assembled production assets:
 
 ```sh
-make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080
-./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080
+make frontend-build
+make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=frontend/dist
+./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080 --assets-dir ./frontend/dist
 ```
 
-Serve filesystem assets for frontend development:
+Serve the assembled assets, overriding the default asset directory:
 
 ```sh
-make serve DB=corpus.metadata.db ASSETS_DIR=src/server/frontend
+make serve DB=corpus.metadata.db ASSETS_DIR=frontend/dist
 make dev
 ```
 
-`make dev` copies the ignored generated fixture metadata and PDF pair to a disposable directory, serves that copy with filesystem assets, and uses the default loopback address. Filesystem asset mode reflects source edits on reload without rebuilding the embedded binary. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener.
+`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener.
 
 Use [APP-USAGE.md](APP-USAGE.md) for review-context initialization, status and note history, note syntax, embedded PDF anchors, navigation, data interpretation, privacy, graph limits, and operational expectations.
 
@@ -211,7 +212,7 @@ make test-frontend-debug BROWSER=chromium TEST_FILE=tests/viewer.spec.cjs
 make test-frontend-visual
 ```
 
-Each browser-test target builds `build/analysis`, copies the generated metadata and PDF fixture pair into a unique target-owned directory, starts an isolated viewer on an operating-system-assigned loopback port with filesystem assets, waits for `/api/health`, gives that exact URL to Playwright, and stops only its own child process. It does not reuse or stop a manually running viewer and never serves the base fixture writable.
+Each browser-test target builds `build/analysis`, assembles `frontend/dist`, copies the generated metadata and PDF fixture pair into a unique target-owned directory, starts an isolated viewer on an operating-system-assigned loopback port with the assembled assets, waits for `/api/health`, gives that exact URL to Playwright, and stops only its own child process. It does not reuse or stop a manually running viewer and never serves the base fixture writable.
 
 Each invocation writes unique output under `build/playwright/run-*/` and prints its report path. Open one report with:
 
@@ -229,7 +230,7 @@ The checked-in D3-force browser module means normal Go builds do not invoke npm.
 make frontend-vendor
 ```
 
-Edit the dependency declaration or build input, not `src/server/frontend/vendor/d3-force.js`. Review the generated bundle and run the graph unit, server, and browser verification required by [STANDARDS.md](STANDARDS.md).
+Edit the dependency declaration or build input, not `frontend/vendor/d3-force.js`. Review the generated bundle and run the graph unit, server, and browser verification required by [STANDARDS.md](STANDARDS.md).
 
 PDF.js is pinned exactly at 4.2.67 for the Node 18 development environment. Rebuild and deterministically check its official prebuilt core, exact matching worker, CMaps, standard fonts, and license assets with:
 
@@ -238,7 +239,7 @@ make frontend-pdfjs-vendor
 make frontend-pdfjs-vendor-check
 ```
 
-Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.mjs`, not files under `src/server/frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
+Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.mjs`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
 
 ## 16. Documentation workflow
 

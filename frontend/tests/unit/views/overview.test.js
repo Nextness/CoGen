@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { overviewView } from '../../../../src/server/frontend/views/overview.js';
-import { app, state, value } from '../../../../src/server/frontend/state.js';
+import { overviewView } from '../../../src/views/overview.js';
+import { app, state, value } from '../../../src/state.js';
 
 describe('overview.js — overviewView', function() {
 

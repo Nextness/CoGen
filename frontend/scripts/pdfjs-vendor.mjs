@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const expectedVersion = '4.2.67';
 const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const packageDir = path.join(frontendDir, 'node_modules', 'pdfjs-dist');
-const destination = path.resolve(frontendDir, '..', 'src', 'server', 'frontend', 'vendor', 'pdfjs');
+const destination = path.resolve(frontendDir, 'vendor', 'pdfjs');
 const declaration = JSON.parse(await readFile(path.join(packageDir, 'package.json'), 'utf8'));
 
 if (declaration.version !== expectedVersion) {

@@ -14,7 +14,7 @@ The viewer inspects historical research runs, manages reversible run visibility,
 - Let a user explicitly initialize one review context for a completed run, confirm lineage, record complete article status, compare immutable note history, follow resolved links, and create content-hash-bound PDF anchors without changing earlier run contexts.
 - Keep large corpora, audit streams, artifacts, and relationship graphs bounded and navigable.
 - Use semantic HTML, visible focus, text alternatives, and table equivalents so essential information is not encoded only through color or graphics.
-- Work from embedded local assets with no CDN or application-framework dependency.
+- Work from local assets assembled from `frontend/` sources, with no CDN or application-framework dependency.
 - Preserve privacy through mandatory loopback serving, existing-only metadata writes, a read-only PDF database, bounded mutation and preview inputs, escaped content, and no authentication claims.
 
 ## 3. Design principles
@@ -293,7 +293,7 @@ Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifie
 
 The main Playwright suite runs against an isolated fixture copy and verifies context selection, navigation, URL preservation, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks and reviewed screenshots for core views.
 
-Every frontend change must run `make test-frontend-unit`. Changes under `src/server/frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.cjs`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
+Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.cjs`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
 Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review and run-visibility controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
 

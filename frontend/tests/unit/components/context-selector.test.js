@@ -3,8 +3,8 @@ import { describe, it, before, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { selects, hydrateSelectors } from '../../../../src/server/frontend/components/context-selector.js';
-import { state } from '../../../../src/server/frontend/state.js';
+import { selects, hydrateSelectors } from '../../../src/components/context-selector.js';
+import { state } from '../../../src/state.js';
 
 describe('context-selector.js — selects', function() {
 

@@ -1,5 +1,5 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
-import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from '../vendor/d3-force.js';
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from '../../vendor/d3-force.js';
 import { esc, graphFilters, link, list, value } from '../state.js';
 import { pagination } from './pagination.js';
 

@@ -181,6 +181,9 @@ test.describe('Visual regression', () => {
   ]) {
     test(`${name} light`, async ({ page }) => {
       await visit(page, overrides);
+      if (name === 'relationships') {
+        await expect(page.locator('#graph-layout-status')).toContainText(/settled|placed/);
+      }
       await expect(page).toHaveScreenshot(`${name}-light.png`, { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
     });
   }

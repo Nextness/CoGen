@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { rowFilter, dataTable, bindTableControls } from '../../../../src/server/frontend/components/data-table.js';
-import { state, value } from '../../../../src/server/frontend/state.js';
+import { rowFilter, dataTable, bindTableControls } from '../../../src/components/data-table.js';
+import { state, value } from '../../../src/state.js';
 
 describe('data-table.js — rowFilter', function() {
 

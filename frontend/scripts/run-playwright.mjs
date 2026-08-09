@@ -8,7 +8,7 @@ const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const rootDir = path.resolve(frontendDir, '..');
 const binary = process.env.ANALYSIS_BINARY || path.join(rootDir, 'build', 'analysis');
 const fixtureDB = process.env.FIXTURE_DB || path.join(rootDir, 'src', 'server', 'testdata', 'workspace.fixture.db');
-const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, 'src', 'server', 'frontend');
+const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, 'frontend', 'dist');
 const runDir = path.join(rootDir, 'build', 'playwright', `run-${Date.now()}-${process.pid}`);
 const reportDir = path.join(runDir, 'report');
 const resultDir = path.join(runDir, 'results');
@@ -16,7 +16,7 @@ const timeoutMS = 30_000;
 
 await mustExist(binary, 'analysis binary', 'Run make build first.');
 await mustExist(fixtureDB, 'viewer fixture database', 'Run make fixture first.');
-await mustExist(assetsDir, 'frontend asset directory', 'The repository frontend assets are missing.');
+await mustExist(assetsDir, 'frontend asset directory', 'Run make frontend-build first.');
 await mkdir(runDir, { recursive: true });
 const isolatedDB = await copyFixturePair();
 

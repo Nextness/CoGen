@@ -7,11 +7,12 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
-    "test:unit": "node --test tests/unit/**/*.test.js tests/unit/**/**/*.test.js",
+    "test:unit": "node --test \"tests/unit/**/*.test.js\"",
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium firefox webkit",
     "codegen": "playwright codegen http://localhost:8080",
-    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=../src/server/frontend/vendor/d3-force.js",
+    "build": "node scripts/build.mjs",
+    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=./vendor/d3-force.js",
     "build:pdfjs-vendor": "node scripts/pdfjs-vendor.mjs"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@
 
 This generated catalog maps maintained Go and JavaScript declarations and tests to exact repository-relative source locations. Use [ARCHITECTURE.md](ARCHITECTURE.md) for system behavior and [STANDARDS.md](STANDARDS.md) for source documentation conventions.
 
-Go coverage includes named functions, methods, tests, benchmarks, types, structs, interfaces, and aliases under `src/`. JavaScript coverage includes named function declarations, classes, methods, and `test` or `it` titles under `src/server/frontend/` and `frontend/`. Generated vendor code, installed dependencies, anonymous implementation callbacks, and non-Go or non-JavaScript utilities are outside the catalog.
+Go coverage includes named functions, methods, tests, benchmarks, types, structs, interfaces, and aliases under `src/`. JavaScript coverage includes named function declarations, classes, methods, and `test` or `it` titles under `frontend/`. Generated vendor code, installed dependencies, anonymous implementation callbacks, and non-Go or non-JavaScript utilities are outside the catalog.
 
 Declarations and signatures are source-derived and show syntactic inputs and outputs. Descriptions come only from attached Go documentation comments, adjacent JavaScript JSDoc, or JavaScript test titles. Catalog update exposes a missing comment as `No source description` without inferring behavior from a symbol name, and `make check-docs` rejects that incomplete state.
 
@@ -906,11 +906,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`usage`](../src/main.go#L41) | function | 41-100 | `func usage()` | usage writes the supported command syntax to standard error. |
 | [`main`](../src/main.go#L103) | function | 103-125 | `func main()` | main dispatches the analysis command selected by process arguments and exits on command failure. |
 | [`migrateMain`](../src/main.go#L128) | function | 128-141 | `func migrateMain()` | migrateMain applies pending metadata migrations to one existing database. |
-| [`serveMain`](../src/main.go#L144) | function | 144-183 | `func serveMain()` | serveMain serves main. |
-| [`validateLoopbackAddress`](../src/main.go#L186) | function | 186-196 | `func validateLoopbackAddress(address string) error` | validateLoopbackAddress accepts exact IP loopback authorities and rejects names and wildcard hosts. |
-| [`frontendAssets`](../src/main.go#L199) | function | 199-211 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets returns either explicit filesystem assets or the embedded production frontend. |
-| [`runPipelineMain`](../src/main.go#L214) | function | 214-244 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
-| [`changeToRepositoryRoot`](../src/main.go#L247) | function | 247-253 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
+| [`serveMain`](../src/main.go#L144) | function | 144-185 | `func serveMain()` | serveMain serves main. |
+| [`validateLoopbackAddress`](../src/main.go#L188) | function | 188-198 | `func validateLoopbackAddress(address string) error` | validateLoopbackAddress accepts exact IP loopback authorities and rejects names and wildcard hosts. |
+| [`frontendAssets`](../src/main.go#L201) | function | 201-210 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets validates one frontend asset directory and exposes it as a file system. |
+| [`runPipelineMain`](../src/main.go#L213) | function | 213-243 | `func runPipelineMain()` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
+| [`changeToRepositoryRoot`](../src/main.go#L246) | function | 246-252 | `func changeToRepositoryRoot()` | changeToRepositoryRoot moves one directory upward only when execution starts inside the module directory. |
 
 ### [`src/main_test.go`](../src/main_test.go)
 
@@ -926,11 +926,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestWorkspacePipelineFailsForEmptyOrMalformedSource`](../src/main_test.go#L692) | test | 692-779 | `func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T)` | TestWorkspacePipelineFailsForEmptyOrMalformedSource verifies workspace pipeline fails for empty or malformed source. |
 | [`TestWorkspacePipelineRecordsInformationalExpectedResultCounts`](../src/main_test.go#L782) | test | 782-833 | `func TestWorkspacePipelineRecordsInformationalExpectedResultCounts(t *testing.T)` | TestWorkspacePipelineRecordsInformationalExpectedResultCounts verifies workspace pipeline records informational expected result counts. |
 | [`TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion`](../src/main_test.go#L836) | test | 836-871 | `func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(t *testing.T)` | TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion verifies workspace pipeline retains source records rejected during canonical conversion. |
-| [`TestFrontendAssets`](../src/main_test.go#L874) | test | 874-903 | `func TestFrontendAssets(t *testing.T)` | TestFrontendAssets verifies frontend assets. |
-| [`TestVersion`](../src/main_test.go#L906) | test | 906-914 | `func TestVersion(t *testing.T)` | TestVersion verifies the version command output format and current value. |
-| [`TestValidateLoopbackAddress`](../src/main_test.go#L917) | test | 917-928 | `func TestValidateLoopbackAddress(t *testing.T)` | TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs. |
-| [`chdirToRepositoryRoot`](../src/main_test.go#L931) | function | 931-946 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
-| [`testWorkspaceRun`](../src/main_test.go#L949) | function | 949-967 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
+| [`TestFrontendAssets`](../src/main_test.go#L874) | test | 874-898 | `func TestFrontendAssets(t *testing.T)` | TestFrontendAssets verifies frontend asset directory validation. |
+| [`TestVersion`](../src/main_test.go#L901) | test | 901-909 | `func TestVersion(t *testing.T)` | TestVersion verifies the version command output format and current value. |
+| [`TestValidateLoopbackAddress`](../src/main_test.go#L912) | test | 912-923 | `func TestValidateLoopbackAddress(t *testing.T)` | TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs. |
+| [`chdirToRepositoryRoot`](../src/main_test.go#L926) | function | 926-941 | `func chdirToRepositoryRoot(t *testing.T)` | chdirToRepositoryRoot supports the package test suite's chdir to repository root setup or assertions. |
+| [`testWorkspaceRun`](../src/main_test.go#L944) | function | 944-962 | `func testWorkspaceRun(sourcePath string) *workspace.Run` | testWorkspaceRun supports the package test suite's test workspace run setup or assertions. |
 
 ### [`src/manifest/helpers_test.go`](../src/manifest/helpers_test.go)
 
@@ -1411,8 +1411,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestOverviewReportsUnavailableMetricsAndFrontendContract`](../src/server/overview_integration_test.go#L18) | test | 18-104 | `func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T)` | TestOverviewReportsUnavailableMetricsAndFrontendContract verifies overview reports unavailable metrics and frontend contract. |
-| [`TestOverviewSupportsPreResultCountRunSources`](../src/server/overview_integration_test.go#L107) | test | 107-141 | `func TestOverviewSupportsPreResultCountRunSources(t *testing.T)` | TestOverviewSupportsPreResultCountRunSources verifies overview supports pre result count run sources. |
+| [`TestOverviewReportsUnavailableMetricsAndFrontendContract`](../src/server/overview_integration_test.go#L19) | test | 19-106 | `func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T)` | TestOverviewReportsUnavailableMetricsAndFrontendContract verifies overview reports unavailable metrics and frontend contract. |
+| [`TestOverviewSupportsPreResultCountRunSources`](../src/server/overview_integration_test.go#L109) | test | 109-143 | `func TestOverviewSupportsPreResultCountRunSources(t *testing.T)` | TestOverviewSupportsPreResultCountRunSources verifies overview supports pre result count run sources. |
 
 ### [`src/server/pdf.go`](../src/server/pdf.go)
 
@@ -1496,14 +1496,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Server`](../src/server/server.go#L38) | struct | 38-45 | `type Server struct { db *sql.DB writeDB *database.Database pdfDB *sql.DB pdfPath string tables map[string]tableInfo AssetsFS fs.FS // if non-nil, serves frontend assets from this filesystem }` | Server serves one existing workspace database. db remains a query-only connection while writeDB owns bounded local review and lifecycle mutations. |
-| [`tableInfo`](../src/server/server.go#L48) | struct | 48-52 | ``type tableInfo struct { Name string `json:"name"` Columns []columnInfo `json:"columns"` Count int64 `json:"row_count"` }`` | tableInfo stores the discovered columns for one browsable SQLite table. |
-| [`columnInfo`](../src/server/server.go#L55) | struct | 55-59 | ``type columnInfo struct { Name string `json:"name"` Type string `json:"type"` PrimaryKey bool `json:"primary_key"` }`` | columnInfo records a SQLite column's name, declared type, and primary-key position. |
-| [`(*Server).tableHasColumns`](../src/server/server.go#L62) | method | 62-77 | `func (*Server).tableHasColumns(table string, required ...string) bool` | tableHasColumns reports whether a discovered table contains every requested column. |
-| [`Open`](../src/server/server.go#L80) | function | 80-132 | `func Open(path string) (*Server, error)` | Open opens an existing database without creating it or modifying it. |
-| [`(*Server).Close`](../src/server/server.go#L135) | method | 135-151 | `func (*Server).Close() error` | Close releases resources owned by the receiver. |
-| [`(*Server).PDFStoreBound`](../src/server/server.go#L154) | method | 154 | `func (*Server).PDFStoreBound() bool` | PDFStoreBound reports whether a readable companion PDF database is attached. |
-| [`(*Server).Handler`](../src/server/server.go#L157) | method | 157-209 | `func (*Server).Handler() http.Handler` | Handler returns the local API and embedded frontend handler. |
+| [`Server`](../src/server/server.go#L36) | struct | 36-43 | `type Server struct { db *sql.DB writeDB *database.Database pdfDB *sql.DB pdfPath string tables map[string]tableInfo AssetsFS fs.FS // serves frontend assets from this filesystem }` | Server serves one existing workspace database. db remains a query-only connection while writeDB owns bounded local review and lifecycle mutations. AssetsFS is the frontend asset file system served at the web root; it must be set because the binary does not embed frontend assets. |
+| [`tableInfo`](../src/server/server.go#L46) | struct | 46-50 | ``type tableInfo struct { Name string `json:"name"` Columns []columnInfo `json:"columns"` Count int64 `json:"row_count"` }`` | tableInfo stores the discovered columns for one browsable SQLite table. |
+| [`columnInfo`](../src/server/server.go#L53) | struct | 53-57 | ``type columnInfo struct { Name string `json:"name"` Type string `json:"type"` PrimaryKey bool `json:"primary_key"` }`` | columnInfo records a SQLite column's name, declared type, and primary-key position. |
+| [`(*Server).tableHasColumns`](../src/server/server.go#L60) | method | 60-75 | `func (*Server).tableHasColumns(table string, required ...string) bool` | tableHasColumns reports whether a discovered table contains every requested column. |
+| [`Open`](../src/server/server.go#L78) | function | 78-130 | `func Open(path string) (*Server, error)` | Open opens an existing database without creating it or modifying it. |
+| [`(*Server).Close`](../src/server/server.go#L133) | method | 133-149 | `func (*Server).Close() error` | Close releases resources owned by the receiver. |
+| [`(*Server).PDFStoreBound`](../src/server/server.go#L152) | method | 152 | `func (*Server).PDFStoreBound() bool` | PDFStoreBound reports whether a readable companion PDF database is attached. |
+| [`(*Server).Handler`](../src/server/server.go#L155) | method | 155-209 | `func (*Server).Handler() http.Handler` | Handler returns the local API and frontend handler. |
 | [`(*Server).verifyReviewSchema`](../src/server/server.go#L212) | method | 212-239 | `func (*Server).verifyReviewSchema(ctx context.Context) error` | verifyReviewSchema rejects an unmigrated metadata database before writable controls are served. |
 | [`(*Server).openBoundPDFStore`](../src/server/server.go#L242) | method | 242-312 | `func (*Server).openBoundPDFStore(ctx context.Context, metadataDir string) error` | openBoundPDFStore resolves and opens the companion PDF database declared by metadata. |
 | [`pdfTableColumns`](../src/server/server.go#L315) | function | 315-335 | `func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error)` | pdfTableColumns returns the discovered columns for a companion PDF table. |
@@ -1534,8 +1534,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase`](../src/server/server_integration_test.go#L17) | test | 17-38 | `func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T)` | TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase verifies open is read only and does not create missing database. |
 | [`TestAPIWorkspaceDiscoveryAndSafePagination`](../src/server/server_integration_test.go#L41) | test | 41-64 | `func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T)` | TestAPIWorkspaceDiscoveryAndSafePagination verifies api workspace discovery and safe pagination. |
-| [`TestEmbeddedFrontendResearchWorkspaceContract`](../src/server/server_integration_test.go#L67) | test | 67-120 | `func TestEmbeddedFrontendResearchWorkspaceContract(t *testing.T)` | TestEmbeddedFrontendResearchWorkspaceContract verifies embedded frontend research workspace contract. |
-| [`TestHandlerServesFilesystemAssets`](../src/server/server_integration_test.go#L123) | test | 123-140 | `func TestHandlerServesFilesystemAssets(t *testing.T)` | TestHandlerServesFilesystemAssets verifies handler serves filesystem assets. |
+| [`TestDiskServedFrontendContract`](../src/server/server_integration_test.go#L67) | test | 67-189 | `func TestDiskServedFrontendContract(t *testing.T)` | TestDiskServedFrontendContract verifies frontend assets served from a filesystem directory. |
+| [`TestHandlerServesFilesystemAssets`](../src/server/server_integration_test.go#L192) | test | 192-209 | `func TestHandlerServesFilesystemAssets(t *testing.T)` | TestHandlerServesFilesystemAssets verifies handler serves filesystem assets. |
 
 ### [`src/server/server_unit_test.go`](../src/server/server_unit_test.go)
 
@@ -3220,6 +3220,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 ## JavaScript declarations
 
+### [`frontend/scripts/build.mjs`](../frontend/scripts/build.mjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`isHidden`](../frontend/scripts/build.mjs#L16) | function | 16 | `function isHidden(name)` | Reports whether a file name must not be served (dotfiles and underscore-prefixed files). |
+| [`copyTree`](../frontend/scripts/build.mjs#L21) | function | 21 | `async function copyTree(from, to)` | Copies one path into the output root, skipping hidden entries. |
+| [`listSources`](../frontend/scripts/build.mjs#L29) | function | 29 | `async function listSources()` | Lists every file under src/ (excluding hidden entries). |
+| [`compileSources`](../frontend/scripts/build.mjs#L49) | function | 49 | `async function compileSources()` | Compiles src/** with esbuild per-file and rewrites .ts specifiers to .js. |
+| [`assertClean`](../frontend/scripts/build.mjs#L77) | function | 77 | `async function assertClean(root)` | Verifies the assembled root contains no TypeScript, declaration, or map files. |
+
 ### [`frontend/scripts/run-playwright.mjs`](../frontend/scripts/run-playwright.mjs)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3233,6 +3243,368 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`exitCode`](../frontend/scripts/run-playwright.mjs#L149) | function | 149 | `function exitCode(child, name)` | Normalizes a child-process exit result. |
 | [`delay`](../frontend/scripts/run-playwright.mjs#L157) | function | 157 | `function delay(milliseconds)` | Returns a promise that resolves after the requested interval. |
 | [`npmCommand`](../frontend/scripts/run-playwright.mjs#L162) | function | 162 | `function npmCommand()` | Returns the platform-appropriate npm command. |
+
+### [`frontend/src/api.js`](../frontend/src/api.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`endpoint`](../frontend/src/api.js#L5) | function | 5 | `function endpoint(path, query)` | Builds an API path and query string from supplied values. |
+| [`APIError`](../frontend/src/api.js#L19) | class | 19 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../frontend/src/api.js#L21) | method | 21 | `constructor(message, status, code, details)` | Initializes one structured API error returned by a non-successful response. |
+| [`api`](../frontend/src/api.js#L31) | function | 31 | `async function api(path, query, options)` | Fetches and decodes one JSON API response. |
+| [`mutate`](../frontend/src/api.js#L61) | function | 61 | `function mutate(path, method, body)` | Sends a same-origin JSON mutation and returns its decoded response. |
+| [`tables`](../frontend/src/api.js#L70) | function | 70 | `async function tables()` | Loads and caches the discovered database table list. |
+
+### [`frontend/src/components/audit-events.js`](../frontend/src/components/audit-events.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`auditCategory`](../frontend/src/components/audit-events.js#L7) | function | 7 | `function auditCategory(event)` | Classifies an audit event into its presentation category. |
+| [`eventMetadata`](../frontend/src/components/audit-events.js#L25) | function | 25 | `function eventMetadata(event)` | Parses an audit event's stored metadata object. |
+| [`auditOutcome`](../frontend/src/components/audit-events.js#L30) | function | 30 | `function auditOutcome(event, metadata, after)` | Derives the display outcome from recorded metadata and action semantics. |
+| [`auditEntity`](../frontend/src/components/audit-events.js#L49) | function | 49 | `function auditEntity(event)` | Returns a context-preserving link or label for the affected audit entity. |
+| [`eventSummary`](../frontend/src/components/audit-events.js#L70) | function | 70 | `function eventSummary(event, metadata, before, after)` | Returns a concise human-readable summary of an audit event. |
+| [`reviewDecisionState`](../frontend/src/components/audit-events.js#L110) | function | 110 | `function reviewDecisionState(label, state)` | Returns one complete previous or new review-decision state. |
+| [`reviewDecisionChange`](../frontend/src/components/audit-events.js#L123) | function | 123 | `function reviewDecisionChange(event, before, after)` | Returns the visible before-and-after decision comparison for review audit events. |
+| [`additionalMetadata`](../frontend/src/components/audit-events.js#L132) | function | 132 | `function additionalMetadata(metadata)` | Returns metadata fields not already represented in the primary event presentation. |
+| [`safeAuditPayload`](../frontend/src/components/audit-events.js#L145) | function | 145 | `function safeAuditPayload(raw)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
+| [`eventDetails`](../frontend/src/components/audit-events.js#L157) | function | 157 | `function eventDetails(event, metadata, before, after)` | Returns expandable facts and JSON payloads for an audit event. |
+| [`auditEventMarkup`](../frontend/src/components/audit-events.js#L188) | function | 188 | `function auditEventMarkup(event)` | Returns the complete escaped markup for one audit event. |
+| [`auditStream`](../frontend/src/components/audit-events.js#L215) | function | 215 | `function auditStream(events, emptyMessage)` | Groups audit events by local date and returns timeline markup. |
+| [`recordAuditInvestigation`](../frontend/src/components/audit-events.js#L238) | function | 238 | `function recordAuditInvestigation(events)` | Records audit investigation. |
+| [`bindRecordAuditInvestigation`](../frontend/src/components/audit-events.js#L256) | function | 256 | `function bindRecordAuditInvestigation(events)` | Binds DOM behavior for record audit investigation. |
+| [`apply`](../frontend/src/components/audit-events.js#L267) | function | 267 | `function apply()` | Applies the associated state. |
+| [`resetAndApply`](../frontend/src/components/audit-events.js#L288) | function | 288 | `function resetAndApply()` | Resets and apply. |
+
+### [`frontend/src/components/context-selector.js`](../frontend/src/components/context-selector.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`closeDropdown`](../frontend/src/components/context-selector.js#L15) | function | 15 | `function closeDropdown(key)` | Closes one searchable context selector and restores its full option list. |
+| [`optionLabel`](../frontend/src/components/context-selector.js#L25) | function | 25 | `function optionLabel(option)` | Returns the human-readable label for one native select option. |
+| [`renderDropdownOptions`](../frontend/src/components/context-selector.js#L30) | function | 30 | `function renderDropdownOptions(key, query)` | Renders the filtered listbox for one searchable context selector. |
+| [`syncDropdown`](../frontend/src/components/context-selector.js#L51) | function | 51 | `function syncDropdown(key)` | Synchronizes the custom selector presentation with its native select source. |
+| [`initializeDropdown`](../frontend/src/components/context-selector.js#L67) | function | 67 | `function initializeDropdown(key)` | Initializes one keyboard-operable searchable selector around its native select. |
+| [`showLoading`](../frontend/src/components/context-selector.js#L146) | function | 146 | `function showLoading(key)` | Shows one local selector-loading state without replacing the current page. |
+| [`showDropdownError`](../frontend/src/components/context-selector.js#L156) | function | 156 | `function showDropdownError(key, message)` | Shows an inline loading failure beside one context selector. |
+| [`hideDropdownError`](../frontend/src/components/context-selector.js#L168) | function | 168 | `function hideDropdownError(key)` | Removes an inline loading failure from one context selector. |
+| [`selectOptions`](../frontend/src/components/context-selector.js#L173) | function | 173 | `function selectOptions(select, items, selected, label, labelFn)` | Populates one native select and synchronizes its searchable presentation. |
+| [`hydrateSelectors`](../frontend/src/components/context-selector.js#L188) | function | 188 | `async function hydrateSelectors()` | Loads the context hierarchy required by the currently selected URL values. |
+
+### [`frontend/src/components/data-table.js`](../frontend/src/components/data-table.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`rowFilter`](../frontend/src/components/data-table.js#L7) | function | 7 | `function rowFilter(rows, query)` | Returns whether a row contains the case-insensitive filter text. |
+| [`scrollTableIntoView`](../frontend/src/components/data-table.js#L20) | function | 20 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
+| [`dataTable`](../frontend/src/components/data-table.js#L28) | function | 28 | `function dataTable(tableName, result, context)` | Renders and binds a filterable, sortable, paginated in-memory data table. |
+| [`bindTableControls`](../frontend/src/components/data-table.js#L192) | function | 192 | `function bindTableControls(tableName, page)` | Binds DOM behavior for table controls. |
+| [`updates`](../frontend/src/components/data-table.js#L203) | function | 203 | `function updates(values)` | Updates s. |
+| [`handleExpandToggle`](../frontend/src/components/data-table.js#L275) | function | 275 | `function handleExpandToggle(event)` | Handles expand toggle. |
+
+### [`frontend/src/components/graph.js`](../frontend/src/components/graph.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`graphField`](../frontend/src/components/graph.js#L9) | function | 9 | `function graphField(name, label, type)` | Returns an escaped graph-filter input with its current URL value. |
+| [`graphQuery`](../frontend/src/components/graph.js#L19) | function | 19 | `function graphQuery()` | Returns the current graph-filter values keyed by query parameter. |
+| [`graphLink`](../frontend/src/components/graph.js#L28) | function | 28 | `function graphLink(node)` | Returns a context-preserving detail link for a graph node when one exists. |
+| [`endpointID`](../frontend/src/components/graph.js#L42) | function | 42 | `function endpointID(endpoint)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
+| [`graphClusters`](../frontend/src/components/graph.js#L50) | function | 50 | `function graphClusters(sourceNodes, sourceEdges)` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
+| [`graphResult`](../frontend/src/components/graph.js#L88) | function | 88 | `function graphResult(data)` | Returns bounded graph controls, legend, canvas, selection, and relationship-table markup. |
+| [`nodeSize`](../frontend/src/components/graph.js#L167) | function | 167 | `function nodeSize(node, degree, maxDegree)` | Calculates a node radius from entity type and visible degree. |
+| [`hash`](../frontend/src/components/graph.js#L184) | function | 184 | `function hash(value)` | Returns a deterministic unsigned hash for stable graph placement. |
+| [`palette`](../frontend/src/components/graph.js#L193) | function | 193 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
+| [`get`](../frontend/src/components/graph.js#L196) | function | 196 | `function get(name, fallback)` | Returns the associated state. |
+| [`drawDiamond`](../frontend/src/components/graph.js#L217) | function | 217 | `function drawDiamond(context, x, y, radius)` | Draws diamond. |
+| [`drawTriangle`](../frontend/src/components/graph.js#L227) | function | 227 | `function drawTriangle(context, x, y, radius)` | Draws triangle. |
+| [`relationshipLabel`](../frontend/src/components/graph.js#L236) | function | 236 | `function relationshipLabel(edge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
+| [`destroyGraph`](../frontend/src/components/graph.js#L263) | function | 263 | `function destroyGraph()` | Destroys graph. |
+| [`mountGraph`](../frontend/src/components/graph.js#L280) | function | 280 | `function mountGraph(data)` | Mounts graph. |
+| [`resize`](../frontend/src/components/graph.js#L405) | function | 405 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
+| [`graphBounds`](../frontend/src/components/graph.js#L425) | function | 425 | `function graphBounds(nodes)` | Returns the radius-aware world-coordinate bounds of graph nodes. |
+| [`clusterOverview`](../frontend/src/components/graph.js#L440) | function | 440 | `function clusterOverview(nodes)` | Returns connected-cluster sizes ordered from largest to smallest. |
+| [`drawClusterOverview`](../frontend/src/components/graph.js#L453) | function | 453 | `function drawClusterOverview(context, clusters, colors, width, height, offset, legendInset)` | Draws cluster overview. |
+| [`fitGraph`](../frontend/src/components/graph.js#L494) | function | 494 | `function fitGraph(graph)` | Adjusts the graph transform to fit all node bounds in the canvas. |
+| [`runLayout`](../frontend/src/components/graph.js#L511) | function | 511 | `function runLayout(graph, status)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
+| [`next`](../frontend/src/components/graph.js#L534) | function | 534 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
+| [`draw`](../frontend/src/components/graph.js#L564) | function | 564 | `function draw(graph)` | Draws the associated state. |
+| [`drawArrow`](../frontend/src/components/graph.js#L751) | function | 751 | `function drawArrow(context, source, target, radius, color)` | Draws arrow. |
+| [`graphCoordinates`](../frontend/src/components/graph.js#L765) | function | 765 | `function graphCoordinates(graph, event)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
+| [`zoomViewAt`](../frontend/src/components/graph.js#L774) | function | 774 | `function zoomViewAt(view, screenPoint, nextScale)` | Returns a zoom transform that keeps the selected screen point stationary. |
+| [`nearestOverviewCluster`](../frontend/src/components/graph.js#L785) | function | 785 | `function nearestOverviewCluster(graph, event)` | Returns the overview cluster hit by a pointer event, when any. |
+| [`focusCluster`](../frontend/src/components/graph.js#L795) | function | 795 | `function focusCluster(graph, clusterID)` | Focuses cluster. |
+| [`buildSpatialIndex`](../frontend/src/components/graph.js#L811) | function | 811 | `function buildSpatialIndex(nodes)` | Builds spatial index. |
+| [`nearbyNodes`](../frontend/src/components/graph.js#L825) | function | 825 | `function nearbyNodes(index, point)` | Returns nodes in the spatial-index cell surrounding a graph point. |
+| [`nearestNode`](../frontend/src/components/graph.js#L841) | function | 841 | `function nearestNode(graph, point)` | Returns the closest selectable node within its hit radius. |
+| [`bindInteractions`](../frontend/src/components/graph.js#L865) | function | 865 | `function bindInteractions(graph, status, selectionPanel, zoomIndicator)` | Binds DOM behavior for interactions. |
+| [`setSelection`](../frontend/src/components/graph.js#L870) | function | 870 | `function setSelection(id)` | Sets selection. |
+| [`updateZoomDisplay`](../frontend/src/components/graph.js#L896) | function | 896 | `function updateZoomDisplay()` | Updates zoom display. |
+| [`bindGraphSearch`](../frontend/src/components/graph.js#L1063) | function | 1063 | `function bindGraphSearch(graph)` | Bind graph node search — highlights matching nodes by name/DOI. |
+| [`bindGraphExport`](../frontend/src/components/graph.js#L1076) | function | 1076 | `function bindGraphExport(graph, data)` | Bind graph export as PNG — downloads the canvas as a PNG image. |
+| [`bindGraphExpand`](../frontend/src/components/graph.js#L1097) | function | 1097 | `function bindGraphExpand(graph)` | Binds DOM behavior for graph expand. |
+| [`updateLabel`](../frontend/src/components/graph.js#L1104) | function | 1104 | `function updateLabel()` | Updates label. |
+| [`selectionMarkup`](../frontend/src/components/graph.js#L1136) | function | 1136 | `function selectionMarkup(node, neighbours)` | Selects ion markup. |
+| [`nodeMarkup`](../frontend/src/components/graph.js#L1171) | function | 1171 | `function nodeMarkup(node)` | Returns escaped linked or plain label markup for a graph node. |
+| [`renderEdgePage`](../frontend/src/components/graph.js#L1181) | function | 1181 | `function renderEdgePage(graph)` | Renders edge page. |
+| [`edgeDetails`](../frontend/src/components/graph.js#L1234) | function | 1234 | `function edgeDetails(edge)` | Returns relationship-specific details for a graph edge row. |
+
+### [`frontend/src/components/note-editor.js`](../frontend/src/components/note-editor.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`draftKey`](../frontend/src/components/note-editor.js#L9) | function | 9 | `function draftKey(corpusID, runID, workRevisionID, noteID, expectedVersionID)` | Builds a browser-local draft key scoped to the opaque corpus and immutable head. |
+| [`readDraft`](../frontend/src/components/note-editor.js#L14) | function | 14 | `function readDraft(key, storage)` | Reads a draft without assuming browser storage is available. |
+| [`writeDraft`](../frontend/src/components/note-editor.js#L23) | function | 23 | `function writeDraft(key, value, storage)` | Writes a draft and reports storage failure without discarding editor content. |
+| [`clearDraft`](../frontend/src/components/note-editor.js#L33) | function | 33 | `function clearDraft(key, storage)` | Removes only the exact draft associated with a successful save. |
+| [`lineDiff`](../frontend/src/components/note-editor.js#L43) | function | 43 | `function lineDiff(previous, current, limit)` | Produces a bounded line comparison or complete side-by-side fallback. |
+| [`mountNoteEditor`](../frontend/src/components/note-editor.js#L66) | function | 66 | `async function mountNoteEditor(host, options)` | Mounts the note editor and current immutable note list for one article. |
+| [`key`](../frontend/src/components/note-editor.js#L83) | function | 83 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
+| [`renderPreview`](../frontend/src/components/note-editor.js#L87) | function | 87 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
+| [`resetEditor`](../frontend/src/components/note-editor.js#L94) | function | 94 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
+| [`loadNotes`](../frontend/src/components/note-editor.js#L103) | function | 103 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
+| [`showHistory`](../frontend/src/components/note-editor.js#L130) | function | 130 | `async function showHistory(note)` | Displays one selected head's immutable ancestry and optional restoration control. |
+| [`focusNote`](../frontend/src/components/note-editor.js#L151) | function | 151 | `async function focusNote(noteID)` | Resolves a URL-focused active or deleted note and exposes its history. |
+
+### [`frontend/src/components/note-parser.js`](../frontend/src/components/note-parser.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`parseNote`](../frontend/src/components/note-parser.js#L9) | function | 9 | `function parseNote(body)` | Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. |
+| [`flushParagraph`](../frontend/src/components/note-parser.js#L24) | function | 24 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
+| [`extractLinks`](../frontend/src/components/note-parser.js#L117) | function | 117 | `function extractLinks(text, baseOffset, links, errors)` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
+| [`validateLink`](../frontend/src/components/note-parser.js#L150) | function | 150 | `function validateLink(scheme, target, raw)` | Validates scheme-specific target grammar without requiring target existence. |
+| [`isEscaped`](../frontend/src/components/note-parser.js#L165) | function | 165 | `function isEscaped(text, index)` | Reports whether the character at an index has an odd backslash prefix. |
+| [`unescapedIndex`](../frontend/src/components/note-parser.js#L172) | function | 172 | `function unescapedIndex(text, character)` | Returns the first unescaped delimiter index or minus one. |
+| [`unescapeLink`](../frontend/src/components/note-parser.js#L180) | function | 180 | `function unescapeLink(text)` | Removes only the escapes supported inside custom-link fields. |
+| [`splitTableRow`](../frontend/src/components/note-parser.js#L185) | function | 185 | `function splitTableRow(line)` | Splits one simple table row while preserving escaped vertical bars. |
+| [`tableDelimiter`](../frontend/src/components/note-parser.js#L202) | function | 202 | `function tableDelimiter(line)` | Reports whether every table cell is a valid delimiter marker. |
+| [`renderNote`](../frontend/src/components/note-parser.js#L208) | function | 208 | `function renderNote(document, resolvedLinks)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`inline`](../frontend/src/components/note-parser.js#L212) | function | 212 | `function inline(text)` | Renders escaped inline text and associates parsed links with stored resolutions. |
+| [`renderLink`](../frontend/src/components/note-parser.js#L243) | function | 243 | `function renderLink(label, resolved)` | Renders one safe resolved link or an accessible unresolved label. |
+
+### [`frontend/src/components/pagination.js`](../frontend/src/components/pagination.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`paginationPages`](../frontend/src/components/pagination.js#L5) | function | 5 | `function paginationPages(currentPage, totalPages, visibleCount)` | Returns the bounded sequence of page numbers surrounding the current page. |
+| [`pagination`](../frontend/src/components/pagination.js#L22) | function | 22 | `function pagination(result, options)` | Returns accessible pagination markup for server-backed or in-memory results. |
+| [`control`](../frontend/src/components/pagination.js#L46) | function | 46 | `function control(label, target, disabled, relation)` | Returns one pagination navigation control. |
+
+### [`frontend/src/components/pdf-viewer.js`](../frontend/src/components/pdf-viewer.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`unrotateRectangles`](../frontend/src/components/pdf-viewer.js#L8) | function | 8 | `function unrotateRectangles(rectangles, rotation)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
+| [`rotateRectangles`](../frontend/src/components/pdf-viewer.js#L25) | function | 25 | `function rotateRectangles(rectangles, rotation)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
+| [`selectionRectangles`](../frontend/src/components/pdf-viewer.js#L42) | function | 42 | `function selectionRectangles(selection, pageElement, rotation)` | Extracts bounded normalized rectangles from a same-page browser selection. |
+| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.js#L64) | function | 64 | `async function mountPDFViewer(host, options, loader)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
+| [`updateControls`](../frontend/src/components/pdf-viewer.js#L96) | function | 96 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../frontend/src/components/pdf-viewer.js#L106) | function | 106 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`changePage`](../frontend/src/components/pdf-viewer.js#L159) | function | 159 | `function changePage(next)` | Clamps and renders a requested current page. |
+| [`renderAnchors`](../frontend/src/components/pdf-viewer.js#L195) | function | 195 | `function renderAnchors(container, anchors, rotation)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../frontend/src/components/pdf-viewer.js#L212) | function | 212 | `function renderSelectableText(pdfjs, content, container, viewport)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+
+### [`frontend/src/components/review-panel.js`](../frontend/src/components/review-panel.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`mountArticleReview`](../frontend/src/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData, onAuditChange)` | Mounts all editable review controls for one immutable run article revision. |
+| [`renderStartReview`](../frontend/src/components/review-panel.js#L46) | function | 46 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
+| [`closeDialog`](../frontend/src/components/review-panel.js#L65) | function | 65 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
+| [`appendCandidates`](../frontend/src/components/review-panel.js#L70) | function | 70 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
+| [`renderReview`](../frontend/src/components/review-panel.js#L141) | function | 141 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`updateSubstatuses`](../frontend/src/components/review-panel.js#L191) | function | 191 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderAnchorCandidate`](../frontend/src/components/review-panel.js#L269) | function | 269 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../frontend/src/components/review-panel.js#L302) | function | 302 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../frontend/src/components/review-panel.js#L333) | function | 333 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+
+### [`frontend/src/components/shell.js`](../frontend/src/components/shell.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`initHealthCheck`](../frontend/src/components/shell.js#L7) | function | 7 | `function initHealthCheck()` | Initializes health check. |
+| [`initMobileNavToggle`](../frontend/src/components/shell.js#L31) | function | 31 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
+| [`handleToggle`](../frontend/src/components/shell.js#L39) | function | 39 | `function handleToggle()` | Handles toggle. |
+
+### [`frontend/src/router.js`](../frontend/src/router.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`setURL`](../frontend/src/router.js#L15) | function | 15 | `function setURL(updates, replace)` | Replaces the current URL state without triggering a navigation reload. |
+| [`bindFocusContext`](../frontend/src/router.js#L29) | function | 29 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
+| [`syncPrimaryNavigation`](../frontend/src/router.js#L39) | function | 39 | `function syncPrimaryNavigation(current)` | Synchronizes primary navigation. |
+| [`syncShell`](../frontend/src/router.js#L57) | function | 57 | `function syncShell(current)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
+| [`renderView`](../frontend/src/router.js#L81) | function | 81 | `async function renderView()` | Asynchronously renders view. |
+| [`render`](../frontend/src/router.js#L110) | function | 110 | `async function render()` | Asynchronously renders the associated state. |
+
+### [`frontend/src/state.js`](../frontend/src/state.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`params`](../frontend/src/state.js#L57) | function | 57 | `function params()` | Returns the current URL search parameters. |
+| [`value`](../frontend/src/state.js#L62) | function | 62 | `function value(name)` | Returns a named URL parameter or an empty string. |
+| [`view`](../frontend/src/state.js#L67) | function | 67 | `function view()` | Returns the selected viewer view. |
+| [`section`](../frontend/src/state.js#L72) | function | 72 | `function section(name, fallback)` | Returns a named section parameter or its fallback. |
+| [`esc`](../frontend/src/state.js#L77) | function | 77 | `function esc(raw)` | Escapes a value for safe HTML text insertion. |
+| [`asJSON`](../frontend/src/state.js#L84) | function | 84 | `function asJSON(item)` | Formats a value for JSON-oriented display. |
+| [`list`](../frontend/src/state.js#L92) | function | 92 | `function list(data, keys)` | Returns the first matching array in an API response. |
+| [`pickID`](../frontend/src/state.js#L107) | function | 107 | `function pickID(item)` | Returns the first supported identifier present on an item. |
+| [`text`](../frontend/src/state.js#L124) | function | 124 | `function text(item, fields)` | Returns the first non-empty display field on an item. |
+| [`number`](../frontend/src/state.js#L134) | function | 134 | `function number(raw)` | Converts a value to a finite number or zero. |
+| [`formatNumber`](../frontend/src/state.js#L143) | function | 143 | `function formatNumber(raw)` | Formats number. |
+| [`percent`](../frontend/src/state.js#L148) | function | 148 | `function percent(raw, denominator)` | Formats a count as a percentage of its denominator. |
+| [`formatTime`](../frontend/src/state.js#L158) | function | 158 | `function formatTime(raw)` | Formats time. |
+| [`formatDuration`](../frontend/src/state.js#L170) | function | 170 | `function formatDuration(startedAt, finishedAt)` | Formats the elapsed time between two recorded timestamps. |
+| [`formatBytes`](../frontend/src/state.js#L188) | function | 188 | `function formatBytes(raw)` | Formats bytes. |
+| [`humanLabel`](../frontend/src/state.js#L204) | function | 204 | `function humanLabel(raw)` | Converts a machine-oriented identifier to a title-cased display label. |
+| [`parseObject`](../frontend/src/state.js#L211) | function | 211 | `function parseObject(raw)` | Parses object. |
+| [`statusClass`](../frontend/src/state.js#L230) | function | 230 | `function statusClass(raw)` | Maps a recorded status to its semantic color class. |
+| [`statusChip`](../frontend/src/state.js#L248) | function | 248 | `function statusChip(raw)` | Returns escaped label markup for a recorded status. |
+| [`metricEntries`](../frontend/src/state.js#L255) | function | 255 | `function metricEntries(group)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
+| [`selectedRun`](../frontend/src/state.js#L266) | function | 266 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
+| [`showError`](../frontend/src/state.js#L274) | function | 274 | `function showError(error)` | Shows error. |
+| [`clearError`](../frontend/src/state.js#L280) | function | 280 | `function clearError()` | Clears error. |
+| [`busy`](../frontend/src/state.js#L286) | function | 286 | `function busy(isBusy)` | Shows or hides the global loading indicator. |
+| [`link`](../frontend/src/state.js#L291) | function | 291 | `function link(updates)` | Builds an internal URL that preserves current research context and applies supplied updates. |
+| [`pageHeader`](../frontend/src/state.js#L310) | function | 310 | `function pageHeader(kicker, title, description, extra)` | Returns the standard page header with escaped copy and optional actions. |
+| [`breadcrumb`](../frontend/src/state.js#L321) | function | 321 | `function breadcrumb(items)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
+| [`setBreadcrumb`](../frontend/src/state.js#L334) | function | 334 | `function setBreadcrumb(items)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
+| [`emptyState`](../frontend/src/state.js#L339) | function | 339 | `function emptyState(title, detail, action)` | Returns a complete empty-view state with the standard page header. |
+| [`emptyPanel`](../frontend/src/state.js#L347) | function | 347 | `function emptyPanel(title, detail, action)` | Returns compact empty-state panel markup. |
+| [`panel`](../frontend/src/state.js#L355) | function | 355 | `function panel(title, description, body, classes)` | Returns the standard titled content-panel markup. |
+| [`table`](../frontend/src/state.js#L367) | function | 367 | `function table(title, description, columns, rows, classes)` | Returns an escaped data table inside the standard panel wrapper. |
+| [`subnav`](../frontend/src/state.js#L397) | function | 397 | `function subnav(items, current, key)` | Returns context-preserving tab navigation for a keyed section. |
+| [`filterChips`](../frontend/src/state.js#L408) | function | 408 | `function filterChips(filters, labels, options)` | Filters chips. |
+| [`metricCard`](../frontend/src/state.js#L432) | function | 432 | `function metricCard(name, metric, href)` | Returns a metric card with availability, denominator, and optional navigation. |
+| [`flowStage`](../frontend/src/state.js#L465) | function | 465 | `function flowStage(label, raw, base, previous, extraClass, stageKey, options)` | Returns one retention-flow stage with counts, percentages, and optional links. |
+| [`sourceFilterStageSummary`](../frontend/src/state.js#L539) | function | 539 | `function sourceFilterStageSummary(items)` | Combines cumulative source filter counts into ordered cross-source stages. |
+| [`retentionPhase`](../frontend/src/state.js#L586) | function | 586 | `function retentionPhase(title, description, summary, content, className)` | Returns one titled phase in the retention-flow presentation. |
+| [`retentionFlow`](../frontend/src/state.js#L594) | function | 594 | `function retentionFlow(overview)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`breakdown`](../frontend/src/state.js#L676) | function | 676 | `function breakdown(title, source, valueLabel, useTotal)` | Returns a metric breakdown table with relative bars and optional total percentages. |
+| [`valueRender`](../frontend/src/state.js#L699) | function | 699 | `function valueRender(row)` | Formats one breakdown value with availability and optional percentage. |
+| [`barRender`](../frontend/src/state.js#L716) | function | 716 | `function barRender(row)` | Returns an accessible relative-volume bar for one breakdown row. |
+| [`sourceResultCountSummary`](../frontend/src/state.js#L738) | function | 738 | `function sourceResultCountSummary(items, classes)` | Returns the expected-versus-observed source export count table. |
+| [`count`](../frontend/src/state.js#L744) | function | 744 | `function count(raw)` | Formats a source count or its unavailable state. |
+| [`comparison`](../frontend/src/state.js#L752) | function | 752 | `function comparison(raw)` | Returns a status chip for a source-count comparison. |
+| [`date`](../frontend/src/state.js#L760) | function | 760 | `function date(raw)` | Escapes an export date or returns its unavailable state. |
+| [`sourceSearchQueries`](../frontend/src/state.js#L789) | function | 789 | `function sourceSearchQueries(items, classes)` | Returns expandable exact-query markup for source exports. |
+| [`timeline`](../frontend/src/state.js#L813) | function | 813 | `function timeline(rows)` | Returns chronological audit feed markup for generic event rows. |
+| [`detailTable`](../frontend/src/state.js#L887) | function | 887 | `function detailTable(title, rows)` | Builds a table whose columns are derived from the supplied detail records. |
+| [`cell`](../frontend/src/state.js#L904) | function | 904 | `function cell(item, column, tableName, options)` | Formats and links a table cell according to its column and table context. |
+| [`bindCopyButtons`](../frontend/src/state.js#L948) | function | 948 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
+| [`bindDismissibleMessages`](../frontend/src/state.js#L967) | function | 967 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
+| [`bindLoadingButtons`](../frontend/src/state.js#L983) | function | 983 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
+
+### [`frontend/src/views/advanced.js`](../frontend/src/views/advanced.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`advancedView`](../frontend/src/views/advanced.js#L8) | function | 8 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
+
+### [`frontend/src/views/corpus.js`](../frontend/src/views/corpus.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`columnNames`](../frontend/src/views/corpus.js#L76) | function | 76 | `function columnNames(table)` | Returns the ordered union of column names present in result rows. |
+| [`identityEvidenceTable`](../frontend/src/views/corpus.js#L89) | function | 89 | `function identityEvidenceTable(data, context)` | Returns the column definition used for identity evidence rows. |
+| [`clippedRecordLink`](../frontend/src/views/corpus.js#L146) | function | 146 | `function clippedRecordLink(kind, idKey, id, title)` | Returns a context-preserving record link with a clipped label. |
+| [`clippedRecordText`](../frontend/src/views/corpus.js#L154) | function | 154 | `function clippedRecordText(title)` | Returns escaped record text clipped to the requested length. |
+| [`corpusColumnConfig`](../frontend/src/views/corpus.js#L160) | function | 160 | `function corpusColumnConfig(current)` | Returns section-specific labels and renderers for corpus columns. |
+| [`corpusView`](../frontend/src/views/corpus.js#L215) | function | 215 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
+
+### [`frontend/src/views/detail.js`](../frontend/src/views/detail.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`destroyActiveArticleReview`](../frontend/src/views/detail.js#L15) | function | 15 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
+| [`detailLink`](../frontend/src/views/detail.js#L23) | function | 23 | `function detailLink(kind, id)` | Returns a context-preserving link to a related detail record. |
+| [`backToCorpus`](../frontend/src/views/detail.js#L36) | function | 36 | `function backToCorpus(kind)` | Returns the context-preserving corpus return URL for a detail view. |
+| [`recorded`](../frontend/src/views/detail.js#L49) | function | 49 | `function recorded(raw, fallback)` | Records ed. |
+| [`propertyGrid`](../frontend/src/views/detail.js#L57) | function | 57 | `function propertyGrid(entries, classes)` | Returns definition-list markup for labeled record properties. |
+| [`summaryStrip`](../frontend/src/views/detail.js#L66) | function | 66 | `function summaryStrip(entries)` | Returns compact summary-fact markup for a detail record. |
+| [`mappingValue`](../frontend/src/views/detail.js#L74) | function | 74 | `function mappingValue(raw)` | Converts a stored mapping representation to a displayable object. |
+| [`extensionMapping`](../frontend/src/views/detail.js#L92) | function | 92 | `function extensionMapping(raw)` | Returns the parsed extension mapping stored on a work revision. |
+| [`keywordValues`](../frontend/src/views/detail.js#L101) | function | 101 | `function keywordValues(raw)` | Returns normalized keyword values from stored array or delimited input. |
+| [`keywordMarkup`](../frontend/src/views/detail.js#L124) | function | 124 | `function keywordMarkup(raw)` | Returns label markup for normalized keyword values. |
+| [`rawRecord`](../frontend/src/views/detail.js#L137) | function | 137 | `function rawRecord(record, excluded)` | Returns expandable JSON markup for a raw record. |
+| [`collectionMarkup`](../frontend/src/views/detail.js#L156) | function | 156 | `function collectionMarkup(key, title, description, columns, rows, page)` | Returns expandable markup for a related-record collection. |
+| [`mountCollection`](../frontend/src/views/detail.js#L187) | function | 187 | `function mountCollection(key, title, description, columns, rows)` | Mounts collection. |
+| [`renderCollection`](../frontend/src/views/detail.js#L193) | function | 193 | `function renderCollection(key)` | Renders collection. |
+| [`stageReasonMarkup`](../frontend/src/views/detail.js#L211) | function | 211 | `function stageReasonMarkup(raw)` | Returns escaped validation or failure reason markup for a stage outcome. |
+| [`articleView`](../frontend/src/views/detail.js#L228) | function | 228 | `function articleView(record, data)` | Returns the article detail view from its immutable revision payload. |
+| [`pdfStatusPanel`](../frontend/src/views/detail.js#L294) | function | 294 | `function pdfStatusPanel(record, pdf)` | Returns PDF inventory and download-status markup for an article. |
+| [`authorIdentityEvidence`](../frontend/src/views/detail.js#L315) | function | 315 | `function authorIdentityEvidence(data)` | Returns candidate ORCID evidence associated with the selected author occurrence. |
+| [`authorView`](../frontend/src/views/detail.js#L336) | function | 336 | `function authorView(record, data)` | Returns the author occurrence detail view with related articles and audit evidence. |
+| [`referenceView`](../frontend/src/views/detail.js#L363) | function | 363 | `function referenceView(record)` | Returns the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.js#L394) | function | 394 | `async function detailView(kind)` | Asynchronously implements detail view for the viewer. |
+
+### [`frontend/src/views/evaluation.js`](../frontend/src/views/evaluation.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`titleLink`](../frontend/src/views/evaluation.js#L13) | function | 13 | `function titleLink(row)` | Returns a context-preserving article link for an evaluation row. |
+| [`inventoriedTime`](../frontend/src/views/evaluation.js#L20) | function | 20 | `function inventoriedTime(row)` | Returns the recorded PDF inventory time or an unavailable label. |
+| [`evaluationView`](../frontend/src/views/evaluation.js#L28) | function | 28 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
+
+### [`frontend/src/views/home.js`](../frontend/src/views/home.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`deepdiveLink`](../frontend/src/views/home.js#L10) | function | 10 | `function deepdiveLink(searchID, revisionID, planID, runID)` | Returns a clean Deepdive URL for one complete research context. |
+| [`searchCard`](../frontend/src/views/home.js#L17) | function | 17 | `function searchCard(search, plans, runs)` | Returns one compact search-history card with revision, plan, and attempt counts. |
+| [`runTable`](../frontend/src/views/home.js#L43) | function | 43 | `function runTable(searches, plans, runs)` | Returns the run-management table for all planned attempts in the workspace. |
+| [`runDialog`](../frontend/src/views/home.js#L78) | function | 78 | `function runDialog()` | Returns the confirmation dialog used for reversible run lifecycle changes. |
+| [`bindRunLifecycle`](../frontend/src/views/home.js#L87) | function | 87 | `function bindRunLifecycle(runs)` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
+| [`close`](../frontend/src/views/home.js#L100) | function | 100 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
+| [`open`](../frontend/src/views/home.js#L107) | function | 107 | `function open(button)` | Configures and opens the lifecycle dialog for the selected run action. |
+| [`homeView`](../frontend/src/views/home.js#L159) | function | 159 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
+
+### [`frontend/src/views/overview.js`](../frontend/src/views/overview.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`normalizationValue`](../frontend/src/views/overview.js#L7) | function | 7 | `function normalizationValue(metric)` | Returns a normalization metric value or its unavailable presentation. |
+| [`capturedMetricValue`](../frontend/src/views/overview.js#L30) | function | 30 | `function capturedMetricValue(item)` | Returns the numeric value of a captured metric, or null when unavailable. |
+| [`capturedMetricsByStage`](../frontend/src/views/overview.js#L38) | function | 38 | `function capturedMetricsByStage(metrics)` | Groups captured metrics by pipeline stage. |
+| [`capturedMetricsMarkup`](../frontend/src/views/overview.js#L55) | function | 55 | `function capturedMetricsMarkup(metrics)` | Returns table markup for captured pipeline metrics. |
+| [`fixedPercentageMetric`](../frontend/src/views/overview.js#L68) | function | 68 | `function fixedPercentageMetric(metric)` | Returns a metric copy with a percentage derived from its value and denominator. |
+| [`overviewView`](../frontend/src/views/overview.js#L77) | function | 77 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
+
+### [`frontend/src/views/provenance.js`](../frontend/src/views/provenance.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`selectedValues`](../frontend/src/views/provenance.js#L29) | function | 29 | `function selectedValues(raw)` | Returns the selected comma-separated values for an audit facet. |
+| [`auditMultiSelect`](../frontend/src/views/provenance.js#L34) | function | 34 | `function auditMultiSelect(name, label, options, selectedRaw)` | Returns a multi-select control for one audit facet. |
+| [`auditQuery`](../frontend/src/views/provenance.js#L48) | function | 48 | `function auditQuery(cursor)` | Builds API query parameters from the active audit filters. |
+| [`auditFilterSummary`](../frontend/src/views/provenance.js#L64) | function | 64 | `function auditFilterSummary()` | Returns markup summarizing active audit filters and their removal links. |
+| [`auditFilters`](../frontend/src/views/provenance.js#L77) | function | 77 | `function auditFilters(facets)` | Returns the complete audit filter form. |
+| [`auditSummary`](../frontend/src/views/provenance.js#L105) | function | 105 | `function auditSummary(data)` | Returns summary cards for the filtered audit result. |
+| [`auditView`](../frontend/src/views/provenance.js#L120) | function | 120 | `function auditView(data)` | Returns the audit timeline and pagination markup. |
+| [`artifactContext`](../frontend/src/views/provenance.js#L139) | function | 139 | `function artifactContext(context)` | Returns the research-context fields displayed for an artifact. |
+| [`artifactActions`](../frontend/src/views/provenance.js#L152) | function | 152 | `function artifactActions(row)` | Returns safe inspect and download actions for an artifact. |
+| [`artifactsView`](../frontend/src/views/provenance.js#L164) | function | 164 | `function artifactsView(data)` | Returns the run artifact inventory markup. |
+| [`pageSizeOptions`](../frontend/src/views/provenance.js#L198) | function | 198 | `function pageSizeOptions(current)` | Returns page-size option markup with the current value selected. |
+| [`cacheView`](../frontend/src/views/provenance.js#L205) | function | 205 | `function cacheView(data)` | Returns cache-use evidence and pagination markup. |
+| [`stageStatus`](../frontend/src/views/provenance.js#L241) | function | 241 | `function stageStatus(summary, step)` | Returns the effective display status for a work-stage record. |
+| [`stageFlow`](../frontend/src/views/provenance.js#L261) | function | 261 | `function stageFlow(summaries, steps)` | Returns ordered stage-flow markup for one work. |
+| [`stagesView`](../frontend/src/views/provenance.js#L305) | function | 305 | `function stagesView(data)` | Returns work-stage evidence and pagination markup. |
+| [`runView`](../frontend/src/views/provenance.js#L339) | function | 339 | `function runView(artifactData)` | Returns stored run details and exact configuration links. |
+| [`provenanceView`](../frontend/src/views/provenance.js#L382) | function | 382 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
+| [`bindAuditControls`](../frontend/src/views/provenance.js#L437) | function | 437 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
+| [`bindArtifactInspection`](../frontend/src/views/provenance.js#L527) | function | 527 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
+| [`renderArtifactInspector`](../frontend/src/views/provenance.js#L565) | function | 565 | `function renderArtifactInspector()` | Renders artifact inspector. |
+| [`copyArtifactText`](../frontend/src/views/provenance.js#L618) | function | 618 | `async function copyArtifactText(text)` | Asynchronously copies artifact text. |
+
+### [`frontend/src/views/relationships.js`](../frontend/src/views/relationships.js)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`modeControl`](../frontend/src/views/relationships.js#L33) | function | 33 | `function modeControl(current)` | Returns markup for selecting a relationship graph mode. |
+| [`appliedFilters`](../frontend/src/views/relationships.js#L45) | function | 45 | `function appliedFilters()` | Returns markup summarizing the active relationship filters. |
+| [`clusterSummary`](../frontend/src/views/relationships.js#L58) | function | 58 | `function clusterSummary(data)` | Returns markup summarizing connected graph clusters. |
+| [`relationshipsView`](../frontend/src/views/relationships.js#L74) | function | 74 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
@@ -3277,368 +3649,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`contextURL`](../frontend/tests/viewer.spec.cjs#L54) | function | 54 | `function contextURL(overrides = {})` | Build a context URL with search, revision, plan, and run IDs. |
 | [`selectRun`](../frontend/tests/viewer.spec.cjs#L69) | function | 69 | `async function selectRun(page, searchId, revisionId, planId, runId)` | Navigate to a fully selected context URL. |
 
-### [`src/server/frontend/api.js`](../src/server/frontend/api.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`endpoint`](../src/server/frontend/api.js#L5) | function | 5 | `function endpoint(path, query)` | Builds an API path and query string from supplied values. |
-| [`APIError`](../src/server/frontend/api.js#L19) | class | 19 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
-| [`APIError.constructor`](../src/server/frontend/api.js#L21) | method | 21 | `constructor(message, status, code, details)` | Initializes one structured API error returned by a non-successful response. |
-| [`api`](../src/server/frontend/api.js#L31) | function | 31 | `async function api(path, query, options)` | Fetches and decodes one JSON API response. |
-| [`mutate`](../src/server/frontend/api.js#L61) | function | 61 | `function mutate(path, method, body)` | Sends a same-origin JSON mutation and returns its decoded response. |
-| [`tables`](../src/server/frontend/api.js#L70) | function | 70 | `async function tables()` | Loads and caches the discovered database table list. |
-
-### [`src/server/frontend/components/audit-events.js`](../src/server/frontend/components/audit-events.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`auditCategory`](../src/server/frontend/components/audit-events.js#L7) | function | 7 | `function auditCategory(event)` | Classifies an audit event into its presentation category. |
-| [`eventMetadata`](../src/server/frontend/components/audit-events.js#L25) | function | 25 | `function eventMetadata(event)` | Parses an audit event's stored metadata object. |
-| [`auditOutcome`](../src/server/frontend/components/audit-events.js#L30) | function | 30 | `function auditOutcome(event, metadata, after)` | Derives the display outcome from recorded metadata and action semantics. |
-| [`auditEntity`](../src/server/frontend/components/audit-events.js#L49) | function | 49 | `function auditEntity(event)` | Returns a context-preserving link or label for the affected audit entity. |
-| [`eventSummary`](../src/server/frontend/components/audit-events.js#L70) | function | 70 | `function eventSummary(event, metadata, before, after)` | Returns a concise human-readable summary of an audit event. |
-| [`reviewDecisionState`](../src/server/frontend/components/audit-events.js#L110) | function | 110 | `function reviewDecisionState(label, state)` | Returns one complete previous or new review-decision state. |
-| [`reviewDecisionChange`](../src/server/frontend/components/audit-events.js#L123) | function | 123 | `function reviewDecisionChange(event, before, after)` | Returns the visible before-and-after decision comparison for review audit events. |
-| [`additionalMetadata`](../src/server/frontend/components/audit-events.js#L132) | function | 132 | `function additionalMetadata(metadata)` | Returns metadata fields not already represented in the primary event presentation. |
-| [`safeAuditPayload`](../src/server/frontend/components/audit-events.js#L145) | function | 145 | `function safeAuditPayload(raw)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
-| [`eventDetails`](../src/server/frontend/components/audit-events.js#L157) | function | 157 | `function eventDetails(event, metadata, before, after)` | Returns expandable facts and JSON payloads for an audit event. |
-| [`auditEventMarkup`](../src/server/frontend/components/audit-events.js#L188) | function | 188 | `function auditEventMarkup(event)` | Returns the complete escaped markup for one audit event. |
-| [`auditStream`](../src/server/frontend/components/audit-events.js#L215) | function | 215 | `function auditStream(events, emptyMessage)` | Groups audit events by local date and returns timeline markup. |
-| [`recordAuditInvestigation`](../src/server/frontend/components/audit-events.js#L238) | function | 238 | `function recordAuditInvestigation(events)` | Records audit investigation. |
-| [`bindRecordAuditInvestigation`](../src/server/frontend/components/audit-events.js#L256) | function | 256 | `function bindRecordAuditInvestigation(events)` | Binds DOM behavior for record audit investigation. |
-| [`apply`](../src/server/frontend/components/audit-events.js#L267) | function | 267 | `function apply()` | Applies the associated state. |
-| [`resetAndApply`](../src/server/frontend/components/audit-events.js#L288) | function | 288 | `function resetAndApply()` | Resets and apply. |
-
-### [`src/server/frontend/components/context-selector.js`](../src/server/frontend/components/context-selector.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`closeDropdown`](../src/server/frontend/components/context-selector.js#L15) | function | 15 | `function closeDropdown(key)` | Closes one searchable context selector and restores its full option list. |
-| [`optionLabel`](../src/server/frontend/components/context-selector.js#L25) | function | 25 | `function optionLabel(option)` | Returns the human-readable label for one native select option. |
-| [`renderDropdownOptions`](../src/server/frontend/components/context-selector.js#L30) | function | 30 | `function renderDropdownOptions(key, query)` | Renders the filtered listbox for one searchable context selector. |
-| [`syncDropdown`](../src/server/frontend/components/context-selector.js#L51) | function | 51 | `function syncDropdown(key)` | Synchronizes the custom selector presentation with its native select source. |
-| [`initializeDropdown`](../src/server/frontend/components/context-selector.js#L67) | function | 67 | `function initializeDropdown(key)` | Initializes one keyboard-operable searchable selector around its native select. |
-| [`showLoading`](../src/server/frontend/components/context-selector.js#L146) | function | 146 | `function showLoading(key)` | Shows one local selector-loading state without replacing the current page. |
-| [`showDropdownError`](../src/server/frontend/components/context-selector.js#L156) | function | 156 | `function showDropdownError(key, message)` | Shows an inline loading failure beside one context selector. |
-| [`hideDropdownError`](../src/server/frontend/components/context-selector.js#L168) | function | 168 | `function hideDropdownError(key)` | Removes an inline loading failure from one context selector. |
-| [`selectOptions`](../src/server/frontend/components/context-selector.js#L173) | function | 173 | `function selectOptions(select, items, selected, label, labelFn)` | Populates one native select and synchronizes its searchable presentation. |
-| [`hydrateSelectors`](../src/server/frontend/components/context-selector.js#L188) | function | 188 | `async function hydrateSelectors()` | Loads the context hierarchy required by the currently selected URL values. |
-
-### [`src/server/frontend/components/data-table.js`](../src/server/frontend/components/data-table.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`rowFilter`](../src/server/frontend/components/data-table.js#L7) | function | 7 | `function rowFilter(rows, query)` | Returns whether a row contains the case-insensitive filter text. |
-| [`scrollTableIntoView`](../src/server/frontend/components/data-table.js#L20) | function | 20 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
-| [`dataTable`](../src/server/frontend/components/data-table.js#L28) | function | 28 | `function dataTable(tableName, result, context)` | Renders and binds a filterable, sortable, paginated in-memory data table. |
-| [`bindTableControls`](../src/server/frontend/components/data-table.js#L192) | function | 192 | `function bindTableControls(tableName, page)` | Binds DOM behavior for table controls. |
-| [`updates`](../src/server/frontend/components/data-table.js#L203) | function | 203 | `function updates(values)` | Updates s. |
-| [`handleExpandToggle`](../src/server/frontend/components/data-table.js#L275) | function | 275 | `function handleExpandToggle(event)` | Handles expand toggle. |
-
-### [`src/server/frontend/components/graph.js`](../src/server/frontend/components/graph.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`graphField`](../src/server/frontend/components/graph.js#L9) | function | 9 | `function graphField(name, label, type)` | Returns an escaped graph-filter input with its current URL value. |
-| [`graphQuery`](../src/server/frontend/components/graph.js#L19) | function | 19 | `function graphQuery()` | Returns the current graph-filter values keyed by query parameter. |
-| [`graphLink`](../src/server/frontend/components/graph.js#L28) | function | 28 | `function graphLink(node)` | Returns a context-preserving detail link for a graph node when one exists. |
-| [`endpointID`](../src/server/frontend/components/graph.js#L42) | function | 42 | `function endpointID(endpoint)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
-| [`graphClusters`](../src/server/frontend/components/graph.js#L50) | function | 50 | `function graphClusters(sourceNodes, sourceEdges)` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
-| [`graphResult`](../src/server/frontend/components/graph.js#L88) | function | 88 | `function graphResult(data)` | Returns bounded graph controls, legend, canvas, selection, and relationship-table markup. |
-| [`nodeSize`](../src/server/frontend/components/graph.js#L167) | function | 167 | `function nodeSize(node, degree, maxDegree)` | Calculates a node radius from entity type and visible degree. |
-| [`hash`](../src/server/frontend/components/graph.js#L184) | function | 184 | `function hash(value)` | Returns a deterministic unsigned hash for stable graph placement. |
-| [`palette`](../src/server/frontend/components/graph.js#L193) | function | 193 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
-| [`get`](../src/server/frontend/components/graph.js#L196) | function | 196 | `function get(name, fallback)` | Returns the associated state. |
-| [`drawDiamond`](../src/server/frontend/components/graph.js#L217) | function | 217 | `function drawDiamond(context, x, y, radius)` | Draws diamond. |
-| [`drawTriangle`](../src/server/frontend/components/graph.js#L227) | function | 227 | `function drawTriangle(context, x, y, radius)` | Draws triangle. |
-| [`relationshipLabel`](../src/server/frontend/components/graph.js#L236) | function | 236 | `function relationshipLabel(edge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
-| [`destroyGraph`](../src/server/frontend/components/graph.js#L263) | function | 263 | `function destroyGraph()` | Destroys graph. |
-| [`mountGraph`](../src/server/frontend/components/graph.js#L280) | function | 280 | `function mountGraph(data)` | Mounts graph. |
-| [`resize`](../src/server/frontend/components/graph.js#L405) | function | 405 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
-| [`graphBounds`](../src/server/frontend/components/graph.js#L425) | function | 425 | `function graphBounds(nodes)` | Returns the radius-aware world-coordinate bounds of graph nodes. |
-| [`clusterOverview`](../src/server/frontend/components/graph.js#L440) | function | 440 | `function clusterOverview(nodes)` | Returns connected-cluster sizes ordered from largest to smallest. |
-| [`drawClusterOverview`](../src/server/frontend/components/graph.js#L453) | function | 453 | `function drawClusterOverview(context, clusters, colors, width, height, offset, legendInset)` | Draws cluster overview. |
-| [`fitGraph`](../src/server/frontend/components/graph.js#L494) | function | 494 | `function fitGraph(graph)` | Adjusts the graph transform to fit all node bounds in the canvas. |
-| [`runLayout`](../src/server/frontend/components/graph.js#L511) | function | 511 | `function runLayout(graph, status)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
-| [`next`](../src/server/frontend/components/graph.js#L534) | function | 534 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
-| [`draw`](../src/server/frontend/components/graph.js#L564) | function | 564 | `function draw(graph)` | Draws the associated state. |
-| [`drawArrow`](../src/server/frontend/components/graph.js#L751) | function | 751 | `function drawArrow(context, source, target, radius, color)` | Draws arrow. |
-| [`graphCoordinates`](../src/server/frontend/components/graph.js#L765) | function | 765 | `function graphCoordinates(graph, event)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
-| [`zoomViewAt`](../src/server/frontend/components/graph.js#L774) | function | 774 | `function zoomViewAt(view, screenPoint, nextScale)` | Returns a zoom transform that keeps the selected screen point stationary. |
-| [`nearestOverviewCluster`](../src/server/frontend/components/graph.js#L785) | function | 785 | `function nearestOverviewCluster(graph, event)` | Returns the overview cluster hit by a pointer event, when any. |
-| [`focusCluster`](../src/server/frontend/components/graph.js#L795) | function | 795 | `function focusCluster(graph, clusterID)` | Focuses cluster. |
-| [`buildSpatialIndex`](../src/server/frontend/components/graph.js#L811) | function | 811 | `function buildSpatialIndex(nodes)` | Builds spatial index. |
-| [`nearbyNodes`](../src/server/frontend/components/graph.js#L825) | function | 825 | `function nearbyNodes(index, point)` | Returns nodes in the spatial-index cell surrounding a graph point. |
-| [`nearestNode`](../src/server/frontend/components/graph.js#L841) | function | 841 | `function nearestNode(graph, point)` | Returns the closest selectable node within its hit radius. |
-| [`bindInteractions`](../src/server/frontend/components/graph.js#L865) | function | 865 | `function bindInteractions(graph, status, selectionPanel, zoomIndicator)` | Binds DOM behavior for interactions. |
-| [`setSelection`](../src/server/frontend/components/graph.js#L870) | function | 870 | `function setSelection(id)` | Sets selection. |
-| [`updateZoomDisplay`](../src/server/frontend/components/graph.js#L896) | function | 896 | `function updateZoomDisplay()` | Updates zoom display. |
-| [`bindGraphSearch`](../src/server/frontend/components/graph.js#L1063) | function | 1063 | `function bindGraphSearch(graph)` | Bind graph node search — highlights matching nodes by name/DOI. |
-| [`bindGraphExport`](../src/server/frontend/components/graph.js#L1076) | function | 1076 | `function bindGraphExport(graph, data)` | Bind graph export as PNG — downloads the canvas as a PNG image. |
-| [`bindGraphExpand`](../src/server/frontend/components/graph.js#L1097) | function | 1097 | `function bindGraphExpand(graph)` | Binds DOM behavior for graph expand. |
-| [`updateLabel`](../src/server/frontend/components/graph.js#L1104) | function | 1104 | `function updateLabel()` | Updates label. |
-| [`selectionMarkup`](../src/server/frontend/components/graph.js#L1136) | function | 1136 | `function selectionMarkup(node, neighbours)` | Selects ion markup. |
-| [`nodeMarkup`](../src/server/frontend/components/graph.js#L1171) | function | 1171 | `function nodeMarkup(node)` | Returns escaped linked or plain label markup for a graph node. |
-| [`renderEdgePage`](../src/server/frontend/components/graph.js#L1181) | function | 1181 | `function renderEdgePage(graph)` | Renders edge page. |
-| [`edgeDetails`](../src/server/frontend/components/graph.js#L1234) | function | 1234 | `function edgeDetails(edge)` | Returns relationship-specific details for a graph edge row. |
-
-### [`src/server/frontend/components/note-editor.js`](../src/server/frontend/components/note-editor.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`draftKey`](../src/server/frontend/components/note-editor.js#L9) | function | 9 | `function draftKey(corpusID, runID, workRevisionID, noteID, expectedVersionID)` | Builds a browser-local draft key scoped to the opaque corpus and immutable head. |
-| [`readDraft`](../src/server/frontend/components/note-editor.js#L14) | function | 14 | `function readDraft(key, storage)` | Reads a draft without assuming browser storage is available. |
-| [`writeDraft`](../src/server/frontend/components/note-editor.js#L23) | function | 23 | `function writeDraft(key, value, storage)` | Writes a draft and reports storage failure without discarding editor content. |
-| [`clearDraft`](../src/server/frontend/components/note-editor.js#L33) | function | 33 | `function clearDraft(key, storage)` | Removes only the exact draft associated with a successful save. |
-| [`lineDiff`](../src/server/frontend/components/note-editor.js#L43) | function | 43 | `function lineDiff(previous, current, limit)` | Produces a bounded line comparison or complete side-by-side fallback. |
-| [`mountNoteEditor`](../src/server/frontend/components/note-editor.js#L66) | function | 66 | `async function mountNoteEditor(host, options)` | Mounts the note editor and current immutable note list for one article. |
-| [`key`](../src/server/frontend/components/note-editor.js#L83) | function | 83 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
-| [`renderPreview`](../src/server/frontend/components/note-editor.js#L87) | function | 87 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
-| [`resetEditor`](../src/server/frontend/components/note-editor.js#L94) | function | 94 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
-| [`loadNotes`](../src/server/frontend/components/note-editor.js#L103) | function | 103 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
-| [`showHistory`](../src/server/frontend/components/note-editor.js#L130) | function | 130 | `async function showHistory(note)` | Displays one selected head's immutable ancestry and optional restoration control. |
-| [`focusNote`](../src/server/frontend/components/note-editor.js#L151) | function | 151 | `async function focusNote(noteID)` | Resolves a URL-focused active or deleted note and exposes its history. |
-
-### [`src/server/frontend/components/note-parser.js`](../src/server/frontend/components/note-parser.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`parseNote`](../src/server/frontend/components/note-parser.js#L9) | function | 9 | `function parseNote(body)` | Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. |
-| [`flushParagraph`](../src/server/frontend/components/note-parser.js#L24) | function | 24 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
-| [`extractLinks`](../src/server/frontend/components/note-parser.js#L117) | function | 117 | `function extractLinks(text, baseOffset, links, errors)` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
-| [`validateLink`](../src/server/frontend/components/note-parser.js#L150) | function | 150 | `function validateLink(scheme, target, raw)` | Validates scheme-specific target grammar without requiring target existence. |
-| [`isEscaped`](../src/server/frontend/components/note-parser.js#L165) | function | 165 | `function isEscaped(text, index)` | Reports whether the character at an index has an odd backslash prefix. |
-| [`unescapedIndex`](../src/server/frontend/components/note-parser.js#L172) | function | 172 | `function unescapedIndex(text, character)` | Returns the first unescaped delimiter index or minus one. |
-| [`unescapeLink`](../src/server/frontend/components/note-parser.js#L180) | function | 180 | `function unescapeLink(text)` | Removes only the escapes supported inside custom-link fields. |
-| [`splitTableRow`](../src/server/frontend/components/note-parser.js#L185) | function | 185 | `function splitTableRow(line)` | Splits one simple table row while preserving escaped vertical bars. |
-| [`tableDelimiter`](../src/server/frontend/components/note-parser.js#L202) | function | 202 | `function tableDelimiter(line)` | Reports whether every table cell is a valid delimiter marker. |
-| [`renderNote`](../src/server/frontend/components/note-parser.js#L208) | function | 208 | `function renderNote(document, resolvedLinks)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
-| [`inline`](../src/server/frontend/components/note-parser.js#L212) | function | 212 | `function inline(text)` | Renders escaped inline text and associates parsed links with stored resolutions. |
-| [`renderLink`](../src/server/frontend/components/note-parser.js#L243) | function | 243 | `function renderLink(label, resolved)` | Renders one safe resolved link or an accessible unresolved label. |
-
-### [`src/server/frontend/components/pagination.js`](../src/server/frontend/components/pagination.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`paginationPages`](../src/server/frontend/components/pagination.js#L5) | function | 5 | `function paginationPages(currentPage, totalPages, visibleCount)` | Returns the bounded sequence of page numbers surrounding the current page. |
-| [`pagination`](../src/server/frontend/components/pagination.js#L22) | function | 22 | `function pagination(result, options)` | Returns accessible pagination markup for server-backed or in-memory results. |
-| [`control`](../src/server/frontend/components/pagination.js#L46) | function | 46 | `function control(label, target, disabled, relation)` | Returns one pagination navigation control. |
-
-### [`src/server/frontend/components/pdf-viewer.js`](../src/server/frontend/components/pdf-viewer.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`unrotateRectangles`](../src/server/frontend/components/pdf-viewer.js#L8) | function | 8 | `function unrotateRectangles(rectangles, rotation)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
-| [`rotateRectangles`](../src/server/frontend/components/pdf-viewer.js#L25) | function | 25 | `function rotateRectangles(rectangles, rotation)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
-| [`selectionRectangles`](../src/server/frontend/components/pdf-viewer.js#L42) | function | 42 | `function selectionRectangles(selection, pageElement, rotation)` | Extracts bounded normalized rectangles from a same-page browser selection. |
-| [`mountPDFViewer`](../src/server/frontend/components/pdf-viewer.js#L64) | function | 64 | `async function mountPDFViewer(host, options, loader)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`updateControls`](../src/server/frontend/components/pdf-viewer.js#L96) | function | 96 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
-| [`render`](../src/server/frontend/components/pdf-viewer.js#L106) | function | 106 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
-| [`changePage`](../src/server/frontend/components/pdf-viewer.js#L159) | function | 159 | `function changePage(next)` | Clamps and renders a requested current page. |
-| [`renderAnchors`](../src/server/frontend/components/pdf-viewer.js#L195) | function | 195 | `function renderAnchors(container, anchors, rotation)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../src/server/frontend/components/pdf-viewer.js#L212) | function | 212 | `function renderSelectableText(pdfjs, content, container, viewport)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
-
-### [`src/server/frontend/components/review-panel.js`](../src/server/frontend/components/review-panel.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`mountArticleReview`](../src/server/frontend/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData, onAuditChange)` | Mounts all editable review controls for one immutable run article revision. |
-| [`renderStartReview`](../src/server/frontend/components/review-panel.js#L46) | function | 46 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
-| [`closeDialog`](../src/server/frontend/components/review-panel.js#L65) | function | 65 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
-| [`appendCandidates`](../src/server/frontend/components/review-panel.js#L70) | function | 70 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
-| [`renderReview`](../src/server/frontend/components/review-panel.js#L141) | function | 141 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`updateSubstatuses`](../src/server/frontend/components/review-panel.js#L191) | function | 191 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L269) | function | 269 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L302) | function | 302 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L333) | function | 333 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
-
-### [`src/server/frontend/components/shell.js`](../src/server/frontend/components/shell.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`initHealthCheck`](../src/server/frontend/components/shell.js#L7) | function | 7 | `function initHealthCheck()` | Initializes health check. |
-| [`initMobileNavToggle`](../src/server/frontend/components/shell.js#L31) | function | 31 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
-| [`handleToggle`](../src/server/frontend/components/shell.js#L39) | function | 39 | `function handleToggle()` | Handles toggle. |
-
-### [`src/server/frontend/router.js`](../src/server/frontend/router.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`setURL`](../src/server/frontend/router.js#L15) | function | 15 | `function setURL(updates, replace)` | Replaces the current URL state without triggering a navigation reload. |
-| [`bindFocusContext`](../src/server/frontend/router.js#L29) | function | 29 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
-| [`syncPrimaryNavigation`](../src/server/frontend/router.js#L39) | function | 39 | `function syncPrimaryNavigation(current)` | Synchronizes primary navigation. |
-| [`syncShell`](../src/server/frontend/router.js#L57) | function | 57 | `function syncShell(current)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
-| [`renderView`](../src/server/frontend/router.js#L81) | function | 81 | `async function renderView()` | Asynchronously renders view. |
-| [`render`](../src/server/frontend/router.js#L110) | function | 110 | `async function render()` | Asynchronously renders the associated state. |
-
-### [`src/server/frontend/state.js`](../src/server/frontend/state.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`params`](../src/server/frontend/state.js#L57) | function | 57 | `function params()` | Returns the current URL search parameters. |
-| [`value`](../src/server/frontend/state.js#L62) | function | 62 | `function value(name)` | Returns a named URL parameter or an empty string. |
-| [`view`](../src/server/frontend/state.js#L67) | function | 67 | `function view()` | Returns the selected viewer view. |
-| [`section`](../src/server/frontend/state.js#L72) | function | 72 | `function section(name, fallback)` | Returns a named section parameter or its fallback. |
-| [`esc`](../src/server/frontend/state.js#L77) | function | 77 | `function esc(raw)` | Escapes a value for safe HTML text insertion. |
-| [`asJSON`](../src/server/frontend/state.js#L84) | function | 84 | `function asJSON(item)` | Formats a value for JSON-oriented display. |
-| [`list`](../src/server/frontend/state.js#L92) | function | 92 | `function list(data, keys)` | Returns the first matching array in an API response. |
-| [`pickID`](../src/server/frontend/state.js#L107) | function | 107 | `function pickID(item)` | Returns the first supported identifier present on an item. |
-| [`text`](../src/server/frontend/state.js#L124) | function | 124 | `function text(item, fields)` | Returns the first non-empty display field on an item. |
-| [`number`](../src/server/frontend/state.js#L134) | function | 134 | `function number(raw)` | Converts a value to a finite number or zero. |
-| [`formatNumber`](../src/server/frontend/state.js#L143) | function | 143 | `function formatNumber(raw)` | Formats number. |
-| [`percent`](../src/server/frontend/state.js#L148) | function | 148 | `function percent(raw, denominator)` | Formats a count as a percentage of its denominator. |
-| [`formatTime`](../src/server/frontend/state.js#L158) | function | 158 | `function formatTime(raw)` | Formats time. |
-| [`formatDuration`](../src/server/frontend/state.js#L170) | function | 170 | `function formatDuration(startedAt, finishedAt)` | Formats the elapsed time between two recorded timestamps. |
-| [`formatBytes`](../src/server/frontend/state.js#L188) | function | 188 | `function formatBytes(raw)` | Formats bytes. |
-| [`humanLabel`](../src/server/frontend/state.js#L204) | function | 204 | `function humanLabel(raw)` | Converts a machine-oriented identifier to a title-cased display label. |
-| [`parseObject`](../src/server/frontend/state.js#L211) | function | 211 | `function parseObject(raw)` | Parses object. |
-| [`statusClass`](../src/server/frontend/state.js#L230) | function | 230 | `function statusClass(raw)` | Maps a recorded status to its semantic color class. |
-| [`statusChip`](../src/server/frontend/state.js#L248) | function | 248 | `function statusChip(raw)` | Returns escaped label markup for a recorded status. |
-| [`metricEntries`](../src/server/frontend/state.js#L255) | function | 255 | `function metricEntries(group)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
-| [`selectedRun`](../src/server/frontend/state.js#L266) | function | 266 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
-| [`showError`](../src/server/frontend/state.js#L274) | function | 274 | `function showError(error)` | Shows error. |
-| [`clearError`](../src/server/frontend/state.js#L280) | function | 280 | `function clearError()` | Clears error. |
-| [`busy`](../src/server/frontend/state.js#L286) | function | 286 | `function busy(isBusy)` | Shows or hides the global loading indicator. |
-| [`link`](../src/server/frontend/state.js#L291) | function | 291 | `function link(updates)` | Builds an internal URL that preserves current research context and applies supplied updates. |
-| [`pageHeader`](../src/server/frontend/state.js#L310) | function | 310 | `function pageHeader(kicker, title, description, extra)` | Returns the standard page header with escaped copy and optional actions. |
-| [`breadcrumb`](../src/server/frontend/state.js#L321) | function | 321 | `function breadcrumb(items)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
-| [`setBreadcrumb`](../src/server/frontend/state.js#L334) | function | 334 | `function setBreadcrumb(items)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
-| [`emptyState`](../src/server/frontend/state.js#L339) | function | 339 | `function emptyState(title, detail, action)` | Returns a complete empty-view state with the standard page header. |
-| [`emptyPanel`](../src/server/frontend/state.js#L347) | function | 347 | `function emptyPanel(title, detail, action)` | Returns compact empty-state panel markup. |
-| [`panel`](../src/server/frontend/state.js#L355) | function | 355 | `function panel(title, description, body, classes)` | Returns the standard titled content-panel markup. |
-| [`table`](../src/server/frontend/state.js#L367) | function | 367 | `function table(title, description, columns, rows, classes)` | Returns an escaped data table inside the standard panel wrapper. |
-| [`subnav`](../src/server/frontend/state.js#L397) | function | 397 | `function subnav(items, current, key)` | Returns context-preserving tab navigation for a keyed section. |
-| [`filterChips`](../src/server/frontend/state.js#L408) | function | 408 | `function filterChips(filters, labels, options)` | Filters chips. |
-| [`metricCard`](../src/server/frontend/state.js#L432) | function | 432 | `function metricCard(name, metric, href)` | Returns a metric card with availability, denominator, and optional navigation. |
-| [`flowStage`](../src/server/frontend/state.js#L465) | function | 465 | `function flowStage(label, raw, base, previous, extraClass, stageKey, options)` | Returns one retention-flow stage with counts, percentages, and optional links. |
-| [`sourceFilterStageSummary`](../src/server/frontend/state.js#L539) | function | 539 | `function sourceFilterStageSummary(items)` | Combines cumulative source filter counts into ordered cross-source stages. |
-| [`retentionPhase`](../src/server/frontend/state.js#L586) | function | 586 | `function retentionPhase(title, description, summary, content, className)` | Returns one titled phase in the retention-flow presentation. |
-| [`retentionFlow`](../src/server/frontend/state.js#L594) | function | 594 | `function retentionFlow(overview)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`breakdown`](../src/server/frontend/state.js#L676) | function | 676 | `function breakdown(title, source, valueLabel, useTotal)` | Returns a metric breakdown table with relative bars and optional total percentages. |
-| [`valueRender`](../src/server/frontend/state.js#L699) | function | 699 | `function valueRender(row)` | Formats one breakdown value with availability and optional percentage. |
-| [`barRender`](../src/server/frontend/state.js#L716) | function | 716 | `function barRender(row)` | Returns an accessible relative-volume bar for one breakdown row. |
-| [`sourceResultCountSummary`](../src/server/frontend/state.js#L738) | function | 738 | `function sourceResultCountSummary(items, classes)` | Returns the expected-versus-observed source export count table. |
-| [`count`](../src/server/frontend/state.js#L744) | function | 744 | `function count(raw)` | Formats a source count or its unavailable state. |
-| [`comparison`](../src/server/frontend/state.js#L752) | function | 752 | `function comparison(raw)` | Returns a status chip for a source-count comparison. |
-| [`date`](../src/server/frontend/state.js#L760) | function | 760 | `function date(raw)` | Escapes an export date or returns its unavailable state. |
-| [`sourceSearchQueries`](../src/server/frontend/state.js#L789) | function | 789 | `function sourceSearchQueries(items, classes)` | Returns expandable exact-query markup for source exports. |
-| [`timeline`](../src/server/frontend/state.js#L813) | function | 813 | `function timeline(rows)` | Returns chronological audit feed markup for generic event rows. |
-| [`detailTable`](../src/server/frontend/state.js#L887) | function | 887 | `function detailTable(title, rows)` | Builds a table whose columns are derived from the supplied detail records. |
-| [`cell`](../src/server/frontend/state.js#L904) | function | 904 | `function cell(item, column, tableName, options)` | Formats and links a table cell according to its column and table context. |
-| [`bindCopyButtons`](../src/server/frontend/state.js#L948) | function | 948 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
-| [`bindDismissibleMessages`](../src/server/frontend/state.js#L967) | function | 967 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
-| [`bindLoadingButtons`](../src/server/frontend/state.js#L983) | function | 983 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
-
-### [`src/server/frontend/views/advanced.js`](../src/server/frontend/views/advanced.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`advancedView`](../src/server/frontend/views/advanced.js#L8) | function | 8 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
-
-### [`src/server/frontend/views/corpus.js`](../src/server/frontend/views/corpus.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`columnNames`](../src/server/frontend/views/corpus.js#L76) | function | 76 | `function columnNames(table)` | Returns the ordered union of column names present in result rows. |
-| [`identityEvidenceTable`](../src/server/frontend/views/corpus.js#L89) | function | 89 | `function identityEvidenceTable(data, context)` | Returns the column definition used for identity evidence rows. |
-| [`clippedRecordLink`](../src/server/frontend/views/corpus.js#L146) | function | 146 | `function clippedRecordLink(kind, idKey, id, title)` | Returns a context-preserving record link with a clipped label. |
-| [`clippedRecordText`](../src/server/frontend/views/corpus.js#L154) | function | 154 | `function clippedRecordText(title)` | Returns escaped record text clipped to the requested length. |
-| [`corpusColumnConfig`](../src/server/frontend/views/corpus.js#L160) | function | 160 | `function corpusColumnConfig(current)` | Returns section-specific labels and renderers for corpus columns. |
-| [`corpusView`](../src/server/frontend/views/corpus.js#L215) | function | 215 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
-
-### [`src/server/frontend/views/detail.js`](../src/server/frontend/views/detail.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`destroyActiveArticleReview`](../src/server/frontend/views/detail.js#L15) | function | 15 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
-| [`detailLink`](../src/server/frontend/views/detail.js#L23) | function | 23 | `function detailLink(kind, id)` | Returns a context-preserving link to a related detail record. |
-| [`backToCorpus`](../src/server/frontend/views/detail.js#L36) | function | 36 | `function backToCorpus(kind)` | Returns the context-preserving corpus return URL for a detail view. |
-| [`recorded`](../src/server/frontend/views/detail.js#L49) | function | 49 | `function recorded(raw, fallback)` | Records ed. |
-| [`propertyGrid`](../src/server/frontend/views/detail.js#L57) | function | 57 | `function propertyGrid(entries, classes)` | Returns definition-list markup for labeled record properties. |
-| [`summaryStrip`](../src/server/frontend/views/detail.js#L66) | function | 66 | `function summaryStrip(entries)` | Returns compact summary-fact markup for a detail record. |
-| [`mappingValue`](../src/server/frontend/views/detail.js#L74) | function | 74 | `function mappingValue(raw)` | Converts a stored mapping representation to a displayable object. |
-| [`extensionMapping`](../src/server/frontend/views/detail.js#L92) | function | 92 | `function extensionMapping(raw)` | Returns the parsed extension mapping stored on a work revision. |
-| [`keywordValues`](../src/server/frontend/views/detail.js#L101) | function | 101 | `function keywordValues(raw)` | Returns normalized keyword values from stored array or delimited input. |
-| [`keywordMarkup`](../src/server/frontend/views/detail.js#L124) | function | 124 | `function keywordMarkup(raw)` | Returns label markup for normalized keyword values. |
-| [`rawRecord`](../src/server/frontend/views/detail.js#L137) | function | 137 | `function rawRecord(record, excluded)` | Returns expandable JSON markup for a raw record. |
-| [`collectionMarkup`](../src/server/frontend/views/detail.js#L156) | function | 156 | `function collectionMarkup(key, title, description, columns, rows, page)` | Returns expandable markup for a related-record collection. |
-| [`mountCollection`](../src/server/frontend/views/detail.js#L187) | function | 187 | `function mountCollection(key, title, description, columns, rows)` | Mounts collection. |
-| [`renderCollection`](../src/server/frontend/views/detail.js#L193) | function | 193 | `function renderCollection(key)` | Renders collection. |
-| [`stageReasonMarkup`](../src/server/frontend/views/detail.js#L211) | function | 211 | `function stageReasonMarkup(raw)` | Returns escaped validation or failure reason markup for a stage outcome. |
-| [`articleView`](../src/server/frontend/views/detail.js#L228) | function | 228 | `function articleView(record, data)` | Returns the article detail view from its immutable revision payload. |
-| [`pdfStatusPanel`](../src/server/frontend/views/detail.js#L294) | function | 294 | `function pdfStatusPanel(record, pdf)` | Returns PDF inventory and download-status markup for an article. |
-| [`authorIdentityEvidence`](../src/server/frontend/views/detail.js#L315) | function | 315 | `function authorIdentityEvidence(data)` | Returns candidate ORCID evidence associated with the selected author occurrence. |
-| [`authorView`](../src/server/frontend/views/detail.js#L336) | function | 336 | `function authorView(record, data)` | Returns the author occurrence detail view with related articles and audit evidence. |
-| [`referenceView`](../src/server/frontend/views/detail.js#L363) | function | 363 | `function referenceView(record)` | Returns the reference mention detail view with citation context. |
-| [`detailView`](../src/server/frontend/views/detail.js#L394) | function | 394 | `async function detailView(kind)` | Asynchronously implements detail view for the viewer. |
-
-### [`src/server/frontend/views/evaluation.js`](../src/server/frontend/views/evaluation.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`titleLink`](../src/server/frontend/views/evaluation.js#L13) | function | 13 | `function titleLink(row)` | Returns a context-preserving article link for an evaluation row. |
-| [`inventoriedTime`](../src/server/frontend/views/evaluation.js#L20) | function | 20 | `function inventoriedTime(row)` | Returns the recorded PDF inventory time or an unavailable label. |
-| [`evaluationView`](../src/server/frontend/views/evaluation.js#L28) | function | 28 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
-
-### [`src/server/frontend/views/home.js`](../src/server/frontend/views/home.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`deepdiveLink`](../src/server/frontend/views/home.js#L10) | function | 10 | `function deepdiveLink(searchID, revisionID, planID, runID)` | Returns a clean Deepdive URL for one complete research context. |
-| [`searchCard`](../src/server/frontend/views/home.js#L17) | function | 17 | `function searchCard(search, plans, runs)` | Returns one compact search-history card with revision, plan, and attempt counts. |
-| [`runTable`](../src/server/frontend/views/home.js#L43) | function | 43 | `function runTable(searches, plans, runs)` | Returns the run-management table for all planned attempts in the workspace. |
-| [`runDialog`](../src/server/frontend/views/home.js#L78) | function | 78 | `function runDialog()` | Returns the confirmation dialog used for reversible run lifecycle changes. |
-| [`bindRunLifecycle`](../src/server/frontend/views/home.js#L87) | function | 87 | `function bindRunLifecycle(runs)` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
-| [`close`](../src/server/frontend/views/home.js#L100) | function | 100 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
-| [`open`](../src/server/frontend/views/home.js#L107) | function | 107 | `function open(button)` | Configures and opens the lifecycle dialog for the selected run action. |
-| [`homeView`](../src/server/frontend/views/home.js#L159) | function | 159 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
-
-### [`src/server/frontend/views/overview.js`](../src/server/frontend/views/overview.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`normalizationValue`](../src/server/frontend/views/overview.js#L7) | function | 7 | `function normalizationValue(metric)` | Returns a normalization metric value or its unavailable presentation. |
-| [`capturedMetricValue`](../src/server/frontend/views/overview.js#L30) | function | 30 | `function capturedMetricValue(item)` | Returns the numeric value of a captured metric, or null when unavailable. |
-| [`capturedMetricsByStage`](../src/server/frontend/views/overview.js#L38) | function | 38 | `function capturedMetricsByStage(metrics)` | Groups captured metrics by pipeline stage. |
-| [`capturedMetricsMarkup`](../src/server/frontend/views/overview.js#L55) | function | 55 | `function capturedMetricsMarkup(metrics)` | Returns table markup for captured pipeline metrics. |
-| [`fixedPercentageMetric`](../src/server/frontend/views/overview.js#L68) | function | 68 | `function fixedPercentageMetric(metric)` | Returns a metric copy with a percentage derived from its value and denominator. |
-| [`overviewView`](../src/server/frontend/views/overview.js#L77) | function | 77 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
-
-### [`src/server/frontend/views/provenance.js`](../src/server/frontend/views/provenance.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`selectedValues`](../src/server/frontend/views/provenance.js#L29) | function | 29 | `function selectedValues(raw)` | Returns the selected comma-separated values for an audit facet. |
-| [`auditMultiSelect`](../src/server/frontend/views/provenance.js#L34) | function | 34 | `function auditMultiSelect(name, label, options, selectedRaw)` | Returns a multi-select control for one audit facet. |
-| [`auditQuery`](../src/server/frontend/views/provenance.js#L48) | function | 48 | `function auditQuery(cursor)` | Builds API query parameters from the active audit filters. |
-| [`auditFilterSummary`](../src/server/frontend/views/provenance.js#L64) | function | 64 | `function auditFilterSummary()` | Returns markup summarizing active audit filters and their removal links. |
-| [`auditFilters`](../src/server/frontend/views/provenance.js#L77) | function | 77 | `function auditFilters(facets)` | Returns the complete audit filter form. |
-| [`auditSummary`](../src/server/frontend/views/provenance.js#L105) | function | 105 | `function auditSummary(data)` | Returns summary cards for the filtered audit result. |
-| [`auditView`](../src/server/frontend/views/provenance.js#L120) | function | 120 | `function auditView(data)` | Returns the audit timeline and pagination markup. |
-| [`artifactContext`](../src/server/frontend/views/provenance.js#L139) | function | 139 | `function artifactContext(context)` | Returns the research-context fields displayed for an artifact. |
-| [`artifactActions`](../src/server/frontend/views/provenance.js#L152) | function | 152 | `function artifactActions(row)` | Returns safe inspect and download actions for an artifact. |
-| [`artifactsView`](../src/server/frontend/views/provenance.js#L164) | function | 164 | `function artifactsView(data)` | Returns the run artifact inventory markup. |
-| [`pageSizeOptions`](../src/server/frontend/views/provenance.js#L198) | function | 198 | `function pageSizeOptions(current)` | Returns page-size option markup with the current value selected. |
-| [`cacheView`](../src/server/frontend/views/provenance.js#L205) | function | 205 | `function cacheView(data)` | Returns cache-use evidence and pagination markup. |
-| [`stageStatus`](../src/server/frontend/views/provenance.js#L241) | function | 241 | `function stageStatus(summary, step)` | Returns the effective display status for a work-stage record. |
-| [`stageFlow`](../src/server/frontend/views/provenance.js#L261) | function | 261 | `function stageFlow(summaries, steps)` | Returns ordered stage-flow markup for one work. |
-| [`stagesView`](../src/server/frontend/views/provenance.js#L305) | function | 305 | `function stagesView(data)` | Returns work-stage evidence and pagination markup. |
-| [`runView`](../src/server/frontend/views/provenance.js#L339) | function | 339 | `function runView(artifactData)` | Returns stored run details and exact configuration links. |
-| [`provenanceView`](../src/server/frontend/views/provenance.js#L382) | function | 382 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
-| [`bindAuditControls`](../src/server/frontend/views/provenance.js#L437) | function | 437 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
-| [`bindArtifactInspection`](../src/server/frontend/views/provenance.js#L527) | function | 527 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
-| [`renderArtifactInspector`](../src/server/frontend/views/provenance.js#L565) | function | 565 | `function renderArtifactInspector()` | Renders artifact inspector. |
-| [`copyArtifactText`](../src/server/frontend/views/provenance.js#L618) | function | 618 | `async function copyArtifactText(text)` | Asynchronously copies artifact text. |
-
-### [`src/server/frontend/views/relationships.js`](../src/server/frontend/views/relationships.js)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`modeControl`](../src/server/frontend/views/relationships.js#L33) | function | 33 | `function modeControl(current)` | Returns markup for selecting a relationship graph mode. |
-| [`appliedFilters`](../src/server/frontend/views/relationships.js#L45) | function | 45 | `function appliedFilters()` | Returns markup summarizing the active relationship filters. |
-| [`clusterSummary`](../src/server/frontend/views/relationships.js#L58) | function | 58 | `function clusterSummary(data)` | Returns markup summarizing connected graph clusters. |
-| [`relationshipsView`](../src/server/frontend/views/relationships.js#L74) | function | 74 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
-
 ## JavaScript test cases
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
@@ -3665,11 +3675,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`${name} has no axe violations`](../frontend/tests/ui-quality.spec.cjs#L149) | test | 149 | ``test(`${name} has no axe violations`, callback)`` | ${name} has no axe violations |
 | [`review setup dialog has no axe violations and can be dismissed`](../frontend/tests/ui-quality.spec.cjs#L156) | test | 156 | `test('review setup dialog has no axe violations and can be dismissed', callback)` | review setup dialog has no axe violations and can be dismissed |
 | [`${name} light`](../frontend/tests/ui-quality.spec.cjs#L182) | test | 182 | ``test(`${name} light`, callback)`` | ${name} light |
-| [`overview dark`](../frontend/tests/ui-quality.spec.cjs#L188) | test | 188 | `test('overview dark', callback)` | overview dark |
-| [`provenance audit dark`](../frontend/tests/ui-quality.spec.cjs#L194) | test | 194 | `test('provenance audit dark', callback)` | provenance audit dark |
-| [`article review setup light`](../frontend/tests/ui-quality.spec.cjs#L200) | test | 200 | `test('article review setup light', callback)` | article review setup light |
-| [`article review setup dark`](../frontend/tests/ui-quality.spec.cjs#L207) | test | 207 | `test('article review setup dark', callback)` | article review setup dark |
-| [`artifact preview light`](../frontend/tests/ui-quality.spec.cjs#L215) | test | 215 | `test('artifact preview light', callback)` | artifact preview light |
+| [`overview dark`](../frontend/tests/ui-quality.spec.cjs#L191) | test | 191 | `test('overview dark', callback)` | overview dark |
+| [`provenance audit dark`](../frontend/tests/ui-quality.spec.cjs#L197) | test | 197 | `test('provenance audit dark', callback)` | provenance audit dark |
+| [`article review setup light`](../frontend/tests/ui-quality.spec.cjs#L203) | test | 203 | `test('article review setup light', callback)` | article review setup light |
+| [`article review setup dark`](../frontend/tests/ui-quality.spec.cjs#L210) | test | 210 | `test('article review setup dark', callback)` | article review setup dark |
+| [`artifact preview light`](../frontend/tests/ui-quality.spec.cjs#L218) | test | 218 | `test('artifact preview light', callback)` | artifact preview light |
 
 ### [`frontend/tests/unit/api.test.js`](../frontend/tests/unit/api.test.js)
 

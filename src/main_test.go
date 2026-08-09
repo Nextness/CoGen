@@ -870,18 +870,13 @@ func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(
 	}
 }
 
-// TestFrontendAssets verifies frontend assets.
+// TestFrontendAssets verifies frontend asset directory validation.
 func TestFrontendAssets(t *testing.T) {
-	assets, err := frontendAssets("")
-	if err != nil || assets != nil {
-		t.Fatalf("embedded assets = %v, %v; want nil, nil", assets, err)
-	}
-
 	assetDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte("filesystem asset"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	assets, err = frontendAssets(assetDir)
+	assets, err := frontendAssets(assetDir)
 	if err != nil {
 		t.Fatalf("frontendAssets filesystem directory: %v", err)
 	}

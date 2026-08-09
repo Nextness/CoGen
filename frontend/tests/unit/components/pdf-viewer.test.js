@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { mountPDFViewer, rotateRectangles, unrotateRectangles } from '../../../../src/server/frontend/components/pdf-viewer.js';
+import { mountPDFViewer, rotateRectangles, unrotateRectangles } from '../../../src/components/pdf-viewer.js';
 
 describe('pdf-viewer.js', function() {
   it('projects displayed rectangles back through all supported rotations', function() {

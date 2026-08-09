@@ -6,7 +6,6 @@ package server
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,18 +29,17 @@ const requestTimeout = 5 * time.Second
 
 var log = logging.Logger("viewer")
 
-//go:embed frontend
-var frontend embed.FS
-
 // Server serves one existing workspace database. db remains a query-only
 // connection while writeDB owns bounded local review and lifecycle mutations.
+// AssetsFS is the frontend asset file system served at the web root; it must
+// be set because the binary does not embed frontend assets.
 type Server struct {
 	db       *sql.DB
 	writeDB  *database.Database
 	pdfDB    *sql.DB
 	pdfPath  string
 	tables   map[string]tableInfo
-	AssetsFS fs.FS // if non-nil, serves frontend assets from this filesystem
+	AssetsFS fs.FS // serves frontend assets from this filesystem
 }
 
 // tableInfo stores the discovered columns for one browsable SQLite table.
@@ -153,7 +151,7 @@ func (s *Server) Close() error {
 // PDFStoreBound reports whether a readable companion PDF database is attached.
 func (s *Server) PDFStoreBound() bool { return s.pdfDB != nil }
 
-// Handler returns the local API and embedded frontend handler.
+// Handler returns the local API and frontend handler.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
@@ -200,11 +198,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "not_found", "API route not found")
 	})
-	assets, _ := fs.Sub(frontend, "frontend")
-	if s.AssetsFS != nil {
-		assets = s.AssetsFS
+	if s.AssetsFS == nil {
+		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+			writeError(w, http.StatusServiceUnavailable, "assets_not_configured", "frontend assets not configured; serve requires --assets-dir")
+		})
+		return withJSONErrors(mux)
 	}
-	mux.Handle("GET /", http.FileServer(http.FS(assets)))
+	mux.Handle("GET /", http.FileServer(http.FS(s.AssetsFS)))
 	return withJSONErrors(mux)
 }
 
