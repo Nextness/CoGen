@@ -1,11 +1,13 @@
 // Corpus: articles, authors, references, sources lists.
-import { app, esc, value, link, pageSizes, corpusSections, section, pageHeader, sourceResultCountSummary, subnav, formatNumber, percent, statusChip, filterChips, humanLabel } from '../state.js';
+import { app, esc, value, link, pageSizes, corpusSections, section, pageHeader, sourceResultCountSummary, formatNumber, percent, statusChip, filterChips, humanLabel } from '../state.js';
 import { api, tables } from '../api.js';
 import { dataTable, bindTableControls } from '../components/data-table.js';
 import { pagination as renderPagination } from '../components/pagination.js';
+import { setURL } from '../router.js';
 
 // Core columns shown in the articles table; extra fields appear in expandable rows.
-const articlesColumns = ['id', 'work_id', 'title', 'year', 'journal', 'source', 'doi'];
+const articlesColumns = ['doi', 'title', 'year', 'journal', 'source'];
+const authorColumns = ['citation_name', 'orcid', 'first_name', 'last_name', 'article_count', 'affiliation_count'];
 const articlesExpandFields = [
   { f: 'title', w: 'full' },
   { f: 'authors', w: 'full' },
@@ -103,40 +105,6 @@ function identityEvidenceTable(data, context) {
     + '<div class="ui statistic"><span class="label">Candidate ORCIDs</span><span class="value">' + formatNumber(stats.candidates) + '</span><small>Never assigned automatically</small></div>'
     + '</div>';
 
-  /** Returns expandable candidate details for an identity evidence row. */
-  function candidateDetails(row) {
-    const candidates = row.candidates || [];
-    if (!candidates.length) {
-      return '<span class="muted">No provider candidates</span>';
-    }
-    var plural;
-    if (Number(row.candidate_count) === 1) {
-      plural = '';
-    } else {
-      plural = 's';
-    }
-    var listHtml = candidates.map(function(candidate) {
-      var nameHtml = '';
-      if (candidate.provider_display_name) {
-        nameHtml = ' · ' + esc(candidate.provider_display_name);
-      }
-      var links = '<a href="' + esc(candidate.query_url) + '" rel="noreferrer">Provider query</a>';
-      if (candidate.payload_artifact_id) {
-        links = links + ' · <a href="/api/artifacts/' + encodeURIComponent(candidate.payload_artifact_id) + '/content">Raw payload</a>';
-      }
-      return '<li><strong>#' + esc(candidate.provider_rank) + ' ' + esc(candidate.candidate_orcid) + '</strong>' + nameHtml + '<br>' + links + '</li>';
-    }).join('');
-
-    var truncation = '';
-    if (row.candidates_truncated) {
-      truncation = '<p class="muted">Only the first 100 candidates are shown here.</p>';
-    }
-    return '<details><summary>' + formatNumber(row.candidate_count) + ' candidate' + plural + ' to review</summary>'
-      + '<ul class="identity-candidates">' + listHtml + '</ul>'
-      + truncation
-      + '</details>';
-  }
-
   var body;
   if (rows.length) {
     body = rows.map(function(row) {
@@ -145,11 +113,10 @@ function identityEvidenceTable(data, context) {
         errorHtml = '<p class="muted">' + esc(row.error_message) + '</p>';
       }
       return '<tr>'
-        + '<td>' + statusChip(row.status) + '</td>'
+        + '<td>' + statusChip(row.status) + errorHtml + '</td>'
         + '<td><a href="' + link({ view: 'author', author_id: row.author_occurrence_id }) + '">' + esc(row.queried_citation_name) + '</a></td>'
         + '<td>' + esc(row.article_title || 'Not recorded') + '</td>'
         + '<td>' + esc(row.doi || 'Not recorded') + '</td>'
-        + '<td>' + candidateDetails(row) + errorHtml + '</td>'
         + '</tr>';
     }).join('');
   } else {
@@ -159,7 +126,7 @@ function identityEvidenceTable(data, context) {
     } else {
       emptyMessage = 'No name-search evidence was recorded for this run.';
     }
-    body = '<tr><td colspan="5" class="empty">' + emptyMessage + '</td></tr>';
+    body = '<tr><td colspan="4" class="empty">' + emptyMessage + '</td></tr>';
   }
 
   const paginationData = data.pagination || {};
@@ -171,7 +138,6 @@ function identityEvidenceTable(data, context) {
     + '<th><button type="button" data-sort="citation_name">Observed author</button></th>'
     + '<th><button type="button" data-sort="article_title">Paper</button></th>'
     + '<th><button type="button" data-sort="doi">DOI</button></th>'
-    + '<th><button type="button" data-sort="candidate_count">Candidate evidence</button></th>'
     + '</tr></thead><tbody>' + body + '</tbody></table></div>'
     + renderPagination(paginationData, { page: page, perPage: context.perPage, itemLabel: 'author records' });
 }
@@ -338,15 +304,11 @@ export async function corpusView() {
     + '<button type="button" data-search-query class="ui primary button">Search</button>'
     + '</form>';
 
-  const nav = subnav(Object.entries(corpusSections).map(function([id, item]) {
-    var label;
-    if (id === 'sources') {
-      label = 'Source records';
-    } else {
-      label = item.title.replace(/ revisions| occurrences| mentions/g, '');
-    }
-    return [id, label];
-  }), current, 'section');
+  const collectionOptions = Object.entries(corpusSections).map(function([id, item]) {
+    const label = id === 'sources' ? 'Source records' : item.title;
+    return '<option value="' + esc(id) + '"' + (id === current ? ' selected' : '') + '>' + esc(label) + '</option>';
+  }).join('');
+  const collectionChooser = '<div class="rw-corpus-collection"><label for="corpus-section-select"><span>Corpus collection</span><select id="corpus-section-select">' + collectionOptions + '</select></label><p>Choose the evidence collection displayed below.</p></div>';
 
   var explanation;
   if (scoped) {
@@ -374,6 +336,8 @@ export async function corpusView() {
   if (current === 'articles') {
     context.columnsWhitelist = articlesColumns;
     context.expandableFields = articlesExpandFields;
+  } else if (current === 'authors') {
+    context.columnsWhitelist = authorColumns;
   } else if (current === 'references') {
     context.columnsWhitelist = referenceColumns;
     context.expandableFields = referenceExpandFields;
@@ -399,10 +363,13 @@ export async function corpusView() {
   const filterSummary = value('q') ? filterChips({ q: value('q') }, { q: 'Search' }, { clearUpdates: { q: '', page: 1 } }) : '';
 
   app.innerHTML = pageHeader('Immutable research corpus', 'Corpus', 'Browse immutable revisions, observed authors, reference mentions, and captured source records.')
-    + nav
+    + collectionChooser
     + sourceCounts
     + '<section class="ui segment rw-data-section"><div class="ui top attached header"><div><h3>' + esc(definition.title) + '</h3><p>' + esc(definition.description) + '</p></div></div>'
     + '<div class="content">' + controls + filterSummary + explanation + body + '</div></section>';
 
+  document.querySelector('#corpus-section-select').addEventListener('change', function(event) {
+    setURL({ section: event.target.value, page: 1, q: '', sort: '', order: '', expanded: '' });
+  });
   bindTableControls(definition.table, page);
 }

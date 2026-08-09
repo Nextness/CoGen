@@ -8,7 +8,7 @@ const statuses = ['not_evaluated', 'in_progress', 'approved', 'not_approved', 'r
 const substatuses = ['redacted', 'unrelated', 'out_of_scope', 'duplicate', 'retracted', 'withdrawn', 'superseded', 'predatory_low_quality', 'copyright_licensing', 'not_peer_reviewed'];
 
 /** Mounts all editable review controls for one immutable run article revision. */
-export async function mountArticleReview(host, pdfHost, record, detailData) {
+export async function mountArticleReview(host, pdfHost, record, detailData, onAuditChange) {
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
@@ -146,19 +146,19 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
     const selectedStatus = version?.status || 'not_evaluated';
     const selectedSubstatuses = new Set(version?.sub_statuses || []);
     const attribution = version ? '<span class="header">Current saved version</span>Version ' + version.id + ' by ' + esc(version.reviewer_display) + ' at ' + esc(formatTime(version.created_at)) + '.' : '<span class="header">No saved decision yet</span>The current context defaults to Not Evaluated until you save a complete review state.';
-    const inheritedLabel = state.inherited_from_context_id ? '<span class="ui blue label">Inherited from context ' + state.inherited_from_context_id + '</span>' : '<span class="ui label">This context</span>';
+    const inheritedLabel = state.inherited_from_context_id ? '<span class="ui violet label">Inherited from context ' + state.inherited_from_context_id + '</span>' : '<span class="ui neutral label">This context</span>';
     const disabled = data.editable ? '' : ' disabled';
     host.innerHTML = '<section class="ui segment rw-review-panel"><div class="ui top attached header"><div><h3>Article review</h3><p>Run-scoped decisions, notes, and anchors append immutable versions.</p></div>' + inheritedLabel + '</div><div class="content">'
-      + '<nav class="rw-review-nav" aria-label="Article review sections"><button type="button" class="ui basic button active" data-review-section="decision" aria-pressed="true">Decision</button><button type="button" class="ui basic button" data-review-section="notes" aria-pressed="false">Notes</button><button type="button" class="ui basic button" data-review-section="anchors" aria-pressed="false">PDF anchors</button></nav>'
-      + '<section class="rw-review-section" data-review-section-panel="decision" aria-labelledby="review-decision-heading"><div class="rw-review-section__heading"><div><h4 id="review-decision-heading">Review decision</h4><p>Save the complete state for this article in the selected run context.</p></div></div>'
+      + '<nav class="ui tabular menu rw-review-nav" aria-label="Article review sections" role="tablist"><button id="review-tab-decision" type="button" class="item active" role="tab" data-review-section="decision" aria-selected="true" aria-controls="review-panel-decision" tabindex="0">Decision</button><button id="review-tab-notes" type="button" class="item" role="tab" data-review-section="notes" aria-selected="false" aria-controls="review-panel-notes" tabindex="-1">Notes</button><button id="review-tab-anchors" type="button" class="item" role="tab" data-review-section="anchors" aria-selected="false" aria-controls="review-panel-anchors" tabindex="-1">PDF anchors</button></nav>'
+      + '<section id="review-panel-decision" class="rw-review-section" role="tabpanel" data-review-section-panel="decision" aria-labelledby="review-tab-decision"><div class="rw-review-section__heading"><div><h4 id="review-decision-heading">Review decision</h4><p>Save the complete state for this article in the selected run context.</p></div></div>'
       + '<form class="ui form rw-review-form" data-review-form><div class="rw-review-form__primary"><div class="ui field"><label for="article-review-status">Decision status</label><div class="ui selection dropdown"><select id="article-review-status" data-review-status' + disabled + '>' + statuses.map(function(status) { return '<option value="' + status + '"' + (selectedStatus === status ? ' selected' : '') + '>' + esc(humanLabel(status)) + '</option>'; }).join('') + '</select></div></div>'
       + '<div class="ui field"><label for="article-review-reason">Reason or review summary <span class="rw-optional">Optional</span></label><textarea id="article-review-reason" rows="4" data-review-reason maxlength="32768"' + disabled + '>' + esc(version?.reason || '') + '</textarea><p class="rw-field-help">Explain the decision without copying sensitive research content into the audit trail.</p></div></div>'
       + '<fieldset class="rw-review-substatuses" data-review-substatuses><legend>Decision qualifiers</legend><p>Select qualifiers only when the status is Not Approved or Removed.</p><div class="rw-review-option-grid">' + substatuses.map(function(status) { return '<label class="rw-review-check"><input type="checkbox" value="' + status + '"' + (selectedSubstatuses.has(status) ? ' checked' : '') + disabled + '><span>' + esc(humanLabel(status)) + '</span></label>'; }).join('') + '</div></fieldset>'
       + '<div class="ui info message rw-review-feedback" data-review-message aria-live="polite">' + attribution + '</div>'
       + '<div class="rw-review-actions"><button type="submit" class="ui primary button" data-review-save' + disabled + '>Save review decision</button><button type="button" class="ui basic button" data-review-history aria-expanded="false">Show version history</button></div></form>'
       + '<div class="rw-review-history-panel" data-review-history-list hidden></div></section>'
-      + '<section class="rw-review-section" data-review-section-panel="notes" aria-labelledby="review-notes-heading" hidden><div data-note-host></div></section>'
-      + '<section class="rw-review-section rw-anchor-panel" data-review-section-panel="anchors" aria-labelledby="review-anchors-heading" hidden><div class="rw-review-section__heading"><div><h4 id="review-anchors-heading">PDF anchors</h4><p>Select text in the document reader, then save a named anchor for this review context.</p></div></div><div data-anchor-candidate></div><div data-anchor-list></div></section></div></section>';
+      + '<section id="review-panel-notes" class="rw-review-section" role="tabpanel" data-review-section-panel="notes" aria-labelledby="review-tab-notes" hidden><div data-note-host></div></section>'
+      + '<section id="review-panel-anchors" class="rw-review-section rw-anchor-panel" role="tabpanel" data-review-section-panel="anchors" aria-labelledby="review-tab-anchors" hidden><div class="rw-review-section__heading"><div><h4 id="review-anchors-heading">PDF anchors</h4><p>Select text in the document reader, then save a named anchor for this review context.</p></div></div><div data-anchor-candidate></div><div data-anchor-list></div></section></div></section>';
     const sectionButtons = Array.from(host.querySelectorAll('[data-review-section]'));
     const sectionPanels = Array.from(host.querySelectorAll('[data-review-section-panel]'));
     /** Switches visible review content without hiding its section identity or state. */
@@ -166,11 +166,25 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
       sectionButtons.forEach(function(button) {
         const active = button.dataset.reviewSection === name;
         button.classList.toggle('active', active);
-        button.setAttribute('aria-pressed', String(active));
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
       });
       sectionPanels.forEach(function(panel) { panel.hidden = panel.dataset.reviewSectionPanel !== name; });
     };
     sectionButtons.forEach(function(button) { button.addEventListener('click', function() { setReviewSection(button.dataset.reviewSection); }); });
+    host.querySelector('.rw-review-nav').addEventListener('keydown', function(event) {
+      const current = sectionButtons.indexOf(document.activeElement);
+      if (current < 0) return;
+      var target = current;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') target = (current + 1) % sectionButtons.length;
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') target = (current - 1 + sectionButtons.length) % sectionButtons.length;
+      else if (event.key === 'Home') target = 0;
+      else if (event.key === 'End') target = sectionButtons.length - 1;
+      else return;
+      event.preventDefault();
+      setReviewSection(sectionButtons[target].dataset.reviewSection);
+      sectionButtons[target].focus();
+    });
     const statusSelect = host.querySelector('[data-review-status]');
     const substatusField = host.querySelector('[data-review-substatuses]');
     /** Enables sub-status choices only for the two compatible terminal statuses. */
@@ -189,13 +203,22 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
       saveButton.disabled = true;
       saveButton.classList.add('loading');
       try {
-        await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, 'PUT', {
+        const saved = await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, 'PUT', {
           expected_version_id: version?.id || null,
           status: statusSelect.value,
           sub_statuses: Array.from(substatusField.querySelectorAll('input:checked')).map(function(input) { return input.value; }),
           reason: reasonText || null,
         });
         await renderReview();
+        if (saved.changed && onAuditChange) {
+          try {
+            await onAuditChange();
+          } catch (error) {
+            const currentMessage = host.querySelector('[data-review-message]');
+            currentMessage.className = 'ui warning message rw-review-feedback';
+            currentMessage.innerHTML = '<span class="header">Decision saved</span>The audit display could not be refreshed. Reload the article to see the persisted event.';
+          }
+        }
       } catch (error) {
         message.className = 'ui error message rw-review-feedback';
         message.innerHTML = '<span class="header">Review was not saved</span>' + esc(error instanceof APIError && error.status === 409 ? 'A newer version exists. Your input is preserved; inspect version history before retrying.' : error.message);
@@ -283,8 +306,8 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
     const activeAnchors = data.anchors || [];
     target.innerHTML = activeAnchors.length ? '<ul class="rw-anchor-list">' + activeAnchors.map(function(anchor) {
       const mismatch = anchor.version.pdf_content_hash !== detailData.pdf_status?.content_hash;
-      return '<li data-anchor-id="' + esc(anchor.id) + '"><div class="rw-anchor-card__meta"><div><span class="ui label">' + esc(anchor.id) + '</span><span class="ui label">Page ' + anchor.version.page + '</span>' + (anchor.inherited_from_context_id ? '<span class="ui blue label">Inherited</span>' : '<span class="ui label">This context</span>') + '</div><span class="ui ' + (mismatch ? 'red' : 'green') + ' label">' + (mismatch ? 'PDF changed' : 'Available') + '</span></div>'
-        + '<blockquote>' + esc(anchor.version.selected_text || '') + '</blockquote><div class="rw-anchor-card__actions"><button type="button" class="ui primary button" data-anchor-page="' + anchor.version.page + '" aria-label="Open anchor ' + esc(anchor.id) + ' on PDF page ' + anchor.version.page + '">Open page ' + anchor.version.page + '</button><button type="button" class="ui basic button" data-anchor-history>History</button><button type="button" class="ui basic button" data-anchor-delete' + (reviewEditable ? '' : ' disabled') + '>Remove</button></div></li>';
+      return '<li data-anchor-id="' + esc(anchor.id) + '"><div class="rw-anchor-card__meta"><div><span class="ui label">' + esc(anchor.id) + '</span><span class="ui label">Page ' + anchor.version.page + '</span>' + (anchor.inherited_from_context_id ? '<span class="ui violet label">Inherited</span>' : '<span class="ui neutral label">This context</span>') + '</div><span class="ui ' + (mismatch ? 'red' : 'green') + ' label">' + (mismatch ? 'PDF changed' : 'Available') + '</span></div>'
+        + '<blockquote>' + esc(anchor.version.selected_text || '') + '</blockquote><div class="rw-anchor-card__actions"><button type="button" class="ui primary button" data-anchor-page="' + anchor.version.page + '" aria-label="Open anchor ' + esc(anchor.id) + ' on PDF page ' + anchor.version.page + '">Open page ' + anchor.version.page + '</button><button type="button" class="ui basic button" data-anchor-history>History</button><button type="button" class="ui danger button" data-anchor-delete' + (reviewEditable ? '' : ' disabled') + '>Remove</button></div></li>';
     }).join('') + '</ul>' : '<p class="ui faded text">No active anchors. Select PDF text to add one, or use this keyboard-operable list to revisit existing anchors.</p>';
     pdfController?.setAnchors(activeAnchors.filter(function(anchor) { return anchor.version.pdf_content_hash === detailData.pdf_status?.content_hash; }));
     for (const anchor of activeAnchors) {

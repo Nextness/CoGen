@@ -50,6 +50,20 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 		t.Fatalf("save review: status=%d body=%v", status, saved)
 	}
 	reviewVersionID := int64(saved["review"].(map[string]any)["version"].(map[string]any)["id"].(float64))
+	status, articleDetail := requestJSON(t, handler, fmt.Sprintf("/api/articles/%d", fixture.revisionID))
+	if status != http.StatusOK {
+		t.Fatalf("article detail after review: status=%d body=%v", status, articleDetail)
+	}
+	foundReviewAudit := false
+	for _, raw := range articleDetail["audit_events"].([]any) {
+		if raw.(map[string]any)["action"] == "work_review_version_created" {
+			foundReviewAudit = true
+			break
+		}
+	}
+	if !foundReviewAudit {
+		t.Fatalf("article audit events omitted saved review decision: %v", articleDetail["audit_events"])
+	}
 	status, unchangedReview := mutationJSON(t, handler, http.MethodPut, fmt.Sprintf("/api/runs/%d/articles/%d/review", fixture.runID, fixture.revisionID), fmt.Sprintf(`{"expected_version_id":%d,"status":"approved","sub_statuses":[],"reason":"Relevant"}`, reviewVersionID), "")
 	if status != http.StatusOK || unchangedReview["changed"] != false {
 		t.Fatalf("unchanged review: status=%d body=%v", status, unchangedReview)

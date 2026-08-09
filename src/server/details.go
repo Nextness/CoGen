@@ -13,6 +13,11 @@ const articleWorkRunRevisionIDsSQL = `SELECT CAST(id AS TEXT)
 	FROM work_revisions
 	WHERE work_id=? AND pipeline_run_id=?`
 
+const articleWorkRunReviewVersionIDsSQL = `SELECT CAST(review.id AS TEXT)
+	FROM work_review_versions review
+	JOIN work_revisions revision ON revision.id=review.work_revision_id
+	WHERE review.work_id=? AND revision.pipeline_run_id=?`
+
 // articleDetail treats the numeric route identifier as an immutable work
 // revision ID. It intentionally does not expose the retired mutable articles
 // projection.
@@ -76,7 +81,10 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	audit, err := s.auditRows(ctx, `(entity_type='work_revision' AND entity_id IN (`+articleWorkRunRevisionIDsSQL+`))
 		OR (entity_type='work' AND entity_id=? AND (
 			pipeline_run_id=? OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%')
-		))`, workID, runID, stringID(workID), runID)
+		))
+		OR (entity_type='work_review_version' AND pipeline_run_id=?
+			AND entity_id IN (`+articleWorkRunReviewVersionIDsSQL+`))`,
+		workID, runID, stringID(workID), runID, runID, workID, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -103,12 +111,24 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enriched_fields": enrichedFields, "pdf_status": pdfStatus, "review_context": reviewContext, "review_context_initialized": reviewContext != nil}, nil)
 }
 
-// authorDetail returns one author occurrence with its articles and audit evidence.
+// authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates.
 func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 	id, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
+	}
+	if err := validateKnownQuery(r, "run_id"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	var runID int64
+	if raw := r.URL.Query().Get("run_id"); raw != "" {
+		runID, err = positiveID(raw)
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
@@ -133,7 +153,26 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	s.respond(w, r, map[string]any{"author": author, "articles": articles, "audit_events": audit}, nil)
+	identityEvidence := []map[string]any{}
+	if runID > 0 && s.tableHasColumns("author_identity_resolutions", "pipeline_run_id", "author_occurrence_id", "status") && s.tableHasColumns("author_identity_candidates", "identity_resolution_id", "candidate_orcid") {
+		query := `SELECT r.id AS resolution_id, r.pipeline_run_id, r.status, r.provider, r.queried_citation_name,
+			r.error_message, r.resolved_at, COUNT(c.id) AS candidate_count
+			FROM author_identity_resolutions r LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id
+			WHERE r.author_occurrence_id=?`
+		args := []any{id}
+		query += " AND r.pipeline_run_id=?"
+		args = append(args, runID)
+		query += " GROUP BY r.id ORDER BY r.resolved_at DESC, r.id DESC"
+		identityEvidence, err = s.rows(ctx, query, args...)
+		if err == nil {
+			err = s.attachIdentityCandidates(ctx, identityEvidence)
+		}
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+	}
+	s.respond(w, r, map[string]any{"author": author, "articles": articles, "audit_events": audit, "identity_evidence": identityEvidence}, nil)
 }
 
 // referenceDetail returns one reference mention with its citing and resolved-work context.

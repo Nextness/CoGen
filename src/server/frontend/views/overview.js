@@ -1,7 +1,7 @@
 // Overview: retention funnel, metrics, coverage, breakdowns.
-import { app, esc, value, link, formatNumber, formatTime, statusChip, metricEntries, metricCard, pageHeader, emptyState, panel, table, retentionFlow, breakdown, sourceResultCountSummary, sourceSearchQueries, selectedRun, list, bindCopyButtons, humanLabel } from '../state.js';
+import { app, esc, value, link, formatNumber, formatTime, formatDuration, statusChip, metricEntries, metricCard, pageHeader, emptyState, panel, table, retentionFlow, breakdown, sourceResultCountSummary, sourceSearchQueries, selectedRun, list, bindCopyButtons, humanLabel } from '../state.js';
 import { api } from '../api.js';
-import { bindFocusContext, render } from '../router.js';
+import { bindFocusContext } from '../router.js';
 
 /** Returns a normalization metric value or its unavailable presentation. */
 function normalizationValue(metric) {
@@ -99,13 +99,14 @@ export async function overviewView() {
     ['Internal citations', relationship.internal_citations, link({ view: 'relationships', mode: 'citation' })],
   ];
 
-  const runIdentity = '<dl class="property-grid">'
-    + '<div><dt>Run attempt</dt><dd>' + esc(run.id || value('run_id')) + '</dd></div>'
-    + '<div><dt>Outcome</dt><dd>' + statusChip(run.status) + '</dd></div>'
+  const runIdentity = '<dl class="rw-run-identity" aria-label="Run identity">'
+    + '<div><dt>Run attempt</dt><dd>' + esc(run.attempt_number || run.id || value('run_id')) + '</dd></div>'
     + '<div><dt>Started</dt><dd>' + esc(formatTime(run.started_at)) + '</dd></div>'
     + '<div><dt>Finished</dt><dd>' + esc(formatTime(run.finished_at)) + '</dd></div>'
+    + '<div><dt>Duration</dt><dd>' + esc(formatDuration(run.started_at, run.finished_at)) + '</dd></div>'
     + '<div><dt>Execution plan</dt><dd>' + esc(run.execution_plan_id || value('plan_id') || '—') + '</dd></div>'
-    + '<div><dt>Visibility</dt><dd>' + esc(run.visibility_state || 'visible') + '</dd></div>'
+    + '<div><dt>Outcome</dt><dd>' + statusChip(run.status) + '</dd></div>'
+    + '<div><dt>Visibility</dt><dd>' + statusChip(run.visibility_state || 'active') + '</dd></div>'
     + '</dl>';
 
   const coverage = metricEntries(overview.current_coverage || {});
@@ -129,30 +130,6 @@ export async function overviewView() {
     return { field: label, ...(normalizationFields[field] || {}) };
   });
 
-  var enrichedFieldsHtml;
-  var enrichedFieldsData = metricEntries(overview.enrichment_field_breakdown || {});
-  if (enrichedFieldsData.length) {
-    enrichedFieldsHtml = '<div class="ui statistics">'
-      + enrichedFieldsData.map(function([name, metric]) {
-        return metricCard(name, metric);
-      }).join('')
-      + '</div>';
-  } else {
-    enrichedFieldsHtml = '<p class="empty">Not recorded for this run.</p>';
-  }
-
-  var providerHtml;
-  var providerData = metricEntries(overview.enrichment_provider_breakdown || {});
-  if (providerData.length) {
-    providerHtml = '<div class="ui statistics">'
-      + providerData.map(function([name, metric]) {
-        return metricCard(name + ' enriched fields', metric);
-      }).join('')
-      + '</div>';
-  } else {
-    providerHtml = '<p class="empty">Not recorded for this run.</p>';
-  }
-
   var cacheUses;
   if (cache) {
     cacheUses = cache.pagination?.total_rows ?? list(cache, ['cache_uses']).length;
@@ -160,28 +137,29 @@ export async function overviewView() {
     cacheUses = 0;
   }
 
-  app.innerHTML = pageHeader('Selected historical run', 'Overview', 'Recorded execution evidence and current coverage are shown separately to preserve their meaning.')
+  const capturedMetrics = '<details class="rw-disclosure rw-overview-evidence span-all"><summary><span>All recorded execution metrics</span>'
+    + '<small>' + formatNumber(captured.length) + ' metric rows grouped by stage</small></summary><div class="rw-disclosure__content">'
+    + '<div class="rw-captured-evidence-intro"><h3>Captured during execution</h3><p>Values recorded while each pipeline stage ran. Missing evidence is not treated as zero.</p></div>'
+    + capturedMetricsMarkup(captured)
+    + '</div></details>';
+
+  app.innerHTML = pageHeader('', 'Overview', 'Recorded execution evidence and current coverage are shown separately to preserve their meaning.')
     + '<div class="ui grid dashboard-grid">'
-    + panel('Run identity', 'This is a captured attempt, not a live pipeline.', runIdentity, 'span-all rw-panel--no-separator')
+    + '<section class="rw-run-identity-strip span-all">' + runIdentity + '</section>'
     + retentionFlow(overview)
     + sourceResultCountSummary(overview.source_result_counts, 'span-all')
     + sourceSearchQueries(overview.source_result_counts, 'span-all')
-+ panel('Corpus summary', 'Immutable records available for this selected run.',
+    + panel('Corpus summary', 'Immutable records available for this selected run.',
         '<div class="ui statistics">' + corpusCards.map(function([name, metric, href]) {
           return metricCard(name, metric, href);
         }).join('') + '</div>')
     + panel('Current data coverage', 'Derived from stored run data, not necessarily captured when the run completed.',
         '<div class="ui statistics">' + (coverage.map(function([name, metric]) {
           return metricCard(name, metric);
-        }).join('') || '<p class="ui faded text">No derived coverage is available.</p>') + '</div>')
-    + '<details class="rw-disclosure rw-overview-evidence span-all"><summary><span>All recorded execution metrics</span>'
-    + '<small>' + formatNumber(captured.length) + ' metric rows grouped by stage</small></summary><div class="rw-disclosure__content">'
-    + '<div class="rw-captured-evidence-intro"><h3>Captured during execution</h3><p>Values recorded while each pipeline stage ran. Missing evidence is not treated as zero.</p></div>'
-    + capturedMetricsMarkup(captured)
-    + '</div></details>'
+        }).join('') || '<p class="ui faded text">Not recorded for this run.</p>') + '</div>')
     + breakdown('Enrichment activity', overview.enrichment_breakdown)
-    + panel('Enriched fields', 'Fields enriched by provider data during this run.', enrichedFieldsHtml)
-    + panel('Enrichment by provider', 'Provider responses that enriched article metadata during this run.', providerHtml)
+    + breakdown('Enriched fields', overview.enrichment_field_breakdown)
+    + breakdown('Enrichment by provider', overview.enrichment_provider_breakdown)
     + breakdown('Validation activity', overview.validation_breakdown)
     + panel('Normalization activity', 'Every valid article is processed. Field checks are mutually exclusive: changed, already canonical, or unavailable. Journal canonical forms are stored in revision metadata.',
         '<div class="ui statistics">' + normalizationCards.map(function([name, metric]) {
@@ -199,30 +177,8 @@ export async function overviewView() {
     + panel('Cache-use explanation', 'A cache hit means a recorded provider response or completed computation was reused with provenance.',
         '<div class="metric-grid">' + metricCard('Recorded cache uses', { value: cacheUses }) + '</div>'
         + '<p class="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>')
+    + capturedMetrics
     + '</div>';
 
   bindCopyButtons();
-
-  // Retention flow click-through: navigate to the relevant Corpus section.
-  // Filter stages (prefixed with "filter_") are informational and not clickable.
-  document.querySelectorAll('[data-flow-stage]').forEach(function(stage) {
-    var stageKey = stage.dataset.flowStage;
-    if (stageKey.indexOf('filter_') === 0) {
-      return;
-    }
-    stage.addEventListener('click', function() {
-      var url;
-      if (stageKey === 'input_records' || stageKey === 'parsed_articles') {
-        url = link({ view: 'corpus', section: 'sources' });
-      } else if (stageKey === 'valid_articles') {
-        url = link({ view: 'corpus', section: 'articles' });
-      } else if (stageKey === 'discarded_articles') {
-        url = link({ view: 'corpus', section: 'articles', validation: 'discarded' });
-      } else {
-        url = link({ view: 'corpus', section: 'articles' });
-      }
-      history.pushState({}, '', url);
-      render();
-    });
-  });
 }

@@ -1,6 +1,5 @@
-// server_integration_test.go tests server-level endpoints: health,
-// searches, plans, runs, frontend asset serving, and the read-only
-// database connection.
+// server_integration_test.go tests server-level endpoints, frontend asset
+// serving, the read-only query connection, and bounded local mutations.
 //
 //go:build integration
 
@@ -75,16 +74,21 @@ func TestEmbeddedFrontendResearchWorkspaceContract(t *testing.T) {
 	handler := viewer.Handler()
 	index := viewerRequest(t, handler, "/")
 	for _, expected := range []string{
-		"Overview", "Corpus", "Relationships", "Provenance", "Evaluation", "Advanced", "Trash",
-		"Research context", "Search revision", "Execution plan", "Run attempt", "Local review",
+		"Overview", "Corpus", "Relationships", "Provenance", "Evaluation", "Advanced",
+		"Research context", "Search revision", "Execution plan", "Run attempt", "Local review", "workspace-breadcrumb",
 	} {
 		if !strings.Contains(index.Body.String(), expected) {
 			t.Errorf("embedded index is missing %q", expected)
 		}
 	}
+	if strings.Contains(index.Body.String(), `data-view-link="trash"`) {
+		t.Error("embedded index still exposes Trash as a Deepdive tab")
+	}
 	for _, check := range []struct {
 		path, needle string
 	}{
+		{"/views/home.js", "Workspace history"},
+		{"/views/home.js", "Move to trash"},
 		{"/router.js", "AbortController"},
 		{"/views/overview.js", "Captured during execution"},
 		{"/views/overview.js", "Derived from stored run data"},

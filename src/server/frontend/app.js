@@ -1,7 +1,7 @@
 // Entry point: imports modules, sets up event listeners, kicks off initial render.
 import { bindDismissibleMessages, bindLoadingButtons } from './state.js';
 import { render, setURL } from './router.js';
-import { selects, clearContext } from './components/context-selector.js';
+import { selects } from './components/context-selector.js';
 import { initHealthCheck, initMobileNavToggle } from './components/shell.js';
 
 selects.search.addEventListener('change', function(event) {
@@ -18,10 +18,6 @@ selects.plan.addEventListener('change', function(event) {
 
 selects.run.addEventListener('change', function(event) {
   setURL({ run_id: event.target.value }, false);
-});
-
-clearContext.addEventListener('click', function() {
-  setURL({ search_id: '', search_revision_id: '', plan_id: '', run_id: '' }, false);
 });
 
 document.addEventListener('click', function(event) {

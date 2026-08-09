@@ -10,7 +10,7 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; review contexts append immutable status, note, link, and anchor versions through a separate metadata write connection while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA embedded in the Go binary by default; `--assets-dir` changes only the frontend asset source for development.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA embedded in the Go binary by default; `--assets-dir` changes only the frontend asset source for development.
 
 The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, vanilla JavaScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, and esbuild. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
@@ -45,7 +45,7 @@ Source exports + SOMETHING configuration
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
 | `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
-| `src/server/` | Existing-only metadata read and review-write connections, bounded APIs, details, audit, artifact access, read-only PDF delivery, and embedded assets. |
+| `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and embedded assets. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
 | `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
 | `src/tools/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
@@ -95,7 +95,7 @@ The internal production import direction is intentionally narrow: foundation pac
 
 SQLite is the sole persisted pipeline record. Immutable `work_revisions`, ordered `authorships`, and ordered `reference_mentions` are the canonical corpus representation. `run_work_stages` records per-run, per-work outcomes independently from revision rows, so rejected work remains inspectable even though only valid normalized revisions enter the analysis-ready corpus.
 
-Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; global cache identity and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only review-write mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
+Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; global cache identity and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only bounded-mutation mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
 
 ## 5. Executable boundaries
 
@@ -103,7 +103,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 `build/analysis migrate --db <metadata.db>` opens an existing metadata database and applies the configured metadata migration chain without running a workspace. It does not create a missing database.
 
-`build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and review-write connections, verifies required append-only review triggers, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
+`build/analysis serve` accepts `--db`, `--addr`, and `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and bounded-mutation connections, verifies required append-only review triggers, serves embedded assets unless a directory is supplied, and applies conservative HTTP timeouts.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`, appending `-development` when the compile-time `dev.Mode` constant marks a development build.
 
@@ -305,14 +305,15 @@ pdf_audit_outbox row ---- flush ----> audit_events row
 
 ## 14. Viewer backend and protocol
 
-`server.Open` rejects empty, missing, and directory paths; opens metadata SQLite using `mode=ro` and `query_only` for browsing; opens the same existing file with a single `mode=rw` connection for review repositories; verifies the review schema and its protection triggers without migrating; discovers non-system tables and columns; and optionally opens the bound PDF store read-only after path and schema validation. Startup closes every opened connection if a later validation step fails.
+`server.Open` rejects empty, missing, and directory paths; opens metadata SQLite using `mode=ro` and `query_only` for browsing; opens the same existing file with a single `mode=rw` connection for bounded review and lifecycle transactions; verifies the review schema and its protection triggers without migrating; discovers non-system tables and columns; and optionally opens the bound PDF store read-only after path and schema validation. Startup closes every opened connection if a later validation step fails.
 
-The server accepts GET and HEAD for evidence reads and narrowly routed POST and PUT review mutations. Mutations require JSON content type, reject unknown fields and trailing values, cap request bodies, enforce same-origin requests when `Origin` is present, return structured status and conflict codes, and use no-store caching. Collection inputs and response sizes are bounded, table and sort identifiers are validated against discovered schema, artifact and PDF downloads use conservative headers, and API request contexts time out after five seconds. HTTP server timeouts are five seconds for headers, ten seconds for reads, fifteen seconds for writes, and thirty seconds idle. The server rejects Host authorities that differ from its exact loopback listener to limit rebinding attacks.
+The server accepts GET and HEAD for evidence reads and narrowly routed POST and PUT review or lifecycle mutations. Mutations require JSON content type, reject unknown fields and trailing values, cap request bodies, enforce same-origin requests when `Origin` is present, return structured status and conflict codes, and use no-store caching. Collection inputs and response sizes are bounded, table and sort identifiers are validated against discovered schema, artifact and PDF downloads use conservative headers, and API request contexts time out after five seconds. HTTP server timeouts are five seconds for headers, ten seconds for reads, fifteen seconds for writes, and thirty seconds idle. The server rejects Host authorities that differ from its exact loopback listener to limit rebinding attacks.
 
 | Route | Responsibility and bounds |
 |---|---|
 | `/api/health` | Reports database health, review capability, and the opaque corpus ID used to namespace browser drafts. |
 | `/api/searches`, `/api/plans`, `/api/runs` | Resolves hierarchical research context. |
+| `/api/runs/{id}/visibility` | Moves a terminal attempt between `active` and `trashed` in one transaction and appends the corresponding lifecycle audit event. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
 | `/api/runs/{id}/audit`, `/api/audit` | Returns bounded cursor audit pages, facets, and supported filters. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists, previews a bounded text prefix, or downloads stored artifacts. |
@@ -324,14 +325,14 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/runs/{id}/articles/{revision}/notes`, `/api/runs/{id}/notes/{note}`, `/api/runs/{id}/notes/{note}/versions` | Creates, reads, edits, tombstones, restores, and lists bounded immutable note versions and resolved links. |
 | `/api/runs/{id}/articles/{revision}/anchors`, `/api/runs/{id}/anchors/{anchor}/versions`, `/api/runs/{id}/review-backlinks` | Creates and reads bounded PDF anchors, tombstones, ancestry, and current-version backlinks. |
 | `/api/tables`, `/api/tables/{table}` | Discovers tables and browses an allowlisted schema with bounded page sizes. |
-| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance. |
+| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance; author detail includes bounded run-scoped identity candidates when `run_id` is supplied. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
 | `/api/trash` | Returns read-only trashed-run and restore history. |
 
 Run-scoped articles contain valid normalize-stage revisions. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
 
-Audit supports run, category, action, actor, entity, and correlation filters. Categories are pipeline, enrichment, validation, and PDF. Artifact preview defaults to 64 KiB and caps at 256 KiB; only recognized text, JSON, and SOMETHING media are previewed.
+Audit supports run context, text search, category, action, actor, entity, stage, and outcome filters. Categories accepted by the server are pipeline, enrichment, validation, and PDF; review actions have their own visual classification and remain filterable by action. The frontend presents date-grouped timeline cards and cursor-based loading without discarding already-loaded evidence. Artifact preview defaults to 64 KiB and caps at 256 KiB; only recognized text, JSON, and SOMETHING media are previewed.
 
 Graph modes are `research_network`, `article_author`, `citation`, and `article_reference`. The endpoint caps article nodes at 2,000, related nodes at 10,000, and edges at 20,000, and reports truncation and its reason.
 
@@ -344,7 +345,7 @@ browser POST/PUT -> transport and context validation -> PDF availability read ->
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module SPA. `index.html` owns the accessible shell, primary navigation, hierarchical selectors, status, loading, notice, and content regions. `app.js` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
+The frontend is a framework-free native ES-module SPA. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.js` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
 
 The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
 
@@ -370,12 +371,12 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 
 | Path | Responsibility |
 |---|---|
-| `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
+| `index.html` | Persistent header, breadcrumb, Deepdive navigation, searchable context selectors, status, loading, notice, and app mount point. |
 | `app.js` | Global event binding, history interception, shell initialization, and first render. |
 | `state.js` | URL values, DOM state, escaping, formatting, shared panels, tables, flows, links, statuses, and global UI behavior. |
 | `api.js` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
 | `router.js` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
-| `components/context-selector.js` | Dependent selector hydration, skeletons, clear controls, auto-selection, and summary. |
+| `components/context-selector.js` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
 | `components/data-table.js` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.js` | First, Previous, numbered, Next, and Last controls plus result ranges. |
 | `components/audit-events.js` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
@@ -385,7 +386,8 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `components/note-editor.js` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
 | `components/pdf-viewer.js` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
 | `components/review-panel.js` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
-| `views/*.js` | Page-level fetching, rendering, and post-render binding. |
+| `views/home.js` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
+| `views/*.js` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, headers, loaders, and segments. |
@@ -405,13 +407,13 @@ app.js
   |     +-- context-selector.js --+-- state.js
   |     |                         +-- api.js -> state.js
   |     |                         +-- router.js
+  |     +-- home.js --------------+-- state.js, api.js, router.js
   |     +-- overview.js ----------+-- state.js, api.js, router.js
   |     +-- corpus.js ------------+-- state.js, api.js, data-table.js, pagination.js
   |     +-- relationships.js -----+-- state.js, api.js, graph.js, router.js
   |     +-- provenance.js --------+-- state.js, api.js, data-table.js, router.js
   |     +-- evaluation.js --------+-- state.js, api.js, data-table.js, router.js
   |     +-- advanced.js ----------+-- state.js, api.js, data-table.js, router.js
-  |     +-- trash.js -------------+-- state.js, api.js
   |     +-- detail.js ------------+-- state.js, api.js, pagination.js, review-panel.js
   +-- api.js
   +-- context-selector.js
@@ -425,7 +427,7 @@ note-editor.js -> api.js, state.js, note-parser.js
 
 `state.js` is the shared leaf and imports no project module. Components do not import views. `router.js` and `context-selector.js` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
 
-Overview separates captured execution metrics from current derived coverage. Corpus covers articles, authors, references, source records, and identity evidence. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides complete status history, note and link versions, an embedded custom PDF reader, and content-hash-bound anchors. Advanced exposes discovered tables. Trash exposes read-only lifecycle history. Detail views remain within Corpus navigation.
+Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, and content-hash-bound anchors; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 
 The graph uses the generated checked-in D3-force bundle without a CDN. Canvas rendering is supplemental to DOM controls, legend, cluster overview, search, selection details, paginated edge table, fit, zoom, drag, expansion, and PNG export. Shape encodes entity type and color encodes connected component.
 
@@ -443,7 +445,7 @@ Current test counts are derived from source rather than maintained in prose. The
 
 ## 17. Security and data-integrity boundaries
 
-The viewer has no authentication or authorization, so writable serving requires an exact loopback IP listener and exact Host authority. It writes only append-only review evidence and mutable context heads in existing migrated metadata, keeps pipeline evidence and the PDF companion read-only, validates bounded inputs and origins, escapes frontend and note content, and makes no production CDN request.
+The viewer has no authentication or authorization, so writable serving requires an exact loopback IP listener and exact Host authority. It writes append-only review evidence, mutable review heads, and audited reversible run visibility in existing migrated metadata, keeps all other pipeline evidence and the PDF companion read-only, validates bounded inputs and origins, escapes frontend and note content, and makes no production CDN request.
 
 Provider requests use configured timeouts, retries, rate limits, controlled headers, and payload validation. Credentials and sensitive environment values are not stored in documentation or emitted deliberately through logs. Routine provider tests use controlled mock servers, while `make test-e2e-live E2E_LIVE=1` is the only explicit test exception and uses a bounded public corpus with structural assertions.
 
@@ -492,7 +494,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
-- Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a review mutation only through the existing transport guards, PDF availability boundary, repository transaction, optimistic head compare-and-swap, immutable version model, and identifier-only audit metadata.
+- Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow repository transaction, required state checks, and identifier-only audit metadata; review mutations additionally preserve the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
 - Add a frontend view by preserving URL context, registering router dispatch and primary navigation, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.

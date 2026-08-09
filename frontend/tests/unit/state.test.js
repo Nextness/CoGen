@@ -7,8 +7,8 @@ import './setup.js';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
   params, value, view, section, esc, asJSON, list, pickID, text, number, formatNumber,
-  percent, formatTime, formatBytes, humanLabel, parseObject, statusClass, statusChip, metricEntries, selectedRun, showError,
-  clearError, busy, link, pageHeader, breadcrumb, emptyState, panel, table, subnav,
+  percent, formatTime, formatDuration, formatBytes, humanLabel, parseObject, statusClass, statusChip, metricEntries, selectedRun, showError,
+  clearError, busy, link, pageHeader, breadcrumb, setBreadcrumb, emptyState, panel, table, subnav,
   filterChips, metricCard, flowStage, retentionFlow, breakdown, sourceResultCountSummary, timeline,
   detailTable, cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
 } from '../../../src/server/frontend/state.js';
@@ -83,8 +83,14 @@ describe('state.js — params / value / view / section', function() {
     assert.equal(value('nonexistent'), '');
   });
 
-  it('view returns the current view or overview default', function() {
+  it('view returns the current view or Home default', function() {
     assert.equal(view(), 'overview');
+    const url = new URL(location.href);
+    url.searchParams.delete('view');
+    history.pushState({}, '', url.toString());
+    assert.equal(view(), 'home');
+    url.searchParams.set('view', 'overview');
+    history.pushState({}, '', url.toString());
   });
 
   it('section returns the named parameter or fallback', function() {
@@ -289,11 +295,25 @@ describe('state.js — formatTime', function() {
 
 });
 
+describe('state.js — formatDuration', function() {
+
+  it('formats recorded elapsed time', function() {
+    assert.equal(formatDuration('2024-01-01T00:00:00Z', '2024-01-01T01:02:03Z'), '1h 2m 3s');
+  });
+
+  it('rejects missing, invalid, or reversed timestamps', function() {
+    assert.equal(formatDuration('', '2024-01-01T00:00:00Z'), '—');
+    assert.equal(formatDuration('invalid', '2024-01-01T00:00:00Z'), '—');
+    assert.equal(formatDuration('2024-01-02T00:00:00Z', '2024-01-01T00:00:00Z'), '—');
+  });
+
+});
+
 describe('state.js — display helpers', function() {
 
   it('formats byte counts without treating kilobytes as decimal units', function() {
     assert.equal(formatBytes(512), '512 B');
-    assert.ok(formatBytes(1536).includes('1.5 KB'));
+    assert.ok(formatBytes(1536).includes('1,5 KB'));
   });
 
   it('turns stored field names into readable labels', function() {
@@ -343,15 +363,18 @@ describe('state.js — statusClass', function() {
     assert.equal(statusClass('stale'), 'orange');
     assert.equal(statusClass('unresolved'), 'orange');
     assert.equal(statusClass('unmatched'), 'orange');
-    assert.equal(statusClass('no_orcid_candidate'), 'orange');
+    assert.equal(statusClass('orcid_is_unclear'), 'orange');
   });
 
-  it('returns blue for informational and unrecorded statuses', function() {
+  it('returns blue for informational statuses and neutral for unrecorded values', function() {
     assert.equal(statusClass('pending'), 'blue');
     assert.equal(statusClass('running'), 'blue');
     assert.equal(statusClass('recorded'), 'blue');
-    assert.equal(statusClass(''), 'blue');
-    assert.equal(statusClass(null), 'blue');
+    assert.equal(statusClass(''), 'grey');
+    assert.equal(statusClass(null), 'grey');
+    assert.equal(statusClass('not_available'), 'orange');
+    assert.equal(statusClass('no_orcid_candidate'), 'grey');
+    assert.equal(statusClass('inherited'), 'violet');
   });
 
 });
@@ -459,20 +482,24 @@ describe('state.js — link', function() {
     assert.ok(result.includes('section=articles'));
   });
 
-  it('removes keys with empty values but keeps view default', function() {
+  it('removes keys with empty values but keeps the Home default', function() {
     const result = link({ view: '' });
-    // link() always ensures view is set (defaults to 'overview')
-    assert.ok(result.includes('view=overview'));
+    assert.ok(result.includes('view=home'));
   });
 
-  it('removes keys with null values but keeps view default', function() {
+  it('removes keys with null values but keeps the Home default', function() {
     const result = link({ view: null });
-    assert.ok(result.includes('view=overview'));
+    assert.ok(result.includes('view=home'));
   });
 
-  it('ensures view defaults to overview', function() {
+  it('ensures view defaults to Home', function() {
+    const url = new URL(location.href);
+    url.searchParams.delete('view');
+    history.pushState({}, '', url.toString());
     const result = link({ section: 'articles' });
-    assert.ok(result.includes('view=overview'));
+    assert.ok(result.includes('view=home'));
+    url.searchParams.set('view', 'overview');
+    history.pushState({}, '', url.toString());
   });
 
   it('returns empty query for no updates', function() {
@@ -513,35 +540,21 @@ describe('state.js — breadcrumb', function() {
     assert.equal(breadcrumb(), '');
   });
 
-  it('includes search_id when set', function() {
-    state.searches = [{ id: 's1', search_id: 's1' }];
-    const url = new URL(location.href);
-    url.searchParams.set('search_id', 's1');
-    history.pushState({}, '', url.toString());
-
-    const result = breadcrumb();
+  it('renders an explicit ordered page hierarchy', function() {
+    const result = breadcrumb([{ label: 'Home', href: '?view=home' }, { label: 'Deepdive', href: '?view=overview' }, { label: 'Corpus' }]);
     assert.ok(result.includes('ui breadcrumb'));
-    assert.ok(result.includes('s1'));
-
-    url.searchParams.delete('search_id');
-    history.pushState({}, '', url.toString());
-    state.searches = [];
+    assert.ok(result.includes('Home'));
+    assert.ok(result.includes('Deepdive'));
+    assert.ok(result.includes('Corpus'));
+    assert.equal((result.match(/class="divider"/g) || []).length, 2);
   });
 
-  it('uses only the immediate parent and record type for detail context', function() {
-    state.searches = [{ id: 's1', search_id: 'long-search-context' }];
-    const url = new URL(location.href);
-    url.searchParams.set('search_id', 's1');
-    history.pushState({}, '', url.toString());
-
-    const result = breadcrumb({ parentLabel: 'Corpus', parentHref: '?view=corpus', current: 'Article revision' });
-    assert.ok(result.includes('Corpus'));
-    assert.ok(result.includes('Article revision'));
-    assert.ok(!result.includes('long-search-context'));
-
-    url.searchParams.delete('search_id');
-    history.pushState({}, '', url.toString());
-    state.searches = [];
+  it('marks only the final item as the current page and mounts it in the shell', function() {
+    const items = [{ label: 'Home', href: '?view=home' }, { label: 'Article revision' }];
+    const result = breadcrumb(items);
+    assert.equal((result.match(/aria-current="page"/g) || []).length, 1);
+    setBreadcrumb(items);
+    assert.ok(document.querySelector('#workspace-breadcrumb').textContent.includes('Article revision'));
   });
 
 });
@@ -566,7 +579,7 @@ describe('state.js — panel', function() {
 
   it('renders a panel section', function() {
     const result = panel('Title', 'Description', '<p>Body</p>');
-    assert.ok(result.includes('class="ui segment "'));
+    assert.ok(result.includes('class="ui segment rw-panel '));
     assert.ok(result.includes('ui top attached header'));
     assert.ok(result.includes('Title'));
     assert.ok(result.includes('Description'));
@@ -580,7 +593,7 @@ describe('state.js — panel', function() {
 
   it('includes classes when provided', function() {
     const result = panel('T', 'D', '<p>B</p>', 'span-all');
-    assert.ok(result.includes('class="ui segment span-all"'));
+    assert.ok(result.includes('class="ui segment rw-panel span-all"'));
   });
 
 });
@@ -747,23 +760,26 @@ describe('state.js — retentionFlow', function() {
     };
 
     document.body.innerHTML = retentionFlow(overview);
-    assert.equal(document.querySelectorAll('.rw-retention__phase').length, 2);
-    assert.equal(document.querySelectorAll('.rw-flow--source > .rw-flow__group').length, 4);
-    assert.equal(document.querySelectorAll('.rw-flow--pipeline').length, 2);
-    assert.deepEqual(Array.from(document.querySelectorAll('.rw-flow--pipeline .rw-flow__group-label'), function(label) {
+    assert.equal(document.querySelectorAll('.rw-retention__phase').length, 3);
+    assert.deepEqual(Array.from(document.querySelectorAll('.rw-retention__phase-header h4'), function(label) {
       return label.textContent;
-    }), ['Filtered Raw Data', 'Properly Loaded Data', 'Deduplicating Entries', 'Enrichment', 'Validation Outcomes', 'Normalization']);
+    }), ['Source selection', 'Pipeline processing', 'Corpus enrichment']);
+    assert.equal(document.querySelectorAll('.rw-flow--source > .rw-flow__step').length, 4);
+    assert.equal(document.querySelectorAll('.rw-flow--pipeline > .rw-flow__step').length, 3);
+    assert.equal(document.querySelectorAll('.rw-flow--corpus > .rw-flow__step').length, 3);
     assert.match(document.querySelector('.rw-retention__phase--source .ui.label').textContent, /300 initial raw results across 2 sources/);
     assert.equal(document.querySelector('[data-flow-stage="input_records"] .rw-flow__percentage').textContent, '22.67%');
     assert.equal(document.querySelector('[data-flow-stage="parsed_articles"] .rw-flow__percentage').textContent, '20.00%');
     assert.equal(document.querySelector('[data-flow-stage="deduplicated_articles"] .rw-flow__percentage').textContent, '16.67%');
     assert.equal(document.querySelector('[data-flow-stage="enrichment_candidates"] .rw-flow__percentage').textContent, '16.67%');
-    assert.equal(document.querySelector('[data-flow-stage="valid_articles"] .rw-flow__percentage').textContent, '15.00%');
-    assert.equal(document.querySelector('[data-flow-stage="discarded_articles"] .rw-flow__percentage').textContent, '1.67%');
+    assert.equal(document.querySelector('[data-flow-stage="validation_outcomes"] .rw-flow__percentage').textContent, '16.67%');
+    assert.deepEqual(Array.from(document.querySelectorAll('[data-flow-stage="validation_outcomes"] .rw-flow__outcome-values span'), function(item) {
+      return item.textContent;
+    }), ['45 accepted', '5 discarded']);
     assert.equal(document.querySelector('[data-flow-stage="normalized_articles_processed"] .rw-flow__percentage').textContent, '15.00%');
-    document.querySelectorAll('.rw-flow__basis').forEach(function(basis) {
-      assert.match(basis.textContent, /of 300 initial raw results/);
-    });
+    assert.ok(document.querySelector('[data-flow-stage="parsed_articles"] a').href.includes('stage_q=parse'));
+    assert.ok(document.querySelector('[data-flow-stage="input_records"] a').href.includes('section=sources'));
+    assert.equal(document.querySelectorAll('.rw-flow__info').length, 10);
   });
 
 });
@@ -779,8 +795,8 @@ describe('state.js — breakdown', function() {
     const source = { crossref: { value: 100 }, openalex: { value: 50 } };
     const result = breakdown('Sources', source, 'Count');
     assert.ok(result.includes('Sources'));
-    assert.ok(result.includes('crossref'));
-    assert.ok(result.includes('openalex'));
+    assert.ok(result.includes('Crossref'));
+    assert.ok(result.includes('Openalex'));
   });
 
   it('renders with total when useTotal is true', function() {

@@ -30,6 +30,14 @@ describe('note-parser.js', function() {
     assert.ok(html.includes('aria-label="Unresolved link"'));
   });
 
+  it('scopes note headings and tables beneath the review hierarchy', function() {
+    const html = renderNote(parseNote('# Finding\n\n| Field | Value |\n| --- | --- |\n| Status | Valid |'));
+    assert.ok(html.includes('class="rw-note-heading rw-note-heading--1"'));
+    assert.ok(html.includes('role="heading" aria-level="5"'));
+    assert.ok(html.includes('class="ui compact table rw-note-table"'));
+    assert.ok(!html.includes('<h1>'));
+  });
+
   it('matches the shared normalized link and diagnostic fixtures', async function() {
     const fixtures = JSON.parse(await readFile(new URL('../../../../src/notes/testdata/conformance.json', import.meta.url), 'utf8'));
     for (const fixture of fixtures) {

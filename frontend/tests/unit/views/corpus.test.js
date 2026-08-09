@@ -22,7 +22,7 @@ describe('corpus.js — corpusView', function() {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'title'] }] } }); },
+          json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); },
         });
       }
       if (url.includes('/api/runs')) {
@@ -32,8 +32,8 @@ describe('corpus.js — corpusView', function() {
           json: function() {
             return Promise.resolve({
               data: {
-                columns: ['id', 'title'],
-                rows: [{ id: 1, title: 'Test Article' }],
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
+                rows: [{ id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
                 pagination: { page: 1, total_pages: 1, total_rows: 1 },
               },
             });
@@ -55,6 +55,12 @@ describe('corpus.js — corpusView', function() {
 
     await corpusView();
     assert.ok(app.innerHTML.includes('Corpus'));
+    assert.ok(document.querySelector('#corpus-section-select'));
+    assert.equal(document.querySelector('.rw-data-section .ui.tabular.menu'), null);
+    assert.deepEqual(Array.from(document.querySelectorAll('.rw-corpus-table thead th'), function(cell) { return cell.textContent.trim(); }).filter(Boolean), [
+      'DOI', 'Title', 'Year', 'Journal', 'Source'
+    ]);
+    assert.ok(!app.innerHTML.includes('<th scope="col" class="col-id"'));
 
     globalThis.fetch = originalFetch;
     state.tables = [];
@@ -62,6 +68,48 @@ describe('corpus.js — corpusView', function() {
     url.searchParams.delete('section');
     url.searchParams.delete('view');
     history.pushState({}, '', url.toString());
+  });
+
+  it('keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function(url) {
+      if (url.includes('/api/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'author_identity_resolutions', columns: ['id', 'status'] }] } }); } });
+      }
+      if (url.includes('/identity-evidence')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: function() {
+            return Promise.resolve({ data: {
+              stats: { resolutions: 2, unclear: 1, provider_failed: 0, candidates: 1 },
+              rows: [
+                { id: 1, author_occurrence_id: 5, status: 'no_orcid_candidate', queried_citation_name: 'No Candidate', article_title: 'Paper A', doi: '10.1/a', candidates: [{ candidate_orcid: 'must-not-render' }] },
+                { id: 2, author_occurrence_id: 6, status: 'orcid_is_unclear', queried_citation_name: 'Unclear', article_title: 'Paper B', doi: '10.1/b' }
+              ],
+              pagination: { page: 1, total_pages: 1, total_rows: 2 }
+            } });
+          },
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } });
+    };
+    state.tables = [];
+    history.pushState({}, '', '?view=corpus&section=identity_evidence&run_id=1');
+
+    await corpusView();
+
+    assert.deepEqual(Array.from(document.querySelectorAll('.rw-data-section table thead th'), function(cell) { return cell.textContent.trim(); }), [
+      'Status', 'Observed author', 'Paper', 'DOI'
+    ]);
+    assert.equal(document.querySelector('.ui.grey.label').textContent, 'no_orcid_candidate');
+    assert.equal(document.querySelector('.ui.orange.label').textContent, 'orcid_is_unclear');
+    assert.ok(!app.innerHTML.includes('must-not-render'));
+    assert.ok(!app.innerHTML.includes('Candidate evidence'));
+
+    globalThis.fetch = originalFetch;
+    state.tables = [];
+    history.pushState({}, '', '?view=home');
   });
 
 });

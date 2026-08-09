@@ -225,7 +225,7 @@ export function renderNote(document, resolvedLinks) {
     return output + esc(text.slice(cursor)).replace(/\n/g, '<br>');
   }
   return document.blocks.map(function(block) {
-    if (block.type === 'heading') return `<h${block.level}>${inline(block.text)}</h${block.level}>`;
+    if (block.type === 'heading') return '<div class="rw-note-heading rw-note-heading--' + block.level + '" role="heading" aria-level="' + (block.level + 4) + '">' + inline(block.text) + '</div>';
     if (block.type === 'code') return '<pre><code>' + esc(block.text) + '</code></pre>';
     if (block.type === 'quote') return '<blockquote>' + inline(block.text) + '</blockquote>';
     if (block.type === 'list') {
@@ -233,7 +233,7 @@ export function renderNote(document, resolvedLinks) {
       return `<${tag}>` + block.items.map(function(item) { return '<li>' + inline(item.text) + '</li>'; }).join('') + `</${tag}>`;
     }
     if (block.type === 'table') {
-      return '<div class="table-wrap"><table><thead><tr>' + block.header.map(function(cell) { return '<th>' + inline(cell) + '</th>'; }).join('') + '</tr></thead><tbody>' + block.rows.map(function(row) { return '<tr>' + row.map(function(cell) { return '<td>' + inline(cell) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+      return '<div class="table-wrap"><table class="ui compact table rw-note-table"><thead><tr>' + block.header.map(function(cell) { return '<th>' + inline(cell) + '</th>'; }).join('') + '</tr></thead><tbody>' + block.rows.map(function(row) { return '<tr>' + row.map(function(cell) { return '<td>' + inline(cell) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
     }
     return '<p>' + inline(block.text) + '</p>';
   }).join('');

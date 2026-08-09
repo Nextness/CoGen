@@ -79,7 +79,7 @@ export async function evaluationView() {
     tableClass: 'rw-evaluation-table',
     columnConfig: {
       title: { label: 'Title', className: 'col-title', render: titleLink },
-      doi: { label: 'Doi', className: 'col-doi' },
+      doi: { label: 'DOI', className: 'col-doi' },
       source: { label: 'Source', className: 'col-source' },
       inventory_status: {
         label: 'Inventory Status',

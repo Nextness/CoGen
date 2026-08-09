@@ -1,5 +1,5 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { esc, asJSON, list, value, cell } from '../state.js';
+import { esc, asJSON, list, value, cell, humanLabel } from '../state.js';
 import { setURL } from '../router.js';
 import { pagination as renderPagination } from './pagination.js';
 
@@ -42,8 +42,9 @@ export function dataTable(tableName, result, context) {
   }).filter(Boolean);
 
   if (context.columnsWhitelist && context.columnsWhitelist.length) {
-    columns = columns.filter(function(col) {
-      return context.columnsWhitelist.includes(col);
+    const availableColumns = new Set(columns);
+    columns = context.columnsWhitelist.filter(function(column) {
+      return availableColumns.has(column);
     });
   }
 
@@ -70,11 +71,12 @@ export function dataTable(tableName, result, context) {
     rowsHtml = rows.map(function(row, idx) {
       const key = String(row[rowKey] ?? idx);
       const initiallyExpanded = expandedRows.has(key);
+      const detailID = 'table-row-detail-' + String(tableName).toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + idx;
       var toggleHtml = '';
       var toggleCell = '';
       if (hasExpand) {
         const toggleTitle = initiallyExpanded ? 'Hide row details' : 'Show row details';
-        toggleHtml = '<button type="button" class="expand-toggle" aria-expanded="' + String(initiallyExpanded) + '" data-expand-row="' + idx + '" data-row-key="' + esc(key) + '" title="' + toggleTitle + '">'
+        toggleHtml = '<button type="button" class="expand-toggle" aria-expanded="' + String(initiallyExpanded) + '" aria-controls="' + detailID + '" aria-label="' + toggleTitle + '" data-expand-row="' + idx + '" data-row-key="' + esc(key) + '" title="' + toggleTitle + '">'
           + (initiallyExpanded ? '\u25BC' : '\u25B6') + '</button>';
         toggleCell = '<td class="toggle-cell">' + toggleHtml + '</td>';
       }
@@ -90,8 +92,8 @@ export function dataTable(tableName, result, context) {
         }
         return '<td' + className + '>' + content + '</td>';
       }).join('');
-      const expandedClass = initiallyExpanded ? ' class="expanded"' : '';
-      const rowHtml = '<tr' + expandedClass + ' data-row-key="' + esc(key) + '">' + toggleCell + cells + '</tr>';
+      const rowClasses = hasExpand ? ' class="expandable-row' + (initiallyExpanded ? ' expanded' : '') + '"' : '';
+      const rowHtml = '<tr' + rowClasses + ' data-row-key="' + esc(key) + '">' + toggleCell + cells + '</tr>';
 
       var expandRowHtml = '';
       if (hasExpand) {
@@ -109,10 +111,10 @@ export function dataTable(tableName, result, context) {
           } else {
             display = esc(asJSON(val));
           }
-          return '<div' + style + '><dt>' + esc(ef.f) + '</dt><dd>' + display + '</dd></div>';
+          return '<div' + style + '><dt>' + esc(ef.label || humanLabel(ef.f)) + '</dt><dd>' + display + '</dd></div>';
         }).join('');
         const hidden = initiallyExpanded ? '' : ' hidden';
-        expandRowHtml = '<tr class="expansion-row" data-expand-row="' + idx + '" data-row-key="' + esc(key) + '"' + hidden + '>'
+        expandRowHtml = '<tr id="' + detailID + '" class="expansion-row" data-expand-row="' + idx + '" data-row-key="' + esc(key) + '"' + hidden + '>'
           + '<td colspan="' + colCount + '">'
           + '<dl class="property-grid">' + fieldsHtml + '</dl>'
           + '</td></tr>';
@@ -153,7 +155,11 @@ export function dataTable(tableName, result, context) {
           sortIndicator = ' \u2191';
         }
       }
-      return '<th scope="col"' + className + '><button type="button" data-sort="' + esc(column) + '">' + esc(label) + sortIndicator + '</button></th>';
+      var ariaSort = 'none';
+      if (value(keys.sort) === column) {
+        ariaSort = value(keys.order) === 'desc' ? 'descending' : 'ascending';
+      }
+      return '<th scope="col" aria-sort="' + ariaSort + '"' + className + '><button type="button" data-sort="' + esc(column) + '">' + esc(label) + sortIndicator + '</button></th>';
     }
     return '<th scope="col"' + className + '>' + esc(label) + '</th>';
   }).join('');
@@ -162,8 +168,8 @@ export function dataTable(tableName, result, context) {
   if (context.tableClass) {
     tableClasses = tableClasses + ' ' + esc(context.tableClass);
   }
-  const tableHtml = '<div class="table-wrap" data-table-root aria-label="' + esc(tableName) + ' results table"' + expandAttr + '>'
-    + '<table class="' + tableClasses + '"><thead><tr>' + toggleHeader + headerCells + '</tr></thead>'
+  const tableHtml = '<div class="table-wrap" data-table-root' + expandAttr + '>'
+    + '<table class="' + tableClasses + '" aria-label="' + esc(tableName) + ' results"><thead><tr>' + toggleHeader + headerCells + '</tr></thead>'
     + '<tbody>' + rowsHtml + '</tbody></table></div>';
 
   const currentSort = value(keys.sort);
@@ -269,6 +275,10 @@ export function bindTableControls(tableName, page) {
 function handleExpandToggle(event) {
   var toggle = event.target.closest('.expand-toggle');
   if (!toggle) {
+    const selection = window.getSelection?.();
+    if (selection && !selection.isCollapsed) {
+      return;
+    }
     if (event.target.closest('a, button, input, select, summary, details')) {
       return;
     }
@@ -298,9 +308,11 @@ function handleExpandToggle(event) {
   if (expanded) {
     toggle.textContent = '\u25B6';
     toggle.title = 'Show row details';
+    toggle.setAttribute('aria-label', 'Show row details');
   } else {
     toggle.textContent = '\u25BC';
     toggle.title = 'Hide row details';
+    toggle.setAttribute('aria-label', 'Hide row details');
   }
 
   const rowKey = toggle.dataset.rowKey;

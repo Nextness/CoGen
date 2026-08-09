@@ -42,9 +42,24 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('[data-review-host]')).toContainText('Approved');
-    const reviewPanelGap = await page.locator('[data-review-host]').evaluate((host) => host.nextElementSibling.getBoundingClientRect().top - host.getBoundingClientRect().bottom);
-    expect(reviewPanelGap).toBeGreaterThanOrEqual(15);
-    await page.getByRole('button', { name: 'Notes' }).click();
+    const reviewAuditEvents = page.locator('.rw-article-audit-panel .rw-audit-event--review');
+    const reviewAuditCount = await reviewAuditEvents.count();
+    await expect(page.locator('.rw-article-audit-panel')).toContainText('Work Review Version Created');
+    const updatedReason = `${reason} saved from the review form`;
+    await page.locator('[data-review-reason]').fill(updatedReason);
+    await page.getByRole('button', { name: 'Save review decision' }).click();
+    await expect(page.locator('[data-review-host]')).toContainText(updatedReason);
+    await expect(reviewAuditEvents).toHaveCount(reviewAuditCount + 1);
+    const decisionTab = page.getByRole('tab', { name: 'Decision' });
+    await expect(page.getByRole('tab')).toHaveCount(3);
+    await expect(decisionTab).toHaveAttribute('aria-selected', 'true');
+    const readingWorkspaceGap = await page.locator('.rw-reading-workspace').evaluate((workspace) => workspace.nextElementSibling.getBoundingClientRect().top - workspace.getBoundingClientRect().bottom);
+    expect(readingWorkspaceGap).toBeGreaterThanOrEqual(15);
+    await decisionTab.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByText('Note syntax and link examples').click();
+    await expect(page.locator('.rw-note-syntax')).toContainText('[[article:10.1000/example|Article title]]');
     const noteFormGaps = await page.locator('[data-note-form]').evaluate((form) => {
       const heading = form.querySelector('.rw-note-form__heading').getBoundingClientRect();
       const field = form.querySelector('.ui.field').getBoundingClientRect();
@@ -56,7 +71,7 @@ test.describe('isolated review mutation lifecycle', () => {
     const browserNote = page.locator('[data-note-list] p').filter({ hasText: `${browserName} results page` });
     await expect(browserNote).toContainText('unresolved note');
     await expect(browserNote.locator('[aria-label="Unresolved link"]')).toBeVisible();
-    await page.getByRole('button', { name: 'PDF anchors' }).click();
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorID);
     await expect(page.locator('.rw-pdf-page--current canvas')).toBeVisible();
     await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture methods');
@@ -76,7 +91,7 @@ test.describe('isolated review mutation lifecycle', () => {
 
     await page.reload();
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('[data-review-host]')).toContainText(reason);
+    await expect(page.locator('[data-review-host]')).toContainText(updatedReason);
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorID);
   });
 });

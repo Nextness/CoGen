@@ -49,7 +49,7 @@ describe('evaluation.js - evaluationView', function() {
     globalThis.fetch = originalFetch;
   });
 
-  it('renders normalized articles with red and green inventory tags', async function() {
+  it('renders normalized articles with warning and success inventory tags', async function() {
     const originalFetch = globalThis.fetch;
     var requested = '';
     globalThis.fetch = function(input) {
@@ -71,9 +71,9 @@ describe('evaluation.js - evaluationView', function() {
     assert.ok(app.innerHTML.includes('Inventory Status'));
     assert.ok(app.innerHTML.includes('Inventoried at'));
     assert.equal(app.querySelectorAll('.ui.green.label').length, 1);
-    assert.equal(app.querySelectorAll('.ui.red.label').length, 1);
+    assert.equal(app.querySelectorAll('.ui.orange.label').length, 1);
     assert.ok(app.querySelector('.ui.green.label').textContent.includes('Available'));
-    assert.ok(app.querySelector('.ui.red.label').textContent.includes('Not Available'));
+    assert.ok(app.querySelector('.ui.orange.label').textContent.includes('Not Available'));
     globalThis.fetch = originalFetch;
   });
 });

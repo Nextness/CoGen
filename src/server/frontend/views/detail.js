@@ -1,7 +1,7 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
   app, esc, value, link, pageHeader, emptyState, panel, cell, list,
-  breadcrumb, statusChip, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons
+  setBreadcrumb, statusChip, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons
 } from '../state.js';
 import { api } from '../api.js';
 import { pagination } from '../components/pagination.js';
@@ -43,21 +43,6 @@ function backToCorpus(kind) {
   return link({
     view: 'corpus', section: section, article_id: '', author_id: '', reference_id: '', table: ''
   });
-}
-
-/** Returns detail-view navigation markup back to the originating corpus section. */
-function detailReturn(kind) {
-  const returnKind = value('return_view');
-  const returnID = value('return_id');
-  if (['article', 'author', 'reference'].includes(returnKind) && returnID) {
-    const updates = {
-      view: returnKind, article_id: '', author_id: '', reference_id: '', return_view: '', return_id: ''
-    };
-    updates[returnKind + '_id'] = returnID;
-    const labels = { article: 'Article revision', author: 'Author occurrence', reference: 'Reference mention' };
-    return { href: link(updates), label: labels[returnKind] };
-  }
-  return { href: backToCorpus(kind), label: 'Corpus' };
 }
 
 /** Records ed. */
@@ -293,14 +278,14 @@ function articleView(record, data) {
   const pdfPanel = pdfStatusPanel(record, pdf);
 
   return summary
-    + '<div class="rw-article-split"><div class="rw-article-split__pdf">' + pdfPanel + '<div data-pdf-viewer-host></div></div>'
-    + '<div class="rw-article-split__review"><div data-review-host></div>'
+    + pdfPanel
+    + '<div class="rw-reading-workspace"><div data-pdf-viewer-host></div><div data-review-host></div></div>'
     + panel('Provenance summary', 'Where this revision came from and how it was captured.', provenance, 'rw-detail-section')
-    + bibliography + '</div></div>'
+    + bibliography
     + '<div data-detail-collection-host="article-authors"></div>'
     + '<div data-detail-collection-host="article-references"></div>'
     + '<div data-detail-collection-host="article-stage-outcomes"></div>'
-    + panel('Audit events', 'Append-only persisted audit records for this work in the selected run.', recordAuditInvestigation(audits), 'rw-detail-section')
+    + panel('Audit events', 'Append-only persisted audit records for this work in the selected run.', '<div data-article-audit-host>' + recordAuditInvestigation(audits) + '</div>', 'rw-detail-section rw-article-audit-panel')
     + rawRecord(record, ['title', 'doi', 'year', 'journal', 'publisher', 'source', 'abstract', 'keywords', 'keywords_plus', 'citation_count', 'reference_count'])
     + '<span data-mount-detail-collections hidden></span>';
 }
@@ -315,15 +300,36 @@ export function pdfStatusPanel(record, pdf) {
   var pdfAction = '<span class="ui faded text">No stored PDF is available.</span>';
   if (pdf.status === 'available') {
     pdfAction = '<a class="ui primary button" href="/api/pdf/' + encodeURIComponent(record.work_id)
-      + '" target="_blank" rel="noopener">Open PDF</a>';
+      + '" download>Download PDF</a>';
   }
   return panel('Full-text PDF', 'Read-only state from the companion PDF store.',
-    propertyGrid([
+    '<div class="rw-pdf-status-strip">' + propertyGrid([
       { label: 'Status', value: statusChip(pdfLabels[pdf.status] || humanLabel(pdf.status)), html: true },
       { label: 'Size', value: pdf.byte_size ? formatBytes(pdf.byte_size) : null },
       { label: 'Inventoried at', value: pdf.inventoried_at ? formatTime(pdf.inventoried_at) : null },
       { label: 'Content hash', value: pdf.content_hash },
-    ], 'property-grid--compact') + '<div class="rw-filter-actions">' + pdfAction + '</div>', 'rw-detail-section');
+    ], 'property-grid--compact') + '<div class="rw-pdf-status-strip__action">' + pdfAction + '</div></div>', 'rw-detail-section rw-full-text-panel');
+}
+
+/** Returns candidate ORCID evidence associated with the selected author occurrence. */
+function authorIdentityEvidence(data) {
+  const evidence = list(data.identity_evidence, ['rows', 'items']);
+  if (!evidence.length) {
+    return panel('ORCID candidate evidence', 'Name-search candidates remain uncertain evidence and are never assigned automatically.', '<p class="ui faded text">No ORCID name-search evidence was recorded for this author occurrence.</p>', 'rw-detail-section');
+  }
+  const body = evidence.map(function(resolution) {
+    const candidates = list(resolution, ['candidates']);
+    const candidateList = candidates.length
+      ? '<ol class="rw-identity-candidate-list">' + candidates.map(function(candidate) {
+        var links = '<a href="' + esc(candidate.query_url) + '" target="_blank" rel="noreferrer">Provider query</a>';
+        if (candidate.payload_artifact_id) links += ' <span aria-hidden="true">·</span> <a href="/api/artifacts/' + encodeURIComponent(candidate.payload_artifact_id) + '/content">Raw payload</a>';
+        return '<li><div><strong>' + esc(candidate.candidate_orcid) + '</strong><span>' + esc(candidate.provider_display_name || 'Provider name not recorded') + '</span></div><span class="ui basic label">Rank ' + esc(candidate.provider_rank) + '</span><div class="rw-inline-group">' + links + '</div></li>';
+      }).join('') + '</ol>'
+      : '<p class="ui faded text">No provider candidate was returned.</p>';
+    const providerError = resolution.error_message ? '<p class="ui warning message"><span class="header">Provider response</span>' + esc(resolution.error_message) + '</p>' : '';
+    return '<section class="rw-identity-resolution"><header><div><h4>' + esc(humanLabel(resolution.provider || 'ORCID')) + ' name search</h4><p>Resolved ' + esc(formatTime(resolution.resolved_at)) + '</p></div>' + statusChip(resolution.status) + '</header>' + providerError + candidateList + '</section>';
+  }).join('');
+  return panel('ORCID candidate evidence', 'Review provider candidates here without treating a name-search match as confirmed identity.', body, 'rw-detail-section');
 }
 
 /** Returns the author occurrence detail view with related articles and audit evidence. */
@@ -331,7 +337,7 @@ function authorView(record, data) {
   const articles = list(data.articles, ['rows', 'items']);
   const audits = list(data.audit_events, ['events', 'items']);
   const identity = record.person_id ? 'Linked global person' : 'Observed occurrence only';
-  return '<div class="identity-notice">This is one observed author occurrence in a historical run. Name similarity alone does not establish a global person identity.</div>'
+  return '<div class="ui info message"><span class="header">Observed author occurrence</span>This historical record does not establish a global person identity. Matching names remain separate unless explicit identity evidence links them.</div>'
     + summaryStrip([
       { label: 'Citation name', value: record.citation_name },
       { label: 'ORCID observed', value: record.orcid },
@@ -346,6 +352,7 @@ function authorView(record, data) {
       { label: 'Person ORCID', value: record.person_orcid },
       { label: 'Captured', value: formatTime(record.created_at) },
     ]), 'rw-detail-section')
+    + authorIdentityEvidence(data)
     + '<div data-detail-collection-host="author-articles"></div>'
     + panel('Audit events', 'Filter and inspect append-only events directly associated with this author occurrence.', recordAuditInvestigation(audits), 'rw-detail-section')
     + rawRecord(record, ['citation_name', 'first_name', 'last_name', 'orcid', 'person_id', 'person_orcid'])
@@ -395,10 +402,8 @@ export async function detailView(kind) {
   }
 
   collectionState.clear();
-  const data = await api('/api/' + kind + 's/' + encodeURIComponent(id));
+  const data = await api('/api/' + kind + 's/' + encodeURIComponent(id), kind === 'author' ? { run_id: value('run_id') } : undefined);
   const record = data.article || data.author || data.reference || data;
-  const parent = detailReturn(kind);
-  const backHref = parent.href;
   var title = labels[kind];
   if (kind === 'article') {
     title = record.title || labels[kind];
@@ -417,9 +422,26 @@ export async function detailView(kind) {
     body = referenceView(record);
   }
 
-  app.innerHTML = breadcrumb({ parentLabel: parent.label, parentHref: backHref, current: labels[kind] })
-    + pageHeader(labels[kind], title, 'Immutable evidence captured in the selected historical run.',
-      '<a class="ui basic button" href="' + backHref + '">Back to ' + esc(parent.label) + '</a>')
+  const homeHref = link({ view: 'home', article_id: '', author_id: '', reference_id: '', return_view: '', return_id: '' });
+  const deepdiveHref = link({ view: 'overview', article_id: '', author_id: '', reference_id: '', return_view: '', return_id: '' });
+  const corpusHref = backToCorpus(kind);
+  const crumbs = [
+    { label: 'Home', href: homeHref },
+    { label: 'Deepdive', href: deepdiveHref },
+    { label: 'Corpus', href: corpusHref }
+  ];
+  if (kind === 'article') {
+    crumbs.push({ label: 'Analysis-ready articles', href: backToCorpus('article') });
+    crumbs.push({ label: record.doi || title });
+  } else if (kind === 'author') {
+    crumbs.push({ label: 'Author' });
+  } else {
+    crumbs.push({ label: 'Reference mentions', href: backToCorpus('reference') });
+    crumbs.push({ label: record.doi || title });
+  }
+  setBreadcrumb(crumbs);
+
+  app.innerHTML = pageHeader(labels[kind], title, '')
     + '<article class="rw-record-detail">' + body + '</article>';
 
   if (kind === 'article') {
@@ -449,7 +471,15 @@ export async function detailView(kind) {
         document.querySelector('[data-review-host]'),
         document.querySelector('[data-pdf-viewer-host]'),
         record,
-        data
+        data,
+        async function() {
+          const refreshed = await api('/api/articles/' + encodeURIComponent(record.id));
+          const events = list(refreshed.audit_events, ['events', 'items']);
+          const auditHost = document.querySelector('[data-article-audit-host]');
+          if (!auditHost) return;
+          auditHost.innerHTML = recordAuditInvestigation(events);
+          bindRecordAuditInvestigation(events);
+        }
       );
     }
   }

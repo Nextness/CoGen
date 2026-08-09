@@ -27,56 +27,65 @@
     <button id="mobile-nav-toggle" class="rw-mobile-nav-toggle" type="button" aria-expanded="false">Menu</button>
   </header>
 
-  <nav class="primary-nav" aria-label="Primary navigation">
-    <a data-view-link="overview">Overview</a>
-    <a data-view-link="corpus">Corpus</a>
-    <a data-view-link="relationships">Relationships</a>
-    <a data-view-link="provenance">Provenance</a>
-    <a data-view-link="evaluation">Evaluation</a>
-    <a data-view-link="advanced">Advanced</a>
-    <a data-view-link="trash">Trash</a>
-  </nav>
+  <div id="workspace-breadcrumb" class="rw-shell-breadcrumb"></div>
 
-  <section class="ui segment context-panel" aria-labelledby="context-heading">
-    <div class="ui header context-heading">
-      <div>
-        <p class="ui sub header">Research context</p>
-        <h2 id="context-heading">Select a captured run</h2>
-      </div>
-      <button id="clear-context" class="ui basic button" type="button">Clear context</button>
-    </div>
+  <section class="ui segment context-panel" aria-label="Research selections" hidden>
     <div class="ui four column grid selection-grid">
       <div class="ui field">
-        <label>Search
-          <div class="ui selection dropdown">
-            <select id="search-select"><option value="">Loading…</option></select>
+        <label for="search-select-trigger">Search</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="search">
+          <button id="search-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>Loading…</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available searches" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available searches"></div>
           </div>
-        </label>
+          <select id="search-select" hidden><option value="">Loading…</option></select>
+        </div>
       </div>
       <div class="ui field">
-        <label>Search revision
-          <div class="ui selection dropdown">
-            <select id="revision-select" disabled><option value="">Select a search</option></select>
+        <label for="revision-select-trigger">Search revision</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="revision">
+          <button id="revision-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a search</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available revisions" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available search revisions"></div>
           </div>
-        </label>
+          <select id="revision-select" hidden disabled><option value="">Select a search</option></select>
+        </div>
       </div>
       <div class="ui field">
-        <label>Execution plan
-          <div class="ui selection dropdown">
-            <select id="plan-select" disabled><option value="">Select a revision</option></select>
+        <label for="plan-select-trigger">Execution plan</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="plan">
+          <button id="plan-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a revision</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available execution plans" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available execution plans"></div>
           </div>
-        </label>
+          <select id="plan-select" hidden disabled><option value="">Select a revision</option></select>
+        </div>
       </div>
       <div class="ui field">
-        <label>Run attempt
-          <div class="ui selection dropdown">
-            <select id="run-select" disabled><option value="">Select a revision</option></select>
+        <label for="run-select-trigger">Run attempt</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="run">
+          <button id="run-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a revision</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available run attempts" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available run attempts"></div>
           </div>
-        </label>
+          <select id="run-select" hidden disabled><option value="">Select a revision</option></select>
+        </div>
       </div>
     </div>
-    <p id="selection-summary" class="context-summary">Choose a run to inspect its captured state and evidence.</p>
   </section>
+
+  <nav class="primary-nav ui tabular menu rw-section-tabs" aria-label="Deepdive navigation" hidden>
+    <a class="item" data-view-link="overview">Overview</a>
+    <a class="item" data-view-link="corpus">Corpus</a>
+    <a class="item" data-view-link="relationships">Relationships</a>
+    <a class="item" data-view-link="provenance">Provenance</a>
+    <a class="item" data-view-link="evaluation">Evaluation</a>
+    <a class="item" data-view-link="advanced">Advanced</a>
+  </nav>
 
   <main id="main-content">
     <div id="notice" class="notice" role="alert" hidden></div>

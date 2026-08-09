@@ -105,11 +105,14 @@ function auditFilters(facets) {
 function auditSummary(data) {
   const summary = data.summary || {};
   const actions = list(summary, ['actions']);
+  const scope = value('run_id')
+    ? 'Run ' + esc(value('run_id')) + (selectedValues(value('audit_category')).includes('pdf') ? ' plus global PDF evidence' : '')
+    : 'All recorded runs';
   return '<dl class="rw-summary-strip">'
     + '<div><dt>Matching events</dt><dd>' + formatNumber(summary.total_events || auditEvents.length) + '</dd></div>'
     + '<div><dt>Events loaded</dt><dd data-audit-loaded-count>' + formatNumber(auditEvents.length) + '</dd></div>'
     + '<div><dt>Event types</dt><dd>' + formatNumber(actions.length) + '</dd></div>'
-    + '<div><dt>Scope</dt><dd>' + (value('run_id') ? 'Run ' + esc(value('run_id')) : 'All recorded runs') + '</dd></div>'
+    + '<div><dt>Scope</dt><dd>' + scope + '</dd></div>'
     + '</dl>';
 }
 
@@ -120,12 +123,15 @@ function auditView(data) {
   auditHasMore = Boolean(data.has_more);
   return '<div class="rw-audit-layout">' + auditFilters(data.facets || {})
     + '<section class="ui segment rw-audit-results">'
-    + '<div class="ui top attached header"><div><h3>Audit event stream</h3>'
-    + '<p>Newest events appear first. Each row retains its recorded identifiers and payload changes.</p></div></div>'
+    + '<div class="ui top attached header"><div><h3>Audit timeline</h3>'
+    + '<p>Newest evidence appears first. Open Recorded data only when identifiers or payload changes are needed.</p></div></div>'
     + '<div class="content">' + auditSummary(data)
-    + '<div id="audit-event-stream">' + sharedAuditStream(auditEvents) + '</div>'
+    + '<div id="audit-event-stream" aria-busy="false">' + sharedAuditStream(auditEvents) + '</div>'
     + '<div class="rw-load-more"' + (auditHasMore ? '' : ' hidden') + '>'
+    + '<p class="ui faded text" role="status" aria-live="polite" data-audit-page-status>' + formatNumber(auditEvents.length) + ' events loaded.</p>'
     + '<button type="button" class="ui button" data-audit-load-more>Load 25 older events</button></div>'
+    + '<p class="rw-audit-end ui success message" data-audit-end' + (auditHasMore ? ' hidden' : '') + '>The beginning of the recorded history has been reached.</p>'
+    + '<div class="ui error message" data-audit-page-error role="alert" hidden></div>'
     + '</div></section></div>';
 }
 
@@ -470,20 +476,46 @@ function bindAuditControls() {
   const button = document.querySelector('[data-audit-load-more]');
   if (button) {
     button.addEventListener('click', async function() {
+      const stream = document.querySelector('#audit-event-stream');
+      const pageStatus = document.querySelector('[data-audit-page-status]');
+      const pageError = document.querySelector('[data-audit-page-error]');
+      const openEventIDs = new Set(Array.from(stream.querySelectorAll('.rw-event-details[open]')).map(function(details) {
+        return details.closest('.rw-audit-event')?.dataset.auditEventId;
+      }));
+      pageError.hidden = true;
+      pageError.textContent = '';
+      stream.setAttribute('aria-busy', 'true');
       button.disabled = true;
       button.classList.add('loading');
       try {
         const data = await api('/api/audit', auditQuery(auditCursor));
-        auditEvents = auditEvents.concat(list(data, ['events', 'items']));
+        const knownIDs = new Set(auditEvents.map(function(event) { return String(event.id); }));
+        list(data, ['events', 'items']).forEach(function(event) {
+          if (!knownIDs.has(String(event.id))) {
+            knownIDs.add(String(event.id));
+            auditEvents.push(event);
+          }
+        });
         auditCursor = data.next_cursor || '';
         auditHasMore = Boolean(data.has_more);
-        document.querySelector('#audit-event-stream').innerHTML = sharedAuditStream(auditEvents);
+        stream.innerHTML = sharedAuditStream(auditEvents);
+        openEventIDs.forEach(function(id) {
+          const event = Array.from(stream.querySelectorAll('.rw-audit-event[data-audit-event-id]')).find(function(item) {
+            return item.dataset.auditEventId === id;
+          });
+          const details = event?.querySelector('.rw-event-details');
+          if (details) details.open = true;
+        });
         document.querySelector('[data-audit-loaded-count]').textContent = formatNumber(auditEvents.length);
+        pageStatus.textContent = formatNumber(auditEvents.length) + ' events loaded.';
         document.querySelector('.rw-load-more').hidden = !auditHasMore;
+        document.querySelector('[data-audit-end]').hidden = auditHasMore;
       } catch (error) {
-        const host = document.querySelector('.rw-load-more');
-        host.insertAdjacentHTML('beforebegin', '<p class="ui error message">' + esc(error.message || 'Unable to load older audit events.') + '</p>');
+        pageError.textContent = error.message || 'Unable to load older audit events.';
+        pageError.hidden = false;
+        pageStatus.textContent = 'Older events were not loaded. The current timeline is unchanged.';
       } finally {
+        stream.setAttribute('aria-busy', 'false');
         button.disabled = false;
         button.classList.remove('loading');
       }

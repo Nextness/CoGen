@@ -3,7 +3,7 @@ import { describe, it, before, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { selects, clearContext, hydrateSelectors } from '../../../../src/server/frontend/components/context-selector.js';
+import { selects, hydrateSelectors } from '../../../../src/server/frontend/components/context-selector.js';
 import { state } from '../../../../src/server/frontend/state.js';
 
 describe('context-selector.js — selects', function() {
@@ -26,11 +26,6 @@ describe('context-selector.js — selects', function() {
   it('selects.run is a DOM element', function() {
     assert.ok(selects.run instanceof HTMLElement);
     assert.equal(selects.run.id, 'run-select');
-  });
-
-  it('clearContext is a DOM element', function() {
-    assert.ok(clearContext instanceof HTMLElement);
-    assert.equal(clearContext.id, 'clear-context');
   });
 
 });
@@ -68,14 +63,14 @@ describe('context-selector.js — hydrateSelectors', function() {
     state.searches = [];
   });
 
-  it('shows selection summary when no revision is selected', async function() {
+  it('supports searchable keyboard-ready selection without implying multiple active contexts', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function(url) {
       if (url.includes('/api/searches')) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: function() { return Promise.resolve({ data: { items: [{ id: 's1', label: 'S1' }] } }); },
+            json: function() { return Promise.resolve({ data: { items: [{ id: 's1', label: 'Systematic review' }, { id: 's2', label: 'Mapping study' }] } }); },
         });
       }
       return Promise.resolve({
@@ -86,8 +81,20 @@ describe('context-selector.js — hydrateSelectors', function() {
     };
 
     await hydrateSelectors();
-    const summary = document.querySelector('#selection-summary');
-    assert.ok(summary.textContent.includes('Choose a search'));
+    const dropdown = document.querySelector('[data-context-dropdown="search"]');
+    const trigger = dropdown.querySelector('.rw-search-dropdown__trigger');
+    trigger.click();
+    assert.equal(trigger.getAttribute('aria-expanded'), 'true');
+    const query = dropdown.querySelector('.rw-search-dropdown__query');
+    query.value = 'mapping';
+    query.dispatchEvent(new Event('input', { bubbles: true }));
+    const options = dropdown.querySelectorAll('[role="option"]');
+    assert.equal(options.length, 1);
+    assert.equal(options[0].textContent, 'Mapping study');
+    options[0].click();
+    assert.equal(selects.search.value, 's2');
+    assert.ok(trigger.textContent.includes('Mapping study'));
+    assert.equal(trigger.querySelector('.ui.label'), null);
 
     globalThis.fetch = originalFetch;
     state.searches = [];

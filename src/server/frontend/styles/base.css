@@ -8,6 +8,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   overflow-x: hidden;
   background: var(--color-bg-canvas);
@@ -21,6 +25,7 @@ body {
   color: var(--color-text-primary);
   background: var(--color-bg-canvas);
   font-size: var(--text-lg);
+  line-height: var(--leading-body);
 }
 
 /* ── Typography ── */
@@ -28,6 +33,52 @@ body {
 a {
   color: var(--color-accent-default);
   text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+a:visited {
+  color: var(--color-accent-default);
+}
+
+a:hover {
+  color: var(--color-accent-hover);
+  text-decoration-thickness: 2px;
+}
+
+a:active {
+  color: var(--color-accent-active);
+}
+
+::selection {
+  color: var(--color-text-primary);
+  background: color-mix(in srgb, var(--color-accent-default) 28%, transparent);
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-heading);
+  text-wrap: balance;
+}
+
+h1 { font-size: var(--text-2xl); }
+h2 { font-size: var(--text-3xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-md); }
+h5 { font-size: var(--text-base); }
+h6 {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+p {
+  margin: 0;
+}
+
+p + p {
+  margin-top: var(--space-2);
 }
 
 code,
@@ -94,6 +145,12 @@ select {
   line-height: 1.15;
   font-weight: var(--weight-bold);
   letter-spacing: -0.02em;
+}
+
+main,
+#app,
+#app > * {
+  min-width: 0;
 }
 
 .rw-header__eyebrow,

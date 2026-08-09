@@ -30,13 +30,13 @@ The dependency table expresses review impact rather than link direction. When a 
 
 | Document | SHA-256 | Review dependents |
 |---|---|---|
-| [docs/APP-USAGE.md](APP-USAGE.md) | `bb795733c2fc59ff85f0129584690971e56ad8d143847e8cfb67d8e04a6b9f54` | None |
-| [docs/ARCHITECTURE.md](ARCHITECTURE.md) | `4d0569f88b1a143c5b66f908d3d873e2b3fb3c2b1ee17157a72e482ca577af8a` | [docs/DATABASE.md](DATABASE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/DESIGN.md](DESIGN.md), [docs/APP-USAGE.md](APP-USAGE.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
-| [docs/CSS-REFERENCE.md](CSS-REFERENCE.md) | `f7242ba2e867a8175879a6f48edc065719c2b986f0ba8f03bdfd987f5a37ca48` | None |
+| [docs/APP-USAGE.md](APP-USAGE.md) | `f3a608ebe0f66494245980e5e7764968c984007063fddf2e0a564e6ccec53482` | None |
+| [docs/ARCHITECTURE.md](ARCHITECTURE.md) | `609695cfa2d6d3ec1eb340a3545fc157ab848b19b0acf736c6be74b31799431b` | [docs/DATABASE.md](DATABASE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/DESIGN.md](DESIGN.md), [docs/APP-USAGE.md](APP-USAGE.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
+| [docs/CSS-REFERENCE.md](CSS-REFERENCE.md) | `18f2dacbe6225febd55890d4050b3efb800738e886764337115918b52c73109c` | None |
 | [docs/DATABASE.md](DATABASE.md) | `a2108e4e81719485d22b153824d12c7e015311e0e84ff6e33edbe498342147c7` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
-| [docs/DESIGN.md](DESIGN.md) | `fe766b53949a31334ef60df0099872f29ca70f727dabfe2e2d448ffd5e94a7db` | [docs/CSS-REFERENCE.md](CSS-REFERENCE.md), [docs/APP-USAGE.md](APP-USAGE.md) |
+| [docs/DESIGN.md](DESIGN.md) | `bca5e4a3024f0f4247fe47a3f77cb5aba37ddda04bcf4970b99748b11159c3dc` | [docs/CSS-REFERENCE.md](CSS-REFERENCE.md), [docs/APP-USAGE.md](APP-USAGE.md) |
 | [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) | `3f6d2e741090bfe0653d7666a70e17f3d784696e17e777c46884242ece4a2016` | None |
-| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `5f7ffc5fc5b1143a959ee07248fd65afc33e8119e4f1f760e64ee7daf95564f5` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
+| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `41e7a8762f60ea0dcfa25d6748a1ce24be1f0e45ea3e6e2b4a22d2a7b97bb088` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
 | [docs/STANDARDS.md](STANDARDS.md) | `86d205a126eb15c6055b629b99635f405c7aa1ebb780eb6cede162a286f5f8e4` | [docs/DESIGN.md](DESIGN.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 | [docs/something.spec.md](something.spec.md) | `89d3ff3f68129830ea79e558f93e35e2ef461710c9cbee88b127f0c6563cd40f` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 

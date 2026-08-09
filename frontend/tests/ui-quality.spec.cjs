@@ -39,11 +39,35 @@ async function expectNoPageOverflow(page) {
 test.describe('Research-context and responsive behavior', () => {
   test('detail breadcrumbs remain concise and identify the parent collection', async ({ page }) => {
     await visit(page, { view: 'article', article_id: '1' });
-    const breadcrumb = page.getByRole('navigation', { name: 'Research context path' });
+    const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(breadcrumb).toContainText('Home');
+    await expect(breadcrumb).toContainText('Deepdive');
     await expect(breadcrumb).toContainText('Corpus');
-    await expect(breadcrumb).toContainText('Article revision');
+    await expect(breadcrumb).toContainText('Analysis-ready articles');
+    await expect(breadcrumb).toContainText('10.1000/1');
     await expect(breadcrumb).not.toContainText('deep-learning-nlp');
-    await expect(page.getByRole('link', { name: 'Back to Corpus' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to Corpus' })).toHaveCount(0);
+  });
+
+  test('article reading and review share the desktop workspace and stack on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await visit(page, { view: 'article', article_id: '1' });
+    const desktopBoxes = await page.locator('.rw-reading-workspace > div').evaluateAll(function(items) {
+      return items.map(function(item) {
+        const rect = item.getBoundingClientRect();
+        return { x: rect.x, width: rect.width };
+      });
+    });
+    expect(desktopBoxes).toHaveLength(2);
+    expect(desktopBoxes[1].x).toBeGreaterThan(desktopBoxes[0].x + desktopBoxes[0].width);
+    expect(Math.abs(desktopBoxes[0].width - desktopBoxes[1].width)).toBeLessThan(2);
+
+    await page.setViewportSize({ width: 375, height: 812 });
+    await expectNoPageOverflow(page);
+    const mobileBoxes = await page.locator('.rw-reading-workspace > div').evaluateAll(function(items) {
+      return items.map(function(item) { return item.getBoundingClientRect().x; });
+    });
+    expect(Math.abs(mobileBoxes[0] - mobileBoxes[1])).toBeLessThan(2);
   });
 
   test('mobile and medium layouts fit the viewport while tables retain their own scroller', async ({ page }) => {
@@ -59,6 +83,10 @@ test.describe('Research-context and responsive behavior', () => {
     await visit(page, { view: 'corpus', section: 'articles' });
     await expectNoPageOverflow(page);
     await expect(page.locator('.table-wrap').first()).toHaveCSS('overflow-x', 'auto');
+
+    await visit(page, { view: 'provenance', section: 'audit' });
+    await page.getByText('Recorded data').first().click();
+    await expectNoPageOverflow(page);
 
     await visit(page, { view: 'article', article_id: '1' });
     await expectNoPageOverflow(page);
@@ -108,6 +136,7 @@ test.describe('Research-context and responsive behavior', () => {
 
 test.describe('Automated accessibility checks', () => {
   for (const [name, overrides] of [
+    ['home', { view: 'home' }],
     ['overview', { view: 'overview' }],
     ['corpus', { view: 'corpus', section: 'articles' }],
     ['article detail', { view: 'article', article_id: '1' }],
@@ -141,6 +170,7 @@ test.describe('Visual regression', () => {
   test.use({ viewport: { width: 1280, height: 900 }, colorScheme: 'light', reducedMotion: 'reduce' });
 
   for (const [name, overrides] of [
+    ['home', { view: 'home' }],
     ['overview', { view: 'overview' }],
     ['corpus', { view: 'corpus', section: 'articles' }],
     ['article-detail', { view: 'article', article_id: '1' }],
@@ -151,21 +181,27 @@ test.describe('Visual regression', () => {
   ]) {
     test(`${name} light`, async ({ page }) => {
       await visit(page, overrides);
-      await expect(page).toHaveScreenshot(`${name}-light.png`, { fullPage: true, animations: 'disabled', caret: 'hide' });
+      await expect(page).toHaveScreenshot(`${name}-light.png`, { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
     });
   }
 
   test('overview dark', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
     await visit(page, { view: 'overview' });
-    await expect(page).toHaveScreenshot('overview-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+    await expect(page).toHaveScreenshot('overview-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
+  });
+
+  test('provenance audit dark', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+    await visit(page, { view: 'provenance', section: 'audit' });
+    await expect(page).toHaveScreenshot('provenance-audit-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('article review setup light', async ({ page }) => {
     await visit(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
-    await expect(page).toHaveScreenshot('article-review-setup-light.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+    await expect(page).toHaveScreenshot('article-review-setup-light.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('article review setup dark', async ({ page }) => {
@@ -173,13 +209,13 @@ test.describe('Visual regression', () => {
     await visit(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
-    await expect(page).toHaveScreenshot('article-review-setup-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+    await expect(page).toHaveScreenshot('article-review-setup-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('artifact preview light', async ({ page }) => {
     await visit(page, { view: 'provenance', section: 'artifacts' });
     await page.getByRole('button', { name: 'Inspect preview' }).first().click();
     await expect(page.locator('#artifact-inspector')).toContainText('Bytes shown');
-    await expect(page).toHaveScreenshot('artifact-preview-light.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+    await expect(page).toHaveScreenshot('artifact-preview-light.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 });

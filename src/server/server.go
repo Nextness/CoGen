@@ -1,6 +1,6 @@
-// Package server exposes an existing workspace database through a local,
-// read-only HTTP API. It deliberately does not use database.Open: that path
-// runs migrations and configures write-oriented SQLite pragmas.
+// Package server exposes an existing workspace database through a local HTTP
+// API with read-only research queries and bounded review and lifecycle writes.
+// It deliberately does not run migrations while opening the viewer.
 package server
 
 import (
@@ -33,8 +33,8 @@ var log = logging.Logger("viewer")
 //go:embed frontend
 var frontend embed.FS
 
-// Server serves one existing workspace database. db is opened in SQLite's
-// read-only mode and query_only is set for every connection.
+// Server serves one existing workspace database. db remains a query-only
+// connection while writeDB owns bounded local review and lifecycle mutations.
 type Server struct {
 	db       *sql.DB
 	writeDB  *database.Database
@@ -120,7 +120,7 @@ func Open(path string) (*Server, error) {
 	writeDB, err := database.OpenExisting(absolute)
 	if err != nil {
 		db.Close()
-		return nil, fmt.Errorf("open metadata review connection: %w", err)
+		return nil, fmt.Errorf("open metadata mutation connection: %w", err)
 	}
 	s.writeDB = writeDB
 	if err := s.openBoundPDFStore(ctx, filepath.Dir(absolute)); err != nil {
@@ -160,6 +160,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/searches", s.searches)
 	mux.HandleFunc("GET /api/plans", s.plans)
 	mux.HandleFunc("GET /api/runs", s.runs)
+	mux.HandleFunc("PUT /api/runs/{run_id}/visibility", s.updateRunVisibility)
 	mux.HandleFunc("GET /api/overview", s.overview)
 	mux.HandleFunc("GET /api/runs/{id}/audit", s.runAudit)
 	mux.HandleFunc("GET /api/runs/{id}/artifacts", s.runArtifacts)

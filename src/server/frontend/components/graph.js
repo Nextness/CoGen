@@ -197,18 +197,18 @@ function palette() {
     return css.getPropertyValue(name).trim() || fallback;
   }
   return {
-    article: get('--accent', '#315f8c'),
-    author: get('--warning', '#8a5a12'),
-    reference: get('--success', '#2f6f4e'),
-    edge: get('--border-strong', '#aeb9c4'),
-    muted: get('--border', '#d7dee5'),
-    text: get('--text', '#17202a'),
+    article: get('--accent', '#0b5e8e'),
+    author: get('--warning', '#8f5f00'),
+    reference: get('--success', '#2f6f52'),
+    edge: get('--border-strong', '#adb9c2'),
+    muted: get('--border', '#d2d9de'),
+    text: get('--text', '#18232c'),
     surface: get('--surface', '#ffffff'),
-    focus: get('--focus', '#1f6feb'),
+    focus: get('--focus', '#d36d00'),
     clusters: [
-      get('--graph-cluster-1', '#315f8c'), get('--graph-cluster-2', '#8a5a12'),
-      get('--graph-cluster-3', '#2f6f4e'), get('--graph-cluster-4', '#7655a8'),
-      get('--graph-cluster-5', '#9b4f65'), get('--graph-cluster-6', '#397f8d')
+      get('--graph-cluster-1', '#236b8e'), get('--graph-cluster-2', '#8b6417'),
+      get('--graph-cluster-3', '#35765b'), get('--graph-cluster-4', '#6e58a3'),
+      get('--graph-cluster-5', '#985468'), get('--graph-cluster-6', '#3b7c83')
     ]
   };
 }

@@ -21,18 +21,26 @@
 
   /* ── Accent / interaction ── */
   --color-accent-default: #0b5e8e;
+  --color-accent-hover: #084b72;
+  --color-accent-active: #063c5c;
   --color-accent-soft: #e5f1f7;
   --color-accent-contrast: #ffffff;
 
   /* ── Semantic status colors ── */
   --color-status-success: #2f6f52;
   --color-status-success-soft: #e8f3ed;
-  --color-status-warning: #996600;
+  --color-status-warning: #8f5f00;
   --color-status-warning-soft: #fff3d9;
   --color-status-danger: #a22f3f;
   --color-status-danger-soft: #fbeaea;
   --color-status-info: #365f91;
   --color-status-info-soft: #e9f1fa;
+  --color-status-neutral: #5f6c76;
+  --color-status-neutral-soft: #eef1f3;
+  --color-status-review: #7753a6;
+  --color-status-review-soft: #f1ebf8;
+  --color-status-note: #a0446f;
+  --color-status-note-soft: #faeaf2;
 
   /* Connected-component colors used by the relationship graph. */
   --graph-cluster-1: #236b8e;
@@ -74,6 +82,7 @@
   --text-sm: 13px;
   --text-base: 14px;
   --text-lg: 15px;
+  --text-md: 16px;
   --text-xl: 20px;
   --text-2xl: 23px;
   --text-3xl: 28px;
@@ -83,6 +92,11 @@
   --weight-medium: 600;
   --weight-bold: 650;
   --weight-black: 750;
+
+  /* ── Line-height scale ── */
+  --leading-tight: 1.2;
+  --leading-heading: 1.3;
+  --leading-body: 1.55;
 
   /* ── Breakpoints (for @media use) ── */
   --bp-mobile: 720px;
@@ -121,6 +135,8 @@
     --color-border-default: #3c4f5b;
     --color-border-strong: #617380;
     --color-accent-default: #73c1ed;
+    --color-accent-hover: #9bd4f4;
+    --color-accent-active: #b9e2f8;
     --color-accent-soft: #1a3c4e;
     --color-accent-contrast: #10212a;
     --color-status-success: #7cc99f;
@@ -131,6 +147,12 @@
     --color-status-danger-soft: #3a1a1f;
     --color-status-info: #7cb8e8;
     --color-status-info-soft: #1a2a3a;
+    --color-status-neutral: #a4b4be;
+    --color-status-neutral-soft: #25343e;
+    --color-status-review: #c3a5ee;
+    --color-status-review-soft: #332744;
+    --color-status-note: #efa6ca;
+    --color-status-note-soft: #402332;
     --graph-cluster-1: #68b7df;
     --graph-cluster-2: #e4b85d;
     --graph-cluster-3: #78c69d;

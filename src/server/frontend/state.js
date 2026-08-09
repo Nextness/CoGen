@@ -5,6 +5,7 @@
 export const app = document.querySelector('#app');
 export const notice = document.querySelector('#notice');
 export const loading = document.querySelector('#loading');
+export const breadcrumbHost = document.querySelector('#workspace-breadcrumb');
 
 export const state = {
   searches: [],
@@ -64,7 +65,7 @@ export function value(name) {
 
 /** Returns the selected viewer view. */
 export function view() {
-  return value('view') || 'overview';
+  return value('view') || 'home';
 }
 
 /** Returns a named section parameter or its fallback. */
@@ -165,6 +166,24 @@ export function formatTime(raw) {
   return date.toLocaleString();
 }
 
+/** Formats the elapsed time between two recorded timestamps. */
+export function formatDuration(startedAt, finishedAt) {
+  if (!startedAt || !finishedAt) return '—';
+  const started = new Date(startedAt).getTime();
+  const finished = new Date(finishedAt).getTime();
+  if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started) return '—';
+  var seconds = Math.round((finished - started) / 1000);
+  const hours = Math.floor(seconds / 3600);
+  seconds -= hours * 3600;
+  const minutes = Math.floor(seconds / 60);
+  seconds -= minutes * 60;
+  const parts = [];
+  if (hours) parts.push(hours + 'h');
+  if (minutes) parts.push(minutes + 'm');
+  if (seconds || !parts.length) parts.push(seconds + 's');
+  return parts.join(' ');
+}
+
 /** Formats bytes. */
 export function formatBytes(raw) {
   const bytes = Math.max(0, number(raw));
@@ -209,23 +228,20 @@ export function parseObject(raw) {
 
 /** Maps a recorded status to its semantic color class. */
 export function statusClass(raw) {
-  const status = String(raw || '').toLowerCase();
-  if (status === 'not_available' || status === 'not available' || status === 'unavailable') {
-    return 'red';
-  }
-  if (status === 'available') {
-    return 'green';
-  }
-  if (/(fail|discard|error|trash|purge|reject|invalid)/.test(status)) {
-    return 'red';
-  }
-  if (/(warning|skip|stale|negative|unresolved|unclear|disabled|incomplete|below|above|unmatched|no[_ -].*(candidate|match))/.test(status)) {
-    return 'orange';
-  }
-  if (/(complete|valid|success|hit|ready|resolve|enrich|normaliz|linked|match)/.test(status)) {
-    return 'green';
-  }
-  return 'blue';
+  const status = String(raw || '').trim().toLowerCase().replace(/[ -]+/g, '_');
+  const danger = new Set(['fail', 'failed', 'parse_failed', 'provider_failed', 'network_failed', 'discard', 'discarded', 'error', 'errored', 'trash', 'trashed', 'purge', 'purged', 'reject', 'rejected', 'invalid', 'removed']);
+  const warning = new Set(['warning', 'skip', 'skipped', 'stale', 'negative', 'unresolved', 'unclear', 'orcid_is_unclear', 'disabled', 'incomplete', 'below', 'above', 'unmatched', 'not_available', 'unavailable', 'not_approved']);
+  const success = new Set(['complete', 'completed', 'valid', 'success', 'successful', 'hit', 'cache_hit', 'ready', 'available', 'approved', 'resolved', 'resolved_internally', 'enriched', 'normalized', 'linked', 'linked_global_person', 'match', 'matched']);
+  const info = new Set(['pending', 'running', 'recorded', 'active', 'visible', 'inventoried', 'not_evaluated', 'observed_occurrence_only']);
+  const review = new Set(['inherited', 'reviewed', 'review']);
+  const neutral = new Set(['no_orcid_candidate', 'no_candidate', 'no_match', 'unknown', 'not_recorded']);
+  if (danger.has(status)) return 'red';
+  if (warning.has(status)) return 'orange';
+  if (success.has(status)) return 'green';
+  if (info.has(status)) return 'blue';
+  if (review.has(status)) return 'violet';
+  if (neutral.has(status)) return 'grey';
+  return 'grey';
 }
 
 /** Returns escaped label markup for a recorded status. */
@@ -285,7 +301,7 @@ export function link(updates) {
     }
   });
   if (!next.get('view')) {
-    next.set('view', 'overview');
+    next.set('view', 'home');
   }
   return `?${next.toString()}`;
 }
@@ -296,63 +312,27 @@ export function pageHeader(kicker, title, description, extra) {
     extra = '';
   }
   const kickerHtml = kicker ? `<p class="rw-page-header__kicker">${esc(kicker)}</p>` : '';
+  const descriptionHtml = description ? `<p class="rw-page-header__description">${esc(description)}</p>` : '';
   const actions = extra ? `<div class="rw-page-header__actions">${extra}</div>` : '';
-  return `<header class="rw-page-header"><div class="rw-page-header__main">${kickerHtml}<h2 id="page-title">${esc(title)}</h2><p class="rw-page-header__description">${esc(description)}</p></div>${actions}</header>`;
+  return `<header class="rw-page-header"><div class="rw-page-header__main">${kickerHtml}<h2 id="page-title">${esc(title)}</h2>${descriptionHtml}</div>${actions}</header>`;
 }
 
-/** Returns research-context breadcrumb markup for the current or supplied parent record. */
-export function breadcrumb(options) {
-  if (!options) {
-    options = {};
-  }
-  const parts = [];
-  const contextualParent = options.parentLabel && options.parentHref;
-  if (!contextualParent && value('search_id')) {
-    const search = state.searches.find(function(s) {
-      return String(pickID(s)) === value('search_id');
-    }) || {};
-    parts.push(text(search, ['search_id', 'id']));
-  }
-  if (!contextualParent && value('search_revision_id')) {
-    var revisionLabel = value('search_revision_id');
-    for (const search of state.searches) {
-      const revision = list(search, ['revisions', 'search_revisions']).find(function(item) {
-        return String(pickID(item)) === value('search_revision_id');
-      });
-      if (revision) {
-        revisionLabel = text(revision, ['revision_label', 'label', 'id']);
-        break;
-      }
+/** Returns escaped breadcrumb markup for an ordered page hierarchy. */
+export function breadcrumb(items) {
+  const parts = Array.isArray(items) ? items : [];
+  if (!parts.length) return '';
+  const markup = parts.map(function(item, index) {
+    if (item.href && index < parts.length - 1) {
+      return '<a class="section" href="' + esc(item.href) + '">' + esc(item.label) + '</a>';
     }
-    parts.push(`Revision ${revisionLabel}`);
-  }
-  if (!contextualParent && value('plan_id')) {
-    const plan = state.plans.find(function(item) {
-      return String(pickID(item)) === value('plan_id');
-    }) || {};
-    const fingerprint = text(plan, ['execution_fingerprint']);
-    if (fingerprint === 'Unnamed') {
-      parts.push(`Plan ${value('plan_id')}`);
-    } else {
-      parts.push(`Plan ${fingerprint.slice(0, 12)}`);
-    }
-  }
-  if (!contextualParent && value('run_id')) {
-    parts.push(`Run ${value('run_id')}`);
-  }
-  var crumbItems = parts.map(function(p) {
-    return `<span class="section">${esc(p)}</span>`;
-  });
-  if (contextualParent) {
-    crumbItems.push('<a class="section" href="' + options.parentHref + '">' + esc(options.parentLabel) + '</a>');
-  }
-  if (options.current) {
-    crumbItems.push('<span class="section current">' + esc(options.current) + '</span>');
-  }
-  if (crumbItems.length) {
-    return `<nav class="ui breadcrumb" aria-label="Research context path">${crumbItems.join('<span class="divider">/</span>')}</nav>`;
-  }
-  return '';
+    return '<span class="section current"' + (index === parts.length - 1 ? ' aria-current="page"' : '') + '>' + esc(item.label) + '</span>';
+  }).join('<span class="divider" aria-hidden="true">/</span>');
+  return '<nav class="ui breadcrumb" aria-label="Breadcrumb">' + markup + '</nav>';
+}
+
+/** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
+export function setBreadcrumb(items) {
+  if (breadcrumbHost) breadcrumbHost.innerHTML = breadcrumb(items);
 }
 
 /** Returns a complete empty-view state with the standard page header. */
@@ -380,7 +360,7 @@ export function panel(title, description, body, classes) {
   if (description) {
     descHtml = `<p>${esc(description)}</p>`;
   }
-  return `<section class="ui segment ${classes}"><div class="ui top attached header"><div><h3>${esc(title)}</h3>${descHtml}</div></div><div class="content">${body}</div></section>`;
+  return `<section class="ui segment rw-panel ${classes}"><div class="ui top attached header rw-panel__header"><div><h3>${esc(title)}</h3>${descHtml}</div></div><div class="content rw-panel__body">${body}</div></section>`;
 }
 
 /** Returns an escaped data table inside the standard panel wrapper. */
@@ -421,7 +401,7 @@ export function subnav(items, current, key) {
     const active = id === current ? ' active' : '';
     return `<a href="${href}" class="item${active}"${aria}>${esc(label)}</a>`;
   }).join('');
-  return `<nav class="ui tabular menu" aria-label="Section navigation">${links}</nav>`;
+  return `<nav class="ui tabular menu rw-section-tabs" aria-label="Section navigation">${links}</nav>`;
 }
 
 /** Filters chips. */
@@ -457,66 +437,43 @@ export function metricCard(name, metric, href) {
 
   var content;
   if (unavailable) {
-    content = '<span class="label">' + esc(name) + '</span>'
+    content = '<span class="label">' + esc(humanLabel(name)) + '</span>'
       + '<span class="value">Not recorded</span>'
       + '<small>Not captured for this run</small>';
   } else {
     const value = esc(formatNumber(metric?.value ?? metric));
-    var detail;
+    var detail = '';
     if (metric?.denominator != null) {
       const pct = esc(metric.percentage ?? percent(metric.value, metric.denominator));
       detail = '<small>' + formatNumber(metric.value) + ' of '
         + formatNumber(metric.denominator) + ' (' + pct + ')</small>';
-    } else {
-      detail = '<small>Recorded value</small>';
+    } else if (metric?.basis || metric?.unit) {
+      detail = '<small>' + esc(metric.basis || metric.unit) + '</small>';
     }
-    content = '<span class="label">' + esc(name) + '</span>'
+    content = '<span class="label">' + esc(humanLabel(name)) + '</span>'
       + '<span class="value">' + value + '</span>'
       + detail;
   }
 
   if (href) {
-    return '<div class="ui statistic"><a href="' + href + '">' + content + '</a></div>';
+    return '<div class="ui statistic rw-kpi"><a href="' + href + '">' + content + '</a></div>';
   }
-  return '<div class="ui statistic">' + content + '</div>';
+  return '<div class="ui statistic rw-kpi">' + content + '</div>';
 }
 
 /** Returns one retention-flow stage with counts, percentages, and optional links. */
 export function flowStage(label, raw, base, previous, extraClass, stageKey, options) {
-  if (!extraClass) {
-    extraClass = '';
-  }
+  if (!extraClass) extraClass = '';
   options = options || {};
-  var stageClass = 'rw-flow__step';
-  if (extraClass) {
-    var extraModifiers = extraClass.split(' ');
-    extraModifiers.forEach(function(mod) {
-      if (mod === 'has-branch') {
-        stageClass = stageClass + ' rw-flow__step--has-branch';
-      } else if (mod === 'branch') {
-        stageClass = stageClass + ' rw-flow__step--branch';
-      } else if (mod === 'last') {
-        stageClass = stageClass + ' rw-flow__step--last';
-      } else if (mod === 'discarded') {
-        stageClass = stageClass + ' rw-flow__step--discarded';
-      } else if (mod === 'source') {
-        stageClass = stageClass + ' rw-flow__step--source';
-      }
-    });
-  }
-
-  var dataAttr = '';
-  if (stageKey) {
-    dataAttr = ' data-flow-stage="' + esc(stageKey) + '"';
-  }
+  const stageClass = 'ui step rw-flow__step' + (extraClass ? ' rw-flow__step--' + esc(extraClass.replace(/\s+/g, '-')) : '');
+  const dataAttr = stageKey ? ' data-flow-stage="' + esc(stageKey) + '"' : '';
+  const info = options.description
+    ? '<details class="rw-flow__info"><summary aria-label="About ' + esc(label) + '">i</summary><div><strong>' + esc(label) + '</strong><p>' + esc(options.description) + '</p></div></details>'
+    : '';
 
   if (raw?.available === false || raw == null) {
-    return '<div class="' + stageClass + '"' + dataAttr + '>'
-      + (options.eyebrow ? '<span class="rw-flow__eyebrow">' + esc(options.eyebrow) + '</span>' : '')
-      + '<h4>' + esc(label) + '</h4>'
-      + '<strong>Not recorded</strong>'
-      + '<small>This stage was not captured.</small>'
-      + '</div>';
+    return '<article class="' + stageClass + ' disabled"' + dataAttr + '>' + info + '<div class="rw-flow__content"><h5>' + esc(label)
+      + '</h5><strong class="rw-flow__unavailable">Not recorded</strong><small>This stage was not captured.</small></div></article>';
   }
 
   const count = number(raw);
@@ -538,17 +495,21 @@ export function flowStage(label, raw, base, previous, extraClass, stageKey, opti
     }
   }
 
-  return '<div class="' + stageClass + '"' + dataAttr + '>'
-    + (options.eyebrow ? '<span class="rw-flow__eyebrow">' + esc(options.eyebrow) + '</span>' : '')
-    + '<h4>' + esc(label) + '</h4>'
-    + (options.description ? '<p class="rw-flow__description" title="' + esc(options.description) + '">' + esc(options.description) + '</p>' : '')
+  var outcomes = '';
+  if (Array.isArray(options.outcomes)) {
+    outcomes = '<div class="rw-flow__outcome-values">' + options.outcomes.map(function(outcome) {
+      return '<span><b>' + formatNumber(outcome.value) + '</b> ' + esc(outcome.label) + '</span>';
+    }).join('') + '</div>';
+  }
+  const content = '<div class="rw-flow__content"><h5>' + esc(label) + '</h5>'
     + '<div class="rw-flow__value"><strong>' + formatNumber(count) + '</strong>'
     + '<span class="rw-flow__percentage">' + percentageText + '</span></div>'
     + '<span class="rw-flow__progress" role="img" aria-label="' + esc(label + ': ' + formatNumber(count) + ' of ' + formatNumber(baseCount) + ' ' + denominatorText + ' (' + percentageText + ')') + '">'
     + '<span style="width:' + progressWidth.toFixed(2) + '%"></span></span>'
-    + '<small class="rw-flow__basis">of ' + formatNumber(baseCount) + ' ' + esc(denominatorText) + '</small>'
     + '<small class="rw-flow__delta">' + esc(change) + '</small>'
-    + '</div>';
+    + outcomes + '</div>';
+  const linkedContent = options.href ? '<a class="rw-flow__link" href="' + esc(options.href) + '">' + content + '</a>' : content;
+  return '<article class="' + stageClass + (options.href ? ' linked' : '') + '"' + dataAttr + '>' + info + linkedContent + '</article>';
 }
 
 var filterPresentations = {
@@ -559,17 +520,17 @@ var filterPresentations = {
   },
   'RANGE_10_YEARS': {
     groupLabel: 'Publication Range',
-    label: 'Publication window',
+    label: 'Publication range',
     description: 'Results retained within the declared 10-year range.'
   },
   'ARTICLE_ONLY': {
     groupLabel: 'Document Type',
-    label: 'Article records',
+    label: 'Document type',
     description: 'Results retained after applying the article-only filter.'
   },
   'ENGLISH_ONLY': {
     groupLabel: 'Language',
-    label: 'English-language records',
+    label: 'Language',
     description: 'Results retained after the language filter.'
   }
 };
@@ -629,14 +590,7 @@ function retentionPhase(title, description, summary, content, className) {
     + content + '</section>';
 }
 
-/** Returns a labeled group of retention-flow cards. */
-function flowGroup(title, cards, className) {
-  return '<div class="rw-flow__group ' + esc(className || '') + '">'
-    + '<h5 class="rw-flow__group-label">' + esc(title) + '</h5>'
-    + '<div class="rw-flow__group-cards">' + cards + '</div></div>';
-}
-
-/** Returns the source-selection and pipeline-retention flow for an overview payload. */
+/** Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
 export function retentionFlow(overview) {
   const source = overview.retention_funnel || {};
   const input = source.input_records;
@@ -646,31 +600,37 @@ export function retentionFlow(overview) {
   const inputCount = number(input);
   const initialCount = hasFilterStages ? filterStages[0].count : inputCount;
   const denominatorLabel = hasFilterStages ? 'initial raw results' : 'input records';
-  var phases = '';
-
-  if (hasFilterStages) {
-    var previousFilterCount = null;
-    const sourceStages = filterStages.map(function(stage, index) {
-      const markup = flowStage(stage.label, stage.count, initialCount, previousFilterCount, 'source', '', {
-        description: stage.description,
-        denominatorLabel: denominatorLabel,
-        baselineLabel: 'Initial raw-data baseline'
-      });
-      previousFilterCount = stage.count;
-      return flowGroup(stage.groupLabel, markup, 'rw-flow__group--source');
-    }).join('');
-    const sourceSummary = formatNumber(initialCount) + ' initial raw results'
-      + (filterSummary.sourceCount > 1 ? ' across ' + formatNumber(filterSummary.sourceCount) + ' sources' : '');
-    phases += retentionPhase('Source selection', 'Declared cumulative result counts before the source files were exported.', sourceSummary,
-      '<div class="rw-flow rw-flow--source">' + sourceStages + '</div>', 'rw-retention__phase--source');
-  }
+  const sourceDefinitions = [
+    ['Initial raw results', 'Unfiltered results reported by the configured sources.'],
+    ['Publication range', 'Results retained within the declared publication window.'],
+    ['Document type', 'Results retained after applying the declared document-type filter.'],
+    ['Language', 'Results retained after applying the declared language filter.']
+  ];
+  var previousFilterCount = null;
+  const sourceSteps = sourceDefinitions.map(function(definition, index) {
+    const recordedStage = filterStages[index];
+    const markup = flowStage(definition[0], recordedStage?.count, initialCount, previousFilterCount, 'source', 'filter_' + index, {
+      description: recordedStage?.description || definition[1], denominatorLabel: denominatorLabel, baselineLabel: 'Initial raw-data baseline'
+    });
+    if (recordedStage) previousFilterCount = recordedStage.count;
+    return markup;
+  }).join('');
+  const sourceSummary = hasFilterStages
+    ? formatNumber(initialCount) + ' initial raw results' + (filterSummary.sourceCount > 1 ? ' across ' + formatNumber(filterSummary.sourceCount) + ' sources' : '')
+    : 'Aggregate source-filter counts were not recorded';
+  var phases = retentionPhase('Source selection', 'Cumulative filters applied before source export.', sourceSummary,
+    '<div class="ui fluid steps rw-flow rw-flow--source">' + sourceSteps + '</div>', 'rw-retention__phase--source');
 
   if (!input || input.available === false) {
-    if (!hasFilterStages) {
-      return panel('Retention flow', 'The recorded path through parsing, deduplication, and validation.', '<p class="ui faded text">Not recorded for this run.</p>', 'span-all rw-panel--no-separator');
-    }
-    return panel('Retention flow', 'Source selection evidence is available, but pipeline retention was not captured for this run.',
-      '<div class="rw-retention">' + phases + '</div>', 'span-all rw-panel--no-separator');
+    phases += retentionPhase('Pipeline processing', 'Records loaded, parsed, and deduplicated by the pipeline.', 'Pipeline counts not recorded',
+      '<div class="ui fluid steps rw-flow">' + flowStage('Input records', input, initialCount, null, '', 'input_records', { description: 'Records read from exported source files.' })
+      + flowStage('Parsed articles', null, initialCount, null, '', 'parsed_articles', { description: 'Source records converted into article metadata.' })
+      + flowStage('Deduplicated articles', null, initialCount, null, '', 'deduplicated_articles', { description: 'Unique articles retained after source merging.' }) + '</div>', 'rw-retention__phase--pipeline');
+    phases += retentionPhase('Corpus enrichment', 'Candidate articles continue through enrichment, validation, and normalization.', 'Corpus counts not recorded',
+      '<div class="ui fluid steps rw-flow">' + flowStage('Candidate articles', null, initialCount, null, '', 'enrichment_candidates', { description: 'Deduplicated articles considered for provider enrichment.' })
+      + flowStage('Accepted + Discarded', null, initialCount, null, '', 'validation_outcomes', { description: 'Validation divides candidate articles into accepted and discarded outcomes.' })
+      + flowStage('Normalization', null, initialCount, null, '', 'normalized_articles_processed', { description: 'Accepted articles processed into canonical forms.' }) + '</div>', 'rw-retention__phase--corpus');
+    return panel('Retention flow', 'Three phases connect source selection to the analysis-ready corpus.', '<div class="rw-retention">' + phases + '</div>', 'span-all rw-panel--no-separator');
   }
 
   const parsed = source.parsed_articles;
@@ -684,42 +644,31 @@ export function retentionFlow(overview) {
     ? dedupedCount
     : number(enrichmentCandidates);
   const pipelinePrevious = hasFilterStages ? filterStages[filterStages.length - 1].count : null;
-  const stageOptions = function(description, eyebrow) {
-    return { eyebrow: eyebrow || '', description: description, denominatorLabel: denominatorLabel, baselineLabel: 'Input baseline' };
+  const stageHref = function(stage) {
+    if (stage === 'input') return link({ view: 'corpus', section: 'sources', q: '', page: 1 });
+    return link({ view: 'provenance', section: 'stages', stage_q: stage, stage_page: 1 });
   };
-  const preparationStages = flowGroup('Filtered Raw Data',
-    flowStage('Input records', input, initialCount, pipelinePrevious, '', 'input_records',
-      stageOptions('Records read from the exported source files.')))
-    + flowGroup('Properly Loaded Data',
-      flowStage('Parsed articles', parsed, initialCount, inputCount, '', 'parsed_articles',
-        stageOptions('Source records converted into article metadata.')))
-    + flowGroup('Deduplicating Entries',
-      flowStage('Deduplicated articles', deduped, initialCount, parsedCount, '', 'deduplicated_articles',
-        stageOptions('Unique articles retained after source merging.')));
-  const validationCards = flowStage('Valid articles', source.valid_articles, initialCount, enrichmentCount, 'last', 'valid_articles',
-    stageOptions('Articles retained in the analysis-ready corpus.', 'Accepted'))
-    + flowStage('Discarded articles', source.discarded_articles, initialCount, enrichmentCount, 'branch discarded', 'discarded_articles',
-      stageOptions('Articles rejected by validation rules.', 'Discarded'));
-  const researchStages = flowGroup('Enrichment',
-    flowStage('Candidate articles', enrichmentCandidates, initialCount, dedupedCount, '', 'enrichment_candidates',
-      stageOptions('Deduplicated articles considered for provider enrichment.')))
-    + flowGroup('Validation Outcomes', validationCards, 'rw-flow__group--split rw-flow__outcomes')
-    + flowGroup('Normalization',
-      flowStage('Normalized articles', normalizedArticles, initialCount, validCount, '', 'normalized_articles_processed',
-        stageOptions('Valid articles processed into canonical forms.')));
-  const pipelineSummary = hasFilterStages
-    ? 'Percentages use the ' + formatNumber(initialCount) + '-result raw baseline'
-    : formatNumber(initialCount) + ' captured input records';
-  const pipelineFlow = '<div class="rw-flow rw-flow--pipeline">' + preparationStages + '</div>'
-    + '<div class="rw-flow__continuation"><span>Prepared records continue through the research pipeline</span><b aria-hidden="true">\u2193</b></div>'
-    + '<div class="rw-flow rw-flow--pipeline">' + researchStages + '</div>';
-  phases += retentionPhase('Pipeline processing', 'Observed records move from loading through normalization.', pipelineSummary,
-    pipelineFlow, 'rw-retention__phase--pipeline');
+  const stageOptions = function(description, href) {
+    return { description: description, href: href, denominatorLabel: denominatorLabel, baselineLabel: 'Input baseline' };
+  };
+  const pipelineSteps = flowStage('Input records', input, initialCount, pipelinePrevious, '', 'input_records', stageOptions('Records read from the exported source files.', stageHref('input')))
+    + flowStage('Parsed articles', parsed, initialCount, inputCount, '', 'parsed_articles', stageOptions('Source records converted into article metadata.', stageHref('parse')))
+    + flowStage('Deduplicated articles', deduped, initialCount, parsedCount, '', 'deduplicated_articles', stageOptions('Unique articles retained after source merging.', stageHref('deduplicate')));
+  phases += retentionPhase('Pipeline processing', 'Records move from source loading through deduplication.', formatNumber(inputCount) + ' captured input records',
+    '<div class="ui fluid steps rw-flow rw-flow--pipeline">' + pipelineSteps + '</div>', 'rw-retention__phase--pipeline');
 
-  var description = hasFilterStages
-    ? 'Source selection and pipeline retention share the same initial raw-data denominator.'
-    : 'Valid and discarded records branch after deduplication.';
-  return panel('Retention flow', description,
+  const discardedCount = number(source.discarded_articles);
+  const validationTotal = validCount + discardedCount;
+  const corpusSteps = flowStage('Candidate articles', enrichmentCandidates, initialCount, dedupedCount, '', 'enrichment_candidates', stageOptions('Deduplicated articles considered for provider enrichment.', stageHref('enrich')))
+    + flowStage('Accepted + Discarded', validationTotal, initialCount, enrichmentCount, '', 'validation_outcomes', {
+      ...stageOptions('Validation divides candidate articles into analysis-ready and discarded outcomes.', stageHref('validate')),
+      outcomes: [{ label: 'accepted', value: validCount }, { label: 'discarded', value: discardedCount }]
+    })
+    + flowStage('Normalization', normalizedArticles, initialCount, validCount, '', 'normalized_articles_processed', stageOptions('Accepted articles processed into canonical forms.', stageHref('normalize')));
+  phases += retentionPhase('Corpus enrichment', 'Candidate articles continue through enrichment, validation, and normalization.', formatNumber(validCount) + ' accepted articles',
+    '<div class="ui fluid steps rw-flow rw-flow--corpus">' + corpusSteps + '</div>', 'rw-retention__phase--corpus');
+
+  return panel('Retention flow', 'Three phases connect source selection to the analysis-ready corpus.',
     '<div class="rw-retention">' + phases + '</div>', 'span-all rw-panel--no-separator');
 }
 
@@ -752,7 +701,7 @@ export function breakdown(title, source, valueLabel, useTotal) {
       return '<span class="ui faded text">Not recorded</span>';
     }
     if (!useTotal) {
-      return formatNumber(row.raw);
+      return '<strong class="rw-metric-value">' + formatNumber(row.raw) + '</strong>';
     }
     var pct;
     if (total > 0) {
@@ -760,7 +709,7 @@ export function breakdown(title, source, valueLabel, useTotal) {
     } else {
       pct = '—';
     }
-    return formatNumber(row.raw) + ' (' + pct + ')';
+    return '<strong class="rw-metric-value">' + formatNumber(row.raw) + '</strong><span class="rw-metric-percent">' + pct + '</span>';
   }
 
   /** Returns an accessible relative-volume bar for one breakdown row. */
@@ -769,7 +718,8 @@ export function breakdown(title, source, valueLabel, useTotal) {
       return '<span class="ui faded text">—</span>';
     }
     const pct = Math.min(100, number(row.raw) / max * 100);
-    return '<span class="ui progress" role="img" aria-label="' + esc(row.name) + ' ' + formatNumber(row.raw) + '">'
+    const basis = useTotal ? 'share of total' : 'relative to the largest recorded value';
+    return '<span class="ui progress" role="img" aria-label="' + esc(humanLabel(row.name)) + ': ' + pct.toFixed(1) + '% ' + basis + '">'
       + '<span class="bar" style="width:' + pct + '%"></span></span>';
   }
 
@@ -778,10 +728,10 @@ export function breakdown(title, source, valueLabel, useTotal) {
   });
 
   return table(title, 'Recorded activity for this run.', [
-    { label: 'Metric', render: function(row) { return esc(row.name); } },
+    { label: 'Metric', render: function(row) { return '<strong class="rw-metric-name">' + esc(humanLabel(row.name)) + '</strong>'; } },
     { label: valueLabel, render: valueRender },
-    { label: 'Relative volume', render: barRender }
-  ], rows);
+    { label: useTotal ? 'Share of total' : 'Relative to largest', render: barRender }
+  ], rows, 'rw-metric-table');
 }
 
 /** Returns the expected-versus-observed source export count table. */

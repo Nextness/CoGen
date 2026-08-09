@@ -53,6 +53,7 @@ async function goto(page, url) {
  */
 function contextURL(overrides = {}) {
   const params = new URLSearchParams({
+    view: 'overview',
     search_id: SEARCH_DL,
     search_revision_id: REV_DL_R1,
     plan_id: PLAN_DL_R1,
@@ -92,15 +93,23 @@ test.describe('Health and page load', () => {
     await goto(page, '/');
     await expect(page.locator('body')).toBeAttached();
     await expect(page.locator('.skip-link, [href="#main-content"]').first()).toBeAttached();
+    await expect(page.getByRole('heading', { name: 'Research workspace', exact: true })).toBeVisible();
+    await expect(page.locator('#health-status')).toHaveText('Database healthy');
+    await expect(page.locator('body')).toContainText('Local review');
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveText('Home');
+    await expect(page.locator('.context-panel')).toBeHidden();
+    await expect(page.locator('.primary-nav')).toBeHidden();
   });
 
   test('primary navigation links are present', async ({ page }) => {
-    await goto(page, '/');
-    const nav = page.locator('nav');
-    const links = ['Overview', 'Corpus', 'Relationships', 'Provenance', 'Evaluation', 'Advanced', 'Trash'];
+    await goto(page, contextURL());
+    const nav = page.getByRole('navigation', { name: 'Deepdive navigation' });
+    const links = ['Overview', 'Corpus', 'Relationships', 'Provenance', 'Evaluation', 'Advanced'];
     for (const text of links) {
       await expect(nav.getByText(text).first()).toBeAttached();
     }
+    await expect(nav.getByText('Trash')).toHaveCount(0);
   });
 
   test('primary navigation preserves the selected research context', async ({ page }) => {
@@ -117,9 +126,17 @@ test.describe('Health and page load', () => {
   test('research context is displayed after selecting a run', async ({ page }) => {
     await goto(page, contextURL());
     await page.waitForLoadState('networkidle');
-    // With a selected run, the context bar should show the run ID
-    const body = page.locator('body');
-    await expect(body).toContainText(/deep-learning-nlp|Run attempt|Inspecting run/i);
+    const context = page.locator('.context-panel');
+    await expect(context).toContainText(/Search revision|Execution plan|Run attempt/i);
+    await expect(context).not.toContainText('Research context');
+    await expect(context).toContainText(/deep-learning-nlp|Run 1/i);
+    await expect(context).not.toContainText(/Select a captured run|Inspecting run attempt/i);
+    const contextGap = await context.evaluate((element) => {
+      const tabs = document.querySelector('.primary-nav');
+      return tabs.getBoundingClientRect().top - element.getBoundingClientRect().bottom;
+    });
+    expect(contextGap).toBeGreaterThanOrEqual(20);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Overview/i);
   });
 });
 
@@ -130,7 +147,7 @@ test.describe('Overview view', () => {
     await goto(page, contextURL({ view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
-    await expect(body).toContainText(/input_records|parsed_articles|deduplicated_articles|valid_articles/);
+    await expect(body).toContainText(/Input Records|Parsed Articles|Deduplicated Articles|Valid Articles/);
   });
 
   test('displays retention funnel for completed run', async ({ page }) => {
@@ -167,19 +184,18 @@ test.describe('Overview view', () => {
     });
 
     await goto(page, contextURL({ view: 'overview' }));
-    await expect(page.locator('.rw-retention__phase')).toHaveCount(2);
-    await expect(page.locator('.rw-flow--source > .rw-flow__group')).toHaveCount(4);
-    await expect(page.locator('.rw-flow--pipeline')).toHaveCount(2);
-    await expect(page.locator('.rw-flow--pipeline .rw-flow__group-label')).toHaveText([
-      'Filtered Raw Data', 'Properly Loaded Data', 'Deduplicating Entries',
-      'Enrichment', 'Validation Outcomes', 'Normalization'
-    ]);
+    await expect(page.locator('.rw-retention__phase')).toHaveCount(3);
+    await expect(page.locator('.rw-retention__phase-header h4')).toHaveText(['Source selection', 'Pipeline processing', 'Corpus enrichment']);
+    await expect(page.locator('.rw-flow--source > .rw-flow__step')).toHaveCount(4);
+    await expect(page.locator('.rw-flow--pipeline > .rw-flow__step')).toHaveCount(3);
+    await expect(page.locator('.rw-flow--corpus > .rw-flow__step')).toHaveCount(3);
     await expect(page.locator('[data-flow-stage="input_records"] .rw-flow__percentage')).toHaveText('22.67%');
     await expect(page.locator('[data-flow-stage="enrichment_candidates"] .rw-flow__percentage')).toHaveText('16.67%');
-    await expect(page.locator('[data-flow-stage="valid_articles"] .rw-flow__percentage')).toHaveText('15.00%');
-    await expect(page.locator('[data-flow-stage="discarded_articles"] .rw-flow__percentage')).toHaveText('1.67%');
+    await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__percentage')).toHaveText('16.67%');
+    await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__outcome-values')).toContainText('45 accepted');
+    await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__outcome-values')).toContainText('5 discarded');
     await expect(page.locator('[data-flow-stage="normalized_articles_processed"] .rw-flow__percentage')).toHaveText('15.00%');
-    await expect(page.locator('[data-flow-stage="input_records"] .rw-flow__basis')).toContainText('of 300 initial raw results');
+    await expect(page.locator('[data-flow-stage="parsed_articles"] a')).toHaveAttribute('href', /stage_q=parse/);
     const sourceStageTops = await page.locator('.rw-flow--source .rw-flow__step').evaluateAll((stages) => (
       stages.map((stage) => stage.getBoundingClientRect().top)
     ));
@@ -219,6 +235,11 @@ test.describe('Corpus view', () => {
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
+    await expect(page.locator('#corpus-section-select')).toBeVisible();
+    await expect(page.locator('.rw-data-section .ui.tabular.menu')).toHaveCount(0);
+    await expect(page.locator('.rw-corpus-table thead th').filter({ hasText: /DOI|Title|Year|Journal|Source/ })).toHaveCount(5);
+    await expect(page.getByRole('columnheader', { name: 'ID', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: 'Work', exact: true })).toHaveCount(0);
   });
 
   test('articles section supports search filtering', async ({ page }) => {
@@ -262,14 +283,18 @@ test.describe('Corpus view', () => {
     expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(2);
   });
 
-  test('identity evidence shows uncertain ORCID candidates without a confirmed link', async ({ page }) => {
+  test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'identity_evidence' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Author identity.*ORCID evidence|Unclear ORCID matches/i);
     await expect(body).toContainText(/Provider failures/i);
-    await expect(body).toContainText(/Charles Babbage|orcid_is_unclear|0000-0001-2345-6789/i);
-    await expect(body).toContainText(/Never assigned automatically|not assigned/i);
+    await expect(body).toContainText(/Charles Babbage|orcid_is_unclear/i);
+    await expect(body).not.toContainText('0000-0001-2345-6789');
+    await expect(page.getByRole('columnheader', { name: /Candidate evidence/i })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Charles Babbage' }).click();
+    await expect(page).toHaveURL(/view=author/);
+    await expect(page.locator('body')).toContainText(/ORCID candidate evidence|0000-0001-2345-6789|Provider query/i);
   });
 
   test('corpus supports pagination', async ({ page }) => {
@@ -462,7 +487,7 @@ test.describe('Provenance view', () => {
     await expect(pagination.getByRole('button', { name: 'First page' })).toBeVisible();
     await expect(pagination.getByRole('button', { name: 'Last page' })).toBeVisible();
     await page.locator('#cache-query').fill('openalex');
-    await page.getByRole('button', { name: 'Search' }).click();
+    await page.locator('#cache-controls').getByRole('button', { name: 'Search' }).click();
     await expect(page).toHaveURL(/(?:\?|&)cache_q=openalex(?:&|$)/);
     await expect(page.locator('.rw-cache-view')).toContainText('openalex');
   });
@@ -492,11 +517,11 @@ test.describe('Evaluation view', () => {
     const table = page.locator('.rw-evaluation-table');
     await expect(table).toBeVisible();
     await expect(table.locator('thead')).toContainText('Title');
-    await expect(table.locator('thead')).toContainText('Doi');
+    await expect(table.locator('thead')).toContainText('DOI');
     await expect(table.locator('thead')).toContainText('Inventory Status');
     await expect(table.locator('thead')).toContainText('Inventoried at');
     await expect(table.locator('.ui.green.label', { hasText: 'Available' })).toHaveCount(1);
-    await expect(table.locator('.ui.red.label').first()).toContainText('Not Available');
+    await expect(table.locator('.ui.orange.label').first()).toContainText('Not Available');
     await expect(page.getByRole('navigation', { name: 'Result pages' })).toContainText(/9 normalized articles/i);
   });
 
@@ -543,14 +568,21 @@ test.describe('Advanced (table browser) view', () => {
   });
 });
 
-// ── 7. Trash view ─────────────────────────────────────────────────────
+// ── 7. Home lifecycle management ─────────────────────────────────────
 
-test.describe('Trash view', () => {
-  test('trash view shows trashed runs', async ({ page }) => {
-    await goto(page, '/?view=trash');
-    await page.waitForLoadState('networkidle');
-    const body = page.locator('body');
-    await expect(body).toContainText(/trashed|trash|Restore|visibility_state/i);
+test.describe('Home lifecycle management', () => {
+  test('Home shows all research hierarchy totals and manages trashed runs through a modal', async ({ page }) => {
+    await goto(page, '/');
+    await expect(page.locator('.rw-home-kpis')).toContainText(/Search terms|Search revisions|Execution plans|Run attempts/i);
+    await expect(page.locator('.rw-home-runs')).toContainText(/Run 1|Run 3|Restore|Move to trash/i);
+    const explore = page.locator('.rw-home-runs').getByRole('link', { name: 'Explore' }).first();
+    await expect(explore).toHaveAttribute('href', /view=overview/);
+    await page.getByRole('button', { name: 'Restore' }).first().click();
+    const dialog = page.getByRole('dialog', { name: /Restore run/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(/captured outcome|execution evidence/i);
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
   });
 });
 
@@ -563,7 +595,8 @@ test.describe('Detail views', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms in Transformer Models/i);
     await expect(body).toContainText(/2024/i);
-    await expect(page.getByRole('link', { name: 'Back to Corpus' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Corpus.*Analysis-ready articles.*10\.1000\/1/i);
+    await expect(page.getByRole('link', { name: 'Back to Corpus' })).toHaveCount(0);
     await expect(page.locator('[data-record-audit-search]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-category]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-action]')).toHaveCSS('height', '38px');
@@ -572,9 +605,9 @@ test.describe('Detail views', () => {
   test('article detail opens the bound PDF without discarding research context', async ({ page, request }) => {
     await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Available|Inventoried/i);
-    const pdfLink = page.getByRole('link', { name: 'Open PDF' });
+    const pdfLink = page.getByRole('link', { name: 'Download PDF' });
     await expect(pdfLink).toHaveAttribute('href', '/api/pdf/1');
-    await expect(pdfLink).toHaveAttribute('target', '_blank');
+    await expect(pdfLink).toHaveAttribute('download', '');
     await expect(page).toHaveURL(/(?:\?|&)search_id=1(?:&|$)/);
     await expect(page).toHaveURL(/(?:\?|&)run_id=1(?:&|$)/);
     const response = await request.get('/api/pdf/1', { headers: { Range: 'bytes=0-4' } });
@@ -586,7 +619,7 @@ test.describe('Detail views', () => {
   test('article detail shows an absent PDF without an open action', async ({ page }) => {
     await goto(page, contextURL({ view: 'article', article_id: ARTICLE_2_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Not stored|No stored PDF/i);
-    await expect(page.getByRole('link', { name: 'Open PDF' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
   });
 
   test('article detail preserves the originating corpus state', async ({ page }) => {
@@ -595,7 +628,7 @@ test.describe('Detail views', () => {
     await expect(page).toHaveURL(/view=article/);
     await expect(page).toHaveURL(/q=Attention/);
     await expect(page).toHaveURL(/expanded=1/);
-    await page.getByRole('link', { name: 'Back to Corpus' }).click();
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Analysis-ready articles' }).click();
     await expect(page).toHaveURL(/view=corpus/);
     await expect(page).toHaveURL(/q=Attention/);
     await expect(page).toHaveURL(/expanded=1/);
@@ -615,6 +648,7 @@ test.describe('Detail views', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Ada Lovelace/i);
     await expect(body).toContainText(/0000/);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Corpus.*Author/i);
     await expect(page.locator('[data-record-audit-search]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-category]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-action]')).toHaveCSS('height', '38px');
@@ -682,7 +716,7 @@ test.describe('Error states', () => {
   test('frontend renders error state for invalid view', async ({ page }) => {
     await goto(page, '/?view=nonexistent');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('nav')).toBeAttached();
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeAttached();
   });
 });
 
@@ -694,7 +728,8 @@ test.describe('Responsive layout', () => {
     await goto(page, contextURL({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
     const body = page.locator('body');
-    await expect(body).toContainText(/Overview|Corpus|Relationships|Provenance|Advanced|Trash/i);
+    await expect(body).toContainText(/Overview|Corpus|Relationships|Provenance|Evaluation|Advanced/i);
+    await expect(body).not.toContainText(/\bTrash\b/);
   });
 
   test('renders on tablet viewport (768px)', async ({ page }) => {
@@ -748,7 +783,7 @@ test.describe('Accessibility', () => {
 
   test('navigation is a landmark', async ({ page }) => {
     await goto(page, '/');
-    const nav = page.locator('nav, [role="navigation"]');
+    const nav = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(nav).toBeAttached();
   });
 
