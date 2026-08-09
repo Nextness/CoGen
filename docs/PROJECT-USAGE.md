@@ -7,7 +7,7 @@ This document explains how developers and operators use the repository, its Make
 ## 2. Prerequisites and working directory
 
 - Go 1.25.0 or a compatible later toolchain is required for backend, tooling, tests, and builds.
-- Node.js 18 or later and npm are required only for frontend development, unit tests, dependency maintenance, and Playwright.
+- Node.js 22.18 or later and npm are required only for frontend development, unit tests, dependency maintenance, and Playwright.
 - Playwright browser binaries are required for the browser projects being tested.
 - Supported commands run from the repository root because configuration, migrations, databases, frontend assets, and build output use repository-relative paths.
 
@@ -232,7 +232,7 @@ make frontend-vendor
 
 Edit the dependency declaration or build input, not `frontend/vendor/d3-force.js`. Review the generated bundle and run the graph unit, server, and browser verification required by [STANDARDS.md](STANDARDS.md).
 
-PDF.js is pinned exactly at 4.2.67 for the Node 18 development environment. Rebuild and deterministically check its official prebuilt core, exact matching worker, CMaps, standard fonts, and license assets with:
+PDF.js is pinned exactly at 4.2.67 for the Node 22.18+ development environment. Rebuild and deterministically check its official prebuilt core, exact matching worker, CMaps, standard fonts, and license assets with:
 
 ```sh
 make frontend-pdfjs-vendor

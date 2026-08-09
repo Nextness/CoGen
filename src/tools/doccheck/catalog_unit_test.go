@@ -85,6 +85,84 @@ export class Widget {
 	}
 }
 
+// TestCollectJavaScriptDeclarationsIncludesTypeScriptSyntax verifies collect java script declarations catalogs type script generics and modifiers.
+func TestCollectJavaScriptDeclarationsIncludesTypeScriptSyntax(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "frontend/src/example.ts", `/** Finds values by key. */
+export function findValue<T>(items, key: string): T | undefined { return undefined; }
+
+/** Represents a generic holder. */
+export class Holder<T> {
+  /** Stores one value. */
+  private store(value: T): void {}
+
+  /** Readies content. */
+  async prepare(url: string): Promise<void> {}
+
+  /** Runs a callback with nested parameter types. */
+  run(callback: (item: T) => void): void {}
+}
+`)
+	declarations, _, err := collectJavaScriptDeclarations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := renderCatalogEntries(declarations)
+	for _, expected := range []string{"`findValue`]", "`Holder`]", "`Holder.store`]", "`Holder.prepare`]", "`Holder.run`]", "| function |", "| class |", "| method |"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("TypeScript catalog missing %q:\n%s", expected, output)
+		}
+	}
+	for _, wanted := range []string{"findValue", "Holder.store", "Holder.prepare", "Holder.run"} {
+		found := false
+		for _, entry := range declarations {
+			if entry.name == wanted {
+				found = true
+				if entry.description == noDescription {
+					t.Errorf("TypeScript declaration %q lacks a source description", wanted)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("TypeScript declaration %q was not cataloged", wanted)
+		}
+	}
+}
+
+// TestCollectJavaScriptDeclarationsExcludesDeclarationFiles verifies collect java script declarations skips dot d ts files.
+func TestCollectJavaScriptDeclarationsExcludesDeclarationFiles(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "frontend/src/vendor.d.ts", "export function omittedAmbient(): void;\ndeclare module '*omitted' { export const value: number; }\n")
+	writeTestFile(t, root, "frontend/src/example.ts", "export function included(): void {}\n")
+	declarations, _, err := collectJavaScriptDeclarations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := renderCatalogEntries(declarations)
+	if strings.Contains(output, "omittedAmbient") || strings.Contains(output, "omitted") {
+		t.Fatalf("declaration file content leaked into catalog:\n%s", output)
+	}
+	if !strings.Contains(output, "included") {
+		t.Fatalf("declaration file exclusion hid real declarations:\n%s", output)
+	}
+}
+
+// TestCollectJavaScriptDeclarationsExcludesDistAndDistTS verifies collect java script declarations skips assembled output directories.
+func TestCollectJavaScriptDeclarationsExcludesDistAndDistTS(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "frontend/dist/app.js", "function omittedDist() {}\n")
+	writeTestFile(t, root, "frontend/dist-ts/app.js", "function omittedDistTS() {}\n")
+	writeTestFile(t, root, "frontend/src/example.js", "export function supported() {}\n")
+	declarations, _, err := collectJavaScriptDeclarations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := renderCatalogEntries(declarations)
+	if strings.Contains(output, "omitted") || !strings.Contains(output, "supported") {
+		t.Fatalf("dist exclusions are incorrect:\n%s", output)
+	}
+}
+
 // TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax verifies collect java script declarations excludes vendor and rejects unsupported syntax.
 func TestCollectJavaScriptDeclarationsExcludesVendorAndRejectsUnsupportedSyntax(t *testing.T) {
 	root := t.TempDir()

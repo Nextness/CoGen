@@ -28,7 +28,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -171,6 +171,9 @@ frontend-install: ## Install locked frontend dependencies with npm ci.
 
 frontend-build: ## Assemble frontend/dist from frontend sources with npm run build.
 	cd frontend && npm run build
+
+check-frontend: ## Type-check frontend TypeScript sources with tsc --noEmit.
+	cd frontend && npm run typecheck
 
 frontend-browsers: ## Install Playwright browsers. Override BROWSERS as needed.
 	cd frontend && npm exec -- playwright install $(BROWSERS)

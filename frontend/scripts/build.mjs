@@ -36,7 +36,7 @@ async function listSources() {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(full);
-      } else if (entry.isFile()) {
+      } else if (entry.isFile() && !entry.name.endsWith('.d.ts') && (tsMode || entry.name.endsWith('.js') || entry.name.endsWith('.mjs'))) {
         files.push(full);
       }
     }
@@ -98,7 +98,12 @@ await mkdir(outDir, { recursive: true });
 if (tsMode) {
   await compileSources();
 } else {
-  await copyTree(srcDir, outDir);
+  for (const file of await listSources()) {
+    const relative = path.relative(srcDir, file);
+    const target = path.join(outDir, relative);
+    await mkdir(path.dirname(target), { recursive: true });
+    await cp(file, target);
+  }
 }
 await copyTree(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));
 await copyTree(path.join(frontendDir, 'styles'), path.join(outDir, 'styles'));
