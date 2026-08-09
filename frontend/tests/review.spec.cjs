@@ -8,8 +8,20 @@ test.describe('isolated review mutation lifecycle', () => {
     const context = await request.get('/api/runs/1/review-context');
     expect(context.ok()).toBeTruthy();
     if (!(await context.json()).context_initialized) {
-      const initialized = await request.post('/api/runs/1/review-context', { data: { parent_context_id: null } });
-      expect(initialized.status()).toBe(201);
+      await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
+      await page.waitForLoadState('networkidle');
+      await page.getByRole('button', { name: 'Start review' }).click();
+      const setupDialog = page.getByRole('dialog', { name: 'Start article review' });
+      await expect(setupDialog).toBeVisible();
+      await expect(setupDialog.getByText('Same-search contexts ready')).toBeVisible();
+      await setupDialog.getByRole('button', { name: 'Include all earlier searches' }).click();
+      await expect(setupDialog.getByText('All earlier searches checked')).toBeVisible();
+      await setupDialog.getByRole('button', { name: 'Cancel' }).click();
+      await expect(setupDialog).toBeHidden();
+      await page.getByRole('button', { name: 'Start review' }).click();
+      await setupDialog.locator('[data-review-parent]').selectOption('');
+      await setupDialog.getByRole('button', { name: 'Initialize review' }).click();
+      await expect(page.getByRole('heading', { name: 'Review decision' })).toBeVisible();
     }
     const current = await request.get('/api/runs/1/articles/1/review');
     expect(current.ok()).toBeTruthy();
@@ -30,12 +42,37 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
     await page.waitForLoadState('networkidle');
     await expect(page.locator('[data-review-host]')).toContainText('Approved');
+    const reviewPanelGap = await page.locator('[data-review-host]').evaluate((host) => host.nextElementSibling.getBoundingClientRect().top - host.getBoundingClientRect().bottom);
+    expect(reviewPanelGap).toBeGreaterThanOrEqual(15);
+    await page.getByRole('button', { name: 'Notes' }).click();
+    const noteFormGaps = await page.locator('[data-note-form]').evaluate((form) => {
+      const heading = form.querySelector('.rw-note-form__heading').getBoundingClientRect();
+      const field = form.querySelector('.ui.field').getBoundingClientRect();
+      const actions = form.querySelector('.rw-review-actions').getBoundingClientRect();
+      return { heading: field.top - heading.bottom, actions: actions.top - field.bottom };
+    });
+    expect(noteFormGaps.heading).toBeGreaterThanOrEqual(15);
+    expect(noteFormGaps.actions).toBeGreaterThanOrEqual(15);
     const browserNote = page.locator('[data-note-list] p').filter({ hasText: `${browserName} results page` });
     await expect(browserNote).toContainText('unresolved note');
     await expect(browserNote.locator('[aria-label="Unresolved link"]')).toBeVisible();
+    await page.getByRole('button', { name: 'PDF anchors' }).click();
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorID);
     await expect(page.locator('.rw-pdf-page--current canvas')).toBeVisible();
     await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture methods');
+    await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Next PDF page' }).click();
+    await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
+    await expect(page.locator('.rw-pdf-page--current')).toHaveAttribute('data-pdf-page-number', '2');
+    await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture conclusions');
+    await expect(page.locator('[data-pdf-status]')).toHaveText('PDF page 2 of 2.');
+    const containment = await page.locator('.rw-pdf-viewer').evaluate((viewer) => {
+      const viewport = viewer.querySelector('.rw-pdf-pages');
+      return { viewerOverflow: getComputedStyle(viewer).overflow, viewportOverflow: getComputedStyle(viewport).overflow, viewerBottom: viewer.getBoundingClientRect().bottom, viewportBottom: viewport.getBoundingClientRect().bottom };
+    });
+    expect(containment.viewerOverflow).toBe('hidden');
+    expect(containment.viewportOverflow).toBe('auto');
+    expect(containment.viewportBottom).toBeLessThanOrEqual(containment.viewerBottom + 1);
 
     await page.reload();
     await page.waitForLoadState('networkidle');

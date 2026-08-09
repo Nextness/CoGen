@@ -383,7 +383,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `components/shell.js` | Health state and responsive navigation toggle. |
 | `components/note-parser.js` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
 | `components/note-editor.js` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
-| `components/pdf-viewer.js` | Custom vendored PDF.js lifecycle, nearby-page canvas and selectable text rendering, rotation, zoom, selection geometry, and anchor highlights. |
+| `components/pdf-viewer.js` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
 | `components/review-panel.js` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
 | `views/*.js` | Page-level fetching, rendering, and post-render binding. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |

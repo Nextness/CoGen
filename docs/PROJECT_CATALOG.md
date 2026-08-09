@@ -3364,12 +3364,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`clearDraft`](../src/server/frontend/components/note-editor.js#L33) | function | 33 | `function clearDraft(key, storage)` | Removes only the exact draft associated with a successful save. |
 | [`lineDiff`](../src/server/frontend/components/note-editor.js#L43) | function | 43 | `function lineDiff(previous, current, limit)` | Produces a bounded line comparison or complete side-by-side fallback. |
 | [`mountNoteEditor`](../src/server/frontend/components/note-editor.js#L66) | function | 66 | `async function mountNoteEditor(host, options)` | Mounts the note editor and current immutable note list for one article. |
-| [`key`](../src/server/frontend/components/note-editor.js#L80) | function | 80 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
-| [`renderPreview`](../src/server/frontend/components/note-editor.js#L84) | function | 84 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
-| [`resetEditor`](../src/server/frontend/components/note-editor.js#L91) | function | 91 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
-| [`loadNotes`](../src/server/frontend/components/note-editor.js#L98) | function | 98 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
-| [`showHistory`](../src/server/frontend/components/note-editor.js#L125) | function | 125 | `async function showHistory(note)` | Displays one selected head's immutable ancestry and optional restoration control. |
-| [`focusNote`](../src/server/frontend/components/note-editor.js#L146) | function | 146 | `async function focusNote(noteID)` | Resolves a URL-focused active or deleted note and exposes its history. |
+| [`key`](../src/server/frontend/components/note-editor.js#L82) | function | 82 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
+| [`renderPreview`](../src/server/frontend/components/note-editor.js#L86) | function | 86 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
+| [`resetEditor`](../src/server/frontend/components/note-editor.js#L93) | function | 93 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
+| [`loadNotes`](../src/server/frontend/components/note-editor.js#L101) | function | 101 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
+| [`showHistory`](../src/server/frontend/components/note-editor.js#L128) | function | 128 | `async function showHistory(note)` | Displays one selected head's immutable ancestry and optional restoration control. |
+| [`focusNote`](../src/server/frontend/components/note-editor.js#L149) | function | 149 | `async function focusNote(noteID)` | Resolves a URL-focused active or deleted note and exposes its history. |
 
 ### [`src/server/frontend/components/note-parser.js`](../src/server/frontend/components/note-parser.js)
 
@@ -3404,23 +3404,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`rotateRectangles`](../src/server/frontend/components/pdf-viewer.js#L25) | function | 25 | `function rotateRectangles(rectangles, rotation)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
 | [`selectionRectangles`](../src/server/frontend/components/pdf-viewer.js#L42) | function | 42 | `function selectionRectangles(selection, pageElement, rotation)` | Extracts bounded normalized rectangles from a same-page browser selection. |
 | [`mountPDFViewer`](../src/server/frontend/components/pdf-viewer.js#L64) | function | 64 | `async function mountPDFViewer(host, options, loader)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`render`](../src/server/frontend/components/pdf-viewer.js#L95) | function | 95 | `async function render()` | Replaces the bounded nearby-page set and its selectable text and anchor layers. |
-| [`changePage`](../src/server/frontend/components/pdf-viewer.js#L143) | function | 143 | `function changePage(next)` | Clamps and renders a requested current page. |
-| [`renderAnchors`](../src/server/frontend/components/pdf-viewer.js#L178) | function | 178 | `function renderAnchors(container, anchors, rotation)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../src/server/frontend/components/pdf-viewer.js#L195) | function | 195 | `function renderSelectableText(pdfjs, content, container, viewport)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+| [`updateControls`](../src/server/frontend/components/pdf-viewer.js#L96) | function | 96 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../src/server/frontend/components/pdf-viewer.js#L106) | function | 106 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`changePage`](../src/server/frontend/components/pdf-viewer.js#L159) | function | 159 | `function changePage(next)` | Clamps and renders a requested current page. |
+| [`renderAnchors`](../src/server/frontend/components/pdf-viewer.js#L195) | function | 195 | `function renderAnchors(container, anchors, rotation)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../src/server/frontend/components/pdf-viewer.js#L212) | function | 212 | `function renderSelectableText(pdfjs, content, container, viewport)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
 
 ### [`src/server/frontend/components/review-panel.js`](../src/server/frontend/components/review-panel.js)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`mountArticleReview`](../src/server/frontend/components/review-panel.js#L11) | function | 11 | `async function mountArticleReview(host, pdfHost, record, detailData)` | Mounts all editable review controls for one immutable run article revision. |
-| [`renderStartReview`](../src/server/frontend/components/review-panel.js#L44) | function | 44 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
-| [`appendCandidates`](../src/server/frontend/components/review-panel.js#L52) | function | 52 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
-| [`renderReview`](../src/server/frontend/components/review-panel.js#L83) | function | 83 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`updateSubstatuses`](../src/server/frontend/components/review-panel.js#L101) | function | 101 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L141) | function | 141 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L155) | function | 155 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L186) | function | 186 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderStartReview`](../src/server/frontend/components/review-panel.js#L46) | function | 46 | `function renderStartReview(proposed)` | Renders explicit context initialization with safe parent confirmation. |
+| [`closeDialog`](../src/server/frontend/components/review-panel.js#L65) | function | 65 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
+| [`appendCandidates`](../src/server/frontend/components/review-panel.js#L70) | function | 70 | `async function appendCandidates(scope)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
+| [`renderReview`](../src/server/frontend/components/review-panel.js#L141) | function | 141 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`updateSubstatuses`](../src/server/frontend/components/review-panel.js#L177) | function | 177 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderAnchorCandidate`](../src/server/frontend/components/review-panel.js#L246) | function | 246 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../src/server/frontend/components/review-panel.js#L279) | function | 279 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../src/server/frontend/components/review-panel.js#L310) | function | 310 | `async function showAnchorHistory(anchorID)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
 
 ### [`src/server/frontend/components/shell.js`](../src/server/frontend/components/shell.js)
 
@@ -3620,13 +3622,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`detail breadcrumbs remain concise and identify the parent collection`](../frontend/tests/ui-quality.spec.cjs#L35) | test | 35 | `test('detail breadcrumbs remain concise and identify the parent collection', callback)` | detail breadcrumbs remain concise and identify the parent collection |
-| [`mobile and medium layouts fit the viewport while tables retain their own scroller`](../frontend/tests/ui-quality.spec.cjs#L44) | test | 44 | `test('mobile and medium layouts fit the viewport while tables retain their own scroller', callback)` | mobile and medium layouts fit the viewport while tables retain their own scroller |
-| [`skip link, errors, and reduced motion are announced`](../frontend/tests/ui-quality.spec.cjs#L68) | test | 68 | `test('skip link, errors, and reduced motion are announced', callback)` | skip link, errors, and reduced motion are announced |
-| [`${name} has no axe violations`](../frontend/tests/ui-quality.spec.cjs#L103) | test | 103 | ``test(`${name} has no axe violations`, callback)`` | ${name} has no axe violations |
-| [`${name} light`](../frontend/tests/ui-quality.spec.cjs#L124) | test | 124 | ``test(`${name} light`, callback)`` | ${name} light |
-| [`overview dark`](../frontend/tests/ui-quality.spec.cjs#L130) | test | 130 | `test('overview dark', callback)` | overview dark |
-| [`artifact preview light`](../frontend/tests/ui-quality.spec.cjs#L136) | test | 136 | `test('artifact preview light', callback)` | artifact preview light |
+| [`detail breadcrumbs remain concise and identify the parent collection`](../frontend/tests/ui-quality.spec.cjs#L40) | test | 40 | `test('detail breadcrumbs remain concise and identify the parent collection', callback)` | detail breadcrumbs remain concise and identify the parent collection |
+| [`mobile and medium layouts fit the viewport while tables retain their own scroller`](../frontend/tests/ui-quality.spec.cjs#L49) | test | 49 | `test('mobile and medium layouts fit the viewport while tables retain their own scroller', callback)` | mobile and medium layouts fit the viewport while tables retain their own scroller |
+| [`skip link, errors, and reduced motion are announced`](../frontend/tests/ui-quality.spec.cjs#L85) | test | 85 | `test('skip link, errors, and reduced motion are announced', callback)` | skip link, errors, and reduced motion are announced |
+| [`${name} has no axe violations`](../frontend/tests/ui-quality.spec.cjs#L120) | test | 120 | ``test(`${name} has no axe violations`, callback)`` | ${name} has no axe violations |
+| [`review setup dialog has no axe violations and can be dismissed`](../frontend/tests/ui-quality.spec.cjs#L127) | test | 127 | `test('review setup dialog has no axe violations and can be dismissed', callback)` | review setup dialog has no axe violations and can be dismissed |
+| [`${name} light`](../frontend/tests/ui-quality.spec.cjs#L152) | test | 152 | ``test(`${name} light`, callback)`` | ${name} light |
+| [`overview dark`](../frontend/tests/ui-quality.spec.cjs#L158) | test | 158 | `test('overview dark', callback)` | overview dark |
+| [`article review setup light`](../frontend/tests/ui-quality.spec.cjs#L164) | test | 164 | `test('article review setup light', callback)` | article review setup light |
+| [`article review setup dark`](../frontend/tests/ui-quality.spec.cjs#L171) | test | 171 | `test('article review setup dark', callback)` | article review setup dark |
+| [`artifact preview light`](../frontend/tests/ui-quality.spec.cjs#L179) | test | 179 | `test('artifact preview light', callback)` | artifact preview light |
 
 ### [`frontend/tests/unit/api.test.js`](../frontend/tests/unit/api.test.js)
 
@@ -3730,6 +3735,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`projects displayed rectangles back through all supported rotations`](../frontend/tests/unit/components/pdf-viewer.test.js#L9) | test | 9 | `it('projects displayed rectangles back through all supported rotations', callback)` | projects displayed rectangles back through all supported rotations |
 | [`round-trips stored rectangles into each displayed rotation`](../frontend/tests/unit/components/pdf-viewer.test.js#L17) | test | 17 | `it('round-trips stored rectangles into each displayed rotation', callback)` | round-trips stored rectangles into each displayed rotation |
+| [`renders one page and advances it with one Next activation`](../frontend/tests/unit/components/pdf-viewer.test.js#L24) | test | 24 | `it('renders one page and advances it with one Next activation', callback)` | renders one page and advances it with one Next activation |
 
 ### [`frontend/tests/unit/components/shell.test.js`](../frontend/tests/unit/components/shell.test.js)
 

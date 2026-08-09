@@ -65,16 +65,18 @@ export function lineDiff(previous, current, limit) {
 /** Mounts the note editor and current immutable note list for one article. */
 export async function mountNoteEditor(host, options) {
   let currentNote = null;
-  host.innerHTML = '<section class="rw-note-editor"><div class="ui top attached header"><div><h3>Review notes</h3><p>Notes keep immutable version history. Browser drafts are local and may be lost.</p></div></div>'
-    + '<div class="content"><div data-note-list></div><form class="ui form" data-note-form><label>Note body<textarea rows="8" data-note-body></textarea></label>'
-    + '<p class="rw-draft-status" data-draft-status aria-live="polite"></p><div data-note-diagnostics role="alert"></div>'
-    + '<div class="rw-note-preview" data-note-preview aria-label="Note preview"></div><div class="rw-filter-actions">'
-    + '<button type="submit" class="ui primary button">Save note</button><button type="button" class="ui basic button" data-note-cancel>Clear editor</button></div></form>'
-    + '<div data-note-history></div></div></section>';
+  host.innerHTML = '<section class="rw-note-editor"><div class="rw-review-section__heading"><div><h4 id="review-notes-heading">Review notes</h4><p>Notes keep immutable version history. Unsaved drafts remain only in this browser.</p></div></div>'
+    + '<div data-note-list></div><div class="rw-note-workspace"><form class="ui form rw-note-form" data-note-form><div class="rw-note-form__heading"><div><h5 data-note-editor-title>New note</h5><p>Use the project note syntax for headings, lists, quotes, code, tables, and evidence links.</p></div></div>'
+    + '<div class="ui field"><label for="review-note-body">Note body</label><textarea id="review-note-body" rows="10" data-note-body></textarea></div>'
+    + '<p class="rw-draft-status ui faded text" data-draft-status aria-live="polite"></p><div class="rw-note-diagnostics" data-note-diagnostics role="alert"></div>'
+    + '<div class="rw-review-actions"><button type="submit" class="ui primary button" data-note-save>Save note</button><button type="button" class="ui basic button" data-note-cancel>Clear editor</button></div></form>'
+    + '<aside class="rw-note-preview" aria-labelledby="note-preview-heading"><div class="rw-note-preview__heading"><h5 id="note-preview-heading">Preview</h5><span class="ui label">Safe rendering</span></div><div data-note-preview></div></aside></div>'
+    + '<div data-note-history></div></section>';
   const body = host.querySelector('[data-note-body]');
   const diagnostics = host.querySelector('[data-note-diagnostics]');
   const preview = host.querySelector('[data-note-preview]');
   const draftStatus = host.querySelector('[data-draft-status]');
+  const editorTitle = host.querySelector('[data-note-editor-title]');
 
   /** Returns the draft key for the current new-note or immutable note head. */
   function key() {
@@ -90,6 +92,7 @@ export async function mountNoteEditor(host, options) {
   /** Returns the editor to new-note mode and restores only its matching draft. */
   function resetEditor() {
     currentNote = null;
+    editorTitle.textContent = 'New note';
     body.value = readDraft(key()) || '';
     renderPreview();
     draftStatus.textContent = '';
@@ -100,15 +103,15 @@ export async function mountNoteEditor(host, options) {
     const notes = data.notes || [];
     host.querySelector('[data-note-list]').innerHTML = notes.length ? '<ul class="rw-note-list">' + notes.map(function(note) {
       const noteBody = note.version.body || '';
-      return '<li data-note-id="' + note.id + '"><div class="rw-note-content">' + renderNote(parseNote(noteBody), note.version.links) + '</div>'
-        + '<p><span class="ui label">Version ' + note.version.id + '</span> ' + esc(note.version.reviewer_display) + ' · ' + esc(formatTime(note.version.created_at))
-        + (note.inherited_from_context_id ? ' · Inherited from context ' + note.inherited_from_context_id : '') + '</p>'
-        + '<button type="button" data-note-edit>Edit</button> <button type="button" data-note-history-open>History</button> <button type="button" data-note-delete>Remove</button></li>';
+      return '<li data-note-id="' + note.id + '"><div class="rw-note-card__meta"><div><span class="ui label">Note ' + note.id + '</span><span class="ui label">Version ' + note.version.id + '</span>' + (note.inherited_from_context_id ? '<span class="ui blue label">Inherited</span>' : '') + '</div><p>' + esc(note.version.reviewer_display) + ' · ' + esc(formatTime(note.version.created_at)) + '</p></div>'
+        + '<div class="rw-note-content">' + renderNote(parseNote(noteBody), note.version.links) + '</div>'
+        + '<div class="rw-note-card__actions"><button type="button" class="ui basic button" data-note-edit>Edit</button><button type="button" class="ui basic button" data-note-history-open>History</button><button type="button" class="ui basic button" data-note-delete>Remove</button></div></li>';
     }).join('') + '</ul>' : '<p class="ui faded text">No active notes.</p>';
     for (const note of notes) {
       const row = host.querySelector(`[data-note-id="${note.id}"]`);
       row.querySelector('[data-note-edit]').addEventListener('click', function() {
         currentNote = note;
+        editorTitle.textContent = 'Editing note ' + note.id;
         body.value = readDraft(key()) ?? note.version.body ?? '';
         renderPreview();
         body.focus();
@@ -126,7 +129,7 @@ export async function mountNoteEditor(host, options) {
     const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 100 });
     const versions = data.versions || [];
     const latestActive = versions.find(function(version) { return version.state === 'active'; });
-    host.querySelector('[data-note-history]').innerHTML = '<section class="rw-note-history"><h4>Note ' + note.id + ' history</h4>' + (note.version.state === 'deleted' ? '<p>This note is currently a tombstone.</p><button type="button" data-note-restore' + (latestActive ? '' : ' disabled') + '>Restore previous content</button>' : '') + versions.map(function(version, index) {
+    host.querySelector('[data-note-history]').innerHTML = '<section class="rw-note-history"><div class="rw-review-section__heading"><div><h4>Note ' + note.id + ' history</h4><p>Compare immutable snapshots from newest to oldest.</p></div>' + (note.version.state === 'deleted' ? '<button type="button" class="ui primary button" data-note-restore' + (latestActive ? '' : ' disabled') + '>Restore previous content</button>' : '') + '</div>' + versions.map(function(version, index) {
       const previous = versions[index + 1]?.body || '';
       const comparison = lineDiff(previous, version.body || '');
       const comparisonHTML = comparison.fallback
@@ -160,6 +163,9 @@ export async function mountNoteEditor(host, options) {
     event.preventDefault();
     if (!renderPreview()) return;
     const savedKey = key();
+    const saveButton = host.querySelector('[data-note-save]');
+    saveButton.disabled = true;
+    saveButton.classList.add('loading');
     try {
       if (currentNote) {
         await mutate(`/api/runs/${options.runID}/notes/${currentNote.id}/versions`, 'POST', { expected_version_id: currentNote.version.id, state: 'active', body: body.value });
@@ -172,6 +178,11 @@ export async function mountNoteEditor(host, options) {
       options.onChanged?.();
     } catch (error) {
       draftStatus.textContent = error instanceof APIError && error.status === 409 ? 'This note changed elsewhere. Your draft was kept; reload history before retrying.' : `Save failed. Your draft was kept: ${error.message}`;
+    } finally {
+      if (saveButton.isConnected) {
+        saveButton.disabled = false;
+        saveButton.classList.remove('loading');
+      }
     }
   });
   resetEditor();

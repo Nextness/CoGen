@@ -17,6 +17,7 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
   let pdfController = null;
   let pendingSelection = null;
   let reviewEditable = false;
+  let setReviewSection = function() {};
 
   if (detailData.pdf_status?.status === 'available' && pdfHost) {
     pdfController = await mountPDFViewer(pdfHost, {
@@ -25,6 +26,7 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
       onPageChange: function(page) { history.replaceState({}, '', link({ pdf_page: page })); },
       onSelection: function(selection) {
         pendingSelection = selection;
+        setReviewSection('anchors');
         renderAnchorCandidate();
       },
     }).catch(function(error) {
@@ -42,40 +44,96 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
 
   /** Renders explicit context initialization with safe parent confirmation. */
   function renderStartReview(proposed) {
-    const inherited = proposed ? '<p>The proposed parent is run ' + proposed.pipeline_run_id + ' from ' + esc(proposed.search_id) + ' / ' + esc(proposed.search_revision) + ', with ' + proposed.inherited_work_count + ' matching works. Inheritance is frozen when review starts.</p>' : '<p>No earlier review context was proposed. This run can start with empty review heads.</p>';
-    host.innerHTML = '<section class="ui segment rw-review-panel"><h2>Article review</h2><p>This completed run has no review context.</p>' + inherited
-      + '<button type="button" class="ui primary button" data-start-review>Start review</button><dialog data-review-dialog><form method="dialog"><h3>Start review context</h3>'
-      + inherited + '<label>Parent context<select data-review-parent><option value="">Start empty</option>' + (proposed ? '<option selected value="' + proposed.context_id + '">Proposed run ' + proposed.pipeline_run_id + '</option>' : '') + '</select></label>'
-      + '<div class="rw-filter-actions"><button type="button" data-all-review-candidates>Show contexts from all searches</button><span data-review-candidates aria-live="polite"></span></div><div class="rw-filter-actions"><button value="cancel">Cancel</button><button type="button" class="ui primary button" data-confirm-review>Initialize review</button></div></form></dialog></section>';
+    const proposedSummary = proposed
+      ? 'Run ' + proposed.pipeline_run_id + ' from ' + esc(proposed.search_id) + ' / ' + esc(proposed.search_revision) + ' contains ' + proposed.inherited_work_count + ' matching work' + (proposed.inherited_work_count === 1 ? '' : 's') + '.'
+      : 'No earlier compatible review context was proposed. You can start this run with an empty review context.';
+    const proposedOption = proposed ? '<option selected value="' + proposed.context_id + '">Recommended: run ' + proposed.pipeline_run_id + ' · ' + esc(proposed.search_id) + ' / ' + esc(proposed.search_revision) + ' · ' + proposed.inherited_work_count + ' matching</option>' : '';
+    host.innerHTML = '<section class="ui segment rw-review-panel rw-review-panel--empty"><div class="ui top attached header"><div><h3>Article review</h3><p>Record a run-scoped decision, notes, and PDF anchors without changing pipeline evidence.</p></div><span class="ui label">Not started</span></div>'
+      + '<div class="content"><div class="rw-review-onboarding"><div><h4>Start a review context for this run</h4><p>Starting review freezes any inherited article decisions, notes, and anchors so later changes remain independent.</p></div><button type="button" class="ui primary button" data-start-review>Start review</button></div>'
+      + '<p class="ui info message"><span class="header">Suggested lineage</span>' + proposedSummary + '</p></div>'
+      + '<dialog class="rw-review-dialog" data-review-dialog aria-labelledby="review-dialog-title" aria-describedby="review-dialog-description"><form class="ui form rw-review-dialog__form" data-review-context-form>'
+      + '<div class="rw-review-dialog__header"><div><p class="rw-review-dialog__eyebrow">Review lineage</p><h3 id="review-dialog-title">Start article review</h3><p id="review-dialog-description">Choose which earlier review context to inherit, or start empty. This choice cannot be changed after initialization.</p></div><button type="button" class="ui icon basic button rw-review-dialog__close" data-review-close aria-label="Close review setup">×</button></div>'
+      + '<div class="rw-review-dialog__body"><div class="ui info message"><span class="header">Recommended starting point</span>' + proposedSummary + ' Inheritance is frozen when review starts.</div>'
+      + '<div class="ui field"><label for="review-parent-context">Parent review context</label><div class="ui selection dropdown"><select id="review-parent-context" data-review-parent><option value="">Start empty with no inherited review evidence</option>' + proposedOption + '</select></div><p class="rw-field-help">Only earlier review contexts are eligible. Matching work heads are copied by immutable version reference.</p></div>'
+      + '<section class="rw-review-candidate-panel" aria-labelledby="review-candidate-heading"><div><h4 id="review-candidate-heading">Available context scope</h4><p>Same-search contexts load automatically. Expand only when you intentionally need lineage from another search.</p></div><button type="button" class="ui basic button" data-all-review-candidates>Include all earlier searches</button></section>'
+      + '<div class="ui info message rw-review-candidate-status" data-review-candidates aria-live="polite"><span class="header">Same-search contexts</span>Open this dialog to load eligible alternatives.</div></div>'
+      + '<div class="rw-review-dialog__actions"><button type="button" class="ui basic button" data-review-cancel>Cancel</button><button type="submit" class="ui primary button" data-confirm-review>Initialize review</button></div></form></dialog></section>';
     const dialog = host.querySelector('[data-review-dialog]');
+    let sameSearchLoaded = false;
+    let allSearchesLoaded = false;
+    /** Closes the setup dialog in browsers and test DOMs with partial dialog support. */
+    function closeDialog() {
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+    }
     /** Adds bounded eligible parents from same-search or explicitly expanded scope. */
     async function appendCandidates(scope) {
-      const candidates = await api(`/api/runs/${runID}/review-context-candidates`, { scope: scope, limit: 100 });
-      const select = host.querySelector('[data-review-parent]');
-      let added = 0;
-      for (const candidate of candidates.rows || []) {
-        if (Array.from(select.options).some(function(option) { return option.value === String(candidate.context_id); })) continue;
-        const option = document.createElement('option');
-        option.value = candidate.context_id;
-        option.textContent = `${candidate.search_id} / ${candidate.search_revision} / run ${candidate.pipeline_run_id} (${candidate.inherited_work_count} matching works)`;
-        select.append(option);
-        added += 1;
+      const status = host.querySelector('[data-review-candidates]');
+      const expandButton = host.querySelector('[data-all-review-candidates]');
+      status.className = 'ui info message rw-review-candidate-status';
+      status.innerHTML = '<span class="header">Searching review history</span>Loading eligible ' + (scope === 'all' ? 'cross-search' : 'same-search') + ' contexts.';
+      if (scope === 'all') {
+        expandButton.disabled = true;
+        expandButton.classList.add('loading');
       }
-      host.querySelector('[data-review-candidates]').textContent = added ? `${added} eligible context${added === 1 ? '' : 's'} added.` : 'No additional eligible contexts found.';
+      try {
+        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, { scope: scope, limit: 100 });
+        const select = host.querySelector('[data-review-parent]');
+        let added = 0;
+        for (const candidate of candidates.rows || []) {
+          if (Array.from(select.options).some(function(option) { return option.value === String(candidate.context_id); })) continue;
+          const option = document.createElement('option');
+          option.value = candidate.context_id;
+          option.textContent = `${candidate.search_id} / ${candidate.search_revision} / run ${candidate.pipeline_run_id} · ${candidate.inherited_work_count} matching`;
+          select.append(option);
+          added += 1;
+        }
+        const total = Math.max(0, select.options.length - 1);
+        if (scope === 'all') {
+          allSearchesLoaded = true;
+          expandButton.textContent = 'All earlier searches included';
+          status.innerHTML = '<span class="header">All earlier searches checked</span>' + (added ? added + ' additional eligible context' + (added === 1 ? ' was' : 's were') + ' added. ' : 'No additional cross-search contexts were found. ') + total + ' total parent option' + (total === 1 ? ' is' : 's are') + ' available.';
+        } else {
+          sameSearchLoaded = true;
+          status.innerHTML = '<span class="header">Same-search contexts ready</span>' + (total ? total + ' eligible parent option' + (total === 1 ? ' is' : 's are') + ' available, including the recommendation when present.' : 'No same-search parent is available. Start empty or deliberately include all earlier searches.');
+        }
+      } catch (error) {
+        status.className = 'ui error message rw-review-candidate-status';
+        status.innerHTML = '<span class="header">Context search failed</span>' + esc(error.message);
+        if (scope === 'all') expandButton.disabled = false;
+      } finally {
+        expandButton.classList.remove('loading');
+      }
     }
     host.querySelector('[data-start-review]').addEventListener('click', async function() {
       dialog.showModal?.();
       if (!dialog.open) dialog.setAttribute('open', '');
-      await appendCandidates('same_search');
+      if (!sameSearchLoaded) await appendCandidates('same_search');
     });
-    host.querySelector('[data-all-review-candidates]').addEventListener('click', async function(event) {
-      event.currentTarget.disabled = true;
+    host.querySelector('[data-all-review-candidates]').addEventListener('click', async function() {
+      if (allSearchesLoaded) return;
       await appendCandidates('all');
     });
-    host.querySelector('[data-confirm-review]').addEventListener('click', async function() {
+    host.querySelector('[data-review-close]').addEventListener('click', closeDialog);
+    host.querySelector('[data-review-cancel]').addEventListener('click', closeDialog);
+    dialog.addEventListener('click', function(event) { if (event.target === dialog) closeDialog(); });
+    host.querySelector('[data-review-context-form]').addEventListener('submit', async function(event) {
+      event.preventDefault();
       const raw = host.querySelector('[data-review-parent]').value;
-      await mutate(`/api/runs/${runID}/review-context`, 'POST', { parent_context_id: raw ? Number(raw) : null });
-      await renderReview();
+      const button = host.querySelector('[data-confirm-review]');
+      const status = host.querySelector('[data-review-candidates]');
+      button.disabled = true;
+      button.classList.add('loading');
+      try {
+        await mutate(`/api/runs/${runID}/review-context`, 'POST', { parent_context_id: raw ? Number(raw) : null });
+        closeDialog();
+        await renderReview();
+      } catch (error) {
+        status.className = 'ui error message rw-review-candidate-status';
+        status.innerHTML = '<span class="header">Review could not be initialized</span>' + esc(error.message);
+        button.disabled = false;
+        button.classList.remove('loading');
+      }
     });
   }
 
@@ -87,28 +145,49 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
     const version = state.version;
     const selectedStatus = version?.status || 'not_evaluated';
     const selectedSubstatuses = new Set(version?.sub_statuses || []);
-    host.innerHTML = '<section class="ui segment rw-review-panel"><div class="ui top attached header"><div><h2>Article review</h2><p>Run-scoped immutable evaluation state.</p></div>'
-      + (state.inherited_from_context_id ? '<span class="ui label">Inherited from context ' + state.inherited_from_context_id + '</span>' : '') + '</div><div class="content">'
-      + '<form class="ui form" data-review-form><label>Status<select data-review-status>' + statuses.map(function(status) { return '<option value="' + status + '"' + (selectedStatus === status ? ' selected' : '') + '>' + esc(humanLabel(status)) + '</option>'; }).join('') + '</select></label>'
-      + '<fieldset data-review-substatuses><legend>Sub-statuses</legend>' + substatuses.map(function(status) { return '<label><input type="checkbox" value="' + status + '"' + (selectedSubstatuses.has(status) ? ' checked' : '') + '> ' + esc(humanLabel(status)) + '</label>'; }).join('') + '</fieldset>'
-      + '<label>Optional reason<textarea rows="3" data-review-reason maxlength="32768">' + esc(version?.reason || '') + '</textarea></label>'
-      + '<p data-review-message aria-live="polite">' + (version ? 'Version ' + version.id + ' by ' + esc(version.reviewer_display) + ' at ' + esc(formatTime(version.created_at)) + '.' : 'This status has not been explicitly saved.') + '</p>'
-      + '<div class="rw-filter-actions"><button type="submit" class="ui primary button"' + (data.editable ? '' : ' disabled') + '>Save complete review state</button><button type="button" data-review-history>View history</button></div></form>'
-      + '<div data-review-history-list></div><div data-note-host></div><section class="rw-anchor-panel"><h3>PDF anchors</h3><div data-anchor-candidate></div><div data-anchor-list></div></section></div></section>';
+    const attribution = version ? '<span class="header">Current saved version</span>Version ' + version.id + ' by ' + esc(version.reviewer_display) + ' at ' + esc(formatTime(version.created_at)) + '.' : '<span class="header">No saved decision yet</span>The current context defaults to Not Evaluated until you save a complete review state.';
+    const inheritedLabel = state.inherited_from_context_id ? '<span class="ui blue label">Inherited from context ' + state.inherited_from_context_id + '</span>' : '<span class="ui label">This context</span>';
+    const disabled = data.editable ? '' : ' disabled';
+    host.innerHTML = '<section class="ui segment rw-review-panel"><div class="ui top attached header"><div><h3>Article review</h3><p>Run-scoped decisions, notes, and anchors append immutable versions.</p></div>' + inheritedLabel + '</div><div class="content">'
+      + '<nav class="rw-review-nav" aria-label="Article review sections"><button type="button" class="ui basic button active" data-review-section="decision" aria-pressed="true">Decision</button><button type="button" class="ui basic button" data-review-section="notes" aria-pressed="false">Notes</button><button type="button" class="ui basic button" data-review-section="anchors" aria-pressed="false">PDF anchors</button></nav>'
+      + '<section class="rw-review-section" data-review-section-panel="decision" aria-labelledby="review-decision-heading"><div class="rw-review-section__heading"><div><h4 id="review-decision-heading">Review decision</h4><p>Save the complete state for this article in the selected run context.</p></div></div>'
+      + '<form class="ui form rw-review-form" data-review-form><div class="rw-review-form__primary"><div class="ui field"><label for="article-review-status">Decision status</label><div class="ui selection dropdown"><select id="article-review-status" data-review-status' + disabled + '>' + statuses.map(function(status) { return '<option value="' + status + '"' + (selectedStatus === status ? ' selected' : '') + '>' + esc(humanLabel(status)) + '</option>'; }).join('') + '</select></div></div>'
+      + '<div class="ui field"><label for="article-review-reason">Reason or review summary <span class="rw-optional">Optional</span></label><textarea id="article-review-reason" rows="4" data-review-reason maxlength="32768"' + disabled + '>' + esc(version?.reason || '') + '</textarea><p class="rw-field-help">Explain the decision without copying sensitive research content into the audit trail.</p></div></div>'
+      + '<fieldset class="rw-review-substatuses" data-review-substatuses><legend>Decision qualifiers</legend><p>Select qualifiers only when the status is Not Approved or Removed.</p><div class="rw-review-option-grid">' + substatuses.map(function(status) { return '<label class="rw-review-check"><input type="checkbox" value="' + status + '"' + (selectedSubstatuses.has(status) ? ' checked' : '') + disabled + '><span>' + esc(humanLabel(status)) + '</span></label>'; }).join('') + '</div></fieldset>'
+      + '<div class="ui info message rw-review-feedback" data-review-message aria-live="polite">' + attribution + '</div>'
+      + '<div class="rw-review-actions"><button type="submit" class="ui primary button" data-review-save' + disabled + '>Save review decision</button><button type="button" class="ui basic button" data-review-history aria-expanded="false">Show version history</button></div></form>'
+      + '<div class="rw-review-history-panel" data-review-history-list hidden></div></section>'
+      + '<section class="rw-review-section" data-review-section-panel="notes" aria-labelledby="review-notes-heading" hidden><div data-note-host></div></section>'
+      + '<section class="rw-review-section rw-anchor-panel" data-review-section-panel="anchors" aria-labelledby="review-anchors-heading" hidden><div class="rw-review-section__heading"><div><h4 id="review-anchors-heading">PDF anchors</h4><p>Select text in the document reader, then save a named anchor for this review context.</p></div></div><div data-anchor-candidate></div><div data-anchor-list></div></section></div></section>';
+    const sectionButtons = Array.from(host.querySelectorAll('[data-review-section]'));
+    const sectionPanels = Array.from(host.querySelectorAll('[data-review-section-panel]'));
+    /** Switches visible review content without hiding its section identity or state. */
+    setReviewSection = function(name) {
+      sectionButtons.forEach(function(button) {
+        const active = button.dataset.reviewSection === name;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      sectionPanels.forEach(function(panel) { panel.hidden = panel.dataset.reviewSectionPanel !== name; });
+    };
+    sectionButtons.forEach(function(button) { button.addEventListener('click', function() { setReviewSection(button.dataset.reviewSection); }); });
     const statusSelect = host.querySelector('[data-review-status]');
     const substatusField = host.querySelector('[data-review-substatuses]');
     /** Enables sub-status choices only for the two compatible terminal statuses. */
     function updateSubstatuses() {
-      const enabled = statusSelect.value === 'not_approved' || statusSelect.value === 'removed';
-      substatusField.disabled = !enabled;
-      if (!enabled) substatusField.querySelectorAll('input').forEach(function(input) { input.checked = false; });
+      const compatible = statusSelect.value === 'not_approved' || statusSelect.value === 'removed';
+      substatusField.disabled = !reviewEditable || !compatible;
+      if (!compatible) substatusField.querySelectorAll('input').forEach(function(input) { input.checked = false; });
     }
     statusSelect.addEventListener('change', updateSubstatuses);
     updateSubstatuses();
     host.querySelector('[data-review-form]').addEventListener('submit', async function(event) {
       event.preventDefault();
       const message = host.querySelector('[data-review-message]');
+      const saveButton = host.querySelector('[data-review-save]');
       const reasonText = host.querySelector('[data-review-reason]').value.trim();
+      saveButton.disabled = true;
+      saveButton.classList.add('loading');
       try {
         await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, 'PUT', {
           expected_version_id: version?.id || null,
@@ -118,15 +197,39 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
         });
         await renderReview();
       } catch (error) {
-        message.textContent = error instanceof APIError && error.status === 409 ? 'A newer version exists. Your input is preserved; reload or inspect history before retrying.' : error.message;
+        message.className = 'ui error message rw-review-feedback';
+        message.innerHTML = '<span class="header">Review was not saved</span>' + esc(error instanceof APIError && error.status === 409 ? 'A newer version exists. Your input is preserved; inspect version history before retrying.' : error.message);
+        saveButton.disabled = false;
+        saveButton.classList.remove('loading');
       }
     });
     host.querySelector('[data-review-history]').addEventListener('click', async function() {
-      const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 });
-      host.querySelector('[data-review-history-list]').innerHTML = '<ol class="rw-review-history">' + (historyData.versions || []).map(function(item) {
-        return '<li><strong>Version ' + item.id + ': ' + esc(humanLabel(item.status)) + '</strong> · ' + esc(item.reviewer_display) + ' · ' + esc(formatTime(item.created_at))
-          + (item.reason ? '<blockquote>' + esc(item.reason) + '</blockquote>' : '') + (item.sub_statuses?.length ? '<p>' + item.sub_statuses.map(humanLabel).map(esc).join(', ') + '</p>' : '') + '</li>';
-      }).join('') + '</ol>';
+      const button = host.querySelector('[data-review-history]');
+      const target = host.querySelector('[data-review-history-list]');
+      if (!target.hidden) {
+        target.hidden = true;
+        button.setAttribute('aria-expanded', 'false');
+        button.textContent = 'Show version history';
+        return;
+      }
+      button.disabled = true;
+      button.classList.add('loading');
+      try {
+        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 });
+        target.innerHTML = '<div class="rw-review-section__heading"><div><h4>Version history</h4><p>The newest immutable decision appears first.</p></div></div><ol class="rw-review-history">' + (historyData.versions || []).map(function(item) {
+          return '<li><div><strong>Version ' + item.id + ' · ' + esc(humanLabel(item.status)) + '</strong><p>' + esc(item.reviewer_display) + ' · ' + esc(formatTime(item.created_at)) + '</p></div>'
+            + (item.reason ? '<blockquote>' + esc(item.reason) + '</blockquote>' : '') + (item.sub_statuses?.length ? '<p class="rw-review-qualifiers">' + item.sub_statuses.map(humanLabel).map(esc).join(' · ') + '</p>' : '') + '</li>';
+        }).join('') + '</ol>';
+        target.hidden = false;
+        button.setAttribute('aria-expanded', 'true');
+        button.textContent = 'Hide version history';
+      } catch (error) {
+        target.innerHTML = '<p class="ui error message"><span class="header">History could not be loaded</span>' + esc(error.message) + '</p>';
+        target.hidden = false;
+      } finally {
+        button.disabled = false;
+        button.classList.remove('loading');
+      }
     });
     if (data.editable) {
       await mountNoteEditor(host.querySelector('[data-note-host]'), { corpusID: health.corpus_id, runID: runID, workRevisionID: revisionID });
@@ -135,19 +238,40 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
     }
     await loadAnchors();
     renderAnchorCandidate();
+    if (pendingSelection || new URLSearchParams(location.search).get('anchor_id')) setReviewSection('anchors');
+    else if (new URLSearchParams(location.search).get('note_id')) setReviewSection('notes');
   }
 
   /** Converts one current PDF text selection into an accessible anchor creation form. */
   function renderAnchorCandidate() {
     const target = host.querySelector('[data-anchor-candidate]');
     if (!target || !pendingSelection || !reviewEditable) return;
-    target.innerHTML = '<form class="ui form" data-anchor-form><p>Selected on page ' + pendingSelection.page + ': “' + esc(pendingSelection.selectedText) + '”</p><label>Anchor ID<input required pattern="[A-Za-z][A-Za-z0-9._-]{0,63}" data-anchor-id></label><button type="submit">Add anchor</button></form>';
-    target.querySelector('form').addEventListener('submit', async function(event) {
-      event.preventDefault();
-      await mutate(`/api/runs/${runID}/articles/${revisionID}/anchors`, 'POST', { anchor_id: target.querySelector('[data-anchor-id]').value, page: pendingSelection.page, selected_text: pendingSelection.selectedText, rectangles: pendingSelection.rectangles });
+    target.innerHTML = '<form class="ui form rw-anchor-candidate" data-anchor-form><div><span class="ui blue label">Selection from page ' + pendingSelection.page + '</span><blockquote>“' + esc(pendingSelection.selectedText) + '”</blockquote></div>'
+      + '<div class="ui field"><label for="review-anchor-id">Anchor ID</label><input id="review-anchor-id" required pattern="[A-Za-z][A-Za-z0-9._-]{0,63}" placeholder="methods-sample" data-anchor-id><p class="rw-field-help">Begin with a letter, then use letters, numbers, periods, underscores, or hyphens.</p></div>'
+      + '<div class="rw-review-actions"><button type="submit" class="ui primary button" data-anchor-save>Save anchor</button><button type="button" class="ui basic button" data-anchor-discard>Discard selection</button></div><p data-anchor-message aria-live="polite"></p></form>';
+    target.querySelector('[data-anchor-discard]').addEventListener('click', function() {
       pendingSelection = null;
       target.textContent = '';
-      await loadAnchors();
+      window.getSelection?.().removeAllRanges?.();
+    });
+    target.querySelector('form').addEventListener('submit', async function(event) {
+      event.preventDefault();
+      const button = target.querySelector('[data-anchor-save]');
+      const message = target.querySelector('[data-anchor-message]');
+      button.disabled = true;
+      button.classList.add('loading');
+      try {
+        await mutate(`/api/runs/${runID}/articles/${revisionID}/anchors`, 'POST', { anchor_id: target.querySelector('[data-anchor-id]').value, page: pendingSelection.page, selected_text: pendingSelection.selectedText, rectangles: pendingSelection.rectangles });
+        pendingSelection = null;
+        target.textContent = '';
+        window.getSelection?.().removeAllRanges?.();
+        await loadAnchors();
+      } catch (error) {
+        message.className = 'ui error message';
+        message.innerHTML = '<span class="header">Anchor was not saved</span>' + esc(error.message);
+        button.disabled = false;
+        button.classList.remove('loading');
+      }
     });
   }
 
@@ -159,8 +283,8 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
     const activeAnchors = data.anchors || [];
     target.innerHTML = activeAnchors.length ? '<ul class="rw-anchor-list">' + activeAnchors.map(function(anchor) {
       const mismatch = anchor.version.pdf_content_hash !== detailData.pdf_status?.content_hash;
-      return '<li data-anchor-id="' + esc(anchor.id) + '"><button type="button" data-anchor-page="' + anchor.version.page + '" aria-label="Open anchor ' + esc(anchor.id) + ' on PDF page ' + anchor.version.page + '">' + esc(anchor.id) + '</button> · page ' + anchor.version.page
-        + (anchor.inherited_from_context_id ? ' · inherited' : ' · current context') + (mismatch ? ' · unavailable for the current PDF content' : ' · available') + '<blockquote>' + esc(anchor.version.selected_text || '') + '</blockquote><button type="button" data-anchor-history>History</button> <button type="button" data-anchor-delete' + (reviewEditable ? '' : ' disabled') + '>Remove</button></li>';
+      return '<li data-anchor-id="' + esc(anchor.id) + '"><div class="rw-anchor-card__meta"><div><span class="ui label">' + esc(anchor.id) + '</span><span class="ui label">Page ' + anchor.version.page + '</span>' + (anchor.inherited_from_context_id ? '<span class="ui blue label">Inherited</span>' : '<span class="ui label">This context</span>') + '</div><span class="ui ' + (mismatch ? 'red' : 'green') + ' label">' + (mismatch ? 'PDF changed' : 'Available') + '</span></div>'
+        + '<blockquote>' + esc(anchor.version.selected_text || '') + '</blockquote><div class="rw-anchor-card__actions"><button type="button" class="ui primary button" data-anchor-page="' + anchor.version.page + '" aria-label="Open anchor ' + esc(anchor.id) + ' on PDF page ' + anchor.version.page + '">Open page ' + anchor.version.page + '</button><button type="button" class="ui basic button" data-anchor-history>History</button><button type="button" class="ui basic button" data-anchor-delete' + (reviewEditable ? '' : ' disabled') + '>Remove</button></div></li>';
     }).join('') + '</ul>' : '<p class="ui faded text">No active anchors. Select PDF text to add one, or use this keyboard-operable list to revisit existing anchors.</p>';
     pdfController?.setAnchors(activeAnchors.filter(function(anchor) { return anchor.version.pdf_content_hash === detailData.pdf_status?.content_hash; }));
     for (const anchor of activeAnchors) {
@@ -186,9 +310,9 @@ export async function mountArticleReview(host, pdfHost, record, detailData) {
   async function showAnchorHistory(anchorID) {
     const target = host.querySelector('[data-anchor-list]');
     const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 });
-    const historyMarkup = '<section class="rw-anchor-history"><h4>Anchor ' + esc(anchorID) + ' history</h4><ol>' + (data.versions || []).map(function(version) {
-      return '<li><strong>Version ' + version.id + ' · ' + esc(version.state) + '</strong> · ' + esc(version.reviewer_display) + ' · ' + esc(formatTime(version.created_at))
-        + (version.state === 'active' ? ' · page ' + version.page + '<blockquote>' + esc(version.selected_text || '') + '</blockquote>' : ' · tombstone') + '</li>';
+    const historyMarkup = '<section class="rw-anchor-history"><div class="rw-review-section__heading"><div><h4>Anchor ' + esc(anchorID) + ' history</h4><p>The newest immutable anchor version appears first.</p></div></div><ol>' + (data.versions || []).map(function(version) {
+      return '<li><div><strong>Version ' + version.id + ' · ' + esc(version.state) + '</strong><p>' + esc(version.reviewer_display) + ' · ' + esc(formatTime(version.created_at)) + (version.state === 'active' ? ' · page ' + version.page : ' · tombstone') + '</p></div>'
+        + (version.state === 'active' ? '<blockquote>' + esc(version.selected_text || '') + '</blockquote>' : '') + '</li>';
     }).join('') + '</ol></section>';
     target.querySelector('.rw-anchor-history')?.remove();
     target.insertAdjacentHTML('beforeend', historyMarkup);

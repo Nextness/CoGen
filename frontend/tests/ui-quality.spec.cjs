@@ -26,9 +26,14 @@ async function expectNoPageOverflow(page) {
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
     body: document.body.scrollWidth,
+    offenders: Array.from(document.querySelectorAll('body *')).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return { element: element.tagName.toLowerCase() + (element.className ? `.${String(element.className).trim().replaceAll(' ', '.')}` : ''), left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
+    }).filter((entry) => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1).slice(0, 8),
   }));
-  expect(dimensions.document, `document width ${dimensions.document} exceeds viewport ${dimensions.viewport}`).toBeLessThanOrEqual(dimensions.viewport);
-  expect(dimensions.body, `body width ${dimensions.body} exceeds viewport ${dimensions.viewport}`).toBeLessThanOrEqual(dimensions.viewport);
+  const detail = dimensions.offenders.length ? `; offenders ${JSON.stringify(dimensions.offenders)}` : '';
+  expect(dimensions.document, `document width ${dimensions.document} exceeds viewport ${dimensions.viewport}${detail}`).toBeLessThanOrEqual(dimensions.viewport);
+  expect(dimensions.body, `body width ${dimensions.body} exceeds viewport ${dimensions.viewport}${detail}`).toBeLessThanOrEqual(dimensions.viewport);
 }
 
 test.describe('Research-context and responsive behavior', () => {
@@ -55,6 +60,13 @@ test.describe('Research-context and responsive behavior', () => {
     await expectNoPageOverflow(page);
     await expect(page.locator('.table-wrap').first()).toHaveCSS('overflow-x', 'auto');
 
+    await visit(page, { view: 'article', article_id: '1' });
+    await expectNoPageOverflow(page);
+    await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Start review' }).click();
+    await expectNoPageOverflow(page);
+    await page.getByRole('button', { name: 'Close review setup' }).click();
+
     await page.setViewportSize({ width: 768, height: 1024 });
     await visit(page, { view: 'overview' });
     await expectNoPageOverflow(page);
@@ -63,6 +75,11 @@ test.describe('Research-context and responsive behavior', () => {
       return el.getBoundingClientRect().width;
     });
     expect(itemWidth768).toBeLessThan(400);
+
+    await visit(page, { view: 'article', article_id: '1' });
+    await expectNoPageOverflow(page);
+    await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
+    await expect(page.locator('.rw-pdf-pages')).toHaveCSS('overflow', 'auto');
   });
 
   test('skip link, errors, and reduced motion are announced', async ({ page }) => {
@@ -106,6 +123,17 @@ test.describe('Automated accessibility checks', () => {
       expect(results.violations).toEqual([]);
     });
   }
+
+  test('review setup dialog has no axe violations and can be dismissed', async ({ page }) => {
+    await visit(page, { view: 'article', article_id: '1' });
+    await page.getByRole('button', { name: 'Start review' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Start article review' });
+    await expect(dialog).toBeVisible();
+    const results = await new AxeBuilder({ page }).include('[data-review-dialog]').analyze();
+    expect(results.violations).toEqual([]);
+    await dialog.getByRole('button', { name: 'Close review setup' }).click();
+    await expect(dialog).toBeHidden();
+  });
 });
 
 test.describe('Visual regression', () => {
@@ -131,6 +159,21 @@ test.describe('Visual regression', () => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
     await visit(page, { view: 'overview' });
     await expect(page).toHaveScreenshot('overview-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+  });
+
+  test('article review setup light', async ({ page }) => {
+    await visit(page, { view: 'article', article_id: '1' });
+    await page.getByRole('button', { name: 'Start review' }).click();
+    await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
+    await expect(page).toHaveScreenshot('article-review-setup-light.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
+  });
+
+  test('article review setup dark', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+    await visit(page, { view: 'article', article_id: '1' });
+    await page.getByRole('button', { name: 'Start review' }).click();
+    await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
+    await expect(page).toHaveScreenshot('article-review-setup-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide' });
   });
 
   test('artifact preview light', async ({ page }) => {

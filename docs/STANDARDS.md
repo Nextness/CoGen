@@ -147,7 +147,7 @@ Frontend production source is vanilla JavaScript with native ES modules and no a
 - Production Go builds use embedded assets and make no CDN request. `--assets-dir` selects filesystem source for development only.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.
 - Change `vendor/pdfjs/` only through the exact `pdfjs-dist` dependency and `make frontend-pdfjs-vendor`; run `make frontend-pdfjs-vendor-check` to verify matching core and worker versions plus deterministic CMap, font, and license output.
-- The custom PDF viewer renders bounded nearby pages and selectable text, destroys render, document, loading, and worker lifecycles on SPA navigation, and treats highlights as supplemental to keyboard-operable textual anchor evidence.
+- The custom PDF viewer renders exactly one bounded current page and selectable text, advances one page per Previous or Next activation, cancels stale render work, destroys render, document, loading, and worker lifecycles on SPA navigation, and treats highlights as supplemental to keyboard-operable textual anchor evidence.
 - Review notes render only through the project parser and resolver, escape raw HTML, label unresolved targets with text and an accessible name, and keep conflicted or unsaved drafts under the corpus-scoped browser key.
 
 ## 15. Frontend tests

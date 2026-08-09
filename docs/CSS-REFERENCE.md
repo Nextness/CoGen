@@ -137,10 +137,10 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. S
 | Summaries | `.rw-summary-strip`, `.rw-record-summary`, `.rw-record-comparison` | Definition-list summaries and comparisons. |
 | Empty state | `.rw-empty-state`, `.rw-empty-panel` | Explicit absence, unavailable state, and recovery actions. |
 | Details | `.rw-record-detail`, `.rw-keywords`, `.property-grid`, collection mounts | Article, author, reference, and related-record content. |
-| Review layout | `.rw-article-split`, `.rw-article-split__pdf`, `.rw-article-split__review`, `.rw-review-panel`, `.rw-review-history` | Responsive article review and PDF columns, complete state form, inherited labels, and immutable history. |
-| Notes | `.rw-note-list`, `.rw-note-content`, `.rw-note-preview`, `.rw-note-history`, `.rw-note-link--unresolved`, `.rw-note-comparison`, `.rw-note-diff*` | Safe rendered notes, unresolved text treatment, drafts and history, bounded comparison, and added or removed lines. |
-| Anchors | `.rw-anchor-panel`, `.rw-anchor-list`, `.rw-anchor-history`, `.rw-pdf-anchor-layer`, `.rw-pdf-anchor-highlight` | Keyboard-operable anchor evidence, immutable history, and supplemental page highlights. |
-| PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar`, `.rw-pdf-pages`, `.rw-pdf-page`, `.textLayer` descendants | Sticky desktop reader, controls, bounded nearby pages, canvas, selectable text, and overlay stacking. |
+| Review layout | `.rw-article-split`, `.rw-article-split__pdf`, `.rw-article-split__review`, `.rw-review-panel`, `.rw-review-onboarding`, `.rw-review-dialog*`, `.rw-review-nav`, `.rw-review-section*`, `.rw-review-form*`, `.rw-review-history*` | Responsive PDF and review columns, contained modal lineage setup, local section navigation, complete decision state, inherited labels, feedback, and immutable history. |
+| Notes | `.rw-note-list`, `.rw-note-card*`, `.rw-note-workspace`, `.rw-note-form*`, `.rw-note-content`, `.rw-note-preview*`, `.rw-note-history`, `.rw-note-link--unresolved`, `.rw-note-comparison`, `.rw-note-diff*` | Safe rendered note cards, side-by-side editing and preview, unresolved text treatment, drafts and history, bounded comparison, and added or removed lines. |
+| Anchors | `.rw-anchor-panel`, `.rw-anchor-candidate`, `.rw-anchor-list`, `.rw-anchor-card*`, `.rw-anchor-history`, `.rw-pdf-anchor-layer`, `.rw-pdf-anchor-highlight` | Contextual anchor creation, keyboard-operable evidence cards, immutable history, and supplemental page highlights. |
+| PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar*`, `.rw-pdf-page-control`, `.rw-pdf-pages`, `.rw-pdf-page`, `.rw-pdf-status`, `.textLayer` descendants | Contained sticky desktop reader, grouped boundary-aware controls, one scrollable current page, canvas, selectable text, status, and overlay stacking. |
 | Disclosure | `.rw-disclosure`, `.rw-filter-disclosure` | Keyboard-accessible expandable detail and filter content. |
 | Audit | `.rw-audit-*`, `.rw-event-facts`, `.rw-record-audit*` | Filtered event stream, facts, entities, and investigation controls. |
 | Artifacts | `.rw-artifact-*`, `.artifact-actions`, `.artifact-inspector-toolbar` | Artifact lists, bounded inspection, copy, and download actions. |
@@ -173,8 +173,8 @@ Dark mode maintains visible focus and semantic contrast and removes or reduces d
 The principal responsive boundaries are 70rem for the article review split, 1100px for other dense analysis layouts, and 720px for mobile navigation and stacked controls.
 
 - At or below 1100px, relationship layout becomes one column and its filter area stops using sticky positioning.
-- At or below 70rem, the article review and PDF split becomes one column and the PDF viewer stops using sticky positioning or a bounded viewport height.
-- At or below 720px, navigation uses the Menu control, context selectors stack, dashboard and record grids collapse, toolbars wrap, graph controls use available width, and the canvas height reduces.
+- At or below 70rem, the article review and PDF split becomes one column, the PDF viewer stops using sticky positioning while retaining a contained scrollable height, and review forms plus note editing become one column.
+- At or below 720px, navigation uses the Menu control, context selectors stack, dashboard and record grids collapse, review setup and actions stack, PDF toolbar groups use available width, graph controls use available width, and the canvas height reduces.
 - Wide tables remain horizontally scrollable, and pagination controls wrap while retaining result summaries and boundary actions.
 - Responsive rules preserve labels, status meaning, disclosures, evidence, and actions rather than hiding content required for analysis.
 
