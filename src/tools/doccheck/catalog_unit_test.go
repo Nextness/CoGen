@@ -147,11 +147,10 @@ func TestCollectJavaScriptDeclarationsExcludesDeclarationFiles(t *testing.T) {
 	}
 }
 
-// TestCollectJavaScriptDeclarationsExcludesDistAndDistTS verifies collect java script declarations skips assembled output directories.
-func TestCollectJavaScriptDeclarationsExcludesDistAndDistTS(t *testing.T) {
+// TestCollectJavaScriptDeclarationsExcludesDist verifies collect java script declarations skips the assembled output directory.
+func TestCollectJavaScriptDeclarationsExcludesDist(t *testing.T) {
 	root := t.TempDir()
 	writeTestFile(t, root, "frontend/dist/app.js", "function omittedDist() {}\n")
-	writeTestFile(t, root, "frontend/dist-ts/app.js", "function omittedDistTS() {}\n")
 	writeTestFile(t, root, "frontend/src/example.js", "export function supported() {}\n")
 	declarations, _, err := collectJavaScriptDeclarations(root)
 	if err != nil {

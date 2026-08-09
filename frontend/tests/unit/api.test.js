@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.js';
-import { endpoint, api, mutate, tables } from '../../src/api.js';
-import { state } from '../../src/state.js';
+import { endpoint, api, mutate, tables } from '../../src/api.ts';
+import { state } from '../../src/state.ts';
 
 describe('api.js — endpoint', function() {
 

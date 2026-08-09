@@ -1,7 +1,7 @@
 // Shared JSDOM setup for frontend unit tests.
 // Import this as a side-effect before importing any frontend module:
 //   import './setup.js';
-//   import { esc } from '../../src/state.js';
+//   import { esc } from '../../src/state.ts';
 
 import { JSDOM } from 'jsdom';
 

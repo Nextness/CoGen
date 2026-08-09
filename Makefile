@@ -214,4 +214,4 @@ frontend-report: ## Open a Playwright HTML report. Set REPORT_DIR to the report 
 	cd frontend && npm exec -- playwright show-report "../$(REPORT_DIR)"
 
 clean: ## Remove generated build artifacts, coverage, isolated test reports, and assembled frontend output.
-	rm -rf build/ frontend/dist frontend/dist-ts
+	rm -rf build/ frontend/dist

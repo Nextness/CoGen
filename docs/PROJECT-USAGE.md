@@ -103,7 +103,7 @@ make serve DB=corpus.metadata.db ASSETS_DIR=frontend/dist
 make dev
 ```
 
-`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener.
+`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `frontend/dist`, and serves that directory; `make check-frontend` type-checks the sources, and unit tests import them directly without a build step.
 
 Use [APP-USAGE.md](APP-USAGE.md) for review-context initialization, status and note history, note syntax, embedded PDF anchors, navigation, data interpretation, privacy, graph limits, and operational expectations.
 
@@ -198,7 +198,7 @@ The target runs `TestGenerateFixture` with `FORCE_FIXTURE=1`, uses production mi
 make test-frontend-unit
 ```
 
-The target runs every `frontend/tests/unit/**/*.test.js` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server.
+The target runs every `frontend/tests/unit/**/*.test.js` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests import the TypeScript sources under `frontend/src` directly with explicit `.ts` specifiers; Node's native type stripping executes them, so no build step is required (Node 22.18+).
 
 ## 14. Playwright verification
 

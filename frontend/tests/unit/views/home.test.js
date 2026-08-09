@@ -3,8 +3,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { homeView } from '../../../src/views/home.js';
-import { app, state } from '../../../src/state.js';
+import { homeView } from '../../../src/views/home.ts';
+import { app, state } from '../../../src/state.ts';
 
 /** Returns a JSON response compatible with the frontend API helper. */
 function response(data) {

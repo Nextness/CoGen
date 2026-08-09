@@ -10,7 +10,7 @@ Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE
 
 The repository builds a Go 1.25.0 research-corpus pipeline and a loopback-only local viewer with writable run-scoped review evidence. The Go module is `src/`, but the root Makefile is the supported interface and production relative paths assume the repository root.
 
-The stack is Go, SQLite through `modernc.org/sqlite`, the project-specific SOMETHING configuration language, SQL migrations, standard-library HTTP and JSON, vanilla JavaScript ES modules, HTML, and CSS. Frontend tests use Node's built-in test runner with jsdom plus Playwright and axe-core. D3-force and PDF.js are pinned frontend development dependencies delivered through checked-in generated browser assets.
+The stack is Go, SQLite through `modernc.org/sqlite`, the project-specific SOMETHING configuration language, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend tests use Node's built-in test runner with jsdom plus Playwright and axe-core. D3-force and PDF.js are pinned frontend development dependencies delivered through checked-in generated browser assets.
 
 Node.js 22.18 or later and npm are required for frontend development, unit tests, and Playwright. Node's native type stripping executes `.ts` modules in unit tests; type checking is a separate `tsc --noEmit` step via `make check-frontend`.
 
@@ -41,6 +41,8 @@ make docs-catalog-update
 make docs-state-update
 make test-e2e
 make test-e2e-live E2E_LIVE=1
+make frontend-build
+make check-frontend
 make test-frontend-unit
 make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.cjs
 make test-frontend-visual

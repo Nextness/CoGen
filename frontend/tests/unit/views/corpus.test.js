@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { corpusView } from '../../../src/views/corpus.js';
-import { app, state, value } from '../../../src/state.js';
+import { corpusView } from '../../../src/views/corpus.ts';
+import { app, state, value } from '../../../src/state.ts';
 
 describe('corpus.js — corpusView', function() {
 

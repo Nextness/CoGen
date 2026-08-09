@@ -11,7 +11,7 @@ import {
   clearError, busy, link, pageHeader, breadcrumb, setBreadcrumb, emptyState, panel, table, subnav,
   filterChips, metricCard, flowStage, retentionFlow, breakdown, sourceResultCountSummary, timeline,
   detailTable, cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
-} from '../../src/state.js';
+} from '../../src/state.ts';
 
 describe('state.js — constants', function() {
 

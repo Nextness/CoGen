@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { clearDraft, draftKey, lineDiff, readDraft, writeDraft } from '../../../src/components/note-editor.js';
+import { clearDraft, draftKey, lineDiff, readDraft, writeDraft } from '../../../src/components/note-editor.ts';
 
 describe('note-editor.js', function() {
   it('namespaces and clears only an exact saved draft', function() {

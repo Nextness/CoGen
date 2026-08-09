@@ -137,7 +137,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 
 ## 14. Frontend module standards
 
-Frontend production source is vanilla JavaScript with native ES modules and no application framework, assembled into `frontend/dist` by `make frontend-build`. `state.js` owns URL and shared rendering state, `api.js` owns JSON transport, `router.js` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior.
+Frontend production source is TypeScript with native ES modules and no application framework, compiled per file by `make frontend-build` into the assembled `frontend/dist` served root. Relative imports use explicit `.ts` specifiers, type-only imports use `import type` (`verbatimModuleSyntax` and `erasableSyntaxOnly` are enforced by `tsc --noEmit`), and new exports carry required type annotations plus the maintained adjacent JSDoc prose description. `state.ts` owns URL and shared rendering state, `api.ts` owns JSON transport, `router.ts` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior. Run `make check-frontend` for type errors after frontend changes.
 
 - Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
 - Bind DOM listeners after replacing `app.innerHTML`, abort stale requests, and prevent older renders from overwriting current state.

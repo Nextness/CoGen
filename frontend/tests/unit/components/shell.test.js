@@ -3,7 +3,7 @@ import { describe, it, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { healthStatus, initHealthCheck, initMobileNavToggle } from '../../../src/components/shell.js';
+import { healthStatus, initHealthCheck, initMobileNavToggle } from '../../../src/components/shell.ts';
 
 describe('shell.js — healthStatus', function() {
 

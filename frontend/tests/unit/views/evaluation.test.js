@@ -2,8 +2,8 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { evaluationView } from '../../../src/views/evaluation.js';
-import { app, state } from '../../../src/state.js';
+import { evaluationView } from '../../../src/views/evaluation.ts';
+import { app, state } from '../../../src/state.ts';
 
 /** Sets location. */
 function setLocation(values) {

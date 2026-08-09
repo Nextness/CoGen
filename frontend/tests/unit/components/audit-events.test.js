@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { auditCategory, auditEventMarkup, auditStream } from '../../../src/components/audit-events.js';
+import { auditCategory, auditEventMarkup, auditStream } from '../../../src/components/audit-events.ts';
 
 describe('audit-events.js', function() {
   it('classifies review and PDF evidence independently from pipeline events', function() {

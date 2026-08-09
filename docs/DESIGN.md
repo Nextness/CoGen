@@ -260,22 +260,22 @@ The interface must not render credentials, tokens, private keys, raw environment
 | Path | Design responsibility |
 |---|---|
 | `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
-| `app.js` | Global event binding, history interception, shell initialization, and first render. |
-| `state.js` | URL values, DOM state, escaping, formatting, shared panels/tables/flows, links, statuses, and global UI behavior. |
-| `api.js` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
-| `router.js` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
-| `components/context-selector.js` | Dependent searchable single-select hydration, loading skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
-| `components/data-table.js` | Shared rows, sorting, search, page size, expansion, and control binding. |
-| `components/pagination.js` | First/Previous/numbered/Next/Last controls and result ranges. |
-| `components/audit-events.js` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
-| `components/graph.js` | Graph query, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and relationship table. |
-| `components/shell.js` | Health state and responsive primary-navigation toggle. |
-| `components/note-parser.js` | Bounded note parsing, diagnostics, safe preview, unresolved labels, and resolved context-preserving links. |
-| `components/note-editor.js` | Draft lifecycle, active versions, tombstones, restoration, history, and bounded comparison. |
-| `components/pdf-viewer.js` | PDF.js worker and page lifecycle, single-page rendering, selectable text, geometry projection, boundary-aware controls, and highlights. |
-| `components/review-panel.js` | Explicit lineage initialization, complete status state, conflicts, history, notes, PDF integration, and accessible anchors. |
-| `views/home.js` | Context-independent history metrics, Explore links, and reversible run-visibility dialog behavior. |
-| `views/*.js` | Page-level fetching, rendering, and post-render event binding for the Deepdive destinations and detail routes in section 4. |
+| `app.ts` | Global event binding, history interception, shell initialization, and first render. |
+| `state.ts` | URL values, DOM state, escaping, formatting, shared panels/tables/flows, links, statuses, and global UI behavior. |
+| `api.ts` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
+| `router.ts` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
+| `components/context-selector.ts` | Dependent searchable single-select hydration, loading skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/data-table.ts` | Shared rows, sorting, search, page size, expansion, and control binding. |
+| `components/pagination.ts` | First/Previous/numbered/Next/Last controls and result ranges. |
+| `components/audit-events.ts` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
+| `components/graph.ts` | Graph query, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and relationship table. |
+| `components/shell.ts` | Health state and responsive primary-navigation toggle. |
+| `components/note-parser.ts` | Bounded note parsing, diagnostics, safe preview, unresolved labels, and resolved context-preserving links. |
+| `components/note-editor.ts` | Draft lifecycle, active versions, tombstones, restoration, history, and bounded comparison. |
+| `components/pdf-viewer.ts` | PDF.js worker and page lifecycle, single-page rendering, selectable text, geometry projection, boundary-aware controls, and highlights. |
+| `components/review-panel.ts` | Explicit lineage initialization, complete status state, conflicts, history, notes, PDF integration, and accessible anchors. |
+| `views/home.ts` | Context-independent history metrics, Explore links, and reversible run-visibility dialog behavior. |
+| `views/*.ts` | Page-level fetching, rendering, and post-render event binding for the Deepdive destinations and detail routes in section 4. |
 | `styles/tokens.css` | Theme values, spacing, type, status, graph colors, focus, radius, and elevation. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, loaders, headers, and segment primitives. |

@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { graphField, graphQuery, graphLink, graphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.js';
-import { state, value } from '../../../src/state.js';
+import { graphField, graphQuery, graphLink, graphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.ts';
+import { state, value } from '../../../src/state.ts';
 
 describe('graph.js — graphField', function() {
 

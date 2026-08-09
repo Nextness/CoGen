@@ -1,15 +1,15 @@
-// build.mjs assembles the served frontend root into frontend/dist (and, in
-// TypeScript mode, frontend/dist-ts) from frontend/index.html, styles/,
-// vendor/, and src/. Phase 1 copies src/ verbatim; TypeScript mode compiles
-// every file under src/ through esbuild per-file and rewrites .ts import
-// specifiers to .js in the emitted output.
+// build.mjs assembles the served frontend root into frontend/dist from
+// frontend/index.html, styles/, vendor/, and the TypeScript sources under
+// src/. Every file under src/ is compiled per-file through esbuild, and .ts
+// import specifiers in the emitted output are rewritten to .js because
+// per-file emit preserves them verbatim. The assembled root contains no
+// .ts/.d.ts/.map files and no dot- or underscore-prefixed entries.
 import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tsMode = process.argv.includes('--ts');
-const outDir = tsMode ? path.join(frontendDir, 'dist-ts') : path.join(frontendDir, 'dist');
+const outDir = path.join(frontendDir, 'dist');
 const srcDir = path.join(frontendDir, 'src');
 
 /** Reports whether a file name must not be served (dotfiles and underscore-prefixed files). */
@@ -25,7 +25,7 @@ async function copyTree(from, to) {
   });
 }
 
-/** Lists every file under src/ (excluding hidden entries). */
+/** Lists every source file under src/ (excluding hidden entries). */
 async function listSources() {
   const files = [];
   const walk = async (dir) => {
@@ -36,7 +36,7 @@ async function listSources() {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(full);
-      } else if (entry.isFile() && !entry.name.endsWith('.d.ts') && (tsMode || entry.name.endsWith('.js') || entry.name.endsWith('.mjs'))) {
+      } else if (entry.isFile() && !entry.name.endsWith('.d.ts')) {
         files.push(full);
       }
     }
@@ -95,18 +95,9 @@ async function assertClean(root) {
 await rm(outDir, { recursive: true, force: true });
 await mkdir(outDir, { recursive: true });
 
-if (tsMode) {
-  await compileSources();
-} else {
-  for (const file of await listSources()) {
-    const relative = path.relative(srcDir, file);
-    const target = path.join(outDir, relative);
-    await mkdir(path.dirname(target), { recursive: true });
-    await cp(file, target);
-  }
-}
+await compileSources();
 await copyTree(path.join(frontendDir, 'index.html'), path.join(outDir, 'index.html'));
 await copyTree(path.join(frontendDir, 'styles'), path.join(outDir, 'styles'));
 await copyTree(path.join(frontendDir, 'vendor'), path.join(outDir, 'vendor'));
 await assertClean(outDir);
-console.log(`assembled frontend assets in ${path.relative(frontendDir, outDir)}${tsMode ? ' (ts)' : ''}`);
+console.log(`assembled frontend assets in ${path.relative(frontendDir, outDir)}`);

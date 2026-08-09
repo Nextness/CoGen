@@ -10,9 +10,9 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a vanilla JavaScript URL-state SPA assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a TypeScript URL-state SPA assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
 
-The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, vanilla JavaScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, and esbuild. `modernc.org/sqlite` is the only direct Go runtime dependency.
+The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, esbuild, and TypeScript. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
 ```text
 Source exports + SOMETHING configuration
@@ -27,7 +27,7 @@ Source exports + SOMETHING configuration
  loopback-only Go HTTP server
           |
           v
- filesystem-assembled JavaScript SPA
+ filesystem-assembled TypeScript SPA
 ```
 
 ## 3. Repository and build layout
@@ -345,7 +345,7 @@ browser POST/PUT -> transport and context validation -> PDF availability read ->
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module SPA. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.js` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
+The frontend is a framework-free native ES-module SPA authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests import the TypeScript sources directly through Node's native type stripping, so no build step is required for `make test-frontend-unit`. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.ts` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
 
 The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
 
@@ -372,22 +372,22 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | Path | Responsibility |
 |---|---|
 | `index.html` | Persistent header, breadcrumb, Deepdive navigation, searchable context selectors, status, loading, notice, and app mount point. |
-| `app.js` | Global event binding, history interception, shell initialization, and first render. |
-| `state.js` | URL values, DOM state, escaping, formatting, shared panels, tables, flows, links, statuses, and global UI behavior. |
-| `api.js` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
-| `router.js` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
-| `components/context-selector.js` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
-| `components/data-table.js` | Shared rows, sorting, search, page size, expansion, and control binding. |
-| `components/pagination.js` | First, Previous, numbered, Next, and Last controls plus result ranges. |
-| `components/audit-events.js` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
-| `components/graph.js` | Query state, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and edge table. |
-| `components/shell.js` | Health state and responsive navigation toggle. |
-| `components/note-parser.js` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
-| `components/note-editor.js` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
-| `components/pdf-viewer.js` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
-| `components/review-panel.js` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
-| `views/home.js` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
-| `views/*.js` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
+| `app.ts` | Global event binding, history interception, shell initialization, and first render. |
+| `state.ts` | URL values, DOM state, escaping, formatting, shared panels, tables, flows, links, statuses, and global UI behavior. |
+| `api.ts` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
+| `router.ts` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
+| `components/context-selector.ts` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/data-table.ts` | Shared rows, sorting, search, page size, expansion, and control binding. |
+| `components/pagination.ts` | First, Previous, numbered, Next, and Last controls plus result ranges. |
+| `components/audit-events.ts` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
+| `components/graph.ts` | Query state, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and edge table. |
+| `components/shell.ts` | Health state and responsive navigation toggle. |
+| `components/note-parser.ts` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
+| `components/note-editor.ts` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
+| `components/pdf-viewer.ts` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
+| `components/review-panel.ts` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
+| `views/home.ts` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
+| `views/*.ts` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, headers, loaders, and segments. |
@@ -400,32 +400,32 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 ### 15.2 Frontend module graph
 
 ```text
-app.js
-  +-- state.js                    no project imports
-  +-- router.js
-  |     +-- state.js
-  |     +-- context-selector.js --+-- state.js
-  |     |                         +-- api.js -> state.js
-  |     |                         +-- router.js
-  |     +-- home.js --------------+-- state.js, api.js, router.js
-  |     +-- overview.js ----------+-- state.js, api.js, router.js
-  |     +-- corpus.js ------------+-- state.js, api.js, data-table.js, pagination.js
-  |     +-- relationships.js -----+-- state.js, api.js, graph.js, router.js
-  |     +-- provenance.js --------+-- state.js, api.js, data-table.js, router.js
-  |     +-- evaluation.js --------+-- state.js, api.js, data-table.js, router.js
-  |     +-- advanced.js ----------+-- state.js, api.js, data-table.js, router.js
-  |     +-- detail.js ------------+-- state.js, api.js, pagination.js, review-panel.js
-  +-- api.js
-  +-- context-selector.js
-  +-- shell.js -> api.js
+app.ts
+  +-- state.ts                    no project imports
+  +-- router.ts
+  |     +-- state.ts
+  |     +-- context-selector.ts --+-- state.ts
+  |     |                         +-- api.ts -> state.ts
+  |     |                         +-- router.ts
+  |     +-- home.ts --------------+-- state.ts, api.ts, router.ts
+  |     +-- overview.ts ----------+-- state.ts, api.ts, router.ts
+  |     +-- corpus.ts ------------+-- state.ts, api.ts, data-table.ts, pagination.ts
+  |     +-- relationships.ts -----+-- state.ts, api.ts, graph.ts, router.ts
+  |     +-- provenance.ts --------+-- state.ts, api.ts, data-table.ts, router.ts
+  |     +-- evaluation.ts --------+-- state.ts, api.ts, data-table.ts, router.ts
+  |     +-- advanced.ts ----------+-- state.ts, api.ts, data-table.ts, router.ts
+  |     +-- detail.ts ------------+-- state.ts, api.ts, pagination.ts, review-panel.ts
+  +-- api.ts
+  +-- context-selector.ts
+  +-- shell.ts -> api.ts
 
-graph.js -> state.js, router.js, pagination.js, vendor/d3-force.js
-data-table.js -> state.js, router.js, pagination.js
-review-panel.js -> api.js, state.js, note-editor.js, pdf-viewer.js
-note-editor.js -> api.js, state.js, note-parser.js
+graph.ts -> state.ts, router.ts, pagination.ts, vendor/d3-force.js
+data-table.ts -> state.ts, router.ts, pagination.ts
+review-panel.ts -> api.ts, state.ts, note-editor.ts, pdf-viewer.ts
+note-editor.ts -> api.ts, state.ts, note-parser.ts
 ```
 
-`state.js` is the shared leaf and imports no project module. Components do not import views. `router.js` and `context-selector.js` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
+`state.ts` is the shared leaf and imports no project module. Components do not import views. `router.ts` and `context-selector.ts` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
 
 Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, and content-hash-bound anchors; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 

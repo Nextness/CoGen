@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { relationshipsView } from '../../../src/views/relationships.js';
-import { app, state } from '../../../src/state.js';
+import { relationshipsView } from '../../../src/views/relationships.ts';
+import { app, state } from '../../../src/state.ts';
 
 describe('relationships.js — relationshipsView', function() {
 

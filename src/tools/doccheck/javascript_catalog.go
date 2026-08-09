@@ -41,7 +41,7 @@ func projectJavaScriptFiles(root string) ([]string, error) {
 				return walkErr
 			}
 			if item.IsDir() {
-				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") || hasPathPart(path, "dist") || hasPathPart(path, "dist-ts") {
+				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") || hasPathPart(path, "dist") {
 					return filepath.SkipDir
 				}
 				return nil

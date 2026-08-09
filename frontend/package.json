@@ -11,13 +11,11 @@
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:unit": "node --test \"tests/unit/**/*.test.js\"",
-    "test:unit:ts": "FRONTEND_UNDER_TEST=dist-ts node --import ./scripts/under-test.mjs --test \"tests/unit/**/*.test.js\"",
     "typecheck": "tsc --noEmit",
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium firefox webkit",
     "codegen": "playwright codegen http://localhost:8080",
     "build": "node scripts/build.mjs",
-    "build:ts": "node scripts/build.mjs --ts",
     "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=./vendor/d3-force.js",
     "build:pdfjs-vendor": "node scripts/pdfjs-vendor.mjs"
   },
