@@ -3233,6 +3233,20 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`compileSources`](../frontend/scripts/build.mjs#L49) | function | 49 | `async function compileSources()` | Compiles src/** with esbuild per-file and rewrites .ts specifiers to .js. |
 | [`assertClean`](../frontend/scripts/build.mjs#L77) | function | 77 | `async function assertClean(root)` | Verifies the assembled root contains no TypeScript, declaration, or map files. |
 
+### [`frontend/scripts/compare-dom.mjs`](../frontend/scripts/compare-dom.mjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`readCapture`](../frontend/scripts/compare-dom.mjs#L15) | function | 15 | `async function readCapture(flag, fallback)` | Reads a capture JSON file and returns its route map. |
+
+### [`frontend/scripts/export-diff.mjs`](../frontend/scripts/export-diff.mjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`listModules`](../frontend/scripts/export-diff.mjs#L26) | function | 26 | `async function listModules(dir, base, acc)` | Recursively collects relative .js module paths under a source directory. |
+| [`importNames`](../frontend/scripts/export-diff.mjs#L43) | function | 43 | `async function importNames(url)` | Imports one compiled module and returns its exact export names. |
+| [`compareModule`](../frontend/scripts/export-diff.mjs#L49) | function | 49 | `async function compareModule(relative)` | Compares one module pair and reports missing or extra exports. |
+
 ### [`frontend/scripts/run-playwright.mjs`](../frontend/scripts/run-playwright.mjs)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3977,6 +3991,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`clusterSummary`](../frontend/src/views/relationships.ts#L58) | function | 58 | `function clusterSummary(data: any)` | Returns markup summarizing connected graph clusters. |
 | [`relationshipsView`](../frontend/src/views/relationships.ts#L74) | function | 74 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
 
+### [`frontend/tests/dom-capture.spec.cjs`](../frontend/tests/dom-capture.spec.cjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`repoRoot`](../frontend/tests/dom-capture.spec.cjs#L24) | function | 24 | `function repoRoot()` | Resolves the repository root from this spec file's location. |
+| [`capturePath`](../frontend/tests/dom-capture.spec.cjs#L31) | function | 31 | `function capturePath()` | Picks the output JSON path from the served tree in ASSETS_DIR. |
+| [`capturedTree`](../frontend/tests/dom-capture.spec.cjs#L39) | function | 39 | `function capturedTree()` | Derives the served tree name from the ASSETS_DIR environment variable. |
+| [`settle`](../frontend/tests/dom-capture.spec.cjs#L47) | function | 47 | `async function settle(page, url)` | Waits for network quiet and universal rendered state on a route. |
+| [`captureBody`](../frontend/tests/dom-capture.spec.cjs#L56) | function | 56 | `async function captureBody(page)` | Captures the current document body HTML verbatim. |
+| [`readyHome`](../frontend/tests/dom-capture.spec.cjs#L67) | function | 67 | `async function readyHome(page)` | Waits until the home KPIs render. |
+| [`readyOverview`](../frontend/tests/dom-capture.spec.cjs#L74) | function | 74 | `async function readyOverview(page)` | Waits until the overview identity strip renders for the completed run. |
+| [`readyCorpus`](../frontend/tests/dom-capture.spec.cjs#L81) | function | 81 | `async function readyCorpus(page)` | Waits until at least one corpus article row renders. |
+| [`readyArticleDetail`](../frontend/tests/dom-capture.spec.cjs#L89) | function | 89 | `async function readyArticleDetail(page)` | Waits until the article detail PDF finishes rendering and the review host shows the context-start onboarding. |
+| [`readyReviewDialog`](../frontend/tests/dom-capture.spec.cjs#L97) | function | 97 | `async function readyReviewDialog(page)` | Opens the review setup dialog and waits for its candidate search to finish. |
+| [`readyAudit`](../frontend/tests/dom-capture.spec.cjs#L109) | function | 109 | `async function readyAudit(page)` | Waits until the audit stream renders at least one event. |
+
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -4021,6 +4051,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`selectRun`](../frontend/tests/viewer.spec.cjs#L69) | function | 69 | `async function selectRun(page, searchId, revisionId, planId, runId)` | Navigate to a fully selected context URL. |
 
 ## JavaScript test cases
+
+### [`frontend/tests/dom-capture.spec.cjs`](../frontend/tests/dom-capture.spec.cjs)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`captures rendered DOM for the equivalence routes`](../frontend/tests/dom-capture.spec.cjs#L128) | test | 128 | `test('captures rendered DOM for the equivalence routes', callback)` | captures rendered DOM for the equivalence routes |
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
