@@ -3434,12 +3434,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`setURL`](../frontend/src/router.ts#L15) | function | 15 | `function setURL(updates: Record<string, any>, replace?: boolean)` | Replaces the current URL state without triggering a navigation reload. |
-| [`bindFocusContext`](../frontend/src/router.ts#L29) | function | 29 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
-| [`syncPrimaryNavigation`](../frontend/src/router.ts#L39) | function | 39 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
-| [`syncShell`](../frontend/src/router.ts#L57) | function | 57 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
-| [`renderView`](../frontend/src/router.ts#L81) | function | 81 | `async function renderView()` | Asynchronously renders view. |
-| [`render`](../frontend/src/router.ts#L110) | function | 110 | `async function render()` | Asynchronously renders the associated state. |
+| [`setURL`](../frontend/src/router.ts#L15) | function | 15 | `function setURL(updates: Record<string, any>, replace: boolean)` | Replaces the current URL state without triggering a navigation reload. |
+| [`bindFocusContext`](../frontend/src/router.ts#L26) | function | 26 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
+| [`syncPrimaryNavigation`](../frontend/src/router.ts#L36) | function | 36 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
+| [`syncShell`](../frontend/src/router.ts#L54) | function | 54 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
+| [`renderView`](../frontend/src/router.ts#L78) | function | 78 | `async function renderView()` | Asynchronously renders view. |
+| [`render`](../frontend/src/router.ts#L107) | function | 107 | `async function render()` | Asynchronously renders the associated state. |
 
 ### [`frontend/src/state.ts`](../frontend/src/state.ts)
 

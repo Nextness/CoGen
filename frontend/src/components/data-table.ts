@@ -245,14 +245,14 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
         order = 'asc';
       }
       scrollTableIntoView();
-      setURL(updates({ sort: sort, order: order, page: 1, expanded: '' }));
+      setURL(updates({ sort: sort, order: order, page: 1, expanded: '' }), false);
     });
   });
 
   document.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(function(button) {
     button.addEventListener('click', function() {
       scrollTableIntoView();
-      setURL(updates({ page: button.dataset.page, expanded: '' }));
+      setURL(updates({ page: button.dataset.page, expanded: '' }), false);
     });
   });
 
@@ -260,7 +260,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
   if (perPage) {
     perPage.addEventListener('change', function(event) {
       scrollTableIntoView();
-      setURL(updates({ perPage: (event.target as HTMLSelectElement).value, page: 1, expanded: '' }));
+      setURL(updates({ perPage: (event.target as HTMLSelectElement).value, page: 1, expanded: '' }), false);
     });
   }
 
@@ -269,7 +269,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
   if (queryForm) {
     queryForm.addEventListener('submit', function(event) {
       event.preventDefault();
-      setURL(updates({ query: queryInput!.value, page: 1, expanded: '' }));
+      setURL(updates({ query: queryInput!.value, page: 1, expanded: '' }), false);
     });
   }
 
@@ -281,14 +281,14 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
       if (input) {
         query = input.value;
       }
-      setURL(updates({ query: query, page: 1, expanded: '' }));
+      setURL(updates({ query: query, page: 1, expanded: '' }), false);
     });
   }
 
   const clearButton = document.querySelector<HTMLButtonElement>(context.clearButtonSelector || '[data-clear-query]');
   if (clearButton) {
     clearButton.addEventListener('click', function() {
-      setURL(updates({ query: '', page: 1, expanded: '' }));
+      setURL(updates({ query: '', page: 1, expanded: '' }), false);
     });
   }
 

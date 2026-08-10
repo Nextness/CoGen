@@ -370,7 +370,7 @@ export async function corpusView(): Promise<void> {
     + '<div class="content">' + controls + filterSummary + explanation + body + '</div></section>';
 
   document.querySelector('#corpus-section-select')!.addEventListener('change', function(event) {
-    setURL({ section: (event.target as HTMLSelectElement).value, page: 1, q: '', sort: '', order: '', expanded: '' });
+    setURL({ section: (event.target as HTMLSelectElement).value, page: 1, q: '', sort: '', order: '', expanded: '' }, false);
   });
   bindTableControls(definition.table, page);
 }

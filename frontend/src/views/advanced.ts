@@ -94,7 +94,7 @@ export async function advancedView(): Promise<void> {
     + '</div></section>';
 
   document.querySelector('#table-select')!.addEventListener('change', function(event) {
-    setURL({ table: (event.target as HTMLSelectElement).value, page: 1, sort: '', order: '' });
+    setURL({ table: (event.target as HTMLSelectElement).value, page: 1, sort: '', order: '' }, false);
   });
 
   bindTableControls(current, page);

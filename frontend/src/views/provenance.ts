@@ -447,7 +447,7 @@ function bindAuditControls(): void {
       Object.keys(auditFilterKeys).forEach(function(key) {
         updates[key] = multiValueKeys.has(key) ? values.getAll(key).join(',') : values.get(key) || '';
       });
-      setURL(updates);
+      setURL(updates, false);
     });
     form.querySelectorAll('[data-multi-select]').forEach(function(control) {
       const checkboxes = Array.from(control.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));

@@ -134,13 +134,13 @@ export async function relationshipsView(): Promise<void> {
       updates[name] = name === 'article_limit' && raw === '2000' ? '' : raw;
     });
     updates.mode = mode;
-    setURL(updates);
+    setURL(updates, false);
   });
 
   document.querySelectorAll<HTMLInputElement>('input[name="graph_mode"]').forEach(function(input) {
     input.addEventListener('change', function() {
       if (input.checked) {
-        setURL({ view: 'relationships', mode: input.value, node: '' });
+        setURL({ view: 'relationships', mode: input.value, node: '' }, false);
       }
     });
   });
@@ -152,7 +152,7 @@ export async function relationshipsView(): Promise<void> {
         updates[name] = '';
       }
     });
-    setURL(updates);
+    setURL(updates, false);
   });
 
   mountGraph(data);
