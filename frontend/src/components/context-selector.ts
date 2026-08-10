@@ -208,7 +208,7 @@ export async function hydrateSelectors(): Promise<void> {
   if (!state.searches.length) {
     showLoading('search');
     try {
-      state.searches = list(await api('/api/searches'), ['searches', 'items']);
+      state.searches = list(await api('/api/searches', {}, { method: 'GET', headers: { Accept: 'application/json' } }), ['searches', 'items']);
     } catch (error: any) {
       selectOptions(selects.search, [], '', 'Searches unavailable');
       showDropdownError('search', 'Failed to load searches: ' + (error.message || error));
@@ -238,12 +238,12 @@ export async function hydrateSelectors(): Promise<void> {
 
   try {
     const [plans, runs] = await Promise.all([
-      api('/api/plans', { search_revision_id: value('search_revision_id') }),
+      api('/api/plans', { search_revision_id: value('search_revision_id') }, { method: 'GET', headers: { Accept: 'application/json' } }),
       api('/api/runs', {
         search_revision_id: value('search_revision_id'),
         plan_id: value('plan_id'),
         include_trashed: 'true'
-      }),
+      }, { method: 'GET', headers: { Accept: 'application/json' } }),
     ]);
     state.plans = list(plans, ['plans', 'items']);
     state.runs = list(runs, ['runs', 'items']);

@@ -255,7 +255,7 @@ export async function corpusView(): Promise<void> {
         sort: sort,
         order: order,
         q: value('q')
-      });
+      }, { method: 'GET', headers: { Accept: 'application/json' } });
     } else {
       data = await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/corpus/' + current, {
         page: page,
@@ -263,7 +263,7 @@ export async function corpusView(): Promise<void> {
         sort: sort,
         order: order,
         q: value('q')
-      });
+      }, { method: 'GET', headers: { Accept: 'application/json' } });
     }
   } else if (known) {
     data = await api('/api/tables/' + encodeURIComponent(definition.table), {
@@ -271,7 +271,7 @@ export async function corpusView(): Promise<void> {
       per_page: perPage,
       sort: sort,
       order: order
-    });
+    }, { method: 'GET', headers: { Accept: 'application/json' } });
   } else {
     data = null;
   }

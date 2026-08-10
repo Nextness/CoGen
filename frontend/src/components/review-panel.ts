@@ -43,8 +43,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
-  const health = await api('/api/health');
-  const context = await api(`/api/runs/${runID}/review-context`);
+  const health = await api('/api/health', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+  const context = await api(`/api/runs/${runID}/review-context`, {}, { method: 'GET', headers: { Accept: 'application/json' } });
   let pdfController: any = null;
   let pendingSelection: PDFSelection | null = null;
   let reviewEditable = false;
@@ -108,7 +108,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         expandButton.classList.add('loading');
       }
       try {
-        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, { scope: scope, limit: 100 });
+        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, { scope: scope, limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
         const select = host.querySelector('[data-review-parent]') as HTMLSelectElement;
         let added = 0;
         for (const candidate of candidates.rows || []) {
@@ -170,7 +170,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Loads and binds complete status state, history, notes, PDF, and anchors. */
   async function renderReview(): Promise<void> {
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/review`);
+    const data = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, { method: 'GET', headers: { Accept: 'application/json' } });
     reviewEditable = data.editable;
     const state = data.review || { version: null };
     const version = state.version;
@@ -269,7 +269,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.disabled = true;
       button.classList.add('loading');
       try {
-        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 });
+        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
         target.innerHTML = '<div class="rw-review-section__heading"><div><h4>Version history</h4><p>The newest immutable decision appears first.</p></div></div><ol class="rw-review-history">' + (historyData.versions || []).map(function(item: any) {
           return '<li><div><strong>Version ' + item.id + ' · ' + esc(humanLabel(item.status)) + '</strong><p>' + esc(item.reviewer_display) + ' · ' + esc(formatTime(item.created_at)) + '</p></div>'
             + (item.reason ? '<blockquote>' + esc(item.reason) + '</blockquote>' : '') + (item.sub_statuses?.length ? '<p class="rw-review-qualifiers">' + item.sub_statuses.map(humanLabel).map(esc).join(' · ') + '</p>' : '') + '</li>';
@@ -335,7 +335,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   async function loadAnchors(): Promise<void> {
     const target = host.querySelector('[data-anchor-list]') as HTMLElement | null;
     if (!target) return;
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 100 });
+    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
     const activeAnchors: AnchorHead[] = data.anchors || [];
     target.innerHTML = activeAnchors.length ? '<ul class="rw-anchor-list">' + activeAnchors.map(function(anchor) {
       const mismatch = anchor.version.pdf_content_hash !== detailData.pdf_status?.content_hash;
@@ -365,7 +365,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   /** Displays bounded immutable active and tombstone ancestry for a focused anchor. */
   async function showAnchorHistory(anchorID: string): Promise<void> {
     const target = host.querySelector('[data-anchor-list]') as HTMLElement;
-    const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 });
+    const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
     const historyMarkup = '<section class="rw-anchor-history"><div class="rw-review-section__heading"><div><h4>Anchor ' + esc(anchorID) + ' history</h4><p>The newest immutable anchor version appears first.</p></div></div><ol>' + (data.versions || []).map(function(version: any) {
       return '<li><div><strong>Version ' + version.id + ' · ' + esc(version.state) + '</strong><p>' + esc(version.reviewer_display) + ' · ' + esc(formatTime(version.created_at)) + (version.state === 'active' ? ' · page ' + version.page : ' · tombstone') + '</p></div>'
         + (version.state === 'active' ? '<blockquote>' + esc(version.selected_text || '') + '</blockquote>' : '') + '</li>';

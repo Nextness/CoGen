@@ -397,21 +397,21 @@ export async function provenanceView(): Promise<void> {
 
   var content;
   if (current === 'audit') {
-    content = auditView(await api('/api/audit', auditQuery('')));
+    content = auditView(await api('/api/audit', auditQuery(''), { method: 'GET', headers: { Accept: 'application/json' } }));
   } else if (current === 'artifacts') {
-    content = artifactsView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/artifacts'));
+    content = artifactsView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/artifacts', {}, { method: 'GET', headers: { Accept: 'application/json' } }));
   } else if (current === 'cache') {
     content = cacheView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/cache-uses', {
       page: value('cache_page') || 1, per_page: value('cache_per_page') || 50,
       sort: value('cache_sort') || 'id', order: value('cache_order') || 'asc', q: value('cache_q')
-    }));
+    }, { method: 'GET', headers: { Accept: 'application/json' } }));
   } else if (current === 'stages') {
     content = stagesView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/stages', {
       page: value('stage_page') || 1, per_page: value('stage_per_page') || 50,
       sort: value('stage_sort') || 'id', order: value('stage_order') || 'asc', q: value('stage_q')
-    }));
+    }, { method: 'GET', headers: { Accept: 'application/json' } }));
   } else {
-    content = runView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/artifacts'));
+    content = runView(await api('/api/runs/' + encodeURIComponent(value('run_id')) + '/artifacts', {}, { method: 'GET', headers: { Accept: 'application/json' } }));
   }
 
   app.innerHTML = pageHeader('Execution evidence', 'Provenance', 'Inspect append-only audit events, artifacts, cache decisions, and stage outcomes without changing the selected run.')
@@ -490,7 +490,7 @@ function bindAuditControls(): void {
       button.disabled = true;
       button.classList.add('loading');
       try {
-        const data = await api('/api/audit', auditQuery(auditCursor));
+        const data = await api('/api/audit', auditQuery(auditCursor), { method: 'GET', headers: { Accept: 'application/json' } });
         const knownIDs = new Set(auditEvents.map(function(event) { return String(event.id); }));
         list(data, ['events', 'items']).forEach(function(event) {
           if (!knownIDs.has(String(event.id))) {
@@ -536,7 +536,7 @@ function bindArtifactInspection(): void {
       button.disabled = true;
       button.classList.add('loading');
       try {
-        const payload = await api('/api/artifacts/' + encodeURIComponent(id) + '/inspect', { preview_bytes: 65536 });
+        const payload = await api('/api/artifacts/' + encodeURIComponent(id) + '/inspect', { preview_bytes: 65536 }, { method: 'GET', headers: { Accept: 'application/json' } });
         const raw = payload.content || '';
         var formatted = raw;
         var formatError = false;

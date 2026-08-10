@@ -158,13 +158,13 @@ function bindRunLifecycle(runs: any[]): void {
 
 /** Renders the workspace Home page and its research-history controls. */
 export async function homeView(): Promise<void> {
-  const searchResponse = await api('/api/searches');
+  const searchResponse = await api('/api/searches', {}, { method: 'GET', headers: { Accept: 'application/json' } });
   const searches = list(searchResponse, ['searches', 'items']);
   state.searches = searches;
   const revisions = searches.flatMap(function(search) { return list(search, ['revisions', 'search_revisions']); });
   const [planResponses, runResponse] = await Promise.all([
-    Promise.all(revisions.map(function(revision) { return api('/api/plans', { search_revision_id: pickID(revision) }); })),
-    api('/api/runs', { include_trashed: 'true' })
+    Promise.all(revisions.map(function(revision) { return api('/api/plans', { search_revision_id: pickID(revision) }, { method: 'GET', headers: { Accept: 'application/json' } }); })),
+    api('/api/runs', { include_trashed: 'true' }, { method: 'GET', headers: { Accept: 'application/json' } })
   ]);
   const plans = planResponses.flatMap(function(response) { return list(response, ['plans', 'items']); });
   const runs = list(runResponse, ['runs', 'items']);

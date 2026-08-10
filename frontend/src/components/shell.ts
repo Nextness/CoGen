@@ -5,7 +5,7 @@ export const healthStatus = document.querySelector<HTMLElement>('#health-status'
 
 /** Initializes health check. */
 export function initHealthCheck(): void {
-  api('/api/health').then(function(health) {
+  api('/api/health', {}, { method: 'GET', headers: { Accept: 'application/json' } }).then(function(health) {
     var unavailable = false;
     if (health?.readable === false) {
       unavailable = true;

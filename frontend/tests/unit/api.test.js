@@ -43,7 +43,7 @@ describe('api.js — api', function() {
       });
     };
 
-    const result = await api('/api/test');
+    const result = await api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     assert.deepEqual(result, ['a', 'b']);
 
     globalThis.fetch = originalFetch;
@@ -59,7 +59,7 @@ describe('api.js — api', function() {
       });
     };
 
-    const result = await api('/api/test');
+    const result = await api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     assert.deepEqual(result, { message: 'ok' });
 
     globalThis.fetch = originalFetch;
@@ -76,7 +76,7 @@ describe('api.js — api', function() {
     };
 
     await assert.rejects(function() {
-      return api('/api/test');
+      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     }, /Not found/);
 
     globalThis.fetch = originalFetch;
@@ -93,7 +93,7 @@ describe('api.js — api', function() {
     };
 
     await assert.rejects(function() {
-      return api('/api/test');
+      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     }, /Request failed \(500\)/);
 
     globalThis.fetch = originalFetch;
@@ -110,7 +110,7 @@ describe('api.js — api', function() {
     };
 
     await assert.rejects(function() {
-      return api('/api/test');
+      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     }, /invalid JSON/);
 
     globalThis.fetch = originalFetch;
@@ -125,7 +125,7 @@ describe('api.js — api', function() {
     };
 
     state.controller = new AbortController();
-    const promise = api('/api/test');
+    const promise = api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     state.controller.abort();
 
     assert.ok(signal);

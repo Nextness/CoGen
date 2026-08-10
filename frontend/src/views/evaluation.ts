@@ -54,7 +54,7 @@ export async function evaluationView(): Promise<void> {
     sort: sort,
     order: order,
     q: query
-  });
+  }, { method: 'GET', headers: { Accept: 'application/json' } });
 
   const controls = '<form class="ui form rw-table-controls" data-table-search>'
     + '<label class="rw-table-controls__search"><span>Search normalized articles</span><span class="ui input">'
@@ -104,7 +104,7 @@ export async function evaluationView(): Promise<void> {
 
   bindTableControls('evaluation', page);
   document.querySelector('[data-start-evaluation-review]')?.addEventListener('click', async function() {
-    const context = await api('/api/runs/' + encodeURIComponent(runID) + '/review-context');
+    const context = await api('/api/runs/' + encodeURIComponent(runID) + '/review-context', {}, { method: 'GET', headers: { Accept: 'application/json' } });
     const proposed = context.proposed_parent;
     const prompt = proposed ? `Start review by inheriting ${proposed.inherited_work_count} matching work heads from run ${proposed.pipeline_run_id}?` : 'Start an empty review context for this run?';
     if (!window.confirm(prompt)) return;

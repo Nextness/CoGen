@@ -3251,12 +3251,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`endpoint`](../frontend/src/api.ts#L5) | function | 5 | `function endpoint(path: string, query?: Record<string, any> \| null)` | Builds an API path and query string from supplied values. |
-| [`APIError`](../frontend/src/api.ts#L36) | class | 36 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
-| [`APIError.constructor`](../frontend/src/api.ts#L42) | method | 42 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
-| [`api`](../frontend/src/api.ts#L52) | function | 52 | `async function api(path: string, query?: Record<string, any> \| null, options?: APIRequestOptions)` | Fetches and decodes one JSON API response. |
-| [`mutate`](../frontend/src/api.ts#L82) | function | 82 | `function mutate(path: string, method: string, body: any)` | Sends a same-origin JSON mutation and returns its decoded response. |
-| [`tables`](../frontend/src/api.ts#L91) | function | 91 | `async function tables()` | Loads and caches the discovered database table list. |
+| [`endpoint`](../frontend/src/api.ts#L5) | function | 5 | `function endpoint(path: string, query: Record<string, any> = {})` | Builds an API path and query string from supplied values. |
+| [`APIError`](../frontend/src/api.ts#L33) | class | 33 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../frontend/src/api.ts#L39) | method | 39 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
+| [`api`](../frontend/src/api.ts#L50) | function | 50 | `async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions)` | Fetches and decodes one JSON API response. |
+| [`mutate`](../frontend/src/api.ts#L75) | function | 75 | `function mutate(path: string, method: string, body: any)` | Sends a same-origin JSON mutation and returns its decoded response. |
+| [`tables`](../frontend/src/api.ts#L84) | function | 84 | `async function tables()` | Loads and caches the discovered database table list. |
 
 ### [`frontend/src/components/audit-events.ts`](../frontend/src/components/audit-events.ts)
 

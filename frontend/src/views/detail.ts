@@ -419,7 +419,7 @@ export async function detailView(kind: string): Promise<void> {
   }
 
   collectionState.clear();
-  const data = await api('/api/' + kind + 's/' + encodeURIComponent(id), kind === 'author' ? { run_id: value('run_id') } : undefined);
+  const data = await api('/api/' + kind + 's/' + encodeURIComponent(id), kind === 'author' ? { run_id: value('run_id') } : {}, { method: 'GET', headers: { Accept: 'application/json' } });
   const record = data.article || data.author || data.reference || data;
   var title = labels[kind];
   if (kind === 'article') {
@@ -490,7 +490,7 @@ export async function detailView(kind: string): Promise<void> {
         record,
         data,
         async function() {
-          const refreshed = await api('/api/articles/' + encodeURIComponent(record.id));
+          const refreshed = await api('/api/articles/' + encodeURIComponent(record.id), {}, { method: 'GET', headers: { Accept: 'application/json' } });
           const events = list(refreshed.audit_events, ['events', 'items']);
           const auditHost = document.querySelector('[data-article-audit-host]');
           if (!auditHost) return;

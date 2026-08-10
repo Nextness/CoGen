@@ -82,8 +82,8 @@ export async function overviewView(): Promise<void> {
   }
 
   const [overview, cache] = await Promise.all([
-    api('/api/overview', { run_id: value('run_id') }),
-    api('/api/runs/' + encodeURIComponent(value('run_id')) + '/cache-uses')
+    api('/api/overview', { run_id: value('run_id') }, { method: 'GET', headers: { Accept: 'application/json' } }),
+    api('/api/runs/' + encodeURIComponent(value('run_id')) + '/cache-uses', {}, { method: 'GET', headers: { Accept: 'application/json' } })
   ]);
 
   const run = selectedRun() || {};

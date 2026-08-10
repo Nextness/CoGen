@@ -51,7 +51,7 @@ export async function advancedView(): Promise<void> {
     per_page: perPage,
     sort: sort,
     order: order
-  });
+  }, { method: 'GET', headers: { Accept: 'application/json' } });
 
   var tableOptions = allTables.map(function(item) {
     var selected = '';

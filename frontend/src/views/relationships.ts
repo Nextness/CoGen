@@ -88,7 +88,7 @@ export async function relationshipsView(): Promise<void> {
   if (!queryParams.article_limit) {
     queryParams.article_limit = 2000;
   }
-  const data = await api('/api/graph', queryParams);
+  const data = await api('/api/graph', queryParams, { method: 'GET', headers: { Accept: 'application/json' } });
   const modeDefinition = graphModes[mode];
 
   const filterPanel = '<aside class="ui segment rw-relationship-filters">'

@@ -132,7 +132,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Loads bounded active note heads and binds their edit, history, and tombstone actions. */
   async function loadNotes(): Promise<void> {
-    const data = await api(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, { limit: 100 });
+    const data = await api(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, { limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
     const notes = data.notes || [];
     host.querySelector('[data-note-list]')!.innerHTML = notes.length ? '<ul class="rw-note-list">' + notes.map(function(note: ReviewNoteRecord) {
       const noteBody = note.version.body || '';
@@ -159,7 +159,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Displays one selected head's immutable ancestry and optional restoration control. */
   async function showHistory(note: ReviewNoteRecord): Promise<void> {
-    const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 100 });
+    const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 100 }, { method: 'GET', headers: { Accept: 'application/json' } });
     const versions: any[] = data.versions || [];
     const latestActive = versions.find(function(version) { return version.state === 'active'; });
     host.querySelector('[data-note-history]')!.innerHTML = '<section class="rw-note-history"><div class="rw-review-section__heading"><div><h4>Note ' + note.id + ' history</h4><p>Compare immutable snapshots from newest to oldest.</p></div>' + (note.version.state === 'deleted' ? '<button type="button" class="ui primary button" data-note-restore' + (latestActive ? '' : ' disabled') + '>Restore previous content</button>' : '') + '</div>' + (versions as any[]).map(function(version, index) {
@@ -180,7 +180,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Resolves a URL-focused active or deleted note and exposes its history. */
   async function focusNote(noteID: any): Promise<void> {
-    const data = await api(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`);
+    const data = await api(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`, {}, { method: 'GET', headers: { Accept: 'application/json' } });
     if (!data.note) return;
     await showHistory(data.note);
     const row = host.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(String(noteID))}"]`);
