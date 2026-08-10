@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { paginationPages, pagination } from '../../../../src/server/frontend/components/pagination.js';
+import { paginationPages, pagination } from '../../../src/components/pagination.ts';
 
 describe('pagination.js', function() {
   it('keeps a bounded page window around the current page', function() {

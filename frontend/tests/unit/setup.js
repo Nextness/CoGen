@@ -1,7 +1,7 @@
 // Shared JSDOM setup for frontend unit tests.
 // Import this as a side-effect before importing any frontend module:
 //   import './setup.js';
-//   import { esc } from '../../src/server/frontend/state.js';
+//   import { esc } from '../../src/state.ts';
 
 import { JSDOM } from 'jsdom';
 
@@ -15,16 +15,18 @@ const document = window.document;
 
 // --- Build the DOM structure the app expects ---
 document.body.innerHTML = `
+  <header class="site-header"><div class="brand"><p>Local research workspace</p><h1>Research workspace</h1></div><div><span id="health-status"></span><span>Local review</span></div><button id="mobile-nav-toggle"></button></header>
+  <div id="workspace-breadcrumb"></div>
+  <section class="context-panel">
+    <div class="ui field"><div data-context-dropdown="search"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="search-select"><option value="">Select a search</option></select></div></div>
+    <div class="ui field"><div data-context-dropdown="revision"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="revision-select"><option value="">Select a revision</option></select></div></div>
+    <div class="ui field"><div data-context-dropdown="plan"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="plan-select"><option value="">Select a plan</option></select></div></div>
+    <div class="ui field"><div data-context-dropdown="run"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="run-select"><option value="">Select a run</option></select></div></div>
+  </section>
+  <nav class="primary-nav"><a data-view-link="overview">Overview</a><a data-view-link="corpus">Corpus</a><a data-view-link="relationships">Relationships</a><a data-view-link="provenance">Provenance</a><a data-view-link="evaluation">Evaluation</a><a data-view-link="advanced">Advanced</a></nav>
   <div id="app"></div>
   <div id="notice" hidden></div>
   <div id="loading" hidden></div>
-  <div id="health-status"></div>
-  <div id="selection-summary"></div>
-  <button id="clear-context"></button>
-  <select id="search-select"></select>
-  <select id="revision-select"></select>
-  <select id="plan-select"></select>
-  <select id="run-select"></select>
   <div id="graph-edge-rows"></div>
   <div id="graph-selection"></div>
   <div id="graph-layout-status"></div>
@@ -52,6 +54,7 @@ globalThis.HTMLTableElement = window.HTMLTableElement;
 globalThis.HTMLTableRowElement = window.HTMLTableRowElement;
 globalThis.HTMLTableCellElement = window.HTMLTableCellElement;
 globalThis.CustomEvent = window.CustomEvent;
+globalThis.Event = window.Event;
 globalThis.KeyboardEvent = window.KeyboardEvent;
 globalThis.MouseEvent = window.MouseEvent;
 globalThis.FocusEvent = window.FocusEvent;

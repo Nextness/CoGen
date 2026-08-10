@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"analysis/enrich"
 	"analysis/manifest"
@@ -29,6 +30,13 @@ type Config struct {
 type Run struct {
 	Manifest   *manifest.ResolvedManifest
 	Enrichment *enrich.Config
+	Reviewer   Reviewer
+}
+
+// Reviewer is the optional identity captured with each newly created pipeline run.
+type Reviewer struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
 }
 
 // Selector identifies one workspace iteration by its stable search ID and
@@ -167,6 +175,10 @@ func parseRun(entry map[string]any, configDir string) (*Run, error) {
 	if enrichmentEnabled && len(providers) == 0 {
 		return nil, fmt.Errorf("workspace %q enables enrichment but declares no providers", Selector(searchID, revision))
 	}
+	reviewer, err := parseReviewer(workspace)
+	if err != nil {
+		return nil, err
+	}
 	return &Run{
 		Manifest: &manifest.ResolvedManifest{
 			FormatVersion:       formatVersion,
@@ -179,7 +191,31 @@ func parseRun(entry map[string]any, configDir string) (*Run, error) {
 			EnrichmentProviders: providers,
 		},
 		Enrichment: enrichConfig,
+		Reviewer:   reviewer,
 	}, nil
+}
+
+// parseReviewer normalizes the optional reviewer setup without adding it to execution manifests.
+func parseReviewer(workspace map[string]any) (Reviewer, error) {
+	value, ok := workspace["reviewer"]
+	if !ok || value == nil {
+		return Reviewer{}, nil
+	}
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return Reviewer{}, fmt.Errorf("reviewer must be an object")
+	}
+	reviewer := Reviewer{
+		Username: strings.TrimSpace(optionalString(fields, "username")),
+		Email:    strings.TrimSpace(optionalString(fields, "email")),
+	}
+	if utf8.RuneCountInString(reviewer.Username) > 200 {
+		return Reviewer{}, fmt.Errorf("reviewer.username exceeds 200 characters")
+	}
+	if utf8.RuneCountInString(reviewer.Email) > 320 {
+		return Reviewer{}, fmt.Errorf("reviewer.email exceeds 320 characters")
+	}
+	return reviewer, nil
 }
 
 var cacheReadLayerNames = []string{"active_run", "global", "network", "run_specific"}

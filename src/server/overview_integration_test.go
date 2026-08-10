@@ -7,6 +7,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -81,24 +82,25 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	if len(payload.SourceResultCounts) != 1 || payload.SourceResultCounts[0].SourceName != "fixture" || payload.SourceResultCounts[0].Expected != 4 || payload.SourceResultCounts[0].Observed != 1 || payload.SourceResultCounts[0].Comparison != "below" {
 		t.Fatalf("source result count summary = %#v", payload.SourceResultCounts)
 	}
+	viewer.AssetsFS = os.DirFS(filepath.Join("..", "..", "frontend", "src"))
 	handler := viewer.Handler()
 	for _, check := range []struct {
 		path, needle string
 	}{
-		{"/views/overview.js", "/api/overview"},
-		{"/views/overview.js", "Enriched fields"},
-		{"/views/overview.js", "Enrichment by provider"},
-		{"/views/overview.js", "Normalization field outcomes"},
-		{"/views/relationships.js", "/api/graph"},
-		{"/views/relationships.js", "graph-form"},
-		{"/router.js", "pushState"},
-		{"/views/overview.js", "Not recorded for this run"},
-		{"/state.js", "Source export counts"},
-		{"/views/corpus.js", "source_result_counts"},
+		{"/views/overview.ts", "/api/overview"},
+		{"/views/overview.ts", "Enriched fields"},
+		{"/views/overview.ts", "Enrichment by provider"},
+		{"/views/overview.ts", "Normalization field outcomes"},
+		{"/views/relationships.ts", "/api/graph"},
+		{"/views/relationships.ts", "graph-form"},
+		{"/router.ts", "pushState"},
+		{"/views/overview.ts", "Not recorded for this run"},
+		{"/state.ts", "Source export counts"},
+		{"/views/corpus.ts", "source_result_counts"},
 	} {
 		asset := viewerRequest(t, handler, check.path)
 		if !strings.Contains(asset.Body.String(), check.needle) {
-			t.Fatalf("embedded frontend %s is missing %q", check.path, check.needle)
+			t.Fatalf("frontend %s is missing %q", check.path, check.needle)
 		}
 	}
 }

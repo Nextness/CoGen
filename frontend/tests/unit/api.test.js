@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.js';
-import { endpoint, api, tables } from '../../../src/server/frontend/api.js';
-import { state } from '../../../src/server/frontend/state.js';
+import { endpoint, api, mutate, tables } from '../../src/api.ts';
+import { state } from '../../src/state.ts';
 
 describe('api.js — endpoint', function() {
 
@@ -133,6 +133,20 @@ describe('api.js — api', function() {
 
     globalThis.fetch = originalFetch;
     state.controller = null;
+  });
+
+  it('sends same-origin JSON mutations', async function() {
+    const originalFetch = globalThis.fetch;
+    var request;
+    globalThis.fetch = function(_, options) {
+      request = options;
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ saved: true }); } });
+    };
+    assert.deepEqual(await mutate('/api/review', 'PUT', { status: 'approved' }), { saved: true });
+    assert.equal(request.method, 'PUT');
+    assert.equal(request.headers['Content-Type'], 'application/json');
+    assert.equal(request.body, '{"status":"approved"}');
+    globalThis.fetch = originalFetch;
   });
 
 });

@@ -2,13 +2,13 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { provenanceView } from '../../../../src/server/frontend/views/provenance.js';
-import { app, state } from '../../../../src/server/frontend/state.js';
+import { provenanceView } from '../../../src/views/provenance.ts';
+import { app, state } from '../../../src/state.ts';
 
 /** Sets location. */
 function setLocation(values) {
   const url = new URL(location.href);
-  ['section', 'run_id', 'audit_category', 'cache_page', 'stage_page'].forEach(function(key) { url.searchParams.delete(key); });
+  ['section', 'run_id', 'audit_q', 'audit_category', 'audit_action', 'audit_actor', 'audit_entity', 'audit_stage', 'audit_outcome', 'cache_page', 'stage_page'].forEach(function(key) { url.searchParams.delete(key); });
   Object.entries(values).forEach(function(entry) { url.searchParams.set(entry[0], entry[1]); });
   history.pushState({}, '', url.toString());
 }
@@ -71,6 +71,46 @@ describe('provenance.js — provenanceView', function() {
     category.checked = true;
     document.querySelector('#audit-filter-form').dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     assert.equal(new URL(location.href).searchParams.get('audit_category'), 'validation');
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('appends older audit events without duplicates and preserves open details', async function() {
+    const originalFetch = globalThis.fetch;
+    var calls = 0;
+    globalThis.fetch = function() {
+      calls += 1;
+      if (calls === 1) {
+        return response({
+          events: [{ id: 3, action: 'validation_changed', actor: 'pipeline', entity_type: 'work_revision', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-02T00:01:00Z', metadata_json: { reason: 'Recorded reason', detail: 'visible' } }],
+          summary: { total_events: 2, actions: [{ action: 'validation_changed', count: 2 }] },
+          facets: { actors: ['pipeline'], actions: ['validation_changed'], entity_types: ['work_revision'] },
+          next_cursor: 'older-page',
+          has_more: true
+        });
+      }
+      return response({
+        events: [
+          { id: 3, action: 'validation_changed', actor: 'pipeline', entity_type: 'work_revision', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-02T00:01:00Z' },
+          { id: 2, action: 'pipeline_completed', actor: 'pipeline', entity_type: 'pipeline_run', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-01T00:01:00Z' }
+        ],
+        next_cursor: '',
+        has_more: false
+      });
+    };
+    setLocation({ section: 'audit', run_id: '1' });
+
+    await provenanceView();
+    const details = document.querySelector('.rw-event-details');
+    details.open = true;
+    document.querySelector('[data-audit-load-more]').click();
+    await new Promise(function(resolve) { setTimeout(resolve, 0); });
+
+    assert.equal(document.querySelectorAll('[data-audit-event-id]').length, 2);
+    assert.equal(document.querySelector('[data-audit-event-id="3"] .rw-event-details').open, true);
+    assert.equal(document.querySelector('[data-audit-loaded-count]').textContent, '2');
+    assert.equal(document.querySelector('[data-audit-end]').hidden, false);
+    assert.equal(document.querySelector('.rw-load-more').hidden, true);
 
     globalThis.fetch = originalFetch;
   });

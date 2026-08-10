@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { overviewView } from '../../../../src/server/frontend/views/overview.js';
-import { app, state, value } from '../../../../src/server/frontend/state.js';
+import { overviewView } from '../../../src/views/overview.ts';
+import { app, state, value } from '../../../src/state.ts';
 
 describe('overview.js — overviewView', function() {
 
@@ -76,7 +76,10 @@ describe('overview.js — overviewView', function() {
     const url = new URL(location.href);
     url.searchParams.set('run_id', 'run-1');
     history.pushState({}, '', url.toString());
-    state.runs = [{ id: 'run-1', status: 'complete' }];
+    state.runs = [{
+      id: 'run-1', attempt_number: 3, execution_plan_id: 9, status: 'completed', visibility_state: 'active',
+      started_at: '2024-01-01T00:00:00Z', finished_at: '2024-01-01T00:05:30Z'
+    }];
 
     await overviewView();
     assert.ok(app.innerHTML.includes('Overview'));
@@ -84,6 +87,14 @@ describe('overview.js — overviewView', function() {
     assert.ok(app.innerHTML.includes('Parsing'));
     assert.ok(app.innerHTML.includes('Deduplication'));
     assert.ok(app.innerHTML.includes('25.00%'));
+    assert.ok(app.innerHTML.includes('rw-run-identity-strip'));
+    assert.ok(app.innerHTML.includes('5m 30s'));
+    assert.ok(!app.innerHTML.includes('Selected historical run'));
+    assert.deepEqual(Array.from(document.querySelectorAll('.rw-retention__phase-header h4'), function(heading) { return heading.textContent; }), [
+      'Source selection', 'Pipeline processing', 'Corpus enrichment'
+    ]);
+    assert.ok(document.querySelector('[data-flow-stage="parsed_articles"] a').href.includes('stage_q=parse'));
+    assert.equal(document.querySelector('.dashboard-grid').lastElementChild.classList.contains('rw-overview-evidence'), true);
     assert.ok(fetchCount >= 2);
 
     globalThis.fetch = originalFetch;

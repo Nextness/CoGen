@@ -10,12 +10,12 @@ import (
 )
 
 var (
-	javascriptFunctionStart = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?(?:async[[:space:]]+)?function[[:space:]]*\*?[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*`)
-	javascriptFunction      = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?(async[[:space:]]+)?function[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)[[:space:]]*(\([^)]*\))`)
-	javascriptClassStart    = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*`)
-	javascriptClass         = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?class[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)([[:space:]]+extends[[:space:]]+[A-Za-z_$][A-Za-z0-9_$.]*)?[[:space:]]*\{`)
-	javascriptMethod        = regexp.MustCompile(`^[[:space:]]*(static[[:space:]]+)?(async[[:space:]]+)?([A-Za-z_$][A-Za-z0-9_$]*|constructor)[[:space:]]*(\([^)]*\))[[:space:]]*\{`)
-	javascriptMethodStart   = regexp.MustCompile(`^[[:space:]]*(?:static[[:space:]]+)?(?:async[[:space:]]+)?[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*\(`)
+	javascriptFunctionStart = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?(?:async[[:space:]]+)?function[[:space:]]*\*?[[:space:]]*[A-Za-z_$][A-Za-z0-9_$]*(?:<[^()]*>)?`)
+	javascriptFunction      = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?(?:default[[:space:]]+)?(async[[:space:]]+)?function[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)(?:[[:space:]]*<[^()]*>)?([[:space:]]*\([^()]*(?:\([^()]*\)[^()]*)*\))`)
+	javascriptClassStart    = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*(?:<[^()]*>)?`)
+	javascriptClass         = regexp.MustCompile(`^[[:space:]]*(?:export[[:space:]]+)?class[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)(?:[[:space:]]*<[^()]*>)?([[:space:]]+extends[[:space:]]+[A-Za-z_$][A-Za-z0-9_$.]*(?:<[^()]*>)?)?[[:space:]]*\{`)
+	javascriptMethod        = regexp.MustCompile(`^[[:space:]]*(?:(public|private|protected)[[:space:]]+)?(static[[:space:]]+)?(async[[:space:]]+)?([A-Za-z_$][A-Za-z0-9_$]*|constructor)(?:[[:space:]]*<[^()]*>)?([[:space:]]*\([^()]*(?:\([^()]*\)[^()]*)*\))(?:[[:space:]]*:[^\{]*)?[[:space:]]*\{`)
+	javascriptMethodStart   = regexp.MustCompile(`^[[:space:]]*(?:(?:public|private|protected)[[:space:]]+)?(?:static[[:space:]]+)?(?:async[[:space:]]+)?[A-Za-z_$][A-Za-z0-9_$]*(?:<[^()]*>)?[[:space:]]*\(`)
 	javascriptTest          = regexp.MustCompile("^[[:space:]]*(test|it)\\([[:space:]]*([`\"'])(.*)$")
 	jsDocLine               = regexp.MustCompile(`^[[:space:]]*\*[[:space:]]?`)
 )
@@ -32,8 +32,8 @@ func hasPathPart(path, part string) bool {
 
 // projectJavaScriptFiles returns maintained project-authored JavaScript paths.
 func projectJavaScriptFiles(root string) ([]string, error) {
-	roots := []string{filepath.Join("src", "server", "frontend"), "frontend"}
-	allowedSuffixes := map[string]bool{".js": true, ".cjs": true, ".mjs": true}
+	roots := []string{"frontend"}
+	allowedSuffixes := map[string]bool{".js": true, ".cjs": true, ".mjs": true, ".ts": true}
 	paths := make(map[string]bool)
 	for _, relativeRoot := range roots {
 		err := filepath.WalkDir(filepath.Join(root, relativeRoot), func(path string, item os.DirEntry, walkErr error) error {
@@ -41,12 +41,12 @@ func projectJavaScriptFiles(root string) ([]string, error) {
 				return walkErr
 			}
 			if item.IsDir() {
-				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") {
+				if hasPathPart(path, "vendor") || hasPathPart(path, "node_modules") || hasPathPart(path, "dist") {
 					return filepath.SkipDir
 				}
 				return nil
 			}
-			if !item.Type().IsRegular() || !allowedSuffixes[filepath.Ext(path)] {
+			if !item.Type().IsRegular() || !allowedSuffixes[filepath.Ext(path)] || strings.HasSuffix(path, ".d.ts") {
 				return nil
 			}
 			relativePath, err := filepath.Rel(root, path)
@@ -127,12 +127,19 @@ func collectJavaScriptDeclarations(root string) ([]catalogEntry, []catalogEntry,
 			}
 			if className != "" && classDepth == 1 {
 				if match := javascriptMethod.FindStringSubmatch(line); match != nil {
-					prefix := strings.TrimSpace(match[1] + match[2])
+					parts := []string{match[1], match[2], match[3]}
+					var nonEmpty []string
+					for _, part := range parts {
+						if strings.TrimSpace(part) != "" {
+							nonEmpty = append(nonEmpty, strings.TrimSpace(part))
+						}
+					}
+					prefix := strings.Join(nonEmpty, " ")
 					if prefix != "" {
 						prefix += " "
 					}
-					name := className + "." + match[3]
-					declarations = append(declarations, catalogEntry{file: relativePath, kind: "method", name: name, signature: prefix + match[3] + match[4], description: javascriptDoc(lines, index), start: index + 1, end: index + 1})
+					name := className + "." + match[4]
+					declarations = append(declarations, catalogEntry{file: relativePath, kind: "method", name: name, signature: prefix + match[4] + match[5], description: javascriptDoc(lines, index), start: index + 1, end: index + 1})
 				} else if javascriptMethodStart.MatchString(line) {
 					return nil, nil, fmt.Errorf("unsupported JavaScript class method declaration at %s:%d", relativePath, index+1)
 				}

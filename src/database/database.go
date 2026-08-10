@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,32 +25,34 @@ var lg = logging.Logger("database")
 
 // Database wraps a SQLite connection and exposes per-table repositories.
 type Database struct {
-	DB                  *sql.DB
-	PipelineRuns        *PipelineRunRepository
-	Searches            *SearchRepository
-	Revisions           *SearchRevisionRepository
-	Plans               *ExecutionPlanRepository
-	RunSources          *RunSourceRepository
-	SourceRecords       *SourceRecordRepository
-	Artifacts           *ArtifactRepository
-	RunSteps            *RunStepRepository
-	Metrics             *MetricsRepository
-	AuditEvents         *AuditEventRepository
-	Works               *WorkRepository
-	WorkIdentifiers     *WorkIdentifierRepository
-	WorkRevisions       *WorkRevisionRepository
-	RunWorkStages       *RunWorkStageRepository
-	People              *PersonRepository
-	AuthorOccs          *AuthorOccurrenceRepository
-	Authorships         *AuthorshipRepository
-	IdentityResolutions *AuthorIdentityResolutionRepository
-	IdentityCandidates  *AuthorIdentityCandidateRepository
-	ReferenceMentions   *ReferenceMentionRepository
-	CacheEntries        *CacheEntryRepository
-	RunCacheUses        *RunCacheUseRepository
-	ArtifactBlobs       *ArtifactBlobRepository
-	RunArtifacts        *RunArtifactRepository
-	SourceFilterCounts  *SourceFilterCountRepository
+	DB                   *sql.DB
+	PipelineRuns         *PipelineRunRepository
+	Searches             *SearchRepository
+	Revisions            *SearchRevisionRepository
+	Plans                *ExecutionPlanRepository
+	RunSources           *RunSourceRepository
+	SourceRecords        *SourceRecordRepository
+	Artifacts            *ArtifactRepository
+	RunSteps             *RunStepRepository
+	Metrics              *MetricsRepository
+	AuditEvents          *AuditEventRepository
+	Works                *WorkRepository
+	WorkIdentifiers      *WorkIdentifierRepository
+	WorkRevisions        *WorkRevisionRepository
+	RunWorkStages        *RunWorkStageRepository
+	People               *PersonRepository
+	AuthorOccs           *AuthorOccurrenceRepository
+	Authorships          *AuthorshipRepository
+	IdentityResolutions  *AuthorIdentityResolutionRepository
+	IdentityCandidates   *AuthorIdentityCandidateRepository
+	ReferenceMentions    *ReferenceMentionRepository
+	CacheEntries         *CacheEntryRepository
+	RunCacheUses         *RunCacheUseRepository
+	ArtifactBlobs        *ArtifactBlobRepository
+	RunArtifacts         *RunArtifactRepository
+	SourceFilterCounts   *SourceFilterCountRepository
+	PipelineRunReviewers *PipelineRunReviewerRepository
+	Reviews              *ReviewRepository
 
 	dbPath     string
 	migrations string // migration SQL directory
@@ -70,6 +73,66 @@ func Open(dbPath, configPath string) (*Database, error) {
 	d.initRepositories()
 
 	lg.Debug("database open successful", "database_path", dbPath)
+	return d, nil
+}
+
+// MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace.
+func MigrateExisting(dbPath, configPath string) error {
+	if strings.TrimSpace(dbPath) == "" {
+		return fmt.Errorf("database path is required")
+	}
+	info, err := os.Stat(dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("database does not exist")
+		}
+		return fmt.Errorf("inspect database: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("database path is a directory")
+	}
+	db, err := Open(dbPath, configPath)
+	if err != nil {
+		return err
+	}
+	return db.Close()
+}
+
+// OpenExisting opens an existing metadata database for narrowly scoped review
+// writes. It never creates directories, changes journal mode, or runs migrations.
+func OpenExisting(dbPath string) (*Database, error) {
+	if strings.TrimSpace(dbPath) == "" {
+		return nil, fmt.Errorf("database path is required")
+	}
+	info, err := os.Stat(dbPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("database does not exist")
+		}
+		return nil, fmt.Errorf("inspect database: %w", err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("database path is a directory")
+	}
+	absolute, err := filepath.Abs(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve database path: %w", err)
+	}
+	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=rw&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"}).String()
+	conn, err := sql.Open("sqlite", uri)
+	if err != nil {
+		return nil, fmt.Errorf("open existing sqlite: %w", err)
+	}
+	conn.SetMaxOpenConns(1)
+	conn.SetConnMaxLifetime(0)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := conn.PingContext(ctx); err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("open existing sqlite: %w", err)
+	}
+	d := &Database{DB: conn, dbPath: absolute}
+	d.initRepositories()
 	return d, nil
 }
 
@@ -154,6 +217,8 @@ func (d *Database) initRepositories() {
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
+	d.PipelineRunReviewers = &PipelineRunReviewerRepository{db: d}
+	d.Reviews = &ReviewRepository{db: d}
 }
 
 // configurePragma retries startup-only locking around journal-mode changes.

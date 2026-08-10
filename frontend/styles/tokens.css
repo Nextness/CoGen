@@ -1,0 +1,167 @@
+:root {
+  color-scheme: light dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  line-height: 1.45;
+
+  /* ── Background colors ── */
+  --color-bg-canvas: #f5f6f7;
+  --color-bg-surface: #ffffff;
+  --color-bg-surface-raised: #fbfcfc;
+  --color-bg-surface-muted: #eef1f3;
+
+  /* ── Text colors ── */
+  --color-text-primary: #18232c;
+  --color-text-secondary: #5c6974;
+  --color-text-muted: #5f6c76;
+
+  /* ── Border colors ── */
+  --color-border-default: #d2d9de;
+  --color-border-strong: #adb9c2;
+
+  /* ── Accent / interaction ── */
+  --color-accent-default: #0b5e8e;
+  --color-accent-hover: #084b72;
+  --color-accent-active: #063c5c;
+  --color-accent-soft: #e5f1f7;
+  --color-accent-contrast: #ffffff;
+
+  /* ── Semantic status colors ── */
+  --color-status-success: #2f6f52;
+  --color-status-success-soft: #e8f3ed;
+  --color-status-warning: #8f5f00;
+  --color-status-warning-soft: #fff3d9;
+  --color-status-danger: #a22f3f;
+  --color-status-danger-soft: #fbeaea;
+  --color-status-info: #365f91;
+  --color-status-info-soft: #e9f1fa;
+  --color-status-neutral: #5f6c76;
+  --color-status-neutral-soft: #eef1f3;
+  --color-status-review: #7753a6;
+  --color-status-review-soft: #f1ebf8;
+  --color-status-note: #a0446f;
+  --color-status-note-soft: #faeaf2;
+
+  /* Connected-component colors used by the relationship graph. */
+  --graph-cluster-1: #236b8e;
+  --graph-cluster-2: #8b6417;
+  --graph-cluster-3: #35765b;
+  --graph-cluster-4: #6e58a3;
+  --graph-cluster-5: #985468;
+  --graph-cluster-6: #3b7c83;
+
+  /* ── Focus ring ── */
+  --focus-ring: #d36d00;
+  --focus-ring-offset: 2px;
+
+  /* ── Elevation / shadows ── */
+  --shadow-low: 0 1px 2px rgb(20 35 44 / 8%);
+  --shadow-medium: 0 2px 6px rgb(20 35 44 / 10%);
+  --shadow-high: 0 4px 12px rgb(20 35 44 / 12%);
+
+  /* ── Border radius ── */
+  --radius-default: 6px;
+  --radius-small: 4px;
+  --radius-large: 8px;
+  --radius-pill: 100px;
+
+  /* ── Spacing scale (4px base) ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ── Typography scale ── */
+  --text-xxs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 15px;
+  --text-md: 16px;
+  --text-xl: 20px;
+  --text-2xl: 23px;
+  --text-3xl: 28px;
+
+  /* ── Font weight ── */
+  --weight-normal: 400;
+  --weight-medium: 600;
+  --weight-bold: 650;
+  --weight-black: 750;
+
+  /* ── Line-height scale ── */
+  --leading-tight: 1.2;
+  --leading-heading: 1.3;
+  --leading-body: 1.55;
+
+  /* ── Breakpoints (for @media use) ── */
+  --bp-mobile: 720px;
+  --bp-tablet: 1100px;
+
+  /* ── Legacy aliases (backward compat, remove after full migration) ── */
+  --canvas: var(--color-bg-canvas);
+  --surface: var(--color-bg-surface);
+  --surface-raised: var(--color-bg-surface-raised);
+  --surface-muted: var(--color-bg-surface-muted);
+  --text: var(--color-text-primary);
+  --muted: var(--color-text-secondary);
+  --faint: var(--color-text-muted);
+  --border: var(--color-border-default);
+  --border-strong: var(--color-border-strong);
+  --accent: var(--color-accent-default);
+  --accent-soft: var(--color-accent-soft);
+  --accent-contrast: var(--color-accent-contrast);
+  --success: var(--color-status-success);
+  --warning: var(--color-status-warning);
+  --danger: var(--color-status-danger);
+  --focus: var(--focus-ring);
+  --shadow: var(--shadow-low);
+  --radius: var(--radius-default);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-canvas: #111a20;
+    --color-bg-surface: #17232b;
+    --color-bg-surface-raised: #1b2932;
+    --color-bg-surface-muted: #23333e;
+    --color-text-primary: #e7eff4;
+    --color-text-secondary: #b6c3cc;
+    --color-text-muted: #91a3b0;
+    --color-border-default: #3c4f5b;
+    --color-border-strong: #617380;
+    --color-accent-default: #73c1ed;
+    --color-accent-hover: #9bd4f4;
+    --color-accent-active: #b9e2f8;
+    --color-accent-soft: #1a3c4e;
+    --color-accent-contrast: #10212a;
+    --color-status-success: #7cc99f;
+    --color-status-success-soft: #1a3a2a;
+    --color-status-warning: #efbd65;
+    --color-status-warning-soft: #3a2e1a;
+    --color-status-danger: #fa9ca7;
+    --color-status-danger-soft: #3a1a1f;
+    --color-status-info: #7cb8e8;
+    --color-status-info-soft: #1a2a3a;
+    --color-status-neutral: #a4b4be;
+    --color-status-neutral-soft: #25343e;
+    --color-status-review: #c3a5ee;
+    --color-status-review-soft: #332744;
+    --color-status-note: #efa6ca;
+    --color-status-note-soft: #402332;
+    --graph-cluster-1: #68b7df;
+    --graph-cluster-2: #e4b85d;
+    --graph-cluster-3: #78c69d;
+    --graph-cluster-4: #b5a0ec;
+    --graph-cluster-5: #e99caf;
+    --graph-cluster-6: #75c4ca;
+    --focus-ring: #ffc066;
+    --shadow-low: none;
+    --shadow-medium: none;
+    --shadow-high: none;
+  }
+}

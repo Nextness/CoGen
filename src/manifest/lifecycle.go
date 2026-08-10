@@ -173,6 +173,22 @@ const (
 	AuditPDFInventoryRegistered AuditAction = "pdf_inventory_registered"
 	// AuditPDFDocumentInventoried records a validated manual PDF insertion.
 	AuditPDFDocumentInventoried AuditAction = "pdf_document_inventoried"
+	// AuditReviewContextCreated records explicit initialization of a run review context.
+	AuditReviewContextCreated AuditAction = "review_context_created"
+	// AuditWorkReviewVersionCreated records a new immutable article-review state.
+	AuditWorkReviewVersionCreated AuditAction = "work_review_version_created"
+	// AuditReviewNoteCreated records a new logical review note and its first version.
+	AuditReviewNoteCreated AuditAction = "review_note_created"
+	// AuditReviewNoteVersionCreated records an immutable active note edit.
+	AuditReviewNoteVersionCreated AuditAction = "review_note_version_created"
+	// AuditReviewNoteTombstoned records an immutable note deletion marker.
+	AuditReviewNoteTombstoned AuditAction = "review_note_tombstoned"
+	// AuditReviewAnchorCreated records a new logical PDF anchor and its first version.
+	AuditReviewAnchorCreated AuditAction = "review_anchor_created"
+	// AuditReviewAnchorVersionCreated records an immutable replacement PDF anchor.
+	AuditReviewAnchorVersionCreated AuditAction = "review_anchor_version_created"
+	// AuditReviewAnchorTombstoned records an immutable PDF-anchor deletion marker.
+	AuditReviewAnchorTombstoned AuditAction = "review_anchor_tombstoned"
 )
 
 // ValidAuditActions returns all valid audit action values.
@@ -183,7 +199,11 @@ func ValidAuditActions() []AuditAction {
 		AuditValidationChanged, AuditRunCompleted, AuditRunFailed, AuditRunTrashed,
 		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged,
 		AuditPDFDocumentAdded, AuditPDFInventoryRegistered,
-		AuditPDFDocumentInventoried,
+		AuditPDFDocumentInventoried, AuditReviewContextCreated,
+		AuditWorkReviewVersionCreated, AuditReviewNoteCreated,
+		AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,
+		AuditReviewAnchorCreated, AuditReviewAnchorVersionCreated,
+		AuditReviewAnchorTombstoned,
 	}
 }
 
@@ -196,6 +216,10 @@ func ValidateAuditAction(s string) error {
 		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged:
 		return nil
 	case AuditPDFDocumentAdded, AuditPDFInventoryRegistered, AuditPDFDocumentInventoried:
+		return nil
+	case AuditReviewContextCreated, AuditWorkReviewVersionCreated,
+		AuditReviewNoteCreated, AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,
+		AuditReviewAnchorCreated, AuditReviewAnchorVersionCreated, AuditReviewAnchorTombstoned:
 		return nil
 	default:
 		return fmt.Errorf("manifest: invalid audit action %q", s)

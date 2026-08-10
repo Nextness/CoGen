@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Research workspace</title>
+  <link rel="stylesheet" href="/styles/tokens.css">
+  <link rel="stylesheet" href="/styles/base.css">
+  <link rel="stylesheet" href="/styles/elements.css">
+  <link rel="stylesheet" href="/styles/collections.css">
+  <link rel="stylesheet" href="/styles/views.css">
+  <link rel="stylesheet" href="/styles/graph.css">
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <header class="site-header">
+    <div class="brand">
+      <p class="eyebrow">Local research workspace</p>
+      <h1>Research workspace</h1>
+    </div>
+    <div class="server-status" aria-label="Viewer status">
+      <span id="health-status" class="status" role="status" aria-live="polite">Checking database…</span>
+      <span class="read-only">Local review</span>
+    </div>
+    <button id="mobile-nav-toggle" class="rw-mobile-nav-toggle" type="button" aria-expanded="false">Menu</button>
+  </header>
+
+  <div id="workspace-breadcrumb" class="rw-shell-breadcrumb"></div>
+
+  <section class="ui segment context-panel" aria-label="Research selections" hidden>
+    <div class="ui four column grid selection-grid">
+      <div class="ui field">
+        <label for="search-select-trigger">Search</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="search">
+          <button id="search-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span>Loading…</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available searches" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available searches"></div>
+          </div>
+          <select id="search-select" hidden><option value="">Loading…</option></select>
+        </div>
+      </div>
+      <div class="ui field">
+        <label for="revision-select-trigger">Search revision</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="revision">
+          <button id="revision-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a search</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available revisions" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available search revisions"></div>
+          </div>
+          <select id="revision-select" hidden disabled><option value="">Select a search</option></select>
+        </div>
+      </div>
+      <div class="ui field">
+        <label for="plan-select-trigger">Execution plan</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="plan">
+          <button id="plan-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a revision</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available execution plans" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available execution plans"></div>
+          </div>
+          <select id="plan-select" hidden disabled><option value="">Select a revision</option></select>
+        </div>
+      </div>
+      <div class="ui field">
+        <label for="run-select-trigger">Run attempt</label>
+        <div class="ui fluid search selection dropdown" data-context-dropdown="run">
+          <button id="run-select-trigger" class="rw-search-dropdown__trigger" type="button" aria-haspopup="listbox" aria-expanded="false" disabled><span>Select a revision</span></button>
+          <div class="rw-search-dropdown__menu" hidden>
+            <input class="rw-search-dropdown__query" type="search" aria-label="Search available run attempts" autocomplete="off" placeholder="Search available values…">
+            <div class="rw-search-dropdown__options" role="listbox" aria-label="Available run attempts"></div>
+          </div>
+          <select id="run-select" hidden disabled><option value="">Select a revision</option></select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <nav class="primary-nav ui tabular menu rw-section-tabs" aria-label="Deepdive navigation" hidden>
+    <a class="item" data-view-link="overview">Overview</a>
+    <a class="item" data-view-link="corpus">Corpus</a>
+    <a class="item" data-view-link="relationships">Relationships</a>
+    <a class="item" data-view-link="provenance">Provenance</a>
+    <a class="item" data-view-link="evaluation">Evaluation</a>
+    <a class="item" data-view-link="advanced">Advanced</a>
+  </nav>
+
+  <main id="main-content">
+    <div id="notice" class="notice" role="alert" hidden></div>
+    <div id="loading" class="loading" role="status" aria-live="polite" hidden><span class="ui loader"></span>Loading selected research context…</div>
+    <div id="app" aria-live="polite"></div>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

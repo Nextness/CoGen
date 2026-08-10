@@ -870,18 +870,13 @@ func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(
 	}
 }
 
-// TestFrontendAssets verifies frontend assets.
+// TestFrontendAssets verifies frontend asset directory validation.
 func TestFrontendAssets(t *testing.T) {
-	assets, err := frontendAssets("")
-	if err != nil || assets != nil {
-		t.Fatalf("embedded assets = %v, %v; want nil, nil", assets, err)
-	}
-
 	assetDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte("filesystem asset"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	assets, err = frontendAssets(assetDir)
+	assets, err := frontendAssets(assetDir)
 	if err != nil {
 		t.Fatalf("frontendAssets filesystem directory: %v", err)
 	}
@@ -910,6 +905,20 @@ func TestVersion(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "1.0.0") {
 		t.Errorf("version() = %q, want current version 1.0.0", got)
+	}
+}
+
+// TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs.
+func TestValidateLoopbackAddress(t *testing.T) {
+	for _, address := range []string{"127.0.0.1:8080", "[::1]:0"} {
+		if err := validateLoopbackAddress(address); err != nil {
+			t.Errorf("validate %q: %v", address, err)
+		}
+	}
+	for _, address := range []string{"localhost:8080", "0.0.0.0:8080", "[::]:8080", "192.0.2.1:8080", "missing-port"} {
+		if err := validateLoopbackAddress(address); err == nil {
+			t.Errorf("expected %q to be rejected", address)
+		}
 	}
 }
 

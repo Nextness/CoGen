@@ -1,0 +1,21 @@
+[
+  {
+    "name": "blocks and links",
+    "body": "# Heading [[article:10.1000/example]]\n\n- first\n- second\n\n> quote\n\n```\n[[note:9]]\n```",
+    "link_types": ["article"],
+    "error_count": 0
+  },
+  {
+    "name": "unsafe external URL",
+    "body": "😀 [[ext:javascript:alert(1)]]",
+    "link_types": [],
+    "error_count": 1,
+    "first_error_position": 3
+  },
+  {
+    "name": "all internal targets",
+    "body": "[[note:12]] [[pdf:page=5]] [[anchor:methods-1]]",
+    "link_types": ["note", "pdf_page", "anchor"],
+    "error_count": 0
+  }
+]

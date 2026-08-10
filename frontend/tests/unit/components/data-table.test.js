@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { rowFilter, dataTable, bindTableControls } from '../../../../src/server/frontend/components/data-table.js';
-import { state, value } from '../../../../src/server/frontend/state.js';
+import { rowFilter, dataTable, bindTableControls } from '../../../src/components/data-table.ts';
+import { state, value } from '../../../src/state.ts';
 
 describe('data-table.js — rowFilter', function() {
 
@@ -93,11 +93,13 @@ describe('data-table.js — dataTable', function() {
       expandableFields: [{ f: 'authors', w: 'full' }],
     });
     assert.ok(html.includes('expand-toggle'));
-    assert.ok(!html.includes('Expand row details'));
+    assert.ok(html.includes('aria-label="Show row details"'));
+    assert.ok(html.includes('aria-controls="table-row-detail-test-0"'));
     assert.ok(html.includes('title="Show row details"'));
     assert.ok(html.includes('data-expand-row'));
     assert.ok(html.includes('expansion-row'));
     assert.ok(html.includes('data-expandable-table'));
+    assert.ok(html.includes('<dt>Authors</dt>'));
   });
 
   it('renders sort buttons for sortable columns', function() {
@@ -109,6 +111,7 @@ describe('data-table.js — dataTable', function() {
     const html = dataTable('test', result, { page: 1, sortFields: ['name', 'age'] });
     assert.ok(html.includes('data-sort'));
     assert.ok(html.includes('button'));
+    assert.ok(html.includes('aria-sort="none"'));
   });
 
   it('disables previous button on page 1', function() {
@@ -143,7 +146,7 @@ describe('data-table.js — dataTable', function() {
     assert.ok(html.includes('Test'));
   });
 
-  it('filters columns by whitelist', function() {
+  it('filters and orders columns by whitelist', function() {
     const result = {
       columns: ['id', 'title', 'year', 'hidden'],
       rows: [{ id: 1, title: 'T', year: 2024, hidden: 'x' }],
@@ -151,11 +154,14 @@ describe('data-table.js — dataTable', function() {
     };
     const html = dataTable('test', result, {
       page: 1,
-      columnsWhitelist: ['id', 'title'],
+      columnsWhitelist: ['title', 'id'],
     });
     assert.ok(html.includes('id'));
     assert.ok(html.includes('title'));
     assert.ok(!html.includes('hidden'));
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    assert.deepEqual(Array.from(host.querySelectorAll('thead th'), function(cell) { return cell.textContent; }), ['title', 'id']);
   });
 
 });

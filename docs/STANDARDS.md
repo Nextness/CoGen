@@ -45,7 +45,7 @@ Go tests use `testing` and one of the repository build tags `unit`, `functional`
 - Integration tests use real temporary SQLite files, production migrations, HTTP handlers, controlled processes, or boundaries whose behavior depends on integration.
 - Database integration tests use temporary directories and production migration configuration rather than manually approximated schema.
 - Provider tests use controlled mock HTTP servers and never call live Crossref, OpenAlex, ORCID, or credentialed services, except for the bounded public-provider target `make test-e2e-live E2E_LIVE=1`, which must remain explicitly enabled and structurally asserted.
-- Tagged E2E tests invoke the Makefile-built `build/analysis`, validate generated configuration with `build/something-json`, write only beneath `build/e2e/`, keep deterministic and mocked variants offline, and verify database evidence before comparing the read-only API and browser UI.
+- Tagged E2E tests invoke the Makefile-built `build/analysis`, `build/pdf-store`, and `build/something-json`, write only beneath `build/e2e/`, keep deterministic and mocked variants offline, and verify persisted pipeline and A1/A2 review database evidence before comparing APIs and browser UI.
 - Regression tests assert observable behavior and reproduce the failure before the fix when practical.
 - Avoid nondeterministic sleeps, shared external state, implementation-detail assertions, and weakening assertions to accept a failure.
 - Use `make test-go PACKAGE=./package TEST='^TestName$'` for focused unit, functional, or integration work, `make test` for those three tag families, `make test-e2e` for offline cross-layer behavior, and `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle work.
@@ -78,18 +78,21 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Define defaults explicitly, validate invalid values, and preserve unambiguous precedence between configuration and command-line overrides.
 - Do not add a configuration option for behavior that does not need to vary.
 - `config/workspace.something` owns workspace selection and includes `config/baseline.something`; `config/database.something` independently owns migration-chain selection.
+- Optional reviewer username and email remain backward-compatible nested defaults, are trimmed and bounded, are captured once for every attempt including failure, and remain excluded from resolved manifests, input manifests, and execution fingerprints.
 - Keep provider registration and ordering in code; configuration values customize registered providers but do not create providers.
 - Update documentation and tests whenever a supported configuration field, default, or validation rule changes.
 
 ## 9. SQLite and repository standards
 
-- Use `database.Open` only for writable pipeline or maintenance paths and `server.Open` only for existing read-only viewer paths.
+- Use `database.Open` only for migration-running pipeline paths, `database.OpenExisting` for an existing metadata file that must not be migrated or created, and `server.Open` for the viewer's coordinated read, review-write, and read-only PDF lifecycle.
 - Keep foreign keys enabled, retain connection busy timeouts, and preserve `BEGIN IMMEDIATE` migration serialization.
 - Use repository nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
 - Validate dynamic identifiers against discovered or explicit allowlists before quoting them.
 - Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
-- Preserve immutable work revisions, authorships, reference mentions, append-only audit, and content-addressed artifact invariants.
-- Bound collection, graph, preview, and table-browser queries even though the viewer normally runs locally.
+- Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap. Review audit metadata remains identifier-only; decision events deliberately record the complete bounded previous and new decision in the audit before/after fields.
+- Context creation requires a completed non-trashed run, an earlier acyclic parent when supplied, and stable-work head materialization. Parent heads are frozen at creation and never propagate later changes.
+- Review, note, and anchor mutations require an available PDF for the selected work. Note bodies, selected PDF text, reviewer email, and browser drafts must not enter audit metadata or before/after state. A review decision's status, optional reason, and all sub-statuses are deliberate before/after audit evidence.
+- Bound collection, graph, preview, table-browser, review history, note, anchor, backlink, and candidate queries even though the viewer runs locally.
 
 ## 10. Migration standards
 
@@ -118,27 +121,34 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Keep metadata and companion paths bundle-relative and reject absolute or escaping bindings.
 - Write PDF audit evidence through the transactional outbox and preserve idempotent cross-database delivery.
 - Do not add automatic acquisition, replacement, deletion, or filesystem compatibility without an approved requirement.
+- Keep review context, note, link, anchor, geometry, and reviewer data in metadata. The viewer may read PDF availability and bytes but never writes the companion for review behavior.
+- Bind anchor geometry to an exact work revision and PDF content hash, validate one-page finite normalized rectangles, and refuse to project geometry when the current content hash differs.
+- `prepare-osf` creates a new temporary sibling bundle and atomically renames it only after WAL-safe snapshots, reviewer redaction, syntax-aware configuration and raw-artifact replacement, corpus-ID regeneration, foreign-key and artifact validation, and manifest hashing succeed. It never overwrites output or mutates source databases, source configuration, or browser drafts.
+- OSF configuration traversal remains inside the selected configuration root including symbolic-link resolution, fails closed for unprovable reviewer sources, and does not search and replace arbitrary note, provider, or research text.
 
 ## 13. HTTP and security standards
 
-- Viewer routes remain read-only GET or HEAD endpoints with explicit path, method, query, identifier, size, pagination, and timeout validation.
+- Evidence routes remain GET or HEAD. Review POST and PUT routes are explicitly allowlisted and require JSON content type, bounded bodies, unknown-field and trailing-value rejection, allowed query keys, same-origin validation when `Origin` is present, no-store responses, and stable structured errors.
 - Return stable JSON errors without exposing SQL, credentials, tokens, private keys, raw environment values, or sensitive research content.
 - Escape all dynamic HTML through shared helpers and do not interpret provider or artifact content as markup.
 - Preserve `Content-Disposition`, `Cache-Control`, content-type validation, and `X-Content-Type-Options` behavior for downloads and previews.
-- Default to loopback and do not describe the viewer as authenticated or safe for untrusted network exposure.
+- Require an exact loopback IP listener, reject a Host authority different from the bound listener, and do not describe the viewer as authenticated or safe for untrusted network exposure.
 - Keep graph information available through textual summaries and relationship tables rather than relying on canvas alone.
 
 ## 14. Frontend module standards
 
-Frontend production source is vanilla JavaScript with native ES modules and no application framework. `state.js` owns URL and shared rendering state, `api.js` owns JSON transport, `router.js` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior.
+Frontend production source is TypeScript with native ES modules and no application framework, compiled per file by `make frontend-build` into the assembled `frontend/dist` served root. Relative imports use explicit `.ts` specifiers, type-only imports use `import type` (`verbatimModuleSyntax` and `erasableSyntaxOnly` are enforced by `tsc --noEmit`), and new exports carry required type annotations plus the maintained adjacent JSDoc prose description. `state.ts` owns URL and shared rendering state, `api.ts` owns JSON transport, `router.ts` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior. Run `make check-frontend` for type errors after frontend changes.
 
-- Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, and `run_id` unless a parent change invalidates descendant context.
+- Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
 - Bind DOM listeners after replacing `app.innerHTML`, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
 - Escape dynamic values, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states.
 - Keep server-backed collections bounded and URL-addressable where reload or sharing matters.
-- Production Go builds use embedded assets and make no CDN request. `--assets-dir` selects filesystem source for development only.
+- The Go binary contains no frontend assets. `serve` requires `--assets-dir` (normally the assembled `frontend/dist` produced by `make frontend-build`), and serving makes no CDN request.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.
+- Change `vendor/pdfjs/` only through the exact `pdfjs-dist` dependency and `make frontend-pdfjs-vendor`; run `make frontend-pdfjs-vendor-check` to verify matching core and worker versions plus deterministic CMap, font, and license output.
+- The custom PDF viewer renders exactly one bounded current page and selectable text, advances one page per Previous or Next activation, cancels stale render work, destroys render, document, loading, and worker lifecycles on SPA navigation, and treats highlights as supplemental to keyboard-operable textual anchor evidence.
+- Review notes render only through the project parser and resolver, escape raw HTML, label unresolved targets with text and an accessible name, and keep conflicted or unsaved drafts under the corpus-scoped browser key.
 
 ## 15. Frontend tests
 
@@ -146,8 +156,8 @@ Frontend unit tests live under `frontend/tests/unit/`, use Node's built-in `node
 
 - Unit tests cover state, rendering helpers, URL behavior, API behavior, components, routing, and views without a browser or server.
 - Browser tests use `*.spec.cjs` under `frontend/tests/` and follow navigate, assert, interact, assert URL, assert content.
-- Playwright targets start an isolated fixture-backed or generated-database viewer on an operating-system-assigned loopback port and isolate output under `build/playwright/`.
-- `viewer.spec.cjs` covers browser behavior; `ui-quality.spec.cjs` covers accessibility with axe-core, responsive behavior, and reviewed screenshots; `e2e.spec.cjs` is guarded by `E2E_SPEC=1` and is run only through `make test-e2e` against the deterministic generated database.
+- Playwright targets copy the ignored generated fixture metadata and PDF pair for each invocation, start an isolated viewer on an operating-system-assigned loopback port, and isolate output under `build/playwright/`. No browser test writes the base fixture.
+- `viewer.spec.cjs` covers evidence browsing; serial `review.spec.cjs` covers mutations and PDF rendering; `ui-quality.spec.cjs` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.cjs` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
 - Run `make test-frontend-unit` for frontend logic, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
 - Run `make test-frontend-visual` for visual or accessibility changes and review snapshots rather than replacing them blindly.
 
@@ -170,7 +180,7 @@ Styles load in cascade order `tokens.css`, `base.css`, `elements.css`, `collecti
 - Interactive rows cannot be the only way to trigger an action and must not steal behavior from links, controls, selection, or text interaction.
 - Mobile behavior preserves context, evidence, pagination, status, and actions.
 - Loading keeps context understandable, errors identify the failed operation, and unavailable data is distinguished from empty data.
-- Privacy text must accurately describe local read-only behavior and must not imply authentication, mutation, live refresh, or automatic PDF acquisition.
+- Privacy text must accurately describe immutable pipeline evidence, local append-only review behavior, mandatory loopback access, browser-draft limitations, and read-only PDF ownership without implying authentication, arbitrary mutation, live refresh, or automatic PDF acquisition.
 
 ## 18. Documentation standards
 

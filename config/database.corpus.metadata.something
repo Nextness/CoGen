@@ -171,5 +171,26 @@ database_migrations: database_migration_config = {
     filename = "V00021_rename_pdf_audit_links.sql",
     description = "Retain PDF audit delivery while removing gather-specific runtime terminology.",
     previous = "V00020_pdf_gather_audit_links.sql",
+    upgrade = "V00022_review_identity.sql"
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00022_review_identity.sql",
+    description = "Capture immutable per-run reviewer attribution and one stable corpus identity for browser draft namespacing.",
+    previous = "V00021_rename_pdf_audit_links.sql",
+    upgrade = "V00023_review_contexts.sql"
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00023_review_contexts.sql",
+    description = "Add run-scoped review contexts, copy-on-write work heads, and immutable evaluation versions.",
+    previous = "V00022_review_identity.sql",
+    upgrade = "V00024_review_notes_links_anchors.sql"
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00024_review_notes_links_anchors.sql",
+    description = "Add append-only note and PDF-anchor histories with context-scoped mutable heads and version-scoped links.",
+    previous = "V00023_review_contexts.sql",
     upgrade = "NONE"
 };

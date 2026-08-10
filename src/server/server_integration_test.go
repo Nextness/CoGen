@@ -1,6 +1,5 @@
-// server_integration_test.go tests server-level endpoints: health,
-// searches, plans, runs, frontend asset serving, and the read-only
-// database connection.
+// server_integration_test.go tests server-level endpoints, frontend asset
+// serving, the read-only query connection, and bounded local mutations.
 //
 //go:build integration
 
@@ -47,7 +46,7 @@ func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T) {
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + stringID(runID), "/api/audit", "/api/trash", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc", "/", "/styles/base.css", "/app.js"} {
+	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + stringID(runID), "/api/audit", "/api/trash", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc"} {
 		response := viewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
 			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
@@ -64,55 +63,129 @@ func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T) {
 	}
 }
 
-// TestEmbeddedFrontendResearchWorkspaceContract verifies embedded frontend research workspace contract.
-func TestEmbeddedFrontendResearchWorkspaceContract(t *testing.T) {
+// TestDiskServedFrontendContract verifies frontend assets served from a filesystem directory.
+func TestDiskServedFrontendContract(t *testing.T) {
 	path, _, _, _ := viewerFixture(t)
-	viewer, err := Open(path)
-	if err != nil {
+	assetDir := t.TempDir()
+	index := `<!doctype html><html lang="en"><head><title>Research workspace</title></head><body>
+<header><span id="health-status"></span><span>Local review</span></header>
+<div id="workspace-breadcrumb"></div>
+<nav><a data-view-link="overview">Overview</a><a data-view-link="corpus">Corpus</a><a data-view-link="provenance">Provenance</a></nav>
+<script type="module" src="/app.js"></script></body></html>`
+	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte(index), 0644); err != nil {
 		t.Fatal(err)
 	}
-	defer viewer.Close()
-	handler := viewer.Handler()
-	index := viewerRequest(t, handler, "/")
-	for _, expected := range []string{
-		"Overview", "Corpus", "Relationships", "Provenance", "Evaluation", "Advanced", "Trash",
-		"Research context", "Search revision", "Execution plan", "Run attempt", "Read-only",
-	} {
-		if !strings.Contains(index.Body.String(), expected) {
-			t.Errorf("embedded index is missing %q", expected)
-		}
+	if err := os.WriteFile(filepath.Join(assetDir, "app.js"), []byte("export const marker = 'forceSimulation';\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
-	for _, check := range []struct {
-		path, needle string
-	}{
-		{"/router.js", "AbortController"},
-		{"/views/overview.js", "Captured during execution"},
-		{"/views/overview.js", "Derived from stored run data"},
-		{"/components/graph.js", "Relationship table"},
-		{"/vendor/d3-force.js", "forceSimulation"},
-		{"/views/provenance.js", "Stage outcomes"},
-		{"/views/evaluation.js", "Normalized article inventory"},
-		{"/views/advanced.js", "Advanced database inspection"},
-		{"/router.js", "pushState"},
-		{"/router.js", "item.setAttribute('href', link({ view: item.dataset.viewLink }))"},
-	} {
-		asset := viewerRequest(t, handler, check.path)
-		if !strings.Contains(asset.Body.String(), check.needle) {
-			t.Errorf("embedded frontend %s is missing %q", check.path, check.needle)
+
+	t.Run("serves index with content type and sentinels", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	for _, check := range []struct {
-		path, needle string
-	}{
-		{"/styles/base.css", "prefers-reduced-motion"},
-		{"/styles/base.css", ".skip-link"},
-		{"/styles/collections.css", ".context-panel"},
-	} {
-		asset := viewerRequest(t, handler, check.path)
-		if !strings.Contains(asset.Body.String(), check.needle) {
-			t.Errorf("embedded frontend %s is missing %q", check.path, check.needle)
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		handler := viewer.Handler()
+		index := viewerRequest(t, handler, "/")
+		if index.Code != http.StatusOK {
+			t.Fatalf("index status=%d body=%s", index.Code, index.Body.String())
 		}
-	}
+		if contentType := index.Header().Get("Content-Type"); !strings.Contains(contentType, "text/html") {
+			t.Errorf("index content type = %q, want text/html", contentType)
+		}
+		for _, expected := range []string{
+			"Overview", "Corpus", "Provenance",
+			"Local review", "workspace-breadcrumb",
+		} {
+			if !strings.Contains(index.Body.String(), expected) {
+				t.Errorf("served index is missing %q", expected)
+			}
+		}
+		if strings.Contains(index.Body.String(), `data-view-link="trash"`) {
+			t.Error("served index still exposes Trash as a Deepdive tab")
+		}
+	})
+
+	t.Run("serves module assets with sentinels", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		handler := viewer.Handler()
+		asset := viewerRequest(t, handler, "/app.js")
+		if asset.Code != http.StatusOK {
+			t.Fatalf("asset status=%d body=%s", asset.Code, asset.Body.String())
+		}
+		if !strings.Contains(asset.Body.String(), "forceSimulation") {
+			t.Errorf("served asset is missing %q", "forceSimulation")
+		}
+	})
+
+	t.Run("returns 404 for a missing file", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		response := viewerRequest(t, viewer.Handler(), "/missing.js")
+		if response.Code != http.StatusNotFound {
+			t.Errorf("missing asset status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("cleans raw traversal paths through the mux", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		handler := viewer.Handler()
+		for _, traversal := range []string{"/../", "/../app.js"} {
+			response := viewerRequest(t, handler, traversal)
+			if response.Code < 300 || response.Code >= 400 {
+				t.Errorf("GET %s: status=%d body=%s; want redirect", traversal, response.Code, response.Body.String())
+			}
+			if location := response.Header().Get("Location"); location == "" {
+				t.Errorf("GET %s: redirect without Location header", traversal)
+			}
+			if strings.Contains(response.Body.String(), "Research workspace") {
+				t.Errorf("GET %s: redirect leaks served content: %q", traversal, response.Body.String())
+			}
+		}
+	})
+
+	t.Run("sanitizes escaped traversal paths", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		response := viewerRequest(t, viewer.Handler(), "/%2e%2e/%2e%2e/etc/passwd")
+		if response.Code != http.StatusNotFound {
+			t.Errorf("escaped traversal status=%d body=%s; want 404", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("returns JSON 503 when assets are not configured", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		response := viewerRequest(t, viewer.Handler(), "/app.js")
+		if response.Code != http.StatusServiceUnavailable {
+			t.Errorf("unconfigured assets status=%d body=%s", response.Code, response.Body.String())
+		}
+		if !strings.Contains(response.Body.String(), `"assets_not_configured"`) {
+			t.Errorf("unconfigured assets body is missing error code:\n%s", response.Body.String())
+		}
+	})
 }
 
 // TestHandlerServesFilesystemAssets verifies handler serves filesystem assets.

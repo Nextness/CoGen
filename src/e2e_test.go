@@ -8,6 +8,7 @@ import (
 	"analysis/database"
 	"analysis/pdfstore"
 	"analysis/server"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -79,6 +80,60 @@ func TestE2EDeterministic(t *testing.T) {
 	}
 	result := runE2EVariant(t, root, mode, nil)
 	assertE2EAPI(t, result)
+	prepareE2EReviewRuns(t, root, result)
+}
+
+// TestE2EReviewEvidence verifies browser mutations against the isolated database after Playwright completes.
+func TestE2EReviewEvidence(t *testing.T) {
+	root := e2eRepositoryRoot(t)
+	path := filepath.Join(root, "build", "e2e", "deterministic", "review", "corpus.metadata.db")
+	db, err := database.OpenExisting(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	assertE2ECount(t, db, "review_contexts", "1=1", nil, 2)
+	var a1Context, a2Context, a1Review, a2Review int64
+	var a1Status, a2Status string
+	if err := db.DB.QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
+		JOIN pipeline_runs run ON run.id=context.pipeline_run_id JOIN review_context_work_heads head ON head.review_context_id=context.id
+		JOIN works work ON work.id=head.work_id AND work.doi='10.5555/e2e-complete-one'
+		JOIN work_review_versions version ON version.id=head.review_version_id WHERE run.attempt_number=1`).Scan(&a1Context, &a1Review, &a1Status); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
+		JOIN pipeline_runs run ON run.id=context.pipeline_run_id JOIN review_context_work_heads head ON head.review_context_id=context.id
+		JOIN works work ON work.id=head.work_id AND work.doi='10.5555/e2e-complete-one'
+		JOIN work_review_versions version ON version.id=head.review_version_id WHERE run.attempt_number=2`).Scan(&a2Context, &a2Review, &a2Status); err != nil {
+		t.Fatal(err)
+	}
+	if a1Status != "approved" || a2Status != "not_approved" || a1Review == a2Review {
+		t.Fatalf("review heads A1=%d/%s A2=%d/%s", a1Review, a1Status, a2Review, a2Status)
+	}
+	var parentVersion, parentContext int64
+	if err := db.DB.QueryRow("SELECT parent_version_id, created_in_context_id FROM work_review_versions WHERE id=?", a2Review).Scan(&parentVersion, &parentContext); err != nil {
+		t.Fatal(err)
+	}
+	if parentVersion != a1Review || parentContext != a2Context {
+		t.Fatalf("A2 review parent=%d context=%d, want %d/%d", parentVersion, parentContext, a1Review, a2Context)
+	}
+	var a1NoteHead, a2NoteHead int64
+	if err := db.DB.QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a1Context).Scan(&a1NoteHead); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.DB.QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a2Context).Scan(&a2NoteHead); err != nil {
+		t.Fatal(err)
+	}
+	if a1NoteHead == a2NoteHead {
+		t.Fatal("A2 note edit moved the A1 note head")
+	}
+	var anchorHeads, auditEvents int
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM review_context_anchor_heads WHERE anchor_id='e2e-methods'").Scan(&anchorHeads); err != nil || anchorHeads != 2 {
+		t.Fatalf("anchor heads=%d err=%v", anchorHeads, err)
+	}
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'review_%' OR action='work_review_version_created'").Scan(&auditEvents); err != nil || auditEvents < 8 {
+		t.Fatalf("review audit events=%d err=%v", auditEvents, err)
+	}
 }
 
 // TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence.
@@ -156,7 +211,7 @@ func e2eRepositoryRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	root := filepath.Dir(directory)
-	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-json")} {
+	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-json"), filepath.Join(root, "build", "pdf-store")} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("required E2E input %s is unavailable: %v", path, err)
 		}
@@ -233,6 +288,7 @@ func writeE2EConfig(t *testing.T, root, outputDir string, mode e2eMode) string {
             writes = []cache_policy_write_options { .ACTIVE_RUN, .GLOBAL },
             negative_ttl_days = 7,
         },
+        reviewer = reviewer_config { username = "E2E Reviewer", email = "e2e-reviewer@example.invalid", },
         sources = [%s
         ],
         enrichment_providers = %s,
@@ -244,6 +300,75 @@ func writeE2EConfig(t *testing.T, root, outputDir string, mode e2eMode) string {
 		t.Fatal(err)
 	}
 	return configPath
+}
+
+// prepareE2EReviewRuns inventories a valid PDF through the supported tool and creates A2 as a fresh overlapping run.
+func prepareE2EReviewRuns(t *testing.T, root string, result e2eResult) {
+	t.Helper()
+	pdfPath := filepath.Join(filepath.Dir(result.dbPath), "review.fixture.pdf")
+	if err := os.WriteFile(pdfPath, deterministicE2EPDF("Selectable E2E methods on page one", "Selectable E2E results on page two"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(filepath.Join(root, "build", "pdf-store"), "add", "--db", result.dbPath, "--doi", "10.5555/e2e-complete-one", "--file", pdfPath)
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("inventory deterministic E2E PDF: %v\n%s", err, output)
+	}
+	configPath := filepath.Join(filepath.Dir(result.dbPath), "workspace.something")
+	command = exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.dbPath, "--config", configPath, "--fresh")
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("create deterministic E2E A2 run: %v\n%s", err, output)
+	}
+	db, err := database.OpenExisting(result.dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var completed int
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status='completed'").Scan(&completed); err != nil || completed != 2 {
+		t.Fatalf("completed deterministic review runs=%d err=%v", completed, err)
+	}
+}
+
+// deterministicE2EPDF returns a valid multi-page PDF used by the real pdf-store CLI.
+func deterministicE2EPDF(pageText ...string) []byte {
+	objects := make([]string, 0, 3+len(pageText)*2)
+	pageIDs := make([]int, len(pageText))
+	contentIDs := make([]int, len(pageText))
+	fontID := 3 + len(pageText)
+	for index := range pageText {
+		pageIDs[index] = 3 + index
+		contentIDs[index] = fontID + 1 + index
+	}
+	kids := make([]string, len(pageIDs))
+	for index, id := range pageIDs {
+		kids[index] = fmt.Sprintf("%d 0 R", id)
+	}
+	objects = append(objects, "<< /Type /Catalog /Pages 2 0 R >>", fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(pageIDs)))
+	for index := range pageText {
+		objects = append(objects, fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>", fontID, contentIDs[index]))
+	}
+	objects = append(objects, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+	for _, text := range pageText {
+		escaped := strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)").Replace(text)
+		stream := "BT /F1 18 Tf 72 720 Td (" + escaped + ") Tj ET\n"
+		objects = append(objects, fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(stream), stream))
+	}
+	var output bytes.Buffer
+	output.WriteString("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
+	offsets := make([]int, len(objects)+1)
+	for index, object := range objects {
+		offsets[index+1] = output.Len()
+		fmt.Fprintf(&output, "%d 0 obj\n%s\nendobj\n", index+1, object)
+	}
+	xref := output.Len()
+	fmt.Fprintf(&output, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
+	for index := 1; index < len(offsets); index++ {
+		fmt.Fprintf(&output, "%010d 00000 n \n", offsets[index])
+	}
+	fmt.Fprintf(&output, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
+	return output.Bytes()
 }
 
 // e2eProviderConfig returns concrete local or live provider declarations.

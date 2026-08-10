@@ -193,7 +193,11 @@ func TestValidAuditActions(t *testing.T) {
 		AuditValidationChanged, AuditRunCompleted, AuditRunFailed, AuditRunTrashed,
 		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged,
 		AuditPDFDocumentAdded, AuditPDFInventoryRegistered,
-		AuditPDFDocumentInventoried,
+		AuditPDFDocumentInventoried, AuditReviewContextCreated,
+		AuditWorkReviewVersionCreated, AuditReviewNoteCreated,
+		AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,
+		AuditReviewAnchorCreated, AuditReviewAnchorVersionCreated,
+		AuditReviewAnchorTombstoned,
 	}
 	if len(actions) != len(expected) {
 		t.Fatalf("ValidAuditActions length = %d, want %d", len(actions), len(expected))

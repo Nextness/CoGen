@@ -35,8 +35,43 @@ func TestLoadBuildsResolvedWorkspaceRuns(t *testing.T) {
 	if first.Manifest.Sources[0].Filters[0].Count != 10 || first.Manifest.Sources[0].Filters[1].Count != 4 {
 		t.Fatalf("source filter counts wrong: %+v", first.Manifest.Sources[0].Filters)
 	}
+	if first.Reviewer != (Reviewer{}) {
+		t.Fatalf("default reviewer = %+v, want empty", first.Reviewer)
+	}
 	if !first.Enrichment.Sources["crossref"].FillMissingOnly {
 		t.Fatal("fill_missing_only was not retained in the runtime source configuration")
+	}
+}
+
+// TestLoadNormalizesReviewerWithoutChangingManifestIdentity verifies optional attribution is trimmed and excluded from plan fingerprints.
+func TestLoadNormalizesReviewerWithoutChangingManifestIdentity(t *testing.T) {
+	path := writeConfig(t, testConfig())
+	withoutReviewer, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	withReviewerText := strings.Replace(testConfig(), "enrichment_providers = [enrichment_provider_config {", `reviewer = reviewer_config { username = "  Alice  ", email = "  alice@example.test  ", },
+        enrichment_providers = [enrichment_provider_config {`, 1)
+	if err := os.WriteFile(path, []byte(withReviewerText), 0644); err != nil {
+		t.Fatal(err)
+	}
+	withReviewer, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := withReviewer.Runs[0].Reviewer; got.Username != "Alice" || got.Email != "alice@example.test" {
+		t.Fatalf("reviewer = %+v", got)
+	}
+	baseHash, err := withoutReviewer.Runs[0].Manifest.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reviewerHash, err := withReviewer.Runs[0].Manifest.Hash()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if baseHash != reviewerHash {
+		t.Fatalf("reviewer changed resolved manifest hash: %s != %s", baseHash, reviewerHash)
 	}
 }
 
@@ -207,6 +242,10 @@ enrichment_provider_config: setup = {
     extra_urls?: mapping(string, string) = mapping(string, string){};
     fill_missing_only?: boolean = false;
 }
+reviewer_config: setup = {
+    username?: string = "";
+    email?: string = "";
+}
 workspace_config: setup = {
     format_version: integer;
     search_id: string;
@@ -216,6 +255,10 @@ workspace_config: setup = {
     cache_policy: cache_policy_config;
     sources: []source_declaration;
     enrichment_providers: []enrichment_provider_config;
+    reviewer?: reviewer_config = reviewer_config {
+        username = "",
+        email = "",
+    };
 }
 #iteration("_workspace"): scope = {
     workspace: workspace_config = {

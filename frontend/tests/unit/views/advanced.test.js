@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { advancedView } from '../../../../src/server/frontend/views/advanced.js';
-import { app, state } from '../../../../src/server/frontend/state.js';
+import { advancedView } from '../../../src/views/advanced.ts';
+import { app, state } from '../../../src/state.ts';
 
 describe('advanced.js — advancedView', function() {
 

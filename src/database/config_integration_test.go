@@ -24,8 +24,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 21 {
-		t.Fatalf("expected 21 applied metadata migrations, got %d", count)
+	if count != 24 {
+		t.Fatalf("expected 24 applied metadata migrations, got %d", count)
 	}
 
 	// Verify every workspace table exists.
@@ -37,6 +37,10 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 		"people", "author_occurrences", "authorships", "reference_mentions",
 		"cache_entries", "run_cache_uses", "artifact_blobs", "run_artifacts",
 		"author_identity_resolutions", "author_identity_candidates",
+		"pipeline_run_reviewers", "review_settings", "review_contexts",
+		"work_review_versions", "work_review_version_substatuses", "review_context_work_heads",
+		"review_notes", "review_note_versions", "review_context_note_heads", "review_note_links",
+		"review_anchors", "review_anchor_versions", "review_context_anchor_heads",
 	}
 	for _, name := range expectedTables {
 		var n int
@@ -68,6 +72,11 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 		"idx_run_cache_uses_run", "idx_run_cache_uses_entry", "idx_run_artifacts_artifact",
 		"idx_author_identity_resolutions_run", "idx_author_identity_resolutions_occurrence",
 		"idx_author_identity_candidates_resolution", "idx_author_identity_candidates_orcid",
+		"idx_review_contexts_parent", "idx_work_review_versions_work", "idx_work_review_versions_parent",
+		"idx_work_review_versions_context", "idx_review_context_work_heads_version",
+		"idx_review_note_versions_note", "idx_review_note_versions_parent", "idx_review_context_note_heads_version",
+		"idx_review_note_links_target", "idx_review_anchors_work", "idx_review_anchor_versions_anchor",
+		"idx_review_anchor_versions_parent", "idx_review_context_anchor_heads_version",
 	}
 	for _, name := range expectedIndexes {
 		var n int
@@ -90,6 +99,13 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 		"authorships_abort_update", "authorships_abort_delete",
 		"people_abort_blank_orcid_insert", "people_abort_blank_orcid_update",
 		"reference_mentions_abort_update", "reference_mentions_abort_delete",
+		"review_contexts_abort_update", "review_contexts_abort_delete",
+		"work_review_versions_abort_update", "work_review_versions_abort_delete",
+		"work_review_version_substatuses_abort_update", "work_review_version_substatuses_abort_delete",
+		"review_notes_abort_update", "review_notes_abort_delete", "review_note_versions_abort_update",
+		"review_note_versions_abort_delete", "review_note_links_abort_update", "review_note_links_abort_delete",
+		"review_anchors_abort_update", "review_anchors_abort_delete", "review_anchor_versions_abort_update",
+		"review_anchor_versions_abort_delete",
 	}
 	for _, name := range expectedTriggers {
 		var n int
@@ -187,8 +203,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count2 != 21 {
-		t.Fatalf("expected 21 migrations after reopen, got %d", count2)
+	if count2 != 24 {
+		t.Fatalf("expected 24 migrations after reopen, got %d", count2)
 	}
 }
 
@@ -291,8 +307,8 @@ func TestV00003MigrationApplies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 21 {
-		t.Fatalf("expected 21 applied migrations, got %d", count)
+	if count != 24 {
+		t.Fatalf("expected 24 applied migrations, got %d", count)
 	}
 
 	// Verify the four append-only triggers exist
@@ -582,8 +598,8 @@ func TestV00002MigrationApplies(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 21 {
-		t.Fatalf("expected 21 applied metadata migrations, got %d", count)
+	if count != 24 {
+		t.Fatalf("expected 24 applied metadata migrations, got %d", count)
 	}
 
 	// Verify the new tables exist
@@ -655,8 +671,8 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&metadataMigrations); err != nil {
 		t.Fatal(err)
 	}
-	if metadataMigrations != 21 {
-		t.Fatalf("metadata migrations = %d, want 21", metadataMigrations)
+	if metadataMigrations != 24 {
+		t.Fatalf("metadata migrations = %d, want 24", metadataMigrations)
 	}
 	for _, table := range []string{"pdf_store_binding", "pdf_audit_links"} {
 		var found int
@@ -797,7 +813,7 @@ func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T) {
 		'V00021_rename_pdf_audit_links.sql')`).Scan(&additions); err != nil {
 		t.Fatal(err)
 	}
-	if total != 21 || historical != 1 || additions != 3 {
+	if total != 24 || historical != 1 || additions != 3 {
 		t.Fatalf("migration history after V00018 upgrade: total=%d historical=%d additions=%d", total, historical, additions)
 	}
 }

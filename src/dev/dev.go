@@ -1,11 +1,10 @@
-// Package dev controls whether the binary serves frontend assets from the
-// filesystem (development, hot-reload) or from the embedded FS (production).
-// The mode is a compile-time constant, mirroring the pattern in logging.MinLevel.
-// Changing it requires rebuilding the binary. There is no runtime mode switch.
+// Package dev marks development builds through the version suffix. The binary
+// never embeds frontend assets; asset serving is always filesystem-based and
+// selected by the serve --assets-dir flag.
 package dev
 
-// Mode controls frontend asset serving.
+// Mode marks a development build so version() appends "-development".
 //
-//	false = production: serve from //go:embed (the default)
-//	true  = development: serve from the filesystem (src/server/frontend/)
+//	false = release build (the default)
+//	true  = development build
 const Mode = false

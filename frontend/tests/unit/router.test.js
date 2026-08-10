@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.js';
-import { setURL, bindFocusContext, render } from '../../../src/server/frontend/router.js';
-import { state, app } from '../../../src/server/frontend/state.js';
+import { setURL, bindFocusContext, render } from '../../src/router.ts';
+import { state, app } from '../../src/state.ts';
 
 describe('router.js — setURL', function() {
 
@@ -71,6 +71,27 @@ describe('router.js — render', function() {
 
     await render();
     assert.ok(app.innerHTML.length > 0 || app.innerHTML === '');
+    assert.equal(document.querySelector('.context-panel').hidden, false);
+    assert.equal(document.querySelector('.primary-nav').hidden, false);
+    assert.equal(document.querySelector('[data-view-link="overview"]').classList.contains('active'), true);
+    assert.match(document.querySelector('#workspace-breadcrumb').textContent, /Home.*Deepdive.*Overview/);
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('renders Home as the root shell without Deepdive context or tabs', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } });
+    };
+    history.pushState({}, '', '?view=home');
+
+    await render();
+
+    assert.equal(document.querySelector('.rw-page-header__kicker'), null);
+    assert.equal(document.querySelector('.context-panel').hidden, true);
+    assert.equal(document.querySelector('.primary-nav').hidden, true);
+    assert.equal(document.querySelector('#workspace-breadcrumb').textContent.trim(), 'Home');
 
     globalThis.fetch = originalFetch;
   });

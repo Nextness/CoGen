@@ -12,7 +12,7 @@ import (
 
 // TestAPIDetailsArticleAuthorReference verifies api details article author reference.
 func TestAPIDetailsArticleAuthorReference(t *testing.T) {
-	path, _, revisionID, mentionID := viewerFixture(t)
+	path, runID, revisionID, mentionID := viewerFixture(t)
 	viewer, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
@@ -21,7 +21,7 @@ func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 	handler := viewer.Handler()
 	for _, path := range []string{
 		"/api/articles/" + stringID(revisionID),
-		"/api/authors/1",
+		"/api/authors/1?run_id=" + stringID(runID),
 		"/api/references/" + stringID(mentionID),
 	} {
 		response := viewerRequest(t, handler, path)
@@ -36,6 +36,37 @@ func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Errorf("GET %s: status=%d", path, response.Code)
 		}
+	}
+}
+
+// TestAPIAuthorDetailIncludesRunScopedIdentityCandidates verifies candidate evidence moved from the corpus table into author detail.
+func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	status, body := requestJSON(t, viewer.Handler(), "/api/authors/2?run_id="+stringID(runID))
+	if status != http.StatusOK {
+		t.Fatalf("author detail: status=%d body=%v", status, body)
+	}
+	evidence := body["identity_evidence"].([]any)
+	if len(evidence) != 1 {
+		t.Fatalf("identity evidence=%#v, want one resolution", evidence)
+	}
+	resolution := evidence[0].(map[string]any)
+	if resolution["status"] != "orcid_is_unclear" {
+		t.Errorf("status=%#v, want orcid_is_unclear", resolution["status"])
+	}
+	candidates := resolution["candidates"].([]any)
+	if len(candidates) != 2 || candidates[0].(map[string]any)["candidate_orcid"] != "0000-0001-2345-6789" {
+		t.Errorf("candidates=%#v, want ranked provider evidence", candidates)
+	}
+
+	if status, invalid := requestJSON(t, viewer.Handler(), "/api/authors/2?run_id=invalid"); status != http.StatusBadRequest {
+		t.Fatalf("invalid run filter: status=%d body=%v", status, invalid)
 	}
 }
 

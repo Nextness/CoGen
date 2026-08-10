@@ -62,14 +62,62 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		err = s.overlayPDFInventory(ctx, items)
 	}
+	if err == nil {
+		err = s.overlayReviewInventory(ctx, runID, items)
+	}
 	s.respond(w, r, map[string]any{
 		"run_id":  runID,
-		"columns": []string{"title", "doi", "source", "inventory_status", "inventoried_at"},
+		"columns": []string{"title", "doi", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited"},
 		"rows":    items,
 		"pagination": scopedPagination(
 			page, perPage, total, sortField, order,
 		),
 	}, err)
+}
+
+// overlayReviewInventory adds current review status and inheritance evidence without changing evaluation pagination.
+func (s *Server) overlayReviewInventory(ctx context.Context, runID int64, items []map[string]any) error {
+	for _, item := range items {
+		item["review_status"] = "not_evaluated"
+		item["review_inherited"] = false
+		item["review_context_initialized"] = false
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	var contextID int64
+	if err := s.db.QueryRowContext(ctx, "SELECT id FROM review_contexts WHERE pipeline_run_id=?", runID).Scan(&contextID); err == sql.ErrNoRows {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	byWork := make(map[int64]map[string]any, len(items))
+	for _, item := range items {
+		if workID, ok := item["work_id"].(int64); ok {
+			item["review_context_initialized"] = true
+			byWork[workID] = item
+		}
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT head.work_id, version.status, version.created_in_context_id
+		FROM review_context_work_heads head LEFT JOIN work_review_versions version ON version.id=head.review_version_id
+		WHERE head.review_context_id=?`, contextID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var workID int64
+		var status sql.NullString
+		var sourceContext sql.NullInt64
+		if err := rows.Scan(&workID, &status, &sourceContext); err != nil {
+			return err
+		}
+		if item := byWork[workID]; item != nil && status.Valid {
+			item["review_status"] = status.String
+			item["review_inherited"] = sourceContext.Valid && sourceContext.Int64 != contextID
+		}
+	}
+	return rows.Err()
 }
 
 // overlayPDFInventory overlays companion PDF availability onto evaluation rows by normalized DOI.

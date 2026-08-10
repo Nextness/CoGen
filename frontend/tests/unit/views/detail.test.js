@@ -3,8 +3,8 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.js';
-import { detailView } from '../../../../src/server/frontend/views/detail.js';
-import { app, state } from '../../../../src/server/frontend/state.js';
+import { detailView } from '../../../src/views/detail.ts';
+import { app, state } from '../../../src/state.ts';
 
 describe('detail.js — detailView', function() {
 
@@ -33,7 +33,7 @@ describe('detail.js — detailView', function() {
           return Promise.resolve({
             data: {
               article: {
-                id: 'a1', title: 'Test Article', year: 2024,
+                id: 'a1', work_id: 10, pipeline_run_id: 1, title: 'Test Article', doi: '10.1000/test', year: 2024,
                 abstract: 'Line one.\nLine two.',
                 keywords: '["process mining","BPMN"]',
                 keywords_plus: 'workflow; modelling',
@@ -41,6 +41,7 @@ describe('detail.js — detailView', function() {
               },
               authors: [{ id: 'auth1', citation_name: 'Smith, J', author_order: 1 }],
               references: [],
+              pdf_status: { status: 'available', byte_size: 2048, content_hash: 'pdf-hash' },
               enriched_fields: [],
               stage_outcomes: [
                 { stage_name: 'parse', outcome: 'parsed', created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
@@ -73,6 +74,8 @@ describe('detail.js — detailView', function() {
     assert.ok(app.innerHTML.includes('Test Article'));
     assert.ok(app.innerHTML.includes('Bibliographic metadata'));
     assert.ok(app.innerHTML.includes('Provenance summary'));
+    assert.ok(app.innerHTML.includes('rw-reading-workspace'));
+    assert.ok(app.innerHTML.includes('Download PDF'));
     assert.ok(app.innerHTML.includes('Line one. Line two.'));
     assert.ok(app.innerHTML.includes('process mining'));
     assert.ok(app.innerHTML.includes('Show stored keyword value'));
@@ -91,10 +94,12 @@ describe('detail.js — detailView', function() {
     moreEvents.click();
     assert.equal(document.querySelectorAll('.rw-audit-event').length, 30);
     assert.equal(moreEvents.hidden, true);
-    const back = Array.from(document.querySelectorAll('a')).find(function(anchor) { return anchor.textContent.includes('Back to Corpus'); });
-    assert.ok(back.href.includes('q=preserved+query'));
-    assert.ok(back.href.includes('page=3'));
-    assert.ok(back.href.includes('expanded=a1'));
+    const breadcrumb = document.querySelector('#workspace-breadcrumb');
+    assert.match(breadcrumb.textContent, /Home.*Deepdive.*Corpus.*Analysis-ready articles.*10.1000\/test/);
+    const corpusCrumb = Array.from(breadcrumb.querySelectorAll('a')).find(function(anchor) { return anchor.textContent === 'Corpus'; });
+    assert.ok(corpusCrumb.href.includes('q=preserved+query'));
+    assert.ok(corpusCrumb.href.includes('page=3'));
+    assert.ok(corpusCrumb.href.includes('expanded=a1'));
     const authorLink = Array.from(document.querySelectorAll('a')).find(function(anchor) { return anchor.textContent.includes('Smith, J'); });
     assert.ok(authorLink.href.includes('return_view=article'));
     assert.ok(authorLink.href.includes('return_id=a1'));
@@ -162,6 +167,10 @@ describe('detail.js — detailView', function() {
               author: { id: 'auth1', citation_name: 'Smith, J' },
               articles: [],
               audit_events: [],
+              identity_evidence: [{
+                resolution_id: 4, status: 'orcid_is_unclear', provider: 'orcid', resolved_at: '2024-01-01T00:00:00Z',
+                candidates: [{ candidate_orcid: '0000-0001-2345-6789', provider_display_name: 'Jane Smith', provider_rank: 1, query_url: 'https://orcid.example/search' }]
+              }],
             },
           });
         },
@@ -178,7 +187,11 @@ describe('detail.js — detailView', function() {
     await detailView('author');
     assert.ok(app.innerHTML.includes('Author occurrence'));
     assert.ok(app.innerHTML.includes('Smith, J'));
-    assert.ok(app.innerHTML.includes('Back to Article revision'));
+    assert.ok(app.innerHTML.includes('ORCID candidate evidence'));
+    assert.ok(app.innerHTML.includes('0000-0001-2345-6789'));
+    assert.ok(app.innerHTML.includes('orcid_is_unclear'));
+    assert.match(document.querySelector('#workspace-breadcrumb').textContent, /Home.*Deepdive.*Corpus.*Author/);
+    assert.ok(!app.innerHTML.includes('Back to Article revision'));
 
     globalThis.fetch = originalFetch;
     url.searchParams.delete('author_id');
