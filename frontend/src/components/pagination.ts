@@ -1,5 +1,5 @@
 // Shared pagination rendering for server-backed and in-memory result sets.
-import { esc } from '../state.ts';
+import { esc } from "../state.ts";
 
 /** Returns the bounded sequence of page numbers surrounding the current page. */
 export function paginationPages(currentPage: any, totalPages: any, visibleCount: any): number[] {
@@ -42,45 +42,45 @@ export function pagination(result: any, options?: PaginationOptions): string {
   const safeCurrent = Math.min(current, totalPages);
   const start = totalRows === 0 ? 0 : (safeCurrent - 1) * perPage + 1;
   const end = totalRows === 0 ? 0 : Math.min(totalRows, safeCurrent * perPage);
-  const itemLabel = options.itemLabel || 'records';
-  const pageAttribute = options.pageAttribute || 'data-page';
-  const pageClass = options.pageClass || '';
+  const itemLabel = options.itemLabel || "records";
+  const pageAttribute = options.pageAttribute || "data-page";
+  const pageClass = options.pageClass || "";
 
   const numbered = paginationPages(safeCurrent, totalPages, options.visibleCount).map(function(page) {
-    const active = page === safeCurrent ? ' active' : '';
-    const currentAttribute = page === safeCurrent ? ' aria-current="page"' : '';
-    return '<button type="button" class="item page-number' + active + pageClass + '" '
-      + pageAttribute + '="' + page + '"' + currentAttribute + '>' + page + '</button>';
-  }).join('');
+    const active = page === safeCurrent ? " active" : "";
+    const currentAttribute = page === safeCurrent ? ` aria-current="page"` : "";
+    return `<button type="button" class="item page-number` + active + pageClass + `" `
+      + pageAttribute + `="` + page + `"` + currentAttribute + ">" + page + "</button>";
+  }).join("");
 
   /** Returns one pagination navigation control. */
   function control(label: string, target: number, disabled: boolean, relation: string): string {
-    const disabledAttribute = disabled ? ' disabled' : '';
-    var relationAttribute = '';
+    const disabledAttribute = disabled ? " disabled" : "";
+    var relationAttribute = "";
     if (relation) {
-      relationAttribute = ' aria-label="' + esc(relation) + '"';
+      relationAttribute = ` aria-label="` + esc(relation) + `"`;
     }
-    return '<button type="button" class="item' + pageClass + '" ' + pageAttribute + '="' + target + '"'
-      + relationAttribute + disabledAttribute + '>' + esc(label) + '</button>';
+    return `<button type="button" class="item` + pageClass + `" ` + pageAttribute + `="` + target + `"`
+      + relationAttribute + disabledAttribute + ">" + esc(label) + "</button>";
   }
 
-  var secondary = '';
+  var secondary = "";
   if (options.secondary) {
-    secondary = '<span class="rw-pagination__secondary">' + esc(options.secondary) + '</span>';
+    secondary = `<span class="rw-pagination__secondary">` + esc(options.secondary) + "</span>";
   }
 
-  return '<nav class="ui pagination menu" aria-label="Result pages">'
-    + '<div class="rw-pagination__summary">'
-    + '<strong>' + start.toLocaleString() + '\u2013' + end.toLocaleString() + '</strong> of '
-    + totalRows.toLocaleString() + ' ' + esc(itemLabel)
-    + '<span>Page ' + safeCurrent + ' of ' + totalPages + '</span>'
+  return `<nav class="ui pagination menu" aria-label="Result pages">`
+    + `<div class="rw-pagination__summary">`
+    + "<strong>" + start.toLocaleString() + "\u2013" + end.toLocaleString() + "</strong> of "
+    + totalRows.toLocaleString() + " " + esc(itemLabel)
+    + "<span>Page " + safeCurrent + " of " + totalPages + "</span>"
     + secondary
-    + '</div>'
-    + '<div class="pagination-actions">'
-    + control('First', 1, safeCurrent === 1, 'First page')
-    + control('Previous', Math.max(1, safeCurrent - 1), safeCurrent === 1, 'Previous page')
-    + '<span class="pagination-pages">' + numbered + '</span>'
-    + control('Next', Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, 'Next page')
-    + control('Last', totalPages, safeCurrent === totalPages, 'Last page')
-    + '</div></nav>';
+    + "</div>"
+    + `<div class="pagination-actions">`
+    + control("First", 1, safeCurrent === 1, "First page")
+    + control("Previous", Math.max(1, safeCurrent - 1), safeCurrent === 1, "Previous page")
+    + `<span class="pagination-pages">` + numbered + "</span>"
+    + control("Next", Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, "Next page")
+    + control("Last", totalPages, safeCurrent === totalPages, "Last page")
+    + "</div></nav>";
 }

@@ -3438,66 +3438,66 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`bindFocusContext`](../frontend/src/router.ts#L26) | function | 26 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
 | [`syncPrimaryNavigation`](../frontend/src/router.ts#L36) | function | 36 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
 | [`syncShell`](../frontend/src/router.ts#L54) | function | 54 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
-| [`renderView`](../frontend/src/router.ts#L78) | function | 78 | `async function renderView()` | Asynchronously renders view. |
-| [`render`](../frontend/src/router.ts#L107) | function | 107 | `async function render()` | Asynchronously renders the associated state. |
+| [`renderView`](../frontend/src/router.ts#L81) | function | 81 | `async function renderView()` | Asynchronously renders view. |
+| [`render`](../frontend/src/router.ts#L96) | function | 96 | `async function render()` | Asynchronously renders the associated state. |
 
 ### [`frontend/src/state.ts`](../frontend/src/state.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`params`](../frontend/src/state.ts#L69) | function | 69 | `function params()` | Returns the current URL search parameters. |
-| [`value`](../frontend/src/state.ts#L74) | function | 74 | `function value(name: string)` | Returns a named URL parameter or an empty string. |
-| [`view`](../frontend/src/state.ts#L79) | function | 79 | `function view()` | Returns the selected viewer view. |
-| [`section`](../frontend/src/state.ts#L84) | function | 84 | `function section(name: string, fallback: string)` | Returns a named section parameter or its fallback. |
-| [`esc`](../frontend/src/state.ts#L89) | function | 89 | `function esc(raw: any)` | Escapes a value for safe HTML text insertion. |
-| [`asJSON`](../frontend/src/state.ts#L96) | function | 96 | `function asJSON(item: any)` | Formats a value for JSON-oriented display. |
+| [`params`](../frontend/src/state.ts#L71) | function | 71 | `function params()` | Returns the current URL search parameters. |
+| [`value`](../frontend/src/state.ts#L76) | function | 76 | `function value(name: string)` | Returns a named URL parameter or an empty string. |
+| [`view`](../frontend/src/state.ts#L81) | function | 81 | `function view()` | Returns the selected viewer view. |
+| [`section`](../frontend/src/state.ts#L86) | function | 86 | `function section(name: string, fallback: string)` | Returns a named section parameter or its fallback. |
+| [`esc`](../frontend/src/state.ts#L91) | function | 91 | `function esc(raw: any)` | Escapes a value for safe HTML text insertion. |
+| [`asJSON`](../frontend/src/state.ts#L98) | function | 98 | `function asJSON(item: any)` | Formats a value for JSON-oriented display. |
 | [`list`](../frontend/src/state.ts#L104) | function | 104 | `function list(data: any, keys?: string[])` | Returns the first matching array in an API response. |
-| [`pickID`](../frontend/src/state.ts#L119) | function | 119 | `function pickID(item: any)` | Returns the first supported identifier present on an item. |
-| [`text`](../frontend/src/state.ts#L136) | function | 136 | `function text(item: any, fields: string[])` | Returns the first non-empty display field on an item. |
-| [`number`](../frontend/src/state.ts#L146) | function | 146 | `function number(raw: any)` | Converts a value to a finite number or zero. |
-| [`formatNumber`](../frontend/src/state.ts#L155) | function | 155 | `function formatNumber(raw: any)` | Formats number. |
-| [`percent`](../frontend/src/state.ts#L160) | function | 160 | `function percent(raw: any, denominator: any)` | Formats a count as a percentage of its denominator. |
-| [`formatTime`](../frontend/src/state.ts#L170) | function | 170 | `function formatTime(raw: any)` | Formats time. |
-| [`formatDuration`](../frontend/src/state.ts#L182) | function | 182 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
-| [`formatBytes`](../frontend/src/state.ts#L200) | function | 200 | `function formatBytes(raw: any)` | Formats bytes. |
-| [`humanLabel`](../frontend/src/state.ts#L216) | function | 216 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
-| [`parseObject`](../frontend/src/state.ts#L223) | function | 223 | `function parseObject(raw: any)` | Parses object. |
-| [`statusClass`](../frontend/src/state.ts#L242) | function | 242 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
-| [`statusChip`](../frontend/src/state.ts#L260) | function | 260 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
-| [`metricEntries`](../frontend/src/state.ts#L267) | function | 267 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
-| [`selectedRun`](../frontend/src/state.ts#L278) | function | 278 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
-| [`showError`](../frontend/src/state.ts#L286) | function | 286 | `function showError(error: any)` | Shows error. |
-| [`clearError`](../frontend/src/state.ts#L292) | function | 292 | `function clearError()` | Clears error. |
-| [`busy`](../frontend/src/state.ts#L298) | function | 298 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
-| [`link`](../frontend/src/state.ts#L303) | function | 303 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
-| [`pageHeader`](../frontend/src/state.ts#L322) | function | 322 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
-| [`breadcrumb`](../frontend/src/state.ts#L333) | function | 333 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
-| [`setBreadcrumb`](../frontend/src/state.ts#L346) | function | 346 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
-| [`emptyState`](../frontend/src/state.ts#L351) | function | 351 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
-| [`emptyPanel`](../frontend/src/state.ts#L359) | function | 359 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
-| [`panel`](../frontend/src/state.ts#L367) | function | 367 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
-| [`table`](../frontend/src/state.ts#L382) | function | 382 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
-| [`subnav`](../frontend/src/state.ts#L412) | function | 412 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
-| [`filterChips`](../frontend/src/state.ts#L429) | function | 429 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
-| [`metricCard`](../frontend/src/state.ts#L453) | function | 453 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
-| [`flowStage`](../frontend/src/state.ts#L495) | function | 495 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
-| [`sourceFilterStageSummary`](../frontend/src/state.ts#L569) | function | 569 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
-| [`retentionPhase`](../frontend/src/state.ts#L616) | function | 616 | `function retentionPhase(title: string, description: string, summary: string, content: string, className: string)` | Returns one titled phase in the retention-flow presentation. |
-| [`retentionFlow`](../frontend/src/state.ts#L624) | function | 624 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`breakdown`](../frontend/src/state.ts#L706) | function | 706 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
-| [`valueRender`](../frontend/src/state.ts#L729) | function | 729 | `function valueRender(row: any)` | Formats one breakdown value with availability and optional percentage. |
-| [`barRender`](../frontend/src/state.ts#L746) | function | 746 | `function barRender(row: any)` | Returns an accessible relative-volume bar for one breakdown row. |
-| [`sourceResultCountSummary`](../frontend/src/state.ts#L768) | function | 768 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
-| [`count`](../frontend/src/state.ts#L774) | function | 774 | `function count(raw: any)` | Formats a source count or its unavailable state. |
-| [`comparison`](../frontend/src/state.ts#L782) | function | 782 | `function comparison(raw: any)` | Returns a status chip for a source-count comparison. |
-| [`date`](../frontend/src/state.ts#L790) | function | 790 | `function date(raw: any)` | Escapes an export date or returns its unavailable state. |
-| [`sourceSearchQueries`](../frontend/src/state.ts#L819) | function | 819 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
-| [`timeline`](../frontend/src/state.ts#L843) | function | 843 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
-| [`detailTable`](../frontend/src/state.ts#L917) | function | 917 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
-| [`cell`](../frontend/src/state.ts#L939) | function | 939 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
-| [`bindCopyButtons`](../frontend/src/state.ts#L983) | function | 983 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
-| [`bindDismissibleMessages`](../frontend/src/state.ts#L1002) | function | 1002 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
-| [`bindLoadingButtons`](../frontend/src/state.ts#L1018) | function | 1018 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
+| [`pickID`](../frontend/src/state.ts#L115) | function | 115 | `function pickID(item: any)` | Returns the first supported identifier present on an item. |
+| [`text`](../frontend/src/state.ts#L124) | function | 124 | `function text(item: any, fields: string[])` | Returns the first non-empty display field on an item. |
+| [`number`](../frontend/src/state.ts#L134) | function | 134 | `function number(raw: any)` | Converts a value to a finite number or zero. |
+| [`formatNumber`](../frontend/src/state.ts#L141) | function | 141 | `function formatNumber(raw: any)` | Formats number. |
+| [`percent`](../frontend/src/state.ts#L146) | function | 146 | `function percent(raw: any, denominator: any)` | Formats a count as a percentage of its denominator. |
+| [`formatTime`](../frontend/src/state.ts#L156) | function | 156 | `function formatTime(raw: any)` | Formats time. |
+| [`formatDuration`](../frontend/src/state.ts#L168) | function | 168 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
+| [`formatBytes`](../frontend/src/state.ts#L186) | function | 186 | `function formatBytes(raw: any)` | Formats bytes. |
+| [`humanLabel`](../frontend/src/state.ts#L202) | function | 202 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
+| [`parseObject`](../frontend/src/state.ts#L211) | function | 211 | `function parseObject(raw: any)` | Parses object. |
+| [`statusClass`](../frontend/src/state.ts#L230) | function | 230 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
+| [`statusChip`](../frontend/src/state.ts#L248) | function | 248 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
+| [`metricEntries`](../frontend/src/state.ts#L255) | function | 255 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
+| [`selectedRun`](../frontend/src/state.ts#L266) | function | 266 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
+| [`showError`](../frontend/src/state.ts#L274) | function | 274 | `function showError(error: any)` | Shows error. |
+| [`clearError`](../frontend/src/state.ts#L280) | function | 280 | `function clearError()` | Clears error. |
+| [`busy`](../frontend/src/state.ts#L286) | function | 286 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
+| [`link`](../frontend/src/state.ts#L291) | function | 291 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
+| [`pageHeader`](../frontend/src/state.ts#L310) | function | 310 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
+| [`breadcrumb`](../frontend/src/state.ts#L321) | function | 321 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
+| [`setBreadcrumb`](../frontend/src/state.ts#L334) | function | 334 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
+| [`emptyState`](../frontend/src/state.ts#L339) | function | 339 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
+| [`emptyPanel`](../frontend/src/state.ts#L347) | function | 347 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
+| [`panel`](../frontend/src/state.ts#L355) | function | 355 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
+| [`table`](../frontend/src/state.ts#L370) | function | 370 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
+| [`subnav`](../frontend/src/state.ts#L400) | function | 400 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
+| [`filterChips`](../frontend/src/state.ts#L417) | function | 417 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
+| [`metricCard`](../frontend/src/state.ts#L441) | function | 441 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
+| [`flowStage`](../frontend/src/state.ts#L483) | function | 483 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
+| [`sourceFilterStageSummary`](../frontend/src/state.ts#L557) | function | 557 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
+| [`retentionPhase`](../frontend/src/state.ts#L604) | function | 604 | `function retentionPhase(title: string, description: string, summary: string, content: string, className: string)` | Returns one titled phase in the retention-flow presentation. |
+| [`retentionFlow`](../frontend/src/state.ts#L612) | function | 612 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`breakdown`](../frontend/src/state.ts#L694) | function | 694 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
+| [`valueRender`](../frontend/src/state.ts#L717) | function | 717 | `function valueRender(row: any)` | Formats one breakdown value with availability and optional percentage. |
+| [`barRender`](../frontend/src/state.ts#L734) | function | 734 | `function barRender(row: any)` | Returns an accessible relative-volume bar for one breakdown row. |
+| [`sourceResultCountSummary`](../frontend/src/state.ts#L756) | function | 756 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
+| [`count`](../frontend/src/state.ts#L762) | function | 762 | `function count(raw: any)` | Formats a source count or its unavailable state. |
+| [`comparison`](../frontend/src/state.ts#L770) | function | 770 | `function comparison(raw: any)` | Returns a status chip for a source-count comparison. |
+| [`date`](../frontend/src/state.ts#L778) | function | 778 | `function date(raw: any)` | Escapes an export date or returns its unavailable state. |
+| [`sourceSearchQueries`](../frontend/src/state.ts#L807) | function | 807 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
+| [`timeline`](../frontend/src/state.ts#L831) | function | 831 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
+| [`detailTable`](../frontend/src/state.ts#L905) | function | 905 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
+| [`cell`](../frontend/src/state.ts#L927) | function | 927 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
+| [`bindCopyButtons`](../frontend/src/state.ts#L971) | function | 971 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
+| [`bindDismissibleMessages`](../frontend/src/state.ts#L990) | function | 990 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
+| [`bindLoadingButtons`](../frontend/src/state.ts#L1006) | function | 1006 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
 
 ### [`frontend/src/views/advanced.ts`](../frontend/src/views/advanced.ts)
 

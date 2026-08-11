@@ -1,8 +1,8 @@
 // Custom PDF.js rendering with bounded page lifecycle and accessible anchor selection.
 
-const workerURL = '/vendor/pdfjs/pdf.worker.min.mjs';
-const cMapURL = '/vendor/pdfjs/cmaps/';
-const standardFontDataURL = '/vendor/pdfjs/standard_fonts/';
+const workerURL = "/vendor/pdfjs/pdf.worker.min.mjs";
+const cMapURL = "/vendor/pdfjs/cmaps/";
+const standardFontDataURL = "/vendor/pdfjs/standard_fonts/";
 
 /** One normalized page rectangle. */
 export interface NormalizedRectangle {
@@ -87,7 +87,7 @@ export interface PDFAnchorHead {
 
 /** Mounts a project-styled PDF.js viewer and returns a lifecycle controller. */
 export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>): Promise<any> {
-  const loadPDFJS = loader || function() { return import('../../vendor/pdfjs/pdf.min.mjs'); };
+  const loadPDFJS = loader || function() { return import("../../vendor/pdfjs/pdf.min.mjs"); };
   const pdfjs = await loadPDFJS();
   pdfjs.GlobalWorkerOptions.workerSrc = workerURL;
   let pageNumber = Math.max(1, Number(options.page || 1));
@@ -98,15 +98,15 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let renderSequence = 0;
   const renderTasks = new Set<any>();
 
-  host.innerHTML = '<section class="ui segment rw-pdf-viewer" aria-label="PDF reader"><div class="ui top attached header"><div><h3>Document reader</h3><p>One page is shown at a time. Select text to create a review anchor.</p></div></div>'
-    + '<div class="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls"><div class="rw-pdf-toolbar__group" aria-label="Page navigation">'
-    + '<button type="button" class="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>'
-    + '<label class="rw-pdf-page-control"><span>Page</span><input type="number" min="1" value="' + pageNumber + '" data-pdf-page aria-label="Current PDF page"><span data-pdf-count></span></label>'
-    + '<button type="button" class="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button></div>'
-    + '<div class="rw-pdf-toolbar__group" aria-label="Display controls"><button type="button" class="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">−</button>'
-    + '<span class="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span><button type="button" class="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>'
-    + '<button type="button" class="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button></div></div>'
-    + '<div class="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex="0"></div><p class="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p></section>';
+  host.innerHTML = `<section class="ui segment rw-pdf-viewer" aria-label="PDF reader"><div class="ui top attached header"><div><h3>Document reader</h3><p>One page is shown at a time. Select text to create a review anchor.</p></div></div>`
+    + `<div class="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls"><div class="rw-pdf-toolbar__group" aria-label="Page navigation">`
+    + `<button type="button" class="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>`
+    + `<label class="rw-pdf-page-control"><span>Page</span><input type="number" min="1" value="` + pageNumber + `" data-pdf-page aria-label="Current PDF page"><span data-pdf-count></span></label>`
+    + `<button type="button" class="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button></div>`
+    + `<div class="rw-pdf-toolbar__group" aria-label="Display controls"><button type="button" class="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">−</button>`
+    + `<span class="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span><button type="button" class="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>`
+    + `<button type="button" class="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button></div></div>`
+    + `<div class="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex="0"></div><p class="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p></section>`;
   const loadingTask = pdfjs.getDocument({
     url: options.url,
     isEvalSupported: false,
@@ -119,12 +119,12 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
 
   /** Synchronizes page boundaries, input bounds, and current zoom feedback. */
   function updateControls(): void {
-    host.querySelector('[data-pdf-count]')!.textContent = 'of ' + document.numPages;
-    (host.querySelector('[data-pdf-page]') as HTMLInputElement).max = String(document.numPages);
-    (host.querySelector('[data-pdf-page]') as HTMLInputElement).value = String(pageNumber);
-    (host.querySelector('[data-pdf-previous]') as HTMLButtonElement).disabled = pageNumber <= 1;
-    (host.querySelector('[data-pdf-next]') as HTMLButtonElement).disabled = pageNumber >= document.numPages;
-    host.querySelector('[data-pdf-zoom]')!.textContent = Math.round(scale * 100) + '%';
+    host.querySelector("[data-pdf-count]")!.textContent = "of " + document.numPages;
+    (host.querySelector("[data-pdf-page]") as HTMLInputElement).max = String(document.numPages);
+    (host.querySelector("[data-pdf-page]") as HTMLInputElement).value = String(pageNumber);
+    (host.querySelector("[data-pdf-previous]") as HTMLButtonElement).disabled = pageNumber <= 1;
+    (host.querySelector("[data-pdf-next]") as HTMLButtonElement).disabled = pageNumber >= document.numPages;
+    host.querySelector("[data-pdf-zoom]")!.textContent = Math.round(scale * 100) + "%";
   }
 
   /** Replaces the single visible page and its selectable text and anchor layers. */
@@ -136,47 +136,47 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     const requestedRotation = rotation;
     for (const task of renderTasks) task.cancel();
     renderTasks.clear();
-    const pagesHost = host.querySelector('[data-pdf-pages]') as HTMLElement;
-    pagesHost.setAttribute('aria-busy', 'true');
-    pagesHost.textContent = '';
-    host.querySelector('[data-pdf-status]')!.textContent = 'Loading page ' + requestedPage + ' of ' + document.numPages + '.';
+    const pagesHost = host.querySelector("[data-pdf-pages]") as HTMLElement;
+    pagesHost.setAttribute("aria-busy", "true");
+    pagesHost.textContent = "";
+    host.querySelector("[data-pdf-status]")!.textContent = "Loading page " + requestedPage + " of " + document.numPages + ".";
     updateControls();
     const page = await document.getPage(requestedPage);
     if (destroyed || sequence !== renderSequence) return;
     const viewport = page.getViewport({ scale: requestedScale, rotation: requestedRotation });
-    const section = window.document.createElement('section');
-    section.className = 'rw-pdf-page rw-pdf-page--current';
+    const section = window.document.createElement("section");
+    section.className = "rw-pdf-page rw-pdf-page--current";
     section.dataset.pdfPageNumber = String(requestedPage);
     section.dataset.rotation = String(requestedRotation);
-    section.setAttribute('aria-label', 'PDF page ' + requestedPage);
-    section.style.width = viewport.width + 'px';
-    section.style.height = viewport.height + 'px';
-    const canvas = window.document.createElement('canvas');
+    section.setAttribute("aria-label", "PDF page " + requestedPage);
+    section.style.width = viewport.width + "px";
+    section.style.height = viewport.height + "px";
+    const canvas = window.document.createElement("canvas");
     const ratio = globalThis.devicePixelRatio || 1;
     canvas.width = Math.floor(viewport.width * ratio);
     canvas.height = Math.floor(viewport.height * ratio);
-    canvas.style.width = viewport.width + 'px';
-    canvas.style.height = viewport.height + 'px';
+    canvas.style.width = viewport.width + "px";
+    canvas.style.height = viewport.height + "px";
     section.append(canvas);
-    const textLayer = window.document.createElement('div');
-    textLayer.className = 'textLayer';
+    const textLayer = window.document.createElement("div");
+    textLayer.className = "textLayer";
     section.append(textLayer);
-    const anchorLayer = window.document.createElement('div');
-    anchorLayer.className = 'rw-pdf-anchor-layer';
+    const anchorLayer = window.document.createElement("div");
+    anchorLayer.className = "rw-pdf-anchor-layer";
     section.append(anchorLayer);
     pagesHost.append(section);
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
     const renderTask = page.render({ canvasContext: context, viewport: viewport, transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0] });
     renderTasks.add(renderTask);
-    await renderTask.promise.catch(function(error: any) { if (error?.name !== 'RenderingCancelledException') throw error; });
+    await renderTask.promise.catch(function(error: any) { if (error?.name !== "RenderingCancelledException") throw error; });
     renderTasks.delete(renderTask);
     if (destroyed || sequence !== renderSequence) return;
     const content = await page.getTextContent();
     if (destroyed || sequence !== renderSequence) return;
     renderSelectableText(pdfjs, content, textLayer, viewport);
     renderAnchors(anchorLayer, anchors.filter(function(anchor) { return Number(anchor.version.page) === requestedPage; }), requestedRotation);
-    pagesHost.setAttribute('aria-busy', 'false');
-    host.querySelector('[data-pdf-status]')!.textContent = 'PDF page ' + requestedPage + ' of ' + document.numPages + '.';
+    pagesHost.setAttribute("aria-busy", "false");
+    host.querySelector("[data-pdf-status]")!.textContent = "PDF page " + requestedPage + " of " + document.numPages + ".";
     options.onPageChange?.(requestedPage);
   }
 
@@ -185,15 +185,15 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     pageNumber = Math.max(1, Math.min(document.numPages, Number(next) || pageNumber));
     void render();
   }
-  host.querySelector('[data-pdf-previous]')!.addEventListener('click', function() { changePage(pageNumber - 1); });
-  host.querySelector('[data-pdf-next]')!.addEventListener('click', function() { changePage(pageNumber + 1); });
-  host.querySelector('[data-pdf-page]')!.addEventListener('change', function(event) { changePage((event.target as HTMLInputElement).value); });
-  host.querySelector('[data-pdf-zoom-out]')!.addEventListener('click', function() { scale = Math.max(0.6, scale - 0.15); void render(); });
-  host.querySelector('[data-pdf-zoom-in]')!.addEventListener('click', function() { scale = Math.min(3, scale + 0.15); void render(); });
-  host.querySelector('[data-pdf-rotate]')!.addEventListener('click', function() { rotation = (rotation + 90) % 360; void render(); });
-  host.addEventListener('mouseup', function() {
+  host.querySelector("[data-pdf-previous]")!.addEventListener("click", function() { changePage(pageNumber - 1); });
+  host.querySelector("[data-pdf-next]")!.addEventListener("click", function() { changePage(pageNumber + 1); });
+  host.querySelector("[data-pdf-page]")!.addEventListener("change", function(event) { changePage((event.target as HTMLInputElement).value); });
+  host.querySelector("[data-pdf-zoom-out]")!.addEventListener("click", function() { scale = Math.max(0.6, scale - 0.15); void render(); });
+  host.querySelector("[data-pdf-zoom-in]")!.addEventListener("click", function() { scale = Math.min(3, scale + 0.15); void render(); });
+  host.querySelector("[data-pdf-rotate]")!.addEventListener("click", function() { rotation = (rotation + 90) % 360; void render(); });
+  host.addEventListener("mouseup", function() {
     const selection = window.getSelection();
-    const page = selection?.anchorNode?.parentElement?.closest?.('.rw-pdf-page') as HTMLElement | null;
+    const page = selection?.anchorNode?.parentElement?.closest?.(".rw-pdf-page") as HTMLElement | null;
     const rectangles = selectionRectangles(selection, page, Number(page?.dataset.rotation || 0));
     if (rectangles.length) options.onSelection?.({ page: Number(page!.dataset.pdfPageNumber), selectedText: selection!.toString().slice(0, 16384), rectangles: rectangles });
   });
@@ -211,7 +211,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       renderTasks.clear();
       await document.destroy();
       await loadingTask.destroy();
-      host.textContent = '';
+      host.textContent = "";
     },
   };
 }
@@ -220,14 +220,14 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
 function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any): void {
   for (const anchor of anchors) {
     for (const rectangle of rotateRectangles(anchor.version.rectangles || [], rotation)) {
-      const highlight = window.document.createElement('span');
-      highlight.className = 'rw-pdf-anchor-highlight';
+      const highlight = window.document.createElement("span");
+      highlight.className = "rw-pdf-anchor-highlight";
       highlight.dataset.anchorId = anchor.id;
-      highlight.setAttribute('aria-hidden', 'true');
-      highlight.style.left = (rectangle.x * 100) + '%';
-      highlight.style.top = (rectangle.y * 100) + '%';
-      highlight.style.width = (rectangle.width * 100) + '%';
-      highlight.style.height = (rectangle.height * 100) + '%';
+      highlight.setAttribute("aria-hidden", "true");
+      highlight.style.left = (rectangle.x * 100) + "%";
+      highlight.style.top = (rectangle.y * 100) + "%";
+      highlight.style.width = (rectangle.width * 100) + "%";
+      highlight.style.height = (rectangle.height * 100) + "%";
       container.append(highlight);
     }
   }
@@ -241,15 +241,15 @@ function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, 
     const transform = pdfjs.Util.transform(viewport.transform, item.transform);
     const angle = Math.atan2(transform[1], transform[0]);
     const height = Math.hypot(transform[2], transform[3]);
-    const span = window.document.createElement('span');
+    const span = window.document.createElement("span");
     span.textContent = item.str;
-    span.style.left = transform[4] + 'px';
-    span.style.top = transform[5] - height + 'px';
-    span.style.fontSize = height + 'px';
-    span.style.fontFamily = content.styles?.[item.fontName]?.fontFamily || 'sans-serif';
+    span.style.left = transform[4] + "px";
+    span.style.top = transform[5] - height + "px";
+    span.style.fontSize = height + "px";
+    span.style.fontFamily = content.styles?.[item.fontName]?.fontFamily || "sans-serif";
     if (angle) span.style.transform = `rotate(${angle}rad)`;
     fragment.append(span);
-    if (item.hasEOL) fragment.append(window.document.createElement('br'));
+    if (item.hasEOL) fragment.append(window.document.createElement("br"));
   }
   container.append(fragment);
 }

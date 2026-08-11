@@ -1,8 +1,8 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
-import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from '../../vendor/d3-force.js';
-import type { SimulationNode, SimulationLink } from '../../vendor/d3-force.js';
-import { esc, graphFilters, link, list, value } from '../state.ts';
-import { pagination } from './pagination.ts';
+import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
+import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
+import { esc, graphFilters, link, list, value } from "../state.ts";
+import { pagination } from "./pagination.ts";
 
 /** One graph node with its resolved layout and cluster state. */
 export interface GraphNode extends SimulationNode {
@@ -63,11 +63,11 @@ let activeGraph: GraphState | undefined;
 /** Returns an escaped graph-filter input with its current URL value. */
 export function graphField(name: string, label: string, type?: string): string {
   if (!type) {
-    type = 'text';
+    type = "text";
   }
-  return '<label>' + esc(label)
-    + '<input name="' + esc(name) + '" type="' + esc(type) + '" value="' + esc(value(name)) + '">'
-    + '</label>';
+  return "<label>" + esc(label)
+    + `<input name="` + esc(name) + `" type="` + esc(type) + `" value="` + esc(value(name)) + `">`
+    + "</label>";
 }
 
 /** Returns the current graph-filter values keyed by query parameter. */
@@ -81,21 +81,21 @@ export function graphQuery(): Record<string, string> {
 
 /** Returns a context-preserving detail link for a graph node when one exists. */
 export function graphLink(node: GraphNode): string {
-  if (node.type === 'article') {
-    return link({ view: 'article', article_id: node.revision_id });
+  if (node.type === "article") {
+    return link({ view: "article", article_id: node.revision_id });
   }
-  if (node.type === 'author') {
-    return link({ view: 'author', author_id: node.author_id });
+  if (node.type === "author") {
+    return link({ view: "author", author_id: node.author_id });
   }
-  if (node.type === 'reference') {
-    return link({ view: 'reference', reference_id: node.reference_id });
+  if (node.type === "reference") {
+    return link({ view: "reference", reference_id: node.reference_id });
   }
-  return '';
+  return "";
 }
 
 /** Returns an edge endpoint identifier from either an identifier or resolved node object. */
 function endpointID(endpoint: string | number | GraphNode): string | number {
-  if (endpoint && typeof endpoint === 'object') {
+  if (endpoint && typeof endpoint === "object") {
     return endpoint.id;
   }
   return endpoint as string | number;
@@ -141,91 +141,91 @@ export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]
 
 /** Returns bounded graph controls, legend, canvas, selection, and relationship-table markup. */
 export function graphResult(data: any): string {
-  const nodes = list(data, ['nodes']);
-  const edges = list(data, ['edges']);
+  const nodes = list(data, ["nodes"]);
+  const edges = list(data, ["edges"]);
   const counts = data.counts || {};
   const limits = data.limits || {};
 
   if (!nodes.length) {
-    return '<div class="rw-graph-empty"><h4>No relationships match these filters</h4>'
-      + '<p>Broaden the filters or choose another graph model. The selected run context has been preserved.</p></div>';
+    return `<div class="rw-graph-empty"><h4>No relationships match these filters</h4>`
+      + "<p>Broaden the filters or choose another graph model. The selected run context has been preserved.</p></div>";
   }
 
   const nodeTypes = counts.node_types || {};
   const edgeTypes = counts.edge_types || {};
 
-  var warning = '';
+  var warning = "";
   if (data.truncated) {
-    warning = '<p class="rw-graph__truncation ui warning message" role="status">Graph results truncated. '
+    warning = `<p class="rw-graph__truncation ui warning message" role="status">Graph results truncated. `
       + esc(String(counts.article_matches ?? nodes.length))
-      + ' articles matched; '
+      + " articles matched; "
       + esc(String(counts.article_rendered ?? 0))
-      + ' articles, '
+      + " articles, "
       + esc(String(counts.nodes_rendered ?? nodes.length))
-      + ' nodes, and '
+      + " nodes, and "
       + esc(String(counts.edges_rendered ?? edges.length))
-      + ' edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>';
+      + " edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>";
   }
 
   const entityDefinitions = [
-    ['article', 'Article revision', 'article'],
-    ['author', 'Author occurrence', 'author'],
-    ['reference', 'Reference mention', 'reference'],
-    ['referenced_author', 'Referenced-author string', 'referenced-author']
+    ["article", "Article revision", "article"],
+    ["author", "Author occurrence", "author"],
+    ["reference", "Reference mention", "reference"],
+    ["referenced_author", "Referenced-author string", "referenced-author"]
   ];
   const relationshipDefinitions = [
-    ['authorship', 'Authorship', ''],
-    ['reference', 'Reference mention', ''],
-    ['reference_author', 'Referenced author', 'derived'],
-    ['citation', 'Internal citation', 'directed'],
-    ['coauthor', 'Co-author', 'derived'],
-    ['shared_reference', 'Shared reference', 'derived']
+    ["authorship", "Authorship", ""],
+    ["reference", "Reference mention", ""],
+    ["reference_author", "Referenced author", "derived"],
+    ["citation", "Internal citation", "directed"],
+    ["coauthor", "Co-author", "derived"],
+    ["shared_reference", "Shared reference", "derived"]
   ];
   const entityLegend = entityDefinitions.filter(function(definition) {
     return Number(nodeTypes[definition[0]] || 0) > 0;
   }).map(function(definition) {
-    return '<span><i class="rw-graph__legend-mark rw-graph__legend-mark--' + definition[2] + '"></i>' + esc(definition[1]) + '</span>';
-  }).join('');
+    return `<span><i class="rw-graph__legend-mark rw-graph__legend-mark--` + definition[2] + `"></i>` + esc(definition[1]) + "</span>";
+  }).join("");
   const relationshipLegend = relationshipDefinitions.filter(function(definition) {
     return Number(edgeTypes[definition[0]] || 0) > 0;
   }).map(function(definition) {
-    const modifier = definition[2] ? ' rw-graph__legend-line--' + definition[2] : '';
-    return '<span><i class="rw-graph__legend-line' + modifier + '"></i>' + esc(definition[1]) + '</span>';
-  }).join('');
+    const modifier = definition[2] ? " rw-graph__legend-line--" + definition[2] : "";
+    return `<span><i class="rw-graph__legend-line` + modifier + `"></i>` + esc(definition[1]) + "</span>";
+  }).join("");
 
   return warning
-    + '<div class="rw-graph__viewport" id="graph-viewport"><div class="rw-graph__toolbar">'
-    + '<div class="rw-graph__search"><input type="text" id="graph-node-search" placeholder="Search nodes\u2026" aria-label="Search nodes by name or DOI"></div>'
-    + '<button type="button" id="graph-fit" class="ui button">Fit graph</button>'
-    + '<button type="button" id="graph-run-layout" class="ui basic button">Re-run layout</button>'
-    + '<button type="button" id="graph-clear-selection" class="ui basic button" disabled>Show full graph</button>'
-    + '<span class="rw-graph__zoom" id="graph-zoom-indicator" role="status">100%</span>'
-    + '<span id="graph-layout-status" role="status" aria-live="polite">Preparing physics layout</span>'
-    + '<button type="button" id="graph-expand" class="ui button">Expand graph</button>'
-    + '<button type="button" id="graph-export-png" class="ui button" title="Download graph as PNG">Export PNG</button>'
-    + '</div>'
-    + '<p class="rw-graph__help">Shape identifies the entity type, color identifies a connected cluster, and size reflects visible relationship count. '
-    + (nodes.length > 1500 ? 'Large networks open as a connected-cluster overview where bubble size reflects entity count; zoom in to reveal individual entities. ' : '')
-    + 'Select a node to isolate its immediate neighbourhood; select it again or click the background to clear it. '
-    + 'Use the mouse wheel to zoom around the pointer, or drag with the secondary mouse button to pan without selecting nodes.</p>'
-    + '<div class="rw-graph__wrap"><div class="rw-graph__legend" aria-label="Visible graph encodings">'
-    + '<div class="rw-graph__legend-group"><strong>Entities</strong>' + entityLegend + '</div>'
-    + '<div class="rw-graph__legend-group"><strong>Relationships</strong>' + relationshipLegend + '</div></div>'
-    + '<canvas class="rw-graph__canvas"></canvas></div></div>'
-    + '<section class="rw-graph__selection" id="graph-selection" aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>'
-    + '<section class="rw-graph__edges"><h3>Relationship table</h3>'
-    + '<p>The exact, paginated relationship records behind the graph.</p>'
-    + '<div id="graph-edge-rows"></div></section>';
+    + `<div class="rw-graph__viewport" id="graph-viewport"><div class="rw-graph__toolbar">`
+    + `<div class="rw-graph__search"><input type="text" id="graph-node-search" placeholder="Search nodes\u2026" aria-label="Search nodes by name or DOI"></div>`
+    + `<button type="button" id="graph-fit" class="ui button">Fit graph</button>`
+    + `<button type="button" id="graph-run-layout" class="ui basic button">Re-run layout</button>`
+    + `<button type="button" id="graph-clear-selection" class="ui basic button" disabled>Show full graph</button>`
+    + `<span class="rw-graph__zoom" id="graph-zoom-indicator" role="status">100%</span>`
+    + `<span id="graph-layout-status" role="status" aria-live="polite">Preparing physics layout</span>`
+    + `<button type="button" id="graph-expand" class="ui button">Expand graph</button>`
+    + `<button type="button" id="graph-export-png" class="ui button" title="Download graph as PNG">Export PNG</button>`
+    + "</div>"
+    + `<p class="rw-graph__help">Shape identifies the entity type, color identifies a connected cluster, and size reflects visible relationship count. `
+    + (nodes.length > 1500 ? "Large networks open as a connected-cluster overview where bubble size reflects entity count; zoom in to reveal individual entities. " : "")
+    + "Select a node to isolate its immediate neighbourhood; select it again or click the background to clear it. "
+    + "Use the mouse wheel to zoom around the pointer, or drag with the secondary mouse button to pan without selecting nodes.</p>"
+    + `<div class="rw-graph__wrap"><div class="rw-graph__legend" aria-label="Visible graph encodings">`
+    + `<div class="rw-graph__legend-group"><strong>Entities</strong>` + entityLegend + "</div>"
+    + `<div class="rw-graph__legend-group"><strong>Relationships</strong>` + relationshipLegend + "</div></div>"
+    + `<canvas class="rw-graph__canvas"></canvas></div></div>`
+    + `<section class="rw-graph__selection" id="graph-selection" aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>`
+    + `<section class="rw-graph__edges"><h3>Relationship table</h3>`
+    + "<p>The exact, paginated relationship records behind the graph.</p>"
+    + `<div id="graph-edge-rows"></div></section>`;
 }
 
 /** Calculates a node radius from entity type and visible degree. */
 function nodeSize(node: GraphNode, degree: number, maxDegree: number): number {
-  if (node.type === 'reference' || node.type === 'referenced_author') {
+  if (node.type === "reference" || node.type === "referenced_author") {
     return 7;
   }
   var min;
   var max;
-  if (node.type === 'article') {
+  if (node.type === "article") {
     min = 9;
     max = 22;
   } else {
@@ -252,18 +252,18 @@ function palette() {
     return css.getPropertyValue(name).trim() || fallback;
   }
   return {
-    article: get('--accent', '#0b5e8e'),
-    author: get('--warning', '#8f5f00'),
-    reference: get('--success', '#2f6f52'),
-    edge: get('--border-strong', '#adb9c2'),
-    muted: get('--border', '#d2d9de'),
-    text: get('--text', '#18232c'),
-    surface: get('--surface', '#ffffff'),
-    focus: get('--focus', '#d36d00'),
+    article: get("--accent", "#0b5e8e"),
+    author: get("--warning", "#8f5f00"),
+    reference: get("--success", "#2f6f52"),
+    edge: get("--border-strong", "#adb9c2"),
+    muted: get("--border", "#d2d9de"),
+    text: get("--text", "#18232c"),
+    surface: get("--surface", "#ffffff"),
+    focus: get("--focus", "#d36d00"),
     clusters: [
-      get('--graph-cluster-1', '#236b8e'), get('--graph-cluster-2', '#8b6417'),
-      get('--graph-cluster-3', '#35765b'), get('--graph-cluster-4', '#6e58a3'),
-      get('--graph-cluster-5', '#985468'), get('--graph-cluster-6', '#3b7c83')
+      get("--graph-cluster-1", "#236b8e"), get("--graph-cluster-2", "#8b6417"),
+      get("--graph-cluster-3", "#35765b"), get("--graph-cluster-4", "#6e58a3"),
+      get("--graph-cluster-5", "#985468"), get("--graph-cluster-6", "#3b7c83")
     ]
   };
 }
@@ -289,29 +289,29 @@ function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, r
 
 /** Returns the user-facing label for a graph edge type and its relevant metadata. */
 function relationshipLabel(edge: GraphEdge): string {
-  if (edge.type === 'authorship') {
-    var order = '';
+  if (edge.type === "authorship") {
+    var order = "";
     if (edge.author_order) {
-      order = ', author ' + edge.author_order;
+      order = ", author " + edge.author_order;
     }
-    return 'Authorship' + order;
+    return "Authorship" + order;
   }
-  if (edge.type === 'citation') {
-    return 'Internal citation';
+  if (edge.type === "citation") {
+    return "Internal citation";
   }
-  if (edge.type === 'reference') {
-    return 'Reference mention';
+  if (edge.type === "reference") {
+    return "Reference mention";
   }
-  if (edge.type === 'reference_author') {
-    return 'Referenced-author string';
+  if (edge.type === "reference_author") {
+    return "Referenced-author string";
   }
-  if (edge.type === 'coauthor') {
-    return 'Co-author';
+  if (edge.type === "coauthor") {
+    return "Co-author";
   }
-  if (edge.type === 'shared_reference') {
-    return 'Shared reference';
+  if (edge.type === "shared_reference") {
+    return "Shared reference";
   }
-  return edge.type || 'Relationship';
+  return edge.type || "Relationship";
 }
 
 /** Destroys graph. */
@@ -325,7 +325,7 @@ export function destroyGraph(): void {
     activeGraph.resizeObserver.disconnect();
   }
   if (activeGraph.fullscreenHandler) {
-    document.removeEventListener('fullscreenchange', activeGraph.fullscreenHandler);
+    document.removeEventListener("fullscreenchange", activeGraph.fullscreenHandler);
   }
   cancelAnimationFrame(activeGraph.frame);
   activeGraph = undefined;
@@ -334,18 +334,18 @@ export function destroyGraph(): void {
 /** Mounts graph. */
 export function mountGraph(data: any): void {
   destroyGraph();
-  const canvasElement = document.querySelector<HTMLCanvasElement>('.rw-graph__canvas, .graph-canvas');
+  const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas, .graph-canvas");
   if (!canvasElement) {
     return;
   }
   const canvas = canvasElement;
 
-  const context = canvas.getContext('2d');
-  const status = document.querySelector<HTMLElement>('#graph-layout-status');
-  const selectionPanel = document.querySelector<HTMLElement>('#graph-selection');
-  const zoomIndicator = document.querySelector<HTMLElement>('#graph-zoom-indicator');
-  const sourceNodes: GraphNode[] = list(data, ['nodes']);
-  const sourceEdges: GraphEdge[] = list(data, ['edges']);
+  const context = canvas.getContext("2d");
+  const status = document.querySelector<HTMLElement>("#graph-layout-status");
+  const selectionPanel = document.querySelector<HTMLElement>("#graph-selection");
+  const zoomIndicator = document.querySelector<HTMLElement>("#graph-zoom-indicator");
+  const sourceNodes: GraphNode[] = list(data, ["nodes"]);
+  const sourceEdges: GraphEdge[] = list(data, ["edges"]);
   const clusters = graphClusters(sourceNodes, sourceEdges);
 
   const degree = new Map<string | number, number>(sourceNodes.map(function(node) {
@@ -362,7 +362,7 @@ export function mountGraph(data: any): void {
     const cluster = clusters.byID.get(node.id) || 0;
     const clusterAngle = cluster / Math.max(clusters.components.length, 1) * Math.PI * 2;
     const clusterDistance = clusters.components.length > 1 ? 210 : 0;
-    const distance = 40 + hash(node.id + ':distance') % 150;
+    const distance = 40 + hash(node.id + ":distance") % 150;
     return {
       ...node,
       cluster: cluster,
@@ -382,7 +382,7 @@ export function mountGraph(data: any): void {
   }).map(function(edge, index) {
     return {
       ...edge,
-      id: edge.id || edge.type + ':' + index,
+      id: edge.id || edge.type + ":" + index,
       source: nodeByID.get(endpointID(edge.source))!,
       target: nodeByID.get(endpointID(edge.target))!
     };
@@ -405,7 +405,7 @@ export function mountGraph(data: any): void {
     neighbours: neighbours,
     selection: null,
     hovered: null,
-    searchQuery: '',
+    searchQuery: "",
     colors: palette(),
     spatialIndex: null,
     clusterSummaries: clusterOverview(nodes),
@@ -422,36 +422,36 @@ export function mountGraph(data: any): void {
 
   const largeGraph = nodes.length > 2500;
   const simulation = forceSimulation(nodes)
-    .force('link', forceLink(edges)
+    .force("link", forceLink(edges)
       .id(function(node) { return node.id; })
       .distance(function(edge) {
-        if (edge.type === 'citation') {
+        if (edge.type === "citation") {
           return 125;
         }
-        if (edge.type === 'coauthor' || edge.type === 'shared_reference') {
+        if (edge.type === "coauthor" || edge.type === "shared_reference") {
           return 145;
         }
-        if (edge.type === 'reference_author') {
+        if (edge.type === "reference_author") {
           return 70;
         }
         return 92;
       })
       .strength(largeGraph ? 0.34 : 0.72))
-    .force('charge', forceManyBody()
+    .force("charge", forceManyBody()
       .strength(function(node) {
-        if (node.type === 'article') {
+        if (node.type === "article") {
           return -260;
         }
         return -140;
       })
       .distanceMax(largeGraph ? 380 : 720))
-    .force('center', forceCenter(0, 0))
+    .force("center", forceCenter(0, 0))
     .alpha(1)
     .alphaDecay(nodes.length > 5000 ? 0.16 : nodes.length > 2500 ? 0.11 : nodes.length > 900 ? 0.065 : 0.028)
     .stop();
 
   if (!largeGraph) {
-    simulation.force('collision', forceCollide()
+    simulation.force("collision", forceCollide()
       .radius(function(node) { return node.radius + 7; })
       .strength(0.92)
       .iterations(nodes.length > 900 ? 1 : 2));
@@ -538,12 +538,12 @@ function drawClusterOverview(context: CanvasRenderingContext2D, clusters: Cluste
 
     context.globalAlpha = 1;
     context.fillStyle = colors.text;
-    context.textAlign = 'center';
-    context.textBaseline = 'top';
-    context.font = '600 10px ui-sans-serif, system-ui';
-    context.fillText('Cluster ' + (cluster.id + 1), x, y + radius + 5);
-    context.font = '9px ui-sans-serif, system-ui';
-    context.fillText(cluster.size.toLocaleString() + (cluster.size === 1 ? ' entity' : ' entities'), x, y + radius + 17);
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    context.font = "600 10px ui-sans-serif, system-ui";
+    context.fillText("Cluster " + (cluster.id + 1), x, y + radius + 5);
+    context.font = "9px ui-sans-serif, system-ui";
+    context.fillText(cluster.size.toLocaleString() + (cluster.size === 1 ? " entity" : " entities"), x, y + radius + 17);
     return { id: cluster.id, x: x, y: y, radius: radius };
   });
 }
@@ -570,7 +570,7 @@ function runLayout(graph: GraphState, status: HTMLElement | null): void {
   graph.simulation.alpha(1).restart().stop();
   graph.spatialIndex = null;
   graph.layoutRunning = true;
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   var tickLimit: number;
   if (graph.nodes.length > 5000) {
     tickLimit = 20;
@@ -608,16 +608,16 @@ function runLayout(graph: GraphState, status: HTMLElement | null): void {
       graph.layoutRunning = false;
       if (status) {
         if (reduced) {
-          status.textContent = 'Physics layout placed with reduced motion';
+          status.textContent = "Physics layout placed with reduced motion";
         } else {
-          status.textContent = 'Physics layout settled';
+          status.textContent = "Physics layout settled";
         }
       }
     }
   }
 
   if (status) {
-    status.textContent = 'Running physics layout';
+    status.textContent = "Running physics layout";
   }
   graph.frame = requestAnimationFrame(next);
 }
@@ -646,7 +646,7 @@ function draw(graph: GraphState): void {
   const clusterOverviewVisible = nodes.length > 1500 && !selection && !searchQuery && view.scale < 0.2;
   graph.overviewMode = clusterOverviewVisible;
   if (clusterOverviewVisible) {
-    const legend = canvas.parentElement!.querySelector('.rw-graph__legend') as HTMLElement | null;
+    const legend = canvas.parentElement!.querySelector(".rw-graph__legend") as HTMLElement | null;
     const legendInset = (legend ? legend.offsetHeight : 0) + 24;
     graph.overviewLayout = drawClusterOverview(context, graph.clusterSummaries, colors, width, height, graph.overviewOffset, legendInset);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -668,7 +668,7 @@ function draw(graph: GraphState): void {
     searchMatchIds = new Set();
     nodes.forEach(function(node) {
       const searchable = [node.label, node.id, node.doi, node.orcid, node.author]
-        .filter(Boolean).join(' ').toLocaleLowerCase();
+        .filter(Boolean).join(" ").toLocaleLowerCase();
       if (searchable.includes(searchQuery)) {
         searchMatchIds!.add(node.id);
       }
@@ -701,9 +701,9 @@ function draw(graph: GraphState): void {
       context.lineWidth = 1 / view.scale;
     }
 
-    if (edge.type === 'coauthor' || edge.type === 'shared_reference') {
+    if (edge.type === "coauthor" || edge.type === "shared_reference") {
       context.setLineDash([6 / view.scale, 4 / view.scale]);
-    } else if (edge.type === 'reference_author') {
+    } else if (edge.type === "reference_author") {
       context.setLineDash([2 / view.scale, 4 / view.scale]);
     } else {
       context.setLineDash([]);
@@ -714,7 +714,7 @@ function draw(graph: GraphState): void {
     context.stroke();
     context.setLineDash([]);
 
-    if (edge.type === 'citation' && relevant) {
+    if (edge.type === "citation" && relevant) {
       drawArrow(context, edge.source as GraphNode, edge.target as GraphNode, 5 / view.scale, colors.edge);
     }
   }
@@ -749,12 +749,12 @@ function draw(graph: GraphState): void {
       context.lineWidth = 1.1 / view.scale;
     }
 
-    if (node.type === 'reference') {
+    if (node.type === "reference") {
       drawDiamond(context, node.x!, node.y!, node.radius!);
-    } else if (node.type === 'author') {
+    } else if (node.type === "author") {
       context.beginPath();
       context.rect(node.x! - node.radius!, node.y! - node.radius!, node.radius! * 2, node.radius! * 2);
-    } else if (node.type === 'referenced_author') {
+    } else if (node.type === "referenced_author") {
       drawTriangle(context, node.x!, node.y!, node.radius!);
     } else {
       context.beginPath();
@@ -768,13 +768,13 @@ function draw(graph: GraphState): void {
     if (isSearchMatch) {
       context.strokeStyle = colors.focus;
       context.lineWidth = 2.5 / view.scale;
-      if (node.type === 'reference') {
+      if (node.type === "reference") {
         drawDiamond(context, node.x!, node.y!, node.radius! + 4 / view.scale);
-      } else if (node.type === 'author') {
+      } else if (node.type === "author") {
         context.beginPath();
         const searchRadius = node.radius! + 4 / view.scale;
         context.rect(node.x! - searchRadius, node.y! - searchRadius, searchRadius * 2, searchRadius * 2);
-      } else if (node.type === 'referenced_author') {
+      } else if (node.type === "referenced_author") {
         drawTriangle(context, node.x!, node.y!, node.radius! + 4 / view.scale);
       } else {
         context.beginPath();
@@ -795,8 +795,8 @@ function draw(graph: GraphState): void {
   if (labelNode) {
     const label = String(labelNode.label || labelNode.id);
     context.globalAlpha = 1;
-    context.font = (12 / view.scale) + 'px ui-sans-serif, system-ui';
-    context.textBaseline = 'middle';
+    context.font = (12 / view.scale) + "px ui-sans-serif, system-ui";
+    context.textBaseline = "middle";
     const labelX = labelNode.x! + labelNode.radius! + 7 / view.scale;
     const labelWidth = context.measureText(label).width;
     context.fillStyle = colors.surface;
@@ -874,7 +874,7 @@ function buildSpatialIndex(nodes: GraphNode[]): { cellSize: number; cells: Map<s
   const cellSize = 64;
   const cells = new Map<string, GraphNode[]>();
   nodes.forEach(function(node) {
-    const key = Math.floor(node.x! / cellSize) + ':' + Math.floor(node.y! / cellSize);
+    const key = Math.floor(node.x! / cellSize) + ":" + Math.floor(node.y! / cellSize);
     if (!cells.has(key)) {
       cells.set(key, []);
     }
@@ -890,7 +890,7 @@ function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> 
   const candidates: GraphNode[] = [];
   for (var dx = -1; dx <= 1; dx += 1) {
     for (var dy = -1; dy <= 1; dy += 1) {
-      const bucket = index.cells.get((x + dx) + ':' + (y + dy));
+      const bucket = index.cells.get((x + dx) + ":" + (y + dy));
       if (bucket) {
         candidates.push(...bucket);
       }
@@ -932,7 +932,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   function setSelection(id: string | number | null): void {
     graph.selection = id;
     graph.edgePage = 1;
-    var clearButton = document.querySelector<HTMLButtonElement>('#graph-clear-selection');
+    var clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
     if (clearButton) {
       clearButton.disabled = !id;
     }
@@ -943,15 +943,15 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         selectionPanel.innerHTML = selectionMarkup(node, neighbours);
       }
     } else if (selectionPanel) {
-      selectionPanel.innerHTML = '<p>Select a node to inspect its direct relationships.</p>';
+      selectionPanel.innerHTML = "<p>Select a node to inspect its direct relationships.</p>";
     }
     const url = new URL(location.href);
     if (id) {
-      url.searchParams.set('node', String(id));
+      url.searchParams.set("node", String(id));
     } else {
-      url.searchParams.delete('node');
+      url.searchParams.delete("node");
     }
-    history.replaceState({}, '', url.toString());
+    history.replaceState({}, "", url.toString());
     draw(graph);
     renderEdgePage(graph);
   }
@@ -959,11 +959,11 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   /** Updates zoom display. */
   function updateZoomDisplay(): void {
     if (zoomIndicator) {
-      zoomIndicator.textContent = Math.round(graph.view.scale * 100) + '%';
+      zoomIndicator.textContent = Math.round(graph.view.scale * 100) + "%";
     }
   }
 
-  graph.canvas.addEventListener('pointerdown', function(event) {
+  graph.canvas.addEventListener("pointerdown", function(event) {
     if (event.button === 2) {
       event.preventDefault();
       drag = {
@@ -977,7 +977,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         secondary: true,
         moved: false
       };
-      graph.canvas.style.cursor = 'grabbing';
+      graph.canvas.style.cursor = "grabbing";
       graph.canvas.setPointerCapture(event.pointerId);
       return;
     }
@@ -1011,7 +1011,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     graph.canvas.setPointerCapture(event.pointerId);
   });
 
-  graph.canvas.addEventListener('pointermove', function(event) {
+  graph.canvas.addEventListener("pointermove", function(event) {
     if (drag) {
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > dragThreshold;
       if (drag.node) {
@@ -1028,7 +1028,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       return;
     }
     if (graph.overviewMode) {
-      graph.canvas.style.cursor = nearestOverviewCluster(graph, event) ? 'pointer' : 'grab';
+      graph.canvas.style.cursor = nearestOverviewCluster(graph, event) ? "pointer" : "grab";
       return;
     }
     var node = nearestNode(graph, graphCoordinates(graph, event));
@@ -1036,15 +1036,15 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     if (hovered !== graph.hovered) {
       graph.hovered = hovered;
       if (hovered) {
-        graph.canvas.style.cursor = 'pointer';
+        graph.canvas.style.cursor = "pointer";
       } else {
-        graph.canvas.style.cursor = 'grab';
+        graph.canvas.style.cursor = "grab";
       }
       draw(graph);
     }
   });
 
-  graph.canvas.addEventListener('pointerup', function(event) {
+  graph.canvas.addEventListener("pointerup", function(event) {
     if (drag && drag.node && !drag.moved) {
       setSelection(graph.selection === drag.node.id ? null : drag.node.id);
     } else if (drag && drag.background && !drag.moved && !drag.secondary) {
@@ -1054,22 +1054,22 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     if (graph.canvas.hasPointerCapture(event.pointerId)) {
       graph.canvas.releasePointerCapture(event.pointerId);
     }
-    graph.canvas.style.cursor = graph.hovered ? 'pointer' : 'grab';
+    graph.canvas.style.cursor = graph.hovered ? "pointer" : "grab";
   });
 
-  graph.canvas.addEventListener('pointercancel', function(event) {
+  graph.canvas.addEventListener("pointercancel", function(event) {
     drag = null;
     if (graph.canvas.hasPointerCapture(event.pointerId)) {
       graph.canvas.releasePointerCapture(event.pointerId);
     }
-    graph.canvas.style.cursor = 'grab';
+    graph.canvas.style.cursor = "grab";
   });
 
-  graph.canvas.addEventListener('contextmenu', function(event) {
+  graph.canvas.addEventListener("contextmenu", function(event) {
     event.preventDefault();
   });
 
-  graph.canvas.addEventListener('wheel', function(event) {
+  graph.canvas.addEventListener("wheel", function(event) {
     event.preventDefault();
     const previous = graph.view.scale;
     var factor;
@@ -1091,29 +1091,29 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     updateZoomDisplay();
   }, { passive: false });
 
-  var runLayoutButton = document.querySelector<HTMLButtonElement>('#graph-run-layout');
+  var runLayoutButton = document.querySelector<HTMLButtonElement>("#graph-run-layout");
   if (runLayoutButton) {
-    runLayoutButton.addEventListener('click', function() {
+    runLayoutButton.addEventListener("click", function() {
       runLayout(graph, status);
     });
   }
 
-  var fitButton = document.querySelector<HTMLButtonElement>('#graph-fit');
+  var fitButton = document.querySelector<HTMLButtonElement>("#graph-fit");
   if (fitButton) {
-    fitButton.addEventListener('click', function() {
+    fitButton.addEventListener("click", function() {
       fitGraph(graph);
       updateZoomDisplay();
     });
   }
 
-  var clearButton = document.querySelector<HTMLButtonElement>('#graph-clear-selection');
+  var clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
   if (clearButton) {
-    clearButton.addEventListener('click', function() {
+    clearButton.addEventListener("click", function() {
       setSelection(null);
     });
   }
 
-  const requestedSelection = value('node');
+  const requestedSelection = value("node");
   if (requestedSelection && graph.nodes.some(function(node) { return node.id === requestedSelection; })) {
     setSelection(requestedSelection);
   } else {
@@ -1125,10 +1125,10 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
  * Bind graph node search — highlights matching nodes by name/DOI.
  */
 function bindGraphSearch(graph: GraphState): void {
-  const searchInput = document.querySelector<HTMLInputElement>('#graph-node-search');
+  const searchInput = document.querySelector<HTMLInputElement>("#graph-node-search");
   if (!searchInput) return;
 
-  searchInput.addEventListener('input', function() {
+  searchInput.addEventListener("input", function() {
     graph.searchQuery = searchInput.value.trim().toLocaleLowerCase();
     draw(graph);
   });
@@ -1138,20 +1138,20 @@ function bindGraphSearch(graph: GraphState): void {
  * Bind graph export as PNG — downloads the canvas as a PNG image.
  */
 function bindGraphExport(graph: GraphState, data: any): void {
-  var exportBtn = document.querySelector<HTMLButtonElement>('#graph-export-png');
+  var exportBtn = document.querySelector<HTMLButtonElement>("#graph-export-png");
   if (!exportBtn) return;
 
-  exportBtn.addEventListener('click', function() {
+  exportBtn.addEventListener("click", function() {
     // Draw a clean version without search highlights for export
     var savedQuery = graph.searchQuery;
-    graph.searchQuery = '';
+    graph.searchQuery = "";
     draw(graph);
-    const image = graph.canvas.toDataURL('image/png');
+    const image = graph.canvas.toDataURL("image/png");
     graph.searchQuery = savedQuery;
     draw(graph);
 
-    var link = document.createElement('a');
-    link.download = 'graph-export.png';
+    var link = document.createElement("a");
+    link.download = "graph-export.png";
     link.href = image;
     link.click();
   });
@@ -1159,8 +1159,8 @@ function bindGraphExport(graph: GraphState, data: any): void {
 
 /** Binds DOM behavior for graph expand. */
 function bindGraphExpand(graph: GraphState): void {
-  const expandButton = document.querySelector<HTMLButtonElement>('#graph-expand');
-  const expandViewport = document.querySelector<HTMLElement>('#graph-viewport');
+  const expandButton = document.querySelector<HTMLButtonElement>("#graph-expand");
+  const expandViewport = document.querySelector<HTMLElement>("#graph-viewport");
   if (!expandButton || !expandViewport) {
     return;
   }
@@ -1168,8 +1168,8 @@ function bindGraphExpand(graph: GraphState): void {
   const viewport = expandViewport;
   /** Updates label. */
   function updateLabel(): void {
-    const expanded = document.fullscreenElement === viewport || viewport.classList.contains('rw-graph__viewport--expanded');
-    button.textContent = expanded ? 'Restore graph' : 'Expand graph';
+    const expanded = document.fullscreenElement === viewport || viewport.classList.contains("rw-graph__viewport--expanded");
+    button.textContent = expanded ? "Restore graph" : "Expand graph";
     requestAnimationFrame(function() {
       if (graph.resizeObserver) {
         const rect = graph.canvas.getBoundingClientRect();
@@ -1179,39 +1179,39 @@ function bindGraphExpand(graph: GraphState): void {
       }
     });
   }
-  button.addEventListener('click', async function() {
+  button.addEventListener("click", async function() {
     try {
       if (document.fullscreenElement === viewport && document.exitFullscreen) {
         await document.exitFullscreen();
       } else if (viewport.requestFullscreen) {
         await viewport.requestFullscreen();
       } else {
-        viewport.classList.toggle('rw-graph__viewport--expanded');
+        viewport.classList.toggle("rw-graph__viewport--expanded");
         updateLabel();
       }
     } catch (_) {
-      viewport.classList.toggle('rw-graph__viewport--expanded');
+      viewport.classList.toggle("rw-graph__viewport--expanded");
       updateLabel();
     }
   });
   graph.fullscreenHandler = updateLabel;
-  document.addEventListener('fullscreenchange', updateLabel);
+  document.addEventListener("fullscreenchange", updateLabel);
 }
 
 /** Selects ion markup. */
 function selectionMarkup(node: GraphNode | undefined, neighbours: number): string {
   if (!node) {
-    return '<p>Select a node to inspect its direct relationships.</p>';
+    return "<p>Select a node to inspect its direct relationships.</p>";
   }
   var typeLabel;
-  if (node.type === 'article') {
-    typeLabel = 'Article revision';
-  } else if (node.type === 'author') {
-    typeLabel = 'Author occurrence';
-  } else if (node.type === 'referenced_author') {
-    typeLabel = 'Referenced-author string';
+  if (node.type === "article") {
+    typeLabel = "Article revision";
+  } else if (node.type === "author") {
+    typeLabel = "Author occurrence";
+  } else if (node.type === "referenced_author") {
+    typeLabel = "Referenced-author string";
   } else {
-    typeLabel = 'Reference mention';
+    typeLabel = "Reference mention";
   }
   var identifier;
   if (node.doi) {
@@ -1219,17 +1219,17 @@ function selectionMarkup(node: GraphNode | undefined, neighbours: number): strin
   } else if (node.orcid) {
     identifier = node.orcid;
   } else {
-    identifier = 'No DOI or ORCID recorded';
+    identifier = "No DOI or ORCID recorded";
   }
   const href = graphLink(node);
-  var action = '<span class="ui faded text">No separate domain record exists for this raw referenced-author string.</span>';
+  var action = `<span class="ui faded text">No separate domain record exists for this raw referenced-author string.</span>`;
   if (href) {
-    action = '<a href="' + href + '">Open full record</a>';
+    action = `<a href="` + href + `">Open full record</a>`;
   }
-  return '<h3>' + esc(typeLabel) + '</h3>'
-    + '<p><strong>' + esc(node.label || node.id) + '</strong></p>'
-    + '<p>' + esc(identifier) + ' \u00B7 cluster ' + esc(String((node.cluster || 0) + 1))
-    + ' \u00B7 ' + esc(String(node.degree)) + ' visible relationships \u00B7 ' + esc(String(neighbours)) + ' direct neighbours</p>'
+  return "<h3>" + esc(typeLabel) + "</h3>"
+    + "<p><strong>" + esc(node.label || node.id) + "</strong></p>"
+    + "<p>" + esc(identifier) + " \u00B7 cluster " + esc(String((node.cluster || 0) + 1))
+    + " \u00B7 " + esc(String(node.degree)) + " visible relationships \u00B7 " + esc(String(neighbours)) + " direct neighbours</p>"
     + action;
 }
 
@@ -1238,14 +1238,14 @@ function nodeMarkup(node: GraphNode): string {
   const href = graphLink(node);
   const label = esc(node.label || node.id);
   if (href) {
-    return '<a href="' + href + '">' + label + '</a>';
+    return `<a href="` + href + `">` + label + "</a>";
   }
   return label;
 }
 
 /** Renders edge page. */
 function renderEdgePage(graph: GraphState): void {
-  const target = document.querySelector<HTMLElement>('#graph-edge-rows');
+  const target = document.querySelector<HTMLElement>("#graph-edge-rows");
   if (!target) {
     return;
   }
@@ -1263,33 +1263,33 @@ function renderEdgePage(graph: GraphState): void {
   var rowsHtml;
   if (rows.length) {
     rowsHtml = rows.map(function(edge) {
-      return '<tr>'
-        + '<td>' + esc(relationshipLabel(edge)) + '</td>'
-        + '<td>' + nodeMarkup(edge.source as GraphNode) + '</td>'
-        + '<td>' + nodeMarkup(edge.target as GraphNode) + '</td>'
-        + '<td>' + esc(edgeDetails(edge)) + '</td>'
-        + '</tr>';
-    }).join('');
+      return "<tr>"
+        + "<td>" + esc(relationshipLabel(edge)) + "</td>"
+        + "<td>" + nodeMarkup(edge.source as GraphNode) + "</td>"
+        + "<td>" + nodeMarkup(edge.target as GraphNode) + "</td>"
+        + "<td>" + esc(edgeDetails(edge)) + "</td>"
+        + "</tr>";
+    }).join("");
   } else {
-    rowsHtml = '<tr><td colspan="4" class="empty">No relationships.</td></tr>';
+    rowsHtml = `<tr><td colspan="4" class="empty">No relationships.</td></tr>`;
   }
 
-  target.innerHTML = '<div class="table-wrap" aria-label="Relationship table">'
-    + '<table class="ui table"><thead><tr>'
-    + '<th scope="col">Relationship</th>'
-    + '<th scope="col">From</th>'
-    + '<th scope="col">To</th>'
-    + '<th scope="col">Details</th>'
-    + '</tr></thead><tbody>'
+  target.innerHTML = `<div class="table-wrap" aria-label="Relationship table">`
+    + `<table class="ui table"><thead><tr>`
+    + `<th scope="col">Relationship</th>`
+    + `<th scope="col">From</th>`
+    + `<th scope="col">To</th>`
+    + `<th scope="col">Details</th>`
+    + "</tr></thead><tbody>"
     + rowsHtml
-    + '</tbody></table></div>'
+    + "</tbody></table></div>"
     + pagination({ page: graph.edgePage, per_page: pageSize, total_rows: visibleEdges.length, total_pages: pages }, {
-      itemLabel: graph.selection ? 'relationships in this neighbourhood' : 'relationships',
-      pageAttribute: 'data-graph-page', pageClass: ' graph-page'
+      itemLabel: graph.selection ? "relationships in this neighbourhood" : "relationships",
+      pageAttribute: "data-graph-page", pageClass: " graph-page"
     });
 
-  target.querySelectorAll<HTMLButtonElement>('[data-graph-page]').forEach(function(button) {
-    button.addEventListener('click', function() {
+  target.querySelectorAll<HTMLButtonElement>("[data-graph-page]").forEach(function(button) {
+    button.addEventListener("click", function() {
       graph.edgePage = Number(button.dataset.graphPage) || 1;
       renderEdgePage(graph);
     });
@@ -1301,23 +1301,23 @@ function edgeDetails(edge: GraphEdge): string {
   if (edge.affiliation || edge.author_order) {
     var parts: string[] = [];
     if (edge.author_order) {
-      parts.push('Author ' + edge.author_order);
+      parts.push("Author " + edge.author_order);
     } else {
-      parts.push('—');
+      parts.push("—");
     }
     if (edge.affiliation) {
       parts.push(edge.affiliation);
     }
-    return parts.join(' \u00B7 ');
+    return parts.join(" \u00B7 ");
   }
   if (edge.shared_reference_count) {
-    return edge.shared_reference_count + ' shared cited DOI' + (edge.shared_reference_count === 1 ? '' : 's');
+    return edge.shared_reference_count + " shared cited DOI" + (edge.shared_reference_count === 1 ? "" : "s");
   }
-  if (edge.type === 'reference_author') {
-    return 'Raw author text captured on the reference mention';
+  if (edge.type === "reference_author") {
+    return "Raw author text captured on the reference mention";
   }
-  if (edge.type === 'coauthor') {
-    return 'Observed on the same article revision';
+  if (edge.type === "coauthor") {
+    return "Observed on the same article revision";
   }
-  return '—';
+  return "—";
 }
