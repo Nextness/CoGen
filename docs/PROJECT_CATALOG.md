@@ -3828,13 +3828,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`scopes note headings and tables beneath the review hierarchy`](../frontend/tests/unit/components/note-parser.test.ts#L33) | test | 33 | `it('scopes note headings and tables beneath the review hierarchy', callback)` | scopes note headings and tables beneath the review hierarchy |
 | [`matches the shared normalized link and diagnostic fixtures`](../frontend/tests/unit/components/note-parser.test.ts#L41) | test | 41 | `it('matches the shared normalized link and diagnostic fixtures', callback)` | matches the shared normalized link and diagnostic fixtures |
 
-### [`frontend/tests/unit/components/pagination.tsx.test.ts`](../frontend/tests/unit/components/pagination.tsx.test.ts)
+### [`frontend/tests/unit/components/pagination.test.ts`](../frontend/tests/unit/components/pagination.test.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`keeps a bounded page window around the current page`](../frontend/tests/unit/components/pagination.tsx.test.ts#L8) | test | 8 | `it('keeps a bounded page window around the current page', callback)` | keeps a bounded page window around the current page |
-| [`renders range, page count, numbered pages, and boundary controls`](../frontend/tests/unit/components/pagination.tsx.test.ts#L14) | test | 14 | `it('renders range, page count, numbered pages, and boundary controls', callback)` | renders range, page count, numbered pages, and boundary controls |
-| [`handles an empty result without inventing a visible row`](../frontend/tests/unit/components/pagination.tsx.test.ts#L24) | test | 24 | `it('handles an empty result without inventing a visible row', callback)` | handles an empty result without inventing a visible row |
+| [`keeps a bounded page window around the current page`](../frontend/tests/unit/components/pagination.test.ts#L8) | test | 8 | `it('keeps a bounded page window around the current page', callback)` | keeps a bounded page window around the current page |
+| [`renders range, page count, numbered pages, and boundary controls`](../frontend/tests/unit/components/pagination.test.ts#L14) | test | 14 | `it('renders range, page count, numbered pages, and boundary controls', callback)` | renders range, page count, numbered pages, and boundary controls |
+| [`handles an empty result without inventing a visible row`](../frontend/tests/unit/components/pagination.test.ts#L24) | test | 24 | `it('handles an empty result without inventing a visible row', callback)` | handles an empty result without inventing a visible row |
 
 ### [`frontend/tests/unit/components/pdf-viewer.test.ts`](../frontend/tests/unit/components/pdf-viewer.test.ts)
 

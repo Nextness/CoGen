@@ -11,7 +11,6 @@
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
     "test:unit": "node --import ./scripts/tsx-loader.mjs --test \"tests/unit/**/*.test.ts\"",
-    "test:unit:tsx": "node --import ./scripts/tsx-loader.mjs --test \"tests/unit/**/*.tsx.test.ts\"",
     "typecheck": "tsc --noEmit",
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium firefox webkit",

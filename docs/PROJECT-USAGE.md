@@ -198,7 +198,7 @@ The target runs `TestGenerateFixture` with `FORCE_FIXTURE=1`, uses production mi
 make test-frontend-unit
 ```
 
-The target runs every `frontend/tests/unit/**/*.test.ts` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests are authored in TypeScript and import the TypeScript sources under `frontend/src` directly with explicit `.ts` or `.tsx` specifiers; Node's native type stripping executes `.ts` sources and an esbuild loader hook executes `.tsx` sources, so no build step is required (Node 22.18+). `make test-frontend-unit-tsx` runs only the tests for migrated `.tsx` modules.
+The target runs every `frontend/tests/unit/**/*.test.ts` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests are authored in TypeScript and import the TypeScript sources under `frontend/src` directly with explicit `.ts` or `.tsx` specifiers; Node's native type stripping executes `.ts` sources and an esbuild loader hook executes `.tsx` sources, so no build step is required (Node 22.18+).
 
 ## 14. Playwright verification
 

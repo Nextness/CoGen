@@ -158,7 +158,7 @@ Frontend unit tests live under `frontend/tests/unit/`, are authored in TypeScrip
 - Browser tests use `*.spec.cjs` under `frontend/tests/` and follow navigate, assert, interact, assert URL, assert content.
 - Playwright targets copy the ignored generated fixture metadata and PDF pair for each invocation, start an isolated viewer on an operating-system-assigned loopback port, and isolate output under `build/playwright/`. No browser test writes the base fixture.
 - `viewer.spec.cjs` covers evidence browsing; serial `review.spec.cjs` covers mutations and PDF rendering; `ui-quality.spec.cjs` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.cjs` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
-- Run `make test-frontend-unit` for frontend logic, `make test-frontend-unit-tsx` for migrated `.tsx` modules, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
+- Run `make test-frontend-unit` for frontend logic, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
 - Run `make test-frontend-visual` for visual or accessibility changes and review snapshots rather than replacing them blindly.
 
 ## 16. CSS standards
