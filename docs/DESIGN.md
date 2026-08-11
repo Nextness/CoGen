@@ -260,22 +260,24 @@ The interface must not render credentials, tokens, private keys, raw environment
 | Path | Design responsibility |
 |---|---|
 | `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
-| `app.ts` | Global event binding, history interception, shell initialization, and first render. |
-| `state.ts` | URL values, DOM state, escaping, formatting, shared panels/tables/flows, links, statuses, and global UI behavior. |
-| `api.ts` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
-| `router.ts` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
-| `components/context-selector.ts` | Dependent searchable single-select hydration, loading skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
-| `components/data-table.ts` | Shared rows, sorting, search, page size, expansion, and control binding. |
-| `components/pagination.ts` | First/Previous/numbered/Next/Last controls and result ranges. |
-| `components/audit-events.ts` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
-| `components/graph.ts` | Graph query, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and relationship table. |
-| `components/shell.ts` | Health state and responsive primary-navigation toggle. |
-| `components/note-parser.ts` | Bounded note parsing, diagnostics, safe preview, unresolved labels, and resolved context-preserving links. |
-| `components/note-editor.ts` | Draft lifecycle, active versions, tombstones, restoration, history, and bounded comparison. |
-| `components/pdf-viewer.ts` | PDF.js worker and page lifecycle, single-page rendering, selectable text, geometry projection, boundary-aware controls, and highlights. |
-| `components/review-panel.ts` | Explicit lineage initialization, complete status state, conflicts, history, notes, PDF integration, and accessible anchors. |
-| `views/home.ts` | Context-independent history metrics, Explore links, and reversible run-visibility dialog behavior. |
-| `views/*.ts` | Page-level fetching, rendering, and post-render event binding for the Deepdive destinations and detail routes in section 4. |
+| `app.tsx` | Global event binding, history interception, shell initialization, and first render. |
+| `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
+| `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, permissive `IntrinsicElements`). |
+| `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
+| `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
+| `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
+| `components/context-selector.tsx` | Dependent searchable single-select hydration, loading skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
+| `components/pagination.tsx` | First/Previous/numbered/Next/Last controls and result ranges. |
+| `components/audit-events.tsx` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
+| `components/graph.tsx` | Graph query, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and relationship table. |
+| `components/shell.tsx` | Health state and responsive primary-navigation toggle. |
+| `components/note-parser.tsx` | Bounded note parsing, diagnostics, safe preview, unresolved labels, and resolved context-preserving links. |
+| `components/note-editor.tsx` | Draft lifecycle, active versions, tombstones, restoration, history, and bounded comparison. |
+| `components/pdf-viewer.tsx` | PDF.js worker and page lifecycle, single-page rendering, selectable text, geometry projection, boundary-aware controls, and highlights. |
+| `components/review-panel.tsx` | Explicit lineage initialization, complete status state, conflicts, history, notes, PDF integration, and accessible anchors. |
+| `views/home.tsx` | Context-independent history metrics, Explore links, and reversible run-visibility dialog behavior. |
+| `views/*.tsx` | Page-level fetching, rendering, and post-render event binding for the Deepdive destinations and detail routes in section 4. |
 | `styles/tokens.css` | Theme values, spacing, type, status, graph colors, focus, radius, and elevation. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, loaders, headers, and segment primitives. |
@@ -285,7 +287,7 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; never edit it manually. |
 | `vendor/pdfjs/` | Generated pinned PDF.js core, exact worker, CMaps, standard fonts, and license assets; never edit them manually. |
 
-Components may import shared state, API, router helpers, pagination, and the pinned D3 module as required, but they must not import view modules. Views own `app.innerHTML`; reusable components return markup or bind behavior to caller-owned DOM.
+Components may import shared state, API, router helpers, the JSX runtime, pagination, and the pinned D3 module as required, but they must not import view modules. Views build a JSX tree and call `render(<View .../>, app)`; reusable components return JSX elements, and behavior helpers bind to caller-owned DOM after render.
 
 ## 21. Testing and acceptance
 
@@ -303,7 +305,8 @@ Acceptance requires no hard-coded context-dropping internal links, no unbounded 
 - Browser note drafts are best-effort local storage, are not part of database history or OSF export, and can be lost through storage clearing, quota, privacy mode, or another browser profile.
 - Corpus author and reference lists include relationships from all revision snapshots in a run, so repeated conceptual values are possible and must remain labeled as occurrences or mentions.
 - Graph limits can truncate large networks; the endpoint reports this, but the browser does not stream beyond the configured bounds.
-- The frontend is string-template based, so every new dynamic value must deliberately use `esc`; there is no framework-level automatic escaping.
+- The frontend uses the project-owned JSX runtime in [JSX-RUNTIME.md](JSX-RUNTIME.md). Text and attribute values are escaped automatically; the controlled `raw` escape hatch accepts only trusted, already-escaped markup.
+- The JSX runtime has no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`. The `renderToString` bridge and the `raw` escape hatch remain only while string-returning wrappers and container bodies still use them during migration.
 - Router and context-selector currently form one ES-module cycle to connect selector navigation with render-time hydration; it is initialized safely, but new modules should not add dependencies to that cycle.
 - The URL contains research context and filters, which is useful for reproducibility but can reveal search/run identifiers through copied links or browser history.
 - The local fixture and screenshot baselines represent controlled test data and Chromium/Linux rendering; they do not prove visual identity across every platform font and browser.

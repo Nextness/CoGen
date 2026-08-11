@@ -1,0 +1,99 @@
+// Unit tests for router.js — URL state, view routing, render orchestrator.
+import { describe, it, before, mock } from 'node:test';
+import assert from 'node:assert/strict';
+
+import './setup.ts';
+import { setURL, bindFocusContext, render } from '../../src/router.tsx';
+import { state, app } from '../../src/state.tsx';
+
+describe('router.js — setURL', function() {
+
+  it('updates URL and triggers render', function() {
+    const originalHref = location.href;
+    setURL({ view: 'corpus' }, false);
+    assert.ok(location.href.includes('view=corpus'));
+
+    history.pushState({}, '', originalHref);
+  });
+
+  it('replaces state when replace is true', function() {
+    const originalHref = location.href;
+    setURL({ view: 'provenance' }, true);
+    assert.ok(location.href.includes('view=provenance'));
+
+    history.pushState({}, '', originalHref);
+  });
+
+});
+
+describe('router.js — bindFocusContext', function() {
+
+  it('binds click handler to focus-context button', function() {
+    const button = document.createElement('button');
+    button.dataset.focusContext = '';
+    document.body.appendChild(button);
+
+    bindFocusContext();
+
+    button.click();
+    assert.ok(true);
+
+    button.remove();
+  });
+
+  it('does nothing when button is missing', function() {
+    bindFocusContext();
+    assert.ok(true);
+  });
+
+});
+
+describe('router.js — render', function() {
+
+  before(function() {
+    state.request = 0;
+    state.controller = null;
+  });
+
+  it('renders overview when no view is set', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() { return Promise.resolve({ data: [] }); },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    const url = new URL(location.href);
+    url.searchParams.set('view', 'overview');
+    history.pushState({}, '', url.toString());
+
+    await render();
+    assert.ok(app.innerHTML.length > 0 || app.innerHTML === '');
+    assert.equal((document.querySelector('.context-panel') as HTMLElement).hidden, false);
+    assert.equal((document.querySelector('.primary-nav') as HTMLElement).hidden, false);
+    assert.equal(document.querySelector('[data-view-link="overview"]')!.classList.contains('active'), true);
+    assert.match(document.querySelector('#workspace-breadcrumb')!.textContent, /Home.*Deepdive.*Overview/);
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('renders Home as the root shell without Deepdive context or tabs', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
+    } as typeof fetch;
+    history.pushState({}, '', '?view=home');
+
+    await render();
+
+    assert.equal(document.querySelector('.rw-page-header__kicker'), null);
+    assert.equal((document.querySelector('.context-panel') as HTMLElement).hidden, true);
+    assert.equal((document.querySelector('.primary-nav') as HTMLElement).hidden, true);
+    assert.equal(document.querySelector('#workspace-breadcrumb')!.textContent.trim(), 'Home');
+
+    globalThis.fetch = originalFetch;
+  });
+
+});

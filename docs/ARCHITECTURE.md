@@ -345,11 +345,11 @@ browser POST/PUT -> transport and context validation -> PDF availability read ->
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module SPA authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests import the TypeScript sources directly through Node's native type stripping, so no build step is required for `make test-frontend-unit`. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.ts` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
+The frontend is a framework-free native ES-module SPA authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `make test-frontend-unit-tsx` runs only the tests for migrated `.tsx` modules. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.ts` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
 
 The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
 
-`router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, replace `app.innerHTML`, and then bind interactions that require the new DOM.
+`router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, build a JSX tree, and call `render(<View .../>, app)` (the project-owned runtime in `jsx/jsx-runtime.ts`, documented in [JSX-RUNTIME.md](JSX-RUNTIME.md)), then bind interactions that require the new DOM.
 
 ```text
 URL/history event
@@ -361,7 +361,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
       +---------------------------------------------- API fetch
                                                           |
                                                           v
-                                            replace app.innerHTML
+                                    render(<View/>, app) into #app
                                                           |
                                                           v
                                               bind view interactions
@@ -372,22 +372,24 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | Path | Responsibility |
 |---|---|
 | `index.html` | Persistent header, breadcrumb, Deepdive navigation, searchable context selectors, status, loading, notice, and app mount point. |
-| `app.ts` | Global event binding, history interception, shell initialization, and first render. |
-| `state.ts` | URL values, DOM state, escaping, formatting, shared panels, tables, flows, links, statuses, and global UI behavior. |
-| `api.ts` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
-| `router.ts` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
-| `components/context-selector.ts` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
-| `components/data-table.ts` | Shared rows, sorting, search, page size, expansion, and control binding. |
-| `components/pagination.ts` | First, Previous, numbered, Next, and Last controls plus result ranges. |
-| `components/audit-events.ts` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
-| `components/graph.ts` | Query state, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and edge table. |
-| `components/shell.ts` | Health state and responsive navigation toggle. |
-| `components/note-parser.ts` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
-| `components/note-editor.ts` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
-| `components/pdf-viewer.ts` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
-| `components/review-panel.ts` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
-| `views/home.ts` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
-| `views/*.ts` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
+| `app.tsx` | Global event binding, history interception, shell initialization, and first render. |
+| `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. |
+| `jsx/jsx.d.ts` | Ambient global `JSX` namespace. |
+| `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels, tables, flows, links, statuses, and global UI behavior. |
+| `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
+| `router.tsx` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
+| `components/context-selector.tsx` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
+| `components/pagination.tsx` | First, Previous, numbered, Next, and Last controls plus result ranges. |
+| `components/audit-events.tsx` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |
+| `components/graph.tsx` | Query state, connected components, canvas lifecycle, simulation, drawing, interactions, export, selection, and edge table. |
+| `components/shell.tsx` | Health state and responsive navigation toggle. |
+| `components/note-parser.tsx` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
+| `components/note-editor.tsx` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
+| `components/pdf-viewer.tsx` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
+| `components/review-panel.tsx` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
+| `views/home.tsx` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
+| `views/*.tsx` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, headers, loaders, and segments. |
@@ -400,32 +402,32 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 ### 15.2 Frontend module graph
 
 ```text
-app.ts
-  +-- state.ts                    no project imports
-  +-- router.ts
-  |     +-- state.ts
-  |     +-- context-selector.ts --+-- state.ts
-  |     |                         +-- api.ts -> state.ts
-  |     |                         +-- router.ts
-  |     +-- home.ts --------------+-- state.ts, api.ts, router.ts
-  |     +-- overview.ts ----------+-- state.ts, api.ts, router.ts
-  |     +-- corpus.ts ------------+-- state.ts, api.ts, data-table.ts, pagination.ts
-  |     +-- relationships.ts -----+-- state.ts, api.ts, graph.ts, router.ts
-  |     +-- provenance.ts --------+-- state.ts, api.ts, data-table.ts, router.ts
-  |     +-- evaluation.ts --------+-- state.ts, api.ts, data-table.ts, router.ts
-  |     +-- advanced.ts ----------+-- state.ts, api.ts, data-table.ts, router.ts
-  |     +-- detail.ts ------------+-- state.ts, api.ts, pagination.ts, review-panel.ts
-  +-- api.ts
-  +-- context-selector.ts
-  +-- shell.ts -> api.ts
+app.tsx
+  +-- state.tsx                    no project imports
+  +-- router.tsx
+  |     +-- state.tsx
+  |     +-- context-selector.tsx --+-- state.tsx
+  |     |                          +-- api.tsx -> state.tsx
+  |     |                          +-- router.tsx
+  |     +-- home.tsx --------------+-- state.tsx, api.tsx, router.tsx
+  |     +-- overview.tsx ----------+-- state.tsx, api.tsx, router.tsx
+  |     +-- corpus.tsx ------------+-- state.tsx, api.tsx, data-table.tsx, pagination.tsx
+  |     +-- relationships.tsx -----+-- state.tsx, api.tsx, graph.tsx, router.tsx
+  |     +-- provenance.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
+  |     +-- evaluation.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
+  |     +-- advanced.tsx ----------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
+  |     +-- detail.tsx ------------+-- state.tsx, api.tsx, pagination.tsx, review-panel.tsx
+  +-- api.tsx
+  +-- context-selector.tsx
+  +-- shell.tsx -> api.tsx
 
-graph.ts -> state.ts, router.ts, pagination.ts, vendor/d3-force.js
-data-table.ts -> state.ts, router.ts, pagination.ts
-review-panel.ts -> api.ts, state.ts, note-editor.ts, pdf-viewer.ts
-note-editor.ts -> api.ts, state.ts, note-parser.ts
+graph.tsx -> state.tsx, router.tsx, pagination.tsx, vendor/d3-force.js
+data-table.tsx -> state.tsx, router.tsx, pagination.tsx
+review-panel.tsx -> api.tsx, state.tsx, note-editor.tsx, pdf-viewer.tsx
+note-editor.tsx -> api.tsx, state.tsx, note-parser.tsx
 ```
 
-`state.ts` is the shared leaf and imports no project module. Components do not import views. `router.ts` and `context-selector.ts` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
+`state.tsx` is the shared leaf and imports only the project-owned JSX runtime. Components do not import views. `router.tsx` and `context-selector.tsx` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
 
 Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, and content-hash-bound anchors; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 
@@ -484,7 +486,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - The viewer has no authentication or authorization and therefore rejects non-loopback listeners; local processes and users with host access remain inside its trust boundary.
 - Author and reference collections may contain repeated conceptual values across revision snapshots and must retain occurrence, mention, revision, or producer-stage labels.
 - Large graph responses are truncated at fixed bounds and are not streamed beyond those limits.
-- Frontend templates are strings, so every dynamic value requires deliberate use of `esc`; there is no framework-level automatic escaping.
+- Frontend rendering uses the project-owned JSX runtime documented in [JSX-RUNTIME.md](JSX-RUNTIME.md); text and attributes are escaped automatically, and the controlled `raw` escape hatch accepts only trusted, already-escaped markup.
 - The router and context selector have one intentional module cycle that must not expand.
 - Research context and filters in copied URLs or browser history may reveal search and run identifiers.
 - Fixture databases and visual snapshots prove behavior only for controlled data and the tested browser and platform.

@@ -28,7 +28,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-unit-tsx frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -206,8 +206,11 @@ test-frontend-debug: build frontend-build ## Run Chromium Playwright debug mode 
 test-frontend-visual: build frontend-build ## Run Chromium visual and accessibility browser checks on an isolated fixture server.
 	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project=chromium tests/ui-quality.spec.cjs
 
-test-frontend-unit: ## Run frontend JS unit tests with Node built-in test runner.
+test-frontend-unit: ## Run frontend TS unit tests with Node built-in test runner.
 	cd frontend && npm run test:unit
+
+test-frontend-unit-tsx: ## Run frontend unit tests for migrated .tsx modules through the esbuild loader.
+	cd frontend && npm run test:unit:tsx
 
 frontend-report: ## Open a Playwright HTML report. Set REPORT_DIR to the report path printed by a test run.
 	@test -n "$(REPORT_DIR)" || (printf '%s\n' 'REPORT_DIR is required; use the path printed by make test-frontend.' >&2; exit 2)

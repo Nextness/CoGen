@@ -137,12 +137,12 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 
 ## 14. Frontend module standards
 
-Frontend production source is TypeScript with native ES modules and no application framework, compiled per file by `make frontend-build` into the assembled `frontend/dist` served root. Relative imports use explicit `.ts` specifiers, type-only imports use `import type` (`verbatimModuleSyntax` and `erasableSyntaxOnly` are enforced by `tsc --noEmit`), and new exports carry required type annotations plus the maintained adjacent JSDoc prose description. `state.ts` owns URL and shared rendering state, `api.ts` owns JSON transport, `router.ts` owns dispatch and abort lifecycle, views own page-level fetching and `app.innerHTML`, and components own reusable markup or behavior. Run `make check-frontend` for type errors after frontend changes.
+Frontend production source is TypeScript with native ES modules and no application framework, compiled per file by `make frontend-build` into the assembled `frontend/dist` served root. Relative imports use explicit `.ts` or `.tsx` specifiers, type-only imports use `import type` (`verbatimModuleSyntax` and `erasableSyntaxOnly` are enforced by `tsc --noEmit`), and new exports carry required type annotations plus the maintained adjacent JSDoc prose description. Rendering uses the project-owned classic-mode JSX runtime; [JSX-RUNTIME.md](JSX-RUNTIME.md) is the authoritative contract for its semantics and must be updated whenever the runtime's attribute/children handling, escaping, event binding, or wiring change. `state.tsx` owns URL and shared rendering state, `api.tsx` owns JSON transport, `router.tsx` owns dispatch and abort lifecycle, views fetch page data and call `render(<View .../>, app)`, and components own reusable JSX elements or behavior. Run `make check-frontend` for type errors after frontend changes.
 
 - Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
-- Bind DOM listeners after replacing `app.innerHTML`, abort stale requests, and prevent older renders from overwriting current state.
+- Bind DOM listeners after rendering a tree into the app or a sub-container, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
-- Escape dynamic values, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states.
+- Rely on the JSX runtime's automatic escaping for text and attributes, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states. Use the `raw` escape hatch only for trusted, already-escaped markup while it remains during migration.
 - Keep server-backed collections bounded and URL-addressable where reload or sharing matters.
 - The Go binary contains no frontend assets. `serve` requires `--assets-dir` (normally the assembled `frontend/dist` produced by `make frontend-build`), and serving makes no CDN request.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.
@@ -152,13 +152,13 @@ Frontend production source is TypeScript with native ES modules and no applicati
 
 ## 15. Frontend tests
 
-Frontend unit tests live under `frontend/tests/unit/`, use Node's built-in `node:test` and `node:assert` with jsdom, and import `setup.js` as a side effect when DOM shims are required.
+Frontend unit tests live under `frontend/tests/unit/`, are authored in TypeScript, use Node's built-in `node:test` and `node:assert` with jsdom, and import `setup.ts` as a side effect when DOM shims are required.
 
 - Unit tests cover state, rendering helpers, URL behavior, API behavior, components, routing, and views without a browser or server.
 - Browser tests use `*.spec.cjs` under `frontend/tests/` and follow navigate, assert, interact, assert URL, assert content.
 - Playwright targets copy the ignored generated fixture metadata and PDF pair for each invocation, start an isolated viewer on an operating-system-assigned loopback port, and isolate output under `build/playwright/`. No browser test writes the base fixture.
 - `viewer.spec.cjs` covers evidence browsing; serial `review.spec.cjs` covers mutations and PDF rendering; `ui-quality.spec.cjs` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.cjs` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
-- Run `make test-frontend-unit` for frontend logic, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
+- Run `make test-frontend-unit` for frontend logic, `make test-frontend-unit-tsx` for migrated `.tsx` modules, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
 - Run `make test-frontend-visual` for visual or accessibility changes and review snapshots rather than replacing them blindly.
 
 ## 16. CSS standards

@@ -6,6 +6,9 @@
     "lib": ["es2022", "dom"],
     "types": ["node"],
     "strict": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment",
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
@@ -13,6 +16,6 @@
     "skipLibCheck": true,
     "allowJs": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["vendor", "dist", "dist-ts", "node_modules", "tests"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.d.ts"],
+  "exclude": ["vendor", "dist", "dist-ts", "node_modules"]
 }

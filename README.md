@@ -7,7 +7,7 @@ The pipeline parses and deduplicates articles, optionally enriches them through 
 ## Requirements
 
 - Go 1.25.0 or a compatible later toolchain for the backend, tooling, tests, and builds.
-- Node.js 22.18 or later and npm for frontend development, unit tests, and Playwright browser tests. Node's native TypeScript support for `.ts` imports requires 22.18+ (verified on Node 26).
+- Node.js 22.18 or later and npm for frontend development, unit tests, and Playwright browser tests. Node's native TypeScript support for `.ts` imports requires 22.18+ (verified on Node 26); `.tsx` sources run in unit tests through an esbuild loader hook.
 - Playwright browser binaries for the browser test projects.
 
 ## Developer setup
