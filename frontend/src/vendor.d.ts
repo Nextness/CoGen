@@ -3,7 +3,7 @@
 // package's declarations cover its own layout, not the vendored file path.
 
 /** D3-force simulation with the chained API surface used by graph.ts. */
-declare module '*d3-force.js' {
+declare module "*d3-force.js" {
   /** One simulation node with its resolved identifier and display properties. */
   export interface SimulationNode {
     id: string | number;
@@ -72,7 +72,7 @@ declare module '*d3-force.js' {
 }
 
 /** PDF.js runtime module loaded lazily from the vendored bundle. */
-declare module '*pdf.min.mjs' {
+declare module "*pdf.min.mjs" {
   /** Any PDF.js namespace; runtime members are exercised but not statically typed. */
   const pdfjs: any;
   export = pdfjs;

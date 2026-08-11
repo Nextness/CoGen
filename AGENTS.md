@@ -4,7 +4,7 @@
 
 This file is the repository entry point for agents. Read the root [Makefile](Makefile) for the supported command contract, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system structure and behavior, [docs/DATABASE.md](docs/DATABASE.md) for the current SQLite schema and relationships, [docs/STANDARDS.md](docs/STANDARDS.md) for change and test rules, [docs/PROJECT-USAGE.md](docs/PROJECT-USAGE.md) for developer and operator workflows, and [docs/PROJECT_CATALOG.md](docs/PROJECT_CATALOG.md) for declarations and source locations.
 
-Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE.md](docs/CSS-REFERENCE.md), and [docs/APP-USAGE.md](docs/APP-USAGE.md). Before SOMETHING language changes, read [docs/something.spec.md](docs/something.spec.md). [docs/DOC-STATE.md](docs/DOC-STATE.md) defines documentation review dependencies and acknowledged hashes. OpenCode planning and execution policies are in [.opencode/agent/developer-plan.md](.opencode/agent/developer-plan.md) and [.opencode/agent/developer-execute.md](.opencode/agent/developer-execute.md).
+Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE.md](docs/CSS-REFERENCE.md), [docs/APP-USAGE.md](docs/APP-USAGE.md), and [docs/JSX-RUNTIME.md](docs/JSX-RUNTIME.md). Before SOMETHING language changes, read [docs/something.spec.md](docs/something.spec.md). [docs/DOC-STATE.md](docs/DOC-STATE.md) defines documentation review dependencies and acknowledged hashes. OpenCode planning and execution policies are in [.opencode/agent/developer-plan.md](.opencode/agent/developer-plan.md) and [.opencode/agent/developer-execute.md](.opencode/agent/developer-execute.md).
 
 ## 2. Project and stack
 
@@ -12,7 +12,7 @@ The repository builds a Go 1.25.0 research-corpus pipeline and a loopback-only l
 
 The stack is Go, SQLite through `modernc.org/sqlite`, the project-specific SOMETHING configuration language, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend tests use Node's built-in test runner with jsdom plus Playwright and axe-core. D3-force and PDF.js are pinned frontend development dependencies delivered through checked-in generated browser assets.
 
-Node.js 22.18 or later and npm are required for frontend development, unit tests, and Playwright. Node's native type stripping executes `.ts` modules in unit tests; type checking is a separate `tsc --noEmit` step via `make check-frontend`.
+Node.js 22.18 or later and npm are required for frontend development, unit tests, and Playwright. Node's native type stripping executes `.ts` modules in unit tests, and an esbuild loader hook executes `.tsx` modules; type checking is a separate `tsc --noEmit` step via `make check-frontend`.
 
 `modernc.org/sqlite` is the only direct Go runtime dependency. Maintained command-line and repository tools are Go packages under `src/tools/`. Do not add dependencies when the standard library or an existing project capability is adequate.
 

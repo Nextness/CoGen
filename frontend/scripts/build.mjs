@@ -45,13 +45,13 @@ async function listSources() {
   return files;
 }
 
-/** Compiles src/** with esbuild per-file and rewrites .ts specifiers to .js. */
+/** Compiles src/** with esbuild per-file and rewrites .ts/.tsx specifiers to .js. */
 async function compileSources() {
   const { build } = await import('esbuild');
   const files = await listSources();
   for (const file of files) {
     const relative = path.relative(srcDir, file);
-    const outFile = path.join(outDir, relative.replace(/\.ts$/, '.js'));
+    const outFile = path.join(outDir, relative.replace(/\.(ts|tsx)$/, '.js'));
     await mkdir(path.dirname(outFile), { recursive: true });
     await build({
       entryPoints: [file],
@@ -62,13 +62,13 @@ async function compileSources() {
       write: true,
     });
     const emitted = await readFile(outFile, 'utf8');
-    const rewritten = emitted.replace(/\.ts(["'])/g, '.js$1');
+    const rewritten = emitted.replace(/\.tsx?(["'])/g, '.js$1');
     await writeFile(outFile, rewritten);
   }
   for (const file of files) {
-    const emitted = await readFile(path.join(outDir, path.relative(srcDir, file).replace(/\.ts$/, '.js')), 'utf8');
-    if (/["']\.\.?\/[^"']+\.ts["']/.test(emitted)) {
-      throw new Error(`stale .ts import specifier remains in ${path.relative(outDir, file)}`);
+    const emitted = await readFile(path.join(outDir, path.relative(srcDir, file).replace(/\.(ts|tsx)$/, '.js')), 'utf8');
+    if (/["']\.\.?\/[^"']+\.tsx?["']/.test(emitted)) {
+      throw new Error(`stale .ts/.tsx import specifier remains in ${path.relative(outDir, file)}`);
     }
   }
 }
@@ -81,7 +81,7 @@ async function assertClean(root) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(full);
-      } else if (entry.isFile() && /\.(d\.ts|ts|map)$/.test(entry.name)) {
+      } else if (entry.isFile() && /\.(d\.ts|tsx?|map)$/.test(entry.name)) {
         found.push(full);
       }
     }

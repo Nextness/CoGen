@@ -129,6 +129,22 @@ export class Holder<T> {
 	}
 }
 
+// TestCollectJavaScriptDeclarationsIncludesTSX verifies collect java script declarations catalogs tsx files.
+func TestCollectJavaScriptDeclarationsIncludesTSX(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "frontend/src/example.tsx", `/** Renders a named button. */
+export function renderButton(label: string): string { return label; }
+`)
+	declarations, _, err := collectJavaScriptDeclarations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := renderCatalogEntries(declarations)
+	if !strings.Contains(output, "`renderButton`]") || !strings.Contains(output, "| function |") {
+		t.Errorf("TSX catalog missing renderButton:\n%s", output)
+	}
+}
+
 // TestCollectJavaScriptDeclarationsExcludesDeclarationFiles verifies collect java script declarations skips dot d ts files.
 func TestCollectJavaScriptDeclarationsExcludesDeclarationFiles(t *testing.T) {
 	root := t.TempDir()

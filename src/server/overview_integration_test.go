@@ -87,16 +87,16 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	for _, check := range []struct {
 		path, needle string
 	}{
-		{"/views/overview.ts", "/api/overview"},
-		{"/views/overview.ts", "Enriched fields"},
-		{"/views/overview.ts", "Enrichment by provider"},
-		{"/views/overview.ts", "Normalization field outcomes"},
-		{"/views/relationships.ts", "/api/graph"},
-		{"/views/relationships.ts", "graph-form"},
-		{"/router.ts", "pushState"},
-		{"/views/overview.ts", "Not recorded for this run"},
-		{"/state.ts", "Source export counts"},
-		{"/views/corpus.ts", "source_result_counts"},
+		{"/views/overview.tsx", "/api/overview"},
+		{"/views/overview.tsx", "Enriched fields"},
+		{"/views/overview.tsx", "Enrichment by provider"},
+		{"/views/overview.tsx", "Normalization field outcomes"},
+		{"/views/relationships.tsx", "/api/graph"},
+		{"/views/relationships.tsx", "graph-form"},
+		{"/router.tsx", "pushState"},
+		{"/views/overview.tsx", "Not recorded for this run"},
+		{"/state.tsx", "Source export counts"},
+		{"/views/corpus.tsx", "source_result_counts"},
 	} {
 		asset := viewerRequest(t, handler, check.path)
 		if !strings.Contains(asset.Body.String(), check.needle) {

@@ -206,7 +206,7 @@ test-frontend-debug: build frontend-build ## Run Chromium Playwright debug mode 
 test-frontend-visual: build frontend-build ## Run Chromium visual and accessibility browser checks on an isolated fixture server.
 	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project=chromium tests/ui-quality.spec.cjs
 
-test-frontend-unit: ## Run frontend JS unit tests with Node built-in test runner.
+test-frontend-unit: ## Run frontend TS unit tests with Node built-in test runner.
 	cd frontend && npm run test:unit
 
 frontend-report: ## Open a Playwright HTML report. Set REPORT_DIR to the report path printed by a test run.
