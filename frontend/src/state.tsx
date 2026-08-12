@@ -1,7 +1,7 @@
 // Shared state, DOM references, and utility functions.
 // This module is imported by every other module. It avoids circular dependencies
 // by importing only the leaf JSX runtime.
-import { h, Fragment, renderToString, raw } from "./jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, renderToString, raw } from "./jsx/jsx-runtime.ts";
 
 // The viewer shell guarantees these elements exist (index.html), so the DOM
 // roots are declared with non-null assertions at module scope.
@@ -356,17 +356,17 @@ export function breadcrumb(items: Array<{ href?: string; label: string }>): stri
 
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
 export function setBreadcrumb(items: Array<{ href?: string; label: string }>): void {
-  if (breadcrumbHost) breadcrumbHost.innerHTML = breadcrumb(items);
+  if (breadcrumbHost) renderTree(<Breadcrumb items={items} />, breadcrumbHost);
 }
 
 /** Renders a complete empty-view state with the standard page header. */
-export function EmptyState(props: { title: string; detail: string; action?: string }): JSX.Element {
+export function EmptyState(props: { title: string; detail: string; action?: JSX.Element }): JSX.Element {
   return (
     <>
       <PageHeader kicker="Read-only workspace" title={props.title} description={props.detail} />
       <section className="ui basic segment">
         <p>{props.detail}</p>
-        {props.action ? raw(props.action) : null}
+        {props.action}
       </section>
     </>
   );
@@ -374,27 +374,27 @@ export function EmptyState(props: { title: string; detail: string; action?: stri
 
 /** Returns a complete empty-view state with the standard page header. */
 export function emptyState(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyState title={title} detail={detail} action={action} />);
+  return renderToString(<EmptyState title={title} detail={detail} action={action ? raw(action) : undefined} />);
 }
 
 /** Renders a compact empty-state panel. */
-export function EmptyPanel(props: { title: string; detail: string; action?: string }): JSX.Element {
+export function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element }): JSX.Element {
   return (
     <section className="ui segment rw-empty-state">
       <h3>{props.title}</h3>
       <p>{props.detail}</p>
-      {props.action ? raw(props.action) : null}
+      {props.action}
     </section>
   );
 }
 
 /** Returns compact empty-state panel markup. */
 export function emptyPanel(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyPanel title={title} detail={detail} action={action} />);
+  return renderToString(<EmptyPanel title={title} detail={detail} action={action ? raw(action) : undefined} />);
 }
 
 /** Renders the standard titled content panel. */
-export function Panel(props: { title: string; description: string; body: string | JSX.Element; classes?: string }): JSX.Element {
+export function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string }): JSX.Element {
   return (
     <section className={"ui segment rw-panel " + (props.classes || "")}>
       <div className="ui top attached header rw-panel__header">
@@ -403,18 +403,18 @@ export function Panel(props: { title: string; description: string; body: string 
           {props.description ? <p>{props.description}</p> : null}
         </div>
       </div>
-      <div className="content rw-panel__body">{typeof props.body === "string" ? raw(props.body) : props.body}</div>
+      <div className="content rw-panel__body">{props.body}</div>
     </section>
   );
 }
 
 /** Returns the standard titled content-panel markup. */
 export function panel(title: string, description: string, body: string, classes?: string): string {
-  return renderToString(<Panel title={title} description={description} body={body} classes={classes} />);
+  return renderToString(<Panel title={title} description={description} body={raw(body)} classes={classes} />);
 }
 
 /** One table column definition: a field name or a labeled renderer. */
-export type TableColumn = string | { label: string; render: (row: any) => string | JSX.Element };
+export type TableColumn = string | { label: string; render: (row: any) => JSX.Element };
 
 /** Renders an escaped data table inside the standard panel wrapper. */
 export function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string }): JSX.Element {
@@ -425,8 +425,8 @@ export function Table(props: { title: string; description: string; columns: Tabl
   if (props.rows.length) {
     body = props.rows.map(function(row) {
       const cells = props.columns.map(function(column) {
-        const content: string | JSX.Element = typeof column === "string" ? cell(row[column], column) : column.render(row);
-        return <td>{typeof content === "string" ? raw(content) : content}</td>;
+        const content: JSX.Element = typeof column === "string" ? raw(cell(row[column], column)) : column.render(row);
+        return <td>{content}</td>;
       });
       return <tr>{cells}</tr>;
     });
@@ -441,7 +441,7 @@ export function Table(props: { title: string; description: string; columns: Tabl
       </table>
     </div>
   );
-  return <Panel title={props.title} description={props.description} body={renderToString(tableWrap)} classes={props.classes} />;
+  return <Panel title={props.title} description={props.description} body={tableWrap} classes={props.classes} />;
 }
 
 /** Returns an escaped data table inside the standard panel wrapper. */
@@ -837,7 +837,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const valueLabel = props.valueLabel || "Count";
   const entries = metricEntries(props.source);
   if (!entries.length) {
-    return <Panel title={props.title} description="Recorded activity for this run." body={'<p class="empty">Not recorded for this run.</p>'} />;
+    return <Panel title={props.title} description="Recorded activity for this run." body={<p className="empty">Not recorded for this run.</p>} />;
   }
 
   var total: number | null;
@@ -974,7 +974,7 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
 
   return <Panel title="Search queries"
     description="The exact search terms used to obtain each source export. Expand a source to inspect or copy its query."
-    body={renderToString(<>{rows}</>)} classes={classes} />;
+    body={<>{rows}</>} classes={classes} />;
 }
 
 /** Returns expandable exact-query markup for source exports. */
@@ -1056,7 +1056,7 @@ export function DetailTable(props: { title: string; rows: any }): JSX.Element {
     return {
       label: key,
       render: function(row: any) {
-        return cell(row[key], key);
+        return raw(cell(row[key], key));
       }
     };
   });

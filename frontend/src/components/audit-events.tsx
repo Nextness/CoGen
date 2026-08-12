@@ -1,6 +1,6 @@
 // Shared audit-event presentation for Provenance and immutable record details.
 import { formatTime, humanLabel, link, parseObject, StatusChip } from "../state.tsx";
-import { h, Fragment, renderToString } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, renderToString } from "../jsx/jsx-runtime.ts";
 
 const recordAuditBatchSize = 25;
 
@@ -357,7 +357,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
       count.textContent = visible.length.toLocaleString();
       matches.textContent = matching.length.toLocaleString();
       more.hidden = visible.length >= matching.length;
-      stream.innerHTML = auditStream(visible, "No recorded events match the local detail filters.");
+      renderTree(<AuditStream events={visible} emptyMessage="No recorded events match the local detail filters." />, stream);
     }
     /** Resets and apply. */
     function resetAndApply(): void {

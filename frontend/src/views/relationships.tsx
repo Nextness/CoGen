@@ -88,7 +88,7 @@ function ClusterSummary(props: { data: any }): JSX.Element {
 /** Asynchronously implements relationships view for the viewer. */
 export async function relationshipsView(): Promise<void> {
   if (!value('run_id')) {
-    renderTree(<EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={'<button type="button" data-focus-context>Focus context selector</button>'} />, app);
+    renderTree(<EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={<button type="button" data-focus-context>Focus context selector</button>} />, app);
     bindFocusContext();
     return;
   }

@@ -1,8 +1,8 @@
 // Immutable review-note editor, draft persistence, history, and bounded comparison.
 import { api, mutate, APIError } from "../api.tsx";
 import { formatTime, link } from "../state.tsx";
-import { h, Fragment, render as renderTree, raw } from "../jsx/jsx-runtime.ts";
-import { parseNote, renderNote } from "./note-parser.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { parseNote, NoteDocument } from "./note-parser.tsx";
 import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 
 const diffLineLimit = 200;
@@ -130,7 +130,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   function renderPreview(): boolean {
     const document = parseNote(body.value);
     renderTree(document.errors.length ? <ul>{document.errors.map(function(error) { return <li>{error.message} at position {error.position}.</li>; })}</ul> : null, diagnostics);
-    preview.innerHTML = renderNote(document, currentNote?.version?.links || null);
+    renderTree(<NoteDocument document={document} resolvedLinks={currentNote?.version?.links || null} />, preview);
     return document.errors.length === 0;
   }
   /** Returns the editor to new-note mode and restores only its matching draft. */
@@ -150,7 +150,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       notes.length ? <ul className="rw-note-list">{notes.map(function(note: ReviewNoteRecord) {
         const noteBody = note.version.body || "";
         return <li data-note-id={note.id}><div className="rw-note-card__meta"><div><span className="ui note label">Note {note.id}</span><span className="ui label">Version {note.version.id}</span>{note.inherited_from_context_id ? <span className="ui violet label">Inherited</span> : null}</div><p>{note.version.reviewer_display} · {formatTime(note.version.created_at)}</p></div>
-          <div className="rw-note-content">{raw(renderNote(parseNote(noteBody), note.version.links))}</div>
+          <div className="rw-note-content"><NoteDocument document={parseNote(noteBody)} resolvedLinks={note.version.links} /></div>
           <div className="rw-note-card__actions"><button type="button" className="ui basic button" data-note-edit>Edit</button><button type="button" className="ui basic button" data-note-history-open>History</button><button type="button" className="ui danger button" data-note-delete>Remove</button></div></li>;
       })}</ul> : <p className="ui faded text">No active notes.</p>,
       host.querySelector("[data-note-list]")!

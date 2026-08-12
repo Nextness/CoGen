@@ -1,7 +1,7 @@
 // Evaluation: normalized articles and their manual PDF inventory state.
 import {
   app, value, link, pageSizes, PageHeader, EmptyState, FilterChips,
-  statusChip, humanLabel, formatTime, esc
+  humanLabel, formatTime, StatusChip
 } from '../state.tsx';
 import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api, mutate } from '../api.tsx';
@@ -10,19 +10,17 @@ import { bindFocusContext } from '../router.tsx';
 
 const evaluationSortFields = ['title', 'doi'];
 
-/** Returns a context-preserving article link for an evaluation row. */
-function titleLink(row: any): string {
-  return '<a class="rw-table-title" href="' + link({ view: 'article', article_id: row.work_revision_id })
-    + '" title="' + esc(row.title || 'Not recorded') + '"><span>'
-    + esc(row.title || 'Not recorded') + '</span></a>';
+/** Renders a context-preserving article link for an evaluation row. */
+function titleLink(row: any): JSX.Element {
+  return <a className="rw-table-title" href={link({ view: 'article', article_id: row.work_revision_id })} title={row.title || 'Not recorded'}><span>{row.title || 'Not recorded'}</span></a>;
 }
 
-/** Returns the recorded PDF inventory time or an unavailable label. */
-function inventoriedTime(row: any): string {
+/** Renders the recorded PDF inventory time or an unavailable label. */
+function inventoriedTime(row: any): JSX.Element {
   if (!row.inventoried_at) {
-    return '<span class="ui faded text">&mdash;</span>';
+    return <span className="ui faded text">{"\u2014"}</span>;
   }
-  return formatTime(row.inventoried_at);
+  return <>{formatTime(row.inventoried_at)}</>;
 }
 
 /** Asynchronously implements evaluation view for the viewer. */
@@ -30,7 +28,7 @@ export async function evaluationView(): Promise<void> {
   const runID = value('run_id');
   if (!runID) {
     renderTree(
-      <EmptyState title="Evaluation" detail="Select a run attempt to evaluate its normalized article inventory." action={'<button type="button" class="ui primary button" data-focus-context>Select a run attempt</button>'} />,
+      <EmptyState title="Evaluation" detail="Select a run attempt to evaluate its normalized article inventory." action={<button type="button" className="ui primary button" data-focus-context>Select a run attempt</button>} />,
       app
     );
     bindFocusContext();
@@ -88,11 +86,11 @@ export async function evaluationView(): Promise<void> {
       source: { label: 'Source', className: 'col-source' },
       inventory_status: {
         label: 'Inventory Status',
-        render: function(row) { return statusChip(humanLabel(row.inventory_status)); }
+        render: function(row) { return <StatusChip raw={humanLabel(row.inventory_status)} />; }
       },
       inventoried_at: { label: 'Inventoried at', className: 'col-captured-at', render: inventoriedTime },
-      review_status: { label: 'Review status', render: function(row) { return statusChip(humanLabel(row.review_status || 'not_evaluated')); } },
-      review_inherited: { label: 'Review source', render: function(row) { return row.review_inherited ? '<span class="ui label">Inherited</span>' : '<span class="ui faded text">This context</span>'; } }
+      review_status: { label: 'Review status', render: function(row) { return <StatusChip raw={humanLabel(row.review_status || 'not_evaluated')} />; } },
+      review_inherited: { label: 'Review source', render: function(row) { return row.review_inherited ? <span className="ui label">Inherited</span> : <span className="ui faded text">This context</span>; } }
     }
   }} />;
 
