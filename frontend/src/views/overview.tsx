@@ -1,25 +1,24 @@
 // Overview: retention funnel, metrics, coverage, breakdowns.
 import {
-  app, esc, value, link, formatNumber, formatTime, formatDuration, metricEntries,
-  metricCard, table, selectedRun, PageHeader, EmptyState, Panel, RetentionFlow,
+  app, value, link, formatNumber, formatTime, formatDuration, metricEntries,
+  MetricCard, Table, selectedRun, PageHeader, EmptyState, Panel, RetentionFlow,
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
-  humanLabel, statusChip
+  humanLabel, StatusChip
 } from '../state.tsx';
 import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { bindFocusContext } from '../router.tsx';
 
-/** Returns a normalization metric value or its unavailable presentation. */
-function normalizationValue(metric: any): string {
+/** Renders a normalization metric value or its unavailable presentation. */
+function normalizationValue(metric: any): JSX.Element {
   if (metric?.available === false) {
-    return '<span class="ui faded text">Not recorded</span>';
+    return <span className="ui faded text">Not recorded</span>;
   }
   if (metric?.denominator != null) {
     const pct = (metric.percentage ?? 0).toFixed(2);
-    return '<small>' + formatNumber(metric.value) + ' of '
-      + formatNumber(metric.denominator) + ' (' + pct + '%)</small>';
+    return <small>{formatNumber(metric.value)} of {formatNumber(metric.denominator)} ({pct}%)</small>;
   }
-  return formatNumber(metric?.value);
+  return <>{formatNumber(metric?.value)}</>;
 }
 
 const executionMetricStages = [
@@ -32,12 +31,12 @@ const executionMetricStages = [
   { id: 'cache', label: 'Cache and network', description: 'Recorded provider-cache decisions and network fetches.', matches: function(name: string) { return name.startsWith('cache_'); } },
 ];
 
-/** Returns the numeric value of a captured metric, or null when unavailable. */
-function capturedMetricValue(item: any): string {
+/** Renders the numeric value of a captured metric, or null when unavailable. */
+function capturedMetricValue(item: any): JSX.Element {
   if (item.available === false) {
-    return '<span class="ui faded text">Not recorded</span>';
+    return <span className="ui faded text">Not recorded</span>;
   }
-  return formatNumber(item.value);
+  return <>{formatNumber(item.value)}</>;
 }
 
 /** Groups captured metrics by pipeline stage. */
@@ -102,7 +101,7 @@ function fixedPercentageMetric(metric: any): any {
 /** Asynchronously implements overview view for the viewer. */
 export async function overviewView(): Promise<void> {
   if (!value('run_id')) {
-    renderTree(<EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={'<button type="button" data-focus-context>Focus context selector</button>'} />, app);
+    renderTree(<EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" data-focus-context>Focus context selector</button>} />, app);
     bindFocusContext();
     return;
   }
@@ -132,8 +131,8 @@ export async function overviewView(): Promise<void> {
       <div><dt>Finished</dt><dd>{formatTime(run.finished_at)}</dd></div>
       <div><dt>Duration</dt><dd>{formatDuration(run.started_at, run.finished_at)}</dd></div>
       <div><dt>Execution plan</dt><dd>{run.execution_plan_id || value('plan_id') || '—'}</dd></div>
-      <div><dt>Outcome</dt><dd>{statusChip(run.status)}</dd></div>
-      <div><dt>Visibility</dt><dd>{statusChip(run.visibility_state || 'active')}</dd></div>
+      <div><dt>Outcome</dt><dd><StatusChip raw={run.status} /></dd></div>
+      <div><dt>Visibility</dt><dd><StatusChip raw={run.visibility_state || 'active'} /></dd></div>
     </dl>
   );
 
@@ -184,33 +183,37 @@ export async function overviewView(): Promise<void> {
         <SourceResultCountSummary items={overview.source_result_counts} classes="span-all" />
         <SourceSearchQueries items={overview.source_result_counts} classes="span-all" />
         <Panel title="Corpus summary" description="Immutable records available for this selected run."
-          body={'<div class="ui statistics">' + corpusCards.map(function([name, metric, href]) {
-            return metricCard(name, metric, href);
-          }).join('') + '</div>'} />
+          body={<div className="ui statistics">{corpusCards.map(function([name, metric, href]) {
+            return <MetricCard name={name} metric={metric} href={href} />;
+          })}</div>} />
         <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed."
-          body={'<div class="ui statistics">' + (coverage.map(function([name, metric]) {
-            return metricCard(name, metric);
-          }).join('') || '<p class="ui faded text">Not recorded for this run.</p>') + '</div>'} />
+          body={<div className="ui statistics">{coverage.length ? coverage.map(function([name, metric]) {
+            return <MetricCard name={name} metric={metric} />;
+          }) : <p className="ui faded text">Not recorded for this run.</p>}</div>} />
         <Breakdown title="Enrichment activity" source={overview.enrichment_breakdown} />
         <Breakdown title="Enriched fields" source={overview.enrichment_field_breakdown} />
         <Breakdown title="Enrichment by provider" source={overview.enrichment_provider_breakdown} />
         <Breakdown title="Validation activity" source={overview.validation_breakdown} />
         <Panel title="Normalization activity" description="Every valid article is processed. Field checks are mutually exclusive: changed, already canonical, or unavailable. Journal canonical forms are stored in revision metadata."
-          body={'<div class="ui statistics">' + normalizationCards.map(function([name, metric]) {
-            return metricCard(name, fixedPercentageMetric(metric));
-          }).join('') + '</div>'
-            + table('Normalization field outcomes', 'Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator.', [
-              { label: 'Field', render: function(row: any) { return esc(row.field); } },
+          body={<Fragment>
+            <div className="ui statistics">{normalizationCards.map(function([name, metric]) {
+              return <MetricCard name={name} metric={fixedPercentageMetric(metric)} />;
+            })}</div>
+            <Table title="Normalization field outcomes" description={'Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator.'} columns={[
+              { label: 'Field', render: function(row: any) { return <>{row.field}</>; } },
               { label: 'Assessed', render: function(row: any) { return normalizationValue(row.processed); } },
               { label: 'Changed', render: function(row: any) { return normalizationValue(row.changed); } },
               { label: 'Already canonical', render: function(row: any) { return normalizationValue(row.already_canonical); } },
               { label: 'Unavailable', render: function(row: any) { return normalizationValue(row.unavailable); } },
-            ], normalizationRows, 'rw-normalization-outcomes')} />
+            ]} rows={normalizationRows} classes="rw-normalization-outcomes" />
+          </Fragment>} />
         <Breakdown title="Source distribution" source={overview.source_breakdown} valueLabel="Result" useTotal={true} />
         <Breakdown title="Cache activity" source={overview.cache_breakdown} />
         <Panel title="Cache-use explanation" description="A cache hit means a recorded provider response or completed computation was reused with provenance."
-          body={'<div class="metric-grid">' + metricCard('Recorded cache uses', { value: cacheUses }) + '</div>'
-            + '<p class="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>'} />
+          body={<Fragment>
+            <div className="metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
+            <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
+          </Fragment>} />
         {capturedMetrics}
       </div>
     </Fragment>,

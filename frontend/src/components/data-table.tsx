@@ -40,7 +40,7 @@ export interface DataTableContext {
   sortFields?: string[];
   expandableFields?: Array<{ f: string; w: number | string; label?: string }>;
   rowKey?: string;
-  columnConfig?: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => string }>;
+  columnConfig?: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }>;
   expandLongCells?: boolean;
   tableClass?: string;
   itemLabel?: string;
@@ -110,13 +110,10 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
 
       const cells = columns.map(function(column) {
         const config = columnConfig[column] || {};
-        var content;
-        if (config.render) {
-          content = config.render(row, row[column]);
-        } else {
-          content = cell(row[column], column, props.tableName, { expandLong: context.expandLongCells !== false });
-        }
-        return <td className={config.className}>{raw(content)}</td>;
+        const content: JSX.Element = config.render
+          ? config.render(row, row[column])
+          : raw(cell(row[column], column, props.tableName, { expandLong: context.expandLongCells !== false }));
+        return <td className={config.className}>{content}</td>;
       });
       const rowClasses = hasExpand ? "expandable-row" + (initiallyExpanded ? " expanded" : "") : "";
 

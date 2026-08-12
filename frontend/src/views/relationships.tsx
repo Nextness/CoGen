@@ -1,6 +1,6 @@
 // Bounded relationship exploration with common and advanced graph filters.
 import { app, value, graphFilters, PageHeader, EmptyState, list, filterChips, formatNumber, humanLabel } from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
+import { h, Fragment, render as renderTree, raw } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { graphClusters, GraphField, graphQuery, GraphResult, mountGraph } from '../components/graph.tsx';
 import { setURL, bindFocusContext } from '../router.tsx';
@@ -88,7 +88,7 @@ function ClusterSummary(props: { data: any }): JSX.Element {
 /** Asynchronously implements relationships view for the viewer. */
 export async function relationshipsView(): Promise<void> {
   if (!value('run_id')) {
-    renderTree(<EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={'<button type="button" data-focus-context>Focus context selector</button>'} />, app);
+    renderTree(<EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={<button type="button" data-focus-context>Focus context selector</button>} />, app);
     bindFocusContext();
     return;
   }
@@ -132,7 +132,7 @@ export async function relationshipsView(): Promise<void> {
               <label>Article limit (1\u20132,000)<input name="article_limit" type="number" min="1" max="2000" value={value('article_limit') || '2000'} /><small>If lowered, the earliest matching normalized revisions by revision ID are retained.</small></label>
             </div>
           </details>
-          {appliedFilters()}
+          {raw(appliedFilters())}
           <div className="rw-graph__filter-actions">
             <button type="submit" className="ui primary button">Apply filters</button>
             <button type="button" id="graph-reset" className="ui basic button">Reset filters</button>

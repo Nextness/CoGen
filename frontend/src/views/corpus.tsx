@@ -1,8 +1,8 @@
 // Corpus: articles, authors, references, sources lists.
 import {
   app, value, link, pageSizes, corpusSections, section, PageHeader,
-  sourceResultCountSummary, formatNumber, percent, statusChip, filterChips,
-  humanLabel as humanLabelState, esc, SourceResultCountSummary, FilterChips
+  sourceResultCountSummary, formatNumber, percent, filterChips,
+  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip
 } from '../state.tsx';
 import { h, Fragment, raw, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api, tables } from '../api.tsx';
@@ -91,11 +91,12 @@ function columnNames(table: any): string[] {
   }).filter(Boolean);
 }
 
-/** Returns the column definition used for identity evidence rows. */
-function identityEvidenceTable(data: any, context: DataTableContext & { perPage: number }): string {
+/** Renders the column definition used for identity evidence rows. */
+function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } }): JSX.Element {
+  const data = props.data;
   const stats = data.stats || {};
   const rows = data.rows || [];
-  const page = context.page;
+  const page = props.context.page;
 
   var pct;
   if (stats.resolutions > 0) {
@@ -104,27 +105,29 @@ function identityEvidenceTable(data: any, context: DataTableContext & { perPage:
     pct = '—';
   }
 
-  const metrics = '<div class="ui statistics rw-identity-summary">'
-    + '<div class="ui statistic"><span class="label">Authors searched by name</span><span class="value">' + formatNumber(stats.resolutions) + '</span><small>Observed author occurrences</small></div>'
-    + '<div class="ui statistic"><span class="label">Unclear ORCID matches</span><span class="value">' + formatNumber(stats.unclear) + '</span><small>' + pct + ' of searches</small></div>'
-    + '<div class="ui statistic"><span class="label">Provider failures</span><span class="value">' + formatNumber(stats.provider_failed) + '</span><small>Searches with incomplete evidence</small></div>'
-    + '<div class="ui statistic"><span class="label">Candidate ORCIDs</span><span class="value">' + formatNumber(stats.candidates) + '</span><small>Never assigned automatically</small></div>'
-    + '</div>';
+  const metrics = (
+    <div className="ui statistics rw-identity-summary">
+      <div className="ui statistic"><span className="label">Authors searched by name</span><span className="value">{formatNumber(stats.resolutions)}</span><small>Observed author occurrences</small></div>
+      <div className="ui statistic"><span className="label">Unclear ORCID matches</span><span className="value">{formatNumber(stats.unclear)}</span><small>{pct} of searches</small></div>
+      <div className="ui statistic"><span className="label">Provider failures</span><span className="value">{formatNumber(stats.provider_failed)}</span><small>Searches with incomplete evidence</small></div>
+      <div className="ui statistic"><span className="label">Candidate ORCIDs</span><span className="value">{formatNumber(stats.candidates)}</span><small>Never assigned automatically</small></div>
+    </div>
+  );
 
-  var body;
+  var body: JSX.Element[];
   if (rows.length) {
     body = rows.map(function(row: any) {
-      var errorHtml = '';
+      var errorHtml: JSX.Element | null = null;
       if (row.error_message) {
-        errorHtml = '<p class="muted">' + esc(row.error_message) + '</p>';
+        errorHtml = <p className="muted">{row.error_message}</p>;
       }
-      return '<tr>'
-        + '<td>' + statusChip(row.status) + errorHtml + '</td>'
-        + '<td><a href="' + link({ view: 'author', author_id: row.author_occurrence_id }) + '">' + esc(row.queried_citation_name) + '</a></td>'
-        + '<td>' + esc(row.article_title || 'Not recorded') + '</td>'
-        + '<td>' + esc(row.doi || 'Not recorded') + '</td>'
-        + '</tr>';
-    }).join('');
+      return <tr>
+        <td><StatusChip raw={row.status} />{errorHtml}</td>
+        <td><a href={link({ view: 'author', author_id: row.author_occurrence_id })}>{row.queried_citation_name}</a></td>
+        <td>{row.article_title || 'Not recorded'}</td>
+        <td>{row.doi || 'Not recorded'}</td>
+      </tr>;
+    });
   } else {
     var emptyMessage;
     if (value('q')) {
@@ -132,34 +135,40 @@ function identityEvidenceTable(data: any, context: DataTableContext & { perPage:
     } else {
       emptyMessage = 'No name-search evidence was recorded for this run.';
     }
-    body = '<tr><td colspan="4" class="empty">' + emptyMessage + '</td></tr>';
+    body = [<tr><td colspan={4} className="empty">{emptyMessage}</td></tr>];
   }
 
   const paginationData = data.pagination || {};
 
-  return metrics
-    + '<div class="table-wrap" aria-label="Author identity evidence table">'
-    + '<table class="ui table"><thead><tr>'
-    + '<th><button type="button" data-sort="status">Status</button></th>'
-    + '<th><button type="button" data-sort="citation_name">Observed author</button></th>'
-    + '<th><button type="button" data-sort="article_title">Paper</button></th>'
-    + '<th><button type="button" data-sort="doi">DOI</button></th>'
-    + '</tr></thead><tbody>' + body + '</tbody></table></div>'
-    + renderPagination(paginationData, { page: page, perPage: context.perPage, itemLabel: 'author records' });
+  return (
+    <Fragment>
+      {metrics}
+      <div className="table-wrap" aria-label="Author identity evidence table">
+        <table className="ui table">
+          <thead><tr>
+            <th><button type="button" data-sort="status">Status</button></th>
+            <th><button type="button" data-sort="citation_name">Observed author</button></th>
+            <th><button type="button" data-sort="article_title">Paper</button></th>
+            <th><button type="button" data-sort="doi">DOI</button></th>
+          </tr></thead>
+          <tbody>{body}</tbody>
+        </table>
+      </div>
+      {raw(renderPagination(paginationData, { page: page, perPage: props.context.perPage, itemLabel: 'author records' }))}
+    </Fragment>
+  );
 }
 
-/** Returns a context-preserving record link with a clipped label. */
-function clippedRecordLink(kind: string, idKey: string, id: any, title: any): string {
+/** Renders a context-preserving record link with a clipped label. */
+function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JSX.Element {
   const updates: Record<string, any> = { view: kind, article_id: '', author_id: '', reference_id: '' };
   updates[idKey] = id;
-  return '<a class="rw-table-title" href="' + link(updates) + '" title="' + esc(title || 'Not recorded') + '">'
-    + '<span>' + esc(title || 'Not recorded') + '</span></a>';
+  return <a className="rw-table-title" href={link(updates)} title={title || 'Not recorded'}><span>{title || 'Not recorded'}</span></a>;
 }
 
-/** Returns escaped record text clipped to the requested length. */
-function clippedRecordText(title: any): string {
-  return '<span class="rw-table-title" title="' + esc(title || 'Not recorded') + '">'
-    + '<span>' + esc(title || 'Not recorded') + '</span></span>';
+/** Renders escaped record text clipped to the requested length. */
+function clippedRecordText(title: any): JSX.Element {
+  return <span className="rw-table-title" title={title || 'Not recorded'}><span>{title || 'Not recorded'}</span></span>;
 }
 
 /** Returns section-specific labels and renderers for corpus columns. */
@@ -359,7 +368,7 @@ export async function corpusView(): Promise<void> {
 
   var body: JSX.Element;
   if (current === 'identity_evidence' && data) {
-    body = <>{raw(identityEvidenceTable(data, context))}</>;
+    body = <IdentityEvidenceTable data={data} context={context} />;
   } else if (data) {
     body = <DataTable tableName={definition.table} result={data} context={context} />;
   } else {

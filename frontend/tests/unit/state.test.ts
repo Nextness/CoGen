@@ -568,34 +568,6 @@ describe('state.js — emptyState', function() {
     assert.ok(result.includes('Detail'));
   });
 
-  it('includes action content when provided', function() {
-    const result = emptyState('T', 'D', '<button>Action</button>');
-    assert.ok(result.includes('<button>Action</button>'));
-  });
-
-});
-
-describe('state.js — panel', function() {
-
-  it('renders a panel section', function() {
-    const result = panel('Title', 'Description', '<p>Body</p>');
-    assert.ok(result.includes('class="ui segment rw-panel '));
-    assert.ok(result.includes('ui top attached header'));
-    assert.ok(result.includes('Title'));
-    assert.ok(result.includes('Description'));
-    assert.ok(result.includes('<p>Body</p>'));
-  });
-
-  it('omits description paragraph when empty', function() {
-    const result = panel('Title', '', '<p>Body</p>');
-    assert.ok(!result.includes('<p></p>'));
-  });
-
-  it('includes classes when provided', function() {
-    const result = panel('T', 'D', '<p>B</p>', 'span-all');
-    assert.ok(result.includes('class="ui segment rw-panel span-all"'));
-  });
-
 });
 
 describe('state.js — table', function() {
@@ -615,20 +587,6 @@ describe('state.js — table', function() {
   it('renders empty state when no rows', function() {
     const result = table('Empty', 'No data', ['col'], []);
     assert.ok(result.includes('No records.'));
-  });
-
-  it('handles column objects with render functions', function() {
-    const columns = [{ label: 'Name', render: function(row: any) { return row.name; } }];
-    const rows = [{ name: 'Alice' }];
-    const result = table('Test', '', columns, rows);
-    assert.ok(result.includes('Alice'));
-  });
-
-  it('handles column objects with label property', function() {
-    const columns = [{ label: 'Full Name', render: function(row: any) { return row.name; } }];
-    const rows = [{ name: 'Alice' }];
-    const result = table('Test', '', columns, rows);
-    assert.ok(result.includes('Full Name'));
   });
 
 });

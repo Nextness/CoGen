@@ -8,10 +8,15 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  testMatch: process.env.PLAYWRIGHT_SUITE === 'mutation' ? /(?:review|e2e)\.spec\.cjs$/ : undefined,
+  testIgnore: [
+    process.env.PLAYWRIGHT_SUITE === 'read' ? /(?:review|e2e)\.spec\.cjs$/ : undefined,
+    /tests\/unit\//,
+  ].filter(Boolean),
+  fullyParallel: process.env.PLAYWRIGHT_SUITE !== 'mutation',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.PLAYWRIGHT_SUITE === 'mutation' || process.env.CI ? 1 : undefined,
   reporter: [
     ['html', { outputFolder: process.env.PLAYWRIGHT_HTML_OUTPUT_DIR || 'playwright-report' }],
     ['list'],

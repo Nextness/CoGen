@@ -1,7 +1,7 @@
 // Shared state, DOM references, and utility functions.
 // This module is imported by every other module. It avoids circular dependencies
 // by importing only the leaf JSX runtime.
-import { h, Fragment, renderToString, raw } from "./jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, renderToString, raw } from "./jsx/jsx-runtime.ts";
 
 // The viewer shell guarantees these elements exist (index.html), so the DOM
 // roots are declared with non-null assertions at module scope.
@@ -356,17 +356,17 @@ export function breadcrumb(items: Array<{ href?: string; label: string }>): stri
 
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
 export function setBreadcrumb(items: Array<{ href?: string; label: string }>): void {
-  if (breadcrumbHost) breadcrumbHost.innerHTML = breadcrumb(items);
+  if (breadcrumbHost) renderTree(<Breadcrumb items={items} />, breadcrumbHost);
 }
 
 /** Renders a complete empty-view state with the standard page header. */
-export function EmptyState(props: { title: string; detail: string; action?: string }): JSX.Element {
+export function EmptyState(props: { title: string; detail: string; action?: JSX.Element }): JSX.Element {
   return (
     <>
       <PageHeader kicker="Read-only workspace" title={props.title} description={props.detail} />
       <section className="ui basic segment">
         <p>{props.detail}</p>
-        {props.action ? raw(props.action) : null}
+        {props.action}
       </section>
     </>
   );
@@ -374,27 +374,27 @@ export function EmptyState(props: { title: string; detail: string; action?: stri
 
 /** Returns a complete empty-view state with the standard page header. */
 export function emptyState(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyState title={title} detail={detail} action={action} />);
+  return renderToString(<EmptyState title={title} detail={detail} action={action ? raw(action) : undefined} />);
 }
 
 /** Renders a compact empty-state panel. */
-export function EmptyPanel(props: { title: string; detail: string; action?: string }): JSX.Element {
+export function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element }): JSX.Element {
   return (
     <section className="ui segment rw-empty-state">
       <h3>{props.title}</h3>
       <p>{props.detail}</p>
-      {props.action ? raw(props.action) : null}
+      {props.action}
     </section>
   );
 }
 
 /** Returns compact empty-state panel markup. */
 export function emptyPanel(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyPanel title={title} detail={detail} action={action} />);
+  return renderToString(<EmptyPanel title={title} detail={detail} action={action ? raw(action) : undefined} />);
 }
 
 /** Renders the standard titled content panel. */
-export function Panel(props: { title: string; description: string; body: string; classes?: string }): JSX.Element {
+export function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string }): JSX.Element {
   return (
     <section className={"ui segment rw-panel " + (props.classes || "")}>
       <div className="ui top attached header rw-panel__header">
@@ -403,18 +403,18 @@ export function Panel(props: { title: string; description: string; body: string;
           {props.description ? <p>{props.description}</p> : null}
         </div>
       </div>
-      <div className="content rw-panel__body">{raw(props.body)}</div>
+      <div className="content rw-panel__body">{props.body}</div>
     </section>
   );
 }
 
 /** Returns the standard titled content-panel markup. */
 export function panel(title: string, description: string, body: string, classes?: string): string {
-  return renderToString(<Panel title={title} description={description} body={body} classes={classes} />);
+  return renderToString(<Panel title={title} description={description} body={raw(body)} classes={classes} />);
 }
 
 /** One table column definition: a field name or a labeled renderer. */
-export type TableColumn = string | { label: string; render: (row: any) => string };
+export type TableColumn = string | { label: string; render: (row: any) => JSX.Element };
 
 /** Renders an escaped data table inside the standard panel wrapper. */
 export function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string }): JSX.Element {
@@ -425,8 +425,8 @@ export function Table(props: { title: string; description: string; columns: Tabl
   if (props.rows.length) {
     body = props.rows.map(function(row) {
       const cells = props.columns.map(function(column) {
-        const content = typeof column === "string" ? cell(row[column], column) : column.render(row);
-        return <td>{raw(content)}</td>;
+        const content: JSX.Element = typeof column === "string" ? raw(cell(row[column], column)) : column.render(row);
+        return <td>{content}</td>;
       });
       return <tr>{cells}</tr>;
     });
@@ -441,7 +441,7 @@ export function Table(props: { title: string; description: string; columns: Tabl
       </table>
     </div>
   );
-  return <Panel title={props.title} description={props.description} body={renderToString(tableWrap)} classes={props.classes} />;
+  return <Panel title={props.title} description={props.description} body={tableWrap} classes={props.classes} />;
 }
 
 /** Returns an escaped data table inside the standard panel wrapper. */
@@ -709,7 +709,7 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number
 }
 
 /** Renders one titled phase in the retention-flow presentation. */
-function RetentionPhase(props: { title: string; description: string; summary: string; content: string; className: string }): JSX.Element {
+function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string }): JSX.Element {
   return (
     <section className={"rw-retention__phase " + (props.className || "")}>
       <header className="rw-retention__phase-header">
@@ -719,14 +719,9 @@ function RetentionPhase(props: { title: string; description: string; summary: st
         </div>
         {props.summary ? <span className="ui label">{props.summary}</span> : null}
       </header>
-      {raw(props.content)}
+      {props.children}
     </section>
   );
-}
-
-/** Returns one titled phase in the retention-flow presentation. */
-function retentionPhase(title: string, description: string, summary: string, content: string, className: string): string {
-  return renderToString(<RetentionPhase title={title} description={description} summary={summary} content={content} className={className} />);
 }
 
 /** Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
@@ -749,28 +744,39 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   var previousFilterCount: any = null;
   const sourceSteps = sourceDefinitions.map(function(definition, index) {
     const recordedStage = filterStages[index];
-    const markup = flowStage(definition[0], recordedStage?.count, initialCount, previousFilterCount, "source", "filter_" + index, {
-      description: recordedStage?.description || definition[1], denominatorLabel: denominatorLabel, baselineLabel: "Initial raw-data baseline"
-    });
+    const stage = <FlowStage label={definition[0]} raw={recordedStage?.count} base={initialCount} previous={previousFilterCount} extraClass="source" stageKey={"filter_" + index} options={{ description: recordedStage?.description || definition[1], denominatorLabel: denominatorLabel, baselineLabel: "Initial raw-data baseline" }} />;
     if (recordedStage) previousFilterCount = recordedStage.count;
-    return markup;
-  }).join("");
+    return stage;
+  });
   const sourceSummary = hasFilterStages
     ? formatNumber(initialCount) + " initial raw results" + (filterSummary.sourceCount > 1 ? " across " + formatNumber(filterSummary.sourceCount) + " sources" : "")
     : "Aggregate source-filter counts were not recorded";
-  var phases = retentionPhase("Source selection", "Cumulative filters applied before source export.", sourceSummary,
-    `<div class="ui fluid steps rw-flow rw-flow--source">` + sourceSteps + "</div>", "rw-retention__phase--source");
+  const phases: JSX.Element[] = [
+    <RetentionPhase title="Source selection" description="Cumulative filters applied before source export." summary={sourceSummary} className="rw-retention__phase--source">
+      <div className="ui fluid steps rw-flow rw-flow--source">{sourceSteps}</div>
+    </RetentionPhase>
+  ];
 
   if (!input || input.available === false) {
-    phases += retentionPhase("Pipeline processing", "Records loaded, parsed, and deduplicated by the pipeline.", "Pipeline counts not recorded",
-      `<div class="ui fluid steps rw-flow">` + flowStage("Input records", input, initialCount, null, "", "input_records", { description: "Records read from exported source files." })
-      + flowStage("Parsed articles", null, initialCount, null, "", "parsed_articles", { description: "Source records converted into article metadata." })
-      + flowStage("Deduplicated articles", null, initialCount, null, "", "deduplicated_articles", { description: "Unique articles retained after source merging." }) + "</div>", "rw-retention__phase--pipeline");
-    phases += retentionPhase("Corpus enrichment", "Candidate articles continue through enrichment, validation, and normalization.", "Corpus counts not recorded",
-      `<div class="ui fluid steps rw-flow">` + flowStage("Candidate articles", null, initialCount, null, "", "enrichment_candidates", { description: "Deduplicated articles considered for provider enrichment." })
-      + flowStage("Accepted + Discarded", null, initialCount, null, "", "validation_outcomes", { description: "Validation divides candidate articles into accepted and discarded outcomes." })
-      + flowStage("Normalization", null, initialCount, null, "", "normalized_articles_processed", { description: "Accepted articles processed into canonical forms." }) + "</div>", "rw-retention__phase--corpus");
-    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={'<div class="rw-retention">' + phases + "</div>"} classes="span-all rw-panel--no-separator" />;
+    phases.push(
+      <RetentionPhase title="Pipeline processing" description="Records loaded, parsed, and deduplicated by the pipeline." summary="Pipeline counts not recorded" className="rw-retention__phase--pipeline">
+        <div className="ui fluid steps rw-flow">
+          <FlowStage label="Input records" raw={input} base={initialCount} previous={null} extraClass="" stageKey="input_records" options={{ description: "Records read from exported source files." }} />
+          <FlowStage label="Parsed articles" raw={null} base={initialCount} previous={null} extraClass="" stageKey="parsed_articles" options={{ description: "Source records converted into article metadata." }} />
+          <FlowStage label="Deduplicated articles" raw={null} base={initialCount} previous={null} extraClass="" stageKey="deduplicated_articles" options={{ description: "Unique articles retained after source merging." }} />
+        </div>
+      </RetentionPhase>
+    );
+    phases.push(
+      <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary="Corpus counts not recorded" className="rw-retention__phase--corpus">
+        <div className="ui fluid steps rw-flow">
+          <FlowStage label="Candidate articles" raw={null} base={initialCount} previous={null} extraClass="" stageKey="enrichment_candidates" options={{ description: "Deduplicated articles considered for provider enrichment." }} />
+          <FlowStage label="Accepted + Discarded" raw={null} base={initialCount} previous={null} extraClass="" stageKey="validation_outcomes" options={{ description: "Validation divides candidate articles into accepted and discarded outcomes." }} />
+          <FlowStage label="Normalization" raw={null} base={initialCount} previous={null} extraClass="" stageKey="normalized_articles_processed" options={{ description: "Accepted articles processed into canonical forms." }} />
+        </div>
+      </RetentionPhase>
+    );
+    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={<div className="rw-retention">{phases}</div>} classes="span-all rw-panel--no-separator" />;
   }
 
   const parsed = source.parsed_articles;
@@ -791,24 +797,34 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   const stageOptions = function(description: string, href: string): FlowStageOptions {
     return { description: description, href: href, denominatorLabel: denominatorLabel, baselineLabel: "Input baseline" };
   };
-  const pipelineSteps = flowStage("Input records", input, initialCount, pipelinePrevious, "", "input_records", stageOptions("Records read from the exported source files.", stageHref("input")))
-    + flowStage("Parsed articles", parsed, initialCount, inputCount, "", "parsed_articles", stageOptions("Source records converted into article metadata.", stageHref("parse")))
-    + flowStage("Deduplicated articles", deduped, initialCount, parsedCount, "", "deduplicated_articles", stageOptions("Unique articles retained after source merging.", stageHref("deduplicate")));
-  phases += retentionPhase("Pipeline processing", "Records move from source loading through deduplication.", formatNumber(inputCount) + " captured input records",
-    `<div class="ui fluid steps rw-flow rw-flow--pipeline">` + pipelineSteps + "</div>", "rw-retention__phase--pipeline");
+  const pipelineSteps = [
+    <FlowStage label="Input records" raw={input} base={initialCount} previous={pipelinePrevious} extraClass="" stageKey="input_records" options={stageOptions("Records read from the exported source files.", stageHref("input"))} />,
+    <FlowStage label="Parsed articles" raw={parsed} base={initialCount} previous={inputCount} extraClass="" stageKey="parsed_articles" options={stageOptions("Source records converted into article metadata.", stageHref("parse"))} />,
+    <FlowStage label="Deduplicated articles" raw={deduped} base={initialCount} previous={parsedCount} extraClass="" stageKey="deduplicated_articles" options={stageOptions("Unique articles retained after source merging.", stageHref("deduplicate"))} />,
+  ];
+  phases.push(
+    <RetentionPhase title="Pipeline processing" description="Records move from source loading through deduplication." summary={formatNumber(inputCount) + " captured input records"} className="rw-retention__phase--pipeline">
+      <div className="ui fluid steps rw-flow rw-flow--pipeline">{pipelineSteps}</div>
+    </RetentionPhase>
+  );
 
   const discardedCount = number(source.discarded_articles);
   const validationTotal = validCount + discardedCount;
-  const corpusSteps = flowStage("Candidate articles", enrichmentCandidates, initialCount, dedupedCount, "", "enrichment_candidates", stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich")))
-    + flowStage("Accepted + Discarded", validationTotal, initialCount, enrichmentCount, "", "validation_outcomes", {
+  const corpusSteps = [
+    <FlowStage label="Candidate articles" raw={enrichmentCandidates} base={initialCount} previous={dedupedCount} extraClass="" stageKey="enrichment_candidates" options={stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich"))} />,
+    <FlowStage label="Accepted + Discarded" raw={validationTotal} base={initialCount} previous={enrichmentCount} extraClass="" stageKey="validation_outcomes" options={{
       ...stageOptions("Validation divides candidate articles into analysis-ready and discarded outcomes.", stageHref("validate")),
       outcomes: [{ label: "accepted", value: validCount }, { label: "discarded", value: discardedCount }]
-    })
-    + flowStage("Normalization", normalizedArticles, initialCount, validCount, "", "normalized_articles_processed", stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize")));
-  phases += retentionPhase("Corpus enrichment", "Candidate articles continue through enrichment, validation, and normalization.", formatNumber(validCount) + " accepted articles",
-    `<div class="ui fluid steps rw-flow rw-flow--corpus">` + corpusSteps + "</div>", "rw-retention__phase--corpus");
+    }} />,
+    <FlowStage label="Normalization" raw={normalizedArticles} base={initialCount} previous={validCount} extraClass="" stageKey="normalized_articles_processed" options={stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize"))} />,
+  ];
+  phases.push(
+    <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={formatNumber(validCount) + " accepted articles"} className="rw-retention__phase--corpus">
+      <div className="ui fluid steps rw-flow rw-flow--corpus">{corpusSteps}</div>
+    </RetentionPhase>
+  );
 
-  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={'<div class="rw-retention">' + phases + "</div>"} classes="span-all rw-panel--no-separator" />;
+  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={<div className="rw-retention">{phases}</div>} classes="span-all rw-panel--no-separator" />;
 }
 
 /** Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
@@ -821,7 +837,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const valueLabel = props.valueLabel || "Count";
   const entries = metricEntries(props.source);
   if (!entries.length) {
-    return <Panel title={props.title} description="Recorded activity for this run." body={'<p class="empty">Not recorded for this run.</p>'} />;
+    return <Panel title={props.title} description="Recorded activity for this run." body={<p className="empty">Not recorded for this run.</p>} />;
   }
 
   var total: number | null;
@@ -837,13 +853,13 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
     return number(entry);
   }).concat([1]));
 
-  /** Formats one breakdown value with availability and optional percentage. */
-  function valueRender(row: any): string {
+  /** Renders one breakdown value with availability and optional percentage. */
+  function valueRender(row: any): JSX.Element {
     if (row.raw?.available === false) {
-      return `<span class="ui faded text">Not recorded</span>`;
+      return <span className="ui faded text">Not recorded</span>;
     }
     if (!props.useTotal) {
-      return `<strong class="rw-metric-value">` + formatNumber(row.raw) + "</strong>";
+      return <strong className="rw-metric-value">{formatNumber(row.raw)}</strong>;
     }
     var pct;
     if (total! > 0) {
@@ -851,18 +867,17 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
     } else {
       pct = "—";
     }
-    return `<strong class="rw-metric-value">` + formatNumber(row.raw) + `</strong><span class="rw-metric-percent">` + pct + "</span>";
+    return <><strong className="rw-metric-value">{formatNumber(row.raw)}</strong><span className="rw-metric-percent">{pct}</span></>;
   }
 
-  /** Returns an accessible relative-volume bar for one breakdown row. */
-  function barRender(row: any): string {
+  /** Renders an accessible relative-volume bar for one breakdown row. */
+  function barRender(row: any): JSX.Element {
     if (row.raw?.available === false) {
-      return `<span class="ui faded text">—</span>`;
+      return <span className="ui faded text">—</span>;
     }
     const pct = Math.min(100, number(row.raw) / max * 100);
     const basis = props.useTotal ? "share of total" : "relative to the largest recorded value";
-    return `<span class="ui progress" role="img" aria-label="` + esc(humanLabel(row.name)) + ": " + pct.toFixed(1) + "% " + basis + `">`
-      + `<span class="bar" style="width:` + pct + `%"></span></span>`;
+    return <span className="ui progress" role="img" aria-label={humanLabel(row.name) + ": " + pct.toFixed(1) + "% " + basis}><span className="bar" style={"width:" + pct + "%"}></span></span>;
   }
 
   const rows = entries.map(function([name, raw]) {
@@ -870,7 +885,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   });
 
   return <Table title={props.title} description="Recorded activity for this run." columns={[
-    { label: "Metric", render: function(row) { return `<strong class="rw-metric-name">` + esc(humanLabel(row.name)) + "</strong>"; } },
+    { label: "Metric", render: function(row) { return <strong className="rw-metric-name">{humanLabel(row.name)}</strong>; } },
     { label: valueLabel, render: valueRender },
     { label: props.useTotal ? "Share of total" : "Relative to largest", render: barRender }
   ]} rows={rows} classes="rw-metric-table" />;
@@ -886,27 +901,27 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
   const classes = props.classes || "";
 
   /** Formats a source count or its unavailable state. */
-  function count(raw: any): string {
+  function count(raw: any): JSX.Element {
     if (raw == null) {
-      return `<span class="muted">Not recorded</span>`;
+      return <span className="muted">Not recorded</span>;
     }
-    return formatNumber(raw);
+    return <>{formatNumber(raw)}</>;
   }
 
-  /** Returns a status chip for a source-count comparison. */
-  function comparison(raw: any): string {
+  /** Renders a status chip for a source-count comparison. */
+  function comparison(raw: any): JSX.Element {
     if (raw) {
-      return statusChip(raw);
+      return <StatusChip raw={raw} />;
     }
-    return `<span class="muted">Not recorded</span>`;
+    return <span className="muted">Not recorded</span>;
   }
 
-  /** Escapes an export date or returns its unavailable state. */
-  function date(raw: any): string {
+  /** Renders an export date or its unavailable state. */
+  function date(raw: any): JSX.Element {
     if (raw) {
-      return esc(raw);
+      return <>{raw}</>;
     }
-    return `<span class="muted">Not recorded</span>`;
+    return <span className="muted">Not recorded</span>;
   }
 
   const rows = (props.items || []).map(function(item) {
@@ -922,7 +937,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
   return <Table title="Source export counts"
     description="Expected is the count recorded when metadata was originally downloaded. Observed is the raw export count read by this run. The comparison is informational and never makes a run fail."
     columns={[
-      { label: "Source", render: function(row) { return esc(row.source); } },
+      { label: "Source", render: function(row) { return <>{row.source}</>; } },
       { label: "Export date", render: function(row) { return date(row.exportDate); } },
       { label: "Expected initial count", render: function(row) { return count(row.expected); } },
       { label: "Observed raw records", render: function(row) { return count(row.observed); } },
@@ -959,7 +974,7 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
 
   return <Panel title="Search queries"
     description="The exact search terms used to obtain each source export. Expand a source to inspect or copy its query."
-    body={renderToString(<>{rows}</>)} classes={classes} />;
+    body={<>{rows}</>} classes={classes} />;
 }
 
 /** Returns expandable exact-query markup for source exports. */
@@ -980,25 +995,22 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
     const entityId = event.entity_id;
     const meta = event.metadata_json;
 
-    var detail = "";
+    var detail: JSX.Element | null = null;
     if (meta && typeof meta === "object") {
       if (meta.field && meta.provider) {
-        detail = "Field <strong>" + esc(meta.field) + "</strong> enriched by <strong>" + esc(meta.provider) + "</strong>";
+        detail = <>Field <strong>{meta.field}</strong> enriched by <strong>{meta.provider}</strong></>;
       } else if (meta.reasons) {
-        detail = esc(Array.isArray(meta.reasons) ? meta.reasons.join("; ") : String(meta.reasons));
+        detail = <>{Array.isArray(meta.reasons) ? meta.reasons.join("; ") : String(meta.reasons)}</>;
       } else if (meta.error) {
-        detail = "Error: " + esc(meta.error);
+        detail = <>Error: {meta.error}</>;
       } else if (meta.status) {
-        detail = "Status: " + esc(meta.status);
+        detail = <>Status: {meta.status}</>;
       } else if (meta.identity) {
-        detail = esc(meta.identity);
+        detail = <>{meta.identity}</>;
       } else if (meta.reason) {
-        detail = esc(meta.reason);
+        detail = <>{meta.reason}</>;
       } else if (meta.search_id) {
-        detail = "Search: " + esc(meta.search_id);
-        if (meta.revision) {
-          detail = detail + " / revision " + esc(meta.revision);
-        }
+        detail = <>Search: {meta.search_id}{meta.revision ? <> / revision {meta.revision}</> : null}</>;
       }
     }
 
@@ -1020,7 +1032,7 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
         {actor ? <span className="user">{actor}</span> : null}
         {entityId ? <span className="extra">{entityType} #{entityId}</span> : null}
         <strong>{action}</strong><br />
-        {detail ? <span className="summary">{raw(detail)}</span> : null}<br />
+        {detail ? <span className="summary">{detail}</span> : null}<br />
         <time>{timestamp}</time>
       </li>
     );
@@ -1044,7 +1056,7 @@ export function DetailTable(props: { title: string; rows: any }): JSX.Element {
     return {
       label: key,
       render: function(row: any) {
-        return cell(row[key], key);
+        return raw(cell(row[key], key));
       }
     };
   });

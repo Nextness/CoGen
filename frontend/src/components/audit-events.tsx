@@ -1,6 +1,6 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { esc, formatTime, humanLabel, link, parseObject, statusChip, StatusChip } from "../state.tsx";
-import { h, Fragment, renderToString, raw } from "../jsx/jsx-runtime.ts";
+import { formatTime, humanLabel, link, parseObject, StatusChip } from "../state.tsx";
+import { h, Fragment, render as renderTree, renderToString } from "../jsx/jsx-runtime.ts";
 
 const recordAuditBatchSize = 25;
 
@@ -63,10 +63,10 @@ function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, af
   return "recorded";
 }
 
-/** Returns a context-preserving link or label for the affected audit entity. */
-function auditEntity(event: AuditEventRecord): string {
-  const type = String(event.entity_type || "record");
-  const id = event.entity_id;
+/** Renders a context-preserving link or label for the affected audit entity. */
+function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
+  const type = String(props.event.entity_type || "record");
+  const id = props.event.entity_id;
   var href = "";
   if (id && type === "work_revision") {
     href = link({ view: "article", article_id: id });
@@ -79,9 +79,9 @@ function auditEntity(event: AuditEventRecord): string {
   }
   const label = humanLabel(type) + (id ? " #" + id : "");
   if (href) {
-    return `<a href="` + href + `">` + esc(label) + "</a>";
+    return <a href={href}>{label}</a>;
   }
-  return "<span>" + esc(label) + "</span>";
+  return <span>{label}</span>;
 }
 
 /** Returns a concise human-readable summary of an audit event. */
@@ -124,26 +124,30 @@ function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, be
   return "Recorded append-only audit event.";
 }
 
-/** Returns one complete previous or new review-decision state. */
-function reviewDecisionState(label: string, state: Record<string, any>): string {
-  const substatuses = Array.isArray(state.sub_statuses) ? state.sub_statuses : [];
-  const subclasses = substatuses.length
-    ? `<div class="rw-review-audit-substatuses">` + substatuses.map(function(item) { return `<span class="ui neutral label">` + esc(humanLabel(item)) + "</span>"; }).join("") + "</div>"
-    : `<span class="ui faded text">None</span>`;
-  return `<section class="rw-review-audit-state"><h6>` + esc(label) + "</h6><dl>"
-    + "<div><dt>Status</dt><dd>" + statusChip(state.status || "not_evaluated") + "</dd></div>"
-    + "<div><dt>Reason</dt><dd>" + (state.reason ? esc(state.reason) : `<span class="ui faded text">Not recorded</span>`) + "</dd></div>"
-    + "<div><dt>Subclassifications</dt><dd>" + subclasses + "</dd></div>"
-    + "</dl></section>";
+/** Renders one complete previous or new review-decision state. */
+function ReviewDecisionState(props: { label: string; state: Record<string, any> }): JSX.Element {
+  const substatuses = Array.isArray(props.state.sub_statuses) ? props.state.sub_statuses : [];
+  return (
+    <section className="rw-review-audit-state">
+      <h6>{props.label}</h6>
+      <dl>
+        <div><dt>Status</dt><dd><StatusChip raw={props.state.status || "not_evaluated"} /></dd></div>
+        <div><dt>Reason</dt><dd>{props.state.reason ? props.state.reason : <span className="ui faded text">Not recorded</span>}</dd></div>
+        <div><dt>Subclassifications</dt><dd>{substatuses.length ? <div className="rw-review-audit-substatuses">{substatuses.map(function(item) { return <span className="ui neutral label">{humanLabel(item)}</span>; })}</div> : <span className="ui faded text">None</span>}</dd></div>
+      </dl>
+    </section>
+  );
 }
 
-/** Returns the visible before-and-after decision comparison for review audit events. */
-function reviewDecisionChange(event: AuditEventRecord, before: Record<string, any>, after: Record<string, any>): string {
-  if (String(event.action || "") !== "work_review_version_created" || !before.status || !after.status) return "";
-  return `<div class="rw-review-audit-change" aria-label="Review decision change">`
-    + reviewDecisionState("Previous decision", before)
-    + reviewDecisionState("New decision", after)
-    + "</div>";
+/** Renders the visible before-and-after decision comparison for review audit events. */
+function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> }): JSX.Element | null {
+  if (String(props.event.action || "") !== "work_review_version_created" || !props.before.status || !props.after.status) return null;
+  return (
+    <div className="rw-review-audit-change" aria-label="Review decision change">
+      <ReviewDecisionState label="Previous decision" state={props.before} />
+      <ReviewDecisionState label="New decision" state={props.after} />
+    </div>
+  );
 }
 
 /** Returns metadata fields not already represented in the primary event presentation. */
@@ -171,35 +175,40 @@ function safeAuditPayload(raw: any): any {
   }));
 }
 
-/** Returns expandable facts and JSON payloads for an audit event. */
-function eventDetails(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>): string {
+/** Renders expandable facts and JSON payloads for an audit event. */
+function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> }): JSX.Element | null {
   const facts = [
-    ["Event ID", event.id],
-    ["Correlation ID", event.correlation_id],
-    ["Duration", metadata.duration_seconds != null ? metadata.duration_seconds + " seconds" : metadata.duration],
-    ["Input artifact", metadata.input_artifact_id],
-    ["Output artifact", metadata.output_artifact_id]
+    ["Event ID", props.event.id],
+    ["Correlation ID", props.event.correlation_id],
+    ["Duration", props.metadata.duration_seconds != null ? props.metadata.duration_seconds + " seconds" : props.metadata.duration],
+    ["Input artifact", props.metadata.input_artifact_id],
+    ["Output artifact", props.metadata.output_artifact_id]
   ].filter(function(entry) { return entry[1] !== null && entry[1] !== undefined && entry[1] !== ""; }) as Array<[string, any]>;
   const payloads = [
-    ["Metadata", additionalMetadata(metadata)],
-    ["Before", safeAuditPayload(before)],
-    ["After", safeAuditPayload(after)]
+    ["Metadata", additionalMetadata(props.metadata)],
+    ["Before", safeAuditPayload(props.before)],
+    ["After", safeAuditPayload(props.after)]
   ].filter(function(entry) { return Object.keys(entry[1]).length > 0; });
   if (!facts.length && !payloads.length) {
-    return "";
+    return null;
   }
-  const factMarkup = facts.length ? `<dl class="rw-event-facts">` + facts.map(function(entry) {
-    var shown = esc(entry[1]);
-    if ((entry[0] === "Input artifact" || entry[0] === "Output artifact") && entry[1]) {
-      shown = `<a href="` + link({ section: "artifacts" }) + `">Artifact ` + esc(entry[1]) + "</a>";
-    }
-    return "<div><dt>" + esc(entry[0]) + "</dt><dd>" + shown + "</dd></div>";
-  }).join("") + "</dl>" : "";
-  const payloadMarkup = payloads.map(function(entry) {
-    return "<div><h5>" + esc(entry[0]) + "</h5><pre>" + esc(JSON.stringify(entry[1], null, 2)) + "</pre></div>";
-  }).join("");
-  return `<details class="rw-event-details"><summary>Recorded data</summary>`
-    + `<div class="rw-event-details__body">` + factMarkup + payloadMarkup + "</div></details>";
+  return (
+    <details className="rw-event-details">
+      <summary>Recorded data</summary>
+      <div className="rw-event-details__body">
+        {facts.length ? <dl className="rw-event-facts">{facts.map(function(entry) {
+          var shown: JSX.Element = <>{entry[1]}</>;
+          if ((entry[0] === "Input artifact" || entry[0] === "Output artifact") && entry[1]) {
+            shown = <a href={link({ section: "artifacts" })}>Artifact {entry[1]}</a>;
+          }
+          return <div><dt>{entry[0]}</dt><dd>{shown}</dd></div>;
+        })}</dl> : null}
+        {payloads.map(function(entry) {
+          return <div><h5>{entry[0]}</h5><pre>{JSON.stringify(entry[1], null, 2)}</pre></div>;
+        })}
+      </div>
+    </details>
+  );
 }
 
 /** Renders the complete escaped markup for one audit event. */
@@ -225,15 +234,15 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
           <StatusChip raw={outcome} />
         </div>
         <p>{eventSummary(event, metadata, before, after)}</p>
-        {raw(reviewDecisionChange(event, before, after))}
+        <ReviewDecisionChange event={event} before={before} after={after} />
         <div className="rw-audit-event__context">
           <span>Source: <strong>{source}</strong></span>
           <span>Scope: <strong>{runContext}</strong></span>
           {stage ? <span>Stage: <strong>{stage}</strong></span> : null}
         </div>
-        {raw(eventDetails(event, metadata, before, after))}
+        <EventDetails event={event} metadata={metadata} before={before} after={after} />
       </div>
-      <div className="rw-audit-event__entity"><small>Affected record</small>{raw(auditEntity(event))}</div>
+      <div className="rw-audit-event__entity"><small>Affected record</small><AuditEntity event={event} /></div>
     </article>
   );
 }
@@ -348,7 +357,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
       count.textContent = visible.length.toLocaleString();
       matches.textContent = matching.length.toLocaleString();
       more.hidden = visible.length >= matching.length;
-      stream.innerHTML = auditStream(visible, "No recorded events match the local detail filters.");
+      renderTree(<AuditStream events={visible} emptyMessage="No recorded events match the local detail filters." />, stream);
     }
     /** Resets and apply. */
     function resetAndApply(): void {

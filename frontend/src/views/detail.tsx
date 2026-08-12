@@ -1,13 +1,13 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, esc, value, link, emptyState, panel, cell, list,
+  app, value, link, emptyState, cell, list,
   setBreadcrumb, statusChip, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
-  PageHeader, EmptyState
+  PageHeader, EmptyState, Panel, StatusChip
 } from '../state.tsx';
 import { h, Fragment, raw, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { pagination } from '../components/pagination.tsx';
-import { bindRecordAuditInvestigation, recordAuditInvestigation } from '../components/audit-events.tsx';
+import { bindRecordAuditInvestigation, RecordAuditInvestigation } from '../components/audit-events.tsx';
 import type { AuditEventRecord } from '../components/audit-events.tsx';
 import { mountArticleReview } from '../components/review-panel.tsx';
 
@@ -15,7 +15,7 @@ import { mountArticleReview } from '../components/review-panel.tsx';
 interface CollectionState {
   title: string;
   description: string;
-  columns: Array<{ label: string; render: (row: any) => string }>;
+  columns: Array<{ label: string; render: (row: any) => JSX.Element }>;
   rows: any[];
   page: number;
 }
@@ -57,12 +57,12 @@ function backToCorpus(kind: string): string {
   });
 }
 
-/** Records ed. */
-function recorded(raw: any, fallback?: string): string {
+/** Renders a recorded value or its unavailable presentation. */
+function recorded(raw: any, fallback?: JSX.Element): JSX.Element {
   if (raw === null || raw === undefined || raw === '') {
-    return fallback || '<span class="ui faded text">Not recorded</span>';
+    return fallback || <span className="ui faded text">Not recorded</span>;
   }
-  return esc(raw);
+  return <>{raw}</>;
 }
 
 /** One labeled detail property. */
@@ -72,43 +72,50 @@ interface DetailEntry {
   html?: boolean;
 }
 
-/** Returns definition-list markup for labeled record properties. */
-function propertyGrid(entries: DetailEntry[], classes?: string): string {
-  const items = entries.map(function(entry) {
-    const content = entry.html ? entry.value : recorded(entry.value);
-    return '<div><dt>' + esc(entry.label) + '</dt><dd>' + content + '</dd></div>';
-  }).join('');
-  return '<dl class="property-grid ' + esc(classes || '') + '">' + items + '</dl>';
+/** Renders definition-list markup for labeled record properties. */
+function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
+  return (
+    <dl className={"property-grid " + (classes || '')}>
+      {entries.map(function(entry) {
+        const content = entry.html ? raw(entry.value) : recorded(entry.value);
+        return <div><dt>{entry.label}</dt><dd>{content}</dd></div>;
+      })}
+    </dl>
+  );
 }
 
-/** Returns compact summary-fact markup for a detail record. */
-function summaryStrip(entries: DetailEntry[]): string {
-  return '<dl class="rw-record-summary">' + entries.map(function(entry) {
-    const content = entry.html ? entry.value : recorded(entry.value);
-    return '<div><dt>' + esc(entry.label) + '</dt><dd>' + content + '</dd></div>';
-  }).join('') + '</dl>';
+/** Renders compact summary-fact markup for a detail record. */
+function summaryStrip(entries: DetailEntry[]): JSX.Element {
+  return (
+    <dl className="rw-record-summary">
+      {entries.map(function(entry) {
+        const content = entry.html ? raw(entry.value) : recorded(entry.value);
+        return <div><dt>{entry.label}</dt><dd>{content}</dd></div>;
+      })}
+    </dl>
+  );
 }
 
 /** Converts a stored mapping representation to a displayable object. */
-function mappingValue(raw: any): string {
+function mappingValue(raw: any): JSX.Element {
   if (raw === null || raw === undefined || raw === '') {
-    return '<span class="ui faded text">Not recorded</span>';
+    return <span className="ui faded text">Not recorded</span>;
   }
   if (Array.isArray(raw)) {
-    return '<ul class="rw-mapping-values">' + raw.map(function(item) {
-      return '<li>' + mappingValue(item) + '</li>';
-    }).join('') + '</ul>';
+    return <ul className="rw-mapping-values">{raw.map(function(item) {
+      return <li>{mappingValue(item)}</li>;
+    })}</ul>;
   }
   if (raw && typeof raw === 'object') {
-    return '<dl class="rw-mapping-list">' + Object.entries(raw).map(function(entry) {
-      return '<div><dt>' + esc(humanLabel(entry[0])) + '</dt><dd>' + mappingValue(entry[1]) + '</dd></div>';
-    }).join('') + '</dl>';
+    return <dl className="rw-mapping-list">{Object.entries(raw).map(function(entry) {
+      return <div><dt>{humanLabel(entry[0])}</dt><dd>{mappingValue(entry[1])}</dd></div>;
+    })}</dl>;
   }
-  return '<span class="rw-mono">' + esc(raw) + '</span>';
+  return <span className="rw-mono">{raw}</span>;
 }
 
-/** Returns the parsed extension mapping stored on a work revision. */
-function extensionMapping(raw: any): string {
+/** Renders the parsed extension mapping stored on a work revision. */
+function extensionMapping(raw: any): JSX.Element {
   const parsed = parseObject(raw);
   if (!Object.keys(parsed).length) {
     return recorded(raw);
@@ -139,71 +146,89 @@ function keywordValues(raw: any): string[] {
   return [];
 }
 
-/** Returns label markup for normalized keyword values. */
-function keywordMarkup(raw: any): string {
+/** Renders label markup for normalized keyword values. */
+function keywordMarkup(raw: any): JSX.Element {
   const keywords = keywordValues(raw);
   if (!keywords.length) {
-    return '<span class="ui faded text">Not recorded</span>';
+    return <span className="ui faded text">Not recorded</span>;
   }
   const rawText = typeof raw === 'string' ? raw : JSON.stringify(raw);
-  return '<div class="rw-keywords"><div class="rw-keyword-tags">' + keywords.map(function(keyword) {
-    return '<span class="ui label">' + esc(keyword) + '</span>';
-  }).join('') + '</div><details class="rw-keywords__raw"><summary>Show stored keyword value</summary>'
-    + '<div><code>' + esc(rawText) + '</code><button type="button" class="ui basic button" data-copy-text="' + esc(rawText) + '">Copy</button></div></details></div>';
+  return (
+    <div className="rw-keywords">
+      <div className="rw-keyword-tags">{keywords.map(function(keyword) {
+        return <span className="ui label">{keyword}</span>;
+      })}</div>
+      <details className="rw-keywords__raw"><summary>Show stored keyword value</summary>
+        <div><code>{rawText}</code><button type="button" className="ui basic button" data-copy-text={rawText}>Copy</button></div>
+      </details>
+    </div>
+  );
 }
 
-/** Returns expandable JSON markup for a raw record. */
-function rawRecord(record: Record<string, any>, excluded: string[]): string {
+/** Renders expandable JSON markup for a raw record. */
+function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element | null {
   const rows = Object.entries(record).filter(function([key]) {
     return !excluded.includes(key);
   });
   if (!rows.length) {
-    return '';
+    return null;
   }
-  return '<details class="rw-disclosure"><summary>Advanced raw record data</summary>'
-    + '<div class="rw-disclosure__content">'
-    + propertyGrid(rows.map(function([key, item]) {
-      if (key === 'extension_data') {
-        return { label: 'Extension data', value: extensionMapping(item), html: true as const };
-      }
-      return { label: humanLabel(key), value: cell(item, key), html: true as const };
-    }), 'property-grid--compact')
-    + '</div></details>';
+  return (
+    <details className="rw-disclosure">
+      <summary>Advanced raw record data</summary>
+      <div className="rw-disclosure__content">
+        {propertyGrid(rows.map(function([key, item]) {
+          if (key === 'extension_data') {
+            return { label: 'Extension data', value: extensionMapping(item) };
+          }
+          return { label: humanLabel(key), value: cell(item, key), html: true as const };
+        }), 'property-grid--compact')}
+      </div>
+    </details>
+  );
 }
 
-/** Returns expandable markup for a related-record collection. */
-function collectionMarkup(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => string }>, rows: any[], page: number): string {
+/** Renders expandable markup for a related-record collection. */
+function CollectionMarkup(props: { collectionKey: string; title: string; description: string; columns: Array<{ label: string; render: (row: any) => JSX.Element }>; rows: any[]; page: number }): JSX.Element {
   const pageSize = 25;
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const current = Math.min(Math.max(1, page), totalPages);
-  const visible = rows.slice((current - 1) * pageSize, current * pageSize);
-  var body;
+  const totalPages = Math.max(1, Math.ceil(props.rows.length / pageSize));
+  const current = Math.min(Math.max(1, props.page), totalPages);
+  const visible = props.rows.slice((current - 1) * pageSize, current * pageSize);
+  var body: JSX.Element[];
   if (visible.length) {
     body = visible.map(function(row) {
-      return '<tr>' + columns.map(function(column) {
-        return '<td>' + column.render(row) + '</td>';
-      }).join('') + '</tr>';
-    }).join('');
+      return <tr>{props.columns.map(function(column) {
+        return <td>{column.render(row)}</td>;
+      })}</tr>;
+    });
   } else {
-    body = '<tr><td colspan="' + Math.max(1, columns.length) + '" class="empty">No records.</td></tr>';
+    body = [<tr><td colspan={Math.max(1, props.columns.length)} className="empty">No records.</td></tr>];
   }
-  const table = '<div class="table-wrap" aria-label="' + esc(title) + ' table">'
-    + '<table class="ui table"><thead><tr>' + columns.map(function(column) {
-      return '<th scope="col">' + esc(column.label) + '</th>';
-    }).join('') + '</tr></thead><tbody>' + body + '</tbody></table></div>';
-  const pages = rows.length > pageSize ? pagination({
-    page: current, per_page: pageSize, total_rows: rows.length, total_pages: totalPages
+  const table = (
+    <div className="table-wrap" aria-label={props.title + " table"}>
+      <table className="ui table">
+        <thead><tr>{props.columns.map(function(column) {
+          return <th scope="col">{column.label}</th>;
+        })}</tr></thead>
+        <tbody>{body}</tbody>
+      </table>
+    </div>
+  );
+  const pages = props.rows.length > pageSize ? raw(pagination({
+    page: current, per_page: pageSize, total_rows: props.rows.length, total_pages: totalPages
   }, {
-    itemLabel: title.toLocaleLowerCase(), pageAttribute: 'data-detail-page', pageClass: ' detail-page', visibleCount: 5
-  }).replaceAll('data-detail-page="', 'data-detail-page="' + esc(key) + ':') : '';
-  return '<section class="ui segment rw-detail-collection" data-detail-collection="' + esc(key) + '">'
-    + '<div class="ui top attached header"><div><h3>' + esc(title) + '</h3><p>' + esc(description) + '</p></div>'
-    + '<span class="ui label">' + rows.length.toLocaleString() + '</span></div>'
-    + '<div class="content">' + table + pages + '</div></section>';
+    itemLabel: props.title.toLocaleLowerCase(), pageAttribute: 'data-detail-page', pageClass: ' detail-page', visibleCount: 5
+  }).replaceAll('data-detail-page="', 'data-detail-page="' + props.collectionKey + ':')) : null;
+  return (
+    <section className="ui segment rw-detail-collection" data-detail-collection={props.collectionKey}>
+      <div className="ui top attached header"><div><h3>{props.title}</h3><p>{props.description}</p></div><span className="ui label">{props.rows.length.toLocaleString()}</span></div>
+      <div className="content">{table}{pages}</div>
+    </section>
+  );
 }
 
 /** Mounts collection. */
-function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => string }>, rows: any[]): void {
+function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[]): void {
   collectionState.set(key, { title: title, description: description, columns: columns, rows: rows, page: 1 });
   renderCollection(key);
 }
@@ -215,7 +240,7 @@ function renderCollection(key: string): void {
   if (!state || !container) {
     return;
   }
-  container.innerHTML = collectionMarkup(key, state.title, state.description, state.columns, state.rows, state.page);
+  renderTree(<CollectionMarkup collectionKey={key} title={state.title} description={state.description} columns={state.columns} rows={state.rows} page={state.page} />, container);
   container.querySelectorAll<HTMLButtonElement>('[data-detail-page]').forEach(function(button) {
     button.addEventListener('click', function() {
       const parts = button.dataset.detailPage!.split(':');
@@ -226,15 +251,15 @@ function renderCollection(key: string): void {
   });
 }
 
-/** Returns escaped validation or failure reason markup for a stage outcome. */
-function stageReasonMarkup(raw: any): string {
+/** Renders escaped validation or failure reason markup for a stage outcome. */
+function stageReasonMarkup(raw: any): JSX.Element {
   if (typeof raw === 'string') {
     try {
       const reasons = JSON.parse(raw);
       if (Array.isArray(reasons) && reasons.length) {
-        return '<ul class="rw-mapping-values">' + reasons.map(function(reason) {
-          return '<li>' + esc(reason) + '</li>';
-        }).join('') + '</ul>';
+        return <ul className="rw-mapping-values">{reasons.map(function(reason) {
+          return <li>{reason}</li>;
+        })}</ul>;
       }
     } catch (_) {
       // Validation reasons created before normalization may be plain text.
@@ -243,8 +268,10 @@ function stageReasonMarkup(raw: any): string {
   return recorded(raw);
 }
 
-/** Returns the article detail view from its immutable revision payload. */
-function articleView(record: any, data: any): string {
+/** Renders the article detail view from its immutable revision payload. */
+function ArticleView(props: { record: any; data: any }): JSX.Element {
+  const record = props.record;
+  const data = props.data;
   const extension = parseObject(record.extension_data);
   const validation = extension.validation_status || record.validation_status || 'Not recorded';
   const audits: AuditEventRecord[] = list(data.audit_events, ['events', 'items']);
@@ -282,131 +309,151 @@ function articleView(record: any, data: any): string {
     { label: 'Payload hash', value: record.payload_hash },
   ]);
 
-  var abstract = '<p class="ui faded text">No abstract was recorded for this revision.</p>';
+  var abstract: JSX.Element = <p className="ui faded text">No abstract was recorded for this revision.</p>;
   if (record.abstract) {
-    abstract = '<p class="rw-abstract-text">' + esc(String(record.abstract).replace(/\s+/g, ' ').trim()) + '</p>';
+    abstract = <p className="rw-abstract-text">{String(record.abstract).replace(/\s+/g, ' ').trim()}</p>;
   }
-  const bibliography = panel('Bibliographic metadata', 'Human-readable metadata for this immutable revision.',
-    abstract + propertyGrid([
-      { label: 'Keywords', value: keywordMarkup(record.keywords), html: true as const },
-      { label: 'Keywords plus', value: keywordMarkup(record.keywords_plus), html: true as const },
-      { label: 'Citation count', value: record.citation_count },
-      { label: 'Reference count', value: record.reference_count },
-    ], 'property-grid--compact'), 'rw-detail-section');
+  const bibliography = (
+    <Panel title="Bibliographic metadata" description="Human-readable metadata for this immutable revision."
+      body={<Fragment>{abstract}{propertyGrid([
+        { label: 'Keywords', value: keywordMarkup(record.keywords) },
+        { label: 'Keywords plus', value: keywordMarkup(record.keywords_plus) },
+        { label: 'Citation count', value: record.citation_count },
+        { label: 'Reference count', value: record.reference_count },
+      ], 'property-grid--compact')}</Fragment>} classes="rw-detail-section" />
+  );
 
-  const pdfPanel = pdfStatusPanel(record, pdf);
+  const pdfPanel = <PDFStatusPanel record={record} pdf={pdf} />;
 
-  return summary
-    + pdfPanel
-    + '<div class="rw-reading-workspace"><div data-pdf-viewer-host></div><div data-review-host></div></div>'
-    + panel('Provenance summary', 'Where this revision came from and how it was captured.', provenance, 'rw-detail-section')
-    + bibliography
-    + '<div data-detail-collection-host="article-authors"></div>'
-    + '<div data-detail-collection-host="article-references"></div>'
-    + '<div data-detail-collection-host="article-stage-outcomes"></div>'
-    + panel('Audit events', 'Append-only persisted audit records for this work in the selected run.', '<div data-article-audit-host>' + recordAuditInvestigation(audits) + '</div>', 'rw-detail-section rw-article-audit-panel')
-    + rawRecord(record, ['title', 'doi', 'year', 'journal', 'publisher', 'source', 'abstract', 'keywords', 'keywords_plus', 'citation_count', 'reference_count'])
-    + '<span data-mount-detail-collections hidden></span>';
+  return (
+    <Fragment>
+      {summary}
+      {pdfPanel}
+      <div className="rw-reading-workspace"><div data-pdf-viewer-host></div><div data-review-host></div></div>
+      <Panel title="Provenance summary" description="Where this revision came from and how it was captured." body={provenance} classes="rw-detail-section" />
+      {bibliography}
+      <div data-detail-collection-host="article-authors"></div>
+      <div data-detail-collection-host="article-references"></div>
+      <div data-detail-collection-host="article-stage-outcomes"></div>
+      <Panel title="Audit events" description="Append-only persisted audit records for this work in the selected run." body={<div data-article-audit-host><RecordAuditInvestigation events={audits} /></div>} classes="rw-detail-section rw-article-audit-panel" />
+      {rawRecord(record, ['title', 'doi', 'year', 'journal', 'publisher', 'source', 'abstract', 'keywords', 'keywords_plus', 'citation_count', 'reference_count'])}
+      <span data-mount-detail-collections hidden></span>
+    </Fragment>
+  );
 }
 
-/** Returns PDF inventory and download-status markup for an article. */
-export function pdfStatusPanel(record: any, pdf: any): string {
+/** Renders PDF inventory and download-status markup for an article. */
+export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
+  const record = props.record;
+  const pdf = props.pdf;
   const pdfLabels: Record<string, string> = {
     available: 'Available',
     unavailable: 'Unavailable without a DOI',
     not_available: 'Not Available'
   };
-  var pdfAction = '<span class="ui faded text">No stored PDF is available.</span>';
+  var pdfAction: JSX.Element = <span className="ui faded text">No stored PDF is available.</span>;
   if (pdf.status === 'available') {
-    pdfAction = '<a class="ui primary button" href="/api/pdf/' + encodeURIComponent(record.work_id)
-      + '" download>Download PDF</a>';
+    pdfAction = <a className="ui primary button" href={'/api/pdf/' + encodeURIComponent(record.work_id)} download>Download PDF</a>;
   }
-  return panel('Full-text PDF', 'Read-only state from the companion PDF store.',
-    '<div class="rw-pdf-status-strip">' + propertyGrid([
-      { label: 'Status', value: statusChip(pdfLabels[pdf.status] || humanLabel(pdf.status)), html: true as const },
-      { label: 'Size', value: pdf.byte_size ? formatBytes(pdf.byte_size) : null },
-      { label: 'Inventoried at', value: pdf.inventoried_at ? formatTime(pdf.inventoried_at) : null },
-      { label: 'Content hash', value: pdf.content_hash },
-    ], 'property-grid--compact') + '<div class="rw-pdf-status-strip__action">' + pdfAction + '</div></div>', 'rw-detail-section rw-full-text-panel');
+  return (
+    <Panel title="Full-text PDF" description="Read-only state from the companion PDF store."
+      body={<div className="rw-pdf-status-strip">{propertyGrid([
+        { label: 'Status', value: statusChip(pdfLabels[pdf.status] || humanLabel(pdf.status)), html: true as const },
+        { label: 'Size', value: pdf.byte_size ? formatBytes(pdf.byte_size) : null },
+        { label: 'Inventoried at', value: pdf.inventoried_at ? formatTime(pdf.inventoried_at) : null },
+        { label: 'Content hash', value: pdf.content_hash },
+      ], 'property-grid--compact')}<div className="rw-pdf-status-strip__action">{pdfAction}</div></div>} classes="rw-detail-section rw-full-text-panel" />
+  );
 }
 
-/** Returns candidate ORCID evidence associated with the selected author occurrence. */
-function authorIdentityEvidence(data: any): string {
-  const evidence = list(data.identity_evidence, ['rows', 'items']);
+/** Renders candidate ORCID evidence associated with the selected author occurrence. */
+function AuthorIdentityEvidence(props: { data: any }): JSX.Element {
+  const evidence = list(props.data.identity_evidence, ['rows', 'items']);
   if (!evidence.length) {
-    return panel('ORCID candidate evidence', 'Name-search candidates remain uncertain evidence and are never assigned automatically.', '<p class="ui faded text">No ORCID name-search evidence was recorded for this author occurrence.</p>', 'rw-detail-section');
+    return <Panel title="ORCID candidate evidence" description="Name-search candidates remain uncertain evidence and are never assigned automatically." body={<p className="ui faded text">No ORCID name-search evidence was recorded for this author occurrence.</p>} classes="rw-detail-section" />;
   }
   const body = evidence.map(function(resolution) {
     const candidates = list(resolution, ['candidates']);
     const candidateList = candidates.length
-      ? '<ol class="rw-identity-candidate-list">' + candidates.map(function(candidate) {
-        var links = '<a href="' + esc(candidate.query_url) + '" target="_blank" rel="noreferrer">Provider query</a>';
-        if (candidate.payload_artifact_id) links += ' <span aria-hidden="true">·</span> <a href="/api/artifacts/' + encodeURIComponent(candidate.payload_artifact_id) + '/content">Raw payload</a>';
-        return '<li><div><strong>' + esc(candidate.candidate_orcid) + '</strong><span>' + esc(candidate.provider_display_name || 'Provider name not recorded') + '</span></div><span class="ui basic label">Rank ' + esc(candidate.provider_rank) + '</span><div class="rw-inline-group">' + links + '</div></li>';
-      }).join('') + '</ol>'
-      : '<p class="ui faded text">No provider candidate was returned.</p>';
-    const providerError = resolution.error_message ? '<p class="ui warning message"><span class="header">Provider response</span>' + esc(resolution.error_message) + '</p>' : '';
-    return '<section class="rw-identity-resolution"><header><div><h4>' + esc(humanLabel(resolution.provider || 'ORCID')) + ' name search</h4><p>Resolved ' + esc(formatTime(resolution.resolved_at)) + '</p></div>' + statusChip(resolution.status) + '</header>' + providerError + candidateList + '</section>';
-  }).join('');
-  return panel('ORCID candidate evidence', 'Review provider candidates here without treating a name-search match as confirmed identity.', body, 'rw-detail-section');
+      ? <ol className="rw-identity-candidate-list">{candidates.map(function(candidate) {
+        var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
+        if (candidate.payload_artifact_id) links = <Fragment>{links} <span aria-hidden="true">·</span> <a href={'/api/artifacts/' + encodeURIComponent(candidate.payload_artifact_id) + '/content'}>Raw payload</a></Fragment>;
+        return <li><div><strong>{candidate.candidate_orcid}</strong><span>{candidate.provider_display_name || 'Provider name not recorded'}</span></div><span className="ui basic label">Rank {candidate.provider_rank}</span><div className="rw-inline-group">{links}</div></li>;
+      })}</ol>
+      : <p className="ui faded text">No provider candidate was returned.</p>;
+    const providerError = resolution.error_message ? <p className="ui warning message"><span className="header">Provider response</span>{resolution.error_message}</p> : null;
+    return <section className="rw-identity-resolution"><header><div><h4>{humanLabel(resolution.provider || 'ORCID')} name search</h4><p>Resolved {formatTime(resolution.resolved_at)}</p></div><StatusChip raw={resolution.status} /></header>{providerError}{candidateList}</section>;
+  });
+  return <Panel title="ORCID candidate evidence" description="Review provider candidates here without treating a name-search match as confirmed identity." body={<Fragment>{body}</Fragment>} classes="rw-detail-section" />;
 }
 
-/** Returns the author occurrence detail view with related articles and audit evidence. */
-function authorView(record: any, data: any): string {
+/** Renders the author occurrence detail view with related articles and audit evidence. */
+function AuthorView(props: { record: any; data: any }): JSX.Element {
+  const record = props.record;
+  const data = props.data;
   const articles = list(data.articles, ['rows', 'items']);
   const audits: AuditEventRecord[] = list(data.audit_events, ['events', 'items']);
   const identity = record.person_id ? 'Linked global person' : 'Observed occurrence only';
-  return '<div class="ui info message"><span class="header">Observed author occurrence</span>This historical record does not establish a global person identity. Matching names remain separate unless explicit identity evidence links them.</div>'
-    + summaryStrip([
-      { label: 'Citation name', value: record.citation_name },
-      { label: 'ORCID observed', value: record.orcid },
-      { label: 'Identity status', value: statusChip(identity), html: true as const },
-      { label: 'Articles in response', value: articles.length },
-    ])
-    + panel('Observed identity data', 'The exact name and identity values stored for this occurrence.', propertyGrid([
-      { label: 'First name', value: record.first_name },
-      { label: 'Last name', value: record.last_name },
-      { label: 'Observed ORCID', value: record.orcid },
-      { label: 'Linked person', value: record.person_id },
-      { label: 'Person ORCID', value: record.person_orcid },
-      { label: 'Captured', value: formatTime(record.created_at) },
-    ]), 'rw-detail-section')
-    + authorIdentityEvidence(data)
-    + '<div data-detail-collection-host="author-articles"></div>'
-    + panel('Audit events', 'Filter and inspect append-only events directly associated with this author occurrence.', recordAuditInvestigation(audits), 'rw-detail-section')
-    + rawRecord(record, ['citation_name', 'first_name', 'last_name', 'orcid', 'person_id', 'person_orcid'])
-    + '<span data-mount-author-articles hidden></span>';
+  return (
+    <Fragment>
+      <div className="ui info message"><span className="header">Observed author occurrence</span>This historical record does not establish a global person identity. Matching names remain separate unless explicit identity evidence links them.</div>
+      {summaryStrip([
+        { label: 'Citation name', value: record.citation_name },
+        { label: 'ORCID observed', value: record.orcid },
+        { label: 'Identity status', value: statusChip(identity), html: true as const },
+        { label: 'Articles in response', value: articles.length },
+      ])}
+      <Panel title="Observed identity data" description="The exact name and identity values stored for this occurrence." body={propertyGrid([
+        { label: 'First name', value: record.first_name },
+        { label: 'Last name', value: record.last_name },
+        { label: 'Observed ORCID', value: record.orcid },
+        { label: 'Linked person', value: record.person_id },
+        { label: 'Person ORCID', value: record.person_orcid },
+        { label: 'Captured', value: formatTime(record.created_at) },
+      ])} classes="rw-detail-section" />
+      <AuthorIdentityEvidence data={data} />
+      <div data-detail-collection-host="author-articles"></div>
+      <Panel title="Audit events" description="Filter and inspect append-only events directly associated with this author occurrence." body={<RecordAuditInvestigation events={audits} />} classes="rw-detail-section" />
+      {rawRecord(record, ['citation_name', 'first_name', 'last_name', 'orcid', 'person_id', 'person_orcid'])}
+      <span data-mount-author-articles hidden></span>
+    </Fragment>
+  );
 }
 
-/** Returns the reference mention detail view with citation context. */
-function referenceView(record: any): string {
+/** Renders the reference mention detail view with citation context. */
+function ReferenceView(props: { record: any }): JSX.Element {
+  const record = props.record;
   const resolved = Boolean(record.resolved_revision_id);
-  return summaryStrip([
-    { label: 'Reference order', value: record.mention_order },
-    { label: 'DOI', value: record.doi },
-    { label: 'Year', value: record.year },
-    { label: 'Resolution', value: statusChip(resolved ? 'Resolved internally' : 'Unresolved'), html: true as const },
-  ])
-    + '<div class="rw-record-comparison">'
-    + panel('Citing article', 'The immutable article revision that contains this reference mention.', propertyGrid([
-      { label: 'Article title', value: record.citing_title },
-      { label: 'Article revision', value: '<a href="' + detailLink('article', record.work_revision_id) + '">' + recorded(record.work_revision_id) + '</a>', html: true as const },
-      { label: 'Work', value: record.work_id },
-      { label: 'Run attempt', value: record.pipeline_run_id },
-    ]), 'rw-detail-section')
-    + panel('Resolved target', 'A target is shown only when the stored relationship resolved inside this run.', resolved ? propertyGrid([
-      { label: 'Target title', value: record.resolved_title },
-      { label: 'Target revision', value: '<a href="' + detailLink('article', record.resolved_revision_id) + '">' + recorded(record.resolved_revision_id) + '</a>', html: true as const },
-      { label: 'Resolution', value: statusChip('Resolved internally'), html: true as const },
-    ]) : '<p class="ui faded text">This reference mention was not resolved to a work revision in the selected run.</p>', 'rw-detail-section')
-    + '</div>'
-    + panel('Cited-reference metadata', 'Raw bibliographic values captured for this mention.', propertyGrid([
-      { label: 'Referenced title', value: record.title },
-      { label: 'Referenced author', value: record.author },
-      { label: 'Source', value: record.source },
-      { label: 'Captured', value: formatTime(record.created_at) },
-    ]), 'rw-detail-section')
-    + rawRecord(record, ['title', 'author', 'doi', 'year', 'source', 'mention_order', 'citing_title', 'resolved_title']);
+  return (
+    <Fragment>
+      {summaryStrip([
+        { label: 'Reference order', value: record.mention_order },
+        { label: 'DOI', value: record.doi },
+        { label: 'Year', value: record.year },
+        { label: 'Resolution', value: statusChip(resolved ? 'Resolved internally' : 'Unresolved'), html: true as const },
+      ])}
+      <div className="rw-record-comparison">
+        <Panel title="Citing article" description="The immutable article revision that contains this reference mention." body={propertyGrid([
+          { label: 'Article title', value: record.citing_title },
+          { label: 'Article revision', value: <a href={detailLink('article', record.work_revision_id)}>{record.work_revision_id}</a> },
+          { label: 'Work', value: record.work_id },
+          { label: 'Run attempt', value: record.pipeline_run_id },
+        ])} classes="rw-detail-section" />
+        <Panel title="Resolved target" description="A target is shown only when the stored relationship resolved inside this run." body={resolved ? propertyGrid([
+          { label: 'Target title', value: record.resolved_title },
+          { label: 'Target revision', value: <a href={detailLink('article', record.resolved_revision_id)}>{record.resolved_revision_id}</a> },
+          { label: 'Resolution', value: statusChip('Resolved internally'), html: true as const },
+        ]) : <p className="ui faded text">This reference mention was not resolved to a work revision in the selected run.</p>} classes="rw-detail-section" />
+      </div>
+      <Panel title="Cited-reference metadata" description="Raw bibliographic values captured for this mention." body={propertyGrid([
+        { label: 'Referenced title', value: record.title },
+        { label: 'Referenced author', value: record.author },
+        { label: 'Source', value: record.source },
+        { label: 'Captured', value: formatTime(record.created_at) },
+      ])} classes="rw-detail-section" />
+      {rawRecord(record, ['title', 'author', 'doi', 'year', 'source', 'mention_order', 'citing_title', 'resolved_title'])}
+    </Fragment>
+  );
 }
 
 /** Asynchronously implements detail view for the viewer. */
@@ -432,13 +479,13 @@ export async function detailView(kind: string): Promise<void> {
     title = record.title || record.doi || labels[kind];
   }
 
-  var body;
+  var body: JSX.Element;
   if (kind === 'article') {
-    body = articleView(record, data);
+    body = <ArticleView record={record} data={data} />;
   } else if (kind === 'author') {
-    body = authorView(record, data);
+    body = <AuthorView record={record} data={data} />;
   } else {
-    body = referenceView(record);
+    body = <ReferenceView record={record} />;
   }
 
   const homeHref = link({ view: 'home', article_id: '', author_id: '', reference_id: '', return_view: '', return_id: '' });
@@ -463,7 +510,7 @@ export async function detailView(kind: string): Promise<void> {
   renderTree(
     <Fragment>
       <PageHeader kicker={labels[kind]} title={title} description="" />
-      <article className="rw-record-detail">{raw(body)}</article>
+      <article className="rw-record-detail">{body}</article>
     </Fragment>,
     app
   );
@@ -471,21 +518,21 @@ export async function detailView(kind: string): Promise<void> {
   if (kind === 'article') {
     mountCollection('article-authors', 'Ordered authors', 'Observed author occurrences in bibliographic order.', [
       { label: 'Order', render: function(row) { return recorded(row.author_order); } },
-      { label: 'Author occurrence', render: function(row) { return '<a href="' + detailLink('author', row.id) + '">' + recorded(row.citation_name) + '</a>'; } },
+      { label: 'Author occurrence', render: function(row) { return <a href={detailLink('author', row.id)}>{row.citation_name}</a>; } },
       { label: 'ORCID', render: function(row) { return recorded(row.orcid); } },
       { label: 'Affiliation', render: function(row) { return recorded(row.affiliation); } },
-      { label: 'Identity evidence', render: function(row) { return row.person_id ? statusChip('Linked global person') : statusChip('Observed occurrence only'); } },
+      { label: 'Identity evidence', render: function(row) { return row.person_id ? <StatusChip raw="Linked global person" /> : <StatusChip raw="Observed occurrence only" />; } },
     ], list(data.authors, ['rows', 'items']));
     mountCollection('article-references', 'Reference mentions', 'Ordered references captured for this article revision.', [
       { label: 'Order', render: function(row) { return recorded(row.mention_order); } },
-      { label: 'Reference mention', render: function(row) { return '<a href="' + detailLink('reference', row.id) + '">' + recorded(row.title || row.doi || ('Reference ' + row.id)) + '</a>'; } },
+      { label: 'Reference mention', render: function(row) { return <a href={detailLink('reference', row.id)}>{row.title || row.doi || ('Reference ' + row.id)}</a>; } },
       { label: 'Author', render: function(row) { return recorded(row.author); } },
       { label: 'Year', render: function(row) { return recorded(row.year); } },
-      { label: 'Resolution', render: function(row) { return row.resolved_revision_id ? '<a href="' + detailLink('article', row.resolved_revision_id) + '">' + statusChip('Resolved internally') + '</a>' : statusChip('Unresolved'); } },
+      { label: 'Resolution', render: function(row) { return row.resolved_revision_id ? <a href={detailLink('article', row.resolved_revision_id)}><StatusChip raw="Resolved internally" /></a> : <StatusChip raw="Unresolved" />; } },
     ], list(data.references, ['rows', 'items']));
     mountCollection('article-stage-outcomes', 'Pipeline stage history', 'Recorded per-work outcomes for the selected run. Audit events below are persisted append-only records.', [
       { label: 'Stage', render: function(row) { return recorded(humanLabel(row.stage_name)); } },
-      { label: 'Outcome', render: function(row) { return statusChip(row.outcome || 'Not recorded'); } },
+      { label: 'Outcome', render: function(row) { return <StatusChip raw={row.outcome || 'Not recorded'} />; } },
       { label: 'Reason', render: function(row) { return stageReasonMarkup(row.reason); } },
       { label: 'First recorded', render: function(row) { return recorded(formatTime(row.created_at)); } },
       { label: 'Last updated', render: function(row) { return recorded(formatTime(row.updated_at)); } },
@@ -499,9 +546,9 @@ export async function detailView(kind: string): Promise<void> {
         async function() {
           const refreshed = await api('/api/articles/' + encodeURIComponent(record.id), {}, { method: 'GET', headers: { Accept: 'application/json' } });
           const events = list(refreshed.audit_events, ['events', 'items']);
-          const auditHost = document.querySelector('[data-article-audit-host]');
+          const auditHost = document.querySelector('[data-article-audit-host]') as HTMLElement | null;
           if (!auditHost) return;
-          auditHost.innerHTML = recordAuditInvestigation(events);
+          renderTree(<RecordAuditInvestigation events={events} />, auditHost);
           bindRecordAuditInvestigation(events);
         }
       );
@@ -509,7 +556,7 @@ export async function detailView(kind: string): Promise<void> {
   }
   if (kind === 'author') {
     mountCollection('author-articles', 'Linked article revisions', 'Articles that contain this observed author occurrence.', [
-      { label: 'Article revision', render: function(row) { return '<a href="' + detailLink('article', row.work_revision_id) + '">' + recorded(row.title) + '</a>'; } },
+      { label: 'Article revision', render: function(row) { return <a href={detailLink('article', row.work_revision_id)}>{row.title}</a>; } },
       { label: 'Year', render: function(row) { return recorded(row.year); } },
       { label: 'DOI', render: function(row) { return recorded(row.doi); } },
       { label: 'Author order', render: function(row) { return recorded(row.author_order); } },
