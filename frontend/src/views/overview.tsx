@@ -5,7 +5,7 @@ import {
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
   humanLabel, statusChip
 } from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
+import { h, Fragment, render as renderTree, raw } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { bindFocusContext } from '../router.tsx';
 
@@ -132,8 +132,8 @@ export async function overviewView(): Promise<void> {
       <div><dt>Finished</dt><dd>{formatTime(run.finished_at)}</dd></div>
       <div><dt>Duration</dt><dd>{formatDuration(run.started_at, run.finished_at)}</dd></div>
       <div><dt>Execution plan</dt><dd>{run.execution_plan_id || value('plan_id') || '—'}</dd></div>
-      <div><dt>Outcome</dt><dd>{statusChip(run.status)}</dd></div>
-      <div><dt>Visibility</dt><dd>{statusChip(run.visibility_state || 'active')}</dd></div>
+      <div><dt>Outcome</dt><dd>{raw(statusChip(run.status))}</dd></div>
+      <div><dt>Visibility</dt><dd>{raw(statusChip(run.visibility_state || 'active'))}</dd></div>
     </dl>
   );
 

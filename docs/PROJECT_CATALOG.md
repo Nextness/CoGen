@@ -3238,15 +3238,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`mustExist`](../frontend/scripts/run-playwright.mjs#L51) | function | 51 | `async function mustExist(target, name, hint)` | Asynchronously implements must exist for the viewer. |
-| [`startServer`](../frontend/scripts/run-playwright.mjs#L60) | function | 60 | `function startServer()` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
-| [`fail`](../frontend/scripts/run-playwright.mjs#L90) | function | 90 | `function fail(error)` | Stops startup and rejects with the server process failure. |
-| [`copyFixturePair`](../frontend/scripts/run-playwright.mjs#L100) | function | 100 | `async function copyFixturePair()` | Copies the generated fixture pair so browser mutations never alter their authoritative base. |
-| [`waitForHealth`](../frontend/scripts/run-playwright.mjs#L120) | function | 120 | `async function waitForHealth(baseURL)` | Asynchronously implements wait for health for the viewer. |
-| [`stopServer`](../frontend/scripts/run-playwright.mjs#L137) | function | 137 | `async function stopServer()` | Asynchronously implements stop server for the viewer. |
-| [`exitCode`](../frontend/scripts/run-playwright.mjs#L149) | function | 149 | `function exitCode(child, name)` | Normalizes a child-process exit result. |
-| [`delay`](../frontend/scripts/run-playwright.mjs#L157) | function | 157 | `function delay(milliseconds)` | Returns a promise that resolves after the requested interval. |
-| [`npmCommand`](../frontend/scripts/run-playwright.mjs#L162) | function | 162 | `function npmCommand()` | Returns the platform-appropriate npm command. |
+| [`runSuite`](../frontend/scripts/run-playwright.mjs#L40) | function | 40 | `async function runSuite(suite, args)` | Runs one Playwright suite against its own fixture copy and viewer process. |
+| [`mustExist`](../frontend/scripts/run-playwright.mjs#L68) | function | 68 | `async function mustExist(target, name, hint)` | Asynchronously implements must exist for the viewer. |
+| [`startServer`](../frontend/scripts/run-playwright.mjs#L77) | function | 77 | `function startServer(db)` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
+| [`fail`](../frontend/scripts/run-playwright.mjs#L109) | function | 109 | `function fail(error)` | Stops startup and rejects with the server process failure. |
+| [`copyFixturePair`](../frontend/scripts/run-playwright.mjs#L119) | function | 119 | `async function copyFixturePair(destination)` | Copies the generated fixture pair so browser mutations never alter their authoritative base. |
+| [`waitForHealth`](../frontend/scripts/run-playwright.mjs#L139) | function | 139 | `async function waitForHealth(baseURL)` | Asynchronously implements wait for health for the viewer. |
+| [`stopServer`](../frontend/scripts/run-playwright.mjs#L156) | function | 156 | `async function stopServer(server)` | Asynchronously implements stop server for the viewer. |
+| [`suitesForArguments`](../frontend/scripts/run-playwright.mjs#L168) | function | 168 | `function suitesForArguments(args)` | Selects read-only, mutation, or both suites from explicit test-file arguments. |
+| [`withoutOptions`](../frontend/scripts/run-playwright.mjs#L179) | function | 179 | `function withoutOptions(args, names)` | Removes named CLI options in both --name=value and --name value forms. |
+| [`exitCode`](../frontend/scripts/run-playwright.mjs#L194) | function | 194 | `function exitCode(child, name)` | Normalizes a child-process exit result. |
+| [`delay`](../frontend/scripts/run-playwright.mjs#L202) | function | 202 | `function delay(milliseconds)` | Returns a promise that resolves after the requested interval. |
+| [`npmCommand`](../frontend/scripts/run-playwright.mjs#L207) | function | 207 | `function npmCommand()` | Returns the platform-appropriate npm command. |
 
 ### [`frontend/src/api.tsx`](../frontend/src/api.tsx)
 
