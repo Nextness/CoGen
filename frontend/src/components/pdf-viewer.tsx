@@ -1,4 +1,5 @@
 // Custom PDF.js rendering with bounded page lifecycle and accessible anchor selection.
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
 
 const workerURL = "/vendor/pdfjs/pdf.worker.min.mjs";
 const cMapURL = "/vendor/pdfjs/cmaps/";
@@ -98,15 +99,27 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let renderSequence = 0;
   const renderTasks = new Set<any>();
 
-  host.innerHTML = `<section class="ui segment rw-pdf-viewer" aria-label="PDF reader"><div class="ui top attached header"><div><h3>Document reader</h3><p>One page is shown at a time. Select text to create a review anchor.</p></div></div>`
-    + `<div class="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls"><div class="rw-pdf-toolbar__group" aria-label="Page navigation">`
-    + `<button type="button" class="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>`
-    + `<label class="rw-pdf-page-control"><span>Page</span><input type="number" min="1" value="` + pageNumber + `" data-pdf-page aria-label="Current PDF page"><span data-pdf-count></span></label>`
-    + `<button type="button" class="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button></div>`
-    + `<div class="rw-pdf-toolbar__group" aria-label="Display controls"><button type="button" class="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">−</button>`
-    + `<span class="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span><button type="button" class="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>`
-    + `<button type="button" class="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button></div></div>`
-    + `<div class="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex="0"></div><p class="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p></section>`;
+  renderTree(
+    <section className="ui segment rw-pdf-viewer" aria-label="PDF reader">
+      <div className="ui top attached header"><div><h3>Document reader</h3><p>One page is shown at a time. Select text to create a review anchor.</p></div></div>
+      <div className="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls">
+        <div className="rw-pdf-toolbar__group" aria-label="Page navigation">
+          <button type="button" className="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>
+          <label className="rw-pdf-page-control"><span>Page</span><input type="number" min={1} value={pageNumber} data-pdf-page aria-label="Current PDF page" /><span data-pdf-count></span></label>
+          <button type="button" className="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button>
+        </div>
+        <div className="rw-pdf-toolbar__group" aria-label="Display controls">
+          <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
+          <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
+          <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
+          <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+        </div>
+      </div>
+      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex={0}></div>
+      <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>
+    </section>,
+    host
+  );
   const loadingTask = pdfjs.getDocument({
     url: options.url,
     isEvalSupported: false,

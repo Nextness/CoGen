@@ -1,5 +1,6 @@
 // Searchable, hierarchical research-context selectors.
-import { state, pickID, text, list, esc, value } from "../state.tsx";
+import { state, pickID, text, list, value } from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
 
 /** The four native context selects. */
@@ -53,15 +54,18 @@ function renderDropdownOptions(key: string, query: string): void {
     return option.value && (!normalized || optionLabel(option).toLocaleLowerCase().includes(normalized));
   });
   if (!options.length) {
-    dropdown.options.innerHTML = `<p class="rw-search-dropdown__empty">No matching values.</p>`;
+    renderTree(<p className="rw-search-dropdown__empty">No matching values.</p>, dropdown.options);
     return;
   }
-  dropdown.options.innerHTML = options.map(function(option) {
-    const selected = option.value === select.value;
-    return `<button type="button" class="rw-search-dropdown__option` + (selected ? " selected" : "")
-      + `" role="option" aria-selected="` + String(selected) + `" data-context-value="` + esc(option.value) + `">`
-      + esc(optionLabel(option)) + "</button>";
-  }).join("");
+  renderTree(
+    <Fragment>
+      {options.map(function(option) {
+        const selected = option.value === select.value;
+        return <button type="button" className={"rw-search-dropdown__option" + (selected ? " selected" : "")} role="option" aria-selected={String(selected)} data-context-value={option.value}>{optionLabel(option)}</button>;
+      })}
+    </Fragment>,
+    dropdown.options
+  );
 }
 
 /** Synchronizes the custom selector presentation with its native select source. */
@@ -73,9 +77,12 @@ function syncDropdown(key: string): void {
   const label = selected ? optionLabel(selected) : "";
   const hasValue = Boolean(select.value);
   dropdown.trigger.disabled = select.disabled;
-  dropdown.trigger.innerHTML = hasValue
-    ? `<span class="rw-search-dropdown__value">` + esc(label) + "</span>"
-    : `<span class="rw-search-dropdown__placeholder">` + esc(label || "Select a value") + "</span>";
+  renderTree(
+    hasValue
+      ? <span className="rw-search-dropdown__value">{label}</span>
+      : <span className="rw-search-dropdown__placeholder">{label || "Select a value"}</span>,
+    dropdown.trigger
+  );
   renderDropdownOptions(key, dropdown.query.value);
   if (select.disabled) closeDropdown(key);
 }
@@ -189,12 +196,18 @@ function hideDropdownError(key: string): void {
 /** Populates one native select and synchronizes its searchable presentation. */
 function selectOptions(select: HTMLSelectElement, items: any[], selected: string, label: string, labelFn?: (item: any) => string): void {
   const key = Object.keys(selects).find(function(name) { return selects[name as keyof ContextSelects] === select; });
-  select.innerHTML = `<option value="">` + esc(label) + "</option>" + items.map(function(item) {
-    const itemLabel = labelFn
-      ? labelFn(item)
-      : text(item, ["label", "search_id", "execution_fingerprint", "name", "title", "fingerprint", "id"]);
-    return `<option value="` + esc(pickID(item)) + `">` + esc(itemLabel) + "</option>";
-  }).join("");
+  renderTree(
+    <Fragment>
+      <option value="">{label}</option>
+      {items.map(function(item) {
+        const itemLabel = labelFn
+          ? labelFn(item)
+          : text(item, ["label", "search_id", "execution_fingerprint", "name", "title", "fingerprint", "id"]);
+        return <option value={pickID(item)}>{itemLabel}</option>;
+      })}
+    </Fragment>,
+    select
+  );
   select.disabled = items.length === 0;
   select.value = selected;
   if (!select.value && selected) select.value = "";

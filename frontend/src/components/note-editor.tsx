@@ -1,6 +1,7 @@
 // Immutable review-note editor, draft persistence, history, and bounded comparison.
 import { api, mutate, APIError } from "../api.tsx";
-import { esc, formatTime, link } from "../state.tsx";
+import { formatTime, link } from "../state.tsx";
+import { h, Fragment, render as renderTree, raw } from "../jsx/jsx-runtime.ts";
 import { parseNote, renderNote } from "./note-parser.tsx";
 import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 
@@ -96,14 +97,25 @@ export interface NoteEditorOptions {
 /** Mounts the note editor and current immutable note list for one article. */
 export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOptions): Promise<void> {
   let currentNote: ReviewNoteRecord | null = null;
-  host.innerHTML = `<section class="rw-note-editor"><div class="rw-review-section__heading"><div><h4 id="review-notes-heading">Review notes</h4><p>Notes keep immutable version history. Unsaved drafts remain only in this browser.</p></div></div>`
-    + `<div data-note-list></div><div class="rw-note-workspace"><form class="ui form rw-note-form" data-note-form><div class="rw-note-form__heading"><div><h5 data-note-editor-title>New note</h5><p>Use the project note syntax for headings, lists, quotes, code, tables, and evidence links.</p></div></div>`
-    + `<details class="rw-disclosure rw-note-syntax"><summary>Note syntax and link examples</summary><div class="rw-disclosure__content"><p>Use <code>#</code> through <code>####</code> for headings, <code>-</code> for bullets, <code>&gt;</code> for quotes, fenced code blocks, and simple Markdown-style tables.</p><dl><div><dt>Article DOI</dt><dd><code>[[article:10.1000/example|Article title]]</code></dd></div><div><dt>PDF page</dt><dd><code>[[pdf:page=5|Methods page]]</code></dd></div><div><dt>Saved anchor</dt><dd><code>[[anchor:methods-1|Methods excerpt]]</code></dd></div><div><dt>Review note</dt><dd><code>[[note:123|Related note]]</code></dd></div><div><dt>External URL</dt><dd><code>[[ext:https://example.test|Source]]</code></dd></div></dl></div></details>`
-    + `<div class="ui field"><label for="review-note-body">Note body</label><textarea id="review-note-body" rows="10" data-note-body></textarea></div>`
-    + `<p class="rw-draft-status ui faded text" data-draft-status aria-live="polite"></p><div class="rw-note-diagnostics" data-note-diagnostics role="alert"></div>`
-    + `<div class="rw-review-actions"><button type="submit" class="ui primary button" data-note-save>Save note</button><button type="button" class="ui basic button" data-note-cancel>Clear editor</button></div></form>`
-    + `<aside class="rw-note-preview" aria-labelledby="note-preview-heading"><div class="rw-note-preview__heading"><h5 id="note-preview-heading">Preview</h5><span class="ui label">Safe rendering</span></div><div data-note-preview></div></aside></div>`
-    + "<div data-note-history></div></section>";
+  renderTree(
+    <section className="rw-note-editor">
+      <div className="rw-review-section__heading"><div><h4 id="review-notes-heading">Review notes</h4><p>Notes keep immutable version history. Unsaved drafts remain only in this browser.</p></div></div>
+      <div data-note-list></div>
+      <div className="rw-note-workspace">
+        <form className="ui form rw-note-form" data-note-form>
+          <div className="rw-note-form__heading"><div><h5 data-note-editor-title>New note</h5><p>Use the project note syntax for headings, lists, quotes, code, tables, and evidence links.</p></div></div>
+          <details className="rw-disclosure rw-note-syntax"><summary>Note syntax and link examples</summary><div className="rw-disclosure__content"><p>Use <code>#</code> through <code>####</code> for headings, <code>-</code> for bullets, <code>{">"}</code> for quotes, fenced code blocks, and simple Markdown-style tables.</p><dl><div><dt>Article DOI</dt><dd><code>[[article:10.1000/example|Article title]]</code></dd></div><div><dt>PDF page</dt><dd><code>[[pdf:page=5|Methods page]]</code></dd></div><div><dt>Saved anchor</dt><dd><code>[[anchor:methods-1|Methods excerpt]]</code></dd></div><div><dt>Review note</dt><dd><code>[[note:123|Related note]]</code></dd></div><div><dt>External URL</dt><dd><code>[[ext:https://example.test|Source]]</code></dd></div></dl></div></details>
+          <div className="ui field"><label htmlFor="review-note-body">Note body</label><textarea id="review-note-body" rows={10} data-note-body></textarea></div>
+          <p className="rw-draft-status ui faded text" data-draft-status aria-live="polite"></p>
+          <div className="rw-note-diagnostics" data-note-diagnostics role="alert"></div>
+          <div className="rw-review-actions"><button type="submit" className="ui primary button" data-note-save>Save note</button><button type="button" className="ui basic button" data-note-cancel>Clear editor</button></div>
+        </form>
+        <aside className="rw-note-preview" aria-labelledby="note-preview-heading"><div className="rw-note-preview__heading"><h5 id="note-preview-heading">Preview</h5><span className="ui label">Safe rendering</span></div><div data-note-preview></div></aside>
+      </div>
+      <div data-note-history></div>
+    </section>,
+    host
+  );
   const body = host.querySelector("[data-note-body]") as HTMLTextAreaElement;
   const diagnostics = host.querySelector("[data-note-diagnostics]") as HTMLElement;
   const preview = host.querySelector("[data-note-preview]") as HTMLElement;
@@ -117,7 +129,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   /** Parses and safely renders current textarea content while displaying diagnostics. */
   function renderPreview(): boolean {
     const document = parseNote(body.value);
-    diagnostics.innerHTML = document.errors.length ? "<ul>" + document.errors.map(function(error) { return "<li>" + esc(error.message) + " at position " + error.position + ".</li>"; }).join("") + "</ul>" : "";
+    renderTree(document.errors.length ? <ul>{document.errors.map(function(error) { return <li>{error.message} at position {error.position}.</li>; })}</ul> : null, diagnostics);
     preview.innerHTML = renderNote(document, currentNote?.version?.links || null);
     return document.errors.length === 0;
   }
@@ -134,12 +146,15 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   async function loadNotes(): Promise<void> {
     const data = await api(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, { limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
     const notes = data.notes || [];
-    host.querySelector("[data-note-list]")!.innerHTML = notes.length ? `<ul class="rw-note-list">` + notes.map(function(note: ReviewNoteRecord) {
-      const noteBody = note.version.body || "";
-      return `<li data-note-id="` + note.id + `"><div class="rw-note-card__meta"><div><span class="ui note label">Note ` + note.id + `</span><span class="ui label">Version ` + note.version.id + `</span>` + (note.inherited_from_context_id ? `<span class="ui violet label">Inherited</span>` : "") + "</div><p>" + esc(note.version.reviewer_display) + " · " + esc(formatTime(note.version.created_at)) + "</p></div>"
-        + `<div class="rw-note-content">` + renderNote(parseNote(noteBody), note.version.links) + "</div>"
-        + `<div class="rw-note-card__actions"><button type="button" class="ui basic button" data-note-edit>Edit</button><button type="button" class="ui basic button" data-note-history-open>History</button><button type="button" class="ui danger button" data-note-delete>Remove</button></div></li>`;
-    }).join("") + "</ul>" : `<p class="ui faded text">No active notes.</p>`;
+    renderTree(
+      notes.length ? <ul className="rw-note-list">{notes.map(function(note: ReviewNoteRecord) {
+        const noteBody = note.version.body || "";
+        return <li data-note-id={note.id}><div className="rw-note-card__meta"><div><span className="ui note label">Note {note.id}</span><span className="ui label">Version {note.version.id}</span>{note.inherited_from_context_id ? <span className="ui violet label">Inherited</span> : null}</div><p>{note.version.reviewer_display} · {formatTime(note.version.created_at)}</p></div>
+          <div className="rw-note-content">{raw(renderNote(parseNote(noteBody), note.version.links))}</div>
+          <div className="rw-note-card__actions"><button type="button" className="ui basic button" data-note-edit>Edit</button><button type="button" className="ui basic button" data-note-history-open>History</button><button type="button" className="ui danger button" data-note-delete>Remove</button></div></li>;
+      })}</ul> : <p className="ui faded text">No active notes.</p>,
+      host.querySelector("[data-note-list]")!
+    );
     for (const note of notes) {
       const row = host.querySelector(`[data-note-id="${note.id}"]`) as HTMLElement;
       (row.querySelector("[data-note-edit]") as HTMLButtonElement).addEventListener("click", function() {
@@ -162,14 +177,20 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
     const versions: any[] = data.versions || [];
     const latestActive = versions.find(function(version) { return version.state === "active"; });
-    host.querySelector("[data-note-history]")!.innerHTML = `<section class="rw-note-history"><div class="rw-review-section__heading"><div><h4>Note ` + note.id + ` history</h4><p>Compare immutable snapshots from newest to oldest.</p></div>` + (note.version.state === "deleted" ? `<button type="button" class="ui primary button" data-note-restore` + (latestActive ? "" : " disabled") + ">Restore previous content</button>" : "") + "</div>" + (versions as any[]).map(function(version, index) {
-      const previous = versions[index + 1]?.body || "";
-      const comparison = lineDiff(previous, version.body || "");
-      const comparisonHTML = comparison.fallback
-        ? `<div class="rw-note-comparison"><pre>` + esc(previous) + "</pre><pre>" + esc(version.body || "") + "</pre></div>"
-        : `<pre class="rw-note-diff">` + (comparison.rows || []).map(function(row) { return `<span class="rw-note-diff--` + row.type + `">` + esc((row.type === "added" ? "+ " : row.type === "removed" ? "- " : "  ") + row.text) + "</span>"; }).join("\n") + "</pre>";
-      return "<details><summary>Version " + version.id + " · " + esc(version.state) + " · " + esc(formatTime(version.created_at)) + "</summary>" + comparisonHTML + "</details>";
-    }).join("") + "</section>";
+    renderTree(
+      <section className="rw-note-history">
+        <div className="rw-review-section__heading"><div><h4>Note {note.id} history</h4><p>Compare immutable snapshots from newest to oldest.</p></div>{note.version.state === "deleted" ? <button type="button" className="ui primary button" data-note-restore disabled={!latestActive}>Restore previous content</button> : null}</div>
+        {(versions as any[]).map(function(version, index) {
+          const previous = versions[index + 1]?.body || "";
+          const comparison = lineDiff(previous, version.body || "");
+          const comparisonHTML = comparison.fallback
+            ? <div className="rw-note-comparison"><pre>{previous}</pre><pre>{version.body || ""}</pre></div>
+            : <pre className="rw-note-diff">{(comparison.rows || []).map(function(row) { return <Fragment><span className={"rw-note-diff--" + row.type}>{(row.type === "added" ? "+ " : row.type === "removed" ? "- " : "  ") + row.text}</span>{"\n"}</Fragment>; })}</pre>;
+          return <details><summary>Version {version.id} · {version.state} · {formatTime(version.created_at)}</summary>{comparisonHTML}</details>;
+        })}
+      </section>,
+      host.querySelector("[data-note-history]")!
+    );
     host.querySelector("[data-note-restore]")?.addEventListener("click", async function() {
       await mutate(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", { expected_version_id: note.version.id, state: "active", body: latestActive.body });
       history.replaceState({}, "", link({ note_id: note.id }));

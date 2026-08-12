@@ -1,8 +1,8 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
-import { esc, graphFilters, link, list, value } from "../state.tsx";
-import { h, Fragment, renderToString } from "../jsx/jsx-runtime.ts";
+import { graphFilters, link, list, value } from "../state.tsx";
+import { h, Fragment, render as renderTree, renderToString, raw } from "../jsx/jsx-runtime.ts";
 import { pagination } from "./pagination.tsx";
 
 /** One graph node with its resolved layout and cluster state. */
@@ -965,10 +965,10 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       var node = graph.nodes.find(function(n) { return n.id === id; });
       var neighbours = graph.neighbours.get(id)!.size;
       if (selectionPanel) {
-        selectionPanel.innerHTML = selectionMarkup(node, neighbours);
+        renderTree(<SelectionMarkup node={node} neighbours={neighbours} />, selectionPanel);
       }
     } else if (selectionPanel) {
-      selectionPanel.innerHTML = "<p>Select a node to inspect its direct relationships.</p>";
+      renderTree(<p>Select a node to inspect its direct relationships.</p>, selectionPanel);
     }
     const url = new URL(location.href);
     if (id) {
@@ -1223,10 +1223,11 @@ function bindGraphExpand(graph: GraphState): void {
   document.addEventListener("fullscreenchange", updateLabel);
 }
 
-/** Selects ion markup. */
-function selectionMarkup(node: GraphNode | undefined, neighbours: number): string {
+/** Renders the selected-node inspection panel. */
+function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: number }): JSX.Element {
+  const node = props.node;
   if (!node) {
-    return "<p>Select a node to inspect its direct relationships.</p>";
+    return <p>Select a node to inspect its direct relationships.</p>;
   }
   var typeLabel;
   if (node.type === "article") {
@@ -1247,25 +1248,24 @@ function selectionMarkup(node: GraphNode | undefined, neighbours: number): strin
     identifier = "No DOI or ORCID recorded";
   }
   const href = graphLink(node);
-  var action = `<span class="ui faded text">No separate domain record exists for this raw referenced-author string.</span>`;
-  if (href) {
-    action = `<a href="` + href + `">Open full record</a>`;
-  }
-  return "<h3>" + esc(typeLabel) + "</h3>"
-    + "<p><strong>" + esc(node.label || node.id) + "</strong></p>"
-    + "<p>" + esc(identifier) + " \u00B7 cluster " + esc(String((node.cluster || 0) + 1))
-    + " \u00B7 " + esc(String(node.degree)) + " visible relationships \u00B7 " + esc(String(neighbours)) + " direct neighbours</p>"
-    + action;
+  return (
+    <Fragment>
+      <h3>{typeLabel}</h3>
+      <p><strong>{node.label || node.id}</strong></p>
+      <p>{identifier} {"\u00B7"} cluster {(node.cluster || 0) + 1}{" \u00B7 "}{node.degree} visible relationships {"\u00B7"} {props.neighbours} direct neighbours</p>
+      {href ? <a href={href}>Open full record</a> : <span className="ui faded text">No separate domain record exists for this raw referenced-author string.</span>}
+    </Fragment>
+  );
 }
 
-/** Returns escaped linked or plain label markup for a graph node. */
-function nodeMarkup(node: GraphNode): string {
-  const href = graphLink(node);
-  const label = esc(node.label || node.id);
+/** Renders a linked or plain label for a graph node. */
+function NodeMarkup(props: { node: GraphNode }): JSX.Element {
+  const href = graphLink(props.node);
+  const label = props.node.label || props.node.id;
   if (href) {
-    return `<a href="` + href + `">` + label + "</a>";
+    return <a href={href}>{label}</a>;
   }
-  return label;
+  return <>{label}</>;
 }
 
 /** Renders edge page. */
@@ -1285,33 +1285,30 @@ function renderEdgePage(graph: GraphState): void {
   }
   const rows = visibleEdges.slice((graph.edgePage - 1) * pageSize, graph.edgePage * pageSize);
 
-  var rowsHtml;
+  var rowsHtml: JSX.Element[];
   if (rows.length) {
     rowsHtml = rows.map(function(edge) {
-      return "<tr>"
-        + "<td>" + esc(relationshipLabel(edge)) + "</td>"
-        + "<td>" + nodeMarkup(edge.source as GraphNode) + "</td>"
-        + "<td>" + nodeMarkup(edge.target as GraphNode) + "</td>"
-        + "<td>" + esc(edgeDetails(edge)) + "</td>"
-        + "</tr>";
-    }).join("");
+      return <tr><td>{relationshipLabel(edge)}</td><td><NodeMarkup node={edge.source as GraphNode} /></td><td><NodeMarkup node={edge.target as GraphNode} /></td><td>{edgeDetails(edge)}</td></tr>;
+    });
   } else {
-    rowsHtml = `<tr><td colspan="4" class="empty">No relationships.</td></tr>`;
+    rowsHtml = [<tr><td colspan={4} className="empty">No relationships.</td></tr>];
   }
 
-  target.innerHTML = `<div class="table-wrap" aria-label="Relationship table">`
-    + `<table class="ui table"><thead><tr>`
-    + `<th scope="col">Relationship</th>`
-    + `<th scope="col">From</th>`
-    + `<th scope="col">To</th>`
-    + `<th scope="col">Details</th>`
-    + "</tr></thead><tbody>"
-    + rowsHtml
-    + "</tbody></table></div>"
-    + pagination({ page: graph.edgePage, per_page: pageSize, total_rows: visibleEdges.length, total_pages: pages }, {
-      itemLabel: graph.selection ? "relationships in this neighbourhood" : "relationships",
-      pageAttribute: "data-graph-page", pageClass: " graph-page"
-    });
+  renderTree(
+    <Fragment>
+      <div className="table-wrap" aria-label="Relationship table">
+        <table className="ui table">
+          <thead><tr><th scope="col">Relationship</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Details</th></tr></thead>
+          <tbody>{rowsHtml}</tbody>
+        </table>
+      </div>
+      {raw(pagination({ page: graph.edgePage, per_page: pageSize, total_rows: visibleEdges.length, total_pages: pages }, {
+        itemLabel: graph.selection ? "relationships in this neighbourhood" : "relationships",
+        pageAttribute: "data-graph-page", pageClass: " graph-page"
+      }))}
+    </Fragment>,
+    target
+  );
 
   target.querySelectorAll<HTMLButtonElement>("[data-graph-page]").forEach(function(button) {
     button.addEventListener("click", function() {
