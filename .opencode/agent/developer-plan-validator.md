@@ -7,6 +7,9 @@ textVerbosity: high
 permission:
   bash:
     "*": ask
+    python: deny
+    go: deny
+    node: deny
     git branch --show-current: allow
     git show *: allow
     git diff *: allow
@@ -20,8 +23,9 @@ permission:
     sort *: allow
     echo *: allow
     pwd: allow
-    rg -n *: allow
-    sed -n *: allow
+    rg *: allow
+    sed *: allow
+    make *: allow
     sqlite3 -readonly *: allow
   question: deny
   webfetch: ask

@@ -20,7 +20,9 @@ permission:
     sort *: allow
     echo *: allow
     pwd: allow
-    rg -n *: allow
+    rg *: allow
+    sed *: allow
+    make *: allow
     sqlite3 -readonly *: allow
   question: allow
   webfetch: ask

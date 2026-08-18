@@ -21,6 +21,9 @@ permission:
     sort *: allow
     echo *: allow
     pwd: allow
+    rg *: allow
+    sed *: allow
+    make *: allow
   question: allow
   webfetch: ask
   read: allow

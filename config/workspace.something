@@ -175,43 +175,47 @@
 
 #iteration("_workspace"): scope = {
     #priv component_1 := '"BPMN" OR "BPMN 2.0" OR "Business Process Model and Notation" OR "Business Process Modeling Notation" OR "Business Process Modelling Notation"';
-    // Mathematical and constraint-based optimization
-    #priv component_2 := '"linear programming" OR "integer programming" OR ILP OR MILP OR MINLP OR "nonlinear programming" OR "mixed-integer nonlinear programming" OR "constraint satisfaction" OR "constraint optimization" OR "CP-SAT" OR SAT OR SMT OR MaxSAT OR "dynamic programming" OR "branch and bound" OR "branch and cut" OR "column generation" OR "Benders decomposition" OR "Lagrangian relaxation" OR decomposition';
-    // Heuristics and metaheuristics
-    #priv component_3 := 'heuristic* OR metaheuristic* OR matheuristic* OR hyperheuristic* OR "hybrid heuristic*" OR "local search" OR "tabu search" OR GRASP OR "greedy randomized adaptive search" OR "variable neighborhood search" OR VNS OR "iterated local search" OR "large neighborhood search" OR "differential evolution" OR "evolutionary algorithm*" OR "evolutionary computation" OR "memetic algorithm*" OR "estimation of distribution algorithm*"';
-    // multi-objective optimization
-    #priv component_4 := 'NSGA-II OR NSGA-III OR SPEA2 OR "MOEA/D" OR "multi-objective evolutionary algorithm*" OR "Pareto optimization" OR "Pareto optimal*" OR "Pareto front*" OR "non-dominated sorting"';
-    // Learning-based and adaptive methods
-    #priv component_5 := '"reinforcement learning" OR "deep reinforcement learning" OR "Q-learning" OR "policy learning" OR "value function approximation" OR "Markov decision process*" OR MDP OR "multi-agent reinforcement learning" OR "multi-agent system*" OR "learning-based resource allocation" OR "adaptive resource allocation" OR "online optimization" OR "dynamic optimization"';
-    // Expensive simulation models
-    #priv component_6 := '"Bayesian optimization" OR "surrogate optimization" OR "surrogate-assisted optimization" OR "response surface methodology" OR "Gaussian process*" OR "hyperparameter optimization" OR "simulation optimization"';
-    // Process redesign and structural optimization
-    #priv component_7 := '"business process improvement" OR "process improvement" OR "business process redesign" OR "process redesign" OR "business process reengineering" OR "process reengineering" OR refactor* OR restructur* OR simplif* OR "process transformation" OR "process adaptation" OR "process repair" OR "model repair" OR "process configuration" OR "process variant*" OR "change pattern*" OR "redesign heuristic*" OR "process redesign pattern*" OR "automated redesign" OR "automated refactoring"';
-    // Model structure and readability
-    #priv component_8 := '"model quality" OR "process model quality" OR "structural complexity" OR "model complexity" OR understandability OR readability OR modularity OR maintainability OR "cognitive complexity" OR "model decomposition" OR "process model simplification"';
-    // Simulation and what-if optimization
-    #priv component_9 := '"business process simulation" OR BPS OR BPSim OR "discrete-event simulation" OR "discrete event simulation" OR DES OR "simulation-based optimization" OR "simulation optimization" OR "multi-objective simulation optimization" OR "what-if analysis" OR "scenario analysis" OR "process simulation model" OR "simulation model discovery" OR "simulation calibration" OR "digital twin"
-OR "process digital twin"';
-    // Process mining and prescriptive optimization
-    #priv component_10 := '"process mining" OR "event log*" OR "performance mining" OR "process enhancement" OR "process model enhancement" OR "process model repair" OR "conformance checking" OR alignment* OR "predictive process monitoring" OR "prescriptive process monitoring" OR "prescriptive process analytics" OR "process-aware recommender system*" OR "next-best action" OR "operational support" OR "decision support" OR "counterfactual recommendation*"';
-    // Resource-management terminology
-    #priv component_11 := '"resource management" OR "resource planning" OR "resource provisioning" OR "resource selection" OR "resource scheduling" OR "resource dispatching" OR "resource allocation policy" OR "resource allocation rule" OR "dispatching rule*" OR "priority rule*" OR "worklist management" OR "workforce scheduling" OR staffing OR "capacity planning" OR "skill-based assignment" OR "role-based allocation" OR "role resolution" OR "task-resource assignment" OR "human resource allocation" OR "multi-case resource allocation" OR "cross-case resource allocation" OR "dynamic resource allocation" OR "resource calendar*" OR "resource pool*"';
-    // Additional optimization objectives
-    #priv component_12 := '"lead time" OR "flow time" OR "response time" OR "processing time" OR "execution time" OR "waiting time" OR "queueing time" OR "sojourn time" OR tardiness OR lateness OR deadline* OR bottleneck* OR "queue length" OR "work in process" OR WIP OR utilization OR productivity OR efficiency OR workload OR "workload balance" OR fairness OR "service level" OR SLA OR "SLA violation*" OR reliability OR availability OR robustness OR resilience OR flexibility OR compliance OR risk OR energy OR "energy consumption" OR carbon OR emission*';
-    #priv component_13 := 'stochastic OR probabilistic OR uncertain* OR robust* OR "robust optimization" OR "stochastic optimization" OR "chance-constrained" OR "scenario-based optimization" OR "sensitivity analysis"';
-    // Service composition and orchestration
-    #priv component_14 := '"service composition" OR "service selection" OR "service assignment" OR "service orchestration" OR "service choreography" OR "QoS-aware service composition" OR "SLA-constrained service composition" OR "workflow composition" OR "process composition" OR "semantic service composition" OR "web service composition"';
+    #priv component_2 := '"mathematical model*" OR "mathematical formulation*" OR "optimization model*" OR "formal model*" OR "analytical model*" OR "algebraic model*" OR "mathematical representation*" OR "operations research" OR "operational research" OR "task graph*" OR "Petri net*" OR "workflow net*" OR "timed Petri net*" OR "stochastic Petri net*" OR "queueing model*" OR "queueing network*" OR "Markov model*" OR "Markov chain*" OR "state space" OR "state-space model*"';
+    #priv component_3 := 'optimi* OR "mathematical optimization" OR "mathematical programming" OR "combinatorial optimization" OR "linear programming" OR "integer programming" OR ILP OR MILP OR MINLP OR "nonlinear programming" OR "quadratic programming" OR "constraint programming" OR "constraint optimization" OR "dynamic programming" OR "stochastic programming" OR "robust optimization" OR "multi-objective optimization" OR "multiobjective optimization" OR "goal programming" OR "Pareto optim*"';
+    #priv component_4 := 'heuristic* OR metaheuristic* OR matheuristic* OR "local search" OR "genetic algorithm*" OR "evolutionary algorithm*" OR "particle swarm" OR "ant colony" OR "simulated annealing" OR "tabu search"';
 
-    // workspace: workspace_config = {
-    //     format_version = 2,
-    //     search_id = "bpmn-optimization-improved"
-    //     search_revision = "2026-07",
-    //     enrichment_enabled = true,
-    //     reuse_policy = reuse_policy_config {
-    //         policy = "reuse_completed",
-    //     },
-    //     cache_policy = make_cache_policy!(),
-    //     sources = [
-    //     ],
-    // }
+    workspace: workspace_config = {
+        format_version = 2,
+        search_id = "bpmn-optimization-improved",
+        search_revision = "2026-08",
+        enrichment_enabled = true,
+        reuse_policy = reuse_policy_config {
+            policy = "reuse_completed",
+        },
+        cache_policy = make_cache_policy!(),
+        sources = [
+            {
+                name = "wos",
+                date = "2026-08-18 00:33:00",
+                expected_file = "../corpus/wos.2026-08-18.raw.bib",
+                file_type = "bib",
+                query = #multiline (no_indent|no_newline|strip_spaces) WOS
+                    TS=(({component_1}) AND ({component_2} OR {component_3} OR {component_4}))
+                WOS,
+                filters = []raw_data_filters{
+                    { filters = [.NO_FILTER], count = 497 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  344 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  178 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  174 },
+                },
+                expected_result_count = 174,
+                requested_fields = make_requested_fields!(),
+                patch_fields = mapping(string, string) {
+                    ["cited-references"] => "cited_references",
+                    ["author"] => "authors",
+                    ["affiliation"] => "affiliations",
+                    ["article_source"] => "source",
+                    ["keywords-plus"] => "keywords_additional",
+                    ["times-cited"] => "citation_count",
+                },
+                keep_fields = make_keep_fields!(),
+            },
+        ],
+        enrichment_providers = make_enrichment_providers!(),
+    };
 }
