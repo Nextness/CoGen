@@ -70,6 +70,81 @@ describe('corpus.js — corpusView', function() {
     history.pushState({}, '', url.toString());
   });
 
+  it('renders matched search terms in the article row expansion', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function(url) {
+      if (String(url).includes('/api/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); } } as unknown as Response);
+      }
+      if (String(url).includes('/api/runs')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: function() {
+            return Promise.resolve({
+              data: {
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
+                rows: [{
+                  id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus',
+                  term_matches: { title: ['BPMN'], abstract: [], keywords: ['scheduling'], keywords_plus: [], matched_total: 2, term_total: 5, sources: ['scopus'] },
+                }],
+                pagination: { page: 1, total_pages: 1, total_rows: 1 },
+              },
+            });
+          },
+        } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
+    } as typeof fetch;
+    state.tables = [];
+    history.pushState({}, '', '?view=corpus&section=articles&run_id=1');
+
+    await corpusView();
+    assert.ok(app.innerHTML.includes('Matched search terms'));
+    assert.ok(app.innerHTML.includes('2 of 5 search terms matched'));
+    assert.ok(app.innerHTML.includes('BPMN'));
+    assert.ok(app.innerHTML.includes('scheduling'));
+
+    globalThis.fetch = originalFetch;
+    state.tables = [];
+    history.pushState({}, '', '?view=home');
+  });
+
+  it('renders no search terms recorded when term_matches is absent', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function(url) {
+      if (String(url).includes('/api/tables')) {
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); } } as unknown as Response);
+      }
+      if (String(url).includes('/api/runs')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: function() {
+            return Promise.resolve({
+              data: {
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
+                rows: [{ id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
+                pagination: { page: 1, total_pages: 1, total_rows: 1 },
+              },
+            });
+          },
+        } as unknown as Response);
+      }
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
+    } as typeof fetch;
+    state.tables = [];
+    history.pushState({}, '', '?view=corpus&section=articles&run_id=1');
+
+    await corpusView();
+    assert.ok(app.innerHTML.includes('Matched search terms'));
+    assert.ok(app.innerHTML.includes('No search terms recorded'));
+
+    globalThis.fetch = originalFetch;
+    state.tables = [];
+    history.pushState({}, '', '?view=home');
+  });
+
   it('keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function(url) {

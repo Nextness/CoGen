@@ -52,6 +52,7 @@ type Database struct {
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
 	PipelineRunReviewers *PipelineRunReviewerRepository
+	TermMatches          *TermMatchesRepository
 	Reviews              *ReviewRepository
 
 	dbPath     string
@@ -218,6 +219,7 @@ func (d *Database) initRepositories() {
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
 	d.PipelineRunReviewers = &PipelineRunReviewerRepository{db: d}
+	d.TermMatches = &TermMatchesRepository{db: d}
 	d.Reviews = &ReviewRepository{db: d}
 }
 

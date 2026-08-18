@@ -8,6 +8,8 @@ package server
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 
 	"analysis/database"
 	"analysis/pdfstore"
+	"analysis/searchterms"
 )
 
 // TestGenerateFixture creates a workspace fixture database at
@@ -86,8 +89,8 @@ func TestGenerateFixture(t *testing.T) {
 	exec(`INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number, summary) VALUES ('workspace', '2024-05-12T16:00:00Z', '2024-05-12T16:15:00Z', 'completed', 5, 1, 'CRISPR pipeline run')`)
 
 	// 5. Run sources and source records
-	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file, expected_result_count, observed_result_count, result_count_comparison) VALUES (1, 'scopus-export', 'csv', 'scopus.csv', 4, 2, 'below')")
-	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file, expected_result_count, observed_result_count, result_count_comparison) VALUES (1, 'ieee-export', 'csv', 'ieee.csv', 1, 1, 'match')")
+	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file, query, expected_result_count, observed_result_count, result_count_comparison) VALUES (1, 'scopus-export', 'csv', 'scopus.csv', ?, 4, 2, 'below')", `TITLE-ABS-KEY(("transformer" OR "deep learning" OR "neural" OR "attention") AND ("reinforcement" OR "convolutional"))`)
+	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file, query, expected_result_count, observed_result_count, result_count_comparison) VALUES (1, 'ieee-export', 'csv', 'ieee.csv', ?, 1, 1, 'match')", `("Document Title": ("transformer" OR "deep learning")) OR ("documentAbstract": ("neural")) OR ("authorTerms": ("attention"))`)
 	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file) VALUES (2, 'scopus-export', 'csv', 'scopus.csv')")
 	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file) VALUES (3, 'scopus-export', 'csv', 'scopus.csv')")
 	exec("INSERT INTO run_sources (pipeline_run_id, source_name, source_type, expected_file) VALUES (4, 'scopus-export', 'csv', 'scopus.csv')")
@@ -139,7 +142,7 @@ func TestGenerateFixture(t *testing.T) {
 
 	// 9. Work revisions (27, distributed across the 6 runs)
 	// Helper: work_revision records
-	// [work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data]
+	// [work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus]
 	type rev struct {
 		workID, runID int
 		hash, title   string
@@ -150,53 +153,60 @@ func TestGenerateFixture(t *testing.T) {
 		refs          int
 		stage         string
 		extension     string
+		abstract      string
+		keywords      string
+		keywordsPlus  string
 	}
 
 	revisions := []rev{
 		// Run 1 (completed, enrichment enabled) — 10 revisions
-		{1, 1, "ph-dl-attn", "Attention Mechanisms in Transformer Models", 2024, "Nature", "scopus", 150, 45, "normalize", `{"validation_status":"valid"}`},
-		{2, 1, "ph-dl-rl", "Deep Reinforcement Learning for Robotics", 2023, "Science", "ieee", 89, 32, "normalize", `{"validation_status":"valid"}`},
-		{3, 1, "ph-dl-cnn", "Convolutional Neural Networks for Image Recognition", 2022, "IEEE Access", "scopus", 234, 67, "normalize", `{"validation_status":"valid"}`},
-		{4, 1, "ph-dl-gnn", "Graph Neural Networks: A Comprehensive Survey", 2024, "PLOS ONE", "wos", 45, 78, "normalize", `{"validation_status":"valid"}`},
-		{5, 1, "ph-dl-gan", "Generative Adversarial Networks: Advances and Challenges", 2021, "Nature", "scopus", 312, 56, "normalize", `{"validation_status":"valid"}`},
-		{6, 1, "ph-dl-tl", "Transfer Learning in Natural Language Processing", 2023, "ACL", "scopus", 67, 23, "normalize", `{"validation_status":"valid"}`},
-		{7, 1, "ph-dl-ssl", "Self-Supervised Learning: A Review", 2024, "IEEE TPAMI", "ieee", 23, 89, "normalize", `{"validation_status":"valid"}`},
-		{8, 1, "ph-dl-snn", "Spiking Neural Networks for Edge Computing", 2020, "Frontiers", "wos", 12, 34, "validate", `{"validation_status":"discarded","validation_reasons":["insufficient data"]}`},
-		{9, 1, "ph-dl-fl", "Federated Learning: Privacy-Preserving Machine Learning", 2022, "Cell", "scopus", 78, 41, "normalize", `{"validation_status":"valid"}`},
-		{10, 1, "ph-dl-nas", "Neural Architecture Search: Methods and Applications", 2023, "ACM Computing Surveys", "scopus", 56, 67, "normalize", `{"validation_status":"valid"}`},
+		{1, 1, "ph-dl-attn", "Attention Mechanisms in Transformer Models", 2024, "Nature", "scopus", 150, 45, "normalize", `{"validation_status":"valid"}`, "We study attention mechanisms in transformer models for deep learning.", `["transformer models","attention"]`, `["deep learning","nlp"]`},
+		{2, 1, "ph-dl-rl", "Deep Reinforcement Learning for Robotics", 2023, "Science", "ieee", 89, 32, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{3, 1, "ph-dl-cnn", "Convolutional Neural Networks for Image Recognition", 2022, "IEEE Access", "scopus", 234, 67, "normalize", `{"validation_status":"valid"}`, "Convolutional neural networks for image recognition.", `["convolutional neural networks"]`, `["image recognition"]`},
+		{4, 1, "ph-dl-gnn", "Graph Neural Networks: A Comprehensive Survey", 2024, "PLOS ONE", "wos", 45, 78, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{5, 1, "ph-dl-gan", "Generative Adversarial Networks: Advances and Challenges", 2021, "Nature", "scopus", 312, 56, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{6, 1, "ph-dl-tl", "Transfer Learning in Natural Language Processing", 2023, "ACL", "scopus", 67, 23, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{7, 1, "ph-dl-ssl", "Self-Supervised Learning: A Review", 2024, "IEEE TPAMI", "ieee", 23, 89, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{8, 1, "ph-dl-snn", "Spiking Neural Networks for Edge Computing", 2020, "Frontiers", "wos", 12, 34, "validate", `{"validation_status":"discarded","validation_reasons":["insufficient data"]}`, "", "", ""},
+		{9, 1, "ph-dl-fl", "Federated Learning: Privacy-Preserving Machine Learning", 2022, "Cell", "scopus", 78, 41, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{10, 1, "ph-dl-nas", "Neural Architecture Search: Methods and Applications", 2023, "ACM Computing Surveys", "scopus", 56, 67, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 
 		// Run 2 (failed) — 3 revisions
-		{11, 2, "ph-dl-bayes", "Bayesian Deep Learning: A Review", 2023, "JMLR", "scopus", 34, 28, "enrich", `{"validation_status":"valid"}`},
-		{12, 2, "ph-dl-vae", "Variational Autoencoders in Medical Imaging", 2021, "Medical Image Analysis", "ieee", 45, 19, "enrich", `{"validation_status":"valid"}`},
-		{13, 2, "ph-dl-xai", "Explainable AI: Techniques and Challenges", 2024, "AI Ethics", "scopus", 67, 31, "enrich", `{"validation_status":"valid"}`},
+		{11, 2, "ph-dl-bayes", "Bayesian Deep Learning: A Review", 2023, "JMLR", "scopus", 34, 28, "enrich", `{"validation_status":"valid"}`, "", "", ""},
+		{12, 2, "ph-dl-vae", "Variational Autoencoders in Medical Imaging", 2021, "Medical Image Analysis", "ieee", 45, 19, "enrich", `{"validation_status":"valid"}`, "", "", ""},
+		{13, 2, "ph-dl-xai", "Explainable AI: Techniques and Challenges", 2024, "AI Ethics", "scopus", 67, 31, "enrich", `{"validation_status":"valid"}`, "", "", ""},
 
 		// Run 3 (trashed) — 3 revisions
-		{14, 3, "ph-qc-overview", "Quantum Machine Learning: An Overview", 2022, "Quantum", "scopus", 89, 42, "normalize", `{"validation_status":"valid"}`},
-		{15, 3, "ph-qc-ecc", "Quantum Error Correction Codes", 2023, "Physical Review", "scopus", 23, 56, "normalize", `{"validation_status":"valid"}`},
-		{16, 3, "ph-qc-anneal", "Quantum Annealing for Optimization", 2021, "Nature Physics", "wos", 45, 34, "validate", `{"validation_status":"discarded","validation_reasons":["out of scope"]}`},
+		{14, 3, "ph-qc-overview", "Quantum Machine Learning: An Overview", 2022, "Quantum", "scopus", 89, 42, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{15, 3, "ph-qc-ecc", "Quantum Error Correction Codes", 2023, "Physical Review", "scopus", 23, 56, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{16, 3, "ph-qc-anneal", "Quantum Annealing for Optimization", 2021, "Nature Physics", "wos", 45, 34, "validate", `{"validation_status":"discarded","validation_reasons":["out of scope"]}`, "", "", ""},
 
 		// Run 4 (enrichment disabled) — 5 revisions
-		{17, 4, "ph-cr-cas9", "CRISPR-Cas9: A Decade of Progress", 2024, "Science", "scopus", 156, 78, "normalize", `{"validation_status":"valid"}`},
-		{18, 4, "ph-cr-embryo", "Gene Editing in Human Embryos", 2023, "Nature", "wos", 234, 45, "normalize", `{"validation_status":"valid"}`},
-		{19, 4, "ph-cr-base", "Base Editing: A New Frontier", 2022, "Cell", "scopus", 89, 34, "normalize", `{"validation_status":"valid"}`},
-		{20, 4, "ph-cr-prime", "Prime Editing: Methods and Applications", 2023, "Nature Biotechnology", "scopus", 67, 23, "normalize", `{"validation_status":"valid"}`},
-		{21, 4, "ph-cr-ethics", "Ethical Considerations in Gene Editing", 2024, "Bioethics", "scopus", 12, 56, "normalize", `{"validation_status":"valid"}`},
+		{17, 4, "ph-cr-cas9", "CRISPR-Cas9: A Decade of Progress", 2024, "Science", "scopus", 156, 78, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{18, 4, "ph-cr-embryo", "Gene Editing in Human Embryos", 2023, "Nature", "wos", 234, 45, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{19, 4, "ph-cr-base", "Base Editing: A New Frontier", 2022, "Cell", "scopus", 89, 34, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{20, 4, "ph-cr-prime", "Prime Editing: Methods and Applications", 2023, "Nature Biotechnology", "scopus", 67, 23, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{21, 4, "ph-cr-ethics", "Ethical Considerations in Gene Editing", 2024, "Bioethics", "scopus", 12, 56, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 
 		// Run 5 (very recent) — 4 revisions
-		{22, 5, "ph-llm-survey", "Large Language Models: A Comprehensive Survey", 2025, "Nature", "scopus", 456, 89, "normalize", `{"validation_status":"valid"}`},
-		{23, 5, "ph-multimodal", "Multimodal AI Systems", 2025, "Science", "ieee", 234, 67, "normalize", `{"validation_status":"valid"}`},
-		{24, 5, "ph-ai-safety", "AI Safety and Alignment Research", 2025, "AI Magazine", "scopus", 89, 45, "normalize", `{"validation_status":"valid"}`},
-		{25, 5, "ph-foundation-robotics", "Foundation Models in Robotics", 2025, "IEEE Robotics", "ieee", 67, 34, "normalize", `{"validation_status":"valid"}`},
+		{22, 5, "ph-llm-survey", "Large Language Models: A Comprehensive Survey", 2025, "Nature", "scopus", 456, 89, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{23, 5, "ph-multimodal", "Multimodal AI Systems", 2025, "Science", "ieee", 234, 67, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{24, 5, "ph-ai-safety", "AI Safety and Alignment Research", 2025, "AI Magazine", "scopus", 89, 45, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{25, 5, "ph-foundation-robotics", "Foundation Models in Robotics", 2025, "IEEE Robotics", "ieee", 67, 34, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 
 		// Run 6 (search-3) — 2 revisions
-		{26, 6, "ph-cr-screening", "CRISPR Screening in Cancer Research", 2024, "Cancer Cell", "scopus", 34, 23, "normalize", `{"validation_status":"valid"}`},
-		{27, 6, "ph-cr-epi", "Epigenetic Editing: Tools and Applications", 2023, "Nature Reviews", "wos", 45, 12, "normalize", `{"validation_status":"valid"}`},
+		{26, 6, "ph-cr-screening", "CRISPR Screening in Cancer Research", 2024, "Cancer Cell", "scopus", 34, 23, "normalize", `{"validation_status":"valid"}`, "", "", ""},
+		{27, 6, "ph-cr-epi", "Epigenetic Editing: Tools and Applications", 2023, "Nature Reviews", "wos", 45, 12, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 	}
 
 	for _, r := range revisions {
-		exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			r.workID, r.runID, r.hash, r.title, r.year, r.journal, r.source, r.citations, r.refs, r.stage, r.extension)
+		exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.workID, r.runID, r.hash, r.title, r.year, r.journal, r.source, r.citations, r.refs, r.stage, r.extension, r.abstract, r.keywords, r.keywordsPlus)
 	}
+
+	// Populate the derived per-run term inventory and revision matches for run 1
+	// through the same searchterms and repository code paths the pipeline uses.
+	populateFixtureTermMatches(t, db, 1)
 
 	// 10. Run work stages (validate, enrich, normalize for revisions in each run)
 	// Run 1 stages
@@ -539,6 +549,81 @@ func TestGenerateFixture(t *testing.T) {
 	metadataBytes := copyFixture(tmpPath, outputPath)
 	pdfBytes := copyFixture(tmpPDFPath, outputPDFPath)
 	t.Logf("fixtures written to %s (%d bytes) and %s (%d bytes)", outputPath, metadataBytes, outputPDFPath, pdfBytes)
+}
+
+// populateFixtureTermMatches computes and stores the derived per-run term
+// inventory and revision matches for one run through the same searchterms and
+// TermMatches code paths the pipeline uses.
+func populateFixtureTermMatches(t *testing.T, db *database.Database, runID int64) {
+	t.Helper()
+	rows, err := db.DB.Query(`SELECT source_name, query FROM run_sources
+		WHERE pipeline_run_id=? AND query IS NOT NULL AND trim(query)<>'' ORDER BY id`, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queries := map[string]string{}
+	for rows.Next() {
+		var source, query string
+		if err := rows.Scan(&source, &query); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		queries[source] = query
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	terms := searchterms.ParseSources(queries)
+	termsBySource := map[string][]string{}
+	for _, term := range terms {
+		for _, source := range term.Sources {
+			termsBySource[source] = append(termsBySource[source], term.Text)
+		}
+	}
+	revRows, err := db.DB.Query(`SELECT id, title, abstract, keywords, keywords_plus
+		FROM work_revisions WHERE pipeline_run_id=? AND producer_stage='normalize' ORDER BY id`, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := map[int64]map[string][]string{}
+	for revRows.Next() {
+		var revisionID int64
+		var title, abstract, keywords, keywordsPlus sql.NullString
+		if err := revRows.Scan(&revisionID, &title, &abstract, &keywords, &keywordsPlus); err != nil {
+			revRows.Close()
+			t.Fatal(err)
+		}
+		fieldMatches := searchterms.MatchFields(title.String, abstract.String, fixtureKeywordArray(keywords), fixtureKeywordArray(keywordsPlus), terms)
+		hasMatch := false
+		for _, list := range fieldMatches {
+			if len(list) > 0 {
+				hasMatch = true
+				break
+			}
+		}
+		if hasMatch {
+			matches[revisionID] = fieldMatches
+		}
+	}
+	if err := revRows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.TermMatches.ReplaceRunTermData(runID, termsBySource, matches); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// fixtureKeywordArray decodes a stored keyword TEXT value into an array with a
+// raw-text fallback, mirroring the pipeline's stored-value handling.
+func fixtureKeywordArray(raw sql.NullString) []string {
+	if !raw.Valid || raw.String == "" {
+		return nil
+	}
+	var arr []string
+	if err := json.Unmarshal([]byte(raw.String), &arr); err == nil {
+		return arr
+	}
+	return []string{raw.String}
 }
 
 // sprintf is a convenience wrapper for fmt.Sprintf used in the fixture generator.

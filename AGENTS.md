@@ -65,7 +65,7 @@ There is no separate lint, pre-commit, or CI target. Format changed Go with `gof
 
 ## 4. Runtime and configuration essentials
 
-`run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed plan is a no-op by default while normalized DOI inventory reconciliation still runs; `--fresh` creates another attempt.
+`run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed plan is a no-op by default while normalized DOI inventory and stored search-term match reconciliation still run; the first run after a migration is a full new run because the schema version is part of the execution fingerprint. `--fresh` creates another attempt.
 
 `migrate` applies configured metadata migrations to an existing database without running a workspace. `serve` requires `--db`, `--addr`, and `--assets-dir`, requires an exact loopback IP address, opens the existing metadata database through separate read-only and review-write connections, verifies review schema protection without running migrations, and keeps the bound PDF companion read-only. The binary contains no frontend assets; `--assets-dir` is the sole asset source.
 
@@ -91,7 +91,7 @@ The viewer is a URL-state SPA assembled into `frontend/dist` from `frontend/src`
 
 ## 6. Data, migration, and security essentials
 
-The metadata chain is V00001-V00024 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
+The metadata chain is V00001-V00025 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
 
 Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 

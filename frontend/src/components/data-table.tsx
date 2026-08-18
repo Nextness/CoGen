@@ -38,7 +38,7 @@ export interface DataTableContext {
   page?: number;
   perPage?: number;
   sortFields?: string[];
-  expandableFields?: Array<{ f: string; w: number | string; label?: string }>;
+  expandableFields?: Array<{ f: string; w: number | string; label?: string; render?: (row: any) => JSX.Element }>;
   rowKey?: string;
   columnConfig?: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }>;
   expandLongCells?: boolean;
@@ -123,7 +123,9 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           const val = row[ef.f];
           const style = ef.w === "full" ? "grid-column:1/-1" : "grid-column:span " + ef.w;
           let display: JSX.Element;
-          if (val === null || val === undefined) {
+          if (ef.render) {
+            display = ef.render(row);
+          } else if (val === null || val === undefined) {
             display = <span className="ui faded text">Not recorded</span>;
           } else {
             display = <>{asJSON(val)}</>;

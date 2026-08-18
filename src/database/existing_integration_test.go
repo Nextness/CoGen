@@ -49,7 +49,7 @@ func TestExistingDatabaseLifecycle(t *testing.T) {
 	}
 	defer migrated.Close()
 	var migrations int
-	if err := migrated.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil || migrations != 24 {
+	if err := migrated.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil || migrations != 25 {
 		t.Fatalf("migrations=%d err=%v", migrations, err)
 	}
 }

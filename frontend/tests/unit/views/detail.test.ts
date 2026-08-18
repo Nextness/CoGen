@@ -201,6 +201,91 @@ describe('detail.js — detailView', function() {
     history.pushState({}, '', url.toString());
   });
 
+  it('renders the search term coverage panel', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() {
+          return Promise.resolve({
+            data: {
+              article: { id: 'a3', title: 'Coverage article', abstract: 'BPMN abstract', keywords: '["bpmn"]', keywords_plus: '[]' },
+              authors: [],
+              references: [],
+              enriched_fields: [],
+              audit_events: [],
+              stage_outcomes: [],
+              term_matches: {
+                title: ['BPMN'], abstract: ['BPMN'], keywords: ['BPMN'], keywords_plus: [],
+                matched_total: 1, term_total: 3, sources: ['scopus'],
+                terms_with_sources: { BPMN: ['scopus'], scheduling: ['scopus'], metaheuristic: ['wos'] },
+                unmatched: ['scheduling', 'metaheuristic'],
+              },
+            },
+          });
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    const url = new URL(location.href);
+    url.searchParams.set('article_id', 'a3');
+    url.searchParams.set('view', 'article');
+    history.pushState({}, '', url.toString());
+
+    await detailView('article');
+    assert.ok(app.innerHTML.includes('Search term coverage'));
+    assert.ok(app.innerHTML.includes('1 of 3 search terms matched this article.'));
+    assert.ok(app.innerHTML.includes('All search terms'));
+    assert.ok(app.innerHTML.includes('Matched terms'));
+    assert.ok(app.innerHTML.includes('Unmatched terms'));
+    assert.ok(app.innerHTML.includes('metaheuristic'));
+    assert.ok(app.innerHTML.includes('(wos)'));
+    assert.ok(app.innerHTML.includes('(scopus)'));
+
+    globalThis.fetch = originalFetch;
+    url.searchParams.delete('article_id');
+    url.searchParams.set('view', 'overview');
+    history.pushState({}, '', url.toString());
+  });
+
+  it('renders no search terms recorded when term_matches is null', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() {
+          return Promise.resolve({
+            data: {
+              article: { id: 'a4', title: 'No coverage article' },
+              authors: [],
+              references: [],
+              enriched_fields: [],
+              audit_events: [],
+              stage_outcomes: [],
+              term_matches: null,
+            },
+          });
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    const url = new URL(location.href);
+    url.searchParams.set('article_id', 'a4');
+    url.searchParams.set('view', 'article');
+    history.pushState({}, '', url.toString());
+
+    await detailView('article');
+    assert.ok(app.innerHTML.includes('Search term coverage'));
+    assert.ok(app.innerHTML.includes('No search terms recorded for this run.'));
+
+    globalThis.fetch = originalFetch;
+    url.searchParams.delete('article_id');
+    url.searchParams.set('view', 'overview');
+    history.pushState({}, '', url.toString());
+  });
+
   it('renders reference detail when reference_id is set', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {

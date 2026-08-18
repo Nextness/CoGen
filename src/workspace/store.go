@@ -60,6 +60,7 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		if _, _, err := syncNormalizedPDFInventory(context.Background(), db, dbPath, databaseRegistryPath()); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
+		reconcileStoredTermMatchesBestEffort(db)
 		log.Info("reused completed execution plan", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision))
 		return nil
 	}
@@ -271,8 +272,13 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 	if err := recordWorkspaceStage(db, run, runID, "normalize", valid, valid); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(db, runID, valid, database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, nil); err != nil {
+	_, normalizeRevisionIDs, err := persistWorkspaceStage(db, runID, valid, database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, nil)
+	if err != nil {
 		return fmt.Errorf("persist normalized works: %w", err)
+	}
+	termsBySource, termMatches := computeRunTermMatches(run, valid, normalizeRevisionIDs)
+	if err := persistRunTermMatches(db, runID, termsBySource, termMatches); err != nil {
+		return err
 	}
 	registered, auditEventsFlushed, err := syncNormalizedPDFInventory(context.Background(), db, dbPath, databaseRegistryPath())
 	if err != nil {
@@ -284,6 +290,7 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		return err
 	}
 	completed = true
+	reconcileStoredTermMatchesBestEffort(db)
 	log.Info("workspace pipeline completed", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision), "run_id", runID)
 	return nil
 }

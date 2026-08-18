@@ -192,5 +192,12 @@ database_migrations: database_migration_config = {
     filename = "V00024_review_notes_links_anchors.sql",
     description = "Add append-only note and PDF-anchor histories with context-scoped mutable heads and version-scoped links.",
     previous = "V00023_review_contexts.sql",
+    upgrade = "V00025_work_revision_term_matches.sql"
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00025_work_revision_term_matches.sql",
+    description = "Store per-run parsed search-term inventories and per-revision field matches derived from recorded source queries.",
+    previous = "V00024_review_notes_links_anchors.sql",
     upgrade = "NONE"
 };

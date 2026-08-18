@@ -20,6 +20,7 @@ const articlesExpandFields = [
   { f: 'journal', w: 10 },
   { f: 'publisher', w: 10 },
   { f: 'abstract', w: 'full' as const },
+  { f: 'term_matches', w: 'full' as const, label: 'Matched search terms', render: termMatchMarkup },
   { f: 'work_id', w: 4 },
   { f: 'year', w: 4 },
   { f: 'source', w: 4 },
@@ -169,6 +170,40 @@ function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JS
 /** Renders escaped record text clipped to the requested length. */
 function clippedRecordText(title: any): JSX.Element {
   return <span className="rw-table-title" title={title || 'Not recorded'}><span>{title || 'Not recorded'}</span></span>;
+}
+
+/** Renders the stored search-term coverage for one article row. */
+function termMatchMarkup(row: any): JSX.Element {
+  const matches = row.term_matches;
+  if (matches === null || matches === undefined) {
+    return <span className="ui faded text">No search terms recorded</span>;
+  }
+  const fields = [
+    { key: 'title', label: 'Title' },
+    { key: 'abstract', label: 'Abstract' },
+    { key: 'keywords', label: 'Keywords' },
+    { key: 'keywords_plus', label: 'Keywords plus' },
+  ];
+  return (
+    <Fragment>
+      <p className="muted">{matches.matched_total} of {matches.term_total} search terms matched</p>
+      <div className="rw-term-fields">
+        {fields.map(function(field) {
+          const terms = matches[field.key] || [];
+          return (
+            <div className="rw-term-field">
+              <span className="rw-term-field__label">{field.label}</span>
+              {terms.length
+                ? <span className="rw-keyword-tags">{terms.map(function(term: string) {
+                  return <span className="ui label">{term}</span>;
+                })}</span>
+                : <span className="ui faded text">No matched terms</span>}
+            </div>
+          );
+        })}
+      </div>
+    </Fragment>
+  );
 }
 
 /** Returns section-specific labels and renderers for corpus columns. */

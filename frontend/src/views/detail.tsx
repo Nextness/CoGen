@@ -268,6 +268,74 @@ function stageReasonMarkup(raw: any): JSX.Element {
   return recorded(raw);
 }
 
+/** Renders the search term coverage panel for an article revision. */
+function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Element {
+  const matches = props.matches;
+  const record = props.record;
+  if (matches === null || matches === undefined) {
+    return (
+      <Panel title="Search term coverage" description="Derived from the search queries recorded for this run."
+        body={<p className="ui faded text">No search terms recorded for this run.</p>} classes="rw-detail-section" />
+    );
+  }
+  const fields = [
+    { key: 'title', label: 'Title', recorded: Boolean(record.title) },
+    { key: 'abstract', label: 'Abstract', recorded: Boolean(record.abstract) },
+    { key: 'keywords', label: 'Keywords', recorded: keywordValues(record.keywords).length > 0 },
+    { key: 'keywords_plus', label: 'Keywords plus', recorded: keywordValues(record.keywords_plus).length > 0 },
+  ];
+  const termsWithSources = matches.terms_with_sources || {};
+  const matchedSet = new Set<string>();
+  fields.forEach(function(field) {
+    (matches[field.key] || []).forEach(function(term: string) {
+      matchedSet.add(term);
+    });
+  });
+  const allTerms = Object.entries(termsWithSources) as Array<[string, string[]]>;
+  const matchedTerms = allTerms.filter(function(entry) { return matchedSet.has(entry[0]); });
+  const unmatchedTerms = allTerms.filter(function(entry) { return !matchedSet.has(entry[0]); });
+
+  return (
+    <Panel title="Search term coverage" description="Which recorded search terms matched this article's fields. Matching is a local approximation of the database queries."
+      body={
+        <Fragment>
+          <p className="muted">{matches.matched_total} of {matches.term_total} search terms matched this article.</p>
+          <div className="rw-term-fields">
+            {fields.map(function(field) {
+              const terms = matches[field.key] || [];
+              var content: JSX.Element;
+              if (!field.recorded) {
+                content = <span className="ui faded text">Not recorded</span>;
+              } else if (terms.length) {
+                content = <span className="rw-keyword-tags">{terms.map(function(term: string) {
+                  return <span className="ui label">{term}</span>;
+                })}</span>;
+              } else {
+                content = <span className="ui faded text">No matched terms</span>;
+              }
+              return <div className="rw-term-field"><span className="rw-term-field__label">{field.label}</span>{content}</div>;
+            })}
+          </div>
+          <details className="rw-disclosure">
+            <summary>All search terms</summary>
+            <div className="rw-disclosure__content">
+              {allTerms.length
+                ? <Fragment>
+                  {matchedTerms.length ? <Fragment><p className="muted">Matched terms</p><div className="rw-keyword-tags">{matchedTerms.map(function(entry) {
+                    return <span className="ui label">{entry[0]}<span className="rw-term-sources">({entry[1].join(', ')})</span></span>;
+                  })}</div></Fragment> : null}
+                  {unmatchedTerms.length ? <Fragment><p className="muted">Unmatched terms</p><div className="rw-keyword-tags">{unmatchedTerms.map(function(entry) {
+                    return <span className="ui label">{entry[0]}<span className="rw-term-sources">({entry[1].join(', ')})</span></span>;
+                  })}</div></Fragment> : null}
+                </Fragment>
+                : <p className="ui faded text">No search terms recorded.</p>}
+            </div>
+          </details>
+        </Fragment>
+      } classes="rw-detail-section" />
+  );
+}
+
 /** Renders the article detail view from its immutable revision payload. */
 function ArticleView(props: { record: any; data: any }): JSX.Element {
   const record = props.record;
@@ -332,6 +400,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
       <div className="rw-reading-workspace"><div data-pdf-viewer-host></div><div data-review-host></div></div>
       <Panel title="Provenance summary" description="Where this revision came from and how it was captured." body={provenance} classes="rw-detail-section" />
       {bibliography}
+      <SearchTermCoveragePanel matches={data.term_matches} record={record} />
       <div data-detail-collection-host="article-authors"></div>
       <div data-detail-collection-host="article-references"></div>
       <div data-detail-collection-host="article-stage-outcomes"></div>

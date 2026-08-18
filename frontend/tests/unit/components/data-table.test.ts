@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { rowFilter, dataTable, bindTableControls } from '../../../src/components/data-table.tsx';
+import { h } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
 
 describe('data-table.js — rowFilter', function() {
@@ -100,6 +101,38 @@ describe('data-table.js — dataTable', function() {
     assert.ok(html.includes('expansion-row'));
     assert.ok(html.includes('data-expandable-table'));
     assert.ok(html.includes('<dt>Authors</dt>'));
+  });
+
+  it('uses the render hook for expandable fields when provided', function() {
+    const result = {
+      columns: ['id', 'title'],
+      rows: [{ id: 1, title: 'Test', term_matches: { matched_total: 2, term_total: 5 } }],
+      pagination: { page: 1 },
+    };
+    const html = dataTable('test', result, {
+      page: 1,
+      expandableFields: [{
+        f: 'term_matches', w: 'full', render: function(row: any) {
+          return h('span', { className: 'custom-render' }, String(row.term_matches.matched_total));
+        },
+      }],
+    });
+    assert.ok(html.includes('custom-render'));
+    assert.ok(html.includes('2'));
+    assert.ok(!html.includes('Not recorded'));
+  });
+
+  it('keeps the default text rendering when no render hook is provided', function() {
+    const result = {
+      columns: ['id', 'title'],
+      rows: [{ id: 1, title: 'Test', authors: 'Alice' }],
+      pagination: { page: 1 },
+    };
+    const html = dataTable('test', result, {
+      page: 1,
+      expandableFields: [{ f: 'authors', w: 'full' }],
+    });
+    assert.ok(html.includes('Alice'));
   });
 
   it('renders sort buttons for sortable columns', function() {
