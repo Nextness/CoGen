@@ -3672,13 +3672,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`columnNames`](../frontend/src/views/corpus.tsx#L83) | function | 83 | `function columnNames(table: any)` | Returns the ordered union of column names present in result rows. |
-| [`IdentityEvidenceTable`](../frontend/src/views/corpus.tsx#L96) | function | 96 | `function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } })` | Renders the column definition used for identity evidence rows. |
-| [`clippedRecordLink`](../frontend/src/views/corpus.tsx#L164) | function | 164 | `function clippedRecordLink(kind: string, idKey: string, id: any, title: any)` | Renders a context-preserving record link with a clipped label. |
-| [`clippedRecordText`](../frontend/src/views/corpus.tsx#L171) | function | 171 | `function clippedRecordText(title: any)` | Renders escaped record text clipped to the requested length. |
-| [`termMatchMarkup`](../frontend/src/views/corpus.tsx#L176) | function | 176 | `function termMatchMarkup(row: any)` | Renders the stored search-term coverage for one article row. |
-| [`corpusColumnConfig`](../frontend/src/views/corpus.tsx#L210) | function | 210 | `function corpusColumnConfig(current: string)` | Returns section-specific labels and renderers for corpus columns. |
-| [`corpusView`](../frontend/src/views/corpus.tsx#L265) | function | 265 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
+| [`columnNames`](../frontend/src/views/corpus.tsx#L154) | function | 154 | `function columnNames(table: any)` | Returns the ordered union of column names present in result rows. |
+| [`IdentityEvidenceTable`](../frontend/src/views/corpus.tsx#L164) | function | 164 | `function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } })` | Renders the column definition used for identity evidence rows. |
+| [`clippedLabel`](../frontend/src/views/corpus.tsx#L254) | function | 254 | `function clippedLabel(title: any)` | Renders the clipped label text for a record title. |
+| [`clippedRecordLink`](../frontend/src/views/corpus.tsx#L259) | function | 259 | `function clippedRecordLink(kind: string, idKey: string, id: any, title: any)` | Renders a context-preserving record link with a clipped label. |
+| [`clippedRecordText`](../frontend/src/views/corpus.tsx#L272) | function | 272 | `function clippedRecordText(title: any)` | Renders escaped record text clipped to the requested length. |
+| [`termMatchMarkup`](../frontend/src/views/corpus.tsx#L277) | function | 277 | `function termMatchMarkup(row: any)` | Renders the stored search-term coverage for one article row. |
+| [`corpusColumnConfig`](../frontend/src/views/corpus.tsx#L326) | function | 326 | `function corpusColumnConfig(current: string)` | Returns section-specific labels and renderers for corpus columns. |
+| [`corpusView`](../frontend/src/views/corpus.tsx#L423) | function | 423 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
 
 ### [`frontend/src/views/detail.tsx`](../frontend/src/views/detail.tsx)
 
