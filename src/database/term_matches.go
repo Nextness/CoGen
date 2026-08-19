@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -140,8 +141,13 @@ func (r *TermMatchesRepository) replaceRunTermsTx(tx *sql.Tx, runID int64, terms
 	if _, err := tx.Exec("DELETE FROM run_search_terms WHERE pipeline_run_id = ?", runID); err != nil {
 		return fmt.Errorf("clear run search terms: %w", err)
 	}
-	for source, terms := range termsBySource {
-		for _, term := range terms {
+	sources := make([]string, 0, len(termsBySource))
+	for source := range termsBySource {
+		sources = append(sources, source)
+	}
+	sort.Strings(sources)
+	for _, source := range sources {
+		for _, term := range termsBySource[source] {
 			if _, err := tx.Exec(
 				"INSERT OR IGNORE INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (?, ?, ?)",
 				runID, source, term); err != nil {
