@@ -1,6 +1,6 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, emptyState, cell, list,
+  app, value, link, cell, list,
   setBreadcrumb, statusChip, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
   PageHeader, EmptyState, Panel, StatusChip
 } from '../state.tsx';
@@ -249,8 +249,8 @@ function CollectionMarkup(props: { collectionKey: string; title: string; descrip
   const currentPage = Math.min(Math.max(1, props.page), totalPages);
   const visible = props.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const emptyColumnSpan = Math.max(1, props.columns.length);
-  var body: JSX.Element[];
-
+  const emptyCell = <td colspan={emptyColumnSpan} className="empty">No records.</td>;
+  var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (visible.length) {
     body = visible.map((row) => {
       const cells = props.columns.map((column) => {
@@ -259,9 +259,6 @@ function CollectionMarkup(props: { collectionKey: string; title: string; descrip
       });
       return <tr>{cells}</tr>;
     });
-  } else {
-    const emptyCell = <td colspan={emptyColumnSpan} className="empty">No records.</td>;
-    body = [<tr>{emptyCell}</tr>];
   }
 
   const headerCells = props.columns.map((column) => {
@@ -900,7 +897,7 @@ function ReferenceView(props: { record: any }): JSX.Element {
     },
   ]);
 
-  var resolvedBody: JSX.Element;
+  var resolvedBody: JSX.Element = <p className="ui faded text">This reference mention was not resolved to a work revision in the selected run.</p>;
   if (resolved) {
     resolvedBody = propertyGrid([
       {
@@ -917,8 +914,6 @@ function ReferenceView(props: { record: any }): JSX.Element {
         html: true as const,
       },
     ]);
-  } else {
-    resolvedBody = <p className="ui faded text">This reference mention was not resolved to a work revision in the selected run.</p>;
   }
 
   const citedGrid = propertyGrid([
@@ -988,13 +983,11 @@ export async function detailView(kind: string): Promise<void> {
   else if (kind === "author") title = record.citation_name || labels[kind];
   else title = record.title || record.doi || labels[kind];
 
-  var body: JSX.Element;
+  var body: JSX.Element = <ReferenceView record={record} />;
   if (kind === "article") {
     body = <ArticleView record={record} data={data} />;
   } else if (kind === "author") {
     body = <AuthorView record={record} data={data} />;
-  } else {
-    body = <ReferenceView record={record} />;
   }
 
   const homeHref = link({

@@ -3666,7 +3666,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`advancedView`](../frontend/src/views/advanced.tsx#L9) | function | 9 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
+| [`advancedView`](../frontend/src/views/advanced.tsx#L10) | function | 10 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
 
 ### [`frontend/src/views/corpus.tsx`](../frontend/src/views/corpus.tsx)
 
@@ -3697,83 +3697,84 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`keywordMarkup`](../frontend/src/views/detail.tsx#L188) | function | 188 | `function keywordMarkup(raw: any)` | Renders label markup for normalized keyword values. |
 | [`rawRecord`](../frontend/src/views/detail.tsx#L213) | function | 213 | `function rawRecord(record: Record<string, any>, excluded: string[])` | Renders expandable JSON markup for a raw record. |
 | [`CollectionMarkup`](../frontend/src/views/detail.tsx#L246) | function | 246 | `function CollectionMarkup(props: { collectionKey: string; title: string; description: string; columns: Array<{ label: string; render: (row: any) => JSX.Element }>; rows: any[]; page: number })` | Renders expandable markup for a related-record collection. |
-| [`mountCollection`](../frontend/src/views/detail.tsx#L321) | function | 321 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[])` | Mounts collection. |
-| [`renderCollection`](../frontend/src/views/detail.tsx#L334) | function | 334 | `function renderCollection(key: string)` | Renders collection. |
-| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L364) | function | 364 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
-| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L382) | function | 382 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
-| [`ArticleView`](../frontend/src/views/detail.tsx#L518) | function | 518 | `function ArticleView(props: { record: any; data: any })` | Renders the article detail view from its immutable revision payload. |
-| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L669) | function | 669 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
-| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L720) | function | 720 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
-| [`AuthorView`](../frontend/src/views/detail.tsx#L784) | function | 784 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
-| [`ReferenceView`](../frontend/src/views/detail.tsx#L859) | function | 859 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
-| [`detailView`](../frontend/src/views/detail.tsx#L959) | function | 959 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`mountCollection`](../frontend/src/views/detail.tsx#L318) | function | 318 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[])` | Mounts collection. |
+| [`renderCollection`](../frontend/src/views/detail.tsx#L331) | function | 331 | `function renderCollection(key: string)` | Renders collection. |
+| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L361) | function | 361 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
+| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L379) | function | 379 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
+| [`ArticleView`](../frontend/src/views/detail.tsx#L515) | function | 515 | `function ArticleView(props: { record: any; data: any })` | Renders the article detail view from its immutable revision payload. |
+| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L666) | function | 666 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
+| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L717) | function | 717 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
+| [`AuthorView`](../frontend/src/views/detail.tsx#L781) | function | 781 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
+| [`ReferenceView`](../frontend/src/views/detail.tsx#L856) | function | 856 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.tsx#L954) | function | 954 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`titleLink`](../frontend/src/views/evaluation.tsx#L14) | function | 14 | `function titleLink(row: any)` | Renders a context-preserving article link for an evaluation row. |
-| [`inventoriedTime`](../frontend/src/views/evaluation.tsx#L19) | function | 19 | `function inventoriedTime(row: any)` | Renders the recorded PDF inventory time or an unavailable label. |
-| [`evaluationView`](../frontend/src/views/evaluation.tsx#L27) | function | 27 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
+| [`titleLink`](../frontend/src/views/evaluation.tsx#L15) | function | 15 | `function titleLink(row: any)` | Renders a context-preserving article link for an evaluation row. |
+| [`inventoriedTime`](../frontend/src/views/evaluation.tsx#L25) | function | 25 | `function inventoriedTime(row: any)` | Renders the recorded PDF inventory time or an unavailable label. |
+| [`evaluationView`](../frontend/src/views/evaluation.tsx#L33) | function | 33 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
 
 ### [`frontend/src/views/home.tsx`](../frontend/src/views/home.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`deepdiveLink`](../frontend/src/views/home.tsx#L11) | function | 11 | `function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any)` | Returns a clean Deepdive URL for one complete research context. |
-| [`SearchCard`](../frontend/src/views/home.tsx#L18) | function | 18 | `function SearchCard(props: { search: any; plans: any[]; runs: any[] })` | Renders one compact search-history card with revision, plan, and attempt counts. |
-| [`RunTable`](../frontend/src/views/home.tsx#L49) | function | 49 | `function RunTable(props: { searches: any[]; plans: any[]; runs: any[] })` | Renders the run-management table for all planned attempts in the workspace. |
-| [`RunDialog`](../frontend/src/views/home.tsx#L90) | function | 90 | `function RunDialog()` | Renders the confirmation dialog used for reversible run lifecycle changes. |
-| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L108) | function | 108 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
-| [`close`](../frontend/src/views/home.tsx#L122) | function | 122 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
-| [`open`](../frontend/src/views/home.tsx#L129) | function | 129 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
-| [`homeView`](../frontend/src/views/home.tsx#L181) | function | 181 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
+| [`SearchCard`](../frontend/src/views/home.tsx#L25) | function | 25 | `function SearchCard(props: { search: any; plans: any[]; runs: any[] })` | Renders one compact search-history card with revision, plan, and attempt counts. |
+| [`RunTable`](../frontend/src/views/home.tsx#L98) | function | 98 | `function RunTable(props: { searches: any[]; plans: any[]; runs: any[] })` | Renders the run-management table for all planned attempts in the workspace. |
+| [`RunDialog`](../frontend/src/views/home.tsx#L178) | function | 178 | `function RunDialog()` | Renders the confirmation dialog used for reversible run lifecycle changes. |
+| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L208) | function | 208 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
+| [`close`](../frontend/src/views/home.tsx#L222) | function | 222 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
+| [`open`](../frontend/src/views/home.tsx#L229) | function | 229 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
+| [`homeView`](../frontend/src/views/home.tsx#L302) | function | 302 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
 
 ### [`frontend/src/views/overview.tsx`](../frontend/src/views/overview.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`normalizationValue`](../frontend/src/views/overview.tsx#L13) | function | 13 | `function normalizationValue(metric: any)` | Renders a normalization metric value or its unavailable presentation. |
-| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L35) | function | 35 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric, or null when unavailable. |
-| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L43) | function | 43 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
-| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L60) | function | 60 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
-| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L93) | function | 93 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
-| [`overviewView`](../frontend/src/views/overview.tsx#L102) | function | 102 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
+| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L84) | function | 84 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric or its unavailable presentation. |
+| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L92) | function | 92 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
+| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L125) | function | 125 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
+| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L170) | function | 170 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
+| [`overviewView`](../frontend/src/views/overview.tsx#L179) | function | 179 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
 
 ### [`frontend/src/views/provenance.tsx`](../frontend/src/views/provenance.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`selectedValues`](../frontend/src/views/provenance.tsx#L32) | function | 32 | `function selectedValues(raw: any)` | Returns the selected comma-separated values for an audit facet. |
-| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L37) | function | 37 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
-| [`auditQuery`](../frontend/src/views/provenance.tsx#L56) | function | 56 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
-| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L72) | function | 72 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
-| [`AuditFilters`](../frontend/src/views/provenance.tsx#L85) | function | 85 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
-| [`AuditSummary`](../frontend/src/views/provenance.tsx#L116) | function | 116 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
-| [`AuditView`](../frontend/src/views/provenance.tsx#L133) | function | 133 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
-| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L158) | function | 158 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
-| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L172) | function | 172 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
-| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L184) | function | 184 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
-| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L226) | function | 226 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
-| [`CacheView`](../frontend/src/views/provenance.tsx#L233) | function | 233 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
-| [`stageStatus`](../frontend/src/views/provenance.tsx#L272) | function | 272 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
-| [`StageFlow`](../frontend/src/views/provenance.tsx#L292) | function | 292 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
-| [`StagesView`](../frontend/src/views/provenance.tsx#L339) | function | 339 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
-| [`RunView`](../frontend/src/views/provenance.tsx#L380) | function | 380 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
-| [`provenanceView`](../frontend/src/views/provenance.tsx#L432) | function | 432 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
-| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L498) | function | 498 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
-| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L588) | function | 588 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
-| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L630) | function | 630 | `function renderArtifactInspector()` | Renders artifact inspector. |
-| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L690) | function | 690 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
+| [`renderTime`](../frontend/src/views/provenance.tsx#L32) | function | 32 | `function renderTime(row: any, raw: any)` | Renders a formatted timestamp cell for a data-table column. |
+| [`selectedValues`](../frontend/src/views/provenance.tsx#L37) | function | 37 | `function selectedValues(raw: any)` | Returns the selected comma-separated values for an audit facet. |
+| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L44) | function | 44 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
+| [`auditQuery`](../frontend/src/views/provenance.tsx#L73) | function | 73 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
+| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L89) | function | 89 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
+| [`AuditFilters`](../frontend/src/views/provenance.tsx#L104) | function | 104 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
+| [`AuditSummary`](../frontend/src/views/provenance.tsx#L148) | function | 148 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
+| [`AuditView`](../frontend/src/views/provenance.tsx#L180) | function | 180 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
+| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L210) | function | 210 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
+| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L233) | function | 233 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
+| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L250) | function | 250 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
+| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L321) | function | 321 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
+| [`CacheView`](../frontend/src/views/provenance.tsx#L329) | function | 329 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
+| [`stageStatus`](../frontend/src/views/provenance.tsx#L415) | function | 415 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
+| [`StageFlow`](../frontend/src/views/provenance.tsx#L443) | function | 443 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
+| [`StagesView`](../frontend/src/views/provenance.tsx#L517) | function | 517 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
+| [`RunView`](../frontend/src/views/provenance.tsx#L605) | function | 605 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
+| [`provenanceView`](../frontend/src/views/provenance.tsx#L693) | function | 693 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
+| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L780) | function | 780 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
+| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L888) | function | 888 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
+| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L944) | function | 944 | `function renderArtifactInspector()` | Renders artifact inspector. |
+| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1031) | function | 1031 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
 
 ### [`frontend/src/views/relationships.tsx`](../frontend/src/views/relationships.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`ModeControl`](../frontend/src/views/relationships.tsx#L34) | function | 34 | `function ModeControl(props: { current: string })` | Renders markup for selecting a relationship graph mode. |
-| [`appliedFilters`](../frontend/src/views/relationships.tsx#L55) | function | 55 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
-| [`ClusterSummary`](../frontend/src/views/relationships.tsx#L68) | function | 68 | `function ClusterSummary(props: { data: any })` | Renders markup summarizing connected graph clusters. |
-| [`relationshipsView`](../frontend/src/views/relationships.tsx#L89) | function | 89 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
+| [`ModeControl`](../frontend/src/views/relationships.tsx#L43) | function | 43 | `function ModeControl(props: { current: string })` | Renders markup for selecting a relationship graph mode. |
+| [`appliedFilters`](../frontend/src/views/relationships.tsx#L69) | function | 69 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
+| [`ClusterSummary`](../frontend/src/views/relationships.tsx#L88) | function | 88 | `function ClusterSummary(props: { data: any })` | Renders markup summarizing connected graph clusters. |
+| [`relationshipsView`](../frontend/src/views/relationships.tsx#L116) | function | 116 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
