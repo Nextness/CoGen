@@ -1,11 +1,15 @@
 // Shell: header health status and mobile navigation toggle.
 import { api } from "../api.tsx";
 
+/** Health status dot element updated by the health check. */
 export const healthStatus = document.querySelector<HTMLElement>("#health-status")!;
 
 /** Initializes health check. */
 export function initHealthCheck(): void {
-  api("/api/health", {}, { method: "GET", headers: { Accept: "application/json" } }).then((health) => {
+  api("/api/health", {}, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  }).then((health) => {
     const unavailable = health?.readable === false;
     if (unavailable) {
       healthStatus.textContent = "Database unavailable";
@@ -26,17 +30,15 @@ export function initHealthCheck(): void {
  * Shows/hides the primary navigation on small screens.
  */
 export function initMobileNavToggle(): void {
-  const toggleElement = document.querySelector<HTMLElement>("#mobile-nav-toggle");
-  const navElement = document.querySelector<HTMLElement>(".primary-nav");
-  if (!toggleElement || !navElement) return;
-  const toggle = toggleElement;
-  const nav = navElement;
+  const toggle = document.querySelector<HTMLElement>("#mobile-nav-toggle");
+  const nav = document.querySelector<HTMLElement>(".primary-nav");
+  if (!toggle || !nav) return;
 
   /** Handles toggle. */
   function handleToggle(): void {
-    const isOpen = nav.classList.toggle("rw-mobile-nav-open");
+    const isOpen = nav!.classList.toggle("rw-mobile-nav-open");
     document.body.classList.toggle("rw-mobile-nav-open", isOpen);
-    toggle.setAttribute("aria-expanded", String(isOpen));
+    toggle!.setAttribute("aria-expanded", String(isOpen));
   }
 
   toggle.addEventListener("click", handleToggle);
@@ -45,9 +47,9 @@ export function initMobileNavToggle(): void {
   const navLinks = nav.querySelectorAll("a");
   navLinks.forEach((link) => {
     link.addEventListener("click", () => {
-      nav.classList.remove("rw-mobile-nav-open");
+      nav!.classList.remove("rw-mobile-nav-open");
       document.body.classList.remove("rw-mobile-nav-open");
-      toggle.setAttribute("aria-expanded", "false");
+      toggle!.setAttribute("aria-expanded", "false");
     });
   });
 }

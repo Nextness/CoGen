@@ -522,12 +522,8 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
   const enrichedFieldNames = new Set();
   enriched.forEach((item) => {
     const metadata = parseObject(item.metadata_json);
-    if (metadata.provider) {
-      providers.add(metadata.provider);
-    }
-    if (metadata.field) {
-      enrichedFieldNames.add(metadata.field);
-    }
+    if (metadata.provider) providers.add(metadata.provider);
+    if (metadata.field) enrichedFieldNames.add(metadata.field);
   });
 
   const summary = summaryStrip([

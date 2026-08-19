@@ -3377,35 +3377,35 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`endpoint`](../frontend/src/api.tsx#L5) | function | 5 | `function endpoint(path: string, query: Record<string, any> = {})` | Builds an API path and query string from supplied values. |
-| [`APIError`](../frontend/src/api.tsx#L33) | class | 33 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
-| [`APIError.constructor`](../frontend/src/api.tsx#L39) | method | 39 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
-| [`api`](../frontend/src/api.tsx#L50) | function | 50 | `async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions)` | Fetches and decodes one JSON API response. |
+| [`APIError`](../frontend/src/api.tsx#L32) | class | 32 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../frontend/src/api.tsx#L38) | method | 38 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
+| [`api`](../frontend/src/api.tsx#L49) | function | 49 | `async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions)` | Fetches and decodes one JSON API response. |
 | [`mutate`](../frontend/src/api.tsx#L75) | function | 75 | `function mutate(path: string, method: string, body: any)` | Sends a same-origin JSON mutation and returns its decoded response. |
-| [`tables`](../frontend/src/api.tsx#L84) | function | 84 | `async function tables()` | Loads and caches the discovered database table list. |
+| [`tables`](../frontend/src/api.tsx#L87) | function | 87 | `async function tables()` | Loads and caches the discovered database table list. |
 
 ### [`frontend/src/components/audit-events.tsx`](../frontend/src/components/audit-events.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`auditCategory`](../frontend/src/components/audit-events.tsx#L25) | function | 25 | `function auditCategory(event: AuditEventRecord)` | Classifies an audit event into its presentation category. |
-| [`eventMetadata`](../frontend/src/components/audit-events.tsx#L43) | function | 43 | `function eventMetadata(event: AuditEventRecord)` | Parses an audit event's stored metadata object. |
-| [`auditOutcome`](../frontend/src/components/audit-events.tsx#L48) | function | 48 | `function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>)` | Derives the display outcome from recorded metadata and action semantics. |
-| [`AuditEntity`](../frontend/src/components/audit-events.tsx#L67) | function | 67 | `function AuditEntity(props: { event: AuditEventRecord })` | Renders a context-preserving link or label for the affected audit entity. |
-| [`eventSummary`](../frontend/src/components/audit-events.tsx#L101) | function | 101 | `function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>)` | Returns a concise human-readable summary of an audit event. |
-| [`ReviewDecisionState`](../frontend/src/components/audit-events.tsx#L143) | function | 143 | `function ReviewDecisionState(props: { label: string; state: Record<string, any> })` | Renders one complete previous or new review-decision state. |
-| [`ReviewDecisionChange`](../frontend/src/components/audit-events.tsx#L176) | function | 176 | `function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> })` | Renders the visible before-and-after decision comparison for review audit events. |
-| [`additionalMetadata`](../frontend/src/components/audit-events.tsx#L187) | function | 187 | `function additionalMetadata(metadata: Record<string, any>)` | Returns metadata fields not already represented in the primary event presentation. |
-| [`safeAuditPayload`](../frontend/src/components/audit-events.tsx#L201) | function | 201 | `function safeAuditPayload(raw: any)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
-| [`EventDetails`](../frontend/src/components/audit-events.tsx#L215) | function | 215 | `function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> })` | Renders expandable facts and JSON payloads for an audit event. |
-| [`AuditEventMarkup`](../frontend/src/components/audit-events.tsx#L273) | function | 273 | `function AuditEventMarkup(props: { event: AuditEventRecord })` | Renders the complete escaped markup for one audit event. |
-| [`auditEventMarkup`](../frontend/src/components/audit-events.tsx#L321) | function | 321 | `function auditEventMarkup(event: AuditEventRecord)` | Returns the complete escaped markup for one audit event. |
-| [`AuditStream`](../frontend/src/components/audit-events.tsx#L327) | function | 327 | `function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string })` | Renders audit events grouped by local date as a timeline. |
-| [`auditStream`](../frontend/src/components/audit-events.tsx#L363) | function | 363 | `function auditStream(events: AuditEventRecord[], emptyMessage?: string)` | Groups audit events by local date and returns timeline markup. |
-| [`RecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L369) | function | 369 | `function RecordAuditInvestigation(props: { events: AuditEventRecord[] })` | Renders the record audit investigation controls and initial event batch. |
-| [`recordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L417) | function | 417 | `function recordAuditInvestigation(events: AuditEventRecord[])` | Records audit investigation. |
-| [`bindRecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L423) | function | 423 | `function bindRecordAuditInvestigation(events: AuditEventRecord[])` | Binds DOM behavior for record audit investigation. |
-| [`apply`](../frontend/src/components/audit-events.tsx#L435) | function | 435 | `function apply()` | Applies the current filter controls to the visible event batch. |
-| [`resetAndApply`](../frontend/src/components/audit-events.tsx#L457) | function | 457 | `function resetAndApply()` | Resets the visible batch limit and reapplies the filters. |
+| [`eventMetadata`](../frontend/src/components/audit-events.tsx#L39) | function | 39 | `function eventMetadata(event: AuditEventRecord)` | Parses an audit event's stored metadata object. |
+| [`auditOutcome`](../frontend/src/components/audit-events.tsx#L44) | function | 44 | `function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>)` | Derives the display outcome from recorded metadata and action semantics. |
+| [`AuditEntity`](../frontend/src/components/audit-events.tsx#L55) | function | 55 | `function AuditEntity(props: { event: AuditEventRecord })` | Renders a context-preserving link or label for the affected audit entity. |
+| [`eventSummary`](../frontend/src/components/audit-events.tsx#L89) | function | 89 | `function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>)` | Returns a concise human-readable summary of an audit event. |
+| [`ReviewDecisionState`](../frontend/src/components/audit-events.tsx#L128) | function | 128 | `function ReviewDecisionState(props: { label: string; state: Record<string, any> })` | Renders one complete previous or new review-decision state. |
+| [`ReviewDecisionChange`](../frontend/src/components/audit-events.tsx#L162) | function | 162 | `function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> })` | Renders the visible before-and-after decision comparison for review audit events. |
+| [`additionalMetadata`](../frontend/src/components/audit-events.tsx#L173) | function | 173 | `function additionalMetadata(metadata: Record<string, any>)` | Returns metadata fields not already represented in the primary event presentation. |
+| [`safeAuditPayload`](../frontend/src/components/audit-events.tsx#L187) | function | 187 | `function safeAuditPayload(raw: any)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
+| [`EventDetails`](../frontend/src/components/audit-events.tsx#L201) | function | 201 | `function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> })` | Renders expandable facts and JSON payloads for an audit event. |
+| [`AuditEventMarkup`](../frontend/src/components/audit-events.tsx#L259) | function | 259 | `function AuditEventMarkup(props: { event: AuditEventRecord })` | Renders the complete escaped markup for one audit event. |
+| [`auditEventMarkup`](../frontend/src/components/audit-events.tsx#L307) | function | 307 | `function auditEventMarkup(event: AuditEventRecord)` | Returns the complete escaped markup for one audit event. |
+| [`AuditStream`](../frontend/src/components/audit-events.tsx#L313) | function | 313 | `function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string })` | Renders audit events grouped by local date as a timeline. |
+| [`auditStream`](../frontend/src/components/audit-events.tsx#L350) | function | 350 | `function auditStream(events: AuditEventRecord[], emptyMessage?: string)` | Groups audit events by local date and returns timeline markup. |
+| [`RecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L356) | function | 356 | `function RecordAuditInvestigation(props: { events: AuditEventRecord[] })` | Renders the record audit investigation controls and initial event batch. |
+| [`recordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L405) | function | 405 | `function recordAuditInvestigation(events: AuditEventRecord[])` | Records audit investigation. |
+| [`bindRecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L411) | function | 411 | `function bindRecordAuditInvestigation(events: AuditEventRecord[])` | Binds DOM behavior for record audit investigation. |
+| [`apply`](../frontend/src/components/audit-events.tsx#L423) | function | 423 | `function apply()` | Applies the current filter controls to the visible event batch. |
+| [`resetAndApply`](../frontend/src/components/audit-events.tsx#L446) | function | 446 | `function resetAndApply()` | Resets the visible batch limit and reapplies the filters. |
 
 ### [`frontend/src/components/context-selector.tsx`](../frontend/src/components/context-selector.tsx)
 
@@ -3427,12 +3427,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`rowFilter`](../frontend/src/components/data-table.tsx#L8) | function | 8 | `function rowFilter(rows: any[], query: string)` | Returns whether a row contains the case-insensitive filter text. |
-| [`scrollTableIntoView`](../frontend/src/components/data-table.tsx#L21) | function | 21 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
-| [`DataTable`](../frontend/src/components/data-table.tsx#L52) | function | 52 | `function DataTable(props: { tableName: string; result: any; context?: DataTableContext })` | Renders and binds a filterable, sortable, paginated in-memory data table. |
-| [`dataTable`](../frontend/src/components/data-table.tsx#L247) | function | 247 | `function dataTable(tableName: string, result: any, context?: DataTableContext)` | Renders a data table to an HTML string. |
-| [`bindTableControls`](../frontend/src/components/data-table.tsx#L253) | function | 253 | `function bindTableControls(tableName: string, page: number, context?: DataTableContext)` | Binds DOM behavior for table controls. |
-| [`updates`](../frontend/src/components/data-table.tsx#L264) | function | 264 | `function updates(values: Record<string, any>)` | Maps context key names to their URL query parameter names. |
-| [`handleExpandToggle`](../frontend/src/components/data-table.tsx#L356) | function | 356 | `function handleExpandToggle(event: Event)` | Handles expand toggle. |
+| [`scrollTableIntoView`](../frontend/src/components/data-table.tsx#L19) | function | 19 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
+| [`DataTable`](../frontend/src/components/data-table.tsx#L50) | function | 50 | `function DataTable(props: { tableName: string; result: any; context?: DataTableContext })` | Renders and binds a filterable, sortable, paginated in-memory data table. |
+| [`dataTable`](../frontend/src/components/data-table.tsx#L241) | function | 241 | `function dataTable(tableName: string, result: any, context?: DataTableContext)` | Renders a data table to an HTML string. |
+| [`bindTableControls`](../frontend/src/components/data-table.tsx#L247) | function | 247 | `function bindTableControls(tableName: string, page: number, context?: DataTableContext)` | Binds DOM behavior for table controls. |
+| [`updates`](../frontend/src/components/data-table.tsx#L258) | function | 258 | `function updates(values: Record<string, any>)` | Maps context key names to their URL query parameter names. |
+| [`handleExpandToggle`](../frontend/src/components/data-table.tsx#L350) | function | 350 | `function handleExpandToggle(event: Event)` | Handles expand toggle. |
 
 ### [`frontend/src/components/graph.tsx`](../frontend/src/components/graph.tsx)
 
@@ -3442,46 +3442,49 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`graphField`](../frontend/src/components/graph.tsx#L76) | function | 76 | `function graphField(name: string, label: string, type?: string)` | Returns an escaped graph-filter input with its current URL value. |
 | [`graphQuery`](../frontend/src/components/graph.tsx#L82) | function | 82 | `function graphQuery()` | Returns the current graph-filter values keyed by query parameter. |
 | [`graphLink`](../frontend/src/components/graph.tsx#L91) | function | 91 | `function graphLink(node: GraphNode)` | Returns a context-preserving detail link for a graph node when one exists. |
-| [`endpointID`](../frontend/src/components/graph.tsx#L105) | function | 105 | `function endpointID(endpoint: string \| number \| GraphNode)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
-| [`graphClusters`](../frontend/src/components/graph.tsx#L113) | function | 113 | `function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[])` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
-| [`GraphResult`](../frontend/src/components/graph.tsx#L154) | function | 154 | `function GraphResult(props: { data: any })` | Renders the interactive graph viewport, legend, and relationship table. |
-| [`graphResult`](../frontend/src/components/graph.tsx#L267) | function | 267 | `function graphResult(data: any)` | Returns the graph result markup for the relationships view. |
-| [`nodeSize`](../frontend/src/components/graph.tsx#L273) | function | 273 | `function nodeSize(node: GraphNode, degree: number, maxDegree: number)` | Calculates a node radius from entity type and visible degree. |
-| [`hash`](../frontend/src/components/graph.tsx#L285) | function | 285 | `function hash(value: any)` | Returns a deterministic unsigned hash for stable graph placement. |
-| [`palette`](../frontend/src/components/graph.tsx#L294) | function | 294 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
-| [`get`](../frontend/src/components/graph.tsx#L297) | function | 297 | `function get(name: string, fallback: string)` | Returns a CSS custom property value with a fallback. |
-| [`drawDiamond`](../frontend/src/components/graph.tsx#L318) | function | 318 | `function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a diamond path for reference nodes. |
-| [`drawTriangle`](../frontend/src/components/graph.tsx#L328) | function | 328 | `function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a triangle path for referenced-author nodes. |
-| [`relationshipLabel`](../frontend/src/components/graph.tsx#L337) | function | 337 | `function relationshipLabel(edge: GraphEdge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
-| [`destroyGraph`](../frontend/src/components/graph.tsx#L364) | function | 364 | `function destroyGraph()` | Destroys the active graph simulation, observers, and animation frame. |
-| [`mountGraph`](../frontend/src/components/graph.tsx#L379) | function | 379 | `function mountGraph(data: any)` | Mounts the interactive graph viewport and its force-layout simulation. |
-| [`resize`](../frontend/src/components/graph.tsx#L524) | function | 524 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
-| [`graphBounds`](../frontend/src/components/graph.tsx#L544) | function | 544 | `function graphBounds(nodes: GraphNode[])` | Returns the radius-aware world-coordinate bounds of graph nodes. |
-| [`clusterOverview`](../frontend/src/components/graph.tsx#L559) | function | 559 | `function clusterOverview(nodes: GraphNode[])` | Returns connected-cluster sizes ordered from largest to smallest. |
-| [`drawClusterOverview`](../frontend/src/components/graph.tsx#L574) | function | 574 | `function drawClusterOverview(context: CanvasRenderingContext2D, clusters: ClusterSummary[], colors: ReturnType<typeof palette>, width: number, height: number, offset: { x: number; y: number }, legendInset: number)` | Draws the connected-cluster overview bubbles and returns their layout. |
-| [`fitGraph`](../frontend/src/components/graph.tsx#L625) | function | 625 | `function fitGraph(graph: GraphState)` | Adjusts the graph transform to fit all node bounds in the canvas. |
-| [`runLayout`](../frontend/src/components/graph.tsx#L642) | function | 642 | `function runLayout(graph: GraphState, status: HTMLElement \| null)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
-| [`next`](../frontend/src/components/graph.tsx#L668) | function | 668 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
-| [`draw`](../frontend/src/components/graph.tsx#L702) | function | 702 | `function draw(graph: GraphState)` | Draws the current graph state to the backing canvas. |
-| [`drawArrow`](../frontend/src/components/graph.tsx#L889) | function | 889 | `function drawArrow(context: CanvasRenderingContext2D, source: GraphNode, target: GraphNode, radius: number, color: string)` | Draws a directional arrowhead at the target end of a citation edge. |
-| [`graphCoordinates`](../frontend/src/components/graph.tsx#L903) | function | 903 | `function graphCoordinates(graph: GraphState, event: MouseEvent)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
-| [`zoomViewAt`](../frontend/src/components/graph.tsx#L912) | function | 912 | `function zoomViewAt(view: { x: number; y: number; scale: number }, screenPoint: { x: number; y: number }, nextScale: number)` | Returns a zoom transform that keeps the selected screen point stationary. |
-| [`nearestOverviewCluster`](../frontend/src/components/graph.tsx#L923) | function | 923 | `function nearestOverviewCluster(graph: GraphState, event: MouseEvent)` | Returns the overview cluster hit by a pointer event, when any. |
-| [`focusCluster`](../frontend/src/components/graph.tsx#L933) | function | 933 | `function focusCluster(graph: GraphState, clusterID: number)` | Focuses the viewport on one connected cluster. |
-| [`buildSpatialIndex`](../frontend/src/components/graph.tsx#L951) | function | 951 | `function buildSpatialIndex(nodes: GraphNode[])` | Builds a spatial index over node positions for fast hit testing. |
-| [`nearbyNodes`](../frontend/src/components/graph.tsx#L966) | function | 966 | `function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> }, point: { x: number; y: number })` | Returns nodes in the spatial-index cell surrounding a graph point. |
-| [`nearestNode`](../frontend/src/components/graph.tsx#L980) | function | 980 | `function nearestNode(graph: GraphState, point: { x: number; y: number })` | Returns the closest selectable node within its hit radius. |
-| [`bindInteractions`](../frontend/src/components/graph.tsx#L1002) | function | 1002 | `function bindInteractions(graph: GraphState, status: HTMLElement \| null, selectionPanel: HTMLElement \| null, zoomIndicator: HTMLElement \| null)` | Binds pointer, keyboard, and toolbar interactions for the graph viewport. |
-| [`setSelection`](../frontend/src/components/graph.tsx#L1007) | function | 1007 | `function setSelection(id: string \| number \| null)` | Sets the selected node and refreshes the inspection panel and edge table. |
-| [`updateZoomDisplay`](../frontend/src/components/graph.tsx#L1039) | function | 1039 | `function updateZoomDisplay()` | Updates the visible zoom percentage indicator. |
-| [`bindGraphSearch`](../frontend/src/components/graph.tsx#L1207) | function | 1207 | `function bindGraphSearch(graph: GraphState)` | Binds graph node search, highlighting matching nodes by name or DOI. |
-| [`bindGraphExport`](../frontend/src/components/graph.tsx#L1218) | function | 1218 | `function bindGraphExport(graph: GraphState, data: any)` | Binds graph export as PNG, downloading the canvas as a PNG image. |
-| [`bindGraphExpand`](../frontend/src/components/graph.tsx#L1239) | function | 1239 | `function bindGraphExpand(graph: GraphState)` | Binds the graph expand button and fullscreen lifecycle. |
-| [`updateLabel`](../frontend/src/components/graph.tsx#L1246) | function | 1246 | `function updateLabel()` | Updates the expand button label and refits the graph after a size change. |
-| [`SelectionMarkup`](../frontend/src/components/graph.tsx#L1278) | function | 1278 | `function SelectionMarkup(props: { node: GraphNode \| undefined; neighbours: number })` | Renders the selected-node inspection panel. |
-| [`NodeMarkup`](../frontend/src/components/graph.tsx#L1313) | function | 1313 | `function NodeMarkup(props: { node: GraphNode })` | Renders a linked or plain label for a graph node. |
-| [`renderEdgePage`](../frontend/src/components/graph.tsx#L1323) | function | 1323 | `function renderEdgePage(graph: GraphState)` | Renders the paginated relationship table for the current selection or full graph. |
-| [`edgeDetails`](../frontend/src/components/graph.tsx#L1395) | function | 1395 | `function edgeDetails(edge: GraphEdge)` | Returns relationship-specific details for a graph edge row. |
+| [`endpointID`](../frontend/src/components/graph.tsx#L114) | function | 114 | `function endpointID(endpoint: string \| number \| GraphNode)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
+| [`graphClusters`](../frontend/src/components/graph.tsx#L120) | function | 120 | `function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[])` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
+| [`legendEntry`](../frontend/src/components/graph.tsx#L161) | function | 161 | `function legendEntry(markClass: string, label: string)` | Renders one legend entry with a colored mark and its label. |
+| [`GraphResult`](../frontend/src/components/graph.tsx#L171) | function | 171 | `function GraphResult(props: { data: any })` | Renders the interactive graph viewport, legend, and relationship table. |
+| [`graphResult`](../frontend/src/components/graph.tsx#L288) | function | 288 | `function graphResult(data: any)` | Returns the graph result markup for the relationships view. |
+| [`nodeSize`](../frontend/src/components/graph.tsx#L294) | function | 294 | `function nodeSize(node: GraphNode, degree: number, maxDegree: number)` | Calculates a node radius from entity type and visible degree. |
+| [`hash`](../frontend/src/components/graph.tsx#L306) | function | 306 | `function hash(value: any)` | Returns a deterministic unsigned hash for stable graph placement. |
+| [`palette`](../frontend/src/components/graph.tsx#L315) | function | 315 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
+| [`get`](../frontend/src/components/graph.tsx#L318) | function | 318 | `function get(name: string, fallback: string)` | Returns a CSS custom property value with a fallback. |
+| [`drawDiamond`](../frontend/src/components/graph.tsx#L339) | function | 339 | `function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a diamond path for reference nodes. |
+| [`drawTriangle`](../frontend/src/components/graph.tsx#L349) | function | 349 | `function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a triangle path for referenced-author nodes. |
+| [`relationshipLabel`](../frontend/src/components/graph.tsx#L358) | function | 358 | `function relationshipLabel(edge: GraphEdge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
+| [`destroyGraph`](../frontend/src/components/graph.tsx#L383) | function | 383 | `function destroyGraph()` | Destroys the active graph simulation, observers, and animation frame. |
+| [`layoutNode`](../frontend/src/components/graph.tsx#L398) | function | 398 | `function layoutNode(node: GraphNode, clusters: { byID: Map<string \| number, number>; components: ClusterSummary[] }, degree: Map<string \| number, number>, maxDegree: number)` | Resolves one node's initial layout position and cluster metadata. |
+| [`mountGraph`](../frontend/src/components/graph.tsx#L416) | function | 416 | `function mountGraph(data: any)` | Mounts the interactive graph viewport and its force-layout simulation. |
+| [`resize`](../frontend/src/components/graph.tsx#L555) | function | 555 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
+| [`graphBounds`](../frontend/src/components/graph.tsx#L575) | function | 575 | `function graphBounds(nodes: GraphNode[])` | Returns the radius-aware world-coordinate bounds of graph nodes. |
+| [`clusterOverview`](../frontend/src/components/graph.tsx#L601) | function | 601 | `function clusterOverview(nodes: GraphNode[])` | Returns connected-cluster sizes ordered from largest to smallest. |
+| [`drawClusterBubble`](../frontend/src/components/graph.tsx#L619) | function | 619 | `function drawClusterBubble(context: CanvasRenderingContext2D, cluster: ClusterSummary, colors: ReturnType<typeof palette>, x: number, y: number, radius: number)` | Draws one overview bubble and its label, returning its layout entry. |
+| [`drawClusterOverview`](../frontend/src/components/graph.tsx#L648) | function | 648 | `function drawClusterOverview(context: CanvasRenderingContext2D, clusters: ClusterSummary[], colors: ReturnType<typeof palette>, width: number, height: number, offset: { x: number; y: number }, legendInset: number)` | Draws the connected-cluster overview bubbles and returns their layout. |
+| [`fitGraph`](../frontend/src/components/graph.tsx#L675) | function | 675 | `function fitGraph(graph: GraphState)` | Adjusts the graph transform to fit all node bounds in the canvas. |
+| [`runLayout`](../frontend/src/components/graph.tsx#L692) | function | 692 | `function runLayout(graph: GraphState, status: HTMLElement \| null)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
+| [`next`](../frontend/src/components/graph.tsx#L715) | function | 715 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
+| [`draw`](../frontend/src/components/graph.tsx#L749) | function | 749 | `function draw(graph: GraphState)` | Draws the current graph state to the backing canvas. |
+| [`drawArrow`](../frontend/src/components/graph.tsx#L924) | function | 924 | `function drawArrow(context: CanvasRenderingContext2D, source: GraphNode, target: GraphNode, radius: number, color: string)` | Draws a directional arrowhead at the target end of a citation edge. |
+| [`graphCoordinates`](../frontend/src/components/graph.tsx#L938) | function | 938 | `function graphCoordinates(graph: GraphState, event: MouseEvent)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
+| [`zoomViewAt`](../frontend/src/components/graph.tsx#L947) | function | 947 | `function zoomViewAt(view: { x: number; y: number; scale: number }, screenPoint: { x: number; y: number }, nextScale: number)` | Returns a zoom transform that keeps the selected screen point stationary. |
+| [`nearestOverviewCluster`](../frontend/src/components/graph.tsx#L958) | function | 958 | `function nearestOverviewCluster(graph: GraphState, event: MouseEvent)` | Returns the overview cluster hit by a pointer event, when any. |
+| [`focusCluster`](../frontend/src/components/graph.tsx#L968) | function | 968 | `function focusCluster(graph: GraphState, clusterID: number)` | Focuses the viewport on one connected cluster. |
+| [`buildSpatialIndex`](../frontend/src/components/graph.tsx#L986) | function | 986 | `function buildSpatialIndex(nodes: GraphNode[])` | Builds a spatial index over node positions for fast hit testing. |
+| [`nearbyNodes`](../frontend/src/components/graph.tsx#L1001) | function | 1001 | `function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> }, point: { x: number; y: number })` | Returns nodes in the spatial-index cell surrounding a graph point. |
+| [`nearestNode`](../frontend/src/components/graph.tsx#L1015) | function | 1015 | `function nearestNode(graph: GraphState, point: { x: number; y: number })` | Returns the closest selectable node within its hit radius. |
+| [`bindInteractions`](../frontend/src/components/graph.tsx#L1041) | function | 1041 | `function bindInteractions(graph: GraphState, status: HTMLElement \| null, selectionPanel: HTMLElement \| null, zoomIndicator: HTMLElement \| null)` | Binds pointer, keyboard, and toolbar interactions for the graph viewport. |
+| [`setSelection`](../frontend/src/components/graph.tsx#L1046) | function | 1046 | `function setSelection(id: string \| number \| null)` | Sets the selected node and refreshes the inspection panel and edge table. |
+| [`updateZoomDisplay`](../frontend/src/components/graph.tsx#L1078) | function | 1078 | `function updateZoomDisplay()` | Updates the visible zoom percentage indicator. |
+| [`bindGraphSearch`](../frontend/src/components/graph.tsx#L1250) | function | 1250 | `function bindGraphSearch(graph: GraphState)` | Binds graph node search, highlighting matching nodes by name or DOI. |
+| [`bindGraphExport`](../frontend/src/components/graph.tsx#L1261) | function | 1261 | `function bindGraphExport(graph: GraphState, data: any)` | Binds graph export as PNG, downloading the canvas as a PNG image. |
+| [`bindGraphExpand`](../frontend/src/components/graph.tsx#L1282) | function | 1282 | `function bindGraphExpand(graph: GraphState)` | Binds the graph expand button and fullscreen lifecycle. |
+| [`updateLabel`](../frontend/src/components/graph.tsx#L1289) | function | 1289 | `function updateLabel()` | Updates the expand button label and refits the graph after a size change. |
+| [`SelectionMarkup`](../frontend/src/components/graph.tsx#L1323) | function | 1323 | `function SelectionMarkup(props: { node: GraphNode \| undefined; neighbours: number })` | Renders the selected-node inspection panel. |
+| [`NodeMarkup`](../frontend/src/components/graph.tsx#L1367) | function | 1367 | `function NodeMarkup(props: { node: GraphNode })` | Renders a linked or plain label for a graph node. |
+| [`renderEdgePage`](../frontend/src/components/graph.tsx#L1375) | function | 1375 | `function renderEdgePage(graph: GraphState)` | Renders the paginated relationship table for the current selection or full graph. |
+| [`edgeDetails`](../frontend/src/components/graph.tsx#L1447) | function | 1447 | `function edgeDetails(edge: GraphEdge)` | Returns relationship-specific details for a graph edge row. |
 
 ### [`frontend/src/components/note-editor.tsx`](../frontend/src/components/note-editor.tsx)
 
@@ -3492,32 +3495,34 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`writeDraft`](../frontend/src/components/note-editor.tsx#L25) | function | 25 | `function writeDraft(key: string, value: string, storage?: Storage)` | Writes a draft and reports storage failure without discarding editor content. |
 | [`clearDraft`](../frontend/src/components/note-editor.tsx#L35) | function | 35 | `function clearDraft(key: string, storage?: Storage)` | Removes only the exact draft associated with a successful save. |
 | [`lineDiff`](../frontend/src/components/note-editor.tsx#L53) | function | 53 | `function lineDiff(previous: any, current: any, limit?: number)` | Produces a bounded line comparison or complete side-by-side fallback. |
-| [`mountNoteEditor`](../frontend/src/components/note-editor.tsx#L102) | function | 102 | `async function mountNoteEditor(host: HTMLElement, options: NoteEditorOptions)` | Mounts the note editor and current immutable note list for one article. |
-| [`key`](../frontend/src/components/note-editor.tsx#L179) | function | 179 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
-| [`renderPreview`](../frontend/src/components/note-editor.tsx#L183) | function | 183 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
-| [`resetEditor`](../frontend/src/components/note-editor.tsx#L198) | function | 198 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
-| [`loadNotes`](../frontend/src/components/note-editor.tsx#L207) | function | 207 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
-| [`showHistory`](../frontend/src/components/note-editor.tsx#L264) | function | 264 | `async function showHistory(note: ReviewNoteRecord)` | Displays one selected head's immutable ancestry and optional restoration control. |
-| [`focusNote`](../frontend/src/components/note-editor.tsx#L329) | function | 329 | `async function focusNote(noteID: any)` | Resolves a URL-focused active or deleted note and exposes its history. |
+| [`noteCardMarkup`](../frontend/src/components/note-editor.tsx#L126) | function | 126 | `function noteCardMarkup(note: ReviewNoteRecord)` | Renders one active note card with its metadata, content, and actions. |
+| [`versionComparisonMarkup`](../frontend/src/components/note-editor.tsx#L153) | function | 153 | `function versionComparisonMarkup(previous: string, version: any)` | Renders one immutable version comparison row for the note history. |
+| [`mountNoteEditor`](../frontend/src/components/note-editor.tsx#L177) | function | 177 | `async function mountNoteEditor(host: HTMLElement, options: NoteEditorOptions)` | Mounts the note editor and current immutable note list for one article. |
+| [`key`](../frontend/src/components/note-editor.tsx#L254) | function | 254 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
+| [`renderPreview`](../frontend/src/components/note-editor.tsx#L258) | function | 258 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
+| [`resetEditor`](../frontend/src/components/note-editor.tsx#L273) | function | 273 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
+| [`loadNotes`](../frontend/src/components/note-editor.tsx#L282) | function | 282 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
+| [`showHistory`](../frontend/src/components/note-editor.tsx#L321) | function | 321 | `async function showHistory(note: ReviewNoteRecord)` | Displays one selected head's immutable ancestry and optional restoration control. |
+| [`focusNote`](../frontend/src/components/note-editor.tsx#L372) | function | 372 | `async function focusNote(noteID: any)` | Resolves a URL-focused active or deleted note and exposes its history. |
 
 ### [`frontend/src/components/note-parser.tsx`](../frontend/src/components/note-parser.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`parseNote`](../frontend/src/components/note-parser.tsx#L39) | function | 39 | `function parseNote(body: any)` | Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. |
-| [`flushParagraph`](../frontend/src/components/note-parser.tsx#L54) | function | 54 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
-| [`extractLinks`](../frontend/src/components/note-parser.tsx#L149) | function | 149 | `function extractLinks(text: string, baseOffset: number, links: NoteLink[], errors: NoteDiagnostic[])` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
-| [`validateLink`](../frontend/src/components/note-parser.tsx#L192) | function | 192 | `function validateLink(scheme: string, target: string, raw: string)` | Validates scheme-specific target grammar without requiring target existence. |
-| [`isEscaped`](../frontend/src/components/note-parser.tsx#L207) | function | 207 | `function isEscaped(text: string, index: number)` | Reports whether the character at an index has an odd backslash prefix. |
-| [`unescapedIndex`](../frontend/src/components/note-parser.tsx#L214) | function | 214 | `function unescapedIndex(text: string, character: string)` | Returns the first unescaped delimiter index or minus one. |
-| [`unescapeLink`](../frontend/src/components/note-parser.tsx#L222) | function | 222 | `function unescapeLink(text: string)` | Removes only the escapes supported inside custom-link fields. |
-| [`splitTableRow`](../frontend/src/components/note-parser.tsx#L227) | function | 227 | `function splitTableRow(line: string)` | Splits one simple table row while preserving escaped vertical bars. |
-| [`tableDelimiter`](../frontend/src/components/note-parser.tsx#L244) | function | 244 | `function tableDelimiter(line: string)` | Reports whether every table cell is a valid delimiter marker. |
-| [`NoteDocument`](../frontend/src/components/note-parser.tsx#L264) | function | 264 | `function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] \| null })` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
-| [`textWithBreaks`](../frontend/src/components/note-parser.tsx#L271) | function | 271 | `function textWithBreaks(text: string)` | Splits escaped text on newlines, inserting br elements between lines. |
-| [`inline`](../frontend/src/components/note-parser.tsx#L284) | function | 284 | `function inline(text: string)` | Renders escaped inline text and associates parsed links with stored resolutions. |
-| [`renderNote`](../frontend/src/components/note-parser.tsx#L352) | function | 352 | `function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] \| null)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
-| [`renderLink`](../frontend/src/components/note-parser.tsx#L358) | function | 358 | `function renderLink(label: string, resolved?: ResolvedNoteLink)` | Renders one safe resolved link or an accessible unresolved label. |
+| [`flushParagraph`](../frontend/src/components/note-parser.tsx#L59) | function | 59 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
+| [`extractLinks`](../frontend/src/components/note-parser.tsx#L197) | function | 197 | `function extractLinks(text: string, baseOffset: number, links: NoteLink[], errors: NoteDiagnostic[])` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
+| [`validateLink`](../frontend/src/components/note-parser.tsx#L252) | function | 252 | `function validateLink(scheme: string, target: string, raw: string)` | Validates scheme-specific target grammar without requiring target existence. |
+| [`isEscaped`](../frontend/src/components/note-parser.tsx#L267) | function | 267 | `function isEscaped(text: string, index: number)` | Reports whether the character at an index has an odd backslash prefix. |
+| [`unescapedIndex`](../frontend/src/components/note-parser.tsx#L274) | function | 274 | `function unescapedIndex(text: string, character: string)` | Returns the first unescaped delimiter index or minus one. |
+| [`unescapeLink`](../frontend/src/components/note-parser.tsx#L282) | function | 282 | `function unescapeLink(text: string)` | Removes only the escapes supported inside custom-link fields. |
+| [`splitTableRow`](../frontend/src/components/note-parser.tsx#L287) | function | 287 | `function splitTableRow(line: string)` | Splits one simple table row while preserving escaped vertical bars. |
+| [`tableDelimiter`](../frontend/src/components/note-parser.tsx#L305) | function | 305 | `function tableDelimiter(line: string)` | Reports whether every table cell is a valid delimiter marker. |
+| [`NoteDocument`](../frontend/src/components/note-parser.tsx#L325) | function | 325 | `function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] \| null })` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`textWithBreaks`](../frontend/src/components/note-parser.tsx#L332) | function | 332 | `function textWithBreaks(text: string)` | Splits escaped text on newlines, inserting br elements between lines. |
+| [`inline`](../frontend/src/components/note-parser.tsx#L345) | function | 345 | `function inline(text: string)` | Renders escaped inline text and associates parsed links with stored resolutions. |
+| [`renderNote`](../frontend/src/components/note-parser.tsx#L414) | function | 414 | `function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] \| null)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`renderLink`](../frontend/src/components/note-parser.tsx#L420) | function | 420 | `function renderLink(label: string, resolved?: ResolvedNoteLink)` | Renders one safe resolved link or an accessible unresolved label. |
 
 ### [`frontend/src/components/pagination.tsx`](../frontend/src/components/pagination.tsx)
 
@@ -3525,44 +3530,44 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`paginationPages`](../frontend/src/components/pagination.tsx#L5) | function | 5 | `function paginationPages(currentPage: any, totalPages: any, visibleCount: any)` | Returns the bounded sequence of page numbers surrounding the current page. |
 | [`Pagination`](../frontend/src/components/pagination.tsx#L33) | function | 33 | `function Pagination(props: { result: any; options?: PaginationOptions })` | Renders accessible pagination markup for server-backed or in-memory results. |
-| [`control`](../frontend/src/components/pagination.tsx#L63) | function | 63 | `function control(label: string, target: number, disabled: boolean, relation: string)` | Returns one pagination navigation control. |
-| [`pagination`](../frontend/src/components/pagination.tsx#L98) | function | 98 | `function pagination(result: any, options?: PaginationOptions)` | Returns accessible pagination markup for server-backed or in-memory results. |
+| [`control`](../frontend/src/components/pagination.tsx#L64) | function | 64 | `function control(label: string, target: number, disabled: boolean, relation: string)` | Returns one pagination navigation control. |
+| [`pagination`](../frontend/src/components/pagination.tsx#L105) | function | 105 | `function pagination(result: any, options?: PaginationOptions)` | Returns accessible pagination markup for server-backed or in-memory results. |
 
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`unrotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L17) | function | 17 | `function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
-| [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L33) | function | 33 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
-| [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L49) | function | 49 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
-| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L92) | function | 92 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L147) | function | 147 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
-| [`render`](../frontend/src/components/pdf-viewer.tsx#L157) | function | 157 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
-| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L221) | function | 221 | `function changePage(next: any)` | Clamps and renders a requested current page. |
-| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L259) | function | 259 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L276) | function | 276 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+| [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L53) | function | 53 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
+| [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L89) | function | 89 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
+| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L132) | function | 132 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
+| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L197) | function | 197 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../frontend/src/components/pdf-viewer.tsx#L207) | function | 207 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L270) | function | 270 | `function changePage(next: any)` | Clamps and renders a requested current page. |
+| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L315) | function | 315 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L332) | function | 332 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
 
 ### [`frontend/src/components/review-panel.tsx`](../frontend/src/components/review-panel.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`mountArticleReview`](../frontend/src/components/review-panel.tsx#L43) | function | 43 | `async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement \| null, record: any, detailData: any, onAuditChange?: () => Promise<void>)` | Mounts all editable review controls for one immutable run article revision. |
-| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L81) | function | 81 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
-| [`closeDialog`](../frontend/src/components/review-panel.tsx#L158) | function | 158 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
-| [`appendCandidates`](../frontend/src/components/review-panel.tsx#L163) | function | 163 | `async function appendCandidates(scope: string)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
-| [`renderReview`](../frontend/src/components/review-panel.tsx#L285) | function | 285 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L424) | function | 424 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L563) | function | 563 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L626) | function | 626 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L702) | function | 702 | `async function showAnchorHistory(anchorID: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L87) | function | 87 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
+| [`closeDialog`](../frontend/src/components/review-panel.tsx#L164) | function | 164 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
+| [`appendCandidates`](../frontend/src/components/review-panel.tsx#L169) | function | 169 | `async function appendCandidates(scope: string)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
+| [`renderReview`](../frontend/src/components/review-panel.tsx#L297) | function | 297 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L441) | function | 441 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L583) | function | 583 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L646) | function | 646 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L728) | function | 728 | `async function showAnchorHistory(anchorID: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
 
 ### [`frontend/src/components/shell.tsx`](../frontend/src/components/shell.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`initHealthCheck`](../frontend/src/components/shell.tsx#L7) | function | 7 | `function initHealthCheck()` | Initializes health check. |
-| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L28) | function | 28 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
-| [`handleToggle`](../frontend/src/components/shell.tsx#L36) | function | 36 | `function handleToggle()` | Handles toggle. |
+| [`initHealthCheck`](../frontend/src/components/shell.tsx#L8) | function | 8 | `function initHealthCheck()` | Initializes health check. |
+| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L32) | function | 32 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
+| [`handleToggle`](../frontend/src/components/shell.tsx#L38) | function | 38 | `function handleToggle()` | Handles toggle. |
 
 ### [`frontend/src/jsx/jsx-runtime.ts`](../frontend/src/jsx/jsx-runtime.ts)
 
@@ -3580,11 +3585,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`setURL`](../frontend/src/router.tsx#L16) | function | 16 | `function setURL(updates: Record<string, any>, replace: boolean)` | Replaces the current URL state without triggering a navigation reload. |
-| [`bindFocusContext`](../frontend/src/router.tsx#L27) | function | 27 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
-| [`syncPrimaryNavigation`](../frontend/src/router.tsx#L37) | function | 37 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
-| [`syncShell`](../frontend/src/router.tsx#L55) | function | 55 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
-| [`renderView`](../frontend/src/router.tsx#L82) | function | 82 | `async function renderView()` | Asynchronously renders view. |
-| [`render`](../frontend/src/router.tsx#L97) | function | 97 | `async function render()` | Asynchronously renders the associated state. |
+| [`bindFocusContext`](../frontend/src/router.tsx#L24) | function | 24 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
+| [`syncPrimaryNavigation`](../frontend/src/router.tsx#L34) | function | 34 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
+| [`syncShell`](../frontend/src/router.tsx#L51) | function | 51 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
+| [`renderView`](../frontend/src/router.tsx#L101) | function | 101 | `async function renderView()` | Asynchronously renders view. |
+| [`render`](../frontend/src/router.tsx#L116) | function | 116 | `async function render()` | Asynchronously renders the associated state. |
 
 ### [`frontend/src/state.tsx`](../frontend/src/state.tsx)
 
@@ -3603,64 +3608,64 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`formatNumber`](../frontend/src/state.tsx#L142) | function | 142 | `function formatNumber(raw: any)` | Formats number. |
 | [`percent`](../frontend/src/state.tsx#L147) | function | 147 | `function percent(raw: any, denominator: any)` | Formats a count as a percentage of its denominator. |
 | [`formatTime`](../frontend/src/state.tsx#L157) | function | 157 | `function formatTime(raw: any)` | Formats time. |
-| [`formatDuration`](../frontend/src/state.tsx#L169) | function | 169 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
-| [`formatBytes`](../frontend/src/state.tsx#L187) | function | 187 | `function formatBytes(raw: any)` | Formats bytes. |
-| [`humanLabel`](../frontend/src/state.tsx#L203) | function | 203 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
-| [`parseObject`](../frontend/src/state.tsx#L212) | function | 212 | `function parseObject(raw: any)` | Parses object. |
-| [`statusClass`](../frontend/src/state.tsx#L231) | function | 231 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
-| [`StatusChip`](../frontend/src/state.tsx#L249) | function | 249 | `function StatusChip(props: { raw: any })` | Renders one status chip with its semantic color class. |
-| [`statusChip`](../frontend/src/state.tsx#L254) | function | 254 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
-| [`metricEntries`](../frontend/src/state.tsx#L259) | function | 259 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
-| [`selectedRun`](../frontend/src/state.tsx#L270) | function | 270 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
-| [`showError`](../frontend/src/state.tsx#L278) | function | 278 | `function showError(error: any)` | Shows error. |
-| [`clearError`](../frontend/src/state.tsx#L284) | function | 284 | `function clearError()` | Clears error. |
-| [`busy`](../frontend/src/state.tsx#L290) | function | 290 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
-| [`link`](../frontend/src/state.tsx#L295) | function | 295 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
-| [`PageHeader`](../frontend/src/state.tsx#L314) | function | 314 | `function PageHeader(props: { kicker: string; title: string; description: string; extra?: string })` | Renders the standard page header with escaped copy and optional actions. |
-| [`pageHeader`](../frontend/src/state.tsx#L328) | function | 328 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
+| [`formatDuration`](../frontend/src/state.tsx#L165) | function | 165 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
+| [`formatBytes`](../frontend/src/state.tsx#L183) | function | 183 | `function formatBytes(raw: any)` | Formats bytes. |
+| [`humanLabel`](../frontend/src/state.tsx#L197) | function | 197 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
+| [`parseObject`](../frontend/src/state.tsx#L205) | function | 205 | `function parseObject(raw: any)` | Parses object. |
+| [`statusClass`](../frontend/src/state.tsx#L224) | function | 224 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
+| [`StatusChip`](../frontend/src/state.tsx#L244) | function | 244 | `function StatusChip(props: { raw: any })` | Renders one status chip with its semantic color class. |
+| [`statusChip`](../frontend/src/state.tsx#L250) | function | 250 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
+| [`metricEntries`](../frontend/src/state.tsx#L256) | function | 256 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
+| [`selectedRun`](../frontend/src/state.tsx#L268) | function | 268 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
+| [`showError`](../frontend/src/state.tsx#L276) | function | 276 | `function showError(error: any)` | Shows error. |
+| [`clearError`](../frontend/src/state.tsx#L282) | function | 282 | `function clearError()` | Clears error. |
+| [`busy`](../frontend/src/state.tsx#L288) | function | 288 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
+| [`link`](../frontend/src/state.tsx#L293) | function | 293 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
+| [`PageHeader`](../frontend/src/state.tsx#L313) | function | 313 | `function PageHeader(props: { kicker: string; title: string; description: string; extra?: string })` | Renders the standard page header with escaped copy and optional actions. |
+| [`pageHeader`](../frontend/src/state.tsx#L327) | function | 327 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
 | [`Breadcrumb`](../frontend/src/state.tsx#L333) | function | 333 | `function Breadcrumb(props: { items: Array<{ href?: string; label: string }> })` | Renders escaped breadcrumb markup for an ordered page hierarchy. |
-| [`breadcrumb`](../frontend/src/state.tsx#L353) | function | 353 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
-| [`setBreadcrumb`](../frontend/src/state.tsx#L358) | function | 358 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
-| [`EmptyState`](../frontend/src/state.tsx#L363) | function | 363 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
-| [`emptyState`](../frontend/src/state.tsx#L376) | function | 376 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
-| [`EmptyPanel`](../frontend/src/state.tsx#L381) | function | 381 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
-| [`emptyPanel`](../frontend/src/state.tsx#L392) | function | 392 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
-| [`Panel`](../frontend/src/state.tsx#L397) | function | 397 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string })` | Renders the standard titled content panel. |
-| [`panel`](../frontend/src/state.tsx#L412) | function | 412 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
-| [`Table`](../frontend/src/state.tsx#L420) | function | 420 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string })` | Renders an escaped data table inside the standard panel wrapper. |
-| [`table`](../frontend/src/state.tsx#L448) | function | 448 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
-| [`Subnav`](../frontend/src/state.tsx#L453) | function | 453 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
-| [`subnav`](../frontend/src/state.tsx#L463) | function | 463 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
-| [`FilterChips`](../frontend/src/state.tsx#L474) | function | 474 | `function FilterChips(props: { filters: Record<string, any> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
-| [`filterChips`](../frontend/src/state.tsx#L504) | function | 504 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
-| [`MetricCard`](../frontend/src/state.tsx#L509) | function | 509 | `function MetricCard(props: { name: string; metric: any; href?: string })` | Renders a metric card with availability, denominator, and optional navigation. |
-| [`metricCard`](../frontend/src/state.tsx#L544) | function | 544 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
-| [`FlowStage`](../frontend/src/state.tsx#L558) | function | 558 | `function FlowStage(props: { label: string; raw: any; base: any; previous: any; extraClass: string; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
-| [`flowStage`](../frontend/src/state.tsx#L637) | function | 637 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
-| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L665) | function | 665 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
-| [`RetentionPhase`](../frontend/src/state.tsx#L712) | function | 712 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string })` | Renders one titled phase in the retention-flow presentation. |
-| [`RetentionFlow`](../frontend/src/state.tsx#L728) | function | 728 | `function RetentionFlow(props: { overview: any })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`retentionFlow`](../frontend/src/state.tsx#L831) | function | 831 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`Breakdown`](../frontend/src/state.tsx#L836) | function | 836 | `function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
-| [`valueRender`](../frontend/src/state.tsx#L857) | function | 857 | `function valueRender(row: any)` | Renders one breakdown value with availability and optional percentage. |
-| [`barRender`](../frontend/src/state.tsx#L874) | function | 874 | `function barRender(row: any)` | Renders an accessible relative-volume bar for one breakdown row. |
-| [`breakdown`](../frontend/src/state.tsx#L895) | function | 895 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
-| [`SourceResultCountSummary`](../frontend/src/state.tsx#L900) | function | 900 | `function SourceResultCountSummary(props: { items: any[] \| null; classes?: string })` | Renders the expected-versus-observed source export count table. |
-| [`count`](../frontend/src/state.tsx#L904) | function | 904 | `function count(raw: any)` | Formats a source count or its unavailable state. |
-| [`comparison`](../frontend/src/state.tsx#L912) | function | 912 | `function comparison(raw: any)` | Renders a status chip for a source-count comparison. |
-| [`date`](../frontend/src/state.tsx#L920) | function | 920 | `function date(raw: any)` | Renders an export date or its unavailable state. |
-| [`sourceResultCountSummary`](../frontend/src/state.tsx#L949) | function | 949 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
-| [`SourceSearchQueries`](../frontend/src/state.tsx#L954) | function | 954 | `function SourceSearchQueries(props: { items: any[] \| null; classes?: string })` | Renders expandable exact-query markup for source exports. |
-| [`sourceSearchQueries`](../frontend/src/state.tsx#L981) | function | 981 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
-| [`Timeline`](../frontend/src/state.tsx#L986) | function | 986 | `function Timeline(props: { rows: any[] })` | Renders chronological audit feed markup for generic event rows. |
-| [`timeline`](../frontend/src/state.tsx#L1045) | function | 1045 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
-| [`DetailTable`](../frontend/src/state.tsx#L1050) | function | 1050 | `function DetailTable(props: { title: string; rows: any })` | Renders a table whose columns are derived from the supplied detail records. |
-| [`detailTable`](../frontend/src/state.tsx#L1067) | function | 1067 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
-| [`Cell`](../frontend/src/state.tsx#L1077) | function | 1077 | `function Cell(props: { item: any; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
-| [`cell`](../frontend/src/state.tsx#L1109) | function | 1109 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
-| [`bindCopyButtons`](../frontend/src/state.tsx#L1117) | function | 1117 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
-| [`bindDismissibleMessages`](../frontend/src/state.tsx#L1136) | function | 1136 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
-| [`bindLoadingButtons`](../frontend/src/state.tsx#L1152) | function | 1152 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
+| [`breadcrumb`](../frontend/src/state.tsx#L356) | function | 356 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
+| [`setBreadcrumb`](../frontend/src/state.tsx#L362) | function | 362 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
+| [`EmptyState`](../frontend/src/state.tsx#L368) | function | 368 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
+| [`emptyState`](../frontend/src/state.tsx#L381) | function | 381 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
+| [`EmptyPanel`](../frontend/src/state.tsx#L389) | function | 389 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
+| [`emptyPanel`](../frontend/src/state.tsx#L400) | function | 400 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
+| [`Panel`](../frontend/src/state.tsx#L408) | function | 408 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string })` | Renders the standard titled content panel. |
+| [`panel`](../frontend/src/state.tsx#L424) | function | 424 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
+| [`Table`](../frontend/src/state.tsx#L434) | function | 434 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string })` | Renders an escaped data table inside the standard panel wrapper. |
+| [`table`](../frontend/src/state.tsx#L471) | function | 471 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
+| [`Subnav`](../frontend/src/state.tsx#L477) | function | 477 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
+| [`subnav`](../frontend/src/state.tsx#L491) | function | 491 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
+| [`FilterChips`](../frontend/src/state.tsx#L503) | function | 503 | `function FilterChips(props: { filters: Record<string, any> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
+| [`filterChips`](../frontend/src/state.tsx#L542) | function | 542 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
+| [`MetricCard`](../frontend/src/state.tsx#L548) | function | 548 | `function MetricCard(props: { name: string; metric: any; href?: string })` | Renders a metric card with availability, denominator, and optional navigation. |
+| [`metricCard`](../frontend/src/state.tsx#L581) | function | 581 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
+| [`FlowStage`](../frontend/src/state.tsx#L596) | function | 596 | `function FlowStage(props: { label: string; raw: any; base: any; previous: any; extraClass: string; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
+| [`flowStage`](../frontend/src/state.tsx#L694) | function | 694 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
+| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L723) | function | 723 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
+| [`RetentionPhase`](../frontend/src/state.tsx#L782) | function | 782 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string })` | Renders one titled phase in the retention-flow presentation. |
+| [`RetentionFlow`](../frontend/src/state.tsx#L799) | function | 799 | `function RetentionFlow(props: { overview: any })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`retentionFlow`](../frontend/src/state.tsx#L919) | function | 919 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`Breakdown`](../frontend/src/state.tsx#L925) | function | 925 | `function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
+| [`valueRender`](../frontend/src/state.tsx#L948) | function | 948 | `function valueRender(row: any)` | Renders one breakdown value with availability and optional percentage. |
+| [`barRender`](../frontend/src/state.tsx#L968) | function | 968 | `function barRender(row: any)` | Renders an accessible relative-volume bar for one breakdown row. |
+| [`breakdown`](../frontend/src/state.tsx#L1007) | function | 1007 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
+| [`SourceResultCountSummary`](../frontend/src/state.tsx#L1013) | function | 1013 | `function SourceResultCountSummary(props: { items: any[] \| null; classes?: string })` | Renders the expected-versus-observed source export count table. |
+| [`count`](../frontend/src/state.tsx#L1017) | function | 1017 | `function count(raw: any)` | Formats a source count or its unavailable state. |
+| [`comparison`](../frontend/src/state.tsx#L1025) | function | 1025 | `function comparison(raw: any)` | Renders a status chip for a source-count comparison. |
+| [`date`](../frontend/src/state.tsx#L1033) | function | 1033 | `function date(raw: any)` | Renders an export date or its unavailable state. |
+| [`sourceResultCountSummary`](../frontend/src/state.tsx#L1088) | function | 1088 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
+| [`SourceSearchQueries`](../frontend/src/state.tsx#L1094) | function | 1094 | `function SourceSearchQueries(props: { items: any[] \| null; classes?: string })` | Renders expandable exact-query markup for source exports. |
+| [`sourceSearchQueries`](../frontend/src/state.tsx#L1122) | function | 1122 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
+| [`Timeline`](../frontend/src/state.tsx#L1128) | function | 1128 | `function Timeline(props: { rows: any[] })` | Renders chronological audit feed markup for generic event rows. |
+| [`timeline`](../frontend/src/state.tsx#L1190) | function | 1190 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
+| [`DetailTable`](../frontend/src/state.tsx#L1196) | function | 1196 | `function DetailTable(props: { title: string; rows: any })` | Renders a table whose columns are derived from the supplied detail records. |
+| [`detailTable`](../frontend/src/state.tsx#L1214) | function | 1214 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
+| [`Cell`](../frontend/src/state.tsx#L1225) | function | 1225 | `function Cell(props: { item: any; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
+| [`cell`](../frontend/src/state.tsx#L1258) | function | 1258 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
+| [`bindCopyButtons`](../frontend/src/state.tsx#L1267) | function | 1267 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
+| [`bindDismissibleMessages`](../frontend/src/state.tsx#L1287) | function | 1287 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
+| [`bindLoadingButtons`](../frontend/src/state.tsx#L1304) | function | 1304 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
 
 ### [`frontend/src/views/advanced.tsx`](../frontend/src/views/advanced.tsx)
 
@@ -3702,11 +3707,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L361) | function | 361 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
 | [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L379) | function | 379 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
 | [`ArticleView`](../frontend/src/views/detail.tsx#L515) | function | 515 | `function ArticleView(props: { record: any; data: any })` | Renders the article detail view from its immutable revision payload. |
-| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L666) | function | 666 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
-| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L717) | function | 717 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
-| [`AuthorView`](../frontend/src/views/detail.tsx#L781) | function | 781 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
-| [`ReferenceView`](../frontend/src/views/detail.tsx#L856) | function | 856 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
-| [`detailView`](../frontend/src/views/detail.tsx#L954) | function | 954 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L662) | function | 662 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
+| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L713) | function | 713 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
+| [`AuthorView`](../frontend/src/views/detail.tsx#L777) | function | 777 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
+| [`ReferenceView`](../frontend/src/views/detail.tsx#L852) | function | 852 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.tsx#L950) | function | 950 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
@@ -3724,21 +3729,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`SearchCard`](../frontend/src/views/home.tsx#L25) | function | 25 | `function SearchCard(props: { search: any; plans: any[]; runs: any[] })` | Renders one compact search-history card with revision, plan, and attempt counts. |
 | [`RunTable`](../frontend/src/views/home.tsx#L98) | function | 98 | `function RunTable(props: { searches: any[]; plans: any[]; runs: any[] })` | Renders the run-management table for all planned attempts in the workspace. |
 | [`RunDialog`](../frontend/src/views/home.tsx#L178) | function | 178 | `function RunDialog()` | Renders the confirmation dialog used for reversible run lifecycle changes. |
-| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L208) | function | 208 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
-| [`close`](../frontend/src/views/home.tsx#L222) | function | 222 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
-| [`open`](../frontend/src/views/home.tsx#L229) | function | 229 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
-| [`homeView`](../frontend/src/views/home.tsx#L302) | function | 302 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
+| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L207) | function | 207 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
+| [`close`](../frontend/src/views/home.tsx#L220) | function | 220 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
+| [`open`](../frontend/src/views/home.tsx#L227) | function | 227 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
+| [`homeView`](../frontend/src/views/home.tsx#L298) | function | 298 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
 
 ### [`frontend/src/views/overview.tsx`](../frontend/src/views/overview.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`normalizationValue`](../frontend/src/views/overview.tsx#L13) | function | 13 | `function normalizationValue(metric: any)` | Renders a normalization metric value or its unavailable presentation. |
-| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L84) | function | 84 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric or its unavailable presentation. |
-| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L92) | function | 92 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
-| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L125) | function | 125 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
-| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L170) | function | 170 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
-| [`overviewView`](../frontend/src/views/overview.tsx#L179) | function | 179 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
+| [`unavailableMarkup`](../frontend/src/views/overview.tsx#L13) | function | 13 | `function unavailableMarkup()` | Renders the unavailable-value presentation shared by metric helpers. |
+| [`normalizationValue`](../frontend/src/views/overview.tsx#L18) | function | 18 | `function normalizationValue(metric: any)` | Renders a normalization metric value or its unavailable presentation. |
+| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L89) | function | 89 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric or its unavailable presentation. |
+| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L97) | function | 97 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
+| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L130) | function | 130 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
+| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L176) | function | 176 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
+| [`overviewView`](../frontend/src/views/overview.tsx#L188) | function | 188 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
 
 ### [`frontend/src/views/provenance.tsx`](../frontend/src/views/provenance.tsx)
 
@@ -3746,33 +3752,33 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`renderTime`](../frontend/src/views/provenance.tsx#L32) | function | 32 | `function renderTime(row: any, raw: any)` | Renders a formatted timestamp cell for a data-table column. |
 | [`selectedValues`](../frontend/src/views/provenance.tsx#L37) | function | 37 | `function selectedValues(raw: any)` | Returns the selected comma-separated values for an audit facet. |
-| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L44) | function | 44 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
-| [`auditQuery`](../frontend/src/views/provenance.tsx#L73) | function | 73 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
-| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L89) | function | 89 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
-| [`AuditFilters`](../frontend/src/views/provenance.tsx#L104) | function | 104 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
-| [`AuditSummary`](../frontend/src/views/provenance.tsx#L148) | function | 148 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
-| [`AuditView`](../frontend/src/views/provenance.tsx#L180) | function | 180 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
-| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L210) | function | 210 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
-| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L233) | function | 233 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
-| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L250) | function | 250 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
-| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L321) | function | 321 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
-| [`CacheView`](../frontend/src/views/provenance.tsx#L329) | function | 329 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
-| [`stageStatus`](../frontend/src/views/provenance.tsx#L415) | function | 415 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
-| [`StageFlow`](../frontend/src/views/provenance.tsx#L443) | function | 443 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
-| [`StagesView`](../frontend/src/views/provenance.tsx#L517) | function | 517 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
-| [`RunView`](../frontend/src/views/provenance.tsx#L605) | function | 605 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
-| [`provenanceView`](../frontend/src/views/provenance.tsx#L693) | function | 693 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
-| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L780) | function | 780 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
-| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L888) | function | 888 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
-| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L944) | function | 944 | `function renderArtifactInspector()` | Renders artifact inspector. |
-| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1031) | function | 1031 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
+| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L46) | function | 46 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
+| [`auditQuery`](../frontend/src/views/provenance.tsx#L78) | function | 78 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
+| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L94) | function | 94 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
+| [`AuditFilters`](../frontend/src/views/provenance.tsx#L108) | function | 108 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
+| [`AuditSummary`](../frontend/src/views/provenance.tsx#L161) | function | 161 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
+| [`AuditView`](../frontend/src/views/provenance.tsx#L193) | function | 193 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
+| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L223) | function | 223 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
+| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L246) | function | 246 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
+| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L263) | function | 263 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
+| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L335) | function | 335 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
+| [`CacheView`](../frontend/src/views/provenance.tsx#L343) | function | 343 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
+| [`stageStatus`](../frontend/src/views/provenance.tsx#L436) | function | 436 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
+| [`StageFlow`](../frontend/src/views/provenance.tsx#L463) | function | 463 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
+| [`StagesView`](../frontend/src/views/provenance.tsx#L553) | function | 553 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
+| [`RunView`](../frontend/src/views/provenance.tsx#L647) | function | 647 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
+| [`provenanceView`](../frontend/src/views/provenance.tsx#L738) | function | 738 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
+| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L825) | function | 825 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
+| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L937) | function | 937 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
+| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L998) | function | 998 | `function renderArtifactInspector()` | Renders artifact inspector. |
+| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1091) | function | 1091 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
 
 ### [`frontend/src/views/relationships.tsx`](../frontend/src/views/relationships.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`ModeControl`](../frontend/src/views/relationships.tsx#L43) | function | 43 | `function ModeControl(props: { current: string })` | Renders markup for selecting a relationship graph mode. |
-| [`appliedFilters`](../frontend/src/views/relationships.tsx#L69) | function | 69 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
+| [`appliedFilters`](../frontend/src/views/relationships.tsx#L70) | function | 70 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
 | [`ClusterSummary`](../frontend/src/views/relationships.tsx#L88) | function | 88 | `function ClusterSummary(props: { data: any })` | Renders markup summarizing connected graph clusters. |
 | [`relationshipsView`](../frontend/src/views/relationships.tsx#L116) | function | 116 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
 

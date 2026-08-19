@@ -50,9 +50,10 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
   const numbered = pageNumbers.map((page) => {
     var active = "";
     if (page === safeCurrent) active = " active";
+    const pageNumberClass = `item page-number${active}${pageClass}`;
     const attrs: Record<string, unknown> = {
       type: "button",
-      className: `item page-number${active}${pageClass}`,
+      className: pageNumberClass,
       [pageAttribute]: page,
     };
     if (page === safeCurrent) attrs["aria-current"] = "page";
@@ -61,9 +62,10 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
 
   /** Returns one pagination navigation control. */
   function control(label: string, target: number, disabled: boolean, relation: string): JSX.Element {
+    const itemClass = `item${pageClass}`;
     const attrs: Record<string, unknown> = {
       type: "button",
-      className: `item${pageClass}`,
+      className: itemClass,
       [pageAttribute]: target,
     };
     if (relation) attrs["aria-label"] = relation;
@@ -76,6 +78,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
     secondary = <span className="rw-pagination__secondary">{options.secondary}</span>;
   }
 
+  const firstControl = control("First", 1, safeCurrent === 1, "First page");
+  const previousControl = control("Previous", Math.max(1, safeCurrent - 1), safeCurrent === 1, "Previous page");
+  const nextControl = control("Next", Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, "Next page");
+  const lastControl = control("Last", totalPages, safeCurrent === totalPages, "Last page");
+
   return (
     <nav className="ui pagination menu" aria-label="Result pages">
       <div className="rw-pagination__summary">
@@ -84,11 +91,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
         {secondary}
       </div>
       <div className="pagination-actions">
-        {control("First", 1, safeCurrent === 1, "First page")}
-        {control("Previous", Math.max(1, safeCurrent - 1), safeCurrent === 1, "Previous page")}
+        {firstControl}
+        {previousControl}
         <span className="pagination-pages">{numbered}</span>
-        {control("Next", Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, "Next page")}
-        {control("Last", totalPages, safeCurrent === totalPages, "Last page")}
+        {nextControl}
+        {lastControl}
       </div>
     </nav>
   );

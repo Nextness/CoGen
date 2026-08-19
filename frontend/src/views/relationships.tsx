@@ -45,8 +45,9 @@ function ModeControl(props: { current: string }): JSX.Element {
     const checked = id === props.current;
     var active = "";
     if (id === props.current) active = " active";
+    const itemClass = `item${active}`;
     return (
-      <label className={`item${active}`}>
+      <label className={itemClass}>
         <input type="radio" name="graph_mode" value={id} checked={checked} />
         <span>{mode.label}</span>
       </label>
@@ -68,17 +69,16 @@ function ModeControl(props: { current: string }): JSX.Element {
 /** Renders markup summarizing the active relationship filters. */
 function appliedFilters(): string {
   const filters: Record<string, string> = {};
-  Object.keys(filterLabels).forEach((key) => {
-    if (value(key)) {
-      filters[key] = value(key);
-    }
+  const filterKeys = Object.keys(filterLabels);
+  filterKeys.forEach((key) => {
+    if (value(key)) filters[key] = value(key);
   });
   const clear: Record<string, any> = {
     view: "relationships",
     mode: value("mode") || "research_network",
     node: "",
   };
-  Object.keys(filterLabels).forEach((key) => {
+  filterKeys.forEach((key) => {
     clear[key] = "";
   });
   return filterChips(filters, filterLabels, { clearUpdates: clear });
@@ -129,9 +129,7 @@ export async function relationshipsView(): Promise<void> {
   const queryParams: Record<string, any> = graphQuery();
   queryParams.run_id = value("run_id");
   queryParams.mode = mode;
-  if (!queryParams.article_limit) {
-    queryParams.article_limit = 2000;
-  }
+  if (!queryParams.article_limit) queryParams.article_limit = 2000;
   const data = await api("/api/graph", queryParams, {
     method: "GET",
     headers: { Accept: "application/json" },
@@ -207,7 +205,10 @@ export async function relationshipsView(): Promise<void> {
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="Bounded relationship exploration" title="Relationships" description="Investigate how articles, authors, and captured references connect inside the selected historical run." />
-      <div className="rw-relationship-layout">{filterPanel}{networkPanel}</div>
+      <div className="rw-relationship-layout">
+        {filterPanel}
+        {networkPanel}
+      </div>
     </Fragment>
   );
   renderTree(pageMarkup, app);
@@ -254,9 +255,7 @@ export async function relationshipsView(): Promise<void> {
       node: "",
     };
     graphFilters.forEach((name) => {
-      if (name !== "mode") {
-        updates[name] = "";
-      }
+      if (name !== "mode") updates[name] = "";
     });
     setURL(updates, false);
   });

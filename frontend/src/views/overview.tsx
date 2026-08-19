@@ -9,10 +9,15 @@ import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { bindFocusContext } from '../router.tsx';
 
+/** Renders the unavailable-value presentation shared by metric helpers. */
+function unavailableMarkup(): JSX.Element {
+  return <span className="ui faded text">Not recorded</span>;
+}
+
 /** Renders a normalization metric value or its unavailable presentation. */
 function normalizationValue(metric: any): JSX.Element {
   if (metric?.available === false) {
-    return <span className="ui faded text">Not recorded</span>;
+    return unavailableMarkup();
   }
   if (metric?.denominator != null) {
     const pct = (metric.percentage ?? 0).toFixed(2);
@@ -83,7 +88,7 @@ const executionMetricStages = [
 /** Renders the numeric value of a captured metric or its unavailable presentation. */
 function capturedMetricValue(item: any): JSX.Element {
   if (item.available === false) {
-    return <span className="ui faded text">Not recorded</span>;
+    return unavailableMarkup();
   }
   return <>{formatNumber(item.value)}</>;
 }
@@ -123,7 +128,8 @@ function capturedMetricsByStage(metrics: any[]) {
 
 /** Renders table markup for captured pipeline metrics. */
 function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
-  const stageSections = capturedMetricsByStage(props.metrics).map((group) => {
+  const stageGroups = capturedMetricsByStage(props.metrics);
+  const stageSections = stageGroups.map((group) => {
     const rows = group.metrics.map((metric) => {
       var source: JSX.Element = <span className="ui faded text">Run total</span>;
       if (metric.source) source = <>{humanLabel(metric.source)}</>;
@@ -172,7 +178,10 @@ function fixedPercentageMetric(metric: any): any {
     return metric;
   }
   const percentage = Number(metric.percentage ?? (Number(metric.value || 0) * 100 / Number(metric.denominator || 1)));
-  return { ...metric, percentage: percentage.toFixed(2) + "%" };
+  return {
+    ...metric,
+    percentage: `${percentage.toFixed(2)}%`,
+  };
 }
 
 /** Asynchronously implements overview view for the viewer. */
@@ -273,7 +282,8 @@ export async function overviewView(): Promise<void> {
     affiliation: "Affiliation",
   };
 
-  const normalizationRows = Object.entries(normalizationFieldLabels).map(([field, label]) => {
+  const fieldEntries = Object.entries(normalizationFieldLabels);
+  const normalizationRows = fieldEntries.map(([field, label]) => {
     return {
       field: label,
       ...(normalizationFields[field] || {}),

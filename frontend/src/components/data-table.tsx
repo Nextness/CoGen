@@ -6,9 +6,7 @@ import { Pagination } from "./pagination.tsx";
 
 /** Returns whether a row contains the case-insensitive filter text. */
 export function rowFilter(rows: any[], query: string): any[] {
-  if (!query) {
-    return rows;
-  }
+  if (!query) return rows;
   const needle = query.toLocaleLowerCase();
   return rows.filter((row) => {
     return Object.values(row).some((item) => {
@@ -57,9 +55,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     columns = list(props.result.table, ["columns", "schema"]);
   }
   const columnNames = columns.map((column) => {
-    if (typeof column === "string") {
-      return column;
-    }
+    if (typeof column === "string") return column;
     return column.name;
   });
   columns = columnNames.filter(Boolean);
@@ -80,23 +76,25 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     expanded: context.expandedKey || "expanded",
   };
   const rows = rowFilter(list(props.result, ["rows", "items"]), context.query || "");
-  const page = context.page;
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
   const hasExpand = expandFields.length > 0;
-  const colCount = columns.length + (hasExpand ? 1 : 0);
+  var colCount = columns.length;
+  if (hasExpand) colCount += 1;
   const rowKey = context.rowKey || "id";
   const expandedRows = new Set(String(value(keys.expanded) || "").split(",").filter(Boolean));
   const columnConfig = context.columnConfig || {};
 
   var emptyMessage = "No records on this page.";
   if (context.query) emptyMessage = "No displayed records match this search.";
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={Math.max(1, colCount)} className="empty">{emptyMessage}</td></tr>];
+  const emptyColspan = Math.max(1, colCount);
+  var rowsHtml: JSX.Element[] = [<tr><td colspan={emptyColspan} className="empty">{emptyMessage}</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((row, idx) => {
       const key = String(row[rowKey] ?? idx);
       const initiallyExpanded = expandedRows.has(key);
       const detailID = `table-row-detail-${String(props.tableName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${idx}`;
+      const expandedValue = String(initiallyExpanded);
       var toggleCell: JSX.Element | null = null;
       if (hasExpand) {
         var toggleTitle = "Show row details";
@@ -105,7 +103,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         if (initiallyExpanded) toggleGlyph = "\u25BC";
         toggleCell = (
           <td className="toggle-cell">
-            <button type="button" className="expand-toggle" aria-expanded={String(initiallyExpanded)} aria-controls={detailID} aria-label={toggleTitle} data-expand-row={idx} data-row-key={key} title={toggleTitle}>
+            <button type="button" className="expand-toggle" aria-expanded={expandedValue} aria-controls={detailID} aria-label={toggleTitle} data-expand-row={idx} data-row-key={key} title={toggleTitle}>
               {toggleGlyph}
             </button>
           </td>
@@ -115,9 +113,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
       const cells = columns.map((column) => {
         const config = columnConfig[column] || {};
         var content: JSX.Element = raw(cell(row[column], column, props.tableName, { expandLong: context.expandLongCells !== false }));
-        if (config.render) {
-          content = config.render(row, row[column]);
-        }
+        if (config.render) content = config.render(row, row[column]);
         return <td className={config.className}>{content}</td>;
       });
       var rowClasses = "";
@@ -133,14 +129,12 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           var style = `grid-column:span ${field.w}`;
           if (field.w === "full") style = "grid-column:1/-1";
           var display: JSX.Element = <>{asJSON(val)}</>;
-          if (field.render) {
-            display = field.render(row);
-          } else if (val === null || val === undefined) {
-            display = <span className="ui faded text">Not recorded</span>;
-          }
+          if (field.render) display = field.render(row);
+          else if (val === null || val === undefined) display = <span className="ui faded text">Not recorded</span>;
+          const labelText = field.label || humanLabel(field.f);
           return (
             <div style={style}>
-              <dt>{field.label || humanLabel(field.f)}</dt>
+              <dt>{labelText}</dt>
               <dd>{display}</dd>
             </div>
           );
@@ -233,8 +227,8 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           <tbody>{rowsHtml}</tbody>
         </table>
       </div>
-      <Pagination result={props.result.pagination || { page: page }} options={{
-        page: page,
+      <Pagination result={props.result.pagination || { page: context.page }} options={{
+        page: context.page,
         perPage: context.perPage,
         itemLabel: context.itemLabel || "records",
         secondary: sortDescription,
@@ -391,11 +385,8 @@ function handleExpandToggle(event: Event): void {
     const table = toggle.closest<HTMLElement>("[data-expandable-table]");
     const expandedParam = table?.dataset.expandedParam || "expanded";
     const expandedKeys = new Set(String(value(expandedParam) || "").split(",").filter(Boolean));
-    if (expanded) {
-      expandedKeys.delete(rowKey);
-    } else {
-      expandedKeys.add(rowKey);
-    }
+    if (expanded) expandedKeys.delete(rowKey);
+    else expandedKeys.add(rowKey);
     const url = new URL(location.href);
     if (expandedKeys.size) {
       url.searchParams.set(expandedParam, Array.from(expandedKeys).join(","));

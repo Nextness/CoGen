@@ -27,10 +27,12 @@ export async function advancedView(): Promise<void> {
     return item.name === current;
   });
 
-  const columns = (selectedTable?.columns || []).map((column: any) => {
+  const rawColumns = selectedTable?.columns || [];
+  const columnNames = rawColumns.map((column: any) => {
     if (typeof column === "string") return column;
     return column.name;
-  }).filter(Boolean);
+  });
+  const columns = columnNames.filter(Boolean);
 
   const requestedSort = value("sort");
   var sort = "";
@@ -72,7 +74,10 @@ export async function advancedView(): Promise<void> {
 
   const visibleColumns = columns.slice(0, 7);
   const expandableFields = columns.map((column: string) => {
-    return { f: column, w: "full" as const };
+    return {
+      f: column,
+      w: "full" as const,
+    };
   });
 
   const context: DataTableContext = {

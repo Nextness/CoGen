@@ -1,5 +1,5 @@
 // View routing, URL state, and render orchestrator.
-import { state, app, view, link, value, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
+import { state, app, view, link, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
 import { render as renderTree } from "./jsx/jsx-runtime.ts";
 import { selects, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";
@@ -15,11 +15,8 @@ import { destroyGraph } from "./components/graph.tsx";
 /** Replaces the current URL state without triggering a navigation reload. */
 export function setURL(updates: Record<string, any>, replace: boolean): void {
   const href = link(updates);
-  if (replace) {
-    history.replaceState({}, "", href);
-  } else {
-    history.pushState({}, "", href);
-  }
+  if (replace) history.replaceState({}, "", href);
+  else history.pushState({}, "", href);
   render();
 }
 
@@ -27,7 +24,7 @@ export function setURL(updates: Record<string, any>, replace: boolean): void {
 export function bindFocusContext(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-focus-context]");
   if (button) {
-    button.addEventListener("click", function() {
+    button.addEventListener("click", () => {
       selects.search.focus();
     });
   }
@@ -35,17 +32,16 @@ export function bindFocusContext(): void {
 
 /** Synchronizes primary navigation. */
 function syncPrimaryNavigation(current: string): void {
-  var navigationView: string;
-  if (["article", "author", "reference"].includes(current)) {
-    navigationView = "corpus";
-  } else {
-    navigationView = current;
-  }
+  const detailViews = ["article", "author", "reference"];
+  var navigationView = current;
+  if (detailViews.includes(current)) navigationView = "corpus";
 
-  document.querySelectorAll<HTMLElement>("[data-view-link]").forEach(function(item) {
+  const viewLinks = document.querySelectorAll<HTMLElement>("[data-view-link]");
+  viewLinks.forEach((item) => {
     item.setAttribute("href", link({ view: item.dataset.viewLink }));
     const active = item.dataset.viewLink === navigationView;
-    const ariaCurrent = active ? "page" : "false";
+    var ariaCurrent = "false";
+    if (active) ariaCurrent = "page";
     item.classList.toggle("active", active);
     item.setAttribute("aria-current", ariaCurrent);
   });
@@ -67,14 +63,37 @@ function syncShell(current: string): void {
   }
 
   const labels: Record<string, string> = {
-    overview: "Overview", corpus: "Corpus", relationships: "Relationships", provenance: "Provenance",
-    evaluation: "Evaluation", advanced: "Advanced", article: "Article", author: "Author", reference: "Reference mention"
+    overview: "Overview",
+    corpus: "Corpus",
+    relationships: "Relationships",
+    provenance: "Provenance",
+    evaluation: "Evaluation",
+    advanced: "Advanced",
+    article: "Article",
+    author: "Author",
+    reference: "Reference mention",
   };
 
   setBreadcrumb([
-    { label: "Home", href: link({ view: "home", article_id: "", author_id: "", reference_id: "" }) },
-    { label: "Deepdive", href: link({ view: "overview", article_id: "", author_id: "", reference_id: "" }) },
-    { label: labels[current] || "Overview" }
+    {
+      label: "Home",
+      href: link({
+        view: "home",
+        article_id: "",
+        author_id: "",
+        reference_id: "",
+      }),
+    },
+    {
+      label: "Deepdive",
+      href: link({
+        view: "overview",
+        article_id: "",
+        author_id: "",
+        reference_id: "",
+      }),
+    },
+    { label: labels[current] || "Overview" },
   ]);
 }
 
@@ -101,9 +120,7 @@ export async function render(): Promise<void> {
   destroyGraph();
   await destroyActiveArticleReview();
 
-  if (state.controller) {
-    state.controller.abort();
-  }
+  if (state.controller) state.controller.abort();
   state.controller = new AbortController();
 
   clearError();
@@ -118,7 +135,7 @@ export async function render(): Promise<void> {
     const titleElement = document.querySelector<HTMLElement>("#page-title");
     if (titleElement) pageTitle = titleElement.textContent || "Research workspace";
 
-    document.title = pageTitle + " · Research workspace";
+    document.title = `${pageTitle} · Research workspace`;
   } catch (error) {
     if ((error as any)?.name !== "AbortError" && sequence === state.request) {
       renderTree(null, app);

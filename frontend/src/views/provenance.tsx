@@ -35,23 +35,28 @@ function renderTime(row: any, raw: any): JSX.Element {
 
 /** Returns the selected comma-separated values for an audit facet. */
 function selectedValues(raw: any): string[] {
-  return String(raw || "").split(",").map((item) => {
+  const parts = String(raw || "").split(",");
+  const trimmed = parts.map((item) => {
     return item.trim();
-  }).filter(Boolean);
+  });
+  return trimmed.filter(Boolean);
 }
 
 /** Renders a multi-select control for one audit facet. */
 function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any }): JSX.Element {
   const selected = new Set(selectedValues(props.selectedRaw));
   var summary = "Any";
-  if (selected.size) summary = selected.size + " selected";
+  if (selected.size) summary = `${selected.size} selected`;
   const choices = (props.options || []).map((item) => {
-    return <label className="rw-check-option"><input type="checkbox" name={props.name} value={item} checked={selected.has(String(item))} /><span>{humanLabel(item)}</span></label>;
+    return (
+      <label className="rw-check-option">
+        <input type="checkbox" name={props.name} value={item} checked={selected.has(String(item))} />
+        <span>{humanLabel(item)}</span>
+      </label>
+    );
   });
   var empty: JSX.Element = <p className="ui faded text">No recorded values are available for this run.</p>;
-  if (choices.length) {
-    empty = <Fragment>{choices}</Fragment>;
-  }
+  if (choices.length) empty = <Fragment>{choices}</Fragment>;
   return (
     <details className="rw-multi-select" data-multi-select>
       <summary>
@@ -88,13 +93,12 @@ function auditQuery(cursor: string): Record<string, any> {
 /** Renders markup summarizing active audit filters and their removal links. */
 function AuditFilterSummary(): JSX.Element {
   const filters: Record<string, string> = {};
-  Object.keys(auditFilterKeys).forEach((key) => {
-    if (value(key)) {
-      filters[key] = value(key);
-    }
+  const filterKeys = Object.keys(auditFilterKeys);
+  filterKeys.forEach((key) => {
+    if (value(key)) filters[key] = value(key);
   });
   const clearUpdates: Record<string, string> = {};
-  Object.keys(auditFilterKeys).forEach((key) => {
+  filterKeys.forEach((key) => {
     clearUpdates[key] = "";
   });
   return <FilterChips filters={filters} labels={auditFilterKeys} options={{ clearUpdates: clearUpdates }} />;
@@ -119,7 +123,10 @@ function AuditFilters(props: { facets: any }): JSX.Element {
       </div>
       <div className="content">
         <form id="audit-filter-form" className="ui form">
-          <label className="rw-filter-search">Search events<input name="audit_q" type="search" value={value("audit_q")} placeholder="Action, entity, source, or metadata" /></label>
+          <label className="rw-filter-search">
+            Search events
+            <input name="audit_q" type="search" value={value("audit_q")} placeholder="Action, entity, source, or metadata" />
+          </label>
           <div className="rw-filter-field-grid">
             <AuditMultiSelect name="audit_category" label="Category" options={["pipeline", "enrichment", "validation", "pdf"]} selectedRaw={value("audit_category")} />
             <AuditMultiSelect name="audit_action" label="Event type" options={actions} selectedRaw={value("audit_action")} />
@@ -129,8 +136,14 @@ function AuditFilters(props: { facets: any }): JSX.Element {
           <details className="rw-filter-disclosure">
             <summary>Stage and outcome filters</summary>
             <div className="rw-filter-field-grid rw-filter-field-grid--stacked">
-              <label>Pipeline stage<input name="audit_stage" value={value("audit_stage")} placeholder="For example, normalize" /></label>
-              <label>Outcome<input name="audit_outcome" value={value("audit_outcome")} placeholder="For example, completed" /></label>
+              <label>
+                Pipeline stage
+                <input name="audit_stage" value={value("audit_stage")} placeholder="For example, normalize" />
+              </label>
+              <label>
+                Outcome
+                <input name="audit_outcome" value={value("audit_outcome")} placeholder="For example, completed" />
+              </label>
             </div>
           </details>
           <AuditFilterSummary />
@@ -255,10 +268,11 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   if (artifacts.length) {
     rows = artifacts.map((row) => {
       const role = row.artifact_roles || "Stage artifact";
-      const stageParts = [
-        row.produced_by_steps ? `Produced: ${row.produced_by_steps}` : "",
-        row.consumed_by_steps ? `Consumed: ${row.consumed_by_steps}` : "",
-      ];
+      var producedPart = "";
+      if (row.produced_by_steps) producedPart = `Produced: ${row.produced_by_steps}`;
+      var consumedPart = "";
+      if (row.consumed_by_steps) consumedPart = `Consumed: ${row.consumed_by_steps}`;
+      const stageParts = [producedPart, consumedPart];
       const stages = stageParts.filter(Boolean).join(" / ");
       var stageCell: JSX.Element = <span className="ui faded text">Not linked to a recorded step</span>;
       if (stages) stageCell = <>{stages}</>;
@@ -337,12 +351,13 @@ function CacheView(props: { data: any }): JSX.Element {
     total_rows: rows.length,
     total_pages: Math.max(1, Math.ceil(rows.length / perPage)),
   };
+  var resultColumns = Object.keys(rows[0] || {});
+  if (columns.length) resultColumns = columns;
   const result = {
-    columns: columns.length ? columns : Object.keys(rows[0] || {}),
+    columns: resultColumns,
     rows: rows,
     pagination: pagination,
-  };
-  var filterSummary: JSX.Element | null = null;
+  };  var filterSummary: JSX.Element | null = null;
   if (value("cache_q")) {
     filterSummary = <FilterChips filters={{ cache_q: value("cache_q") }} labels={{ cache_q: "Search" }} options={{
       removeUpdates: { cache_page: 1 },
@@ -351,8 +366,14 @@ function CacheView(props: { data: any }): JSX.Element {
   }
   const controls = (
     <form className="rw-table-controls" id="cache-controls">
-      <label className="rw-table-search">Search cache evidence<input id="cache-query" type="search" value={value("cache_q")} placeholder="Provider, namespace, outcome, or fingerprint" /></label>
-      <label>Rows per page<select id="cache-per-page"><PageSizeOptions current={perPage} /></select></label>
+      <label className="rw-table-search">
+          Search cache evidence
+          <input id="cache-query" type="search" value={value("cache_q")} placeholder="Provider, namespace, outcome, or fingerprint" />
+        </label>
+      <label>
+        Rows per page
+        <select id="cache-per-page"><PageSizeOptions current={perPage} /></select>
+      </label>
       <button type="submit" className="ui primary button" data-cache-search>Search</button>
       {filterSummary}
     </form>
@@ -414,9 +435,7 @@ function CacheView(props: { data: any }): JSX.Element {
 /** Returns the effective display status for a work-stage record. */
 function stageStatus(summary: any, step: any): string {
   const recorded = String(step?.step_status || "").toLocaleLowerCase();
-  if (recorded) {
-    return recorded;
-  }
+  if (recorded) return recorded;
   const outcomes = summary?.outcomes || {};
   const names = Object.keys(outcomes).map((item) => {
     return item.toLocaleLowerCase();
@@ -436,7 +455,8 @@ function stageStatus(summary: any, step: any): string {
   })) {
     return "warning";
   }
-  return summary ? "completed" : "not-recorded";
+  if (summary) return "completed";
+  return "not-recorded";
 }
 
 /** Renders ordered stage-flow markup for one work. */
@@ -449,19 +469,26 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
   }));
   const standard = ["preflight", "load", "parse", "deduplicate", "enrich", "enrich_metadata", "enrich_identity", "validate", "normalize", "finalize"];
   const available = new Set<string>([...summaryByName.keys(), ...stepByName.keys()]);
-  const names = standard.filter((name) => {
+  const standardNames = standard.filter((name) => {
     return available.delete(name);
-  }).concat(Array.from(available).sort());
+  });
+  const names = standardNames.concat(Array.from(available).sort());
   if (!names.length) {
-    return <div className="rw-empty-inline"><strong>No stage progression was recorded.</strong><p>Detailed stage records are also unavailable for this run.</p></div>;
+    return (
+      <div className="rw-empty-inline">
+        <strong>No stage progression was recorded.</strong>
+        <p>Detailed stage records are also unavailable for this run.</p>
+      </div>
+    );
   }
   const stageItems = names.map((name, index) => {
     const summary = summaryByName.get(name);
     const step = stepByName.get(name);
     const status = stageStatus(summary, step);
     const outcomes = summary?.outcomes || {};
-    const outcomeText = Object.entries(outcomes).map(([outcome, count]) => {
-      return formatNumber(count) + " " + humanLabel(outcome).toLocaleLowerCase();
+    const outcomeEntries = Object.entries(outcomes);
+    const outcomeText = outcomeEntries.map(([outcome, count]) => {
+      return `${formatNumber(count)} ${humanLabel(outcome).toLocaleLowerCase()}`;
     }).join(", ");
     var outcomeFallback = "Stage summary recorded.";
     if (step) outcomeFallback = "Execution step recorded.";
@@ -481,7 +508,7 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
       } else {
         var unit = " seconds";
         if (seconds === 1) unit = " second";
-        duration = seconds.toLocaleString(undefined, { maximumFractionDigits: 3 }) + unit;
+        duration = `${seconds.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit}`;
       }
     }
     var records: JSX.Element = <span className="ui faded text">Not applicable</span>;
@@ -497,11 +524,20 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
       <li className={stepClass}>
         <div className="rw-stage-step__marker"><span>{index + 1}</span></div>
         <div className="rw-stage-step__body">
-          <div className="rw-stage-step__heading"><h4>{humanLabel(name)}</h4><StatusChip raw={humanLabel(status)} /></div>
+          <div className="rw-stage-step__heading">
+            <h4>{humanLabel(name)}</h4>
+            <StatusChip raw={humanLabel(status)} />
+          </div>
           <p>{outcomeDisplay}</p>
           <dl>
-            <div><dt>Work outcome records</dt><dd>{records}</dd></div>
-            <div><dt>Duration</dt><dd>{duration}</dd></div>
+            <div>
+              <dt>Work outcome records</dt>
+              <dd>{records}</dd>
+            </div>
+            <div>
+              <dt>Duration</dt>
+              <dd>{duration}</dd>
+            </div>
           </dl>
           {artifactMarkup}
         </div>
@@ -538,8 +574,14 @@ function StagesView(props: { data: any }): JSX.Element {
   }
   const controls = (
     <form className="rw-table-controls" id="stage-controls">
-      <label className="rw-table-search">Search detailed outcomes<input id="stage-query" type="search" value={value("stage_q")} placeholder="Stage, outcome, reason, or work ID" /></label>
-      <label>Rows per page<select id="stage-per-page"><PageSizeOptions current={perPage} /></select></label>
+      <label className="rw-table-search">
+        Search detailed outcomes
+        <input id="stage-query" type="search" value={value("stage_q")} placeholder="Stage, outcome, reason, or work ID" />
+      </label>
+      <label>
+        Rows per page
+        <select id="stage-per-page"><PageSizeOptions current={perPage} /></select>
+      </label>
       <button type="submit" className="ui primary button" data-stage-search>Search</button>
       {stageFilterSummary}
     </form>
@@ -607,14 +649,17 @@ function RunView(props: { artifactData: any }): JSX.Element {
   const plan = state.plans.find((item) => {
     return String(pickID(item)) === String(run?.execution_plan_id || value("plan_id"));
   });
-  const snapshots = list(props.artifactData, ["artifacts"]).filter((artifact) => {
+  const snapshots = list(props.artifactData, ["artifacts"]);
+  const snapshotArtifacts = snapshots.filter((artifact) => {
     return artifact.artifact_roles;
   });
-  const started = run?.started_at ? new Date(run.started_at) : null;
-  const finished = run?.finished_at ? new Date(run.finished_at) : null;
+  var started: Date | null = null;
+  if (run?.started_at) started = new Date(run.started_at);
+  var finished: Date | null = null;
+  if (run?.finished_at) finished = new Date(run.finished_at);
   var duration = "Not recorded";
   if (started && finished && !Number.isNaN(started.getTime()) && !Number.isNaN(finished.getTime())) {
-    duration = Math.max(0, (finished.getTime() - started.getTime()) / 1000).toLocaleString() + " seconds";
+    duration = `${Math.max(0, (finished.getTime() - started.getTime()) / 1000).toLocaleString()} seconds`;
   }
   const summary = (
     <dl className="rw-summary-strip">
@@ -662,8 +707,8 @@ function RunView(props: { artifactData: any }): JSX.Element {
     <dl className="property-grid property-grid--compact">{propertyItems}</dl>
   );
   var snapshotRows: JSX.Element = <p className="ui faded text">No configuration snapshots were recorded for this legacy run.</p>;
-  if (snapshots.length) {
-    const snapshotItems = snapshots.map((artifact) => {
+  if (snapshotArtifacts.length) {
+    const snapshotItems = snapshotArtifacts.map((artifact) => {
       var action: JSX.Element = <span className="ui label">Payload unavailable</span>;
       if (artifact.has_blob) {
         action = <a className="ui basic button" href={`/api/artifacts/${encodeURIComponent(artifact.id)}/content`} download>Download</a>;
@@ -694,9 +739,9 @@ export async function provenanceView(): Promise<void> {
   const requestedSection = section("section", "audit");
   var current = "audit";
   if (provenanceSections[requestedSection]) current = requestedSection;
-  const title = provenanceSections[current][0];
-  const navItems: Array<[string, string]> = Object.entries(provenanceSections).map(([id, item]) => {
-    return [id, item[0]];
+  const [title] = provenanceSections[current];
+  const navItems: Array<[string, string]> = Object.entries(provenanceSections).map(([id, [label]]) => {
+    return [id, label];
   });
   if (!value("run_id") && current !== "audit") {
     const emptyStateMarkup = (
@@ -785,21 +830,23 @@ function bindAuditControls(): void {
       const values = new FormData(form);
       const updates: Record<string, any> = {};
       const multiValueKeys = new Set(["audit_category", "audit_action", "audit_actor", "audit_entity"]);
-      Object.keys(auditFilterKeys).forEach((key) => {
+      const filterKeys = Object.keys(auditFilterKeys);
+      filterKeys.forEach((key) => {
         var keyValue = values.get(key) || "";
         if (multiValueKeys.has(key)) keyValue = values.getAll(key).join(",");
         updates[key] = keyValue;
       });
       setURL(updates, false);
     });
-    form.querySelectorAll("[data-multi-select]").forEach((control) => {
-      const checkboxes = Array.from(control.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    const multiSelectControls = form.querySelectorAll("[data-multi-select]");
+    multiSelectControls.forEach((control) => {
+      const checkboxes = Array.from(control.querySelectorAll<HTMLInputElement>("input[type=\"checkbox\"]"));
       const refresh = () => {
         const count = checkboxes.filter((input) => {
           return input.checked;
         }).length;
         var summaryText = "Any";
-        if (count) summaryText = count + " selected";
+        if (count) summaryText = `${count} selected`;
         (control.querySelector("summary strong") as HTMLElement).textContent = summaryText;
       };
       (control.querySelector("[data-multi-select-all]") as HTMLButtonElement).addEventListener("click", () => {
@@ -819,10 +866,9 @@ function bindAuditControls(): void {
       });
       control.addEventListener("toggle", () => {
         if ((control as HTMLDetailsElement).open) {
-          form.querySelectorAll<HTMLDetailsElement>("[data-multi-select][open]").forEach((other) => {
-            if (other !== control) {
-              other.open = false;
-            }
+          const openControls = form.querySelectorAll<HTMLDetailsElement>("[data-multi-select][open]");
+          openControls.forEach((other) => {
+            if (other !== control) other.open = false;
           });
         }
       });
@@ -834,7 +880,8 @@ function bindAuditControls(): void {
       const stream = document.querySelector<HTMLElement>("#audit-event-stream")!;
       const pageStatus = document.querySelector<HTMLElement>("[data-audit-page-status]")!;
       const pageError = document.querySelector<HTMLElement>("[data-audit-page-error]")!;
-      const openEventIDs = new Set(Array.from(stream.querySelectorAll(".rw-event-details[open]")).map((details) => {
+      const openDetails = Array.from(stream.querySelectorAll(".rw-event-details[open]"));
+      const openEventIDs = new Set(openDetails.map((details) => {
         return (details.closest(".rw-audit-event") as HTMLElement | null)?.dataset.auditEventId;
       }));
       pageError.hidden = true;
@@ -850,7 +897,8 @@ function bindAuditControls(): void {
         const knownIDs = new Set(auditEvents.map((event) => {
           return String(event.id);
         }));
-        list(data, ["events", "items"]).forEach((event) => {
+        const newEvents = list(data, ["events", "items"]);
+        newEvents.forEach((event) => {
           if (!knownIDs.has(String(event.id))) {
             knownIDs.add(String(event.id));
             auditEvents.push(event as AuditEventRecord);
@@ -860,8 +908,9 @@ function bindAuditControls(): void {
         auditHasMore = Boolean(data.has_more);
         const auditStreamMarkup = <AuditStream events={auditEvents} />;
         renderTree(auditStreamMarkup, stream);
+        const openEventElements = Array.from(stream.querySelectorAll(".rw-audit-event[data-audit-event-id]"));
         openEventIDs.forEach((id) => {
-          const event = Array.from(stream.querySelectorAll(".rw-audit-event[data-audit-event-id]")).find((item) => {
+          const event = openEventElements.find((item) => {
             return (item as HTMLElement).dataset.auditEventId === id;
           });
           const details = event?.querySelector<HTMLDetailsElement>(".rw-event-details");
@@ -886,11 +935,13 @@ function bindAuditControls(): void {
 
 /** Binds DOM behavior for artifact inspection. */
 function bindArtifactInspection(): void {
-  document.querySelectorAll<HTMLButtonElement>("[data-inspect-artifact]").forEach((button) => {
+  const inspectButtons = document.querySelectorAll<HTMLButtonElement>("[data-inspect-artifact]");
+  inspectButtons.forEach((button) => {
     button.addEventListener("click", async () => {
       const id = button.dataset.inspectArtifact as string;
       activeArtifactRow = button.closest("tr");
-      document.querySelectorAll<HTMLElement>("[data-artifact-row]").forEach((row) => {
+      const artifactRows = document.querySelectorAll<HTMLElement>("[data-artifact-row]");
+      artifactRows.forEach((row) => {
         row.classList.toggle("selected", row === activeArtifactRow);
       });
       const previous = button.textContent;
@@ -926,7 +977,10 @@ function bindArtifactInspection(): void {
       } catch (error: any) {
         const errorMarkup = (
           <Fragment>
-            <div className="ui error message"><div className="header">Preview unavailable</div><p>{error.message || "Unable to inspect this artifact."}</p></div>
+            <div className="ui error message">
+              <div className="header">Preview unavailable</div>
+              <p>{error.message || "Unable to inspect this artifact."}</p>
+            </div>
             <a className="ui button" href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
           </Fragment>
         );
@@ -952,7 +1006,12 @@ function renderArtifactInspector(): void {
   const id = preview.artifact_id;
   var truncation: JSX.Element = <p className="ui success message">The complete stored text fits within the safe preview limit.</p>;
   if (preview.truncated) {
-    truncation = <div className="ui warning message"><div className="header">Preview truncated</div><p>This page shows the first {formatBytes(preview.preview_byte_size)} of {formatBytes(preview.stored_byte_size || preview.byte_size)}. Download the original file to inspect its complete contents.</p></div>;
+    truncation = (
+      <div className="ui warning message">
+        <div className="header">Preview truncated</div>
+        <p>This page shows the first {formatBytes(preview.preview_byte_size)} of {formatBytes(preview.stored_byte_size || preview.byte_size)}. Download the original file to inspect its complete contents.</p>
+      </div>
+    );
   }
   var modeButtons: JSX.Element | null = null;
   if (canFormat) {
@@ -1006,7 +1065,8 @@ function renderArtifactInspector(): void {
     </Fragment>
   );
   renderTree(inspectorMarkup, document.querySelector("#artifact-inspector .content") as HTMLElement);
-  document.querySelectorAll<HTMLButtonElement>("[data-artifact-preview-mode]").forEach((button) => {
+  const previewModeButtons = document.querySelectorAll<HTMLButtonElement>("[data-artifact-preview-mode]");
+  previewModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
       activeArtifactPreview.mode = button.dataset.artifactPreviewMode;
       renderArtifactInspector();
@@ -1041,7 +1101,5 @@ async function copyArtifactText(text: string): Promise<void> {
   area.select();
   const copied = document.execCommand("copy");
   area.remove();
-  if (!copied) {
-    throw new Error("Clipboard unavailable");
-  }
+  if (!copied) throw new Error("Clipboard unavailable");
 }

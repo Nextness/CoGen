@@ -4,10 +4,9 @@ import { state, list } from "./state.tsx";
 /** Builds an API path and query string from supplied values. */
 export function endpoint(path: string, query: Record<string, any> = {}): string {
   const url = new URL(path, location.origin);
-  Object.entries(query).forEach(function([key, raw]) {
-    if (raw !== "" && raw !== null && raw !== undefined) {
-      url.searchParams.set(key, raw);
-    }
+  const queryEntries = Object.entries(query);
+  queryEntries.forEach(([key, raw]) => {
+    if (raw !== "" && raw !== null && raw !== undefined) url.searchParams.set(key, raw);
   });
   return url.pathname + url.search;
 }
@@ -55,8 +54,9 @@ export async function api(path: string, query: Record<string, any> = {}, options
     signal: options.signal ?? state.controller?.signal,
   });
 
+  var body: any;
   try {
-    var body = await response.json();
+    body = await response.json();
   } catch (_) {
     throw new Error(`The server returned invalid JSON for ${path}.`);
   }
@@ -75,7 +75,10 @@ export async function api(path: string, query: Record<string, any> = {}, options
 export function mutate(path: string, method: string, body: any): Promise<any> {
   return api(path, {}, {
     method: method,
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 }
@@ -83,7 +86,10 @@ export function mutate(path: string, method: string, body: any): Promise<any> {
 /** Loads and caches the discovered database table list. */
 export async function tables(): Promise<any[]> {
   if (!state.tables.length) {
-    const data = await api("/api/tables", {}, { method: "GET", headers: { Accept: "application/json" } });
+    const data = await api("/api/tables", {}, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
     state.tables = list(data, ["tables", "items"]);
   }
   return state.tables;

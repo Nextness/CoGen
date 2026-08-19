@@ -191,8 +191,7 @@ function RunDialog(): JSX.Element {
           <label className="field" data-run-reason-field>
             Reason
             <textarea name="reason" maxlength={1000} rows={3} placeholder="Why should this run move out of the active workspace?"></textarea>
-          </label>
-          <p className="ui info message" data-run-dialog-guidance></p>
+          </label>          <p className="ui info message" data-run-dialog-guidance></p>
           <p className="ui error message" data-run-dialog-error role="alert" hidden></p>
           <div className="rw-modal__actions">
             <button type="button" className="ui basic button" data-run-dialog-close>Cancel</button>
@@ -206,9 +205,8 @@ function RunDialog(): JSX.Element {
 
 /** Binds confirmation and mutation behavior for Home run lifecycle controls. */
 function bindRunLifecycle(runs: any[]): void {
-  const dialogElement = document.querySelector<HTMLElement>("[data-run-dialog]");
-  if (!dialogElement) return;
-  const dialog = dialogElement;
+  const dialog = document.querySelector<HTMLElement>("[data-run-dialog]");
+  if (!dialog) return;
   const form = dialog.querySelector("[data-run-dialog-form]") as HTMLFormElement;
   const title = dialog.querySelector("#run-dialog-title") as HTMLElement;
   const description = dialog.querySelector("#run-dialog-description") as HTMLElement;
@@ -220,7 +218,7 @@ function bindRunLifecycle(runs: any[]): void {
 
   /** Dismisses the lifecycle dialog and clears its transient form state. */
   function close(): void {
-    dialog.hidden = true;
+    dialog!.hidden = true;
     document.body.classList.remove("rw-modal-open");
     error.hidden = true;
     form.reset();
@@ -231,8 +229,8 @@ function bindRunLifecycle(runs: any[]): void {
       return String(pickID(item)) === button.dataset.runId;
     });
     if (!run) return;
-    dialog.dataset.runId = button.dataset.runId;
-    dialog.dataset.visibilityState = button.dataset.runVisibility;
+    dialog!.dataset.runId = button.dataset.runId;
+    dialog!.dataset.visibilityState = button.dataset.runVisibility;
     const trashing = button.dataset.runVisibility === "trashed";
     var titleText = `Restore run ${button.dataset.runId}?`;
     if (trashing) titleText = `Move run ${button.dataset.runId} to trash?`;
@@ -249,13 +247,10 @@ function bindRunLifecycle(runs: any[]): void {
     submit.textContent = submitText;
     submit.classList.toggle("danger", trashing);
     submit.classList.toggle("primary", !trashing);
-    dialog.hidden = false;
+    dialog!.hidden = false;
     document.body.classList.add("rw-modal-open");
-    if (trashing) {
-      reason.focus();
-    } else {
-      submit.focus();
-    }
+    if (trashing) reason.focus();
+    else submit.focus();
   }
 
   const visibilityButtons = document.querySelectorAll<HTMLButtonElement>("[data-run-visibility]");
@@ -264,14 +259,15 @@ function bindRunLifecycle(runs: any[]): void {
       open(button);
     });
   });
-  dialog.querySelectorAll<HTMLButtonElement>("[data-run-dialog-close]").forEach((button) => {
+  const closeButtons = dialog.querySelectorAll<HTMLButtonElement>("[data-run-dialog-close]");
+  closeButtons.forEach((button) => {
     button.addEventListener("click", close);
   });
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) close();
   });
   dialog.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dialog.hidden) close();
+    if (event.key === "Escape" && !dialog!.hidden) close();
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -280,9 +276,9 @@ function bindRunLifecycle(runs: any[]): void {
     submit.classList.add("loading");
     try {
       var reasonValue = "";
-      if (dialog.dataset.visibilityState === "trashed") reasonValue = reason.value;
-      await mutate(`/api/runs/${encodeURIComponent(dialog.dataset.runId!)}/visibility`, "PUT", {
-        visibility_state: dialog.dataset.visibilityState,
+      if (dialog!.dataset.visibilityState === "trashed") reasonValue = reason.value;
+      await mutate(`/api/runs/${encodeURIComponent(dialog!.dataset.runId!)}/visibility`, "PUT", {
+        visibility_state: dialog!.dataset.visibilityState,
         reason: reasonValue,
       });
       state.runs = [];
@@ -359,7 +355,12 @@ export async function homeView(): Promise<void> {
   );
   var latestMessage: JSX.Element = <p className="ui neutral message">No pipeline run has been recorded yet.</p>;
   if (latest) {
-    latestMessage = <p className="ui info message"><span className="header">Latest execution</span>Run {pickID(latest)} started {formatTime(latest.started_at)} and took {formatDuration(latest.started_at, latest.finished_at)}.</p>;
+    latestMessage = (
+      <p className="ui info message">
+        <span className="header">Latest execution</span>
+        Run {pickID(latest)} started {formatTime(latest.started_at)} and took {formatDuration(latest.started_at, latest.finished_at)}.
+      </p>
+    );
   }
   var searchHistory: JSX.Element = <p className="empty">No search terms are recorded.</p>;
   if (searches.length) {

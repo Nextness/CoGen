@@ -44,8 +44,14 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
-  const health = await api("/api/health", {}, { method: "GET", headers: { Accept: "application/json" } });
-  const context = await api(`/api/runs/${runID}/review-context`, {}, { method: "GET", headers: { Accept: "application/json" } });
+  const health = await api("/api/health", {}, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  const context = await api(`/api/runs/${runID}/review-context`, {}, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
   let pdfController: any = null;
   let pendingSelection: PDFSelection | null = null;
   let reviewEditable = false;
@@ -178,7 +184,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         expandButton.classList.add("loading");
       }
       try {
-        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, { scope: scope, limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
+        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, {
+          scope: scope,
+          limit: 100,
+        }, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
         const select = host.querySelector("[data-review-parent]") as HTMLSelectElement;
         let added = 0;
         for (const candidate of candidates.rows || []) {
@@ -283,7 +295,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Loads and binds complete status state, history, notes, PDF, and anchors. */
   async function renderReview(): Promise<void> {
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, { method: "GET", headers: { Accept: "application/json" } });
+    const data = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
     reviewEditable = data.editable;
     const state = data.review || { version: null };
     const version = state.version;
@@ -394,7 +409,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         const active = button.dataset.reviewSection === name;
         button.classList.toggle("active", active);
         button.setAttribute("aria-selected", String(active));
-        button.tabIndex = active ? 0 : -1;
+        var tabIndex = -1;
+        if (active) tabIndex = 0;
+        button.tabIndex = tabIndex;
       });
       sectionPanels.forEach((panel) => {
         panel.hidden = panel.dataset.reviewSectionPanel !== name;
@@ -495,7 +512,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.disabled = true;
       button.classList.add("loading");
       try {
-        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
+        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 }, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
         const historyItems = (historyData.versions || []).map((item: any) => {
           var reasonMarkup: JSX.Element | null = null;
           if (item.reason) {
@@ -626,7 +646,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   async function loadAnchors(): Promise<void> {
     const target = host.querySelector("[data-anchor-list]") as HTMLElement | null;
     if (!target) return;
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
+    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 100 }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
     const activeAnchors: AnchorHead[] = data.anchors || [];
     var anchorsMarkup: JSX.Element = <p className="ui faded text">No active anchors. Select PDF text to add one, or use this keyboard-operable list to revisit existing anchors.</p>;
     if (activeAnchors.length) {
@@ -672,7 +695,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       const row = target.querySelector(`[data-anchor-id="${CSS.escape(anchor.id)}"]`) as HTMLElement;
       const pageButton = row.querySelector("[data-anchor-page]") as HTMLButtonElement;
       pageButton.addEventListener("click", () => {
-        history.replaceState({}, "", link({ anchor_id: anchor.id, pdf_page: anchor.version.page }));
+        history.replaceState({}, "", link({
+          anchor_id: anchor.id,
+          pdf_page: anchor.version.page,
+        }));
         pdfController?.goToPage(Number(anchor.version.page));
       });
       const historyButton = row.querySelector("[data-anchor-history]") as HTMLButtonElement;
@@ -701,7 +727,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   /** Displays bounded immutable active and tombstone ancestry for a focused anchor. */
   async function showAnchorHistory(anchorID: string): Promise<void> {
     const target = host.querySelector("[data-anchor-list]") as HTMLElement;
-    const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 }, { method: "GET", headers: { Accept: "application/json" } });
+    const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
     const historyItems = (data.versions || []).map((version: any) => {
       var pageSummary = " · tombstone";
       if (version.state === "active") pageSummary = ` · page ${version.page}`;

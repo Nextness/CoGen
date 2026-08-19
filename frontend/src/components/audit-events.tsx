@@ -27,15 +27,11 @@ export function auditCategory(event: AuditEventRecord): string {
   if (action.startsWith("review_") || action.startsWith("work_review_") || action.startsWith("note_") || action.startsWith("anchor_")) {
     return "review";
   }
-  if (action.startsWith("pdf_")) {
-    return "pdf";
-  }
+  if (action.startsWith("pdf_")) return "pdf";
   if (action === "field_enriched" || action.startsWith("cache_") || action === "network_fetch") {
     return "enrichment";
   }
-  if (action.startsWith("validation_")) {
-    return "validation";
-  }
+  if (action.startsWith("validation_")) return "validation";
   return "pipeline";
 }
 
@@ -47,19 +43,11 @@ function eventMetadata(event: AuditEventRecord): Record<string, any> {
 /** Derives the display outcome from recorded metadata and action semantics. */
 function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>): string {
   const recorded = metadata.outcome || metadata.status || metadata.cache_outcome || after.status;
-  if (recorded) {
-    return String(recorded);
-  }
+  if (recorded) return String(recorded);
   const action = String(event.action || "").toLocaleLowerCase();
-  if (action.includes("failed") || action.includes("error")) {
-    return "failed";
-  }
-  if (action.includes("discarded") || action.includes("trashed")) {
-    return "warning";
-  }
-  if (action.includes("skipped")) {
-    return "skipped";
-  }
+  if (action.includes("failed") || action.includes("error")) return "failed";
+  if (action.includes("discarded") || action.includes("trashed")) return "warning";
+  if (action.includes("skipped")) return "skipped";
   return "recorded";
 }
 
@@ -107,15 +95,12 @@ function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, be
     return `${humanLabel(metadata.field)} enriched by ${metadata.provider}.`;
   }
   if (metadata.reasons) {
-    const reasons = Array.isArray(metadata.reasons) ? metadata.reasons : [metadata.reasons];
+    var reasons = [metadata.reasons];
+    if (Array.isArray(metadata.reasons)) reasons = metadata.reasons;
     return reasons.join("; ");
   }
-  if (metadata.error) {
-    return String(metadata.error);
-  }
-  if (metadata.reason) {
-    return String(metadata.reason);
-  }
+  if (metadata.error) return String(metadata.error);
+  if (metadata.reason) return String(metadata.reason);
   if (metadata.search_id) {
     var revisionSuffix = ".";
     if (metadata.revision) revisionSuffix = `, revision ${metadata.revision}.`;
@@ -141,7 +126,8 @@ function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, be
 
 /** Renders one complete previous or new review-decision state. */
 function ReviewDecisionState(props: { label: string; state: Record<string, any> }): JSX.Element {
-  const substatuses = Array.isArray(props.state.sub_statuses) ? props.state.sub_statuses : [];
+  var substatuses: any[] = [];
+  if (Array.isArray(props.state.sub_statuses)) substatuses = props.state.sub_statuses;
   var substatusMarkup: JSX.Element = <span className="ui faded text">None</span>;
   if (substatuses.length) {
     const substatusLabels = substatuses.map((substatus) => {
@@ -336,7 +322,8 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
   const groups = new Map<string, AuditEventRecord[]>();
   props.events.forEach((event) => {
     const timestamp = event.occurred_at || event.created_at;
-    const parsed = timestamp ? new Date(timestamp) : null;
+    var parsed: Date | null = null;
+    if (timestamp) parsed = new Date(timestamp);
     var key = "Date not recorded";
     if (parsed && !Number.isNaN(parsed.getTime())) key = parsed.toLocaleDateString();
     if (!groups.has(key)) {
@@ -370,7 +357,8 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[] }):
   const actionNames = props.events.map((event) => {
     return String(event.action || "event");
   });
-  const actions = Array.from(new Set(actionNames)).sort();
+  const actionSet = new Set(actionNames);
+  const actions = Array.from(actionSet).sort();
   const initialEvents = props.events.slice(0, recordAuditBatchSize);
   const actionOptionElements = actions.map((action) => {
     return <option value={action}>{humanLabel(action)}</option>;
@@ -444,7 +432,8 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
         if (!needle) {
           return true;
         }
-        return JSON.stringify(event).toLocaleLowerCase().includes(needle);
+        const serialized = JSON.stringify(event).toLocaleLowerCase();
+        return serialized.includes(needle);
       });
       const visible = matching.slice(0, visibleLimit);
       count.textContent = visible.length.toLocaleString();

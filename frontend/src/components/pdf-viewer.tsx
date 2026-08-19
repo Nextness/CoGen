@@ -16,32 +16,72 @@ export interface NormalizedRectangle {
 /** Converts displayed normalized rectangles back to unrotated page coordinates. */
 export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
-  return rectangles.map((rectangle) => {
-    const x = rectangle.x;
-    const y = rectangle.y;
-    const width = rectangle.width;
-    const height = rectangle.height;
-    var result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
-    if (angle === 90) result = { x: y, y: 1 - x - width, width: height, height: width };
-    else if (angle === 180) result = { x: 1 - x - width, y: 1 - y - height, width: width, height: height };
-    else if (angle === 270) result = { x: 1 - y - height, y: x, width: height, height: width };
-    return { x: Number(result.x.toFixed(12)), y: Number(result.y.toFixed(12)), width: Number(result.width.toFixed(12)), height: Number(result.height.toFixed(12)) };
+  return rectangles.map(({ x, y, width, height }) => {
+    let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
+    if (angle === 90) {
+      result = {
+        x: y,
+        y: 1 - x - width,
+        width: height,
+        height: width,
+      };
+    } else if (angle === 180) {
+      result = {
+        x: 1 - x - width,
+        y: 1 - y - height,
+        width: width,
+        height: height,
+      };
+    } else if (angle === 270) {
+      result = {
+        x: 1 - y - height,
+        y: x,
+        width: height,
+        height: width,
+      };
+    }
+    return {
+      x: Number(result.x.toFixed(12)),
+      y: Number(result.y.toFixed(12)),
+      width: Number(result.width.toFixed(12)),
+      height: Number(result.height.toFixed(12)),
+    };
   });
 }
 
 /** Projects stored unrotated rectangles into the currently displayed page rotation. */
 export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
-  return rectangles.map((rectangle) => {
-    const x = rectangle.x;
-    const y = rectangle.y;
-    const width = rectangle.width;
-    const height = rectangle.height;
-    var result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
-    if (angle === 90) result = { x: 1 - y - height, y: x, width: height, height: width };
-    else if (angle === 180) result = { x: 1 - x - width, y: 1 - y - height, width: width, height: height };
-    else if (angle === 270) result = { x: y, y: 1 - x - width, width: height, height: width };
-    return { x: Number(result.x.toFixed(12)), y: Number(result.y.toFixed(12)), width: Number(result.width.toFixed(12)), height: Number(result.height.toFixed(12)) };
+  return rectangles.map(({ x, y, width, height }) => {
+    let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
+    if (angle === 90) {
+      result = {
+        x: 1 - y - height,
+        y: x,
+        width: height,
+        height: width,
+      };
+    } else if (angle === 180) {
+      result = {
+        x: 1 - x - width,
+        y: 1 - y - height,
+        width: width,
+        height: height,
+      };
+    } else if (angle === 270) {
+      result = {
+        x: y,
+        y: 1 - x - width,
+        width: height,
+        height: width,
+      };
+    }
+    return {
+      x: Number(result.x.toFixed(12)),
+      y: Number(result.y.toFixed(12)),
+      width: Number(result.width.toFixed(12)),
+      height: Number(result.height.toFixed(12)),
+    };
   });
 }
 
@@ -53,21 +93,21 @@ export function selectionRectangles(selection: any, pageElement: HTMLElement | n
   const pageRect = pageElement.getBoundingClientRect();
   if (!(pageRect.width > 0 && pageRect.height > 0)) return [];
   const clientRects = Array.from(range.getClientRects());
-  const visibleRects = clientRects.filter((rectangle: DOMRect) => {
-    return rectangle.width > 0 && rectangle.height > 0;
+  const visibleRects = clientRects.filter(({ width, height }) => {
+    return width > 0 && height > 0;
   });
   const boundedRects = visibleRects.slice(0, 64);
-  const rectangles: NormalizedRectangle[] = boundedRects.map((rectangle: DOMRect) => {
+  const rectangles: NormalizedRectangle[] = boundedRects.map(({ left, top, width, height }) => {
     return {
-      x: Math.max(0, Math.min(1, (rectangle.left - pageRect.left) / pageRect.width)),
-      y: Math.max(0, Math.min(1, (rectangle.top - pageRect.top) / pageRect.height)),
-      width: Math.max(0, Math.min(1, rectangle.width / pageRect.width)),
-      height: Math.max(0, Math.min(1, rectangle.height / pageRect.height)),
+      x: Math.max(0, Math.min(1, (left - pageRect.left) / pageRect.width)),
+      y: Math.max(0, Math.min(1, (top - pageRect.top) / pageRect.height)),
+      width: Math.max(0, Math.min(1, width / pageRect.width)),
+      height: Math.max(0, Math.min(1, height / pageRect.height)),
     };
   });
   const rotatedRects = unrotateRectangles(rectangles, rotation);
-  return rotatedRects.filter((rectangle) => {
-    return rectangle.width > 0 && rectangle.height > 0 && rectangle.x + rectangle.width <= 1.000001 && rectangle.y + rectangle.height <= 1.000001;
+  return rotatedRects.filter(({ x, y, width, height }) => {
+    return width > 0 && height > 0 && x + width <= 1.000001 && y + height <= 1.000001;
   });
 }
 
@@ -103,33 +143,43 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let renderSequence = 0;
   const renderTasks = new Set<any>();
 
+  const headerMarkup = (
+    <div className="ui top attached header">
+      <div>
+        <h3>Document reader</h3>
+        <p>One page is shown at a time. Select text to create a review anchor.</p>
+      </div>
+    </div>
+  );
+  const pageToolbar = (
+    <div className="rw-pdf-toolbar__group" aria-label="Page navigation">
+      <button type="button" className="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>
+      <label className="rw-pdf-page-control">
+        <span>Page</span>
+        <input type="number" min={1} value={pageNumber} data-pdf-page aria-label="Current PDF page" />
+        <span data-pdf-count></span>
+      </label>
+      <button type="button" className="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button>
+    </div>
+  );
+  const displayToolbar = (
+    <div className="rw-pdf-toolbar__group" aria-label="Display controls">
+      <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
+      <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
+      <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
+      <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+    </div>
+  );
+  const statusText = <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>;
   const viewerMarkup = (
     <section className="ui segment rw-pdf-viewer" aria-label="PDF reader">
-      <div className="ui top attached header">
-        <div>
-          <h3>Document reader</h3>
-          <p>One page is shown at a time. Select text to create a review anchor.</p>
-        </div>
-      </div>
+      {headerMarkup}
       <div className="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls">
-        <div className="rw-pdf-toolbar__group" aria-label="Page navigation">
-          <button type="button" className="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>
-          <label className="rw-pdf-page-control">
-            <span>Page</span>
-            <input type="number" min={1} value={pageNumber} data-pdf-page aria-label="Current PDF page" />
-            <span data-pdf-count></span>
-          </label>
-          <button type="button" className="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button>
-        </div>
-        <div className="rw-pdf-toolbar__group" aria-label="Display controls">
-          <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
-          <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
-          <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
-          <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
-        </div>
+        {pageToolbar}
+        {displayToolbar}
       </div>
       <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex={0}></div>
-      <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>
+      {statusText}
     </section>
   );
   renderTree(viewerMarkup, host);
@@ -208,10 +258,9 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     const content = await page.getTextContent();
     if (destroyed || sequence !== renderSequence) return;
     renderSelectableText(pdfjs, content, textLayer, viewport);
-    const pageAnchors = anchors.filter((anchor) => {
-      return Number(anchor.version.page) === requestedPage;
-    });
-    renderAnchors(anchorLayer, pageAnchors, requestedRotation);
+    const pageAnchors = anchors.filter(({ version }) => {
+      return Number(version.page) === requestedPage;
+    });    renderAnchors(anchorLayer, pageAnchors, requestedRotation);
     pagesHost.setAttribute("aria-busy", "false");
     host.querySelector("[data-pdf-status]")!.textContent = `PDF page ${requestedPage} of ${document.numPages}.`;
     options.onPageChange?.(requestedPage);
@@ -230,15 +279,22 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   host.querySelector("[data-pdf-rotate]")!.addEventListener("click", () => { rotation = (rotation + 90) % 360; void render(); });
   host.addEventListener("mouseup", () => {
     const selection = window.getSelection();
-    const page = selection?.anchorNode?.parentElement?.closest?.(".rw-pdf-page") as HTMLElement | null;
+    const anchorNode = selection?.anchorNode;
+    const page = anchorNode?.parentElement?.closest?.(".rw-pdf-page") as HTMLElement | null;
     const rectangles = selectionRectangles(selection, page, Number(page?.dataset.rotation || 0));
-    if (rectangles.length) options.onSelection?.({ page: Number(page!.dataset.pdfPageNumber), selectedText: selection!.toString().slice(0, 16384), rectangles: rectangles });
+    if (rectangles.length) {
+      options.onSelection?.({
+        page: Number(page!.dataset.pdfPageNumber),
+        selectedText: selection!.toString().slice(0, 16384),
+        rectangles: rectangles,
+      });
+    }
   });
   await render();
   return {
     goToPage: changePage,
     setAnchors: (nextAnchors: PDFAnchorHead[] | any) => {
-      var effectiveAnchors: PDFAnchorHead[] = [];
+      let effectiveAnchors: PDFAnchorHead[] = [];
       if (Array.isArray(nextAnchors)) effectiveAnchors = nextAnchors;
       anchors = effectiveAnchors;
       void render();

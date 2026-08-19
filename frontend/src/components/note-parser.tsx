@@ -40,9 +40,14 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
   body = String(body || "");
   const errors: NoteDiagnostic[] = [];
   if (new TextEncoder().encode(body).length > noteBodyLimit) {
-    errors.push({ position: 0, length: body.length, message: `Note body exceeds ${noteBodyLimit} UTF-8 bytes.` });
+    errors.push({
+      position: 0,
+      length: body.length,
+      message: `Note body exceeds ${noteBodyLimit} UTF-8 bytes.`,
+    });
   }
-  const lines = body.replace(/\r\n?/g, "\n").split("\n");
+  const normalized = body.replace(/\r\n?/g, "\n");
+  const lines = normalized.split("\n");
   const blocks: NoteBlock[] = [];
   const links: NoteLink[] = [];
   let offset = 0;
@@ -54,7 +59,11 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
   function flushParagraph(): void {
     if (!paragraph.length) return;
     const text = paragraph.join("\n");
-    blocks.push({ type: "paragraph", text: text, offset: paragraphOffset });
+    blocks.push({
+      type: "paragraph",
+      text: text,
+      offset: paragraphOffset,
+    });
     extractLinks(text, paragraphOffset, links, errors);
     paragraph = [];
   }
@@ -63,11 +72,13 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     const line = lines[index];
     if (fence) {
       if (line === "```") {
-        blocks.push({ type: "code", text: fence.lines.join("\n"), offset: fence.offset });
+        blocks.push({
+          type: "code",
+          text: fence.lines.join("\n"),
+          offset: fence.offset,
+        });
         fence = null;
-      } else {
-        fence.lines.push(line);
-      }
+      } else fence.lines.push(line);
       offset += line.length + 1;
       continue;
     }
@@ -85,7 +96,12 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     const heading = /^(#{1,4}) (.*)$/.exec(line);
     if (heading) {
       flushParagraph();
-      blocks.push({ type: "heading", level: heading[1].length, text: heading[2], offset: offset + heading[1].length + 1 });
+      blocks.push({
+        type: "heading",
+        level: heading[1].length,
+        text: heading[2],
+        offset: offset + heading[1].length + 1,
+      });
       extractLinks(heading[2], offset + heading[1].length + 1, links, errors);
       offset += line.length + 1;
       continue;
@@ -94,12 +110,23 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     if (listItem) {
       flushParagraph();
       const ordered = line.startsWith("1. ");
-      const itemOffset = offset + (ordered ? 3 : 2);
+      var itemOffset = offset + 2;
+      if (ordered) itemOffset = offset + 3;
       const previous = blocks.at(-1);
       if (previous?.type === "list" && previous.ordered === ordered) {
-        previous.items!.push({ text: listItem[1], offset: itemOffset });
+        previous.items!.push({
+          text: listItem[1],
+          offset: itemOffset,
+        });
       } else {
-        blocks.push({ type: "list", ordered: ordered, items: [{ text: listItem[1], offset: itemOffset }] });
+        blocks.push({
+          type: "list",
+          ordered: ordered,
+          items: [{
+            text: listItem[1],
+            offset: itemOffset,
+          }],
+        });
       }
       extractLinks(listItem[1], itemOffset, links, errors);
       offset += line.length + 1;
@@ -108,7 +135,11 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     if (line.startsWith("> ")) {
       flushParagraph();
       const text = line.slice(2);
-      blocks.push({ type: "quote", text: text, offset: offset + 2 });
+      blocks.push({
+        type: "quote",
+        text: text,
+        offset: offset + 2,
+      });
       extractLinks(text, offset + 2, links, errors);
       offset += line.length + 1;
       continue;
@@ -118,9 +149,18 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
       const tableLines = [line, lines[index + 1], lines[index + 2]];
       const [headerRow, delimiterRow, bodyRow] = tableLines.map(splitTableRow);
       if (headerRow === null || delimiterRow === null || bodyRow === null || headerRow.length !== delimiterRow.length || headerRow.length !== bodyRow.length) {
-        errors.push({ position: offset, length: tableLines.join("\n").length, message: "Malformed table shape." });
+        errors.push({
+          position: offset,
+          length: tableLines.join("\n").length,
+          message: "Malformed table shape.",
+        });
       } else {
-        blocks.push({ type: "table", header: headerRow, rows: [bodyRow], offset: offset });
+        blocks.push({
+          type: "table",
+          header: headerRow,
+          rows: [bodyRow],
+          offset: offset,
+        });
         let tableOffset = offset;
         for (const source of [line, lines[index + 2]]) {
           extractLinks(source, tableOffset, links, errors);
@@ -139,8 +179,16 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
   }
   flushParagraph();
   if (fence) {
-    errors.push({ position: fence.offset, length: body.length - fence.offset, message: "Unclosed code fence." });
-    blocks.push({ type: "code", text: fence.lines.join("\n"), offset: fence.offset });
+    errors.push({
+      position: fence.offset,
+      length: body.length - fence.offset,
+      message: "Unclosed code fence.",
+    });
+    blocks.push({
+      type: "code",
+      text: fence.lines.join("\n"),
+      offset: fence.offset,
+    });
   }
   return { blocks: blocks, links: links, errors: errors };
 }
@@ -158,27 +206,39 @@ function extractLinks(text: string, baseOffset: number, links: NoteLink[], error
       }
     }
     if (end < 0) {
-      errors.push({ position: baseOffset + start, length: text.length - start, message: "Unclosed note link." });
+      errors.push({
+        position: baseOffset + start,
+        length: text.length - start,
+        message: "Unclosed note link.",
+      });
       return;
     }
     const raw = text.slice(start + 2, end);
     const separator = unescapedIndex(raw, ":");
     const displaySeparator = unescapedIndex(raw, "|");
-    var scheme = "";
+    let scheme = "";
     if (separator >= 1) scheme = raw.slice(0, separator);
-    var targetEnd = raw.length;
+    let targetEnd = raw.length;
     if (displaySeparator > separator) targetEnd = displaySeparator;
     const target = unescapeLink(raw.slice(separator + 1, targetEnd));
-    var display = "";
+    let display = "";
     if (displaySeparator > separator) display = unescapeLink(raw.slice(displaySeparator + 1));
     const diagnostic = validateLink(scheme, target, raw);
     if (diagnostic) {
-      errors.push({ position: baseOffset + start, length: end + 2 - start, message: diagnostic });
+      errors.push({
+        position: baseOffset + start,
+        length: end + 2 - start,
+        message: diagnostic,
+      });
     } else {
+      var targetType = scheme;
+      if (scheme === "pdf") targetType = "pdf_page";
+      var rawTarget = target;
+      if (scheme === "pdf") rawTarget = target.slice(5);
       links.push({
         ordinal: links.length + 1,
-        target_type: scheme === "pdf" ? "pdf_page" : scheme,
-        raw_target: scheme === "pdf" ? target.slice(5) : target,
+        target_type: targetType,
+        raw_target: rawTarget,
         display_text: display || null,
         position: baseOffset + start,
         length: end + 2 - start,
@@ -225,7 +285,8 @@ function unescapeLink(text: string): string {
 
 /** Splits one simple table row while preserving escaped vertical bars. */
 function splitTableRow(line: string): string[] | null {
-  const trimmed = line.trim().replace(/^\||\|$/g, "");
+  const trimmedLine = line.trim();
+  const trimmed = trimmedLine.replace(/^\||\|$/g, "");
   const cells: string[] = [];
   let cell = "";
   for (let index = 0; index < trimmed.length; index += 1) {
@@ -302,7 +363,8 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
     if (block.type === "heading") {
       const headingClass = `rw-note-heading rw-note-heading--${block.level}`;
       const headingText = inline(block.text as string);
-      return <div className={headingClass} role="heading" aria-level={(block.level as number) + 4}>{headingText}</div>;
+      const headingLevel = (block.level as number) + 4;
+      return <div className={headingClass} role="heading" aria-level={headingLevel}>{headingText}</div>;
     }
     if (block.type === "code") {
       return <pre><code>{block.text}</code></pre>;

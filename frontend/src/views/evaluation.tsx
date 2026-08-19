@@ -33,8 +33,9 @@ function inventoriedTime(row: any): JSX.Element {
 export async function evaluationView(): Promise<void> {
   const runID = value("run_id");
   if (!runID) {
+    const emptyAction = <button type="button" className="ui primary button" data-focus-context>Select a run attempt</button>;
     const emptyStateMarkup = (
-      <EmptyState title="Evaluation" detail="Select a run attempt to evaluate its normalized article inventory." action={<button type="button" className="ui primary button" data-focus-context>Select a run attempt</button>} />
+      <EmptyState title="Evaluation" detail="Select a run attempt to evaluate its normalized article inventory." action={emptyAction} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -181,11 +182,10 @@ export async function evaluationView(): Promise<void> {
       headers: { Accept: "application/json" },
     });
     const proposed = reviewContext.proposed_parent;
-    const prompt = proposed ? `Start review by inheriting ${proposed.inherited_work_count} matching work heads from run ${proposed.pipeline_run_id}?` : "Start an empty review context for this run?";
+    var prompt = "Start an empty review context for this run?";
+    if (proposed) prompt = `Start review by inheriting ${proposed.inherited_work_count} matching work heads from run ${proposed.pipeline_run_id}?`;
     if (!window.confirm(prompt)) return;
-    await mutate(`/api/runs/${encodeURIComponent(runID)}/review-context`, "POST", {
-      parent_context_id: proposed?.context_id || null,
-    });
+    await mutate(`/api/runs/${encodeURIComponent(runID)}/review-context`, "POST", { parent_context_id: proposed?.context_id || null });
     await evaluationView();
   });
 }
