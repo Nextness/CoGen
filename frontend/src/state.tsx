@@ -26,7 +26,7 @@ export const state: ViewerState = {
   runs: [],
   tables: [],
   request: 0,
-  controller: null
+  controller: null,
 };
 
 export const pageSizes = [20, 50, 100, 200, 500];
@@ -34,27 +34,27 @@ export const corpusSections: Record<string, { table: string; title: string; desc
   articles: {
     table: "work_revisions",
     title: "Analysis-ready articles",
-    description: "Valid normalized work revisions captured by the selected run."
+    description: "Valid normalized work revisions captured by the selected run.",
   },
   authors: {
     table: "author_occurrences",
     title: "Author occurrences",
-    description: "Observed author records. Matching names do not imply the same person."
+    description: "Observed author records. Matching names do not imply the same person.",
   },
   references: {
     table: "reference_mentions",
     title: "Reference mentions",
-    description: "Ordered citation mentions retained for each article revision."
+    description: "Ordered citation mentions retained for each article revision.",
   },
   identity_evidence: {
     table: "author_identity_resolutions",
     title: "Author identity / ORCID evidence",
-    description: "Name-search results are review candidates, never confirmed author identities."
+    description: "Name-search results are review candidates, never confirmed author identities.",
   },
   sources: {
     table: "source_records",
     title: "Source records",
-    description: "Captured input records and parse outcomes."
+    description: "Captured input records and parse outcomes.",
   },
 };
 
@@ -155,13 +155,9 @@ export function percent(raw: any, denominator: any): string {
 
 /** Formats time. */
 export function formatTime(raw: any): string {
-  if (!raw) {
-    return "—";
-  }
+  if (!raw) return "—";
   const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    return String(raw);
-  }
+  if (Number.isNaN(date.getTime())) return String(raw);
   return date.toLocaleString();
 }
 
@@ -176,19 +172,17 @@ export function formatDuration(startedAt: any, finishedAt: any): string {
   seconds -= hours * 3600;
   const minutes = Math.floor(seconds / 60);
   seconds -= minutes * 60;
-  const parts = [];
-  if (hours) parts.push(hours + "h");
-  if (minutes) parts.push(minutes + "m");
-  if (seconds || !parts.length) parts.push(seconds + "s");
+  const parts: string[] = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (seconds || !parts.length) parts.push(`${seconds}s`);
   return parts.join(" ");
 }
 
 /** Formats bytes. */
 export function formatBytes(raw: any): string {
   const bytes = Math.max(0, number(raw));
-  if (bytes < 1024) {
-    return bytes.toLocaleString() + " B";
-  }
+  if (bytes < 1024) return `${bytes.toLocaleString()} B`;
   const units = ["KB", "MB", "GB", "TB"];
   var value = bytes;
   var unit = -1;
@@ -196,16 +190,15 @@ export function formatBytes(raw: any): string {
     value /= 1024;
     unit += 1;
   } while (value >= 1024 && unit < units.length - 1);
-  return value.toLocaleString(undefined, { maximumFractionDigits: value >= 10 ? 1 : 2 }) + " " + units[unit];
+  return `${value.toLocaleString(undefined, { maximumFractionDigits: value >= 10 ? 1 : 2 })} ${units[unit]}`;
 }
 
 /** Converts a machine-oriented identifier to a title-cased display label. */
 export function humanLabel(raw: any): string {
-  return String(raw || "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, function(character) {
-      return character.toUpperCase();
-    });
+  const spaced = String(raw || "").replace(/_/g, " ");
+  return spaced.replace(/\b\w/g, (character) => {
+    return character.toUpperCase();
+  });
 }
 
 /** Parses object. */
@@ -229,13 +222,15 @@ export function parseObject(raw: any): Record<string, any> {
 
 /** Maps a recorded status to its semantic color class. */
 export function statusClass(raw: any): string {
-  const status = String(raw || "").trim().toLowerCase().replace(/[ -]+/g, "_");
+  const normalized = String(raw || "").trim().toLowerCase();
+  const status = normalized.replace(/[ -]+/g, "_");
   const danger = new Set(["fail", "failed", "parse_failed", "provider_failed", "network_failed", "discard", "discarded", "error", "errored", "trash", "trashed", "purge", "purged", "reject", "rejected", "invalid", "removed"]);
   const warning = new Set(["warning", "skip", "skipped", "stale", "negative", "unresolved", "unclear", "orcid_is_unclear", "disabled", "incomplete", "below", "above", "unmatched", "not_available", "unavailable", "not_approved"]);
   const success = new Set(["complete", "completed", "valid", "success", "successful", "hit", "cache_hit", "ready", "available", "approved", "resolved", "resolved_internally", "enriched", "normalized", "linked", "linked_global_person", "match", "matched"]);
   const info = new Set(["pending", "running", "recorded", "active", "visible", "inventoried", "not_evaluated", "observed_occurrence_only"]);
   const review = new Set(["inherited", "reviewed", "review"]);
   const neutral = new Set(["no_orcid_candidate", "no_candidate", "no_match", "unknown", "not_recorded"]);
+
   if (danger.has(status)) return "red";
   if (warning.has(status)) return "orange";
   if (success.has(status)) return "green";
@@ -247,19 +242,22 @@ export function statusClass(raw: any): string {
 
 /** Renders one status chip with its semantic color class. */
 export function StatusChip(props: { raw: any }): JSX.Element {
-  return <span className={"ui " + statusClass(props.raw) + " label"}>{props.raw || "Not recorded"}</span>;
+  const chipClass = `ui ${statusClass(props.raw)} label`;
+  return <span className={chipClass}>{props.raw || "Not recorded"}</span>;
 }
 
 /** Returns escaped label markup for a recorded status. */
 export function statusChip(raw: any): string {
-  return renderToString(<StatusChip raw={raw} />);
+  const statusChipMarkup = <StatusChip raw={raw} />;
+  return renderToString(statusChipMarkup);
 }
 
 /** Normalizes array- or object-backed metrics to display-name and value pairs. */
 export function metricEntries(group: any): Array<[string, any]> {
   if (Array.isArray(group)) {
-    return group.map(function(item) {
-      const suffix = item.source ? ` (${item.source})` : "";
+    return group.map((item) => {
+      var suffix = "";
+      if (item.source) suffix = ` (${item.source})`;
       return [`${item.metric || "Metric"}${suffix}`, item];
     });
   }
@@ -269,7 +267,7 @@ export function metricEntries(group: any): Array<[string, any]> {
 /** Returns the pipeline run selected by the current URL context. */
 export function selectedRun(): any {
   const runId = value("run_id");
-  return state.runs.find(function(run) {
+  return state.runs.find((run) => {
     return String(pickID(run)) === runId;
   });
 }
@@ -297,7 +295,8 @@ export function link(updates?: Record<string, any>): string {
     updates = {};
   }
   const next = params();
-  Object.entries(updates).forEach(function([key, raw]) {
+  const updateEntries = Object.entries(updates);
+  updateEntries.forEach(([key, raw]) => {
     if (raw === "" || raw === null || raw === undefined) {
       next.delete(key);
     } else {
@@ -326,24 +325,28 @@ export function PageHeader(props: { kicker: string; title: string; description: 
 
 /** Returns the standard page header with escaped copy and optional actions. */
 export function pageHeader(kicker: string, title: string, description: string, extra?: string): string {
-  return renderToString(<PageHeader kicker={kicker} title={title} description={description} extra={extra} />);
+  const pageHeaderMarkup = <PageHeader kicker={kicker} title={title} description={description} extra={extra} />;
+  return renderToString(pageHeaderMarkup);
 }
 
 /** Renders escaped breadcrumb markup for an ordered page hierarchy. */
 export function Breadcrumb(props: { items: Array<{ href?: string; label: string }> }): JSX.Element | null {
-  const parts = Array.isArray(props.items) ? props.items : [];
+  var parts: Array<{ href?: string; label: string }> = [];
+  if (Array.isArray(props.items)) parts = props.items;
   if (!parts.length) {
     return null;
   }
   const children: JSX.Element[] = [];
-  parts.forEach(function(item, index) {
+  parts.forEach((item, index) => {
     if (index > 0) {
       children.push(<span className="divider" aria-hidden="true">/</span>);
     }
     if (item.href && index < parts.length - 1) {
       children.push(<a className="section" href={item.href}>{item.label}</a>);
     } else {
-      children.push(<span className="section current" aria-current={index === parts.length - 1 ? "page" : undefined}>{item.label}</span>);
+      var ariaCurrent: string | undefined;
+      if (index === parts.length - 1) ariaCurrent = "page";
+      children.push(<span className="section current" aria-current={ariaCurrent}>{item.label}</span>);
     }
   });
   return <nav className="ui breadcrumb" aria-label="Breadcrumb">{children}</nav>;
@@ -351,12 +354,14 @@ export function Breadcrumb(props: { items: Array<{ href?: string; label: string 
 
 /** Returns escaped breadcrumb markup for an ordered page hierarchy. */
 export function breadcrumb(items: Array<{ href?: string; label: string }>): string {
-  return renderToString(<Breadcrumb items={items} />);
+  const breadcrumbMarkup = <Breadcrumb items={items} />;
+  return renderToString(breadcrumbMarkup);
 }
 
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
 export function setBreadcrumb(items: Array<{ href?: string; label: string }>): void {
-  if (breadcrumbHost) renderTree(<Breadcrumb items={items} />, breadcrumbHost);
+  const breadcrumbMarkup = <Breadcrumb items={items} />;
+  if (breadcrumbHost) renderTree(breadcrumbMarkup, breadcrumbHost);
 }
 
 /** Renders a complete empty-view state with the standard page header. */
@@ -374,7 +379,10 @@ export function EmptyState(props: { title: string; detail: string; action?: JSX.
 
 /** Returns a complete empty-view state with the standard page header. */
 export function emptyState(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyState title={title} detail={detail} action={action ? raw(action) : undefined} />);
+  var actionMarkup: JSX.Element | undefined;
+  if (action) actionMarkup = raw(action);
+  const emptyStateMarkup = <EmptyState title={title} detail={detail} action={actionMarkup} />;
+  return renderToString(emptyStateMarkup);
 }
 
 /** Renders a compact empty-state panel. */
@@ -390,13 +398,17 @@ export function EmptyPanel(props: { title: string; detail: string; action?: JSX.
 
 /** Returns compact empty-state panel markup. */
 export function emptyPanel(title: string, detail: string, action?: string): string {
-  return renderToString(<EmptyPanel title={title} detail={detail} action={action ? raw(action) : undefined} />);
+  var actionMarkup: JSX.Element | undefined;
+  if (action) actionMarkup = raw(action);
+  const emptyPanelMarkup = <EmptyPanel title={title} detail={detail} action={actionMarkup} />;
+  return renderToString(emptyPanelMarkup);
 }
 
 /** Renders the standard titled content panel. */
 export function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string }): JSX.Element {
+  const panelClass = `ui segment rw-panel ${props.classes || ""}`;
   return (
-    <section className={"ui segment rw-panel " + (props.classes || "")}>
+    <section className={panelClass}>
       <div className="ui top attached header rw-panel__header">
         <div>
           <h3>{props.title}</h3>
@@ -410,7 +422,9 @@ export function Panel(props: { title: string; description: string; body: JSX.Ele
 
 /** Returns the standard titled content-panel markup. */
 export function panel(title: string, description: string, body: string, classes?: string): string {
-  return renderToString(<Panel title={title} description={description} body={raw(body)} classes={classes} />);
+  const bodyMarkup = raw(body);
+  const panelMarkup = <Panel title={title} description={description} body={bodyMarkup} classes={classes} />;
+  return renderToString(panelMarkup);
 }
 
 /** One table column definition: a field name or a labeled renderer. */
@@ -418,23 +432,32 @@ export type TableColumn = string | { label: string; render: (row: any) => JSX.El
 
 /** Renders an escaped data table inside the standard panel wrapper. */
 export function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string }): JSX.Element {
-  const header = props.columns.map(function(column) {
-    return <th scope="col">{typeof column === "string" ? column : column.label}</th>;
+  const header = props.columns.map((column) => {
+    var label = "";
+    if (typeof column === "string") {
+      label = column;
+    } else {
+      label = column.label;
+    }
+    return <th scope="col">{label}</th>;
   });
-  let body: JSX.Element[];
+  var body: JSX.Element[] = [<tr><td colspan={Math.max(props.columns.length, 1)} className="empty">No records.</td></tr>];
   if (props.rows.length) {
-    body = props.rows.map(function(row) {
-      const cells = props.columns.map(function(column) {
-        const content: JSX.Element = typeof column === "string" ? raw(cell(row[column], column)) : column.render(row);
+    body = props.rows.map((row) => {
+      const cells = props.columns.map((column) => {
+        var content: JSX.Element;
+        if (typeof column === "string") {
+          content = raw(cell(row[column], column));
+        } else {
+          content = column.render(row);
+        }
         return <td>{content}</td>;
       });
       return <tr>{cells}</tr>;
     });
-  } else {
-    body = [<tr><td colspan={Math.max(props.columns.length, 1)} className="empty">No records.</td></tr>];
   }
   const tableWrap = (
-    <div className="table-wrap" aria-label={props.title + " table"}>
+    <div className="table-wrap" aria-label={`${props.title} table`}>
       <table className="ui table">
         <thead><tr>{header}</tr></thead>
         <tbody>{body}</tbody>
@@ -446,22 +469,28 @@ export function Table(props: { title: string; description: string; columns: Tabl
 
 /** Returns an escaped data table inside the standard panel wrapper. */
 export function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string): string {
-  return renderToString(<Table title={title} description={description} columns={columns} rows={rows} classes={classes} />);
+  const tableMarkup = <Table title={title} description={description} columns={columns} rows={rows} classes={classes} />;
+  return renderToString(tableMarkup);
 }
 
 /** Renders context-preserving tab navigation for a keyed section. */
 export function Subnav(props: { items: Array<[string, string]>; current: string; key: string }): JSX.Element {
-  const links = props.items.map(function([id, label]) {
+  const links = props.items.map(([id, label]) => {
     const href = link({ [props.key]: id });
-    const active = id === props.current ? " active" : "";
-    return <a href={href} className={"item" + active} aria-current={id === props.current ? "page" : undefined}>{label}</a>;
+    var active = "";
+    if (id === props.current) active = " active";
+    var ariaCurrent: string | undefined;
+    if (id === props.current) ariaCurrent = "page";
+    const itemClass = `item${active}`;
+    return <a href={href} className={itemClass} aria-current={ariaCurrent}>{label}</a>;
   });
   return <nav className="ui tabular menu rw-section-tabs" aria-label="Section navigation">{links}</nav>;
 }
 
 /** Returns context-preserving tab navigation for a keyed section. */
 export function subnav(items: Array<[string, string]>, current: string, key: string): string {
-  return renderToString(<Subnav items={items} current={current} key={key} />);
+  const subnavMarkup = <Subnav items={items} current={current} key={key} />;
+  return renderToString(subnavMarkup);
 }
 
 /** One filter summary rendering option set. */
@@ -473,53 +502,61 @@ export interface FilterChipOptions {
 /** Renders removable filter chips with a clear-all action. */
 export function FilterChips(props: { filters: Record<string, any> | null; labels?: Record<string, string>; options?: FilterChipOptions }): JSX.Element {
   const options = props.options || {};
-  const entries = Object.entries(props.filters || {}).filter(function([, raw]) {
+  const filterEntries = Object.entries(props.filters || {});
+  const entries = filterEntries.filter(([, raw]) => {
     return raw !== "" && raw !== null && raw !== undefined;
   });
   if (!entries.length) {
     return <div className="rw-filter-summary"><span className="ui faded text">No filters applied.</span></div>;
   }
-  const chips = entries.map(function([key, raw]) {
+  const chips = entries.map(([key, raw]) => {
     const updates = { ...(options.removeUpdates || { page: 1 }), [key]: "" };
     const href = link(updates);
     return (
       <a className="rw-filter-chip" href={href} title="Remove filter">
-        <span>{props.labels?.[key] || humanLabel(key)}:</span> {raw} <b aria-hidden="true">{"\u00D7"}</b>
+        <span>{props.labels?.[key] || humanLabel(key)}:</span>
+        {" "}
+        {raw}
+        {" "}
+        <b aria-hidden="true">{"\u00D7"}</b>
       </a>
     );
   });
-  let clear: JSX.Element | null = null;
+  var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
-    clear = <a className="rw-filter-clear" href={link(options.clearUpdates)}>Clear all</a>;
+    const clearHref = link(options.clearUpdates);
+    clear = <a className="rw-filter-clear" href={clearHref}>Clear all</a>;
   }
   return (
     <div className="rw-filter-summary">
       <strong>Applied filters</strong>
-      <div className="rw-filter-chips">{chips}{clear}</div>
+      <div className="rw-filter-chips">
+        {chips}
+        {clear}
+      </div>
     </div>
   );
 }
 
 /** Filters chips. */
 export function filterChips(filters: Record<string, any> | null, labels?: Record<string, string>, options?: FilterChipOptions): string {
-  return renderToString(<FilterChips filters={filters} labels={labels} options={options} />);
+  const filterChipsMarkup = <FilterChips filters={filters} labels={labels} options={options} />;
+  return renderToString(filterChipsMarkup);
 }
 
 /** Renders a metric card with availability, denominator, and optional navigation. */
 export function MetricCard(props: { name: string; metric: any; href?: string }): JSX.Element {
   const unavailable = props.metric?.available === false;
-  let content: JSX.Element;
-  if (unavailable) {
-    content = (
-      <>
-        <span className="label">{humanLabel(props.name)}</span>
-        <span className="value">Not recorded</span>
-        <small>Not captured for this run</small>
-      </>
-    );
-  } else {
+  var content: JSX.Element = (
+    <>
+      <span className="label">{humanLabel(props.name)}</span>
+      <span className="value">Not recorded</span>
+      <small>Not captured for this run</small>
+    </>
+  );
+  if (!unavailable) {
     const value = formatNumber(props.metric?.value ?? props.metric);
-    let detail: JSX.Element | null = null;
+    var detail: JSX.Element | null = null;
     if (props.metric?.denominator != null) {
       const pct = props.metric.percentage ?? percent(props.metric.value, props.metric.denominator);
       detail = <small>{formatNumber(props.metric.value)} of {formatNumber(props.metric.denominator)} ({pct})</small>;
@@ -542,7 +579,8 @@ export function MetricCard(props: { name: string; metric: any; href?: string }):
 
 /** Returns a metric card with availability, denominator, and optional navigation. */
 export function metricCard(name: string, metric: any, href?: string): string {
-  return renderToString(<MetricCard name={name} metric={metric} href={href} />);
+  const metricCardMarkup = <MetricCard name={name} metric={metric} href={href} />;
+  return renderToString(metricCardMarkup);
 }
 
 /** One retention-flow stage option set. */
@@ -558,17 +596,24 @@ export interface FlowStageOptions {
 export function FlowStage(props: { label: string; raw: any; base: any; previous: any; extraClass: string; stageKey: string; options: FlowStageOptions }): JSX.Element {
   const extraClass = props.extraClass || "";
   const options = props.options || {};
-  const stageClass = "ui step rw-flow__step" + (extraClass ? " rw-flow__step--" + extraClass.replace(/\s+/g, "-") : "");
-  const info = options.description ? (
-    <details className="rw-flow__info">
-      <summary aria-label={"About " + props.label}>i</summary>
-      <div><strong>{props.label}</strong><p>{options.description}</p></div>
-    </details>
-  ) : null;
+  const stageClass = `ui step rw-flow__step${extraClass ? ` rw-flow__step--${extraClass.replace(/\s+/g, "-")}` : ""}`;
+  var info: JSX.Element | null = null;
+  if (options.description) {
+    info = (
+      <details className="rw-flow__info">
+        <summary aria-label={`About ${props.label}`}>i</summary>
+        <div>
+          <strong>{props.label}</strong>
+          <p>{options.description}</p>
+        </div>
+      </details>
+    );
+  }
 
   if (props.raw?.available === false || props.raw == null) {
+    const articleClass = `${stageClass} disabled`;
     return (
-      <article className={stageClass + " disabled"} data-flow-stage={props.stageKey || undefined}>
+      <article className={articleClass} data-flow-stage={props.stageKey || undefined}>
         {info}
         <div className="rw-flow__content">
           <h5>{props.label}</h5>
@@ -581,11 +626,14 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
 
   const count = number(props.raw);
   const baseCount = number(props.base);
-  const percentage = baseCount > 0 ? count * 100 / baseCount : null;
-  const percentageText = percentage == null ? "\u2014" : percentage.toFixed(2) + "%";
-  const progressWidth = percentage == null ? 0 : Math.max(0, Math.min(100, percentage));
+  var percentage: number | null = null;
+  if (baseCount > 0) percentage = count * 100 / baseCount;
+  var percentageText = "\u2014";
+  if (percentage != null) percentageText = `${percentage.toFixed(2)}%`;
+  var progressWidth = 0;
+  if (percentage != null) progressWidth = Math.max(0, Math.min(100, percentage));
   const denominatorText = options.denominatorLabel || "input records";
-  let change: string;
+  var change: string;
   if (props.previous == null) {
     change = options.baselineLabel || "Input baseline";
   } else {
@@ -593,20 +641,24 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
     if (diff === 0) {
       change = "No change from prior";
     } else {
-      const sign = diff > 0 ? "\u2212" : "+";
-      change = sign + formatNumber(Math.abs(diff)) + " from prior";
+      var sign = "+";
+      if (diff > 0) sign = "\u2212";
+      change = `${sign}${formatNumber(Math.abs(diff))} from prior`;
     }
   }
 
-  let outcomes: JSX.Element | null = null;
+  var outcomes: JSX.Element | null = null;
   if (Array.isArray(options.outcomes)) {
-    outcomes = (
-      <div className="rw-flow__outcome-values">
-        {options.outcomes.map(function(outcome) {
-          return <span><b>{formatNumber(outcome.value)}</b> {outcome.label}</span>;
-        })}
-      </div>
-    );
+    const outcomeValues = options.outcomes.map((outcome) => {
+      return (
+        <span>
+          <b>{formatNumber(outcome.value)}</b>
+          {" "}
+          {outcome.label}
+        </span>
+      );
+    });
+    outcomes = <div className="rw-flow__outcome-values">{outcomeValues}</div>;
   }
 
   const content = (
@@ -616,17 +668,22 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
         <strong>{formatNumber(count)}</strong>
         <span className="rw-flow__percentage">{percentageText}</span>
       </div>
-      <span className="rw-flow__progress" role="img" aria-label={props.label + ": " + formatNumber(count) + " of " + formatNumber(baseCount) + " " + denominatorText + " (" + percentageText + ")"}>
-        <span style={"width:" + progressWidth.toFixed(2) + "%"}></span>
+      <span className="rw-flow__progress" role="img" aria-label={`${props.label}: ${formatNumber(count)} of ${formatNumber(baseCount)} ${denominatorText} (${percentageText})`}>
+        <span style={`width:${progressWidth.toFixed(2)}%`}></span>
       </span>
       <small className="rw-flow__delta">{change}</small>
       {outcomes}
     </div>
   );
 
-  const linkedContent = options.href ? <a className="rw-flow__link" href={options.href}>{content}</a> : content;
+  var linkedContent: JSX.Element = content;
+  if (options.href) {
+    linkedContent = <a className="rw-flow__link" href={options.href}>{content}</a>;
+  }
+  var linkedStageClass = stageClass;
+  if (options.href) linkedStageClass = `${stageClass} linked`;
   return (
-    <article className={stageClass + (options.href ? " linked" : "")} data-flow-stage={props.stageKey || undefined}>
+    <article className={linkedStageClass} data-flow-stage={props.stageKey || undefined}>
       {info}
       {linkedContent}
     </article>
@@ -635,36 +692,37 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
 
 /** Returns one retention-flow stage with counts, percentages, and optional links. */
 export function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions): string {
-  return renderToString(<FlowStage label={label} raw={raw} base={base} previous={previous} extraClass={extraClass} stageKey={stageKey} options={options} />);
+  const flowStageMarkup = <FlowStage label={label} raw={raw} base={base} previous={previous} extraClass={extraClass} stageKey={stageKey} options={options} />;
+  return renderToString(flowStageMarkup);
 }
 
 const filterPresentations: Record<string, { groupLabel: string; label: string; description: string }> = {
   "NO_FILTER": {
     groupLabel: "Unfiltered Source Data",
     label: "Initial raw results",
-    description: "Unfiltered results reported by the configured sources."
+    description: "Unfiltered results reported by the configured sources.",
   },
   "RANGE_10_YEARS": {
     groupLabel: "Publication Range",
     label: "Publication range",
-    description: "Results retained within the declared 10-year range."
+    description: "Results retained within the declared 10-year range.",
   },
   "ARTICLE_ONLY": {
     groupLabel: "Document Type",
     label: "Document type",
-    description: "Results retained after applying the article-only filter."
+    description: "Results retained after applying the article-only filter.",
   },
   "ENGLISH_ONLY": {
     groupLabel: "Language",
     label: "Language",
-    description: "Results retained after the language filter."
-  }
+    description: "Results retained after the language filter.",
+  },
 };
 
 /** Combines cumulative source filter counts into ordered cross-source stages. */
 function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number; groupLabel: string; label: string; description: string }>; sourceCount: number } {
   var bySource = new Map<string, Array<{ count: number; filters: string[] }>>();
-  (items || []).forEach(function(item) {
+  (items || []).forEach((item) => {
     if (!Array.isArray(item?.filters) || item.filters.length === 0) {
       return;
     }
@@ -678,15 +736,18 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number
     });
   });
 
-  const sources = Array.from(bySource.values()).filter(function(stages) { return stages.length > 0; });
-  const stageCount = sources.reduce(function(maximum, stages) {
+  const sourceGroups = Array.from(bySource.values());
+  const sources = sourceGroups.filter((stages) => {
+    return stages.length > 0;
+  });
+  const stageCount = sources.reduce((maximum, stages) => {
     return Math.max(maximum, stages.length);
   }, 0);
   var stages: Array<{ count: number; groupLabel: string; label: string; description: string }> = [];
   for (var index = 0; index < stageCount; index += 1) {
     var count = 0;
     var appliedFilters = new Set<string>();
-    sources.forEach(function(sourceStages) {
+    sources.forEach((sourceStages) => {
       const stage = sourceStages[Math.min(index, sourceStages.length - 1)];
       count += stage.count;
       if (index < sourceStages.length) {
@@ -697,12 +758,21 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number
       }
     });
     const filters = Array.from(appliedFilters);
-    const presentation = filters.length === 1 ? filterPresentations[filters[0]] : null;
+    var presentation: { groupLabel: string; label: string; description: string } | null = null;
+    if (filters.length === 1) presentation = filterPresentations[filters[0]];
+    const filterLabels = filters.map((name) => {
+      return humanLabel(name);
+    });
+    var groupLabel = presentation?.groupLabel || "Unfiltered Source Data";
+    if (index !== 0 && !presentation?.groupLabel) groupLabel = `Source Filter ${index + 1}`;
+    var label = presentation?.label || "Initial raw results";
+    if (index !== 0 && !presentation?.label) label = `Source filter stage ${index + 1}`;
+    var description = presentation?.description || filterLabels.join(", ");
     stages.push({
       count: count,
-      groupLabel: presentation?.groupLabel || (index === 0 ? "Unfiltered Source Data" : "Source Filter " + (index + 1)),
-      label: presentation?.label || (index === 0 ? "Initial raw results" : "Source filter stage " + (index + 1)),
-      description: presentation?.description || filters.map(function(name) { return humanLabel(name); }).join(", ")
+      groupLabel: groupLabel,
+      label: label,
+      description: description,
     });
   }
   return { stages: stages, sourceCount: sources.length };
@@ -710,8 +780,9 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number
 
 /** Renders one titled phase in the retention-flow presentation. */
 function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string }): JSX.Element {
+  const phaseClass = `rw-retention__phase ${props.className || ""}`;
   return (
-    <section className={"rw-retention__phase " + (props.className || "")}>
+    <section className={phaseClass}>
       <header className="rw-retention__phase-header">
         <div>
           <h4>{props.title}</h4>
@@ -726,15 +797,16 @@ function RetentionPhase(props: { title: string; description: string; summary: st
 
 /** Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
 export function RetentionFlow(props: { overview: any }): JSX.Element {
-  const overview = props.overview;
-  const source = overview.retention_funnel || {};
+  const source = props.overview.retention_funnel || {};
   const input = source.input_records;
-  const filterSummary = sourceFilterStageSummary(overview.source_filter_counts);
+  const filterSummary = sourceFilterStageSummary(props.overview.source_filter_counts);
   const filterStages = filterSummary.stages;
   const hasFilterStages = filterStages.length > 0;
   const inputCount = number(input);
-  const initialCount = hasFilterStages ? filterStages[0].count : inputCount;
-  const denominatorLabel = hasFilterStages ? "initial raw results" : "input records";
+  var initialCount = inputCount;
+  if (hasFilterStages) initialCount = filterStages[0].count;
+  var denominatorLabel = "input records";
+  if (hasFilterStages) denominatorLabel = "initial raw results";
   const sourceDefinitions = [
     ["Initial raw results", "Unfiltered results reported by the configured sources."],
     ["Publication range", "Results retained within the declared publication window."],
@@ -742,15 +814,22 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     ["Language", "Results retained after applying the declared language filter."]
   ];
   var previousFilterCount: any = null;
-  const sourceSteps = sourceDefinitions.map(function(definition, index) {
+  const sourceSteps = sourceDefinitions.map(([label, description], index) => {
     const recordedStage = filterStages[index];
-    const stage = <FlowStage label={definition[0]} raw={recordedStage?.count} base={initialCount} previous={previousFilterCount} extraClass="source" stageKey={"filter_" + index} options={{ description: recordedStage?.description || definition[1], denominatorLabel: denominatorLabel, baselineLabel: "Initial raw-data baseline" }} />;
+    const stageOptions = {
+      description: recordedStage?.description || description,
+      denominatorLabel: denominatorLabel,
+      baselineLabel: "Initial raw-data baseline",
+    };
+    const stage = <FlowStage label={label} raw={recordedStage?.count} base={initialCount} previous={previousFilterCount} extraClass="source" stageKey={`filter_${index}`} options={stageOptions} />;
     if (recordedStage) previousFilterCount = recordedStage.count;
     return stage;
   });
-  const sourceSummary = hasFilterStages
-    ? formatNumber(initialCount) + " initial raw results" + (filterSummary.sourceCount > 1 ? " across " + formatNumber(filterSummary.sourceCount) + " sources" : "")
-    : "Aggregate source-filter counts were not recorded";
+  var sourceSummary = "Aggregate source-filter counts were not recorded";
+  if (hasFilterStages) {
+    sourceSummary = `${formatNumber(initialCount)} initial raw results`;
+    if (filterSummary.sourceCount > 1) sourceSummary += ` across ${formatNumber(filterSummary.sourceCount)} sources`;
+  }
   const phases: JSX.Element[] = [
     <RetentionPhase title="Source selection" description="Cumulative filters applied before source export." summary={sourceSummary} className="rw-retention__phase--source">
       <div className="ui fluid steps rw-flow rw-flow--source">{sourceSteps}</div>
@@ -776,7 +855,8 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
         </div>
       </RetentionPhase>
     );
-    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={<div className="rw-retention">{phases}</div>} classes="span-all rw-panel--no-separator" />;
+    const retentionBody = <div className="rw-retention">{phases}</div>;
+    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="span-all rw-panel--no-separator" />;
   }
 
   const parsed = source.parsed_articles;
@@ -784,18 +864,25 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   const parsedCount = number(parsed);
   const dedupedCount = number(deduped);
   const validCount = number(source.valid_articles);
-  const enrichmentCandidates = overview.enrichment_breakdown?.enrichment_candidates;
-  const normalizedArticles = overview.normalization_breakdown?.normalized_articles_processed;
-  const enrichmentCount = enrichmentCandidates == null || enrichmentCandidates?.available === false
-    ? dedupedCount
-    : number(enrichmentCandidates);
-  const pipelinePrevious = hasFilterStages ? filterStages[filterStages.length - 1].count : null;
-  const stageHref = function(stage: string) {
+  const enrichmentCandidates = props.overview.enrichment_breakdown?.enrichment_candidates;
+  const normalizedArticles = props.overview.normalization_breakdown?.normalized_articles_processed;
+  var enrichmentCount = dedupedCount;
+  if (enrichmentCandidates != null && enrichmentCandidates?.available !== false) {
+    enrichmentCount = number(enrichmentCandidates);
+  }
+  var pipelinePrevious: any = null;
+  if (hasFilterStages) pipelinePrevious = filterStages[filterStages.length - 1].count;
+  const stageHref = (stage: string) => {
     if (stage === "input") return link({ view: "corpus", section: "sources", q: "", page: 1 });
     return link({ view: "provenance", section: "stages", stage_q: stage, stage_page: 1 });
   };
-  const stageOptions = function(description: string, href: string): FlowStageOptions {
-    return { description: description, href: href, denominatorLabel: denominatorLabel, baselineLabel: "Input baseline" };
+  const stageOptions = (description: string, href: string): FlowStageOptions => {
+    return {
+      description: description,
+      href: href,
+      denominatorLabel: denominatorLabel,
+      baselineLabel: "Input baseline",
+    };
   };
   const pipelineSteps = [
     <FlowStage label="Input records" raw={input} base={initialCount} previous={pipelinePrevious} extraClass="" stageKey="input_records" options={stageOptions("Records read from the exported source files.", stageHref("input"))} />,
@@ -803,7 +890,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     <FlowStage label="Deduplicated articles" raw={deduped} base={initialCount} previous={parsedCount} extraClass="" stageKey="deduplicated_articles" options={stageOptions("Unique articles retained after source merging.", stageHref("deduplicate"))} />,
   ];
   phases.push(
-    <RetentionPhase title="Pipeline processing" description="Records move from source loading through deduplication." summary={formatNumber(inputCount) + " captured input records"} className="rw-retention__phase--pipeline">
+    <RetentionPhase title="Pipeline processing" description="Records move from source loading through deduplication." summary={`${formatNumber(inputCount)} captured input records`} className="rw-retention__phase--pipeline">
       <div className="ui fluid steps rw-flow rw-flow--pipeline">{pipelineSteps}</div>
     </RetentionPhase>
   );
@@ -819,17 +906,19 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     <FlowStage label="Normalization" raw={normalizedArticles} base={initialCount} previous={validCount} extraClass="" stageKey="normalized_articles_processed" options={stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize"))} />,
   ];
   phases.push(
-    <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={formatNumber(validCount) + " accepted articles"} className="rw-retention__phase--corpus">
+    <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={`${formatNumber(validCount)} accepted articles`} className="rw-retention__phase--corpus">
       <div className="ui fluid steps rw-flow rw-flow--corpus">{corpusSteps}</div>
     </RetentionPhase>
   );
 
-  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={<div className="rw-retention">{phases}</div>} classes="span-all rw-panel--no-separator" />;
+  const retentionBody = <div className="rw-retention">{phases}</div>;
+  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="span-all rw-panel--no-separator" />;
 }
 
 /** Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
 export function retentionFlow(overview: any): string {
-  return renderToString(<RetentionFlow overview={overview} />);
+  const retentionFlowMarkup = <RetentionFlow overview={overview} />;
+  return renderToString(retentionFlowMarkup);
 }
 
 /** Renders a metric breakdown table with relative bars and optional total percentages. */
@@ -837,21 +926,23 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const valueLabel = props.valueLabel || "Count";
   const entries = metricEntries(props.source);
   if (!entries.length) {
-    return <Panel title={props.title} description="Recorded activity for this run." body={<p className="empty">Not recorded for this run.</p>} />;
+    const emptyBody = <p className="empty">Not recorded for this run.</p>;
+    return <Panel title={props.title} description="Recorded activity for this run." body={emptyBody} />;
   }
 
   var total: number | null;
   if (props.useTotal) {
-    total = entries.reduce(function(sum, [, entry]) {
+    total = entries.reduce((sum, [, entry]) => {
       return sum + number(entry);
     }, 0);
   } else {
     total = null;
   }
 
-  const max = total || Math.max.apply(null, entries.map(function([, entry]) {
+  const entryValues = entries.map(([, entry]) => {
     return number(entry);
-  }).concat([1]));
+  });
+  const max = total || Math.max.apply(null, entryValues.concat([1]));
 
   /** Renders one breakdown value with availability and optional percentage. */
   function valueRender(row: any): JSX.Element {
@@ -861,13 +952,16 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
     if (!props.useTotal) {
       return <strong className="rw-metric-value">{formatNumber(row.raw)}</strong>;
     }
-    var pct;
+    var pct = "—";
     if (total! > 0) {
-      pct = (number(row.raw) * 100 / total!).toFixed(2) + "%";
-    } else {
-      pct = "—";
+      pct = `${(number(row.raw) * 100 / total!).toFixed(2)}%`;
     }
-    return <><strong className="rw-metric-value">{formatNumber(row.raw)}</strong><span className="rw-metric-percent">{pct}</span></>;
+    return (
+      <>
+        <strong className="rw-metric-value">{formatNumber(row.raw)}</strong>
+        <span className="rw-metric-percent">{pct}</span>
+      </>
+    );
   }
 
   /** Renders an accessible relative-volume bar for one breakdown row. */
@@ -876,24 +970,43 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
       return <span className="ui faded text">—</span>;
     }
     const pct = Math.min(100, number(row.raw) / max * 100);
-    const basis = props.useTotal ? "share of total" : "relative to the largest recorded value";
-    return <span className="ui progress" role="img" aria-label={humanLabel(row.name) + ": " + pct.toFixed(1) + "% " + basis}><span className="bar" style={"width:" + pct + "%"}></span></span>;
+    var basis = "relative to the largest recorded value";
+    if (props.useTotal) basis = "share of total";
+    return <span className="ui progress" role="img" aria-label={`${humanLabel(row.name)}: ${pct.toFixed(1)}% ${basis}`}><span className="bar" style={`width:${pct}%`}></span></span>;
   }
 
-  const rows = entries.map(function([name, raw]) {
-    return { name: name, raw: raw };
+  const rows = entries.map(([name, raw]) => {
+    return {
+      name: name,
+      raw: raw,
+    };
   });
 
-  return <Table title={props.title} description="Recorded activity for this run." columns={[
-    { label: "Metric", render: function(row) { return <strong className="rw-metric-name">{humanLabel(row.name)}</strong>; } },
-    { label: valueLabel, render: valueRender },
-    { label: props.useTotal ? "Share of total" : "Relative to largest", render: barRender }
-  ]} rows={rows} classes="rw-metric-table" />;
+  var shareLabel = "Relative to largest";
+  if (props.useTotal) shareLabel = "Share of total";
+  const columns: TableColumn[] = [
+    {
+      label: "Metric",
+      render: (row) => {
+        return <strong className="rw-metric-name">{humanLabel(row.name)}</strong>;
+      },
+    },
+    {
+      label: valueLabel,
+      render: valueRender,
+    },
+    {
+      label: shareLabel,
+      render: barRender,
+    },
+  ];
+  return <Table title={props.title} description="Recorded activity for this run." columns={columns} rows={rows} classes="rw-metric-table" />;
 }
 
 /** Returns a metric breakdown table with relative bars and optional total percentages. */
 export function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean): string {
-  return renderToString(<Breakdown title={title} source={source} valueLabel={valueLabel} useTotal={useTotal} />);
+  const breakdownMarkup = <Breakdown title={title} source={source} valueLabel={valueLabel} useTotal={useTotal} />;
+  return renderToString(breakdownMarkup);
 }
 
 /** Renders the expected-versus-observed source export count table. */
@@ -924,7 +1037,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     return <span className="muted">Not recorded</span>;
   }
 
-  const rows = (props.items || []).map(function(item) {
+  const rows = (props.items || []).map((item) => {
     return {
       source: item.source_name || "Unnamed source",
       expected: item.expected_result_count,
@@ -934,20 +1047,47 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     };
   });
 
+  const columns: TableColumn[] = [
+    {
+      label: "Source",
+      render: (row) => {
+        return <>{row.source}</>;
+      },
+    },
+    {
+      label: "Export date",
+      render: (row) => {
+        return date(row.exportDate);
+      },
+    },
+    {
+      label: "Expected initial count",
+      render: (row) => {
+        return count(row.expected);
+      },
+    },
+    {
+      label: "Observed raw records",
+      render: (row) => {
+        return count(row.observed);
+      },
+    },
+    {
+      label: "Comparison",
+      render: (row) => {
+        return comparison(row.comparison);
+      },
+    },
+  ];
   return <Table title="Source export counts"
     description="Expected is the count recorded when metadata was originally downloaded. Observed is the raw export count read by this run. The comparison is informational and never makes a run fail."
-    columns={[
-      { label: "Source", render: function(row) { return <>{row.source}</>; } },
-      { label: "Export date", render: function(row) { return date(row.exportDate); } },
-      { label: "Expected initial count", render: function(row) { return count(row.expected); } },
-      { label: "Observed raw records", render: function(row) { return count(row.observed); } },
-      { label: "Comparison", render: function(row) { return comparison(row.comparison); } },
-    ]} rows={rows} classes={classes} />;
+    columns={columns} rows={rows} classes={classes} />;
 }
 
 /** Returns the expected-versus-observed source export count table. */
 export function sourceResultCountSummary(items: any[] | null, classes?: string): string {
-  return renderToString(<SourceResultCountSummary items={items} classes={classes} />);
+  const sourceResultCountSummaryMarkup = <SourceResultCountSummary items={items} classes={classes} />;
+  return renderToString(sourceResultCountSummaryMarkup);
 }
 
 /** Renders expandable exact-query markup for source exports. */
@@ -957,7 +1097,7 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
     return null;
   }
 
-  const rows = props.items.map(function(item) {
+  const rows = props.items.map((item) => {
     return (
       <details className="query-row">
         <summary>
@@ -972,14 +1112,16 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
     );
   });
 
+  const body = <>{rows}</>;
   return <Panel title="Search queries"
     description="The exact search terms used to obtain each source export. Expand a source to inspect or copy its query."
-    body={<>{rows}</>} classes={classes} />;
+    body={body} classes={classes} />;
 }
 
 /** Returns expandable exact-query markup for source exports. */
 export function sourceSearchQueries(items: any[] | null, classes?: string): string {
-  return renderToString(<SourceSearchQueries items={items} classes={classes} />);
+  const sourceSearchQueriesMarkup = <SourceSearchQueries items={items} classes={classes} />;
+  return renderToString(sourceSearchQueriesMarkup);
 }
 
 /** Renders chronological audit feed markup for generic event rows. */
@@ -988,7 +1130,7 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
     return <p className="ui faded text">No records.</p>;
   }
 
-  const items = props.rows.map(function(event) {
+  const items = props.rows.map((event) => {
     const action = text(event, ["action", "event_type", "type"]);
     const entityType = text(event, ["entity_type", "entity", "source"]);
     const actor = event.actor;
@@ -1000,7 +1142,9 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
       if (meta.field && meta.provider) {
         detail = <>Field <strong>{meta.field}</strong> enriched by <strong>{meta.provider}</strong></>;
       } else if (meta.reasons) {
-        detail = <>{Array.isArray(meta.reasons) ? meta.reasons.join("; ") : String(meta.reasons)}</>;
+        var reasonsText = String(meta.reasons);
+        if (Array.isArray(meta.reasons)) reasonsText = meta.reasons.join("; ");
+        detail = <>{reasonsText}</>;
       } else if (meta.error) {
         detail = <>Error: {meta.error}</>;
       } else if (meta.status) {
@@ -1014,25 +1158,26 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
       }
     }
 
-    var dotClass;
+    var dotClass = "default-dot";
     if (action.startsWith("pipeline_")) {
       dotClass = "pipeline-dot";
     } else if (action === "field_enriched") {
       dotClass = "enrich-dot";
     } else if (action.startsWith("validation_")) {
       dotClass = "validation-dot";
-    } else {
-      dotClass = "default-dot";
     }
 
     const timestamp = formatTime(event.occurred_at || event.created_at || event.at || event.timestamp);
+    const eventClass = `event ${dotClass}`;
 
     return (
-      <li className={"event " + dotClass}>
+      <li className={eventClass}>
         {actor ? <span className="user">{actor}</span> : null}
         {entityId ? <span className="extra">{entityType} #{entityId}</span> : null}
-        <strong>{action}</strong><br />
-        {detail ? <span className="summary">{detail}</span> : null}<br />
+        <strong>{action}</strong>
+        <br />
+        {detail ? <span className="summary">{detail}</span> : null}
+        <br />
         <time>{timestamp}</time>
       </li>
     );
@@ -1043,21 +1188,23 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
 
 /** Returns chronological audit feed markup for generic event rows. */
 export function timeline(rows: any[]): string {
-  return renderToString(<Timeline rows={rows} />);
+  const timelineMarkup = <Timeline rows={rows} />;
+  return renderToString(timelineMarkup);
 }
 
 /** Renders a table whose columns are derived from the supplied detail records. */
 export function DetailTable(props: { title: string; rows: any }): JSX.Element {
   const records = list(props.rows, ["items", "rows"]);
-  const columns = [...new Set(records.flatMap(function(record) {
+  const recordKeys = records.flatMap((record) => {
     return Object.keys(record);
-  }))];
-  const colDefs = columns.map(function(key) {
+  });
+  const columns = [...new Set(recordKeys)];
+  const colDefs = columns.map((key) => {
     return {
       label: key,
-      render: function(row: any) {
+      render: (row: any) => {
         return raw(cell(row[key], key));
-      }
+      },
     };
   });
   return <Table title={props.title} description="" columns={colDefs} rows={records} />;
@@ -1065,7 +1212,8 @@ export function DetailTable(props: { title: string; rows: any }): JSX.Element {
 
 /** Builds a table whose columns are derived from the supplied detail records. */
 export function detailTable(title: string, rows: any): string {
-  return renderToString(<DetailTable title={title} rows={rows} />);
+  const detailTableMarkup = <DetailTable title={title} rows={rows} />;
+  return renderToString(detailTableMarkup);
 }
 
 /** One cell rendering option set. */
@@ -1082,7 +1230,8 @@ export function Cell(props: { item: any; column: string; tableName?: string; opt
   }
 
   const full = asJSON(props.item);
-  const display = full.length > 140 ? full.slice(0, 137) + "…" : full;
+  var display = full;
+  if (full.length > 140) display = `${full.slice(0, 137)}…`;
 
   var href = "";
   if (props.column === "article_id" || props.column === "work_revision_id" || (tableName === "work_revisions" && props.column === "id")) {
@@ -1107,7 +1256,8 @@ export function Cell(props: { item: any; column: string; tableName?: string; opt
 
 /** Formats and links a table cell according to its column and table context. */
 export function cell(item: any, column: string, tableName?: string, options?: CellOptions): string {
-  return renderToString(<Cell item={item} column={column} tableName={tableName} options={options} />);
+  const cellMarkup = <Cell item={item} column={column} tableName={tableName} options={options} />;
+  return renderToString(cellMarkup);
 }
 
 /**
@@ -1115,13 +1265,14 @@ export function cell(item: any, column: string, tableName?: string, options?: Ce
  * Shows "Copied!" feedback for 2 seconds, falls back to prompt().
  */
 export function bindCopyButtons(): void {
-  document.querySelectorAll<HTMLButtonElement>("[data-copy-text]").forEach(function(button) {
-    button.addEventListener("click", async function() {
-      var text = this.getAttribute("data-copy-text") || "";
+  const copyButtons = document.querySelectorAll<HTMLButtonElement>("[data-copy-text]");
+  copyButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const text = button.getAttribute("data-copy-text") || "";
       try {
         await navigator.clipboard.writeText(text);
-        this.textContent = "Copied!";
-        setTimeout(function(this: HTMLButtonElement) { this.textContent = "Copy"; }.bind(this), 2000);
+        button.textContent = "Copied!";
+        setTimeout(() => { button.textContent = "Copy"; }, 2000);
       } catch (_) {
         prompt("Copy query manually:", text);
       }
@@ -1134,12 +1285,13 @@ export function bindCopyButtons(): void {
  * Clicking the close button fades out and removes the message.
  */
 export function bindDismissibleMessages(): void {
-  document.querySelectorAll<HTMLElement>(".ui.message > .close").forEach(function(button) {
-    button.addEventListener("click", function() {
-      const message = this.closest<HTMLElement>(".ui.message");
+  const closeButtons = document.querySelectorAll<HTMLElement>(".ui.message > .close");
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const message = button.closest<HTMLElement>(".ui.message");
       if (message) {
         message.style.opacity = "0";
-        setTimeout(function() { message.hidden = true; }, 150);
+        setTimeout(() => { message.hidden = true; }, 150);
       }
     });
   });
@@ -1150,8 +1302,9 @@ export function bindDismissibleMessages(): void {
  * On click, the button shows a spinner and disables itself.
  */
 export function bindLoadingButtons(): void {
-  document.querySelectorAll<HTMLButtonElement>("[data-loading]").forEach(function(button) {
-    button.addEventListener("click", function() {
+  const loadingButtons = document.querySelectorAll<HTMLButtonElement>("[data-loading]");
+  loadingButtons.forEach((button) => {
+    button.addEventListener("click", () => {
       button.classList.add("loading");
       button.disabled = true;
     });

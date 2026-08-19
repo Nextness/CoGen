@@ -336,23 +336,23 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Database`](../src/database/database.go#L27) | struct | 27-59 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
-| [`Open`](../src/database/database.go#L63) | function | 63-77 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
-| [`MigrateExisting`](../src/database/database.go#L80) | function | 80-99 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
-| [`OpenExisting`](../src/database/database.go#L103) | function | 103-137 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
-| [`OpenConfigured`](../src/database/database.go#L143) | function | 143-191 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
-| [`(*Database).initRepositories`](../src/database/database.go#L194) | method | 194-222 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
-| [`configurePragma`](../src/database/database.go#L228) | function | 228-242 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
-| [`sqliteBusy`](../src/database/database.go#L245) | function | 245-251 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
-| [`(*Database).Close`](../src/database/database.go#L254) | method | 254-262 | `func (*Database).Close() error` | Close closes the database connection. |
-| [`(*Database).SchemaVersion`](../src/database/database.go#L267) | method | 267-277 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
-| [`(*Database).runMigrations`](../src/database/database.go#L282) | method | 282-366 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
-| [`(*Database).withMigrationLock`](../src/database/database.go#L372) | method | 372-395 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
-| [`migrationEntry`](../src/database/database.go#L398) | struct | 398-402 | `type migrationEntry struct { filename string previous string upgrade string }` | migrationEntry stores one configured migration filename and its descriptive linkage fields. |
-| [`loadMigrationChain`](../src/database/database.go#L405) | function | 405-418 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
-| [`extractUpSQL`](../src/database/database.go#L424) | function | 424-446 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
-| [`fileChecksum`](../src/database/database.go#L449) | function | 449-456 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
-| [`timestamp`](../src/database/database.go#L459) | function | 459-461 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
+| [`Database`](../src/database/database.go#L27) | struct | 27-60 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository TermMatches *TermMatchesRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
+| [`Open`](../src/database/database.go#L64) | function | 64-78 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
+| [`MigrateExisting`](../src/database/database.go#L81) | function | 81-100 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
+| [`OpenExisting`](../src/database/database.go#L104) | function | 104-138 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
+| [`OpenConfigured`](../src/database/database.go#L144) | function | 144-192 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
+| [`(*Database).initRepositories`](../src/database/database.go#L195) | method | 195-224 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
+| [`configurePragma`](../src/database/database.go#L230) | function | 230-244 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
+| [`sqliteBusy`](../src/database/database.go#L247) | function | 247-253 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
+| [`(*Database).Close`](../src/database/database.go#L256) | method | 256-264 | `func (*Database).Close() error` | Close closes the database connection. |
+| [`(*Database).SchemaVersion`](../src/database/database.go#L269) | method | 269-279 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
+| [`(*Database).runMigrations`](../src/database/database.go#L284) | method | 284-368 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
+| [`(*Database).withMigrationLock`](../src/database/database.go#L374) | method | 374-397 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
+| [`migrationEntry`](../src/database/database.go#L400) | struct | 400-404 | `type migrationEntry struct { filename string previous string upgrade string }` | migrationEntry stores one configured migration filename and its descriptive linkage fields. |
+| [`loadMigrationChain`](../src/database/database.go#L407) | function | 407-420 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
+| [`extractUpSQL`](../src/database/database.go#L426) | function | 426-448 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
+| [`fileChecksum`](../src/database/database.go#L451) | function | 451-458 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
+| [`timestamp`](../src/database/database.go#L461) | function | 461-463 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
 
 ### [`src/database/database_integration_test.go`](../src/database/database_integration_test.go)
 
@@ -598,6 +598,34 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestNullStr`](../src/database/sql_helpers_unit_test.go#L11) | test | 11-18 | `func TestNullStr(t *testing.T)` | TestNullStr verifies null str. |
 | [`TestNullInt`](../src/database/sql_helpers_unit_test.go#L21) | test | 21-28 | `func TestNullInt(t *testing.T)` | TestNullInt verifies null int. |
+
+### [`src/database/term_matches.go`](../src/database/term_matches.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`RunSearchTerm`](../src/database/term_matches.go#L14) | struct | 14-20 | ``type RunSearchTerm struct { ID int64 `json:"id"` PipelineRunID int64 `json:"pipeline_run_id"` SourceName string `json:"source_name"` Term string `json:"term"` CreatedAt string `json:"created_at"` }`` | RunSearchTerm is one stored search term and the source that declared it. |
+| [`TermMatchesRepository`](../src/database/term_matches.go#L24) | struct | 24-26 | `type TermMatchesRepository struct { db *Database }` | TermMatchesRepository provides replace and read access to the derived run_search_terms and work_revision_term_matches tables. |
+| [`(*TermMatchesRepository).ReplaceRunTerms`](../src/database/term_matches.go#L30) | method | 30-34 | `func (*TermMatchesRepository).ReplaceRunTerms(runID int64, termsBySource map[string][]string) error` | ReplaceRunTerms replaces the parsed term inventory for one run in a single transaction. It is safe to call twice for the same run. |
+| [`(*TermMatchesRepository).ReplaceRunMatches`](../src/database/term_matches.go#L38) | method | 38-42 | `func (*TermMatchesRepository).ReplaceRunMatches(runID int64, matches map[int64]map[string][]string) error` | ReplaceRunMatches replaces the per-revision field matches for one run in a single transaction. It is safe to call twice for the same run. |
+| [`(*TermMatchesRepository).ReplaceRunTermData`](../src/database/term_matches.go#L46) | method | 46-53 | `func (*TermMatchesRepository).ReplaceRunTermData(runID int64, termsBySource map[string][]string, matches map[int64]map[string][]string) error` | ReplaceRunTermData replaces both the term inventory and the revision matches for one run in a single transaction, preserving per-run atomicity. |
+| [`(*TermMatchesRepository).CountRunTermData`](../src/database/term_matches.go#L57) | method | 57-65 | `func (*TermMatchesRepository).CountRunTermData(runID int64) (int64, error)` | CountRunTermData returns the number of stored match rows for one run. It is used by the reconciliation pass to skip runs that already have term data. |
+| [`(*TermMatchesRepository).GetRunTerms`](../src/database/term_matches.go#L68) | method | 68-88 | `func (*TermMatchesRepository).GetRunTerms(runID int64) ([]RunSearchTerm, error)` | GetRunTerms returns the stored term inventory for one run ordered by id. |
+| [`(*TermMatchesRepository).GetRevisionMatches`](../src/database/term_matches.go#L91) | method | 91-100 | `func (*TermMatchesRepository).GetRevisionMatches(runID, revisionID int64) (map[string][]string, error)` | GetRevisionMatches returns the per-field matched terms for one revision. |
+| [`(*TermMatchesRepository).GetRevisionMatchesBulk`](../src/database/term_matches.go#L104) | method | 104-137 | `func (*TermMatchesRepository).GetRevisionMatchesBulk(runID int64, revisionIDs []int64) (map[int64]map[string][]string, error)` | GetRevisionMatchesBulk returns per-field matched terms for a page of revisions. It short-circuits when the revision list is empty. |
+| [`(*TermMatchesRepository).replaceRunTermsTx`](../src/database/term_matches.go#L140) | method | 140-159 | `func (*TermMatchesRepository).replaceRunTermsTx(tx *sql.Tx, runID int64, termsBySource map[string][]string) error` | replaceRunTermsTx deletes and reinserts the term inventory for one run. |
+| [`(*TermMatchesRepository).replaceRunMatchesTx`](../src/database/term_matches.go#L162) | method | 162-178 | `func (*TermMatchesRepository).replaceRunMatchesTx(tx *sql.Tx, runID int64, matches map[int64]map[string][]string) error` | replaceRunMatchesTx deletes and reinserts the revision matches for one run. |
+| [`scanMatches`](../src/database/term_matches.go#L181) | function | 181-194 | `func scanMatches(rows *sql.Rows) (map[string][]string, error)` | scanMatches groups (field, term) rows into per-field term lists. |
+
+### [`src/database/term_matches_integration_test.go`](../src/database/term_matches_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestTermMatchesReplaceRunTermDataIdempotent`](../src/database/term_matches_integration_test.go#L13) | test | 13-53 | `func TestTermMatchesReplaceRunTermDataIdempotent(t *testing.T)` | TestTermMatchesReplaceRunTermDataIdempotent verifies replace semantics leave exactly one copy per row. |
+| [`TestTermMatchesGetRunTermsOrdered`](../src/database/term_matches_integration_test.go#L56) | test | 56-86 | `func TestTermMatchesGetRunTermsOrdered(t *testing.T)` | TestTermMatchesGetRunTermsOrdered verifies ordered reads and empty results. |
+| [`TestTermMatchesGetRevisionMatches`](../src/database/term_matches_integration_test.go#L89) | test | 89-125 | `func TestTermMatchesGetRevisionMatches(t *testing.T)` | TestTermMatchesGetRevisionMatches verifies per-revision reads. |
+| [`TestTermMatchesGetRevisionMatchesBulk`](../src/database/term_matches_integration_test.go#L128) | test | 128-176 | `func TestTermMatchesGetRevisionMatchesBulk(t *testing.T)` | TestTermMatchesGetRevisionMatchesBulk verifies bulk reads and the empty short-circuit. |
+| [`TestTermMatchesCountRunTermData`](../src/database/term_matches_integration_test.go#L179) | test | 179-213 | `func TestTermMatchesCountRunTermData(t *testing.T)` | TestTermMatchesCountRunTermData verifies the reconciliation skip count. |
+| [`TestTermMatchesSchemaConstraints`](../src/database/term_matches_integration_test.go#L216) | test | 216-242 | `func TestTermMatchesSchemaConstraints(t *testing.T)` | TestTermMatchesSchemaConstraints verifies foreign keys and the field vocabulary check. |
 
 ### [`src/database/works.go`](../src/database/works.go)
 
@@ -1244,6 +1272,49 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestValidatePDFBoundariesAndHash`](../src/pdfstore/validation_unit_test.go#L12) | test | 12-27 | `func TestValidatePDFBoundariesAndHash(t *testing.T)` | TestValidatePDFBoundariesAndHash verifies validate pdf boundaries and hash. |
 
+### [`src/searchterms/searchterms.go`](../src/searchterms/searchterms.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Term`](../src/searchterms/searchterms.go#L14) | struct | 14-19 | `type Term struct { // Text is the original term spelling, including any wildcard characters. Text string // Sources lists the source names whose queries declared this term. Sources []string }` | Term is one distinct search term and the sources that declared it. |
+| [`Parse`](../src/searchterms/searchterms.go#L25) | function | 25-27 | `func Parse(query string) []string` | Parse extracts the ordered distinct search terms from one query string. Quoted phrases become single terms; operators, field prefixes, and quoted field labels are skipped. Terms are deduplicated case-insensitively and the first occurrence's spelling and position win. |
+| [`ParseSources`](../src/searchterms/searchterms.go#L33) | function | 33-53 | `func ParseSources(queries map[string]string) []Term` | ParseSources combines per-source queries into one deduplicated term list with source attribution. Source names are processed in sorted order so the result is deterministic; a failing or empty query contributes no terms and never returns an error. |
+| [`Match`](../src/searchterms/searchterms.go#L59) | function | 59-68 | `func Match(text, term string) bool` | Match reports whether term matches text with case-insensitive whole-word semantics. A trailing * is a prefix wildcard matching zero or more word characters; a leading * is a suffix wildcard; * at both ends is a substring match. Terms without wildcards must match as a whole word or phrase. |
+| [`MatchFields`](../src/searchterms/searchterms.go#L74) | function | 74-96 | `func MatchFields(title, abstract string, keywords, keywordsPlus []string, terms []Term) map[string][]string` | MatchFields returns the terms that match each of the four article fields in declaration order title, abstract, keywords, and keywords_plus. Keywords and keywords plus are matched per element: a term matches the field when it matches any single element, and phrases never span elements. |
+| [`matchesAny`](../src/searchterms/searchterms.go#L99) | function | 99-106 | `func matchesAny(elements []string, term string) bool` | matchesAny reports whether term matches any single keyword element. |
+| [`parseTerms`](../src/searchterms/searchterms.go#L111) | function | 111-160 | `func parseTerms(query string) []string` | parseTerms scans one query string and returns terms in declaration order without deduplication. Scanning is quote-aware: quoted substrings are extracted first, then the remaining text is tokenized. |
+| [`isStopChar`](../src/searchterms/searchterms.go#L163) | function | 163-165 | `func isStopChar(c byte) bool` | isStopChar reports whether a byte terminates a bare token. |
+| [`isOperator`](../src/searchterms/searchterms.go#L168) | function | 168-186 | `func isOperator(token string) bool` | isOperator reports whether a bare token is a boolean or proximity operator. |
+| [`isPunctuationOnly`](../src/searchterms/searchterms.go#L189) | function | 189-196 | `func isPunctuationOnly(token string) bool` | isPunctuationOnly reports whether a bare token contains no letter or digit. |
+| [`dedupe`](../src/searchterms/searchterms.go#L200) | function | 200-212 | `func dedupe(terms []string) []string` | dedupe removes case-insensitive duplicates while preserving first spelling and declaration order. |
+| [`compileTerm`](../src/searchterms/searchterms.go#L217) | function | 217-233 | `func compileTerm(term string) (*regexp.Regexp, error)` | compileTerm builds the case-insensitive expression for one term. Wildcards become word-character sequences and boundaries are anchored only when the term edge is a word character. |
+| [`firstRuneIsWord`](../src/searchterms/searchterms.go#L236) | function | 236-242 | `func firstRuneIsWord(s string) bool` | firstRuneIsWord reports whether the first rune is a word character. |
+| [`lastRuneIsWord`](../src/searchterms/searchterms.go#L245) | function | 245-251 | `func lastRuneIsWord(s string) bool` | lastRuneIsWord reports whether the last rune is a word character. |
+
+### [`src/searchterms/searchterms_unit_test.go`](../src/searchterms/searchterms_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestParseScopusQuery`](../src/searchterms/searchterms_unit_test.go#L13) | test | 13-32 | `func TestParseScopusQuery(t *testing.T)` | TestParseScopusQuery verifies the Scopus TITLE-ABS-KEY query shape. |
+| [`TestParseWOSQuery`](../src/searchterms/searchterms_unit_test.go#L35) | test | 35-44 | `func TestParseWOSQuery(t *testing.T)` | TestParseWOSQuery verifies the WOS TS= query shape. |
+| [`TestParseIEEEXploreQuery`](../src/searchterms/searchterms_unit_test.go#L47) | test | 47-58 | `func TestParseIEEEXploreQuery(t *testing.T)` | TestParseIEEEXploreQuery verifies the IEEE Xplore quoted field-label shape. |
+| [`TestParseWildcardQuery`](../src/searchterms/searchterms_unit_test.go#L61) | test | 61-69 | `func TestParseWildcardQuery(t *testing.T)` | TestParseWildcardQuery verifies workspace 2's wildcard-heavy WOS query shape. |
+| [`TestParseSkipsOperators`](../src/searchterms/searchterms_unit_test.go#L72) | test | 72-79 | `func TestParseSkipsOperators(t *testing.T)` | TestParseSkipsOperators verifies operators are skipped case-insensitively. |
+| [`TestParseSkipsFieldPrefixes`](../src/searchterms/searchterms_unit_test.go#L82) | test | 82-89 | `func TestParseSkipsFieldPrefixes(t *testing.T)` | TestParseSkipsFieldPrefixes verifies bare field prefixes are skipped. |
+| [`TestParseKeepsBareTokens`](../src/searchterms/searchterms_unit_test.go#L92) | test | 92-99 | `func TestParseKeepsBareTokens(t *testing.T)` | TestParseKeepsBareTokens verifies bare digit-only and single-letter tokens. |
+| [`TestParseDeduplicatesCaseInsensitively`](../src/searchterms/searchterms_unit_test.go#L102) | test | 102-108 | `func TestParseDeduplicatesCaseInsensitively(t *testing.T)` | TestParseDeduplicatesCaseInsensitively verifies deduplication keeps the first spelling. |
+| [`TestParseSkipsPunctuationOnly`](../src/searchterms/searchterms_unit_test.go#L111) | test | 111-117 | `func TestParseSkipsPunctuationOnly(t *testing.T)` | TestParseSkipsPunctuationOnly verifies punctuation-only tokens are skipped. |
+| [`TestParseEmptyInput`](../src/searchterms/searchterms_unit_test.go#L120) | test | 120-127 | `func TestParseEmptyInput(t *testing.T)` | TestParseEmptyInput verifies empty and punctuation-only queries yield no terms. |
+| [`TestParseSourcesAttribution`](../src/searchterms/searchterms_unit_test.go#L130) | test | 130-143 | `func TestParseSourcesAttribution(t *testing.T)` | TestParseSourcesAttribution verifies deterministic source attribution and cross-source deduplication. |
+| [`TestParseSourcesEmptyQueries`](../src/searchterms/searchterms_unit_test.go#L146) | test | 146-151 | `func TestParseSourcesEmptyQueries(t *testing.T)` | TestParseSourcesEmptyQueries verifies empty queries contribute no terms. |
+| [`TestMatchWholeWord`](../src/searchterms/searchterms_unit_test.go#L154) | test | 154-172 | `func TestMatchWholeWord(t *testing.T)` | TestMatchWholeWord verifies case-insensitive whole-word matching. |
+| [`TestMatchPrefixWildcard`](../src/searchterms/searchterms_unit_test.go#L175) | test | 175-193 | `func TestMatchPrefixWildcard(t *testing.T)` | TestMatchPrefixWildcard verifies trailing-star prefix matching. |
+| [`TestMatchLeadingAndBothWildcards`](../src/searchterms/searchterms_unit_test.go#L196) | test | 196-214 | `func TestMatchLeadingAndBothWildcards(t *testing.T)` | TestMatchLeadingAndBothWildcards verifies suffix and substring wildcards. |
+| [`TestMatchRegexMetacharacters`](../src/searchterms/searchterms_unit_test.go#L217) | test | 217-231 | `func TestMatchRegexMetacharacters(t *testing.T)` | TestMatchRegexMetacharacters verifies terms with regex metacharacters are escaped. |
+| [`TestMatchFields`](../src/searchterms/searchterms_unit_test.go#L234) | test | 234-258 | `func TestMatchFields(t *testing.T)` | TestMatchFields verifies per-field matching with per-element keyword semantics. |
+| [`TestMatchFieldsEmpty`](../src/searchterms/searchterms_unit_test.go#L261) | test | 261-267 | `func TestMatchFieldsEmpty(t *testing.T)` | TestMatchFieldsEmpty verifies empty fields produce empty lists. |
+| [`contains`](../src/searchterms/searchterms_unit_test.go#L270) | function | 270-277 | `func contains(values []string, target string) bool` | contains reports whether a string slice contains an exact target. |
+
 ### [`src/server/audit.go`](../src/server/audit.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1279,14 +1350,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`scopedRowsDefinition`](../src/server/corpus.go#L16) | struct | 16-23 | `type scopedRowsDefinition struct { columns []string from string where string groupBy string search string sortFields map[string]string }` | scopedRowsDefinition defines the safe projection, joins, filters, and sorting for one corpus section. |
-| [`(*Server).runCorpus`](../src/server/corpus.go#L72) | method | 72-134 | `func (*Server).runCorpus(w http.ResponseWriter, r *http.Request)` | runCorpus returns one context-scoped corpus section for the selected run. |
-| [`corpusSelectColumns`](../src/server/corpus.go#L137) | function | 137-150 | `func corpusSelectColumns(kind string) string` | corpusSelectColumns returns the fixed safe projection for a browsable corpus section. |
-| [`(*Server).runStages`](../src/server/corpus.go#L153) | method | 153-209 | `func (*Server).runStages(w http.ResponseWriter, r *http.Request)` | runStages returns detailed work-stage outcomes for the selected run. |
-| [`(*Server).runStageSummaries`](../src/server/corpus.go#L212) | method | 212-268 | `func (*Server).runStageSummaries(ctx context.Context, runID int64) ([]map[string]any, error)` | runStageSummaries returns aggregate outcome counts by pipeline stage. |
-| [`scopedRowsRequest`](../src/server/corpus.go#L271) | function | 271-305 | `func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string) (int, int, string, string, string, error)` | scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request. |
-| [`scopedWhere`](../src/server/corpus.go#L308) | function | 308-321 | `func scopedWhere(base, searchable string, runID int64, query string) (string, []any)` | scopedWhere builds the SQL predicate and arguments for a scoped corpus request. |
-| [`scopedPagination`](../src/server/corpus.go#L324) | function | 324-330 | `func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any` | scopedPagination returns validated page, page-size, offset, and limit values. |
-| [`(*Server).requireRun`](../src/server/corpus.go#L333) | method | 333-342 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
+| [`(*Server).runCorpus`](../src/server/corpus.go#L72) | method | 72-160 | `func (*Server).runCorpus(w http.ResponseWriter, r *http.Request)` | runCorpus returns one context-scoped corpus section for the selected run. |
+| [`corpusSelectColumns`](../src/server/corpus.go#L163) | function | 163-176 | `func corpusSelectColumns(kind string) string` | corpusSelectColumns returns the fixed safe projection for a browsable corpus section. |
+| [`(*Server).runStages`](../src/server/corpus.go#L179) | method | 179-235 | `func (*Server).runStages(w http.ResponseWriter, r *http.Request)` | runStages returns detailed work-stage outcomes for the selected run. |
+| [`(*Server).runStageSummaries`](../src/server/corpus.go#L238) | method | 238-294 | `func (*Server).runStageSummaries(ctx context.Context, runID int64) ([]map[string]any, error)` | runStageSummaries returns aggregate outcome counts by pipeline stage. |
+| [`scopedRowsRequest`](../src/server/corpus.go#L297) | function | 297-331 | `func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string) (int, int, string, string, string, error)` | scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request. |
+| [`scopedWhere`](../src/server/corpus.go#L334) | function | 334-347 | `func scopedWhere(base, searchable string, runID int64, query string) (string, []any)` | scopedWhere builds the SQL predicate and arguments for a scoped corpus request. |
+| [`scopedPagination`](../src/server/corpus.go#L350) | function | 350-356 | `func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any` | scopedPagination returns validated page, page-size, offset, and limit values. |
+| [`(*Server).requireRun`](../src/server/corpus.go#L359) | method | 359-368 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
 
 ### [`src/server/corpus_integration_test.go`](../src/server/corpus_integration_test.go)
 
@@ -1298,12 +1369,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Server).articleDetail`](../src/server/details.go#L24) | method | 24-112 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
-| [`(*Server).authorDetail`](../src/server/details.go#L115) | method | 115-176 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates. |
-| [`(*Server).referenceDetail`](../src/server/details.go#L179) | method | 179-215 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
-| [`(*Server).rows`](../src/server/details.go#L218) | method | 218-225 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
-| [`(*Server).oneRow`](../src/server/details.go#L228) | method | 228-237 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
-| [`stringID`](../src/server/details.go#L240) | function | 240 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
+| [`(*Server).articleDetail`](../src/server/details.go#L24) | method | 24-128 | `func (*Server).articleDetail(w http.ResponseWriter, r *http.Request)` | articleDetail treats the numeric route identifier as an immutable work revision ID. It intentionally does not expose the retired mutable articles projection. |
+| [`(*Server).authorDetail`](../src/server/details.go#L131) | method | 131-192 | `func (*Server).authorDetail(w http.ResponseWriter, r *http.Request)` | authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates. |
+| [`(*Server).referenceDetail`](../src/server/details.go#L195) | method | 195-231 | `func (*Server).referenceDetail(w http.ResponseWriter, r *http.Request)` | referenceDetail returns one reference mention with its citing and resolved-work context. |
+| [`(*Server).rows`](../src/server/details.go#L234) | method | 234-241 | `func (*Server).rows(ctx context.Context, query string, args ...any) ([]map[string]any, error)` | rows executes a read-only query and converts every result row to a field map. |
+| [`(*Server).oneRow`](../src/server/details.go#L244) | method | 244-253 | `func (*Server).oneRow(ctx context.Context, query string, args ...any) (map[string]any, error)` | oneRow returns the first mapped query row, or nil when the query returns no rows. |
+| [`stringID`](../src/server/details.go#L256) | function | 256 | `func stringID(id int64) string` | stringID formats a numeric database identifier in base 10. |
 
 ### [`src/server/details_integration_test.go`](../src/server/details_integration_test.go)
 
@@ -1332,8 +1403,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestGenerateFixture`](../src/server/fixture_integration_test.go#L28) | test | 28-542 | `func TestGenerateFixture(t *testing.T)` | TestGenerateFixture creates a workspace fixture database at src/server/testdata/workspace.fixture.db. It is used by the dev server and by Playwright tests. Run it with: cd src && FORCE_FIXTURE=1 go test ./server -run TestGenerateFixture -count=1 The FORCE_FIXTURE variable is required when the fixture already exists; the test skips automatically when the output file is present. |
-| [`sprintf`](../src/server/fixture_integration_test.go#L545) | function | 545-548 | `func sprintf(format string, args ...any) string` | sprintf is a convenience wrapper for fmt.Sprintf used in the fixture generator. |
+| [`TestGenerateFixture`](../src/server/fixture_integration_test.go#L31) | test | 31-552 | `func TestGenerateFixture(t *testing.T)` | TestGenerateFixture creates a workspace fixture database at src/server/testdata/workspace.fixture.db. It is used by the dev server and by Playwright tests. Run it with: cd src && FORCE_FIXTURE=1 go test ./server -run TestGenerateFixture -count=1 The FORCE_FIXTURE variable is required when the fixture already exists; the test skips automatically when the output file is present. |
+| [`populateFixtureTermMatches`](../src/server/fixture_integration_test.go#L557) | function | 557-614 | `func populateFixtureTermMatches(t *testing.T, db *database.Database, runID int64)` | populateFixtureTermMatches computes and stores the derived per-run term inventory and revision matches for one run through the same searchterms and TermMatches code paths the pipeline uses. |
+| [`fixtureKeywordArray`](../src/server/fixture_integration_test.go#L618) | function | 618-627 | `func fixtureKeywordArray(raw sql.NullString) []string` | fixtureKeywordArray decodes a stored keyword TEXT value into an array with a raw-text fallback, mirroring the pipeline's stored-value handling. |
+| [`sprintf`](../src/server/fixture_integration_test.go#L630) | function | 630-633 | `func sprintf(format string, args ...any) string` | sprintf is a convenience wrapper for fmt.Sprintf used in the fixture generator. |
 
 ### [`src/server/graph.go`](../src/server/graph.go)
 
@@ -1583,6 +1656,32 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestAPITableBrowserErrors`](../src/server/tables_integration_test.go#L15) | test | 15-32 | `func TestAPITableBrowserErrors(t *testing.T)` | TestAPITableBrowserErrors verifies api table browser errors. |
+
+### [`src/server/term_matches.go`](../src/server/term_matches.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Server).runSearchTerms`](../src/server/term_matches.go#L15) | method | 15-35 | `func (*Server).runSearchTerms(ctx context.Context, runID int64) ([]map[string]any, int64, error)` | runSearchTerms returns the stored term inventory for one run ordered by id, plus the distinct term count. It returns nil data when the run has no stored terms or the table is absent. |
+| [`(*Server).revisionTermMatches`](../src/server/term_matches.go#L38) | method | 38-53 | `func (*Server).revisionTermMatches(ctx context.Context, runID, revisionID int64) (map[string][]string, error)` | revisionTermMatches returns the per-field matched terms for one revision. |
+| [`(*Server).revisionTermMatchesBulk`](../src/server/term_matches.go#L57) | method | 57-92 | `func (*Server).revisionTermMatchesBulk(ctx context.Context, runID int64, revisionIDs []int64) (map[int64]map[string][]string, error)` | revisionTermMatchesBulk returns per-field matched terms for a page of revisions. It short-circuits when the revision list is empty. |
+| [`groupTermMatches`](../src/server/term_matches.go#L95) | function | 95-103 | `func groupTermMatches(items []map[string]any) map[string][]string` | groupTermMatches groups (field, term) rows into per-field term lists. |
+| [`detailTermMatches`](../src/server/term_matches.go#L108) | function | 108-148 | `func detailTermMatches(termRows []map[string]any, termTotal int64, revisionMatches map[string][]string) map[string]any` | detailTermMatches builds the full term-coverage payload for one revision, including per-term source attribution and the unmatched term list. It returns nil when the run has no stored terms. |
+| [`rowTermMatches`](../src/server/term_matches.go#L152) | function | 152-175 | `func rowTermMatches(termRows []map[string]any, termTotal int64, revisionMatches map[string][]string) map[string]any` | rowTermMatches builds the compact term-coverage payload for one corpus row. It returns nil when the run has no stored terms. |
+| [`matchedTermSet`](../src/server/term_matches.go#L178) | function | 178-186 | `func matchedTermSet(revisionMatches map[string][]string) map[string]bool` | matchedTermSet returns the distinct set of terms matched across all fields. |
+| [`emptyIfNil`](../src/server/term_matches.go#L189) | function | 189-194 | `func emptyIfNil(values []string) []string` | emptyIfNil returns an empty slice so JSON renders [] instead of null. |
+
+### [`src/server/term_matches_integration_test.go`](../src/server/term_matches_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`termMatchesFixture`](../src/server/term_matches_integration_test.go#L19) | struct | 19-26 | `type termMatchesFixture struct { server *Server runID int64 normalizedID int64 parseRevisionID int64 emptyRunID int64 emptyRevisionID int64 }` | termMatchesFixture is a viewer fixture with stored term data. |
+| [`newTermMatchesFixture`](../src/server/term_matches_integration_test.go#L29) | function | 29-109 | `func newTermMatchesFixture(t *testing.T) termMatchesFixture` | newTermMatchesFixture builds a viewer fixture with stored term data. |
+| [`TestArticleDetailTermMatches`](../src/server/term_matches_integration_test.go#L112) | test | 112-151 | `func TestArticleDetailTermMatches(t *testing.T)` | TestArticleDetailTermMatches verifies the stored term-coverage payload on article detail. |
+| [`TestArticleDetailTermMatchesNullForNonNormalize`](../src/server/term_matches_integration_test.go#L154) | test | 154-164 | `func TestArticleDetailTermMatchesNullForNonNormalize(t *testing.T)` | TestArticleDetailTermMatchesNullForNonNormalize verifies non-normalize revisions return null. |
+| [`TestArticleDetailTermMatchesNullForEmptyRun`](../src/server/term_matches_integration_test.go#L167) | test | 167-177 | `func TestArticleDetailTermMatchesNullForEmptyRun(t *testing.T)` | TestArticleDetailTermMatchesNullForEmptyRun verifies runs without stored data return null. |
+| [`TestRunCorpusArticlesTermMatches`](../src/server/term_matches_integration_test.go#L180) | test | 180-206 | `func TestRunCorpusArticlesTermMatches(t *testing.T)` | TestRunCorpusArticlesTermMatches verifies corpus rows carry the compact payload. |
+| [`TestRunCorpusArticlesTermMatchesNullForEmptyRun`](../src/server/term_matches_integration_test.go#L209) | test | 209-228 | `func TestRunCorpusArticlesTermMatchesNullForEmptyRun(t *testing.T)` | TestRunCorpusArticlesTermMatchesNullForEmptyRun verifies corpus rows for a run without stored data are null. |
+| [`TestTermMatchesGuardedReadsOnUnmigratedDatabase`](../src/server/term_matches_integration_test.go#L232) | test | 232-288 | `func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T)` | TestTermMatchesGuardedReadsOnUnmigratedDatabase verifies a database without the V00025 tables degrades to a null payload instead of failing. |
 
 ### [`src/something/api.go`](../src/something/api.go)
 
@@ -3143,48 +3242,48 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`databaseRegistryPath`](../src/workspace/store.go#L30) | function | 30-45 | `func databaseRegistryPath() string` | databaseRegistryPath returns the path to the database registry config at <repo-root>/config/database.something. It walks up from CWD looking for go.mod (src/go.mod), then goes one level up to find the config dir. |
-| [`RunPipeline`](../src/workspace/store.go#L49) | function | 49-289 | `func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (runErr error)` | RunPipeline is the immutable workspace pipeline. It does not use the deprecated mutable corpus repositories. |
-| [`normalizedInventoryWork`](../src/workspace/store.go#L292) | struct | 292-296 | `type normalizedInventoryWork struct { DOI string WorkID int64 PipelineRunID int64 }` | normalizedInventoryWork identifies a persisted normalized work for companion PDF registration. |
-| [`syncNormalizedPDFInventory`](../src/workspace/store.go#L301) | function | 301-360 | `func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error)` | syncNormalizedPDFInventory reconciles the companion inventory from the authoritative normalized revisions. It is safe to call after a new run or when a completed execution plan is reused. |
-| [`articlesWithFailedIdentityEvidence`](../src/workspace/store.go#L363) | function | 363-377 | `func articlesWithFailedIdentityEvidence(articles []*article.Article, evidence []uncertainORCIDSearchEvidence) []*article.Article` | articlesWithFailedIdentityEvidence selects articles whose identity provider search failed. |
-| [`resultCountComparison`](../src/workspace/store.go#L380) | function | 380-389 | `func resultCountComparison(expected, observed int) string` | resultCountComparison classifies an observed source count as below, above, or matching its expectation. |
-| [`loadWorkspaceEntries`](../src/workspace/store.go#L392) | function | 392-401 | `func loadWorkspaceEntries(fileType, path, source string) ([]map[string]string, error)` | loadWorkspaceEntries loads workspace entries from the supplied source. |
-| [`cloneStringMap`](../src/workspace/store.go#L404) | function | 404-410 | `func cloneStringMap(in map[string]string) map[string]string` | cloneStringMap clones string map into an independent value. |
-| [`persistWorkspaceStage`](../src/workspace/store.go#L413) | function | 413-437 | `func persistWorkspaceStage(db *database.Database, runID int64, articles []*article.Article, producerStage, stage, outcome string, reasons map[string][]string) (map[string]int64, map[string]int64, error)` | persistWorkspaceStage persists workspace stage through the owning repository. |
-| [`setWorkspaceStageOutcome`](../src/workspace/store.go#L440) | function | 440-454 | `func setWorkspaceStageOutcome(db *database.Database, runID int64, articles []*article.Article, stage, outcome, reason string) error` | setWorkspaceStageOutcome sets workspace stage outcome using the supplied values. |
-| [`setRunMetrics`](../src/workspace/store.go#L457) | function | 457-464 | `func setRunMetrics(db *database.Database, runID int64, metrics ...any) error` | setRunMetrics sets run metrics using the supplied values. |
-| [`recordWorkspaceStage`](../src/workspace/store.go#L467) | function | 467-498 | `func recordWorkspaceStage(db *database.Database, run *Run, runID int64, name string, input any, output any) error` | recordWorkspaceStage records workspace stage. |
-| [`persistWorkSnapshot`](../src/workspace/store.go#L501) | function | 501-542 | `func persistWorkSnapshot(db *database.Database, runID int64, a *article.Article, producerStage, extensionData string) (int64, int64, error)` | persistWorkSnapshot persists work snapshot through the owning repository. |
-| [`workspaceRevisionExtension`](../src/workspace/store.go#L545) | struct | 545-549 | ``type workspaceRevisionExtension struct { NormalizedJournal string `json:"normalized_journal,omitempty"` ValidationReasons []string `json:"validation_reasons,omitempty"` NormalizedAuthors map[string]string `json:"normalized_authors,omitempty"` }`` | workspaceRevisionExtension stores normalized values and validation evidence outside canonical revision columns. |
-| [`workspaceExtension`](../src/workspace/store.go#L552) | function | 552-561 | `func workspaceExtension(a *article.Article, reasons []string) string` | workspaceExtension serializes normalized journal, author names, and validation reasons for a revision. |
-| [`validateWorkspaceArticles`](../src/workspace/store.go#L564) | function | 564-576 | `func validateWorkspaceArticles(articles []*article.Article) (valid, discarded []*article.Article, reasons map[string][]string)` | validateWorkspaceArticles partitions articles by validation outcome and records discard reasons by DOI. |
-| [`normalizationFieldResult`](../src/workspace/store.go#L579) | struct | 579-583 | `type normalizationFieldResult struct { DOI string Field string Outcome string }` | normalizationFieldResult records one field's normalization outcome for an article DOI. |
-| [`normalizeWorkspaceArticles`](../src/workspace/store.go#L602) | function | 602-624 | `func normalizeWorkspaceArticles(articles []*article.Article) []normalizationFieldResult` | normalizeWorkspaceArticles applies each normalizer and records one outcome for every checked field. Journal normalization is retained in revision extension data, so its result is measured here but not assigned to Journal. |
-| [`normalizationResult`](../src/workspace/store.go#L627) | function | 627-635 | `func normalizationResult(doi, field, input, output string) normalizationFieldResult` | normalizationResult classifies a field as changed, already canonical, or unavailable. |
-| [`recordNormalizationMetrics`](../src/workspace/store.go#L641) | function | 641-670 | `func recordNormalizationMetrics(db *database.Database, runID int64, processedArticles int, results []normalizationFieldResult) error` | recordNormalizationMetrics stores mutually exclusive outcomes for each checked field. No per-field audit events are emitted: the immutable normalized revision already records the output, and the prior revision is retained as the corresponding input evidence. |
-| [`sumNormalizationOutcomes`](../src/workspace/store.go#L673) | function | 673-679 | `func sumNormalizationOutcomes(outcomes map[string]int) int` | sumNormalizationOutcomes totals the recognized mutually exclusive normalization outcomes. |
-| [`enrichWorkspaceMetadata`](../src/workspace/store.go#L684) | function | 684-717 | `func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, error)` | enrichWorkspaceMetadata applies article-level providers. Its output is persisted before identity enrichment so an ORCID provider failure cannot erase the metadata and authorship evidence already gathered for the run. |
-| [`enrichWorkspaceIdentity`](../src/workspace/store.go#L722) | function | 722-733 | `func enrichWorkspaceIdentity(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error)` | enrichWorkspaceIdentity applies exact observed-ORCID profiles and records name-search evidence. The caller persists this evidence against the prior enrich_metadata snapshot, including when this function returns an error. |
-| [`gatherCachedCrossref`](../src/workspace/store.go#L736) | function | 736-759 | `func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error)` | gatherCachedCrossref gathers cached crossref from the supplied inputs. |
-| [`gatherCachedOpenAlex`](../src/workspace/store.go#L762) | function | 762-803 | `func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error)` | gatherCachedOpenAlex gathers cached open alex from the supplied inputs. |
-| [`resolveCachedOpenAlexReferences`](../src/workspace/store.go#L806) | function | 806-845 | `func resolveCachedOpenAlexReferences(ctx context.Context, cache *workspaceCache, client *enrich.Client, source enrich.SourceConfig, refIDsByDOI map[string][]string) (map[string]enrich.EnrichedReference, error)` | resolveCachedOpenAlexReferences resolves cached open alex references from the supplied context. |
-| [`uncertainORCIDCandidate`](../src/workspace/store.go#L848) | struct | 848-854 | `type uncertainORCIDCandidate struct { ORCID string ProviderDisplay string QueryURL string PayloadArtifactID int64 ProviderRank int }` | uncertainORCIDCandidate stores one unconfirmed ORCID name-search result and its provenance. |
-| [`uncertainORCIDSearchEvidence`](../src/workspace/store.go#L857) | struct | 857-864 | `type uncertainORCIDSearchEvidence struct { DOI string AuthorIndex int CitationName string Candidates []uncertainORCIDCandidate Status string ErrorMessage string }` | uncertainORCIDSearchEvidence records candidate-search results or provider failure for one author occurrence. |
-| [`enrichCachedORCID`](../src/workspace/store.go#L867) | function | 867-927 | `func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, openAlexSource enrich.SourceConfig, hasOpenAlex bool, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error)` | enrichCachedORCID gathers confirmed ORCID records and uncertain name-search evidence through the workspace cache. |
-| [`recordAuthorFieldChanges`](../src/workspace/store.go#L932) | function | 932-956 | `func recordAuthorFieldChanges(authors []*article.Author, profile *enrich.EnrichedAuthor, authorDOI map[*article.Author]string) []fieldChange` | recordAuthorFieldChanges returns fieldChange entries for each author field that was filled by the given profile. It assumes applyAuthorProfile has already been called and the author fields are now populated. |
-| [`resolveCachedORCIDProfile`](../src/workspace/store.go#L959) | function | 959-987 | `func resolveCachedORCIDProfile(ctx context.Context, cache *workspaceCache, orcidSource enrich.SourceConfig, orcidClient *enrich.Client, openAlexSource enrich.SourceConfig, openAlexClient *enrich.Client, hasOpenAlex bool, orcid string) (*enrich.EnrichedAuthor, error)` | resolveCachedORCIDProfile resolves cached orcid profile from the supplied context. |
-| [`resolveCachedORCIDNameCandidates`](../src/workspace/store.go#L990) | function | 990-1020 | `func resolveCachedORCIDNameCandidates(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, client *enrich.Client, name string) ([]uncertainORCIDCandidate, error)` | resolveCachedORCIDNameCandidates resolves cached orcid name candidates from the supplied context. |
-| [`persistUncertainORCIDEvidence`](../src/workspace/store.go#L1023) | function | 1023-1063 | `func persistUncertainORCIDEvidence(db *database.Database, runID int64, revisionIDs map[string]int64, evidence []uncertainORCIDSearchEvidence) error` | persistUncertainORCIDEvidence persists uncertain orcid evidence through the owning repository. |
-| [`normalizeCacheName`](../src/workspace/store.go#L1066) | function | 1066-1068 | `func normalizeCacheName(name string) string` | normalizeCacheName normalizes cache name. |
-| [`applyAuthorProfile`](../src/workspace/store.go#L1071) | function | 1071-1096 | `func applyAuthorProfile(authors []*article.Author, profile *enrich.EnrichedAuthor, matchedORCID string) bool` | applyAuthorProfile applies author profile to the supplied state. |
-| [`fieldChange`](../src/workspace/store.go#L1099) | struct | 1099-1103 | `type fieldChange struct { DOI string Field string Provider string }` | fieldChange records one enriched field change for audit purposes. |
-| [`applyArticleEnrichment`](../src/workspace/store.go#L1106) | function | 1106-1156 | `func applyArticleEnrichment(articles map[string]*article.Article, result *enrich.GatherResult) (int, []fieldChange)` | applyArticleEnrichment applies article enrichment to the supplied state. |
-| [`usableEnrichedAuthors`](../src/workspace/store.go#L1159) | function | 1159-1172 | `func usableEnrichedAuthors(enriched []enrich.EnrichedAuthor) []article.Author` | usableEnrichedAuthors converts enriched authors that contain a non-empty citation name. |
-| [`applyConfiguredArticleEnrichment`](../src/workspace/store.go#L1175) | function | 1175-1180 | `func applyConfiguredArticleEnrichment(articles map[string]*article.Article, source enrich.SourceConfig, result *enrich.GatherResult) (int, []fieldChange)` | applyConfiguredArticleEnrichment applies configured article enrichment to the supplied state. |
-| [`emitFieldEnrichedAuditEvents`](../src/workspace/store.go#L1184) | function | 1184-1212 | `func emitFieldEnrichedAuditEvents(db *database.Database, runID int64, revisionIDs map[string]int64, changes []fieldChange) error` | emitFieldEnrichedAuditEvents records one field_enriched audit event per field change. revisionIDs maps DOI -> work_revision ID. |
-| [`recordFieldEnrichmentMetrics`](../src/workspace/store.go#L1218) | function | 1218-1242 | `func recordFieldEnrichmentMetrics(db *database.Database, runID int64, changes []fieldChange) error` | recordFieldEnrichmentMetrics records per-field and per-provider enrichment metrics to pipeline_run_metrics. Per-author-index fields (e.g. author_orcid_0, author_first_name_1) are aggregated into a single count per field type (author_orcid, author_first_name, etc.). |
-| [`completePipelineRun`](../src/workspace/store.go#L1245) | function | 1245-1251 | `func completePipelineRun(db *database.Database, runID int64) error` | completePipelineRun completes pipeline run and records its terminal state. |
-| [`recordValidationAudit`](../src/workspace/store.go#L1254) | function | 1254-1278 | `func recordValidationAudit(db *database.Database, runID int64, articles []*article.Article, reasons map[string][]string) error` | recordValidationAudit records validation audit. |
+| [`RunPipeline`](../src/workspace/store.go#L49) | function | 49-296 | `func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (runErr error)` | RunPipeline is the immutable workspace pipeline. It does not use the deprecated mutable corpus repositories. |
+| [`normalizedInventoryWork`](../src/workspace/store.go#L299) | struct | 299-303 | `type normalizedInventoryWork struct { DOI string WorkID int64 PipelineRunID int64 }` | normalizedInventoryWork identifies a persisted normalized work for companion PDF registration. |
+| [`syncNormalizedPDFInventory`](../src/workspace/store.go#L308) | function | 308-367 | `func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error)` | syncNormalizedPDFInventory reconciles the companion inventory from the authoritative normalized revisions. It is safe to call after a new run or when a completed execution plan is reused. |
+| [`articlesWithFailedIdentityEvidence`](../src/workspace/store.go#L370) | function | 370-384 | `func articlesWithFailedIdentityEvidence(articles []*article.Article, evidence []uncertainORCIDSearchEvidence) []*article.Article` | articlesWithFailedIdentityEvidence selects articles whose identity provider search failed. |
+| [`resultCountComparison`](../src/workspace/store.go#L387) | function | 387-396 | `func resultCountComparison(expected, observed int) string` | resultCountComparison classifies an observed source count as below, above, or matching its expectation. |
+| [`loadWorkspaceEntries`](../src/workspace/store.go#L399) | function | 399-408 | `func loadWorkspaceEntries(fileType, path, source string) ([]map[string]string, error)` | loadWorkspaceEntries loads workspace entries from the supplied source. |
+| [`cloneStringMap`](../src/workspace/store.go#L411) | function | 411-417 | `func cloneStringMap(in map[string]string) map[string]string` | cloneStringMap clones string map into an independent value. |
+| [`persistWorkspaceStage`](../src/workspace/store.go#L420) | function | 420-444 | `func persistWorkspaceStage(db *database.Database, runID int64, articles []*article.Article, producerStage, stage, outcome string, reasons map[string][]string) (map[string]int64, map[string]int64, error)` | persistWorkspaceStage persists workspace stage through the owning repository. |
+| [`setWorkspaceStageOutcome`](../src/workspace/store.go#L447) | function | 447-461 | `func setWorkspaceStageOutcome(db *database.Database, runID int64, articles []*article.Article, stage, outcome, reason string) error` | setWorkspaceStageOutcome sets workspace stage outcome using the supplied values. |
+| [`setRunMetrics`](../src/workspace/store.go#L464) | function | 464-471 | `func setRunMetrics(db *database.Database, runID int64, metrics ...any) error` | setRunMetrics sets run metrics using the supplied values. |
+| [`recordWorkspaceStage`](../src/workspace/store.go#L474) | function | 474-505 | `func recordWorkspaceStage(db *database.Database, run *Run, runID int64, name string, input any, output any) error` | recordWorkspaceStage records workspace stage. |
+| [`persistWorkSnapshot`](../src/workspace/store.go#L508) | function | 508-549 | `func persistWorkSnapshot(db *database.Database, runID int64, a *article.Article, producerStage, extensionData string) (int64, int64, error)` | persistWorkSnapshot persists work snapshot through the owning repository. |
+| [`workspaceRevisionExtension`](../src/workspace/store.go#L552) | struct | 552-556 | ``type workspaceRevisionExtension struct { NormalizedJournal string `json:"normalized_journal,omitempty"` ValidationReasons []string `json:"validation_reasons,omitempty"` NormalizedAuthors map[string]string `json:"normalized_authors,omitempty"` }`` | workspaceRevisionExtension stores normalized values and validation evidence outside canonical revision columns. |
+| [`workspaceExtension`](../src/workspace/store.go#L559) | function | 559-568 | `func workspaceExtension(a *article.Article, reasons []string) string` | workspaceExtension serializes normalized journal, author names, and validation reasons for a revision. |
+| [`validateWorkspaceArticles`](../src/workspace/store.go#L571) | function | 571-583 | `func validateWorkspaceArticles(articles []*article.Article) (valid, discarded []*article.Article, reasons map[string][]string)` | validateWorkspaceArticles partitions articles by validation outcome and records discard reasons by DOI. |
+| [`normalizationFieldResult`](../src/workspace/store.go#L586) | struct | 586-590 | `type normalizationFieldResult struct { DOI string Field string Outcome string }` | normalizationFieldResult records one field's normalization outcome for an article DOI. |
+| [`normalizeWorkspaceArticles`](../src/workspace/store.go#L609) | function | 609-631 | `func normalizeWorkspaceArticles(articles []*article.Article) []normalizationFieldResult` | normalizeWorkspaceArticles applies each normalizer and records one outcome for every checked field. Journal normalization is retained in revision extension data, so its result is measured here but not assigned to Journal. |
+| [`normalizationResult`](../src/workspace/store.go#L634) | function | 634-642 | `func normalizationResult(doi, field, input, output string) normalizationFieldResult` | normalizationResult classifies a field as changed, already canonical, or unavailable. |
+| [`recordNormalizationMetrics`](../src/workspace/store.go#L648) | function | 648-677 | `func recordNormalizationMetrics(db *database.Database, runID int64, processedArticles int, results []normalizationFieldResult) error` | recordNormalizationMetrics stores mutually exclusive outcomes for each checked field. No per-field audit events are emitted: the immutable normalized revision already records the output, and the prior revision is retained as the corresponding input evidence. |
+| [`sumNormalizationOutcomes`](../src/workspace/store.go#L680) | function | 680-686 | `func sumNormalizationOutcomes(outcomes map[string]int) int` | sumNormalizationOutcomes totals the recognized mutually exclusive normalization outcomes. |
+| [`enrichWorkspaceMetadata`](../src/workspace/store.go#L691) | function | 691-724 | `func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, error)` | enrichWorkspaceMetadata applies article-level providers. Its output is persisted before identity enrichment so an ORCID provider failure cannot erase the metadata and authorship evidence already gathered for the run. |
+| [`enrichWorkspaceIdentity`](../src/workspace/store.go#L729) | function | 729-740 | `func enrichWorkspaceIdentity(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error)` | enrichWorkspaceIdentity applies exact observed-ORCID profiles and records name-search evidence. The caller persists this evidence against the prior enrich_metadata snapshot, including when this function returns an error. |
+| [`gatherCachedCrossref`](../src/workspace/store.go#L743) | function | 743-766 | `func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error)` | gatherCachedCrossref gathers cached crossref from the supplied inputs. |
+| [`gatherCachedOpenAlex`](../src/workspace/store.go#L769) | function | 769-810 | `func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error)` | gatherCachedOpenAlex gathers cached open alex from the supplied inputs. |
+| [`resolveCachedOpenAlexReferences`](../src/workspace/store.go#L813) | function | 813-852 | `func resolveCachedOpenAlexReferences(ctx context.Context, cache *workspaceCache, client *enrich.Client, source enrich.SourceConfig, refIDsByDOI map[string][]string) (map[string]enrich.EnrichedReference, error)` | resolveCachedOpenAlexReferences resolves cached open alex references from the supplied context. |
+| [`uncertainORCIDCandidate`](../src/workspace/store.go#L855) | struct | 855-861 | `type uncertainORCIDCandidate struct { ORCID string ProviderDisplay string QueryURL string PayloadArtifactID int64 ProviderRank int }` | uncertainORCIDCandidate stores one unconfirmed ORCID name-search result and its provenance. |
+| [`uncertainORCIDSearchEvidence`](../src/workspace/store.go#L864) | struct | 864-871 | `type uncertainORCIDSearchEvidence struct { DOI string AuthorIndex int CitationName string Candidates []uncertainORCIDCandidate Status string ErrorMessage string }` | uncertainORCIDSearchEvidence records candidate-search results or provider failure for one author occurrence. |
+| [`enrichCachedORCID`](../src/workspace/store.go#L874) | function | 874-934 | `func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, openAlexSource enrich.SourceConfig, hasOpenAlex bool, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error)` | enrichCachedORCID gathers confirmed ORCID records and uncertain name-search evidence through the workspace cache. |
+| [`recordAuthorFieldChanges`](../src/workspace/store.go#L939) | function | 939-963 | `func recordAuthorFieldChanges(authors []*article.Author, profile *enrich.EnrichedAuthor, authorDOI map[*article.Author]string) []fieldChange` | recordAuthorFieldChanges returns fieldChange entries for each author field that was filled by the given profile. It assumes applyAuthorProfile has already been called and the author fields are now populated. |
+| [`resolveCachedORCIDProfile`](../src/workspace/store.go#L966) | function | 966-994 | `func resolveCachedORCIDProfile(ctx context.Context, cache *workspaceCache, orcidSource enrich.SourceConfig, orcidClient *enrich.Client, openAlexSource enrich.SourceConfig, openAlexClient *enrich.Client, hasOpenAlex bool, orcid string) (*enrich.EnrichedAuthor, error)` | resolveCachedORCIDProfile resolves cached orcid profile from the supplied context. |
+| [`resolveCachedORCIDNameCandidates`](../src/workspace/store.go#L997) | function | 997-1027 | `func resolveCachedORCIDNameCandidates(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, client *enrich.Client, name string) ([]uncertainORCIDCandidate, error)` | resolveCachedORCIDNameCandidates resolves cached orcid name candidates from the supplied context. |
+| [`persistUncertainORCIDEvidence`](../src/workspace/store.go#L1030) | function | 1030-1070 | `func persistUncertainORCIDEvidence(db *database.Database, runID int64, revisionIDs map[string]int64, evidence []uncertainORCIDSearchEvidence) error` | persistUncertainORCIDEvidence persists uncertain orcid evidence through the owning repository. |
+| [`normalizeCacheName`](../src/workspace/store.go#L1073) | function | 1073-1075 | `func normalizeCacheName(name string) string` | normalizeCacheName normalizes cache name. |
+| [`applyAuthorProfile`](../src/workspace/store.go#L1078) | function | 1078-1103 | `func applyAuthorProfile(authors []*article.Author, profile *enrich.EnrichedAuthor, matchedORCID string) bool` | applyAuthorProfile applies author profile to the supplied state. |
+| [`fieldChange`](../src/workspace/store.go#L1106) | struct | 1106-1110 | `type fieldChange struct { DOI string Field string Provider string }` | fieldChange records one enriched field change for audit purposes. |
+| [`applyArticleEnrichment`](../src/workspace/store.go#L1113) | function | 1113-1163 | `func applyArticleEnrichment(articles map[string]*article.Article, result *enrich.GatherResult) (int, []fieldChange)` | applyArticleEnrichment applies article enrichment to the supplied state. |
+| [`usableEnrichedAuthors`](../src/workspace/store.go#L1166) | function | 1166-1179 | `func usableEnrichedAuthors(enriched []enrich.EnrichedAuthor) []article.Author` | usableEnrichedAuthors converts enriched authors that contain a non-empty citation name. |
+| [`applyConfiguredArticleEnrichment`](../src/workspace/store.go#L1182) | function | 1182-1187 | `func applyConfiguredArticleEnrichment(articles map[string]*article.Article, source enrich.SourceConfig, result *enrich.GatherResult) (int, []fieldChange)` | applyConfiguredArticleEnrichment applies configured article enrichment to the supplied state. |
+| [`emitFieldEnrichedAuditEvents`](../src/workspace/store.go#L1191) | function | 1191-1219 | `func emitFieldEnrichedAuditEvents(db *database.Database, runID int64, revisionIDs map[string]int64, changes []fieldChange) error` | emitFieldEnrichedAuditEvents records one field_enriched audit event per field change. revisionIDs maps DOI -> work_revision ID. |
+| [`recordFieldEnrichmentMetrics`](../src/workspace/store.go#L1225) | function | 1225-1249 | `func recordFieldEnrichmentMetrics(db *database.Database, runID int64, changes []fieldChange) error` | recordFieldEnrichmentMetrics records per-field and per-provider enrichment metrics to pipeline_run_metrics. Per-author-index fields (e.g. author_orcid_0, author_first_name_1) are aggregated into a single count per field type (author_orcid, author_first_name, etc.). |
+| [`completePipelineRun`](../src/workspace/store.go#L1252) | function | 1252-1258 | `func completePipelineRun(db *database.Database, runID int64) error` | completePipelineRun completes pipeline run and records its terminal state. |
+| [`recordValidationAudit`](../src/workspace/store.go#L1261) | function | 1261-1285 | `func recordValidationAudit(db *database.Database, runID int64, articles []*article.Article, reasons map[string][]string) error` | recordValidationAudit records validation audit. |
 
 ### [`src/workspace/store_integration_test.go`](../src/workspace/store_integration_test.go)
 
@@ -3222,6 +3321,28 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`loadCSVEntries`](../src/workspace/support.go#L354) | function | 354-389 | `func loadCSVEntries(path, source string) ([]map[string]string, error)` | loadCSVEntries loads csv entries from the supplied source. |
 | [`loadBibEntries`](../src/workspace/support.go#L392) | function | 392-414 | `func loadBibEntries(path, source string) ([]map[string]string, error)` | loadBibEntries loads bib entries from the supplied source. |
 
+### [`src/workspace/term_matches.go`](../src/workspace/term_matches.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`computeRunTermMatches`](../src/workspace/term_matches.go#L19) | function | 19-43 | `func computeRunTermMatches(run *Run, articles []*article.Article, revisionIDs map[string]int64) (map[string][]string, map[int64]map[string][]string)` | computeRunTermMatches derives the per-source term inventory and per-revision field matches for the valid articles of one run. revisionIDs maps each article DOI to its persisted normalize revision ID. |
+| [`hasAnyMatch`](../src/workspace/term_matches.go#L46) | function | 46-53 | `func hasAnyMatch(fields map[string][]string) bool` | hasAnyMatch reports whether any field has at least one matched term. |
+| [`persistRunTermMatches`](../src/workspace/term_matches.go#L56) | function | 56-61 | `func persistRunTermMatches(db *database.Database, runID int64, termsBySource map[string][]string, matches map[int64]map[string][]string) error` | persistRunTermMatches stores the term inventory and revision matches for one run. |
+| [`reconcileStoredTermMatchesBestEffort`](../src/workspace/term_matches.go#L66) | function | 66-70 | `func reconcileStoredTermMatchesBestEffort(db *database.Database)` | reconcileStoredTermMatchesBestEffort runs the reconciliation pass and logs failures without propagating them, so a backfill problem never fails the run or the invocation. |
+| [`reconcileStoredTermMatches`](../src/workspace/term_matches.go#L75) | function | 75-119 | `func reconcileStoredTermMatches(db *database.Database) error` | reconcileStoredTermMatches backfills term data for every completed run that lacks stored match rows. It reads only stored queries and normalize revisions and never reruns pipeline stages. |
+| [`computeStoredRunTermMatches`](../src/workspace/term_matches.go#L122) | function | 122-162 | `func computeStoredRunTermMatches(db *database.Database, runID int64) (map[string][]string, map[int64]map[string][]string, error)` | computeStoredRunTermMatches derives term data for one run from stored rows. |
+| [`parseKeywordArray`](../src/workspace/term_matches.go#L167) | function | 167-176 | `func parseKeywordArray(raw sql.NullString) []string` | parseKeywordArray decodes a stored keyword TEXT value into an array. JSON arrays are used when present; JSON null and empty values become empty arrays; otherwise the raw text is treated as a single element. |
+
+### [`src/workspace/term_matches_integration_test.go`](../src/workspace/term_matches_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestComputeAndPersistRunTermMatches`](../src/workspace/term_matches_integration_test.go#L19) | test | 19-91 | `func TestComputeAndPersistRunTermMatches(t *testing.T)` | TestComputeAndPersistRunTermMatches verifies the new-run computation and persistence. |
+| [`TestReconcileStoredTermMatchesBackfills`](../src/workspace/term_matches_integration_test.go#L95) | test | 95-177 | `func TestReconcileStoredTermMatchesBackfills(t *testing.T)` | TestReconcileStoredTermMatchesBackfills verifies the reuse-path backfill including the keyword raw-text fallback and JSON-null treatment. |
+| [`TestReconcileStoredTermMatchesNullQueries`](../src/workspace/term_matches_integration_test.go#L180) | test | 180-206 | `func TestReconcileStoredTermMatchesNullQueries(t *testing.T)` | TestReconcileStoredTermMatchesNullQueries verifies runs with NULL queries produce no rows and no error. |
+| [`TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms`](../src/workspace/term_matches_integration_test.go#L210) | test | 210-243 | `func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T)` | TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms verifies a run with queries but no normalize revisions still receives its term inventory. |
+| [`TestReconcileStoredTermMatchesBestEffortLogsFailure`](../src/workspace/term_matches_integration_test.go#L247) | test | 247-267 | `func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T)` | TestReconcileStoredTermMatchesBestEffortLogsFailure verifies a reconciliation failure is contained by the best-effort wrapper and does not panic. |
+
 ## JavaScript declarations
 
 ### [`frontend/scripts/build.mjs`](../frontend/scripts/build.mjs)
@@ -3256,35 +3377,35 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`endpoint`](../frontend/src/api.tsx#L5) | function | 5 | `function endpoint(path: string, query: Record<string, any> = {})` | Builds an API path and query string from supplied values. |
-| [`APIError`](../frontend/src/api.tsx#L33) | class | 33 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
-| [`APIError.constructor`](../frontend/src/api.tsx#L39) | method | 39 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
-| [`api`](../frontend/src/api.tsx#L50) | function | 50 | `async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions)` | Fetches and decodes one JSON API response. |
+| [`APIError`](../frontend/src/api.tsx#L32) | class | 32 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../frontend/src/api.tsx#L38) | method | 38 | `constructor(message: string, status: number, code?: string, details?: any)` | Initializes one structured API error returned by a non-successful response. |
+| [`api`](../frontend/src/api.tsx#L49) | function | 49 | `async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions)` | Fetches and decodes one JSON API response. |
 | [`mutate`](../frontend/src/api.tsx#L75) | function | 75 | `function mutate(path: string, method: string, body: any)` | Sends a same-origin JSON mutation and returns its decoded response. |
-| [`tables`](../frontend/src/api.tsx#L84) | function | 84 | `async function tables()` | Loads and caches the discovered database table list. |
+| [`tables`](../frontend/src/api.tsx#L87) | function | 87 | `async function tables()` | Loads and caches the discovered database table list. |
 
 ### [`frontend/src/components/audit-events.tsx`](../frontend/src/components/audit-events.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`auditCategory`](../frontend/src/components/audit-events.tsx#L25) | function | 25 | `function auditCategory(event: AuditEventRecord)` | Classifies an audit event into its presentation category. |
-| [`eventMetadata`](../frontend/src/components/audit-events.tsx#L43) | function | 43 | `function eventMetadata(event: AuditEventRecord)` | Parses an audit event's stored metadata object. |
-| [`auditOutcome`](../frontend/src/components/audit-events.tsx#L48) | function | 48 | `function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>)` | Derives the display outcome from recorded metadata and action semantics. |
-| [`AuditEntity`](../frontend/src/components/audit-events.tsx#L67) | function | 67 | `function AuditEntity(props: { event: AuditEventRecord })` | Renders a context-preserving link or label for the affected audit entity. |
-| [`eventSummary`](../frontend/src/components/audit-events.tsx#L88) | function | 88 | `function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>)` | Returns a concise human-readable summary of an audit event. |
+| [`eventMetadata`](../frontend/src/components/audit-events.tsx#L39) | function | 39 | `function eventMetadata(event: AuditEventRecord)` | Parses an audit event's stored metadata object. |
+| [`auditOutcome`](../frontend/src/components/audit-events.tsx#L44) | function | 44 | `function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>)` | Derives the display outcome from recorded metadata and action semantics. |
+| [`AuditEntity`](../frontend/src/components/audit-events.tsx#L55) | function | 55 | `function AuditEntity(props: { event: AuditEventRecord })` | Renders a context-preserving link or label for the affected audit entity. |
+| [`eventSummary`](../frontend/src/components/audit-events.tsx#L89) | function | 89 | `function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>)` | Returns a concise human-readable summary of an audit event. |
 | [`ReviewDecisionState`](../frontend/src/components/audit-events.tsx#L128) | function | 128 | `function ReviewDecisionState(props: { label: string; state: Record<string, any> })` | Renders one complete previous or new review-decision state. |
-| [`ReviewDecisionChange`](../frontend/src/components/audit-events.tsx#L143) | function | 143 | `function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> })` | Renders the visible before-and-after decision comparison for review audit events. |
-| [`additionalMetadata`](../frontend/src/components/audit-events.tsx#L154) | function | 154 | `function additionalMetadata(metadata: Record<string, any>)` | Returns metadata fields not already represented in the primary event presentation. |
-| [`safeAuditPayload`](../frontend/src/components/audit-events.tsx#L167) | function | 167 | `function safeAuditPayload(raw: any)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
-| [`EventDetails`](../frontend/src/components/audit-events.tsx#L179) | function | 179 | `function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> })` | Renders expandable facts and JSON payloads for an audit event. |
-| [`AuditEventMarkup`](../frontend/src/components/audit-events.tsx#L215) | function | 215 | `function AuditEventMarkup(props: { event: AuditEventRecord })` | Renders the complete escaped markup for one audit event. |
-| [`auditEventMarkup`](../frontend/src/components/audit-events.tsx#L251) | function | 251 | `function auditEventMarkup(event: AuditEventRecord)` | Returns the complete escaped markup for one audit event. |
-| [`AuditStream`](../frontend/src/components/audit-events.tsx#L256) | function | 256 | `function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string })` | Renders audit events grouped by local date as a timeline. |
-| [`auditStream`](../frontend/src/components/audit-events.tsx#L295) | function | 295 | `function auditStream(events: AuditEventRecord[], emptyMessage?: string)` | Groups audit events by local date and returns timeline markup. |
-| [`RecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L300) | function | 300 | `function RecordAuditInvestigation(props: { events: AuditEventRecord[] })` | Renders the record audit investigation controls and initial event batch. |
-| [`recordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L326) | function | 326 | `function recordAuditInvestigation(events: AuditEventRecord[])` | Records audit investigation. |
-| [`bindRecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L331) | function | 331 | `function bindRecordAuditInvestigation(events: AuditEventRecord[])` | Binds DOM behavior for record audit investigation. |
-| [`apply`](../frontend/src/components/audit-events.tsx#L342) | function | 342 | `function apply()` | Applies the associated state. |
-| [`resetAndApply`](../frontend/src/components/audit-events.tsx#L363) | function | 363 | `function resetAndApply()` | Resets and apply. |
+| [`ReviewDecisionChange`](../frontend/src/components/audit-events.tsx#L162) | function | 162 | `function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> })` | Renders the visible before-and-after decision comparison for review audit events. |
+| [`additionalMetadata`](../frontend/src/components/audit-events.tsx#L173) | function | 173 | `function additionalMetadata(metadata: Record<string, any>)` | Returns metadata fields not already represented in the primary event presentation. |
+| [`safeAuditPayload`](../frontend/src/components/audit-events.tsx#L187) | function | 187 | `function safeAuditPayload(raw: any)` | Removes review prose and reviewer contact fields from generic audit payload inspection. |
+| [`EventDetails`](../frontend/src/components/audit-events.tsx#L201) | function | 201 | `function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> })` | Renders expandable facts and JSON payloads for an audit event. |
+| [`AuditEventMarkup`](../frontend/src/components/audit-events.tsx#L259) | function | 259 | `function AuditEventMarkup(props: { event: AuditEventRecord })` | Renders the complete escaped markup for one audit event. |
+| [`auditEventMarkup`](../frontend/src/components/audit-events.tsx#L307) | function | 307 | `function auditEventMarkup(event: AuditEventRecord)` | Returns the complete escaped markup for one audit event. |
+| [`AuditStream`](../frontend/src/components/audit-events.tsx#L313) | function | 313 | `function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string })` | Renders audit events grouped by local date as a timeline. |
+| [`auditStream`](../frontend/src/components/audit-events.tsx#L350) | function | 350 | `function auditStream(events: AuditEventRecord[], emptyMessage?: string)` | Groups audit events by local date and returns timeline markup. |
+| [`RecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L356) | function | 356 | `function RecordAuditInvestigation(props: { events: AuditEventRecord[] })` | Renders the record audit investigation controls and initial event batch. |
+| [`recordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L405) | function | 405 | `function recordAuditInvestigation(events: AuditEventRecord[])` | Records audit investigation. |
+| [`bindRecordAuditInvestigation`](../frontend/src/components/audit-events.tsx#L411) | function | 411 | `function bindRecordAuditInvestigation(events: AuditEventRecord[])` | Binds DOM behavior for record audit investigation. |
+| [`apply`](../frontend/src/components/audit-events.tsx#L423) | function | 423 | `function apply()` | Applies the current filter controls to the visible event batch. |
+| [`resetAndApply`](../frontend/src/components/audit-events.tsx#L446) | function | 446 | `function resetAndApply()` | Resets the visible batch limit and reapplies the filters. |
 
 ### [`frontend/src/components/context-selector.tsx`](../frontend/src/components/context-selector.tsx)
 
@@ -3293,25 +3414,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`closeDropdown`](../frontend/src/components/context-selector.tsx#L33) | function | 33 | `function closeDropdown(key: string)` | Closes one searchable context selector and restores its full option list. |
 | [`optionLabel`](../frontend/src/components/context-selector.tsx#L43) | function | 43 | `function optionLabel(option: HTMLOptionElement)` | Returns the human-readable label for one native select option. |
 | [`renderDropdownOptions`](../frontend/src/components/context-selector.tsx#L48) | function | 48 | `function renderDropdownOptions(key: string, query: string)` | Renders the filtered listbox for one searchable context selector. |
-| [`syncDropdown`](../frontend/src/components/context-selector.tsx#L72) | function | 72 | `function syncDropdown(key: string)` | Synchronizes the custom selector presentation with its native select source. |
-| [`initializeDropdown`](../frontend/src/components/context-selector.tsx#L91) | function | 91 | `function initializeDropdown(key: string)` | Initializes one keyboard-operable searchable selector around its native select. |
-| [`showLoading`](../frontend/src/components/context-selector.tsx#L170) | function | 170 | `function showLoading(key: string)` | Shows one local selector-loading state without replacing the current page. |
-| [`showDropdownError`](../frontend/src/components/context-selector.tsx#L180) | function | 180 | `function showDropdownError(key: string, message: string)` | Shows an inline loading failure beside one context selector. |
-| [`hideDropdownError`](../frontend/src/components/context-selector.tsx#L192) | function | 192 | `function hideDropdownError(key: string)` | Removes an inline loading failure from one context selector. |
-| [`selectOptions`](../frontend/src/components/context-selector.tsx#L197) | function | 197 | `function selectOptions(select: HTMLSelectElement, items: any[], selected: string, label: string, labelFn?: (item: any) => string)` | Populates one native select and synchronizes its searchable presentation. |
-| [`hydrateSelectors`](../frontend/src/components/context-selector.tsx#L218) | function | 218 | `async function hydrateSelectors()` | Loads the context hierarchy required by the currently selected URL values. |
+| [`syncDropdown`](../frontend/src/components/context-selector.tsx#L77) | function | 77 | `function syncDropdown(key: string)` | Synchronizes the custom selector presentation with its native select source. |
+| [`initializeDropdown`](../frontend/src/components/context-selector.tsx#L96) | function | 96 | `function initializeDropdown(key: string)` | Initializes one keyboard-operable searchable selector around its native select. |
+| [`showLoading`](../frontend/src/components/context-selector.tsx#L176) | function | 176 | `function showLoading(key: string)` | Shows one local selector-loading state without replacing the current page. |
+| [`showDropdownError`](../frontend/src/components/context-selector.tsx#L186) | function | 186 | `function showDropdownError(key: string, message: string)` | Shows an inline loading failure beside one context selector. |
+| [`hideDropdownError`](../frontend/src/components/context-selector.tsx#L198) | function | 198 | `function hideDropdownError(key: string)` | Removes an inline loading failure from one context selector. |
+| [`selectOptions`](../frontend/src/components/context-selector.tsx#L204) | function | 204 | `function selectOptions(select: HTMLSelectElement, items: any[], selected: string, label: string, labelFn?: (item: any) => string)` | Populates one native select and synchronizes its searchable presentation. |
+| [`hydrateSelectors`](../frontend/src/components/context-selector.tsx#L227) | function | 227 | `async function hydrateSelectors()` | Loads the context hierarchy required by the currently selected URL values. |
 
 ### [`frontend/src/components/data-table.tsx`](../frontend/src/components/data-table.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`rowFilter`](../frontend/src/components/data-table.tsx#L8) | function | 8 | `function rowFilter(rows: any[], query: string)` | Returns whether a row contains the case-insensitive filter text. |
-| [`scrollTableIntoView`](../frontend/src/components/data-table.tsx#L21) | function | 21 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
-| [`DataTable`](../frontend/src/components/data-table.tsx#L54) | function | 54 | `function DataTable(props: { tableName: string; result: any; context?: DataTableContext })` | Renders and binds a filterable, sortable, paginated in-memory data table. |
-| [`dataTable`](../frontend/src/components/data-table.tsx#L211) | function | 211 | `function dataTable(tableName: string, result: any, context?: DataTableContext)` | Renders and binds a filterable, sortable, paginated in-memory data table. |
-| [`bindTableControls`](../frontend/src/components/data-table.tsx#L216) | function | 216 | `function bindTableControls(tableName: string, page: number, context?: DataTableContext)` | Binds DOM behavior for table controls. |
-| [`updates`](../frontend/src/components/data-table.tsx#L229) | function | 229 | `function updates(values: Record<string, any>)` | Updates s. |
-| [`handleExpandToggle`](../frontend/src/components/data-table.tsx#L301) | function | 301 | `function handleExpandToggle(event: Event)` | Handles expand toggle. |
+| [`scrollTableIntoView`](../frontend/src/components/data-table.tsx#L19) | function | 19 | `function scrollTableIntoView()` | Moves focus and scroll position to the table region when available. |
+| [`DataTable`](../frontend/src/components/data-table.tsx#L50) | function | 50 | `function DataTable(props: { tableName: string; result: any; context?: DataTableContext })` | Renders and binds a filterable, sortable, paginated in-memory data table. |
+| [`dataTable`](../frontend/src/components/data-table.tsx#L241) | function | 241 | `function dataTable(tableName: string, result: any, context?: DataTableContext)` | Renders a data table to an HTML string. |
+| [`bindTableControls`](../frontend/src/components/data-table.tsx#L247) | function | 247 | `function bindTableControls(tableName: string, page: number, context?: DataTableContext)` | Binds DOM behavior for table controls. |
+| [`updates`](../frontend/src/components/data-table.tsx#L258) | function | 258 | `function updates(values: Record<string, any>)` | Maps context key names to their URL query parameter names. |
+| [`handleExpandToggle`](../frontend/src/components/data-table.tsx#L350) | function | 350 | `function handleExpandToggle(event: Event)` | Handles expand toggle. |
 
 ### [`frontend/src/components/graph.tsx`](../frontend/src/components/graph.tsx)
 
@@ -3319,48 +3440,51 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`GraphField`](../frontend/src/components/graph.tsx#L65) | function | 65 | `function GraphField(props: { name: string; label: string; type?: string })` | Renders an escaped graph-filter input with its current URL value. |
 | [`graphField`](../frontend/src/components/graph.tsx#L76) | function | 76 | `function graphField(name: string, label: string, type?: string)` | Returns an escaped graph-filter input with its current URL value. |
-| [`graphQuery`](../frontend/src/components/graph.tsx#L81) | function | 81 | `function graphQuery()` | Returns the current graph-filter values keyed by query parameter. |
-| [`graphLink`](../frontend/src/components/graph.tsx#L90) | function | 90 | `function graphLink(node: GraphNode)` | Returns a context-preserving detail link for a graph node when one exists. |
-| [`endpointID`](../frontend/src/components/graph.tsx#L104) | function | 104 | `function endpointID(endpoint: string \| number \| GraphNode)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
-| [`graphClusters`](../frontend/src/components/graph.tsx#L112) | function | 112 | `function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[])` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
-| [`GraphResult`](../frontend/src/components/graph.tsx#L151) | function | 151 | `function GraphResult(props: { data: any })` | Renders the interactive graph viewport, legend, and relationship table. |
-| [`graphResult`](../frontend/src/components/graph.tsx#L242) | function | 242 | `function graphResult(data: any)` | Returns the graph result markup for the relationships view. |
-| [`nodeSize`](../frontend/src/components/graph.tsx#L247) | function | 247 | `function nodeSize(node: GraphNode, degree: number, maxDegree: number)` | Calculates a node radius from entity type and visible degree. |
-| [`hash`](../frontend/src/components/graph.tsx#L264) | function | 264 | `function hash(value: any)` | Returns a deterministic unsigned hash for stable graph placement. |
-| [`palette`](../frontend/src/components/graph.tsx#L273) | function | 273 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
-| [`get`](../frontend/src/components/graph.tsx#L276) | function | 276 | `function get(name: string, fallback: string)` | Returns the associated state. |
-| [`drawDiamond`](../frontend/src/components/graph.tsx#L297) | function | 297 | `function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws diamond. |
-| [`drawTriangle`](../frontend/src/components/graph.tsx#L307) | function | 307 | `function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws triangle. |
-| [`relationshipLabel`](../frontend/src/components/graph.tsx#L316) | function | 316 | `function relationshipLabel(edge: GraphEdge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
-| [`destroyGraph`](../frontend/src/components/graph.tsx#L343) | function | 343 | `function destroyGraph()` | Destroys graph. |
-| [`mountGraph`](../frontend/src/components/graph.tsx#L360) | function | 360 | `function mountGraph(data: any)` | Mounts graph. |
-| [`resize`](../frontend/src/components/graph.tsx#L488) | function | 488 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
-| [`graphBounds`](../frontend/src/components/graph.tsx#L508) | function | 508 | `function graphBounds(nodes: GraphNode[])` | Returns the radius-aware world-coordinate bounds of graph nodes. |
-| [`clusterOverview`](../frontend/src/components/graph.tsx#L523) | function | 523 | `function clusterOverview(nodes: GraphNode[])` | Returns connected-cluster sizes ordered from largest to smallest. |
-| [`drawClusterOverview`](../frontend/src/components/graph.tsx#L536) | function | 536 | `function drawClusterOverview(context: CanvasRenderingContext2D, clusters: ClusterSummary[], colors: ReturnType<typeof palette>, width: number, height: number, offset: { x: number; y: number }, legendInset: number)` | Draws cluster overview. |
-| [`fitGraph`](../frontend/src/components/graph.tsx#L577) | function | 577 | `function fitGraph(graph: GraphState)` | Adjusts the graph transform to fit all node bounds in the canvas. |
-| [`runLayout`](../frontend/src/components/graph.tsx#L594) | function | 594 | `function runLayout(graph: GraphState, status: HTMLElement \| null)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
-| [`next`](../frontend/src/components/graph.tsx#L617) | function | 617 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
-| [`draw`](../frontend/src/components/graph.tsx#L651) | function | 651 | `function draw(graph: GraphState)` | Draws the associated state. |
-| [`drawArrow`](../frontend/src/components/graph.tsx#L838) | function | 838 | `function drawArrow(context: CanvasRenderingContext2D, source: GraphNode, target: GraphNode, radius: number, color: string)` | Draws arrow. |
-| [`graphCoordinates`](../frontend/src/components/graph.tsx#L852) | function | 852 | `function graphCoordinates(graph: GraphState, event: MouseEvent)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
-| [`zoomViewAt`](../frontend/src/components/graph.tsx#L861) | function | 861 | `function zoomViewAt(view: { x: number; y: number; scale: number }, screenPoint: { x: number; y: number }, nextScale: number)` | Returns a zoom transform that keeps the selected screen point stationary. |
-| [`nearestOverviewCluster`](../frontend/src/components/graph.tsx#L872) | function | 872 | `function nearestOverviewCluster(graph: GraphState, event: MouseEvent)` | Returns the overview cluster hit by a pointer event, when any. |
-| [`focusCluster`](../frontend/src/components/graph.tsx#L882) | function | 882 | `function focusCluster(graph: GraphState, clusterID: number)` | Focuses cluster. |
-| [`buildSpatialIndex`](../frontend/src/components/graph.tsx#L898) | function | 898 | `function buildSpatialIndex(nodes: GraphNode[])` | Builds spatial index. |
-| [`nearbyNodes`](../frontend/src/components/graph.tsx#L912) | function | 912 | `function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> }, point: { x: number; y: number })` | Returns nodes in the spatial-index cell surrounding a graph point. |
-| [`nearestNode`](../frontend/src/components/graph.tsx#L928) | function | 928 | `function nearestNode(graph: GraphState, point: { x: number; y: number })` | Returns the closest selectable node within its hit radius. |
-| [`bindInteractions`](../frontend/src/components/graph.tsx#L952) | function | 952 | `function bindInteractions(graph: GraphState, status: HTMLElement \| null, selectionPanel: HTMLElement \| null, zoomIndicator: HTMLElement \| null)` | Binds DOM behavior for interactions. |
-| [`setSelection`](../frontend/src/components/graph.tsx#L957) | function | 957 | `function setSelection(id: string \| number \| null)` | Sets selection. |
-| [`updateZoomDisplay`](../frontend/src/components/graph.tsx#L985) | function | 985 | `function updateZoomDisplay()` | Updates zoom display. |
-| [`bindGraphSearch`](../frontend/src/components/graph.tsx#L1152) | function | 1152 | `function bindGraphSearch(graph: GraphState)` | Bind graph node search — highlights matching nodes by name/DOI. |
-| [`bindGraphExport`](../frontend/src/components/graph.tsx#L1165) | function | 1165 | `function bindGraphExport(graph: GraphState, data: any)` | Bind graph export as PNG — downloads the canvas as a PNG image. |
-| [`bindGraphExpand`](../frontend/src/components/graph.tsx#L1186) | function | 1186 | `function bindGraphExpand(graph: GraphState)` | Binds DOM behavior for graph expand. |
-| [`updateLabel`](../frontend/src/components/graph.tsx#L1195) | function | 1195 | `function updateLabel()` | Updates label. |
-| [`SelectionMarkup`](../frontend/src/components/graph.tsx#L1227) | function | 1227 | `function SelectionMarkup(props: { node: GraphNode \| undefined; neighbours: number })` | Renders the selected-node inspection panel. |
-| [`NodeMarkup`](../frontend/src/components/graph.tsx#L1262) | function | 1262 | `function NodeMarkup(props: { node: GraphNode })` | Renders a linked or plain label for a graph node. |
-| [`renderEdgePage`](../frontend/src/components/graph.tsx#L1272) | function | 1272 | `function renderEdgePage(graph: GraphState)` | Renders edge page. |
-| [`edgeDetails`](../frontend/src/components/graph.tsx#L1322) | function | 1322 | `function edgeDetails(edge: GraphEdge)` | Returns relationship-specific details for a graph edge row. |
+| [`graphQuery`](../frontend/src/components/graph.tsx#L82) | function | 82 | `function graphQuery()` | Returns the current graph-filter values keyed by query parameter. |
+| [`graphLink`](../frontend/src/components/graph.tsx#L91) | function | 91 | `function graphLink(node: GraphNode)` | Returns a context-preserving detail link for a graph node when one exists. |
+| [`endpointID`](../frontend/src/components/graph.tsx#L114) | function | 114 | `function endpointID(endpoint: string \| number \| GraphNode)` | Returns an edge endpoint identifier from either an identifier or resolved node object. |
+| [`graphClusters`](../frontend/src/components/graph.tsx#L120) | function | 120 | `function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[])` | Finds deterministic connected components and maps graph nodes to cluster identifiers. |
+| [`legendEntry`](../frontend/src/components/graph.tsx#L161) | function | 161 | `function legendEntry(markClass: string, label: string)` | Renders one legend entry with a colored mark and its label. |
+| [`GraphResult`](../frontend/src/components/graph.tsx#L171) | function | 171 | `function GraphResult(props: { data: any })` | Renders the interactive graph viewport, legend, and relationship table. |
+| [`graphResult`](../frontend/src/components/graph.tsx#L288) | function | 288 | `function graphResult(data: any)` | Returns the graph result markup for the relationships view. |
+| [`nodeSize`](../frontend/src/components/graph.tsx#L294) | function | 294 | `function nodeSize(node: GraphNode, degree: number, maxDegree: number)` | Calculates a node radius from entity type and visible degree. |
+| [`hash`](../frontend/src/components/graph.tsx#L306) | function | 306 | `function hash(value: any)` | Returns a deterministic unsigned hash for stable graph placement. |
+| [`palette`](../frontend/src/components/graph.tsx#L315) | function | 315 | `function palette()` | Reads graph colors from active CSS custom properties with safe fallbacks. |
+| [`get`](../frontend/src/components/graph.tsx#L318) | function | 318 | `function get(name: string, fallback: string)` | Returns a CSS custom property value with a fallback. |
+| [`drawDiamond`](../frontend/src/components/graph.tsx#L339) | function | 339 | `function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a diamond path for reference nodes. |
+| [`drawTriangle`](../frontend/src/components/graph.tsx#L349) | function | 349 | `function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, radius: number)` | Draws a triangle path for referenced-author nodes. |
+| [`relationshipLabel`](../frontend/src/components/graph.tsx#L358) | function | 358 | `function relationshipLabel(edge: GraphEdge)` | Returns the user-facing label for a graph edge type and its relevant metadata. |
+| [`destroyGraph`](../frontend/src/components/graph.tsx#L383) | function | 383 | `function destroyGraph()` | Destroys the active graph simulation, observers, and animation frame. |
+| [`layoutNode`](../frontend/src/components/graph.tsx#L398) | function | 398 | `function layoutNode(node: GraphNode, clusters: { byID: Map<string \| number, number>; components: ClusterSummary[] }, degree: Map<string \| number, number>, maxDegree: number)` | Resolves one node's initial layout position and cluster metadata. |
+| [`mountGraph`](../frontend/src/components/graph.tsx#L416) | function | 416 | `function mountGraph(data: any)` | Mounts the interactive graph viewport and its force-layout simulation. |
+| [`resize`](../frontend/src/components/graph.tsx#L555) | function | 555 | `function resize()` | Resizes the backing canvas for its layout size and device pixel ratio. |
+| [`graphBounds`](../frontend/src/components/graph.tsx#L575) | function | 575 | `function graphBounds(nodes: GraphNode[])` | Returns the radius-aware world-coordinate bounds of graph nodes. |
+| [`clusterOverview`](../frontend/src/components/graph.tsx#L601) | function | 601 | `function clusterOverview(nodes: GraphNode[])` | Returns connected-cluster sizes ordered from largest to smallest. |
+| [`drawClusterBubble`](../frontend/src/components/graph.tsx#L619) | function | 619 | `function drawClusterBubble(context: CanvasRenderingContext2D, cluster: ClusterSummary, colors: ReturnType<typeof palette>, x: number, y: number, radius: number)` | Draws one overview bubble and its label, returning its layout entry. |
+| [`drawClusterOverview`](../frontend/src/components/graph.tsx#L648) | function | 648 | `function drawClusterOverview(context: CanvasRenderingContext2D, clusters: ClusterSummary[], colors: ReturnType<typeof palette>, width: number, height: number, offset: { x: number; y: number }, legendInset: number)` | Draws the connected-cluster overview bubbles and returns their layout. |
+| [`fitGraph`](../frontend/src/components/graph.tsx#L675) | function | 675 | `function fitGraph(graph: GraphState)` | Adjusts the graph transform to fit all node bounds in the canvas. |
+| [`runLayout`](../frontend/src/components/graph.tsx#L692) | function | 692 | `function runLayout(graph: GraphState, status: HTMLElement \| null)` | Advances the force simulation in animation-frame batches and finalizes spatial state. |
+| [`next`](../frontend/src/components/graph.tsx#L715) | function | 715 | `function next()` | Advances and redraws the next batch of force-layout ticks. |
+| [`draw`](../frontend/src/components/graph.tsx#L749) | function | 749 | `function draw(graph: GraphState)` | Draws the current graph state to the backing canvas. |
+| [`drawArrow`](../frontend/src/components/graph.tsx#L924) | function | 924 | `function drawArrow(context: CanvasRenderingContext2D, source: GraphNode, target: GraphNode, radius: number, color: string)` | Draws a directional arrowhead at the target end of a citation edge. |
+| [`graphCoordinates`](../frontend/src/components/graph.tsx#L938) | function | 938 | `function graphCoordinates(graph: GraphState, event: MouseEvent)` | Converts a pointer event from canvas coordinates to graph world coordinates. |
+| [`zoomViewAt`](../frontend/src/components/graph.tsx#L947) | function | 947 | `function zoomViewAt(view: { x: number; y: number; scale: number }, screenPoint: { x: number; y: number }, nextScale: number)` | Returns a zoom transform that keeps the selected screen point stationary. |
+| [`nearestOverviewCluster`](../frontend/src/components/graph.tsx#L958) | function | 958 | `function nearestOverviewCluster(graph: GraphState, event: MouseEvent)` | Returns the overview cluster hit by a pointer event, when any. |
+| [`focusCluster`](../frontend/src/components/graph.tsx#L968) | function | 968 | `function focusCluster(graph: GraphState, clusterID: number)` | Focuses the viewport on one connected cluster. |
+| [`buildSpatialIndex`](../frontend/src/components/graph.tsx#L986) | function | 986 | `function buildSpatialIndex(nodes: GraphNode[])` | Builds a spatial index over node positions for fast hit testing. |
+| [`nearbyNodes`](../frontend/src/components/graph.tsx#L1001) | function | 1001 | `function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> }, point: { x: number; y: number })` | Returns nodes in the spatial-index cell surrounding a graph point. |
+| [`nearestNode`](../frontend/src/components/graph.tsx#L1015) | function | 1015 | `function nearestNode(graph: GraphState, point: { x: number; y: number })` | Returns the closest selectable node within its hit radius. |
+| [`bindInteractions`](../frontend/src/components/graph.tsx#L1041) | function | 1041 | `function bindInteractions(graph: GraphState, status: HTMLElement \| null, selectionPanel: HTMLElement \| null, zoomIndicator: HTMLElement \| null)` | Binds pointer, keyboard, and toolbar interactions for the graph viewport. |
+| [`setSelection`](../frontend/src/components/graph.tsx#L1046) | function | 1046 | `function setSelection(id: string \| number \| null)` | Sets the selected node and refreshes the inspection panel and edge table. |
+| [`updateZoomDisplay`](../frontend/src/components/graph.tsx#L1078) | function | 1078 | `function updateZoomDisplay()` | Updates the visible zoom percentage indicator. |
+| [`bindGraphSearch`](../frontend/src/components/graph.tsx#L1250) | function | 1250 | `function bindGraphSearch(graph: GraphState)` | Binds graph node search, highlighting matching nodes by name or DOI. |
+| [`bindGraphExport`](../frontend/src/components/graph.tsx#L1261) | function | 1261 | `function bindGraphExport(graph: GraphState, data: any)` | Binds graph export as PNG, downloading the canvas as a PNG image. |
+| [`bindGraphExpand`](../frontend/src/components/graph.tsx#L1282) | function | 1282 | `function bindGraphExpand(graph: GraphState)` | Binds the graph expand button and fullscreen lifecycle. |
+| [`updateLabel`](../frontend/src/components/graph.tsx#L1289) | function | 1289 | `function updateLabel()` | Updates the expand button label and refits the graph after a size change. |
+| [`SelectionMarkup`](../frontend/src/components/graph.tsx#L1323) | function | 1323 | `function SelectionMarkup(props: { node: GraphNode \| undefined; neighbours: number })` | Renders the selected-node inspection panel. |
+| [`NodeMarkup`](../frontend/src/components/graph.tsx#L1367) | function | 1367 | `function NodeMarkup(props: { node: GraphNode })` | Renders a linked or plain label for a graph node. |
+| [`renderEdgePage`](../frontend/src/components/graph.tsx#L1375) | function | 1375 | `function renderEdgePage(graph: GraphState)` | Renders the paginated relationship table for the current selection or full graph. |
+| [`edgeDetails`](../frontend/src/components/graph.tsx#L1447) | function | 1447 | `function edgeDetails(edge: GraphEdge)` | Returns relationship-specific details for a graph edge row. |
 
 ### [`frontend/src/components/note-editor.tsx`](../frontend/src/components/note-editor.tsx)
 
@@ -3371,77 +3495,79 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`writeDraft`](../frontend/src/components/note-editor.tsx#L25) | function | 25 | `function writeDraft(key: string, value: string, storage?: Storage)` | Writes a draft and reports storage failure without discarding editor content. |
 | [`clearDraft`](../frontend/src/components/note-editor.tsx#L35) | function | 35 | `function clearDraft(key: string, storage?: Storage)` | Removes only the exact draft associated with a successful save. |
 | [`lineDiff`](../frontend/src/components/note-editor.tsx#L53) | function | 53 | `function lineDiff(previous: any, current: any, limit?: number)` | Produces a bounded line comparison or complete side-by-side fallback. |
-| [`mountNoteEditor`](../frontend/src/components/note-editor.tsx#L98) | function | 98 | `async function mountNoteEditor(host: HTMLElement, options: NoteEditorOptions)` | Mounts the note editor and current immutable note list for one article. |
-| [`key`](../frontend/src/components/note-editor.tsx#L126) | function | 126 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
-| [`renderPreview`](../frontend/src/components/note-editor.tsx#L130) | function | 130 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
-| [`resetEditor`](../frontend/src/components/note-editor.tsx#L137) | function | 137 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
-| [`loadNotes`](../frontend/src/components/note-editor.tsx#L146) | function | 146 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
-| [`showHistory`](../frontend/src/components/note-editor.tsx#L176) | function | 176 | `async function showHistory(note: ReviewNoteRecord)` | Displays one selected head's immutable ancestry and optional restoration control. |
-| [`focusNote`](../frontend/src/components/note-editor.tsx#L203) | function | 203 | `async function focusNote(noteID: any)` | Resolves a URL-focused active or deleted note and exposes its history. |
+| [`noteCardMarkup`](../frontend/src/components/note-editor.tsx#L126) | function | 126 | `function noteCardMarkup(note: ReviewNoteRecord)` | Renders one active note card with its metadata, content, and actions. |
+| [`versionComparisonMarkup`](../frontend/src/components/note-editor.tsx#L153) | function | 153 | `function versionComparisonMarkup(previous: string, version: any)` | Renders one immutable version comparison row for the note history. |
+| [`mountNoteEditor`](../frontend/src/components/note-editor.tsx#L177) | function | 177 | `async function mountNoteEditor(host: HTMLElement, options: NoteEditorOptions)` | Mounts the note editor and current immutable note list for one article. |
+| [`key`](../frontend/src/components/note-editor.tsx#L254) | function | 254 | `function key()` | Returns the draft key for the current new-note or immutable note head. |
+| [`renderPreview`](../frontend/src/components/note-editor.tsx#L258) | function | 258 | `function renderPreview()` | Parses and safely renders current textarea content while displaying diagnostics. |
+| [`resetEditor`](../frontend/src/components/note-editor.tsx#L273) | function | 273 | `function resetEditor()` | Returns the editor to new-note mode and restores only its matching draft. |
+| [`loadNotes`](../frontend/src/components/note-editor.tsx#L282) | function | 282 | `async function loadNotes()` | Loads bounded active note heads and binds their edit, history, and tombstone actions. |
+| [`showHistory`](../frontend/src/components/note-editor.tsx#L321) | function | 321 | `async function showHistory(note: ReviewNoteRecord)` | Displays one selected head's immutable ancestry and optional restoration control. |
+| [`focusNote`](../frontend/src/components/note-editor.tsx#L372) | function | 372 | `async function focusNote(noteID: any)` | Resolves a URL-focused active or deleted note and exposes its history. |
 
 ### [`frontend/src/components/note-parser.tsx`](../frontend/src/components/note-parser.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`parseNote`](../frontend/src/components/note-parser.tsx#L39) | function | 39 | `function parseNote(body: any)` | Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. |
-| [`flushParagraph`](../frontend/src/components/note-parser.tsx#L54) | function | 54 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
-| [`extractLinks`](../frontend/src/components/note-parser.tsx#L147) | function | 147 | `function extractLinks(text: string, baseOffset: number, links: NoteLink[], errors: NoteDiagnostic[])` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
-| [`validateLink`](../frontend/src/components/note-parser.tsx#L180) | function | 180 | `function validateLink(scheme: string, target: string, raw: string)` | Validates scheme-specific target grammar without requiring target existence. |
-| [`isEscaped`](../frontend/src/components/note-parser.tsx#L195) | function | 195 | `function isEscaped(text: string, index: number)` | Reports whether the character at an index has an odd backslash prefix. |
-| [`unescapedIndex`](../frontend/src/components/note-parser.tsx#L202) | function | 202 | `function unescapedIndex(text: string, character: string)` | Returns the first unescaped delimiter index or minus one. |
-| [`unescapeLink`](../frontend/src/components/note-parser.tsx#L210) | function | 210 | `function unescapeLink(text: string)` | Removes only the escapes supported inside custom-link fields. |
-| [`splitTableRow`](../frontend/src/components/note-parser.tsx#L215) | function | 215 | `function splitTableRow(line: string)` | Splits one simple table row while preserving escaped vertical bars. |
-| [`tableDelimiter`](../frontend/src/components/note-parser.tsx#L232) | function | 232 | `function tableDelimiter(line: string)` | Reports whether every table cell is a valid delimiter marker. |
-| [`NoteDocument`](../frontend/src/components/note-parser.tsx#L250) | function | 250 | `function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] \| null })` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
-| [`textWithBreaks`](../frontend/src/components/note-parser.tsx#L255) | function | 255 | `function textWithBreaks(text: string)` | Splits escaped text on newlines, inserting br elements between lines. |
-| [`inline`](../frontend/src/components/note-parser.tsx#L268) | function | 268 | `function inline(text: string)` | Renders escaped inline text and associates parsed links with stored resolutions. |
-| [`renderNote`](../frontend/src/components/note-parser.tsx#L322) | function | 322 | `function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] \| null)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
-| [`renderLink`](../frontend/src/components/note-parser.tsx#L327) | function | 327 | `function renderLink(label: string, resolved?: ResolvedNoteLink)` | Renders one safe resolved link or an accessible unresolved label. |
+| [`flushParagraph`](../frontend/src/components/note-parser.tsx#L59) | function | 59 | `function flushParagraph()` | Commits accumulated paragraph lines and their custom links to parser output. |
+| [`extractLinks`](../frontend/src/components/note-parser.tsx#L197) | function | 197 | `function extractLinks(text: string, baseOffset: number, links: NoteLink[], errors: NoteDiagnostic[])` | Extracts syntactically valid custom links and positional diagnostics from plain text. |
+| [`validateLink`](../frontend/src/components/note-parser.tsx#L252) | function | 252 | `function validateLink(scheme: string, target: string, raw: string)` | Validates scheme-specific target grammar without requiring target existence. |
+| [`isEscaped`](../frontend/src/components/note-parser.tsx#L267) | function | 267 | `function isEscaped(text: string, index: number)` | Reports whether the character at an index has an odd backslash prefix. |
+| [`unescapedIndex`](../frontend/src/components/note-parser.tsx#L274) | function | 274 | `function unescapedIndex(text: string, character: string)` | Returns the first unescaped delimiter index or minus one. |
+| [`unescapeLink`](../frontend/src/components/note-parser.tsx#L282) | function | 282 | `function unescapeLink(text: string)` | Removes only the escapes supported inside custom-link fields. |
+| [`splitTableRow`](../frontend/src/components/note-parser.tsx#L287) | function | 287 | `function splitTableRow(line: string)` | Splits one simple table row while preserving escaped vertical bars. |
+| [`tableDelimiter`](../frontend/src/components/note-parser.tsx#L305) | function | 305 | `function tableDelimiter(line: string)` | Reports whether every table cell is a valid delimiter marker. |
+| [`NoteDocument`](../frontend/src/components/note-parser.tsx#L325) | function | 325 | `function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] \| null })` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`textWithBreaks`](../frontend/src/components/note-parser.tsx#L332) | function | 332 | `function textWithBreaks(text: string)` | Splits escaped text on newlines, inserting br elements between lines. |
+| [`inline`](../frontend/src/components/note-parser.tsx#L345) | function | 345 | `function inline(text: string)` | Renders escaped inline text and associates parsed links with stored resolutions. |
+| [`renderNote`](../frontend/src/components/note-parser.tsx#L414) | function | 414 | `function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] \| null)` | Renders a parsed note as escaped HTML with context-preserving resolved links. |
+| [`renderLink`](../frontend/src/components/note-parser.tsx#L420) | function | 420 | `function renderLink(label: string, resolved?: ResolvedNoteLink)` | Renders one safe resolved link or an accessible unresolved label. |
 
 ### [`frontend/src/components/pagination.tsx`](../frontend/src/components/pagination.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`paginationPages`](../frontend/src/components/pagination.tsx#L6) | function | 6 | `function paginationPages(currentPage: any, totalPages: any, visibleCount: any)` | Returns the bounded sequence of page numbers surrounding the current page. |
-| [`Pagination`](../frontend/src/components/pagination.tsx#L34) | function | 34 | `function Pagination(props: { result: any; options?: PaginationOptions })` | Renders accessible pagination markup for server-backed or in-memory results. |
-| [`control`](../frontend/src/components/pagination.tsx#L59) | function | 59 | `function control(label: string, target: number, disabled: boolean, relation: string)` | Returns one pagination navigation control. |
-| [`pagination`](../frontend/src/components/pagination.tsx#L91) | function | 91 | `function pagination(result: any, options?: PaginationOptions)` | Returns accessible pagination markup for server-backed or in-memory results. |
+| [`paginationPages`](../frontend/src/components/pagination.tsx#L5) | function | 5 | `function paginationPages(currentPage: any, totalPages: any, visibleCount: any)` | Returns the bounded sequence of page numbers surrounding the current page. |
+| [`Pagination`](../frontend/src/components/pagination.tsx#L33) | function | 33 | `function Pagination(props: { result: any; options?: PaginationOptions })` | Renders accessible pagination markup for server-backed or in-memory results. |
+| [`control`](../frontend/src/components/pagination.tsx#L64) | function | 64 | `function control(label: string, target: number, disabled: boolean, relation: string)` | Returns one pagination navigation control. |
+| [`pagination`](../frontend/src/components/pagination.tsx#L105) | function | 105 | `function pagination(result: any, options?: PaginationOptions)` | Returns accessible pagination markup for server-backed or in-memory results. |
 
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`unrotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L17) | function | 17 | `function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
-| [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L34) | function | 34 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
-| [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L51) | function | 51 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
-| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L90) | function | 90 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L134) | function | 134 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
-| [`render`](../frontend/src/components/pdf-viewer.tsx#L144) | function | 144 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
-| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L197) | function | 197 | `function changePage(next: any)` | Clamps and renders a requested current page. |
-| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L233) | function | 233 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L250) | function | 250 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+| [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L53) | function | 53 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
+| [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L89) | function | 89 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
+| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L132) | function | 132 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
+| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L197) | function | 197 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../frontend/src/components/pdf-viewer.tsx#L207) | function | 207 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L270) | function | 270 | `function changePage(next: any)` | Clamps and renders a requested current page. |
+| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L315) | function | 315 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L332) | function | 332 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
 
 ### [`frontend/src/components/review-panel.tsx`](../frontend/src/components/review-panel.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`mountArticleReview`](../frontend/src/components/review-panel.tsx#L43) | function | 43 | `async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement \| null, record: any, detailData: any, onAuditChange?: () => Promise<void>)` | Mounts all editable review controls for one immutable run article revision. |
-| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L78) | function | 78 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
-| [`closeDialog`](../frontend/src/components/review-panel.tsx#L108) | function | 108 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
-| [`appendCandidates`](../frontend/src/components/review-panel.tsx#L113) | function | 113 | `async function appendCandidates(scope: string)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
-| [`renderReview`](../frontend/src/components/review-panel.tsx#L184) | function | 184 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L239) | function | 239 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L322) | function | 322 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L363) | function | 363 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L397) | function | 397 | `async function showAnchorHistory(anchorID: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L87) | function | 87 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
+| [`closeDialog`](../frontend/src/components/review-panel.tsx#L164) | function | 164 | `function closeDialog()` | Closes the setup dialog in browsers and test DOMs with partial dialog support. |
+| [`appendCandidates`](../frontend/src/components/review-panel.tsx#L169) | function | 169 | `async function appendCandidates(scope: string)` | Adds bounded eligible parents from same-search or explicitly expanded scope. |
+| [`renderReview`](../frontend/src/components/review-panel.tsx#L297) | function | 297 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L441) | function | 441 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L583) | function | 583 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L646) | function | 646 | `async function loadAnchors()` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L728) | function | 728 | `async function showAnchorHistory(anchorID: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
 
 ### [`frontend/src/components/shell.tsx`](../frontend/src/components/shell.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`initHealthCheck`](../frontend/src/components/shell.tsx#L7) | function | 7 | `function initHealthCheck()` | Initializes health check. |
-| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L31) | function | 31 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
-| [`handleToggle`](../frontend/src/components/shell.tsx#L41) | function | 41 | `function handleToggle()` | Handles toggle. |
+| [`initHealthCheck`](../frontend/src/components/shell.tsx#L8) | function | 8 | `function initHealthCheck()` | Initializes health check. |
+| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L32) | function | 32 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
+| [`handleToggle`](../frontend/src/components/shell.tsx#L38) | function | 38 | `function handleToggle()` | Handles toggle. |
 
 ### [`frontend/src/jsx/jsx-runtime.ts`](../frontend/src/jsx/jsx-runtime.ts)
 
@@ -3459,11 +3585,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`setURL`](../frontend/src/router.tsx#L16) | function | 16 | `function setURL(updates: Record<string, any>, replace: boolean)` | Replaces the current URL state without triggering a navigation reload. |
-| [`bindFocusContext`](../frontend/src/router.tsx#L27) | function | 27 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
-| [`syncPrimaryNavigation`](../frontend/src/router.tsx#L37) | function | 37 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
-| [`syncShell`](../frontend/src/router.tsx#L55) | function | 55 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
-| [`renderView`](../frontend/src/router.tsx#L82) | function | 82 | `async function renderView()` | Asynchronously renders view. |
-| [`render`](../frontend/src/router.tsx#L97) | function | 97 | `async function render()` | Asynchronously renders the associated state. |
+| [`bindFocusContext`](../frontend/src/router.tsx#L24) | function | 24 | `function bindFocusContext()` | Binds DOM behavior for focus context. |
+| [`syncPrimaryNavigation`](../frontend/src/router.tsx#L34) | function | 34 | `function syncPrimaryNavigation(current: string)` | Synchronizes primary navigation. |
+| [`syncShell`](../frontend/src/router.tsx#L51) | function | 51 | `function syncShell(current: string)` | Synchronizes shell visibility and the page-level breadcrumb before a view renders. |
+| [`renderView`](../frontend/src/router.tsx#L101) | function | 101 | `async function renderView()` | Asynchronously renders view. |
+| [`render`](../frontend/src/router.tsx#L116) | function | 116 | `async function render()` | Asynchronously renders the associated state. |
 
 ### [`frontend/src/state.tsx`](../frontend/src/state.tsx)
 
@@ -3482,81 +3608,83 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`formatNumber`](../frontend/src/state.tsx#L142) | function | 142 | `function formatNumber(raw: any)` | Formats number. |
 | [`percent`](../frontend/src/state.tsx#L147) | function | 147 | `function percent(raw: any, denominator: any)` | Formats a count as a percentage of its denominator. |
 | [`formatTime`](../frontend/src/state.tsx#L157) | function | 157 | `function formatTime(raw: any)` | Formats time. |
-| [`formatDuration`](../frontend/src/state.tsx#L169) | function | 169 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
-| [`formatBytes`](../frontend/src/state.tsx#L187) | function | 187 | `function formatBytes(raw: any)` | Formats bytes. |
-| [`humanLabel`](../frontend/src/state.tsx#L203) | function | 203 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
-| [`parseObject`](../frontend/src/state.tsx#L212) | function | 212 | `function parseObject(raw: any)` | Parses object. |
-| [`statusClass`](../frontend/src/state.tsx#L231) | function | 231 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
-| [`StatusChip`](../frontend/src/state.tsx#L249) | function | 249 | `function StatusChip(props: { raw: any })` | Renders one status chip with its semantic color class. |
-| [`statusChip`](../frontend/src/state.tsx#L254) | function | 254 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
-| [`metricEntries`](../frontend/src/state.tsx#L259) | function | 259 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
-| [`selectedRun`](../frontend/src/state.tsx#L270) | function | 270 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
-| [`showError`](../frontend/src/state.tsx#L278) | function | 278 | `function showError(error: any)` | Shows error. |
-| [`clearError`](../frontend/src/state.tsx#L284) | function | 284 | `function clearError()` | Clears error. |
-| [`busy`](../frontend/src/state.tsx#L290) | function | 290 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
-| [`link`](../frontend/src/state.tsx#L295) | function | 295 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
-| [`PageHeader`](../frontend/src/state.tsx#L314) | function | 314 | `function PageHeader(props: { kicker: string; title: string; description: string; extra?: string })` | Renders the standard page header with escaped copy and optional actions. |
-| [`pageHeader`](../frontend/src/state.tsx#L328) | function | 328 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
+| [`formatDuration`](../frontend/src/state.tsx#L165) | function | 165 | `function formatDuration(startedAt: any, finishedAt: any)` | Formats the elapsed time between two recorded timestamps. |
+| [`formatBytes`](../frontend/src/state.tsx#L183) | function | 183 | `function formatBytes(raw: any)` | Formats bytes. |
+| [`humanLabel`](../frontend/src/state.tsx#L197) | function | 197 | `function humanLabel(raw: any)` | Converts a machine-oriented identifier to a title-cased display label. |
+| [`parseObject`](../frontend/src/state.tsx#L205) | function | 205 | `function parseObject(raw: any)` | Parses object. |
+| [`statusClass`](../frontend/src/state.tsx#L224) | function | 224 | `function statusClass(raw: any)` | Maps a recorded status to its semantic color class. |
+| [`StatusChip`](../frontend/src/state.tsx#L244) | function | 244 | `function StatusChip(props: { raw: any })` | Renders one status chip with its semantic color class. |
+| [`statusChip`](../frontend/src/state.tsx#L250) | function | 250 | `function statusChip(raw: any)` | Returns escaped label markup for a recorded status. |
+| [`metricEntries`](../frontend/src/state.tsx#L256) | function | 256 | `function metricEntries(group: any)` | Normalizes array- or object-backed metrics to display-name and value pairs. |
+| [`selectedRun`](../frontend/src/state.tsx#L268) | function | 268 | `function selectedRun()` | Returns the pipeline run selected by the current URL context. |
+| [`showError`](../frontend/src/state.tsx#L276) | function | 276 | `function showError(error: any)` | Shows error. |
+| [`clearError`](../frontend/src/state.tsx#L282) | function | 282 | `function clearError()` | Clears error. |
+| [`busy`](../frontend/src/state.tsx#L288) | function | 288 | `function busy(isBusy: boolean)` | Shows or hides the global loading indicator. |
+| [`link`](../frontend/src/state.tsx#L293) | function | 293 | `function link(updates?: Record<string, any>)` | Builds an internal URL that preserves current research context and applies supplied updates. |
+| [`PageHeader`](../frontend/src/state.tsx#L313) | function | 313 | `function PageHeader(props: { kicker: string; title: string; description: string; extra?: string })` | Renders the standard page header with escaped copy and optional actions. |
+| [`pageHeader`](../frontend/src/state.tsx#L327) | function | 327 | `function pageHeader(kicker: string, title: string, description: string, extra?: string)` | Returns the standard page header with escaped copy and optional actions. |
 | [`Breadcrumb`](../frontend/src/state.tsx#L333) | function | 333 | `function Breadcrumb(props: { items: Array<{ href?: string; label: string }> })` | Renders escaped breadcrumb markup for an ordered page hierarchy. |
-| [`breadcrumb`](../frontend/src/state.tsx#L353) | function | 353 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
-| [`setBreadcrumb`](../frontend/src/state.tsx#L358) | function | 358 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
-| [`EmptyState`](../frontend/src/state.tsx#L363) | function | 363 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
-| [`emptyState`](../frontend/src/state.tsx#L376) | function | 376 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
-| [`EmptyPanel`](../frontend/src/state.tsx#L381) | function | 381 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
-| [`emptyPanel`](../frontend/src/state.tsx#L392) | function | 392 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
-| [`Panel`](../frontend/src/state.tsx#L397) | function | 397 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string })` | Renders the standard titled content panel. |
-| [`panel`](../frontend/src/state.tsx#L412) | function | 412 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
-| [`Table`](../frontend/src/state.tsx#L420) | function | 420 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string })` | Renders an escaped data table inside the standard panel wrapper. |
-| [`table`](../frontend/src/state.tsx#L448) | function | 448 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
-| [`Subnav`](../frontend/src/state.tsx#L453) | function | 453 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
-| [`subnav`](../frontend/src/state.tsx#L463) | function | 463 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
-| [`FilterChips`](../frontend/src/state.tsx#L474) | function | 474 | `function FilterChips(props: { filters: Record<string, any> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
-| [`filterChips`](../frontend/src/state.tsx#L504) | function | 504 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
-| [`MetricCard`](../frontend/src/state.tsx#L509) | function | 509 | `function MetricCard(props: { name: string; metric: any; href?: string })` | Renders a metric card with availability, denominator, and optional navigation. |
-| [`metricCard`](../frontend/src/state.tsx#L544) | function | 544 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
-| [`FlowStage`](../frontend/src/state.tsx#L558) | function | 558 | `function FlowStage(props: { label: string; raw: any; base: any; previous: any; extraClass: string; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
-| [`flowStage`](../frontend/src/state.tsx#L637) | function | 637 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
-| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L665) | function | 665 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
-| [`RetentionPhase`](../frontend/src/state.tsx#L712) | function | 712 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string })` | Renders one titled phase in the retention-flow presentation. |
-| [`RetentionFlow`](../frontend/src/state.tsx#L728) | function | 728 | `function RetentionFlow(props: { overview: any })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`retentionFlow`](../frontend/src/state.tsx#L831) | function | 831 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`Breakdown`](../frontend/src/state.tsx#L836) | function | 836 | `function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
-| [`valueRender`](../frontend/src/state.tsx#L857) | function | 857 | `function valueRender(row: any)` | Renders one breakdown value with availability and optional percentage. |
-| [`barRender`](../frontend/src/state.tsx#L874) | function | 874 | `function barRender(row: any)` | Renders an accessible relative-volume bar for one breakdown row. |
-| [`breakdown`](../frontend/src/state.tsx#L895) | function | 895 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
-| [`SourceResultCountSummary`](../frontend/src/state.tsx#L900) | function | 900 | `function SourceResultCountSummary(props: { items: any[] \| null; classes?: string })` | Renders the expected-versus-observed source export count table. |
-| [`count`](../frontend/src/state.tsx#L904) | function | 904 | `function count(raw: any)` | Formats a source count or its unavailable state. |
-| [`comparison`](../frontend/src/state.tsx#L912) | function | 912 | `function comparison(raw: any)` | Renders a status chip for a source-count comparison. |
-| [`date`](../frontend/src/state.tsx#L920) | function | 920 | `function date(raw: any)` | Renders an export date or its unavailable state. |
-| [`sourceResultCountSummary`](../frontend/src/state.tsx#L949) | function | 949 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
-| [`SourceSearchQueries`](../frontend/src/state.tsx#L954) | function | 954 | `function SourceSearchQueries(props: { items: any[] \| null; classes?: string })` | Renders expandable exact-query markup for source exports. |
-| [`sourceSearchQueries`](../frontend/src/state.tsx#L981) | function | 981 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
-| [`Timeline`](../frontend/src/state.tsx#L986) | function | 986 | `function Timeline(props: { rows: any[] })` | Renders chronological audit feed markup for generic event rows. |
-| [`timeline`](../frontend/src/state.tsx#L1045) | function | 1045 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
-| [`DetailTable`](../frontend/src/state.tsx#L1050) | function | 1050 | `function DetailTable(props: { title: string; rows: any })` | Renders a table whose columns are derived from the supplied detail records. |
-| [`detailTable`](../frontend/src/state.tsx#L1067) | function | 1067 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
-| [`Cell`](../frontend/src/state.tsx#L1077) | function | 1077 | `function Cell(props: { item: any; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
-| [`cell`](../frontend/src/state.tsx#L1109) | function | 1109 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
-| [`bindCopyButtons`](../frontend/src/state.tsx#L1117) | function | 1117 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
-| [`bindDismissibleMessages`](../frontend/src/state.tsx#L1136) | function | 1136 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
-| [`bindLoadingButtons`](../frontend/src/state.tsx#L1152) | function | 1152 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
+| [`breadcrumb`](../frontend/src/state.tsx#L356) | function | 356 | `function breadcrumb(items: Array<{ href?: string; label: string }>)` | Returns escaped breadcrumb markup for an ordered page hierarchy. |
+| [`setBreadcrumb`](../frontend/src/state.tsx#L362) | function | 362 | `function setBreadcrumb(items: Array<{ href?: string; label: string }>)` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
+| [`EmptyState`](../frontend/src/state.tsx#L368) | function | 368 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
+| [`emptyState`](../frontend/src/state.tsx#L381) | function | 381 | `function emptyState(title: string, detail: string, action?: string)` | Returns a complete empty-view state with the standard page header. |
+| [`EmptyPanel`](../frontend/src/state.tsx#L389) | function | 389 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
+| [`emptyPanel`](../frontend/src/state.tsx#L400) | function | 400 | `function emptyPanel(title: string, detail: string, action?: string)` | Returns compact empty-state panel markup. |
+| [`Panel`](../frontend/src/state.tsx#L408) | function | 408 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: string })` | Renders the standard titled content panel. |
+| [`panel`](../frontend/src/state.tsx#L424) | function | 424 | `function panel(title: string, description: string, body: string, classes?: string)` | Returns the standard titled content-panel markup. |
+| [`Table`](../frontend/src/state.tsx#L434) | function | 434 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: string })` | Renders an escaped data table inside the standard panel wrapper. |
+| [`table`](../frontend/src/state.tsx#L471) | function | 471 | `function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string)` | Returns an escaped data table inside the standard panel wrapper. |
+| [`Subnav`](../frontend/src/state.tsx#L477) | function | 477 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
+| [`subnav`](../frontend/src/state.tsx#L491) | function | 491 | `function subnav(items: Array<[string, string]>, current: string, key: string)` | Returns context-preserving tab navigation for a keyed section. |
+| [`FilterChips`](../frontend/src/state.tsx#L503) | function | 503 | `function FilterChips(props: { filters: Record<string, any> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
+| [`filterChips`](../frontend/src/state.tsx#L542) | function | 542 | `function filterChips(filters: Record<string, any> \| null, labels?: Record<string, string>, options?: FilterChipOptions)` | Filters chips. |
+| [`MetricCard`](../frontend/src/state.tsx#L548) | function | 548 | `function MetricCard(props: { name: string; metric: any; href?: string })` | Renders a metric card with availability, denominator, and optional navigation. |
+| [`metricCard`](../frontend/src/state.tsx#L581) | function | 581 | `function metricCard(name: string, metric: any, href?: string)` | Returns a metric card with availability, denominator, and optional navigation. |
+| [`FlowStage`](../frontend/src/state.tsx#L596) | function | 596 | `function FlowStage(props: { label: string; raw: any; base: any; previous: any; extraClass: string; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
+| [`flowStage`](../frontend/src/state.tsx#L694) | function | 694 | `function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions)` | Returns one retention-flow stage with counts, percentages, and optional links. |
+| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L723) | function | 723 | `function sourceFilterStageSummary(items: any[])` | Combines cumulative source filter counts into ordered cross-source stages. |
+| [`RetentionPhase`](../frontend/src/state.tsx#L782) | function | 782 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; className: string })` | Renders one titled phase in the retention-flow presentation. |
+| [`RetentionFlow`](../frontend/src/state.tsx#L799) | function | 799 | `function RetentionFlow(props: { overview: any })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`retentionFlow`](../frontend/src/state.tsx#L919) | function | 919 | `function retentionFlow(overview: any)` | Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`Breakdown`](../frontend/src/state.tsx#L925) | function | 925 | `function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
+| [`valueRender`](../frontend/src/state.tsx#L948) | function | 948 | `function valueRender(row: any)` | Renders one breakdown value with availability and optional percentage. |
+| [`barRender`](../frontend/src/state.tsx#L968) | function | 968 | `function barRender(row: any)` | Renders an accessible relative-volume bar for one breakdown row. |
+| [`breakdown`](../frontend/src/state.tsx#L1007) | function | 1007 | `function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean)` | Returns a metric breakdown table with relative bars and optional total percentages. |
+| [`SourceResultCountSummary`](../frontend/src/state.tsx#L1013) | function | 1013 | `function SourceResultCountSummary(props: { items: any[] \| null; classes?: string })` | Renders the expected-versus-observed source export count table. |
+| [`count`](../frontend/src/state.tsx#L1017) | function | 1017 | `function count(raw: any)` | Formats a source count or its unavailable state. |
+| [`comparison`](../frontend/src/state.tsx#L1025) | function | 1025 | `function comparison(raw: any)` | Renders a status chip for a source-count comparison. |
+| [`date`](../frontend/src/state.tsx#L1033) | function | 1033 | `function date(raw: any)` | Renders an export date or its unavailable state. |
+| [`sourceResultCountSummary`](../frontend/src/state.tsx#L1088) | function | 1088 | `function sourceResultCountSummary(items: any[] \| null, classes?: string)` | Returns the expected-versus-observed source export count table. |
+| [`SourceSearchQueries`](../frontend/src/state.tsx#L1094) | function | 1094 | `function SourceSearchQueries(props: { items: any[] \| null; classes?: string })` | Renders expandable exact-query markup for source exports. |
+| [`sourceSearchQueries`](../frontend/src/state.tsx#L1122) | function | 1122 | `function sourceSearchQueries(items: any[] \| null, classes?: string)` | Returns expandable exact-query markup for source exports. |
+| [`Timeline`](../frontend/src/state.tsx#L1128) | function | 1128 | `function Timeline(props: { rows: any[] })` | Renders chronological audit feed markup for generic event rows. |
+| [`timeline`](../frontend/src/state.tsx#L1190) | function | 1190 | `function timeline(rows: any[])` | Returns chronological audit feed markup for generic event rows. |
+| [`DetailTable`](../frontend/src/state.tsx#L1196) | function | 1196 | `function DetailTable(props: { title: string; rows: any })` | Renders a table whose columns are derived from the supplied detail records. |
+| [`detailTable`](../frontend/src/state.tsx#L1214) | function | 1214 | `function detailTable(title: string, rows: any)` | Builds a table whose columns are derived from the supplied detail records. |
+| [`Cell`](../frontend/src/state.tsx#L1225) | function | 1225 | `function Cell(props: { item: any; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
+| [`cell`](../frontend/src/state.tsx#L1258) | function | 1258 | `function cell(item: any, column: string, tableName?: string, options?: CellOptions)` | Formats and links a table cell according to its column and table context. |
+| [`bindCopyButtons`](../frontend/src/state.tsx#L1267) | function | 1267 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
+| [`bindDismissibleMessages`](../frontend/src/state.tsx#L1287) | function | 1287 | `function bindDismissibleMessages()` | Bind dismissible behavior for .ui.message elements with a .close child. Clicking the close button fades out and removes the message. |
+| [`bindLoadingButtons`](../frontend/src/state.tsx#L1304) | function | 1304 | `function bindLoadingButtons()` | Bind loading state for buttons with [data-loading]. On click, the button shows a spinner and disables itself. |
 
 ### [`frontend/src/views/advanced.tsx`](../frontend/src/views/advanced.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`advancedView`](../frontend/src/views/advanced.tsx#L9) | function | 9 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
+| [`advancedView`](../frontend/src/views/advanced.tsx#L10) | function | 10 | `async function advancedView()` | Asynchronously implements advanced view for the viewer. |
 
 ### [`frontend/src/views/corpus.tsx`](../frontend/src/views/corpus.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`columnNames`](../frontend/src/views/corpus.tsx#L82) | function | 82 | `function columnNames(table: any)` | Returns the ordered union of column names present in result rows. |
-| [`IdentityEvidenceTable`](../frontend/src/views/corpus.tsx#L95) | function | 95 | `function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } })` | Renders the column definition used for identity evidence rows. |
-| [`clippedRecordLink`](../frontend/src/views/corpus.tsx#L163) | function | 163 | `function clippedRecordLink(kind: string, idKey: string, id: any, title: any)` | Renders a context-preserving record link with a clipped label. |
-| [`clippedRecordText`](../frontend/src/views/corpus.tsx#L170) | function | 170 | `function clippedRecordText(title: any)` | Renders escaped record text clipped to the requested length. |
-| [`corpusColumnConfig`](../frontend/src/views/corpus.tsx#L175) | function | 175 | `function corpusColumnConfig(current: string)` | Returns section-specific labels and renderers for corpus columns. |
-| [`corpusView`](../frontend/src/views/corpus.tsx#L230) | function | 230 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
+| [`columnNames`](../frontend/src/views/corpus.tsx#L154) | function | 154 | `function columnNames(table: any)` | Returns the ordered union of column names present in result rows. |
+| [`IdentityEvidenceTable`](../frontend/src/views/corpus.tsx#L164) | function | 164 | `function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } })` | Renders the column definition used for identity evidence rows. |
+| [`clippedLabel`](../frontend/src/views/corpus.tsx#L254) | function | 254 | `function clippedLabel(title: any)` | Renders the clipped label text for a record title. |
+| [`clippedRecordLink`](../frontend/src/views/corpus.tsx#L259) | function | 259 | `function clippedRecordLink(kind: string, idKey: string, id: any, title: any)` | Renders a context-preserving record link with a clipped label. |
+| [`clippedRecordText`](../frontend/src/views/corpus.tsx#L272) | function | 272 | `function clippedRecordText(title: any)` | Renders escaped record text clipped to the requested length. |
+| [`termMatchMarkup`](../frontend/src/views/corpus.tsx#L277) | function | 277 | `function termMatchMarkup(row: any)` | Renders the stored search-term coverage for one article row. |
+| [`corpusColumnConfig`](../frontend/src/views/corpus.tsx#L326) | function | 326 | `function corpusColumnConfig(current: string)` | Returns section-specific labels and renderers for corpus columns. |
+| [`corpusView`](../frontend/src/views/corpus.tsx#L423) | function | 423 | `async function corpusView()` | Asynchronously implements corpus view for the viewer. |
 
 ### [`frontend/src/views/detail.tsx`](../frontend/src/views/detail.tsx)
 
@@ -3564,92 +3692,95 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`destroyActiveArticleReview`](../frontend/src/views/detail.tsx#L27) | function | 27 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
 | [`detailLink`](../frontend/src/views/detail.tsx#L35) | function | 35 | `function detailLink(kind: string, id: any)` | Returns a context-preserving link to a related detail record. |
-| [`backToCorpus`](../frontend/src/views/detail.tsx#L48) | function | 48 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return URL for a detail view. |
-| [`recorded`](../frontend/src/views/detail.tsx#L61) | function | 61 | `function recorded(raw: any, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
-| [`propertyGrid`](../frontend/src/views/detail.tsx#L76) | function | 76 | `function propertyGrid(entries: DetailEntry[], classes?: string)` | Renders definition-list markup for labeled record properties. |
-| [`summaryStrip`](../frontend/src/views/detail.tsx#L88) | function | 88 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
-| [`mappingValue`](../frontend/src/views/detail.tsx#L100) | function | 100 | `function mappingValue(raw: any)` | Converts a stored mapping representation to a displayable object. |
-| [`extensionMapping`](../frontend/src/views/detail.tsx#L118) | function | 118 | `function extensionMapping(raw: any)` | Renders the parsed extension mapping stored on a work revision. |
-| [`keywordValues`](../frontend/src/views/detail.tsx#L127) | function | 127 | `function keywordValues(raw: any)` | Returns normalized keyword values from stored array or delimited input. |
-| [`keywordMarkup`](../frontend/src/views/detail.tsx#L150) | function | 150 | `function keywordMarkup(raw: any)` | Renders label markup for normalized keyword values. |
-| [`rawRecord`](../frontend/src/views/detail.tsx#L169) | function | 169 | `function rawRecord(record: Record<string, any>, excluded: string[])` | Renders expandable JSON markup for a raw record. |
-| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L192) | function | 192 | `function CollectionMarkup(props: { collectionKey: string; title: string; description: string; columns: Array<{ label: string; render: (row: any) => JSX.Element }>; rows: any[]; page: number })` | Renders expandable markup for a related-record collection. |
-| [`mountCollection`](../frontend/src/views/detail.tsx#L231) | function | 231 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[])` | Mounts collection. |
-| [`renderCollection`](../frontend/src/views/detail.tsx#L237) | function | 237 | `function renderCollection(key: string)` | Renders collection. |
-| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L255) | function | 255 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
-| [`ArticleView`](../frontend/src/views/detail.tsx#L272) | function | 272 | `function ArticleView(props: { record: any; data: any })` | Renders the article detail view from its immutable revision payload. |
-| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L346) | function | 346 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
-| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L370) | function | 370 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
-| [`AuthorView`](../frontend/src/views/detail.tsx#L391) | function | 391 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
-| [`ReferenceView`](../frontend/src/views/detail.tsx#L424) | function | 424 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
-| [`detailView`](../frontend/src/views/detail.tsx#L460) | function | 460 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`backToCorpus`](../frontend/src/views/detail.tsx#L56) | function | 56 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return URL for a detail view. |
+| [`recorded`](../frontend/src/views/detail.tsx#L72) | function | 72 | `function recorded(raw: any, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
+| [`propertyGrid`](../frontend/src/views/detail.tsx#L87) | function | 87 | `function propertyGrid(entries: DetailEntry[], classes?: string)` | Renders definition-list markup for labeled record properties. |
+| [`summaryStrip`](../frontend/src/views/detail.tsx#L108) | function | 108 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
+| [`mappingValue`](../frontend/src/views/detail.tsx#L128) | function | 128 | `function mappingValue(raw: any)` | Converts a stored mapping representation to a displayable object. |
+| [`extensionMapping`](../frontend/src/views/detail.tsx#L154) | function | 154 | `function extensionMapping(raw: any)` | Renders the parsed extension mapping stored on a work revision. |
+| [`keywordValues`](../frontend/src/views/detail.tsx#L161) | function | 161 | `function keywordValues(raw: any)` | Returns normalized keyword values from stored array or delimited input. |
+| [`keywordMarkup`](../frontend/src/views/detail.tsx#L188) | function | 188 | `function keywordMarkup(raw: any)` | Renders label markup for normalized keyword values. |
+| [`rawRecord`](../frontend/src/views/detail.tsx#L213) | function | 213 | `function rawRecord(record: Record<string, any>, excluded: string[])` | Renders expandable JSON markup for a raw record. |
+| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L246) | function | 246 | `function CollectionMarkup(props: { collectionKey: string; title: string; description: string; columns: Array<{ label: string; render: (row: any) => JSX.Element }>; rows: any[]; page: number })` | Renders expandable markup for a related-record collection. |
+| [`mountCollection`](../frontend/src/views/detail.tsx#L318) | function | 318 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[])` | Mounts collection. |
+| [`renderCollection`](../frontend/src/views/detail.tsx#L331) | function | 331 | `function renderCollection(key: string)` | Renders collection. |
+| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L361) | function | 361 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
+| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L379) | function | 379 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
+| [`ArticleView`](../frontend/src/views/detail.tsx#L515) | function | 515 | `function ArticleView(props: { record: any; data: any })` | Renders the article detail view from its immutable revision payload. |
+| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L662) | function | 662 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
+| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L713) | function | 713 | `function AuthorIdentityEvidence(props: { data: any })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
+| [`AuthorView`](../frontend/src/views/detail.tsx#L777) | function | 777 | `function AuthorView(props: { record: any; data: any })` | Renders the author occurrence detail view with related articles and audit evidence. |
+| [`ReferenceView`](../frontend/src/views/detail.tsx#L852) | function | 852 | `function ReferenceView(props: { record: any })` | Renders the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.tsx#L950) | function | 950 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`titleLink`](../frontend/src/views/evaluation.tsx#L14) | function | 14 | `function titleLink(row: any)` | Renders a context-preserving article link for an evaluation row. |
-| [`inventoriedTime`](../frontend/src/views/evaluation.tsx#L19) | function | 19 | `function inventoriedTime(row: any)` | Renders the recorded PDF inventory time or an unavailable label. |
-| [`evaluationView`](../frontend/src/views/evaluation.tsx#L27) | function | 27 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
+| [`titleLink`](../frontend/src/views/evaluation.tsx#L15) | function | 15 | `function titleLink(row: any)` | Renders a context-preserving article link for an evaluation row. |
+| [`inventoriedTime`](../frontend/src/views/evaluation.tsx#L25) | function | 25 | `function inventoriedTime(row: any)` | Renders the recorded PDF inventory time or an unavailable label. |
+| [`evaluationView`](../frontend/src/views/evaluation.tsx#L33) | function | 33 | `async function evaluationView()` | Asynchronously implements evaluation view for the viewer. |
 
 ### [`frontend/src/views/home.tsx`](../frontend/src/views/home.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`deepdiveLink`](../frontend/src/views/home.tsx#L11) | function | 11 | `function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any)` | Returns a clean Deepdive URL for one complete research context. |
-| [`SearchCard`](../frontend/src/views/home.tsx#L18) | function | 18 | `function SearchCard(props: { search: any; plans: any[]; runs: any[] })` | Renders one compact search-history card with revision, plan, and attempt counts. |
-| [`RunTable`](../frontend/src/views/home.tsx#L49) | function | 49 | `function RunTable(props: { searches: any[]; plans: any[]; runs: any[] })` | Renders the run-management table for all planned attempts in the workspace. |
-| [`RunDialog`](../frontend/src/views/home.tsx#L90) | function | 90 | `function RunDialog()` | Renders the confirmation dialog used for reversible run lifecycle changes. |
-| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L108) | function | 108 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
-| [`close`](../frontend/src/views/home.tsx#L122) | function | 122 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
-| [`open`](../frontend/src/views/home.tsx#L129) | function | 129 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
-| [`homeView`](../frontend/src/views/home.tsx#L181) | function | 181 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
+| [`SearchCard`](../frontend/src/views/home.tsx#L25) | function | 25 | `function SearchCard(props: { search: any; plans: any[]; runs: any[] })` | Renders one compact search-history card with revision, plan, and attempt counts. |
+| [`RunTable`](../frontend/src/views/home.tsx#L98) | function | 98 | `function RunTable(props: { searches: any[]; plans: any[]; runs: any[] })` | Renders the run-management table for all planned attempts in the workspace. |
+| [`RunDialog`](../frontend/src/views/home.tsx#L178) | function | 178 | `function RunDialog()` | Renders the confirmation dialog used for reversible run lifecycle changes. |
+| [`bindRunLifecycle`](../frontend/src/views/home.tsx#L207) | function | 207 | `function bindRunLifecycle(runs: any[])` | Binds confirmation and mutation behavior for Home run lifecycle controls. |
+| [`close`](../frontend/src/views/home.tsx#L220) | function | 220 | `function close()` | Dismisses the lifecycle dialog and clears its transient form state. |
+| [`open`](../frontend/src/views/home.tsx#L227) | function | 227 | `function open(button: HTMLButtonElement)` | Configures and opens the lifecycle dialog for the selected run action. |
+| [`homeView`](../frontend/src/views/home.tsx#L298) | function | 298 | `async function homeView()` | Renders the workspace Home page and its research-history controls. |
 
 ### [`frontend/src/views/overview.tsx`](../frontend/src/views/overview.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`normalizationValue`](../frontend/src/views/overview.tsx#L13) | function | 13 | `function normalizationValue(metric: any)` | Renders a normalization metric value or its unavailable presentation. |
-| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L35) | function | 35 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric, or null when unavailable. |
-| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L43) | function | 43 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
-| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L60) | function | 60 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
-| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L93) | function | 93 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
-| [`overviewView`](../frontend/src/views/overview.tsx#L102) | function | 102 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
+| [`unavailableMarkup`](../frontend/src/views/overview.tsx#L13) | function | 13 | `function unavailableMarkup()` | Renders the unavailable-value presentation shared by metric helpers. |
+| [`normalizationValue`](../frontend/src/views/overview.tsx#L18) | function | 18 | `function normalizationValue(metric: any)` | Renders a normalization metric value or its unavailable presentation. |
+| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L89) | function | 89 | `function capturedMetricValue(item: any)` | Renders the numeric value of a captured metric or its unavailable presentation. |
+| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L97) | function | 97 | `function capturedMetricsByStage(metrics: any[])` | Groups captured metrics by pipeline stage. |
+| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L130) | function | 130 | `function CapturedMetricsMarkup(props: { metrics: any[] })` | Renders table markup for captured pipeline metrics. |
+| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L176) | function | 176 | `function fixedPercentageMetric(metric: any)` | Returns a metric copy with a percentage derived from its value and denominator. |
+| [`overviewView`](../frontend/src/views/overview.tsx#L188) | function | 188 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
 
 ### [`frontend/src/views/provenance.tsx`](../frontend/src/views/provenance.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`selectedValues`](../frontend/src/views/provenance.tsx#L32) | function | 32 | `function selectedValues(raw: any)` | Returns the selected comma-separated values for an audit facet. |
-| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L37) | function | 37 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
-| [`auditQuery`](../frontend/src/views/provenance.tsx#L56) | function | 56 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
-| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L72) | function | 72 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
-| [`AuditFilters`](../frontend/src/views/provenance.tsx#L85) | function | 85 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
-| [`AuditSummary`](../frontend/src/views/provenance.tsx#L116) | function | 116 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
-| [`AuditView`](../frontend/src/views/provenance.tsx#L133) | function | 133 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
-| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L158) | function | 158 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
-| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L172) | function | 172 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
-| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L184) | function | 184 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
-| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L226) | function | 226 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
-| [`CacheView`](../frontend/src/views/provenance.tsx#L233) | function | 233 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
-| [`stageStatus`](../frontend/src/views/provenance.tsx#L272) | function | 272 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
-| [`StageFlow`](../frontend/src/views/provenance.tsx#L292) | function | 292 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
-| [`StagesView`](../frontend/src/views/provenance.tsx#L339) | function | 339 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
-| [`RunView`](../frontend/src/views/provenance.tsx#L380) | function | 380 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
-| [`provenanceView`](../frontend/src/views/provenance.tsx#L432) | function | 432 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
-| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L498) | function | 498 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
-| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L588) | function | 588 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
-| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L630) | function | 630 | `function renderArtifactInspector()` | Renders artifact inspector. |
-| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L690) | function | 690 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
+| [`renderTime`](../frontend/src/views/provenance.tsx#L32) | function | 32 | `function renderTime(row: any, raw: any)` | Renders a formatted timestamp cell for a data-table column. |
+| [`selectedValues`](../frontend/src/views/provenance.tsx#L37) | function | 37 | `function selectedValues(raw: any)` | Returns the selected comma-separated values for an audit facet. |
+| [`AuditMultiSelect`](../frontend/src/views/provenance.tsx#L46) | function | 46 | `function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any })` | Renders a multi-select control for one audit facet. |
+| [`auditQuery`](../frontend/src/views/provenance.tsx#L78) | function | 78 | `function auditQuery(cursor: string)` | Builds API query parameters from the active audit filters. |
+| [`AuditFilterSummary`](../frontend/src/views/provenance.tsx#L94) | function | 94 | `function AuditFilterSummary()` | Renders markup summarizing active audit filters and their removal links. |
+| [`AuditFilters`](../frontend/src/views/provenance.tsx#L108) | function | 108 | `function AuditFilters(props: { facets: any })` | Renders the complete audit filter form. |
+| [`AuditSummary`](../frontend/src/views/provenance.tsx#L161) | function | 161 | `function AuditSummary(props: { data: any })` | Renders summary cards for the filtered audit result. |
+| [`AuditView`](../frontend/src/views/provenance.tsx#L193) | function | 193 | `function AuditView(props: { data: any })` | Renders the audit timeline and pagination markup. |
+| [`ArtifactContext`](../frontend/src/views/provenance.tsx#L223) | function | 223 | `function ArtifactContext(props: { context: any })` | Renders the research-context fields displayed for an artifact. |
+| [`ArtifactActions`](../frontend/src/views/provenance.tsx#L246) | function | 246 | `function ArtifactActions(props: { row: any })` | Renders safe inspect and download actions for an artifact. |
+| [`ArtifactsView`](../frontend/src/views/provenance.tsx#L263) | function | 263 | `function ArtifactsView(props: { data: any })` | Renders the run artifact inventory markup. |
+| [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L335) | function | 335 | `function PageSizeOptions(props: { current: any })` | Renders page-size option markup with the current value selected. |
+| [`CacheView`](../frontend/src/views/provenance.tsx#L343) | function | 343 | `function CacheView(props: { data: any })` | Renders cache-use evidence and pagination markup. |
+| [`stageStatus`](../frontend/src/views/provenance.tsx#L436) | function | 436 | `function stageStatus(summary: any, step: any)` | Returns the effective display status for a work-stage record. |
+| [`StageFlow`](../frontend/src/views/provenance.tsx#L463) | function | 463 | `function StageFlow(props: { summaries: any[]; steps: any[] })` | Renders ordered stage-flow markup for one work. |
+| [`StagesView`](../frontend/src/views/provenance.tsx#L553) | function | 553 | `function StagesView(props: { data: any })` | Renders work-stage evidence and pagination markup. |
+| [`RunView`](../frontend/src/views/provenance.tsx#L647) | function | 647 | `function RunView(props: { artifactData: any })` | Renders stored run details and exact configuration links. |
+| [`provenanceView`](../frontend/src/views/provenance.tsx#L738) | function | 738 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
+| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L825) | function | 825 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
+| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L937) | function | 937 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
+| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L998) | function | 998 | `function renderArtifactInspector()` | Renders artifact inspector. |
+| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1091) | function | 1091 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
 
 ### [`frontend/src/views/relationships.tsx`](../frontend/src/views/relationships.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`ModeControl`](../frontend/src/views/relationships.tsx#L34) | function | 34 | `function ModeControl(props: { current: string })` | Renders markup for selecting a relationship graph mode. |
-| [`appliedFilters`](../frontend/src/views/relationships.tsx#L55) | function | 55 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
-| [`ClusterSummary`](../frontend/src/views/relationships.tsx#L68) | function | 68 | `function ClusterSummary(props: { data: any })` | Renders markup summarizing connected graph clusters. |
-| [`relationshipsView`](../frontend/src/views/relationships.tsx#L89) | function | 89 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
+| [`ModeControl`](../frontend/src/views/relationships.tsx#L43) | function | 43 | `function ModeControl(props: { current: string })` | Renders markup for selecting a relationship graph mode. |
+| [`appliedFilters`](../frontend/src/views/relationships.tsx#L70) | function | 70 | `function appliedFilters()` | Renders markup summarizing the active relationship filters. |
+| [`ClusterSummary`](../frontend/src/views/relationships.tsx#L88) | function | 88 | `function ClusterSummary(props: { data: any })` | Renders markup summarizing connected graph clusters. |
+| [`relationshipsView`](../frontend/src/views/relationships.tsx#L116) | function | 116 | `async function relationshipsView()` | Asynchronously implements relationships view for the viewer. |
 
 ### [`frontend/tests/e2e.spec.cjs`](../frontend/tests/e2e.spec.cjs)
 
@@ -3773,22 +3904,24 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`returns all rows when query is empty`](../frontend/tests/unit/components/data-table.test.ts#L17) | test | 17 | `it('returns all rows when query is empty', callback)` | returns all rows when query is empty |
-| [`filters rows by matching any field`](../frontend/tests/unit/components/data-table.test.ts#L23) | test | 23 | `it('filters rows by matching any field', callback)` | filters rows by matching any field |
-| [`is case-insensitive`](../frontend/tests/unit/components/data-table.test.ts#L29) | test | 29 | `it('is case-insensitive', callback)` | is case-insensitive |
-| [`matches across multiple fields`](../frontend/tests/unit/components/data-table.test.ts#L34) | test | 34 | `it('matches across multiple fields', callback)` | matches across multiple fields |
-| [`returns empty array when no match`](../frontend/tests/unit/components/data-table.test.ts#L39) | test | 39 | `it('returns empty array when no match', callback)` | returns empty array when no match |
-| [`renders a table with header and rows`](../frontend/tests/unit/components/data-table.test.ts#L47) | test | 47 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
-| [`renders empty state when no rows`](../frontend/tests/unit/components/data-table.test.ts#L65) | test | 65 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
-| [`renders empty state with query message when query is set`](../frontend/tests/unit/components/data-table.test.ts#L75) | test | 75 | `it('renders empty state with query message when query is set', callback)` | renders empty state with query message when query is set |
-| [`renders expandable rows when expandableFields provided`](../frontend/tests/unit/components/data-table.test.ts#L85) | test | 85 | `it('renders expandable rows when expandableFields provided', callback)` | renders expandable rows when expandableFields provided |
-| [`renders sort buttons for sortable columns`](../frontend/tests/unit/components/data-table.test.ts#L105) | test | 105 | `it('renders sort buttons for sortable columns', callback)` | renders sort buttons for sortable columns |
-| [`disables previous button on page 1`](../frontend/tests/unit/components/data-table.test.ts#L117) | test | 117 | `it('disables previous button on page 1', callback)` | disables previous button on page 1 |
-| [`disables next button when has_next is false`](../frontend/tests/unit/components/data-table.test.ts#L127) | test | 127 | `it('disables next button when has_next is false', callback)` | disables next button when has_next is false |
-| [`handles column objects with name property`](../frontend/tests/unit/components/data-table.test.ts#L137) | test | 137 | `it('handles column objects with name property', callback)` | handles column objects with name property |
-| [`filters and orders columns by whitelist`](../frontend/tests/unit/components/data-table.test.ts#L149) | test | 149 | `it('filters and orders columns by whitelist', callback)` | filters and orders columns by whitelist |
-| [`binds click handlers to sort buttons`](../frontend/tests/unit/components/data-table.test.ts#L171) | test | 171 | `it('binds click handlers to sort buttons', callback)` | binds click handlers to sort buttons |
-| [`binds click handlers to page buttons`](../frontend/tests/unit/components/data-table.test.ts#L185) | test | 185 | `it('binds click handlers to page buttons', callback)` | binds click handlers to page buttons |
+| [`returns all rows when query is empty`](../frontend/tests/unit/components/data-table.test.ts#L18) | test | 18 | `it('returns all rows when query is empty', callback)` | returns all rows when query is empty |
+| [`filters rows by matching any field`](../frontend/tests/unit/components/data-table.test.ts#L24) | test | 24 | `it('filters rows by matching any field', callback)` | filters rows by matching any field |
+| [`is case-insensitive`](../frontend/tests/unit/components/data-table.test.ts#L30) | test | 30 | `it('is case-insensitive', callback)` | is case-insensitive |
+| [`matches across multiple fields`](../frontend/tests/unit/components/data-table.test.ts#L35) | test | 35 | `it('matches across multiple fields', callback)` | matches across multiple fields |
+| [`returns empty array when no match`](../frontend/tests/unit/components/data-table.test.ts#L40) | test | 40 | `it('returns empty array when no match', callback)` | returns empty array when no match |
+| [`renders a table with header and rows`](../frontend/tests/unit/components/data-table.test.ts#L48) | test | 48 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
+| [`renders empty state when no rows`](../frontend/tests/unit/components/data-table.test.ts#L66) | test | 66 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
+| [`renders empty state with query message when query is set`](../frontend/tests/unit/components/data-table.test.ts#L76) | test | 76 | `it('renders empty state with query message when query is set', callback)` | renders empty state with query message when query is set |
+| [`renders expandable rows when expandableFields provided`](../frontend/tests/unit/components/data-table.test.ts#L86) | test | 86 | `it('renders expandable rows when expandableFields provided', callback)` | renders expandable rows when expandableFields provided |
+| [`uses the render hook for expandable fields when provided`](../frontend/tests/unit/components/data-table.test.ts#L106) | test | 106 | `it('uses the render hook for expandable fields when provided', callback)` | uses the render hook for expandable fields when provided |
+| [`keeps the default text rendering when no render hook is provided`](../frontend/tests/unit/components/data-table.test.ts#L125) | test | 125 | `it('keeps the default text rendering when no render hook is provided', callback)` | keeps the default text rendering when no render hook is provided |
+| [`renders sort buttons for sortable columns`](../frontend/tests/unit/components/data-table.test.ts#L138) | test | 138 | `it('renders sort buttons for sortable columns', callback)` | renders sort buttons for sortable columns |
+| [`disables previous button on page 1`](../frontend/tests/unit/components/data-table.test.ts#L150) | test | 150 | `it('disables previous button on page 1', callback)` | disables previous button on page 1 |
+| [`disables next button when has_next is false`](../frontend/tests/unit/components/data-table.test.ts#L160) | test | 160 | `it('disables next button when has_next is false', callback)` | disables next button when has_next is false |
+| [`handles column objects with name property`](../frontend/tests/unit/components/data-table.test.ts#L170) | test | 170 | `it('handles column objects with name property', callback)` | handles column objects with name property |
+| [`filters and orders columns by whitelist`](../frontend/tests/unit/components/data-table.test.ts#L182) | test | 182 | `it('filters and orders columns by whitelist', callback)` | filters and orders columns by whitelist |
+| [`binds click handlers to sort buttons`](../frontend/tests/unit/components/data-table.test.ts#L204) | test | 204 | `it('binds click handlers to sort buttons', callback)` | binds click handlers to sort buttons |
+| [`binds click handlers to page buttons`](../frontend/tests/unit/components/data-table.test.ts#L218) | test | 218 | `it('binds click handlers to page buttons', callback)` | binds click handlers to page buttons |
 
 ### [`frontend/tests/unit/components/graph.test.ts`](../frontend/tests/unit/components/graph.test.ts)
 
@@ -4027,7 +4160,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`renders corpus view with articles section`](../frontend/tests/unit/views/corpus.test.ts#L18) | test | 18 | `it('renders corpus view with articles section', callback)` | renders corpus view with articles section |
-| [`keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses`](../frontend/tests/unit/views/corpus.test.ts#L73) | test | 73 | `it('keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses', callback)` | keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses |
+| [`renders matched search terms in the article row expansion`](../frontend/tests/unit/views/corpus.test.ts#L73) | test | 73 | `it('renders matched search terms in the article row expansion', callback)` | renders matched search terms in the article row expansion |
+| [`renders no search terms recorded when term_matches is absent`](../frontend/tests/unit/views/corpus.test.ts#L113) | test | 113 | `it('renders no search terms recorded when term_matches is absent', callback)` | renders no search terms recorded when term_matches is absent |
+| [`keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses`](../frontend/tests/unit/views/corpus.test.ts#L148) | test | 148 | `it('keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses', callback)` | keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses |
 
 ### [`frontend/tests/unit/views/detail.test.ts`](../frontend/tests/unit/views/detail.test.ts)
 
@@ -4037,7 +4172,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`renders article detail when article_id is set`](../frontend/tests/unit/views/detail.test.ts#L26) | test | 26 | `it('renders article detail when article_id is set', callback)` | renders article detail when article_id is set |
 | [`renders discarded validation reasons as individual entries`](../frontend/tests/unit/views/detail.test.ts#L116) | test | 116 | `it('renders discarded validation reasons as individual entries', callback)` | renders discarded validation reasons as individual entries |
 | [`renders author detail when author_id is set`](../frontend/tests/unit/views/detail.test.ts#L158) | test | 158 | `it('renders author detail when author_id is set', callback)` | renders author detail when author_id is set |
-| [`renders reference detail when reference_id is set`](../frontend/tests/unit/views/detail.test.ts#L204) | test | 204 | `it('renders reference detail when reference_id is set', callback)` | renders reference detail when reference_id is set |
+| [`renders the search term coverage panel`](../frontend/tests/unit/views/detail.test.ts#L204) | test | 204 | `it('renders the search term coverage panel', callback)` | renders the search term coverage panel |
+| [`renders no search terms recorded when term_matches is null`](../frontend/tests/unit/views/detail.test.ts#L252) | test | 252 | `it('renders no search terms recorded when term_matches is null', callback)` | renders no search terms recorded when term_matches is null |
+| [`renders reference detail when reference_id is set`](../frontend/tests/unit/views/detail.test.ts#L289) | test | 289 | `it('renders reference detail when reference_id is set', callback)` | renders reference detail when reference_id is set |
 
 ### [`frontend/tests/unit/views/evaluation.test.ts`](../frontend/tests/unit/views/evaluation.test.ts)
 
@@ -4096,69 +4233,73 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`displays enrichment field and provider breakdowns`](../frontend/tests/viewer.spec.cjs#L220) | test | 220 | `test('displays enrichment field and provider breakdowns', callback)` | displays enrichment field and provider breakdowns |
 | [`articles section loads and shows article rows`](../frontend/tests/viewer.spec.cjs#L233) | test | 233 | `test('articles section loads and shows article rows', callback)` | articles section loads and shows article rows |
 | [`articles section supports search filtering`](../frontend/tests/viewer.spec.cjs#L245) | test | 245 | `test('articles section supports search filtering', callback)` | articles section supports search filtering |
-| [`authors section loads and shows author rows`](../frontend/tests/viewer.spec.cjs#L253) | test | 253 | `test('authors section loads and shows author rows', callback)` | authors section loads and shows author rows |
-| [`references section loads and shows reference rows`](../frontend/tests/viewer.spec.cjs#L260) | test | 260 | `test('references section loads and shows reference rows', callback)` | references section loads and shows reference rows |
-| [`sources section loads and shows source records`](../frontend/tests/viewer.spec.cjs#L270) | test | 270 | `test('sources section loads and shows source records', callback)` | sources section loads and shows source records |
-| [`identity evidence links to author-scoped candidate details without expanding candidates inside the table`](../frontend/tests/viewer.spec.cjs#L286) | test | 286 | `test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', callback)` | identity evidence links to author-scoped candidate details without expanding candidates inside the table |
-| [`corpus supports pagination`](../frontend/tests/viewer.spec.cjs#L300) | test | 300 | `test('corpus supports pagination', callback)` | corpus supports pagination |
-| [`corpus ignores a sort field that is unsupported by its selected section`](../frontend/tests/viewer.spec.cjs#L311) | test | 311 | `test('corpus ignores a sort field that is unsupported by its selected section', callback)` | corpus ignores a sort field that is unsupported by its selected section |
-| [`graph loads and renders for a completed run`](../frontend/tests/viewer.spec.cjs#L322) | test | 322 | `test('graph loads and renders for a completed run', callback)` | graph loads and renders for a completed run |
-| [`graph supports mode switching to citation`](../frontend/tests/viewer.spec.cjs#L331) | test | 331 | `test('graph supports mode switching to citation', callback)` | graph supports mode switching to citation |
-| [`graph supports text search filter`](../frontend/tests/viewer.spec.cjs#L338) | test | 338 | `test('graph supports text search filter', callback)` | graph supports text search filter |
-| [`graph filters are applied explicitly and remain visible in the URL`](../frontend/tests/viewer.spec.cjs#L345) | test | 345 | `test('graph filters are applied explicitly and remain visible in the URL', callback)` | graph filters are applied explicitly and remain visible in the URL |
-| [`graph node search input is present and functional`](../frontend/tests/viewer.spec.cjs#L353) | test | 353 | `test('graph node search input is present and functional', callback)` | graph node search input is present and functional |
-| [`graph export PNG button is present`](../frontend/tests/viewer.spec.cjs#L364) | test | 364 | `test('graph export PNG button is present', callback)` | graph export PNG button is present |
-| [`graph legend is anchored at the bottom left of the canvas`](../frontend/tests/viewer.spec.cjs#L371) | test | 371 | `test('graph legend is anchored at the bottom left of the canvas', callback)` | graph legend is anchored at the bottom left of the canvas |
-| [`background click clears a selected graph node`](../frontend/tests/viewer.spec.cjs#L383) | test | 383 | `test('background click clears a selected graph node', callback)` | background click clears a selected graph node |
-| [`clicking the selected graph node again clears it`](../frontend/tests/viewer.spec.cjs#L392) | test | 392 | `test('clicking the selected graph node again clears it', callback)` | clicking the selected graph node again clears it |
-| [`secondary-button drag pans without changing graph selection`](../frontend/tests/viewer.spec.cjs#L418) | test | 418 | `test('secondary-button drag pans without changing graph selection', callback)` | secondary-button drag pans without changing graph selection |
-| [`audit section loads and shows events`](../frontend/tests/viewer.spec.cjs#L435) | test | 435 | `test('audit section loads and shows events', callback)` | audit section loads and shows events |
-| [`audit stream filters events by category on the server`](../frontend/tests/viewer.spec.cjs#L442) | test | 442 | `test('audit stream filters events by category on the server', callback)` | audit stream filters events by category on the server |
-| [`audit stream exposes mirrored PDF events`](../frontend/tests/viewer.spec.cjs#L461) | test | 461 | `test('audit stream exposes mirrored PDF events', callback)` | audit stream exposes mirrored PDF events |
-| [`artifacts section identifies configuration snapshots and offers downloads`](../frontend/tests/viewer.spec.cjs#L469) | test | 469 | `test('artifacts section identifies configuration snapshots and offers downloads', callback)` | artifacts section identifies configuration snapshots and offers downloads |
-| [`cache uses section supports shared filtering and pagination controls`](../frontend/tests/viewer.spec.cjs#L482) | test | 482 | `test('cache uses section supports shared filtering and pagination controls', callback)` | cache uses section supports shared filtering and pagination controls |
-| [`stages section loads`](../frontend/tests/viewer.spec.cjs#L495) | test | 495 | `test('stages section loads', callback)` | stages section loads |
-| [`run details section loads`](../frontend/tests/viewer.spec.cjs#L503) | test | 503 | `test('run details section loads', callback)` | run details section loads |
-| [`lists only normalized articles with manual inventory status`](../frontend/tests/viewer.spec.cjs#L515) | test | 515 | `test('lists only normalized articles with manual inventory status', callback)` | lists only normalized articles with manual inventory status |
-| [`preserves research context in the Evaluation navigation link`](../frontend/tests/viewer.spec.cjs#L528) | test | 528 | `test('preserves research context in the Evaluation navigation link', callback)` | preserves research context in the Evaluation navigation link |
-| [`lists available tables`](../frontend/tests/viewer.spec.cjs#L541) | test | 541 | `test('lists available tables', callback)` | lists available tables |
-| [`displays rows from a selected table`](../frontend/tests/viewer.spec.cjs#L548) | test | 548 | `test('displays rows from a selected table', callback)` | displays rows from a selected table |
-| [`table browser supports pagination`](../frontend/tests/viewer.spec.cjs#L555) | test | 555 | `test('table browser supports pagination', callback)` | table browser supports pagination |
-| [`ignores a sort field that does not belong to the selected table`](../frontend/tests/viewer.spec.cjs#L564) | test | 564 | `test('ignores a sort field that does not belong to the selected table', callback)` | ignores a sort field that does not belong to the selected table |
-| [`Home shows all research hierarchy totals and manages trashed runs through a modal`](../frontend/tests/viewer.spec.cjs#L574) | test | 574 | `test('Home shows all research hierarchy totals and manages trashed runs through a modal', callback)` | Home shows all research hierarchy totals and manages trashed runs through a modal |
-| [`article detail shows revision metadata`](../frontend/tests/viewer.spec.cjs#L592) | test | 592 | `test('article detail shows revision metadata', callback)` | article detail shows revision metadata |
-| [`article detail opens the bound PDF without discarding research context`](../frontend/tests/viewer.spec.cjs#L605) | test | 605 | `test('article detail opens the bound PDF without discarding research context', callback)` | article detail opens the bound PDF without discarding research context |
-| [`article detail shows an absent PDF without an open action`](../frontend/tests/viewer.spec.cjs#L619) | test | 619 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
-| [`article detail preserves the originating corpus state`](../frontend/tests/viewer.spec.cjs#L625) | test | 625 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
-| [`article detail shows authors and references`](../frontend/tests/viewer.spec.cjs#L637) | test | 637 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
-| [`author detail shows author information`](../frontend/tests/viewer.spec.cjs#L645) | test | 645 | `test('author detail shows author information', callback)` | author detail shows author information |
-| [`reference detail shows reference information`](../frontend/tests/viewer.spec.cjs#L657) | test | 657 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
-| [`shows error for invalid API route`](../frontend/tests/viewer.spec.cjs#L668) | test | 668 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
-| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.cjs#L676) | test | 676 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
-| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.cjs#L683) | test | 683 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
-| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.cjs#L690) | test | 690 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
-| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.cjs#L697) | test | 697 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
-| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.cjs#L704) | test | 704 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
-| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.cjs#L711) | test | 711 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
-| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.cjs#L716) | test | 716 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
-| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.cjs#L726) | test | 726 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
-| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.cjs#L735) | test | 735 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
-| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.cjs#L741) | test | 741 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
-| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.cjs#L751) | test | 751 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
-| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.cjs#L762) | test | 762 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
-| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.cjs#L772) | test | 772 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
-| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.cjs#L778) | test | 778 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
-| [`navigation is a landmark`](../frontend/tests/viewer.spec.cjs#L784) | test | 784 | `test('navigation is a landmark', callback)` | navigation is a landmark |
-| [`images have alt text`](../frontend/tests/viewer.spec.cjs#L790) | test | 790 | `test('images have alt text', callback)` | images have alt text |
-| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.cjs#L804) | test | 804 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
-| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.cjs#L811) | test | 811 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
-| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.cjs#L822) | test | 822 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
-| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.cjs#L830) | test | 830 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
-| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.cjs#L841) | test | 841 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
-| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.cjs#L850) | test | 850 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
-| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.cjs#L860) | test | 860 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
-| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.cjs#L874) | test | 874 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
-| [`clicking close button hides the message`](../frontend/tests/viewer.spec.cjs#L888) | test | 888 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
-| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.cjs#L907) | test | 907 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
+| [`articles expansion shows matched search terms`](../frontend/tests/viewer.spec.cjs#L253) | test | 253 | `test('articles expansion shows matched search terms', callback)` | articles expansion shows matched search terms |
+| [`articles expansion shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.cjs#L265) | test | 265 | `test('articles expansion shows no search terms recorded for a run without queries', callback)` | articles expansion shows no search terms recorded for a run without queries |
+| [`authors section loads and shows author rows`](../frontend/tests/viewer.spec.cjs#L274) | test | 274 | `test('authors section loads and shows author rows', callback)` | authors section loads and shows author rows |
+| [`references section loads and shows reference rows`](../frontend/tests/viewer.spec.cjs#L281) | test | 281 | `test('references section loads and shows reference rows', callback)` | references section loads and shows reference rows |
+| [`sources section loads and shows source records`](../frontend/tests/viewer.spec.cjs#L291) | test | 291 | `test('sources section loads and shows source records', callback)` | sources section loads and shows source records |
+| [`identity evidence links to author-scoped candidate details without expanding candidates inside the table`](../frontend/tests/viewer.spec.cjs#L307) | test | 307 | `test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', callback)` | identity evidence links to author-scoped candidate details without expanding candidates inside the table |
+| [`corpus supports pagination`](../frontend/tests/viewer.spec.cjs#L321) | test | 321 | `test('corpus supports pagination', callback)` | corpus supports pagination |
+| [`corpus ignores a sort field that is unsupported by its selected section`](../frontend/tests/viewer.spec.cjs#L332) | test | 332 | `test('corpus ignores a sort field that is unsupported by its selected section', callback)` | corpus ignores a sort field that is unsupported by its selected section |
+| [`graph loads and renders for a completed run`](../frontend/tests/viewer.spec.cjs#L343) | test | 343 | `test('graph loads and renders for a completed run', callback)` | graph loads and renders for a completed run |
+| [`graph supports mode switching to citation`](../frontend/tests/viewer.spec.cjs#L352) | test | 352 | `test('graph supports mode switching to citation', callback)` | graph supports mode switching to citation |
+| [`graph supports text search filter`](../frontend/tests/viewer.spec.cjs#L359) | test | 359 | `test('graph supports text search filter', callback)` | graph supports text search filter |
+| [`graph filters are applied explicitly and remain visible in the URL`](../frontend/tests/viewer.spec.cjs#L366) | test | 366 | `test('graph filters are applied explicitly and remain visible in the URL', callback)` | graph filters are applied explicitly and remain visible in the URL |
+| [`graph node search input is present and functional`](../frontend/tests/viewer.spec.cjs#L374) | test | 374 | `test('graph node search input is present and functional', callback)` | graph node search input is present and functional |
+| [`graph export PNG button is present`](../frontend/tests/viewer.spec.cjs#L385) | test | 385 | `test('graph export PNG button is present', callback)` | graph export PNG button is present |
+| [`graph legend is anchored at the bottom left of the canvas`](../frontend/tests/viewer.spec.cjs#L392) | test | 392 | `test('graph legend is anchored at the bottom left of the canvas', callback)` | graph legend is anchored at the bottom left of the canvas |
+| [`background click clears a selected graph node`](../frontend/tests/viewer.spec.cjs#L404) | test | 404 | `test('background click clears a selected graph node', callback)` | background click clears a selected graph node |
+| [`clicking the selected graph node again clears it`](../frontend/tests/viewer.spec.cjs#L413) | test | 413 | `test('clicking the selected graph node again clears it', callback)` | clicking the selected graph node again clears it |
+| [`secondary-button drag pans without changing graph selection`](../frontend/tests/viewer.spec.cjs#L439) | test | 439 | `test('secondary-button drag pans without changing graph selection', callback)` | secondary-button drag pans without changing graph selection |
+| [`audit section loads and shows events`](../frontend/tests/viewer.spec.cjs#L456) | test | 456 | `test('audit section loads and shows events', callback)` | audit section loads and shows events |
+| [`audit stream filters events by category on the server`](../frontend/tests/viewer.spec.cjs#L463) | test | 463 | `test('audit stream filters events by category on the server', callback)` | audit stream filters events by category on the server |
+| [`audit stream exposes mirrored PDF events`](../frontend/tests/viewer.spec.cjs#L482) | test | 482 | `test('audit stream exposes mirrored PDF events', callback)` | audit stream exposes mirrored PDF events |
+| [`artifacts section identifies configuration snapshots and offers downloads`](../frontend/tests/viewer.spec.cjs#L490) | test | 490 | `test('artifacts section identifies configuration snapshots and offers downloads', callback)` | artifacts section identifies configuration snapshots and offers downloads |
+| [`cache uses section supports shared filtering and pagination controls`](../frontend/tests/viewer.spec.cjs#L503) | test | 503 | `test('cache uses section supports shared filtering and pagination controls', callback)` | cache uses section supports shared filtering and pagination controls |
+| [`stages section loads`](../frontend/tests/viewer.spec.cjs#L516) | test | 516 | `test('stages section loads', callback)` | stages section loads |
+| [`run details section loads`](../frontend/tests/viewer.spec.cjs#L524) | test | 524 | `test('run details section loads', callback)` | run details section loads |
+| [`lists only normalized articles with manual inventory status`](../frontend/tests/viewer.spec.cjs#L536) | test | 536 | `test('lists only normalized articles with manual inventory status', callback)` | lists only normalized articles with manual inventory status |
+| [`preserves research context in the Evaluation navigation link`](../frontend/tests/viewer.spec.cjs#L549) | test | 549 | `test('preserves research context in the Evaluation navigation link', callback)` | preserves research context in the Evaluation navigation link |
+| [`lists available tables`](../frontend/tests/viewer.spec.cjs#L562) | test | 562 | `test('lists available tables', callback)` | lists available tables |
+| [`displays rows from a selected table`](../frontend/tests/viewer.spec.cjs#L569) | test | 569 | `test('displays rows from a selected table', callback)` | displays rows from a selected table |
+| [`table browser supports pagination`](../frontend/tests/viewer.spec.cjs#L576) | test | 576 | `test('table browser supports pagination', callback)` | table browser supports pagination |
+| [`ignores a sort field that does not belong to the selected table`](../frontend/tests/viewer.spec.cjs#L585) | test | 585 | `test('ignores a sort field that does not belong to the selected table', callback)` | ignores a sort field that does not belong to the selected table |
+| [`Home shows all research hierarchy totals and manages trashed runs through a modal`](../frontend/tests/viewer.spec.cjs#L595) | test | 595 | `test('Home shows all research hierarchy totals and manages trashed runs through a modal', callback)` | Home shows all research hierarchy totals and manages trashed runs through a modal |
+| [`article detail shows revision metadata`](../frontend/tests/viewer.spec.cjs#L613) | test | 613 | `test('article detail shows revision metadata', callback)` | article detail shows revision metadata |
+| [`article detail shows the search term coverage panel`](../frontend/tests/viewer.spec.cjs#L626) | test | 626 | `test('article detail shows the search term coverage panel', callback)` | article detail shows the search term coverage panel |
+| [`article detail shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.cjs#L638) | test | 638 | `test('article detail shows no search terms recorded for a run without queries', callback)` | article detail shows no search terms recorded for a run without queries |
+| [`article detail opens the bound PDF without discarding research context`](../frontend/tests/viewer.spec.cjs#L645) | test | 645 | `test('article detail opens the bound PDF without discarding research context', callback)` | article detail opens the bound PDF without discarding research context |
+| [`article detail shows an absent PDF without an open action`](../frontend/tests/viewer.spec.cjs#L659) | test | 659 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
+| [`article detail preserves the originating corpus state`](../frontend/tests/viewer.spec.cjs#L665) | test | 665 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
+| [`article detail shows authors and references`](../frontend/tests/viewer.spec.cjs#L677) | test | 677 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
+| [`author detail shows author information`](../frontend/tests/viewer.spec.cjs#L685) | test | 685 | `test('author detail shows author information', callback)` | author detail shows author information |
+| [`reference detail shows reference information`](../frontend/tests/viewer.spec.cjs#L697) | test | 697 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
+| [`shows error for invalid API route`](../frontend/tests/viewer.spec.cjs#L708) | test | 708 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
+| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.cjs#L716) | test | 716 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
+| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.cjs#L723) | test | 723 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
+| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.cjs#L730) | test | 730 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
+| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.cjs#L737) | test | 737 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
+| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.cjs#L744) | test | 744 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
+| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.cjs#L751) | test | 751 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
+| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.cjs#L756) | test | 756 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
+| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.cjs#L766) | test | 766 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
+| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.cjs#L775) | test | 775 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
+| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.cjs#L781) | test | 781 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
+| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.cjs#L791) | test | 791 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
+| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.cjs#L802) | test | 802 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
+| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.cjs#L812) | test | 812 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
+| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.cjs#L818) | test | 818 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
+| [`navigation is a landmark`](../frontend/tests/viewer.spec.cjs#L824) | test | 824 | `test('navigation is a landmark', callback)` | navigation is a landmark |
+| [`images have alt text`](../frontend/tests/viewer.spec.cjs#L830) | test | 830 | `test('images have alt text', callback)` | images have alt text |
+| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.cjs#L844) | test | 844 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
+| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.cjs#L851) | test | 851 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
+| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.cjs#L862) | test | 862 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
+| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.cjs#L870) | test | 870 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
+| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.cjs#L881) | test | 881 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
+| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.cjs#L890) | test | 890 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
+| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.cjs#L900) | test | 900 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
+| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.cjs#L914) | test | 914 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
+| [`clicking close button hides the message`](../frontend/tests/viewer.spec.cjs#L928) | test | 928 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
+| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.cjs#L947) | test | 947 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
 
 <!-- END GENERATED PROJECT CATALOG -->

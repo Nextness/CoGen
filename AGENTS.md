@@ -4,7 +4,7 @@
 
 This file is the repository entry point for agents. Read the root [Makefile](Makefile) for the supported command contract, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system structure and behavior, [docs/DATABASE.md](docs/DATABASE.md) for the current SQLite schema and relationships, [docs/STANDARDS.md](docs/STANDARDS.md) for change and test rules, [docs/PROJECT-USAGE.md](docs/PROJECT-USAGE.md) for developer and operator workflows, and [docs/PROJECT_CATALOG.md](docs/PROJECT_CATALOG.md) for declarations and source locations.
 
-Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE.md](docs/CSS-REFERENCE.md), [docs/APP-USAGE.md](docs/APP-USAGE.md), and [docs/JSX-RUNTIME.md](docs/JSX-RUNTIME.md). Before SOMETHING language changes, read [docs/something.spec.md](docs/something.spec.md). [docs/DOC-STATE.md](docs/DOC-STATE.md) defines documentation review dependencies and acknowledged hashes. OpenCode planning and execution policies are in [.opencode/agent/developer-plan.md](.opencode/agent/developer-plan.md) and [.opencode/agent/developer-execute.md](.opencode/agent/developer-execute.md).
+Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE.md](docs/CSS-REFERENCE.md), [docs/APP-USAGE.md](docs/APP-USAGE.md), [docs/JSX-RUNTIME.md](docs/JSX-RUNTIME.md), and [docs/FRONTEND-CODE-STYLE-GUIDE.md](docs/FRONTEND-CODE-STYLE-GUIDE.md); frontend code changes must follow the style guide. Before SOMETHING language changes, read [docs/something.spec.md](docs/something.spec.md). [docs/DOC-STATE.md](docs/DOC-STATE.md) defines documentation review dependencies and acknowledged hashes. OpenCode planning and execution policies are in [.opencode/agent/developer-plan.md](.opencode/agent/developer-plan.md) and [.opencode/agent/developer-execute.md](.opencode/agent/developer-execute.md).
 
 ## 2. Project and stack
 
@@ -65,7 +65,7 @@ There is no separate lint, pre-commit, or CI target. Format changed Go with `gof
 
 ## 4. Runtime and configuration essentials
 
-`run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed plan is a no-op by default while normalized DOI inventory reconciliation still runs; `--fresh` creates another attempt.
+`run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed plan is a no-op by default while normalized DOI inventory and stored search-term match reconciliation still run; the first run after a migration is a full new run because the schema version is part of the execution fingerprint. `--fresh` creates another attempt.
 
 `migrate` applies configured metadata migrations to an existing database without running a workspace. `serve` requires `--db`, `--addr`, and `--assets-dir`, requires an exact loopback IP address, opens the existing metadata database through separate read-only and review-write connections, verifies review schema protection without running migrations, and keeps the bound PDF companion read-only. The binary contains no frontend assets; `--assets-dir` is the sole asset source.
 
@@ -91,7 +91,7 @@ The viewer is a URL-state SPA assembled into `frontend/dist` from `frontend/src`
 
 ## 6. Data, migration, and security essentials
 
-The metadata chain is V00001-V00024 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
+The metadata chain is V00001-V00025 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
 
 Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 
@@ -107,7 +107,7 @@ Frontend unit tests live under `frontend/tests/unit/` and use Node, jsdom, and `
 
 The `e2e` Go build tag is reserved for the supported pipeline-to-viewer flow. `make test-e2e` builds and invokes `build/analysis`, keeps deterministic and mocked-provider traffic offline, writes generated database bundles under `build/e2e/`, and runs the guarded Playwright continuity spec. `make test-e2e-live E2E_LIVE=1` is the only test target permitted to contact real Crossref, OpenAlex, and ORCID services; it is opt-in and is not part of default, race, integration, coverage, or frontend targets.
 
-When changing `frontend/`, run `make test-frontend-unit`, `make test-go PACKAGE=./server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
+When changing `frontend/`, follow the code style in [docs/FRONTEND-CODE-STYLE-GUIDE.md](docs/FRONTEND-CODE-STYLE-GUIDE.md), then run `make test-frontend-unit`, `make test-go PACKAGE=./server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
 
 The checked-in `frontend/vendor/d3-force.js` is generated by `make frontend-vendor`. The checked-in PDF.js core, worker, CMaps, standard fonts, and license assets under `frontend/vendor/pdfjs/` are generated by `make frontend-pdfjs-vendor`. Edit dependency or generation inputs, not the generated assets. `frontend/dist` is assembled by `make frontend-build` and is required by `serve`, `dev`, and Playwright targets.
 

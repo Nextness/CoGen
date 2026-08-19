@@ -135,8 +135,8 @@ func TestV00005ReferenceMentionsMigrationApplies(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 24 {
-		t.Fatalf("expected 24 applied migrations, got %d", count)
+	if count != 25 {
+		t.Fatalf("expected 25 applied migrations, got %d", count)
 	}
 	for _, name := range []string{"reference_mentions"} {
 		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&count); err != nil || count != 1 {

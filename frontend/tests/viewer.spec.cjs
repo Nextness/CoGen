@@ -250,6 +250,27 @@ test.describe('Corpus view', () => {
     await expect(body).not.toContainText('Deep Reinforcement Learning');
   });
 
+  test('articles expansion shows matched search terms', async ({ page }) => {
+    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await page.waitForLoadState('networkidle');
+    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
+    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await expect(expansion).toContainText('Matched search terms');
+    await expect(expansion).toContainText('3 of 6 search terms matched');
+    await expect(expansion).toContainText('transformer');
+    await expect(expansion).toContainText('attention');
+    await expect(expansion).toContainText('deep learning');
+  });
+
+  test('articles expansion shows no search terms recorded for a run without queries', async ({ page }) => {
+    await goto(page, contextURL({ view: 'corpus', section: 'articles', run_id: RUN_4_NO_ENRICH }));
+    await page.waitForLoadState('networkidle');
+    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
+    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await expect(expansion).toContainText('Matched search terms');
+    await expect(expansion).toContainText('No search terms recorded');
+  });
+
   test('authors section loads and shows author rows', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'authors' }));
     await page.waitForLoadState('networkidle');
@@ -600,6 +621,25 @@ test.describe('Detail views', () => {
     await expect(page.locator('[data-record-audit-search]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-category]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-action]')).toHaveCSS('height', '38px');
+  });
+
+  test('article detail shows the search term coverage panel', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Search term coverage' })).toBeVisible();
+    const body = page.locator('body');
+    await expect(body).toContainText('3 of 6 search terms matched this article.');
+    await expect(body).toContainText('All search terms');
+    await expect(body).toContainText('Matched terms');
+    await expect(body).toContainText('Unmatched terms');
+    await expect(body).toContainText('reinforcement');
+  });
+
+  test('article detail shows no search terms recorded for a run without queries', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: '17' }));
+    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Search term coverage' })).toBeVisible();
+    await expect(page.locator('body')).toContainText('No search terms recorded for this run.');
   });
 
   test('article detail opens the bound PDF without discarding research context', async ({ page, request }) => {

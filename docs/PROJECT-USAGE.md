@@ -73,7 +73,7 @@ The equivalent executable form is:
 ./build/analysis run --db ./corpus.metadata.db --config ./config/workspace.something --workspace search_id@revision --fresh
 ```
 
-Without `WORKSPACE` or `--workspace`, every declared workspace runs in declaration order. Repeat `--workspace` to select multiple declarations. A matching completed plan is reused as a no-op by default while DOI inventory reconciliation still runs; `FRESH=1` or `--fresh` creates another attempt.
+Without `WORKSPACE` or `--workspace`, every declared workspace runs in declaration order. Repeat `--workspace` to select multiple declarations. A matching completed plan is reused as a no-op by default while DOI inventory and stored search-term match reconciliation still run; the first run after a migration is a full new run because the schema version is part of the execution fingerprint. `FRESH=1` or `--fresh` creates another attempt.
 
 `config/workspace.something` is the normal workspace entry and includes `config/baseline.something`. Each workspace may provide optional `reviewer = reviewer_config { username = "...", email = "..." }`; omitted values default to empty, are trimmed and bounded, are captured for each attempt, and do not affect manifests or execution fingerprints. `config/database.something` independently selects metadata and PDF migration chains. Paths supplied in source declarations must resolve in the repository-root runtime context.
 

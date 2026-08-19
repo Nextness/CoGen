@@ -108,7 +108,23 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enriched_fields": enrichedFields, "pdf_status": pdfStatus, "review_context": reviewContext, "review_context_initialized": reviewContext != nil}, nil)
+	termMatches := map[string]any(nil)
+	if revision["producer_stage"] == "normalize" {
+		termRows, termTotal, err := s.runSearchTerms(ctx, runID)
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+		if len(termRows) > 0 {
+			revisionMatches, err := s.revisionTermMatches(ctx, runID, id)
+			if err != nil {
+				s.respond(w, r, nil, err)
+				return
+			}
+			termMatches = detailTermMatches(termRows, termTotal, revisionMatches)
+		}
+	}
+	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enriched_fields": enrichedFields, "pdf_status": pdfStatus, "review_context": reviewContext, "review_context_initialized": reviewContext != nil, "term_matches": termMatches}, nil)
 }
 
 // authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates.

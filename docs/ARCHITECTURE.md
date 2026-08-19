@@ -39,12 +39,13 @@ Source exports + SOMETHING configuration
 | `src/go.mod`, `src/go.sum` | Go module and dependency lock; Go commands execute with `src/` as the module directory. |
 | `src/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
 | `src/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
-| `src/database/` | Writable and existing-only metadata SQLite connections, migrations, repositories, immutable relationships and review versions, mutable review heads, attempts, artifacts, cache, metrics, and audit. |
+| `src/database/` | Writable and existing-only metadata SQLite connections, migrations, repositories, immutable relationships and review versions, mutable review heads, attempts, artifacts, cache, metrics, audit, and derived per-run search-term data. |
 | `src/enrich/` | Rate-limited provider HTTP client, payload-envelope validation, provider URL construction, and response decoding without database access. |
 | `src/logging/` | Process-wide structured logger and compile-time logging threshold. |
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
 | `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
+| `src/searchterms/` | Standard-library-only search-term extraction from source query strings and case-insensitive whole-word field matching with wildcard support. |
 | `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
 | `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
@@ -56,7 +57,7 @@ Source exports + SOMETHING configuration
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00024. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00025. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
@@ -99,7 +100,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 ## 5. Executable boundaries
 
-`build/analysis run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed execution plan is a no-op by default, but DOI inventory reconciliation still runs; `--fresh` creates another attempt and records the rerun reason.
+`build/analysis run` accepts `--db`, `--config`, repeated `--workspace search_id@search_revision`, and `--fresh`. Without selectors it executes every declared workspace in declaration order. A matching completed execution plan is a no-op by default, but DOI inventory and stored search-term match reconciliation still run; the first run after a migration is a full new run because the schema version is part of the execution fingerprint. `--fresh` creates another attempt and records the rerun reason.
 
 `build/analysis migrate --db <metadata.db>` opens an existing metadata database and applies the configured metadata migration chain without running a workspace. It does not create a missing database.
 
@@ -175,21 +176,23 @@ When enabled, Crossref and OpenAlex enrich article metadata in that order. OpenA
 
 Every applied field change creates one `field_enriched` audit event. Validation records `valid` or `discarded` and gates normalization. Normalization processes only valid work, classifies supported fields as changed, already canonical, or unavailable, persists normalized values and extension metadata in a new revision, and records metrics.
 
-Before successful completion, normalized revisions are grouped by work and synchronized into the companion PDF inventory. Missing rows become `not_available`, and outbox events reach metadata audit. A reused completed plan performs the same reconciliation without rerunning the stages.
+After normalization, the pipeline derives per-run search-term coverage: it parses the run's recorded source queries into a deduplicated term inventory, matches each term against the normalized revision's title, abstract, keywords, and keywords plus, and stores both the inventory and the per-revision matches in derived tables keyed by `pipeline_run_id`. The derivation is deterministic and uses the same in-memory fields that were just persisted.
+
+Before successful completion, normalized revisions are grouped by work and synchronized into the companion PDF inventory. Missing rows become `not_available`, and outbox events reach metadata audit. A reused completed plan performs the same PDF and search-term reconciliation without rerunning the stages: every completed run that lacks stored term data is backfilled from its stored queries and normalize revisions, and reconciliation failures are logged without failing the run.
 
 ```text
 preflight
    |
    v
-parse -> deduplicate -> enrich metadata -> enrich identity -> validate -> normalize
-   |          |                |                 |              |          |
-   +----------+----------------+-----------------+--------------+----------+
-                                      |
-                                      v
-                    revisions + stages + artifacts + metrics + audit
-                                      |
-                                      v
-                              DOI inventory sync
+parse -> deduplicate -> enrich metadata -> enrich identity -> validate -> normalize -> term matches
+   |          |                |                 |              |          |              |
+   +----------+----------------+-----------------+--------------+----------+--------------+
+                                       |
+                                       v
+                     revisions + stages + artifacts + metrics + audit
+                                       |
+                                       v
+                     DOI inventory sync + term-match reconciliation
 ```
 
 Stages use repository operations and scoped transactions rather than one transaction for an entire run. A late failure marks the attempt failed but intentionally preserves earlier immutable evidence.
@@ -254,9 +257,9 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00024 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections.
+The metadata chain is V00001-V00025 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections.
 
-The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, and mutable context head tables. [DATABASE.md](DATABASE.md) lists every table and relationship.
+The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
 The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated manual inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
 
@@ -318,14 +321,14 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/runs/{id}/audit`, `/api/audit` | Returns bounded cursor audit pages, facets, and supported filters. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
-| `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run. |
+| `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
 | `/api/runs/{id}/evaluation`, `/api/runs/{id}/identity-evidence`, `/api/runs/{id}/stages` | Returns evaluation, uncertain identity evidence, or stage outcomes. |
 | `/api/runs/{id}/review-context`, `/api/runs/{id}/review-context-candidates` | Returns, proposes, explicitly initializes, or lists bounded eligible parents for one completed non-trashed run. |
 | `/api/runs/{id}/articles/{revision}/review`, `/api/runs/{id}/articles/{revision}/review/versions` | Reads or appends complete review state and returns bounded immutable ancestry with optimistic concurrency. |
 | `/api/runs/{id}/articles/{revision}/notes`, `/api/runs/{id}/notes/{note}`, `/api/runs/{id}/notes/{note}/versions` | Creates, reads, edits, tombstones, restores, and lists bounded immutable note versions and resolved links. |
 | `/api/runs/{id}/articles/{revision}/anchors`, `/api/runs/{id}/anchors/{anchor}/versions`, `/api/runs/{id}/review-backlinks` | Creates and reads bounded PDF anchors, tombstones, ancestry, and current-version backlinks. |
 | `/api/tables`, `/api/tables/{table}` | Discovers tables and browses an allowlisted schema with bounded page sizes. |
-| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance; author detail includes bounded run-scoped identity candidates when `run_id` is supplied. |
+| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance; article detail includes stored search-term coverage for normalized revisions, and author detail includes bounded run-scoped identity candidates when `run_id` is supplied. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
 | `/api/trash` | Returns read-only trashed-run and restore history. |
@@ -429,7 +432,7 @@ note-editor.tsx -> api.tsx, state.tsx, note-parser.tsx
 
 `state.tsx` is the shared leaf and imports only the project-owned JSX runtime. Components do not import views. `router.tsx` and `context-selector.tsx` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
 
-Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, and content-hash-bound anchors; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
+Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs; article rows expand to show the stored search-term coverage for the run. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, content-hash-bound anchors, and a search term coverage panel; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 
 The graph uses the generated checked-in D3-force bundle without a CDN. Canvas rendering is supplemental to DOM controls, legend, cluster overview, search, selection details, paginated edge table, fit, zoom, drag, expansion, and PNG export. Shape encodes entity type and color encodes connected component.
 
@@ -503,6 +506,6 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 
 ## 22. Documentation architecture
 
-[AGENTS.md](../AGENTS.md) is the entry point, this document owns system architecture, [STANDARDS.md](STANDARDS.md) owns normative change rules, [DESIGN.md](DESIGN.md) owns frontend behavior and visual contracts, [CSS-REFERENCE.md](CSS-REFERENCE.md) owns active styles, [APP-USAGE.md](APP-USAGE.md) owns user experience and operating expectations, [PROJECT-USAGE.md](PROJECT-USAGE.md) owns developer and operator workflows, [PROJECT_CATALOG.md](PROJECT_CATALOG.md) is generated source navigation, [something.spec.md](something.spec.md) owns the language, and [DOC-STATE.md](DOC-STATE.md) records reviewed documentation hashes and dependency guidance.
+[AGENTS.md](../AGENTS.md) is the entry point, this document owns system architecture, [STANDARDS.md](STANDARDS.md) owns normative change rules, [DESIGN.md](DESIGN.md) owns frontend behavior and visual contracts, [CSS-REFERENCE.md](CSS-REFERENCE.md) owns active styles, [FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md) owns frontend code style and naming, [APP-USAGE.md](APP-USAGE.md) owns user experience and operating expectations, [PROJECT-USAGE.md](PROJECT-USAGE.md) owns developer and operator workflows, [PROJECT_CATALOG.md](PROJECT_CATALOG.md) is generated source navigation, [something.spec.md](something.spec.md) owns the language, and [DOC-STATE.md](DOC-STATE.md) records reviewed documentation hashes and dependency guidance.
 
 `doccheck check` validates local links, exact obsolete references, migration configuration and documented boundaries, single-line Markdown, catalog freshness, complete maintained declaration descriptions, and acknowledged documentation state. `doccheck catalog update` changes only the generated project-catalog region. `doccheck state update` changes only the generated hash region and is run after affected documents have been reviewed.

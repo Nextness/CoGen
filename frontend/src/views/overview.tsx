@@ -9,10 +9,15 @@ import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
 import { api } from '../api.tsx';
 import { bindFocusContext } from '../router.tsx';
 
+/** Renders the unavailable-value presentation shared by metric helpers. */
+function unavailableMarkup(): JSX.Element {
+  return <span className="ui faded text">Not recorded</span>;
+}
+
 /** Renders a normalization metric value or its unavailable presentation. */
 function normalizationValue(metric: any): JSX.Element {
   if (metric?.available === false) {
-    return <span className="ui faded text">Not recorded</span>;
+    return unavailableMarkup();
   }
   if (metric?.denominator != null) {
     const pct = (metric.percentage ?? 0).toFixed(2);
@@ -22,69 +27,147 @@ function normalizationValue(metric: any): JSX.Element {
 }
 
 const executionMetricStages = [
-  { id: 'ingest', label: 'Input capture', description: 'Raw records accepted from configured source exports.', matches: function(name: string) { return name === 'input_records'; } },
-  { id: 'parse', label: 'Parsing', description: 'Source records converted into article metadata.', matches: function(name: string) { return name.startsWith('parsed_'); } },
-  { id: 'deduplicate', label: 'Deduplication', description: 'Unique articles retained and duplicate records identified.', matches: function(name: string) { return name.startsWith('deduplicated_') || name.startsWith('duplicate_'); } },
-  { id: 'enrich', label: 'Enrichment', description: 'Candidate articles and fields updated from provider evidence.', matches: function(name: string) { return name.startsWith('enrichment_') || name.startsWith('enriched_'); } },
-  { id: 'validate', label: 'Validation', description: 'Articles accepted into or discarded from the analysis-ready corpus.', matches: function(name: string) { return name === 'valid_articles' || name === 'discarded_articles'; } },
-  { id: 'normalize', label: 'Normalization', description: 'Valid article fields assessed and converted to canonical forms.', matches: function(name: string) { return name.startsWith('normalized_') || name.startsWith('normalization_'); } },
-  { id: 'cache', label: 'Cache and network', description: 'Recorded provider-cache decisions and network fetches.', matches: function(name: string) { return name.startsWith('cache_'); } },
+  {
+    id: "ingest",
+    label: "Input capture",
+    description: "Raw records accepted from configured source exports.",
+    matches: (name: string) => {
+      return name === "input_records";
+    },
+  },
+  {
+    id: "parse",
+    label: "Parsing",
+    description: "Source records converted into article metadata.",
+    matches: (name: string) => {
+      return name.startsWith("parsed_");
+    },
+  },
+  {
+    id: "deduplicate",
+    label: "Deduplication",
+    description: "Unique articles retained and duplicate records identified.",
+    matches: (name: string) => {
+      return name.startsWith("deduplicated_") || name.startsWith("duplicate_");
+    },
+  },
+  {
+    id: "enrich",
+    label: "Enrichment",
+    description: "Candidate articles and fields updated from provider evidence.",
+    matches: (name: string) => {
+      return name.startsWith("enrichment_") || name.startsWith("enriched_");
+    },
+  },
+  {
+    id: "validate",
+    label: "Validation",
+    description: "Articles accepted into or discarded from the analysis-ready corpus.",
+    matches: (name: string) => {
+      return name === "valid_articles" || name === "discarded_articles";
+    },
+  },
+  {
+    id: "normalize",
+    label: "Normalization",
+    description: "Valid article fields assessed and converted to canonical forms.",
+    matches: (name: string) => {
+      return name.startsWith("normalized_") || name.startsWith("normalization_");
+    },
+  },
+  {
+    id: "cache",
+    label: "Cache and network",
+    description: "Recorded provider-cache decisions and network fetches.",
+    matches: (name: string) => {
+      return name.startsWith("cache_");
+    },
+  },
 ];
 
-/** Renders the numeric value of a captured metric, or null when unavailable. */
+/** Renders the numeric value of a captured metric or its unavailable presentation. */
 function capturedMetricValue(item: any): JSX.Element {
   if (item.available === false) {
-    return <span className="ui faded text">Not recorded</span>;
+    return unavailableMarkup();
   }
   return <>{formatNumber(item.value)}</>;
 }
 
 /** Groups captured metrics by pipeline stage. */
 function capturedMetricsByStage(metrics: any[]) {
-  const groups = executionMetricStages.map(function(stage) {
-    return { id: stage.id, label: stage.label, description: stage.description, matches: stage.matches, metrics: [] as any[] };
+  const groups = executionMetricStages.map((stage) => {
+    return {
+      id: stage.id,
+      label: stage.label,
+      description: stage.description,
+      matches: stage.matches,
+      metrics: [] as any[],
+    };
   });
-  const other = { id: 'other', label: 'Other run evidence', description: 'Recorded metrics without a recognized execution-stage prefix.', matches: function() { return true; }, metrics: [] as any[] };
-  metrics.forEach(function(metric) {
-    const name = String(metric.metric || '');
-    const group = groups.find(function(stage) { return stage.matches(name); }) || other;
+  const other = {
+    id: "other",
+    label: "Other run evidence",
+    description: "Recorded metrics without a recognized execution-stage prefix.",
+    matches: () => {
+      return true;
+    },
+    metrics: [] as any[],
+  };
+  metrics.forEach((metric) => {
+    const name = String(metric.metric || "");
+    const group = groups.find((stage) => {
+      return stage.matches(name);
+    }) || other;
     group.metrics.push(metric);
   });
-  if (other.metrics.length) {
-    groups.push(other);
-  }
-  return groups.filter(function(group) { return group.metrics.length > 0; });
+  if (other.metrics.length) groups.push(other);
+  return groups.filter((group) => {
+    return group.metrics.length > 0;
+  });
 }
 
 /** Renders table markup for captured pipeline metrics. */
 function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
+  const stageGroups = capturedMetricsByStage(props.metrics);
+  const stageSections = stageGroups.map((group) => {
+    const rows = group.metrics.map((metric) => {
+      var source: JSX.Element = <span className="ui faded text">Run total</span>;
+      if (metric.source) source = <>{humanLabel(metric.source)}</>;
+      return (
+        <tr>
+          <td>{humanLabel(metric.metric)}</td>
+          <td>{capturedMetricValue(metric)}</td>
+          <td>{source}</td>
+        </tr>
+      );
+    });
+    return (
+      <section className="rw-captured-stage">
+        <div className="rw-captured-stage__heading">
+          <div>
+            <h4>{group.label}</h4>
+            <p>{group.description}</p>
+          </div>
+          <span className="ui label">{formatNumber(group.metrics.length)} metrics</span>
+        </div>
+        <div className="table-wrap">
+          <table className="ui table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Value</th>
+                <th>Scope</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
+      </section>
+    );
+  });
   return (
     <div className="rw-captured-stages">
-      {capturedMetricsByStage(props.metrics).map(function(group) {
-        const rows = group.metrics.map(function(metric) {
-          return (
-            <tr>
-              <td>{humanLabel(metric.metric)}</td>
-              <td>{capturedMetricValue(metric)}</td>
-              <td>{metric.source ? humanLabel(metric.source) : <span className="ui faded text">Run total</span>}</td>
-            </tr>
-          );
-        });
-        return (
-          <section className="rw-captured-stage">
-            <div className="rw-captured-stage__heading">
-              <div><h4>{group.label}</h4><p>{group.description}</p></div>
-              <span className="ui label">{formatNumber(group.metrics.length)} metrics</span>
-            </div>
-            <div className="table-wrap">
-              <table className="ui table">
-                <thead><tr><th>Metric</th><th>Value</th><th>Scope</th></tr></thead>
-                <tbody>{rows}</tbody>
-              </table>
-            </div>
-          </section>
-        );
-      })}
+      {stageSections}
     </div>
   );
 }
@@ -95,20 +178,33 @@ function fixedPercentageMetric(metric: any): any {
     return metric;
   }
   const percentage = Number(metric.percentage ?? (Number(metric.value || 0) * 100 / Number(metric.denominator || 1)));
-  return { ...metric, percentage: percentage.toFixed(2) + '%' };
+  return {
+    ...metric,
+    percentage: `${percentage.toFixed(2)}%`,
+  };
 }
 
 /** Asynchronously implements overview view for the viewer. */
 export async function overviewView(): Promise<void> {
-  if (!value('run_id')) {
-    renderTree(<EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" data-focus-context>Focus context selector</button>} />, app);
+  if (!value("run_id")) {
+    const emptyStateMarkup = (
+      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" data-focus-context>Focus context selector</button>} />
+    );
+    renderTree(emptyStateMarkup, app);
     bindFocusContext();
     return;
   }
 
+  const runID = value("run_id");
   const [overview, cache] = await Promise.all([
-    api('/api/overview', { run_id: value('run_id') }, { method: 'GET', headers: { Accept: 'application/json' } }),
-    api('/api/runs/' + encodeURIComponent(value('run_id')) + '/cache-uses', {}, { method: 'GET', headers: { Accept: 'application/json' } })
+    api("/api/overview", { run_id: runID }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    }),
+    api(`/api/runs/${encodeURIComponent(runID)}/cache-uses`, {}, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    }),
   ]);
 
   const run = selectedRun() || {};
@@ -118,63 +214,164 @@ export async function overviewView(): Promise<void> {
   const normalizationFields = overview.normalization_field_breakdown || {};
 
   const corpusCards = [
-    ['Work revisions', relationship.work_revisions, link({ view: 'corpus', section: 'articles' })],
-    ['Authorships', relationship.authorships, link({ view: 'corpus', section: 'authors' })],
-    ['Reference mentions', relationship.reference_mentions, link({ view: 'corpus', section: 'references' })],
-    ['Internal citations', relationship.internal_citations, link({ view: 'relationships', mode: 'citation' })],
+    ["Work revisions", relationship.work_revisions, link({
+      view: "corpus",
+      section: "articles",
+    })],
+    ["Authorships", relationship.authorships, link({
+      view: "corpus",
+      section: "authors",
+    })],
+    ["Reference mentions", relationship.reference_mentions, link({
+      view: "corpus",
+      section: "references",
+    })],
+    ["Internal citations", relationship.internal_citations, link({
+      view: "relationships",
+      mode: "citation",
+    })],
   ];
 
   const runIdentity = (
     <dl className="rw-run-identity" aria-label="Run identity">
-      <div><dt>Run attempt</dt><dd>{run.attempt_number || run.id || value('run_id')}</dd></div>
-      <div><dt>Started</dt><dd>{formatTime(run.started_at)}</dd></div>
-      <div><dt>Finished</dt><dd>{formatTime(run.finished_at)}</dd></div>
-      <div><dt>Duration</dt><dd>{formatDuration(run.started_at, run.finished_at)}</dd></div>
-      <div><dt>Execution plan</dt><dd>{run.execution_plan_id || value('plan_id') || '—'}</dd></div>
-      <div><dt>Outcome</dt><dd><StatusChip raw={run.status} /></dd></div>
-      <div><dt>Visibility</dt><dd><StatusChip raw={run.visibility_state || 'active'} /></dd></div>
+      <div>
+        <dt>Run attempt</dt>
+        <dd>{run.attempt_number || run.id || runID}</dd>
+      </div>
+      <div>
+        <dt>Started</dt>
+        <dd>{formatTime(run.started_at)}</dd>
+      </div>
+      <div>
+        <dt>Finished</dt>
+        <dd>{formatTime(run.finished_at)}</dd>
+      </div>
+      <div>
+        <dt>Duration</dt>
+        <dd>{formatDuration(run.started_at, run.finished_at)}</dd>
+      </div>
+      <div>
+        <dt>Execution plan</dt>
+        <dd>{run.execution_plan_id || value("plan_id") || "—"}</dd>
+      </div>
+      <div>
+        <dt>Outcome</dt>
+        <dd><StatusChip raw={run.status} /></dd>
+      </div>
+      <div>
+        <dt>Visibility</dt>
+        <dd><StatusChip raw={run.visibility_state || "active"} /></dd>
+      </div>
     </dl>
   );
 
   const coverage = metricEntries(overview.current_coverage || {});
 
   const normalizationCards = [
-    ['Valid articles processed', normalization.normalized_articles_processed],
-    ['Fields assessed', normalization.normalization_fields_processed],
-    ['Canonical form changed', normalization.normalization_fields_changed],
-    ['Already canonical', normalization.normalization_fields_already_canonical],
-    ['No input value', normalization.normalization_fields_unavailable],
+    ["Valid articles processed", normalization.normalized_articles_processed],
+    ["Fields assessed", normalization.normalization_fields_processed],
+    ["Canonical form changed", normalization.normalization_fields_changed],
+    ["Already canonical", normalization.normalization_fields_already_canonical],
+    ["No input value", normalization.normalization_fields_unavailable],
   ];
 
   const normalizationFieldLabels: Record<string, string> = {
-    publisher: 'Publisher',
-    journal: 'Journal (revision metadata)',
-    author_name: 'Author name',
-    affiliation: 'Affiliation'
+    publisher: "Publisher",
+    journal: "Journal (revision metadata)",
+    author_name: "Author name",
+    affiliation: "Affiliation",
   };
 
-  const normalizationRows = Object.entries(normalizationFieldLabels).map(function([field, label]) {
-    return { field: label, ...(normalizationFields[field] || {}) };
+  const fieldEntries = Object.entries(normalizationFieldLabels);
+  const normalizationRows = fieldEntries.map(([field, label]) => {
+    return {
+      field: label,
+      ...(normalizationFields[field] || {}),
+    };
   });
 
-  var cacheUses;
+  var cacheUses = 0;
   if (cache) {
-    cacheUses = cache.pagination?.total_rows ?? list(cache, ['cache_uses']).length;
-  } else {
-    cacheUses = 0;
+    cacheUses = cache.pagination?.total_rows ?? list(cache, ["cache_uses"]).length;
   }
 
   const capturedMetrics = (
     <details className="rw-disclosure rw-overview-evidence span-all">
-      <summary><span>All recorded execution metrics</span><small>{formatNumber(captured.length)} metric rows grouped by stage</small></summary>
+      <summary>
+        <span>All recorded execution metrics</span>
+        <small>{formatNumber(captured.length)} metric rows grouped by stage</small>
+      </summary>
       <div className="rw-disclosure__content">
-        <div className="rw-captured-evidence-intro"><h3>Captured during execution</h3><p>Values recorded while each pipeline stage ran. Missing evidence is not treated as zero.</p></div>
+        <div className="rw-captured-evidence-intro">
+          <h3>Captured during execution</h3>
+          <p>Values recorded while each pipeline stage ran. Missing evidence is not treated as zero.</p>
+        </div>
         <CapturedMetricsMarkup metrics={captured} />
       </div>
     </details>
   );
 
-  renderTree(
+  const corpusSummaryCards = corpusCards.map(([name, metric, href]) => {
+    return <MetricCard name={name} metric={metric} href={href} />;
+  });
+  var coverageCards: JSX.Element[] = [<p className="ui faded text">Not recorded for this run.</p>];
+  if (coverage.length) {
+    coverageCards = coverage.map(([name, metric]) => {
+      return <MetricCard name={name} metric={metric} />;
+    });
+  }
+  const normalizationCardsMarkup = normalizationCards.map(([name, metric]) => {
+    return <MetricCard name={name} metric={fixedPercentageMetric(metric)} />;
+  });
+  const normalizationColumns = [
+    {
+      label: "Field",
+      render: (row: any) => {
+        return <>{row.field}</>;
+      },
+    },
+    {
+      label: "Assessed",
+      render: (row: any) => {
+        return normalizationValue(row.processed);
+      },
+    },
+    {
+      label: "Changed",
+      render: (row: any) => {
+        return normalizationValue(row.changed);
+      },
+    },
+    {
+      label: "Already canonical",
+      render: (row: any) => {
+        return normalizationValue(row.already_canonical);
+      },
+    },
+    {
+      label: "Unavailable",
+      render: (row: any) => {
+        return normalizationValue(row.unavailable);
+      },
+    },
+  ];
+
+  const corpusSummaryBody = <div className="ui statistics">{corpusSummaryCards}</div>;
+  const coverageBody = <div className="ui statistics">{coverageCards}</div>;
+  const normalizationBody = (
+    <Fragment>
+      <div className="ui statistics">{normalizationCardsMarkup}</div>
+      <Table title="Normalization field outcomes" description={"Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator."} columns={normalizationColumns} rows={normalizationRows} classes="rw-normalization-outcomes" />
+    </Fragment>
+  );
+  const cacheBody = (
+    <Fragment>
+      <div className="metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
+      <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
+    </Fragment>
+  );
+
+  const pageMarkup = (
     <Fragment>
       <PageHeader kicker="" title="Overview" description="Recorded execution evidence and current coverage are shown separately to preserve their meaning." />
       <div className="ui grid dashboard-grid">
@@ -182,43 +379,21 @@ export async function overviewView(): Promise<void> {
         <RetentionFlow overview={overview} />
         <SourceResultCountSummary items={overview.source_result_counts} classes="span-all" />
         <SourceSearchQueries items={overview.source_result_counts} classes="span-all" />
-        <Panel title="Corpus summary" description="Immutable records available for this selected run."
-          body={<div className="ui statistics">{corpusCards.map(function([name, metric, href]) {
-            return <MetricCard name={name} metric={metric} href={href} />;
-          })}</div>} />
-        <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed."
-          body={<div className="ui statistics">{coverage.length ? coverage.map(function([name, metric]) {
-            return <MetricCard name={name} metric={metric} />;
-          }) : <p className="ui faded text">Not recorded for this run.</p>}</div>} />
+        <Panel title="Corpus summary" description="Immutable records available for this selected run." body={corpusSummaryBody} />
+        <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed." body={coverageBody} />
         <Breakdown title="Enrichment activity" source={overview.enrichment_breakdown} />
         <Breakdown title="Enriched fields" source={overview.enrichment_field_breakdown} />
         <Breakdown title="Enrichment by provider" source={overview.enrichment_provider_breakdown} />
         <Breakdown title="Validation activity" source={overview.validation_breakdown} />
-        <Panel title="Normalization activity" description="Every valid article is processed. Field checks are mutually exclusive: changed, already canonical, or unavailable. Journal canonical forms are stored in revision metadata."
-          body={<Fragment>
-            <div className="ui statistics">{normalizationCards.map(function([name, metric]) {
-              return <MetricCard name={name} metric={fixedPercentageMetric(metric)} />;
-            })}</div>
-            <Table title="Normalization field outcomes" description={'Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator.'} columns={[
-              { label: 'Field', render: function(row: any) { return <>{row.field}</>; } },
-              { label: 'Assessed', render: function(row: any) { return normalizationValue(row.processed); } },
-              { label: 'Changed', render: function(row: any) { return normalizationValue(row.changed); } },
-              { label: 'Already canonical', render: function(row: any) { return normalizationValue(row.already_canonical); } },
-              { label: 'Unavailable', render: function(row: any) { return normalizationValue(row.unavailable); } },
-            ]} rows={normalizationRows} classes="rw-normalization-outcomes" />
-          </Fragment>} />
+        <Panel title="Normalization activity" description="Every valid article is processed. Field checks are mutually exclusive: changed, already canonical, or unavailable. Journal canonical forms are stored in revision metadata." body={normalizationBody} />
         <Breakdown title="Source distribution" source={overview.source_breakdown} valueLabel="Result" useTotal={true} />
         <Breakdown title="Cache activity" source={overview.cache_breakdown} />
-        <Panel title="Cache-use explanation" description="A cache hit means a recorded provider response or completed computation was reused with provenance."
-          body={<Fragment>
-            <div className="metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
-            <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
-          </Fragment>} />
+        <Panel title="Cache-use explanation" description="A cache hit means a recorded provider response or completed computation was reused with provenance." body={cacheBody} />
         {capturedMetrics}
       </div>
-    </Fragment>,
-    app
+    </Fragment>
   );
+  renderTree(pageMarkup, app);
 
   bindCopyButtons();
 }

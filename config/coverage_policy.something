@@ -39,6 +39,7 @@ coverage_policy: coverage_policy_config = {
         ["analysis/normalization"]   => { minimum = 82.0 },
         ["analysis/notes"]           => { minimum = 84.0 },
         ["analysis/pdfstore"]        => { minimum = 73.0 },
+        ["analysis/searchterms"]     => { minimum = 90.0 },
         ["analysis/server"]          => { minimum = 76.0 },
         ["analysis/something"]       => { minimum = 87.5 },
         ["analysis/tools/pdf-store"] => { minimum = 50.0 },

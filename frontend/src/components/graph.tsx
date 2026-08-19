@@ -59,7 +59,7 @@ interface GraphState {
   overviewLayout?: Array<{ id: number; x: number; y: number; radius: number }>;
 }
 
-let activeGraph: GraphState | undefined;
+var activeGraph: GraphState | undefined;
 
 /** Renders an escaped graph-filter input with its current URL value. */
 export function GraphField(props: { name: string; label: string; type?: string }): JSX.Element {
@@ -74,13 +74,14 @@ export function GraphField(props: { name: string; label: string; type?: string }
 
 /** Returns an escaped graph-filter input with its current URL value. */
 export function graphField(name: string, label: string, type?: string): string {
-  return renderToString(<GraphField name={name} label={label} type={type} />);
+  const fieldMarkup = <GraphField name={name} label={label} type={type} />;
+  return renderToString(fieldMarkup);
 }
 
 /** Returns the current graph-filter values keyed by query parameter. */
 export function graphQuery(): Record<string, string> {
-  var result: Record<string, string> = {};
-  graphFilters.forEach(function(name) {
+  const result: Record<string, string> = {};
+  graphFilters.forEach((name) => {
     result[name] = value(name);
   });
   return result;
@@ -89,29 +90,38 @@ export function graphQuery(): Record<string, string> {
 /** Returns a context-preserving detail link for a graph node when one exists. */
 export function graphLink(node: GraphNode): string {
   if (node.type === "article") {
-    return link({ view: "article", article_id: node.revision_id });
+    return link({
+      view: "article",
+      article_id: node.revision_id,
+    });
   }
   if (node.type === "author") {
-    return link({ view: "author", author_id: node.author_id });
+    return link({
+      view: "author",
+      author_id: node.author_id,
+    });
   }
   if (node.type === "reference") {
-    return link({ view: "reference", reference_id: node.reference_id });
+    return link({
+      view: "reference",
+      reference_id: node.reference_id,
+    });
   }
   return "";
 }
 
 /** Returns an edge endpoint identifier from either an identifier or resolved node object. */
 function endpointID(endpoint: string | number | GraphNode): string | number {
-  if (endpoint && typeof endpoint === "object") {
-    return endpoint.id;
-  }
+  if (endpoint && typeof endpoint === "object") return endpoint.id;
   return endpoint as string | number;
 }
 
 /** Finds deterministic connected components and maps graph nodes to cluster identifiers. */
 export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]): { byID: Map<string | number, number>; components: ClusterSummary[] } {
-  const adjacency = new Map<string | number, Set<string | number>>(sourceNodes.map(function(node) { return [node.id, new Set()]; }));
-  sourceEdges.forEach(function(edge) {
+  const adjacency = new Map<string | number, Set<string | number>>(sourceNodes.map((node) => {
+    return [node.id, new Set()];
+  }));
+  sourceEdges.forEach((edge) => {
     const source = endpointID(edge.source);
     const target = endpointID(edge.target);
     if (adjacency.has(source) && adjacency.has(target)) {
@@ -123,10 +133,8 @@ export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]
   const byID = new Map<string | number, number>();
   const components: ClusterSummary[] = [];
   const ordered = Array.from(adjacency.keys()).sort();
-  ordered.forEach(function(start) {
-    if (byID.has(start)) {
-      return;
-    }
+  ordered.forEach((start) => {
+    if (byID.has(start)) return;
     const cluster = components.length;
     const pending: Array<string | number> = [start];
     var size = 0;
@@ -134,7 +142,7 @@ export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]
     while (pending.length) {
       const current = pending.pop()!;
       size += 1;
-      adjacency.get(current)!.forEach(function(neighbour) {
+      adjacency.get(current)!.forEach((neighbour) => {
         if (!byID.has(neighbour)) {
           byID.set(neighbour, cluster);
           pending.push(neighbour);
@@ -143,17 +151,27 @@ export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]
     }
     components.push({ id: cluster, size: size });
   });
-  return { byID: byID, components: components };
+  return {
+    byID: byID,
+    components: components,
+  };
 }
 
-/** Returns bounded graph controls, legend, canvas, selection, and relationship-table markup. */
+/** Renders one legend entry with a colored mark and its label. */
+function legendEntry(markClass: string, label: string): JSX.Element {
+  return (
+    <span>
+      <i className={markClass}></i>
+      {label}
+    </span>
+  );
+}
+
 /** Renders the interactive graph viewport, legend, and relationship table. */
 export function GraphResult(props: { data: any }): JSX.Element {
-  const data = props.data;
-  const nodes = list(data, ["nodes"]);
-  const edges = list(data, ["edges"]);
-  const counts = data.counts || {};
-  const limits = data.limits || {};
+  const nodes = list(props.data, ["nodes"]);
+  const edges = list(props.data, ["edges"]);
+  const counts = props.data.counts || {};
 
   if (!nodes.length) {
     return (
@@ -167,10 +185,14 @@ export function GraphResult(props: { data: any }): JSX.Element {
   const nodeTypes = counts.node_types || {};
   const edgeTypes = counts.edge_types || {};
 
-  let warning: JSX.Element | null = null;
-  if (data.truncated) {
+  var warning: JSX.Element | null = null;
+  if (props.data.truncated) {
+    const matchedCount = String(counts.article_matches ?? nodes.length);
+    const renderedArticles = String(counts.article_rendered ?? 0);
+    const renderedNodes = String(counts.nodes_rendered ?? nodes.length);
+    const renderedEdges = String(counts.edges_rendered ?? edges.length);
     warning = (
-      <p className="rw-graph__truncation ui warning message" role="status">Graph results truncated. {String(counts.article_matches ?? nodes.length)} articles matched; {String(counts.article_rendered ?? 0)} articles, {String(counts.nodes_rendered ?? nodes.length)} nodes, and {String(counts.edges_rendered ?? edges.length)} edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>
+      <p className="rw-graph__truncation ui warning message" role="status">Graph results truncated. {matchedCount} articles matched; {renderedArticles} articles, {renderedNodes} nodes, and {renderedEdges} edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>
     );
   }
 
@@ -178,7 +200,7 @@ export function GraphResult(props: { data: any }): JSX.Element {
     ["article", "Article revision", "article"],
     ["author", "Author occurrence", "author"],
     ["reference", "Reference mention", "reference"],
-    ["referenced_author", "Referenced-author string", "referenced-author"]
+    ["referenced_author", "Referenced-author string", "referenced-author"],
   ];
   const relationshipDefinitions = [
     ["authorship", "Authorship", ""],
@@ -186,45 +208,69 @@ export function GraphResult(props: { data: any }): JSX.Element {
     ["reference_author", "Referenced author", "derived"],
     ["citation", "Internal citation", "directed"],
     ["coauthor", "Co-author", "derived"],
-    ["shared_reference", "Shared reference", "derived"]
+    ["shared_reference", "Shared reference", "derived"],
   ];
-  const entityLegend = entityDefinitions.filter(function(definition) {
-    return Number(nodeTypes[definition[0]] || 0) > 0;
-  }).map(function(definition) {
-    return <span><i className={"rw-graph__legend-mark rw-graph__legend-mark--" + definition[2]}></i>{definition[1]}</span>;
+  const visibleEntityDefinitions = entityDefinitions.filter(([type]) => {
+    return Number(nodeTypes[type] || 0) > 0;
   });
-  const relationshipLegend = relationshipDefinitions.filter(function(definition) {
-    return Number(edgeTypes[definition[0]] || 0) > 0;
-  }).map(function(definition) {
-    const modifier = definition[2] ? " rw-graph__legend-line--" + definition[2] : "";
-    return <span><i className={"rw-graph__legend-line" + modifier}></i>{definition[1]}</span>;
+  const entityLegend = visibleEntityDefinitions.map(([type, label, markClass]) => {
+    const markClassValue = `rw-graph__legend-mark rw-graph__legend-mark--${markClass}`;
+    return legendEntry(markClassValue, label);
   });
+  const visibleRelationshipDefinitions = relationshipDefinitions.filter(([type]) => {
+    return Number(edgeTypes[type] || 0) > 0;
+  });
+  const relationshipLegend = visibleRelationshipDefinitions.map(([type, label, lineClass]) => {
+    var modifier = "";
+    if (lineClass) modifier = ` rw-graph__legend-line--${lineClass}`;
+    const lineClassValue = `rw-graph__legend-line${modifier}`;
+    return legendEntry(lineClassValue, label);
+  });
+
+  var largeGraphHint = "";
+  if (nodes.length > 1500) largeGraphHint = "Large networks open as a connected-cluster overview where bubble size reflects entity count; zoom in to reveal individual entities. ";
+
+  const toolbarMarkup = (
+    <div className="rw-graph__toolbar">
+      <div className="rw-graph__search"><input type="text" id="graph-node-search" placeholder={"Search nodes\u2026"} aria-label="Search nodes by name or DOI" /></div>
+      <button type="button" id="graph-fit" className="ui button">Fit graph</button>
+      <button type="button" id="graph-run-layout" className="ui basic button">Re-run layout</button>
+      <button type="button" id="graph-clear-selection" className="ui basic button" disabled>Show full graph</button>
+      <span className="rw-graph__zoom" id="graph-zoom-indicator" role="status">100%</span>
+      <span id="graph-layout-status" role="status" aria-live="polite">Preparing physics layout</span>
+      <button type="button" id="graph-expand" className="ui button">Expand graph</button>
+      <button type="button" id="graph-export-png" className="ui button" title="Download graph as PNG">Export PNG</button>
+    </div>
+  );
+  const helpMarkup = (
+    <p className="rw-graph__help">
+      Shape identifies the entity type, color identifies a connected cluster, and size reflects visible relationship count. {" "}
+      {largeGraphHint}
+      Select a node to isolate its immediate neighbourhood; select it again or click the background to clear it. {" "}
+      Use the mouse wheel to zoom around the pointer, or drag with the secondary mouse button to pan without selecting nodes.
+    </p>
+  );
+  const legendMarkup = (
+    <div className="rw-graph__legend" aria-label="Visible graph encodings">
+      <div className="rw-graph__legend-group">
+        <strong>Entities</strong>
+        {entityLegend}
+      </div>
+      <div className="rw-graph__legend-group">
+        <strong>Relationships</strong>
+        {relationshipLegend}
+      </div>
+    </div>
+  );
 
   return (
     <Fragment>
       {warning}
       <div className="rw-graph__viewport" id="graph-viewport">
-        <div className="rw-graph__toolbar">
-          <div className="rw-graph__search"><input type="text" id="graph-node-search" placeholder={"Search nodes\u2026"} aria-label="Search nodes by name or DOI" /></div>
-          <button type="button" id="graph-fit" className="ui button">Fit graph</button>
-          <button type="button" id="graph-run-layout" className="ui basic button">Re-run layout</button>
-          <button type="button" id="graph-clear-selection" className="ui basic button" disabled>Show full graph</button>
-          <span className="rw-graph__zoom" id="graph-zoom-indicator" role="status">100%</span>
-          <span id="graph-layout-status" role="status" aria-live="polite">Preparing physics layout</span>
-          <button type="button" id="graph-expand" className="ui button">Expand graph</button>
-          <button type="button" id="graph-export-png" className="ui button" title="Download graph as PNG">Export PNG</button>
-        </div>
-        <p className="rw-graph__help">
-          Shape identifies the entity type, color identifies a connected cluster, and size reflects visible relationship count. {" "}
-          {nodes.length > 1500 ? "Large networks open as a connected-cluster overview where bubble size reflects entity count; zoom in to reveal individual entities. " : ""}
-          Select a node to isolate its immediate neighbourhood; select it again or click the background to clear it. {" "}
-          Use the mouse wheel to zoom around the pointer, or drag with the secondary mouse button to pan without selecting nodes.
-        </p>
+        {toolbarMarkup}
+        {helpMarkup}
         <div className="rw-graph__wrap">
-          <div className="rw-graph__legend" aria-label="Visible graph encodings">
-            <div className="rw-graph__legend-group"><strong>Entities</strong>{entityLegend}</div>
-            <div className="rw-graph__legend-group"><strong>Relationships</strong>{relationshipLegend}</div>
-          </div>
+          {legendMarkup}
           <canvas className="rw-graph__canvas"></canvas>
         </div>
       </div>
@@ -240,22 +286,18 @@ export function GraphResult(props: { data: any }): JSX.Element {
 
 /** Returns the graph result markup for the relationships view. */
 export function graphResult(data: any): string {
-  return renderToString(<GraphResult data={data} />);
+  const graphMarkup = <GraphResult data={data} />;
+  return renderToString(graphMarkup);
 }
 
 /** Calculates a node radius from entity type and visible degree. */
 function nodeSize(node: GraphNode, degree: number, maxDegree: number): number {
-  if (node.type === "reference" || node.type === "referenced_author") {
-    return 7;
-  }
-  var min;
-  var max;
+  if (node.type === "reference" || node.type === "referenced_author") return 7;
+  var min = 8;
+  var max = 18;
   if (node.type === "article") {
     min = 9;
     max = 22;
-  } else {
-    min = 8;
-    max = 18;
   }
   return min + (max - min) * Math.sqrt(degree / Math.max(maxDegree, 1));
 }
@@ -272,7 +314,7 @@ function hash(value: any): number {
 /** Reads graph colors from active CSS custom properties with safe fallbacks. */
 function palette() {
   const css = getComputedStyle(document.documentElement);
-  /** Returns the associated state. */
+  /** Returns a CSS custom property value with a fallback. */
   function get(name: string, fallback: string): string {
     return css.getPropertyValue(name).trim() || fallback;
   }
@@ -293,7 +335,7 @@ function palette() {
   };
 }
 
-/** Draws diamond. */
+/** Draws a diamond path for reference nodes. */
 function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
   context.beginPath();
   context.moveTo(x, y - radius);
@@ -303,7 +345,7 @@ function drawDiamond(context: CanvasRenderingContext2D, x: number, y: number, ra
   context.closePath();
 }
 
-/** Draws triangle. */
+/** Draws a triangle path for referenced-author nodes. */
 function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
   context.beginPath();
   context.moveTo(x, y - radius);
@@ -316,10 +358,8 @@ function drawTriangle(context: CanvasRenderingContext2D, x: number, y: number, r
 function relationshipLabel(edge: GraphEdge): string {
   if (edge.type === "authorship") {
     var order = "";
-    if (edge.author_order) {
-      order = ", author " + edge.author_order;
-    }
-    return "Authorship" + order;
+    if (edge.author_order) order = `, author ${edge.author_order}`;
+    return `Authorship${order}`;
   }
   if (edge.type === "citation") {
     return "Internal citation";
@@ -339,11 +379,9 @@ function relationshipLabel(edge: GraphEdge): string {
   return edge.type || "Relationship";
 }
 
-/** Destroys graph. */
+/** Destroys the active graph simulation, observers, and animation frame. */
 export function destroyGraph(): void {
-  if (!activeGraph) {
-    return;
-  }
+  if (!activeGraph) return;
   activeGraph.cancelled = true;
   activeGraph.simulation.stop();
   if (activeGraph.resizeObserver) {
@@ -356,13 +394,29 @@ export function destroyGraph(): void {
   activeGraph = undefined;
 }
 
-/** Mounts graph. */
+/** Resolves one node's initial layout position and cluster metadata. */
+function layoutNode(node: GraphNode, clusters: { byID: Map<string | number, number>; components: ClusterSummary[] }, degree: Map<string | number, number>, maxDegree: number): GraphNode {
+  const angle = hash(node.id) / 0xffffffff * Math.PI * 2;
+  const cluster = clusters.byID.get(node.id) || 0;
+  const clusterAngle = cluster / Math.max(clusters.components.length, 1) * Math.PI * 2;
+  var clusterDistance = 0;
+  if (clusters.components.length > 1) clusterDistance = 210;
+  const distance = 40 + hash(node.id + ":distance") % 150;
+  return {
+    ...node,
+    cluster: cluster,
+    degree: degree.get(node.id) || 0,
+    radius: nodeSize(node, degree.get(node.id) || 0, maxDegree),
+    x: Math.cos(clusterAngle) * clusterDistance + Math.cos(angle) * distance,
+    y: Math.sin(clusterAngle) * clusterDistance + Math.sin(angle) * distance,
+  };
+}
+
+/** Mounts the interactive graph viewport and its force-layout simulation. */
 export function mountGraph(data: any): void {
   destroyGraph();
   const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas, .graph-canvas");
-  if (!canvasElement) {
-    return;
-  }
+  if (!canvasElement) return;
   const canvas = canvasElement;
 
   const context = canvas.getContext("2d");
@@ -373,50 +427,39 @@ export function mountGraph(data: any): void {
   const sourceEdges: GraphEdge[] = list(data, ["edges"]);
   const clusters = graphClusters(sourceNodes, sourceEdges);
 
-  const degree = new Map<string | number, number>(sourceNodes.map(function(node) {
+  const degree = new Map<string | number, number>(sourceNodes.map((node) => {
     return [node.id, 0];
   }));
-  sourceEdges.forEach(function(edge) {
+  sourceEdges.forEach((edge) => {
     degree.set(endpointID(edge.source), (degree.get(endpointID(edge.source)) || 0) + 1);
     degree.set(endpointID(edge.target), (degree.get(endpointID(edge.target)) || 0) + 1);
   });
   const maxDegree = Math.max.apply(null, Array.from(degree.values()).concat([1]));
 
-  const nodes: GraphNode[] = sourceNodes.map(function(node) {
-    const angle = hash(node.id) / 0xffffffff * Math.PI * 2;
-    const cluster = clusters.byID.get(node.id) || 0;
-    const clusterAngle = cluster / Math.max(clusters.components.length, 1) * Math.PI * 2;
-    const clusterDistance = clusters.components.length > 1 ? 210 : 0;
-    const distance = 40 + hash(node.id + ":distance") % 150;
-    return {
-      ...node,
-      cluster: cluster,
-      degree: degree.get(node.id) || 0,
-      radius: nodeSize(node, degree.get(node.id) || 0, maxDegree),
-      x: Math.cos(clusterAngle) * clusterDistance + Math.cos(angle) * distance,
-      y: Math.sin(clusterAngle) * clusterDistance + Math.sin(angle) * distance
-    };
+  const nodes: GraphNode[] = sourceNodes.map((node) => {
+    return layoutNode(node, clusters, degree, maxDegree);
   });
 
-  const nodeByID = new Map<string | number, GraphNode>(nodes.map(function(node) {
+  const nodeByID = new Map<string | number, GraphNode>(nodes.map((node) => {
     return [node.id, node];
   }));
 
-  const edges: GraphEdge[] = sourceEdges.filter(function(edge) {
+  const resolvableEdges = sourceEdges.filter((edge) => {
     return nodeByID.has(endpointID(edge.source)) && nodeByID.has(endpointID(edge.target));
-  }).map(function(edge, index) {
+  });
+  const edges: GraphEdge[] = resolvableEdges.map((edge, index) => {
     return {
       ...edge,
-      id: edge.id || edge.type + ":" + index,
+      id: edge.id || `${edge.type}:${index}`,
       source: nodeByID.get(endpointID(edge.source))!,
-      target: nodeByID.get(endpointID(edge.target))!
+      target: nodeByID.get(endpointID(edge.target))!,
     };
   });
 
-  const neighbours = new Map<string | number, Set<string | number>>(nodes.map(function(node) {
+  const neighbours = new Map<string | number, Set<string | number>>(nodes.map((node) => {
     return [node.id, new Set()];
   }));
-  edges.forEach(function(edge) {
+  edges.forEach((edge) => {
     neighbours.get(endpointID(edge.source))!.add(endpointID(edge.target));
     neighbours.get(endpointID(edge.target))!.add(endpointID(edge.source));
   });
@@ -434,10 +477,17 @@ export function mountGraph(data: any): void {
     colors: palette(),
     spatialIndex: null,
     clusterSummaries: clusterOverview(nodes),
-    overviewOffset: { x: 0, y: 0 },
+    overviewOffset: {
+      x: 0,
+      y: 0,
+    },
     overviewMode: false,
     layoutRunning: false,
-    view: { x: 0, y: 0, scale: 1 },
+    view: {
+      x: 0,
+      y: 0,
+      scale: 1,
+    },
     frame: 0,
     edgePage: 1,
     // Assigned after construction; the simulation is created over the nodes below.
@@ -446,40 +496,57 @@ export function mountGraph(data: any): void {
   activeGraph = graph;
 
   const largeGraph = nodes.length > 2500;
+  var linkStrength = 0.72;
+  if (largeGraph) linkStrength = 0.34;
+  var chargeDistance = 720;
+  if (largeGraph) chargeDistance = 380;
+  var alphaDecay = 0.028;
+  if (nodes.length > 5000) alphaDecay = 0.16;
+  else if (nodes.length > 2500) alphaDecay = 0.11;
+  else if (nodes.length > 900) alphaDecay = 0.065;
+  const linkForce = forceLink(edges)
+    .id((node) => {
+      return node.id;
+    })
+    .distance((edge) => {
+      if (edge.type === "citation") {
+        return 125;
+      }
+      if (edge.type === "coauthor" || edge.type === "shared_reference") {
+        return 145;
+      }
+      if (edge.type === "reference_author") {
+        return 70;
+      }
+      return 92;
+    })
+    .strength(linkStrength);
+  const chargeForce = forceManyBody()
+    .strength((node) => {
+      if (node.type === "article") {
+        return -260;
+      }
+      return -140;
+    })
+    .distanceMax(chargeDistance);
   const simulation = forceSimulation(nodes)
-    .force("link", forceLink(edges)
-      .id(function(node) { return node.id; })
-      .distance(function(edge) {
-        if (edge.type === "citation") {
-          return 125;
-        }
-        if (edge.type === "coauthor" || edge.type === "shared_reference") {
-          return 145;
-        }
-        if (edge.type === "reference_author") {
-          return 70;
-        }
-        return 92;
-      })
-      .strength(largeGraph ? 0.34 : 0.72))
-    .force("charge", forceManyBody()
-      .strength(function(node) {
-        if (node.type === "article") {
-          return -260;
-        }
-        return -140;
-      })
-      .distanceMax(largeGraph ? 380 : 720))
+    .force("link", linkForce)
+    .force("charge", chargeForce)
     .force("center", forceCenter(0, 0))
     .alpha(1)
-    .alphaDecay(nodes.length > 5000 ? 0.16 : nodes.length > 2500 ? 0.11 : nodes.length > 900 ? 0.065 : 0.028)
+    .alphaDecay(alphaDecay)
     .stop();
 
   if (!largeGraph) {
-    simulation.force("collision", forceCollide()
-      .radius(function(node) { return node.radius + 7; })
+    var collisionIterations = 2;
+    if (nodes.length > 900) collisionIterations = 1;
+    const collisionForce = forceCollide()
+      .radius((node) => {
+        return node.radius + 7;
+      })
       .strength(0.92)
-      .iterations(nodes.length > 900 ? 1 : 2));
+      .iterations(collisionIterations);
+    simulation.force("collision", collisionForce);
   }
 
   graph.simulation = simulation;
@@ -507,32 +574,77 @@ export function mountGraph(data: any): void {
 /** Returns the radius-aware world-coordinate bounds of graph nodes. */
 function graphBounds(nodes: GraphNode[]): { minX: number; maxX: number; minY: number; maxY: number } {
   if (!nodes.length) {
-    return { minX: -1, maxX: 1, minY: -1, maxY: 1 };
+    return {
+      minX: -1,
+      maxX: 1,
+      minY: -1,
+      maxY: 1,
+    };
   }
-  return nodes.reduce(function(bounds, node) {
+  const initialBounds = {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity,
+  };
+  return nodes.reduce((bounds, node) => {
     return {
       minX: Math.min(bounds.minX, node.x! - node.radius!),
       maxX: Math.max(bounds.maxX, node.x! + node.radius!),
       minY: Math.min(bounds.minY, node.y! - node.radius!),
-      maxY: Math.max(bounds.maxY, node.y! + node.radius!)
+      maxY: Math.max(bounds.maxY, node.y! + node.radius!),
     };
-  }, { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+  }, initialBounds);
 }
 
 /** Returns connected-cluster sizes ordered from largest to smallest. */
 function clusterOverview(nodes: GraphNode[]): ClusterSummary[] {
   const grouped = new Map<number, ClusterSummary>();
-  nodes.forEach(function(node) {
+  nodes.forEach((node) => {
     if (!grouped.has(node.cluster!)) {
-      grouped.set(node.cluster!, { id: node.cluster!, size: 0 });
+      grouped.set(node.cluster!, {
+        id: node.cluster!,
+        size: 0,
+      });
     }
     const cluster = grouped.get(node.cluster!)!;
     cluster.size += 1;
   });
-  return Array.from(grouped.values()).sort(function(a, b) { return b.size - a.size; });
+  return Array.from(grouped.values()).sort((a, b) => {
+    return b.size - a.size;
+  });
 }
 
-/** Draws cluster overview. */
+/** Draws one overview bubble and its label, returning its layout entry. */
+function drawClusterBubble(context: CanvasRenderingContext2D, cluster: ClusterSummary, colors: ReturnType<typeof palette>, x: number, y: number, radius: number): { id: number; x: number; y: number; radius: number } {
+  context.globalAlpha = 0.9;
+  context.fillStyle = colors.clusters[cluster.id % colors.clusters.length];
+  context.strokeStyle = colors.text;
+  context.lineWidth = 1.2;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+
+  context.globalAlpha = 1;
+  context.fillStyle = colors.text;
+  context.textAlign = "center";
+  context.textBaseline = "top";
+  context.font = "600 10px ui-sans-serif, system-ui";
+  context.fillText(`Cluster ${cluster.id + 1}`, x, y + radius + 5);
+  context.font = "9px ui-sans-serif, system-ui";
+  var entityLabel = "entities";
+  if (cluster.size === 1) entityLabel = "entity";
+  context.fillText(`${cluster.size.toLocaleString()} ${entityLabel}`, x, y + radius + 17);
+  return {
+    id: cluster.id,
+    x: x,
+    y: y,
+    radius: radius,
+  };
+}
+
+/** Draws the connected-cluster overview bubbles and returns their layout. */
 function drawClusterOverview(context: CanvasRenderingContext2D, clusters: ClusterSummary[], colors: ReturnType<typeof palette>, width: number, height: number, offset: { x: number; y: number }, legendInset: number): Array<{ id: number; x: number; y: number; radius: number }> {
   const top = 28;
   const horizontalPadding = 32;
@@ -543,33 +655,19 @@ function drawClusterOverview(context: CanvasRenderingContext2D, clusters: Cluste
   const rows = Math.max(1, Math.ceil(clusters.length / columns));
   const cellWidth = usableWidth / columns;
   const cellHeight = usableHeight / rows;
-  const maximumSize = Math.max.apply(null, clusters.map(function(cluster) { return cluster.size; }).concat([1]));
+  const clusterSizes = clusters.map((cluster) => {
+    return cluster.size;
+  });
+  const maximumSize = Math.max.apply(null, clusterSizes.concat([1]));
 
-  return clusters.map(function(cluster, index) {
+  return clusters.map((cluster, index) => {
     const column = index % columns;
     const row = Math.floor(index / columns);
     const x = horizontalPadding + cellWidth * (column + 0.5) + offset.x;
     const y = top + cellHeight * (row + 0.36) + offset.y;
     const scale = 0.5 + 0.5 * Math.sqrt(cluster.size / maximumSize);
     const radius = Math.max(12, Math.min(cellWidth, cellHeight) * 0.34 * scale);
-    context.globalAlpha = 0.9;
-    context.fillStyle = colors.clusters[cluster.id % colors.clusters.length];
-    context.strokeStyle = colors.text;
-    context.lineWidth = 1.2;
-    context.beginPath();
-    context.arc(x, y, radius, 0, Math.PI * 2);
-    context.fill();
-    context.stroke();
-
-    context.globalAlpha = 1;
-    context.fillStyle = colors.text;
-    context.textAlign = "center";
-    context.textBaseline = "top";
-    context.font = "600 10px ui-sans-serif, system-ui";
-    context.fillText("Cluster " + (cluster.id + 1), x, y + radius + 5);
-    context.font = "9px ui-sans-serif, system-ui";
-    context.fillText(cluster.size.toLocaleString() + (cluster.size === 1 ? " entity" : " entities"), x, y + radius + 17);
-    return { id: cluster.id, x: x, y: y, radius: radius };
+    return drawClusterBubble(context, cluster, colors, x, y, radius);
   });
 }
 
@@ -596,20 +694,20 @@ function runLayout(graph: GraphState, status: HTMLElement | null): void {
   graph.spatialIndex = null;
   graph.layoutRunning = true;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  var tickLimit: number;
-  if (graph.nodes.length > 5000) {
-    tickLimit = 20;
-  } else if (graph.nodes.length > 2500) {
-    tickLimit = 34;
-  } else if (graph.nodes.length > 900) {
-    tickLimit = 64;
-  } else if (graph.nodes.length > 250) {
-    tickLimit = reduced ? 90 : 140;
-  } else {
-    tickLimit = reduced ? 100 : 220;
+  var tickLimit = 220;
+  if (reduced) tickLimit = 100;
+  if (graph.nodes.length > 5000) tickLimit = 20;
+  else if (graph.nodes.length > 2500) tickLimit = 34;
+  else if (graph.nodes.length > 900) tickLimit = 64;
+  else if (graph.nodes.length > 250) {
+    if (reduced) tickLimit = 90;
+    else tickLimit = 140;
   }
 
-  const ticksPerFrame = graph.nodes.length > 5000 ? 10 : graph.nodes.length > 2500 ? 7 : graph.nodes.length > 900 ? 5 : 3;
+  var ticksPerFrame = 3;
+  if (graph.nodes.length > 5000) ticksPerFrame = 10;
+  else if (graph.nodes.length > 2500) ticksPerFrame = 7;
+  else if (graph.nodes.length > 900) ticksPerFrame = 5;
 
   var ticks = 0;
 
@@ -647,7 +745,7 @@ function runLayout(graph: GraphState, status: HTMLElement | null): void {
   graph.frame = requestAnimationFrame(next);
 }
 
-/** Draws the associated state. */
+/** Draws the current graph state to the backing canvas. */
 function draw(graph: GraphState): void {
   const canvas = graph.canvas;
   const context = graph.context!;
@@ -672,7 +770,8 @@ function draw(graph: GraphState): void {
   graph.overviewMode = clusterOverviewVisible;
   if (clusterOverviewVisible) {
     const legend = canvas.parentElement!.querySelector(".rw-graph__legend") as HTMLElement | null;
-    const legendInset = (legend ? legend.offsetHeight : 0) + 24;
+    var legendInset = 24;
+    if (legend) legendInset = legend.offsetHeight + 24;
     graph.overviewLayout = drawClusterOverview(context, graph.clusterSummaries, colors, width, height, graph.overviewOffset, legendInset);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.globalAlpha = 1;
@@ -691,9 +790,9 @@ function draw(graph: GraphState): void {
   var searchMatchIds: Set<string | number> | null = null;
   if (searchQuery) {
     searchMatchIds = new Set();
-    nodes.forEach(function(node) {
-      const searchable = [node.label, node.id, node.doi, node.orcid, node.author]
-        .filter(Boolean).join(" ").toLocaleLowerCase();
+    nodes.forEach((node) => {
+      const searchableParts = [node.label, node.id, node.doi, node.orcid, node.author].filter(Boolean);
+      const searchable = searchableParts.join(" ").toLocaleLowerCase();
       if (searchable.includes(searchQuery)) {
         searchMatchIds!.add(node.id);
       }
@@ -701,30 +800,19 @@ function draw(graph: GraphState): void {
   }
 
   for (const edge of edges) {
-    var relevant;
+    var relevant = true;
     if (focused) {
       relevant = endpointID(edge.source) === selection || endpointID(edge.target) === selection;
-    } else {
-      relevant = true;
     }
 
-    if (focused && !relevant) {
-      context.globalAlpha = 0.18;
-    } else {
-      context.globalAlpha = 0.82;
-    }
+    if (focused && !relevant) context.globalAlpha = 0.18;
+    else context.globalAlpha = 0.82;
 
-    if (relevant) {
-      context.strokeStyle = colors.edge;
-    } else {
-      context.strokeStyle = colors.muted;
-    }
+    if (relevant) context.strokeStyle = colors.edge;
+    else context.strokeStyle = colors.muted;
 
-    if (relevant) {
-      context.lineWidth = 1.45 / view.scale;
-    } else {
-      context.lineWidth = 1 / view.scale;
-    }
+    if (relevant) context.lineWidth = 1.45 / view.scale;
+    else context.lineWidth = 1 / view.scale;
 
     if (edge.type === "coauthor" || edge.type === "shared_reference") {
       context.setLineDash([6 / view.scale, 4 / view.scale]);
@@ -745,24 +833,18 @@ function draw(graph: GraphState): void {
   }
 
   for (const node of nodes) {
-    var nodeRelevant;
+    var nodeRelevant = true;
     if (focused) {
       nodeRelevant = focused.has(node.id);
-    } else {
-      nodeRelevant = true;
     }
 
     // Search highlight: dim non-matching nodes, highlight matching nodes
-    var isSearchMatch = searchMatchIds && searchMatchIds.has(node.id);
-    var hasSearch = searchMatchIds !== null;
+    const isSearchMatch = searchMatchIds && searchMatchIds.has(node.id);
+    const hasSearch = searchMatchIds !== null;
 
-    if (hasSearch && !isSearchMatch) {
-      context.globalAlpha = 0.12;
-    } else if (nodeRelevant) {
-      context.globalAlpha = 1;
-    } else {
-      context.globalAlpha = 0.22;
-    }
+    if (hasSearch && !isSearchMatch) context.globalAlpha = 0.12;
+    else if (nodeRelevant) context.globalAlpha = 1;
+    else context.globalAlpha = 0.22;
 
     context.fillStyle = colors.clusters[(node.cluster || 0) % colors.clusters.length];
 
@@ -811,16 +893,20 @@ function draw(graph: GraphState): void {
 
   var labelNode: GraphNode | null = null;
   if (hovered) {
-    labelNode = nodes.find(function(node) { return node.id === hovered; }) || null;
+    labelNode = nodes.find((node) => {
+      return node.id === hovered;
+    }) || null;
   }
   if (!labelNode && selection) {
-    labelNode = nodes.find(function(node) { return node.id === selection; }) || null;
+    labelNode = nodes.find((node) => {
+      return node.id === selection;
+    }) || null;
   }
 
   if (labelNode) {
     const label = String(labelNode.label || labelNode.id);
     context.globalAlpha = 1;
-    context.font = (12 / view.scale) + "px ui-sans-serif, system-ui";
+    context.font = `${12 / view.scale}px ui-sans-serif, system-ui`;
     context.textBaseline = "middle";
     const labelX = labelNode.x! + labelNode.radius! + 7 / view.scale;
     const labelWidth = context.measureText(label).width;
@@ -834,7 +920,7 @@ function draw(graph: GraphState): void {
   context.globalAlpha = 1;
 }
 
-/** Draws arrow. */
+/** Draws a directional arrowhead at the target end of a citation edge. */
 function drawArrow(context: CanvasRenderingContext2D, source: GraphNode, target: GraphNode, radius: number, color: string): void {
   const angle = Math.atan2(target.y! - source.y!, target.x! - source.x!);
   const x = target.x! - Math.cos(angle) * (target.radius! + 2);
@@ -853,7 +939,7 @@ function graphCoordinates(graph: GraphState, event: MouseEvent): { x: number; y:
   const rect = graph.canvas.getBoundingClientRect();
   return {
     x: (event.clientX - rect.left - rect.width / 2 - graph.view.x) / graph.view.scale,
-    y: (event.clientY - rect.top - rect.height / 2 - graph.view.y) / graph.view.scale
+    y: (event.clientY - rect.top - rect.height / 2 - graph.view.y) / graph.view.scale,
   };
 }
 
@@ -864,7 +950,7 @@ export function zoomViewAt(view: { x: number; y: number; scale: number }, screen
   return {
     x: screenPoint.x - worldX * nextScale,
     y: screenPoint.y - worldY * nextScale,
-    scale: nextScale
+    scale: nextScale,
   };
 }
 
@@ -873,14 +959,16 @@ function nearestOverviewCluster(graph: GraphState, event: MouseEvent): { id: num
   const rect = graph.canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  return (graph.overviewLayout || []).find(function(cluster) {
+  return (graph.overviewLayout || []).find((cluster) => {
     return Math.hypot(cluster.x - x, cluster.y - y) <= cluster.radius + 8;
   });
 }
 
-/** Focuses cluster. */
+/** Focuses the viewport on one connected cluster. */
 function focusCluster(graph: GraphState, clusterID: number): void {
-  const nodes = graph.nodes.filter(function(node) { return node.cluster === clusterID; });
+  const nodes = graph.nodes.filter((node) => {
+    return node.cluster === clusterID;
+  });
   const bounds = graphBounds(nodes);
   const width = Math.max(bounds.maxX - bounds.minX, 1);
   const height = Math.max(bounds.maxY - bounds.minY, 1);
@@ -894,18 +982,19 @@ function focusCluster(graph: GraphState, clusterID: number): void {
   draw(graph);
 }
 
-/** Builds spatial index. */
+/** Builds a spatial index over node positions for fast hit testing. */
 function buildSpatialIndex(nodes: GraphNode[]): { cellSize: number; cells: Map<string, GraphNode[]> } {
   const cellSize = 64;
   const cells = new Map<string, GraphNode[]>();
-  nodes.forEach(function(node) {
-    const key = Math.floor(node.x! / cellSize) + ":" + Math.floor(node.y! / cellSize);
-    if (!cells.has(key)) {
-      cells.set(key, []);
-    }
+  nodes.forEach((node) => {
+    const key = `${Math.floor(node.x! / cellSize)}:${Math.floor(node.y! / cellSize)}`;
+    if (!cells.has(key)) cells.set(key, []);
     cells.get(key)!.push(node);
   });
-  return { cellSize: cellSize, cells: cells };
+  return {
+    cellSize: cellSize,
+    cells: cells,
+  };
 }
 
 /** Returns nodes in the spatial-index cell surrounding a graph point. */
@@ -915,10 +1004,8 @@ function nearbyNodes(index: { cellSize: number; cells: Map<string, GraphNode[]> 
   const candidates: GraphNode[] = [];
   for (var dx = -1; dx <= 1; dx += 1) {
     for (var dy = -1; dy <= 1; dy += 1) {
-      const bucket = index.cells.get((x + dx) + ":" + (y + dy));
-      if (bucket) {
-        candidates.push(...bucket);
-      }
+      const bucket = index.cells.get(`${x + dx}:${y + dy}`);
+      if (bucket) candidates.push(...bucket);
     }
   }
   return candidates;
@@ -933,42 +1020,48 @@ function nearestNode(graph: GraphState, point: { x: number; y: number }): GraphN
   if (graph.layoutRunning && graph.nodes.length > 2500) {
     return null;
   }
-  const candidates = graph.spatialIndex ? nearbyNodes(graph.spatialIndex, point) : graph.nodes;
+  var candidates = graph.nodes;
+  if (graph.spatialIndex) candidates = nearbyNodes(graph.spatialIndex, point);
   for (const node of candidates) {
     const distance = Math.hypot(node.x! - point.x, node.y! - point.y);
     if (distance <= node.radius! + 6) {
       if (!best || distance < best.distance) {
-        best = { node: node, distance: distance };
+        best = {
+          node: node,
+          distance: distance,
+        };
       }
     }
   }
-  if (best) {
-    return best.node;
-  }
+  if (best) return best.node;
   return null;
 }
 
-/** Binds DOM behavior for interactions. */
+/** Binds pointer, keyboard, and toolbar interactions for the graph viewport. */
 function bindInteractions(graph: GraphState, status: HTMLElement | null, selectionPanel: HTMLElement | null, zoomIndicator: HTMLElement | null): void {
   var drag: any = null;
   const dragThreshold = 4;
 
-  /** Sets selection. */
+  /** Sets the selected node and refreshes the inspection panel and edge table. */
   function setSelection(id: string | number | null): void {
     graph.selection = id;
     graph.edgePage = 1;
-    var clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
+    const clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
     if (clearButton) {
       clearButton.disabled = !id;
     }
     if (id) {
-      var node = graph.nodes.find(function(n) { return n.id === id; });
-      var neighbours = graph.neighbours.get(id)!.size;
+      const node = graph.nodes.find((n) => {
+        return n.id === id;
+      });
+      const neighbours = graph.neighbours.get(id)!.size;
       if (selectionPanel) {
-        renderTree(<SelectionMarkup node={node} neighbours={neighbours} />, selectionPanel);
+        const selectionMarkup = <SelectionMarkup node={node} neighbours={neighbours} />;
+        renderTree(selectionMarkup, selectionPanel);
       }
     } else if (selectionPanel) {
-      renderTree(<p>Select a node to inspect its direct relationships.</p>, selectionPanel);
+      const emptySelectionMarkup = <p>Select a node to inspect its direct relationships.</p>;
+      renderTree(emptySelectionMarkup, selectionPanel);
     }
     const url = new URL(location.href);
     if (id) {
@@ -981,14 +1074,14 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     renderEdgePage(graph);
   }
 
-  /** Updates zoom display. */
+  /** Updates the visible zoom percentage indicator. */
   function updateZoomDisplay(): void {
     if (zoomIndicator) {
-      zoomIndicator.textContent = Math.round(graph.view.scale * 100) + "%";
+      zoomIndicator.textContent = `${Math.round(graph.view.scale * 100)}%`;
     }
   }
 
-  graph.canvas.addEventListener("pointerdown", function(event) {
+  graph.canvas.addEventListener("pointerdown", (event) => {
     if (event.button === 2) {
       event.preventDefault();
       drag = {
@@ -1000,7 +1093,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         overviewY: graph.overviewOffset.y,
         overview: graph.overviewMode,
         secondary: true,
-        moved: false
+        moved: false,
       };
       graph.canvas.style.cursor = "grabbing";
       graph.canvas.setPointerCapture(event.pointerId);
@@ -1019,7 +1112,12 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     }
     const node = nearestNode(graph, graphCoordinates(graph, event));
     if (node) {
-      drag = { node: node, x: event.clientX, y: event.clientY, moved: false };
+      drag = {
+        node: node,
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+      };
     } else {
       drag = {
         x: event.clientX,
@@ -1030,13 +1128,13 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         overviewY: graph.overviewOffset.y,
         overview: graph.overviewMode,
         background: true,
-        moved: false
+        moved: false,
       };
     }
     graph.canvas.setPointerCapture(event.pointerId);
   });
 
-  graph.canvas.addEventListener("pointermove", function(event) {
+  graph.canvas.addEventListener("pointermove", (event) => {
     if (drag) {
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > dragThreshold;
       if (drag.node) {
@@ -1053,25 +1151,27 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       return;
     }
     if (graph.overviewMode) {
-      graph.canvas.style.cursor = nearestOverviewCluster(graph, event) ? "pointer" : "grab";
+      var overviewCursor = "grab";
+      if (nearestOverviewCluster(graph, event)) overviewCursor = "pointer";
+      graph.canvas.style.cursor = overviewCursor;
       return;
     }
-    var node = nearestNode(graph, graphCoordinates(graph, event));
-    var hovered = node ? node.id : null;
+    const node = nearestNode(graph, graphCoordinates(graph, event));
+    var hovered: string | number | null = null;
+    if (node) hovered = node.id;
     if (hovered !== graph.hovered) {
       graph.hovered = hovered;
-      if (hovered) {
-        graph.canvas.style.cursor = "pointer";
-      } else {
-        graph.canvas.style.cursor = "grab";
-      }
+      if (hovered) graph.canvas.style.cursor = "pointer";
+      else graph.canvas.style.cursor = "grab";
       draw(graph);
     }
   });
 
-  graph.canvas.addEventListener("pointerup", function(event) {
+  graph.canvas.addEventListener("pointerup", (event) => {
     if (drag && drag.node && !drag.moved) {
-      setSelection(graph.selection === drag.node.id ? null : drag.node.id);
+      var nextSelection: string | number | null = drag.node.id;
+      if (graph.selection === drag.node.id) nextSelection = null;
+      setSelection(nextSelection);
     } else if (drag && drag.background && !drag.moved && !drag.secondary) {
       setSelection(null);
     }
@@ -1079,10 +1179,12 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     if (graph.canvas.hasPointerCapture(event.pointerId)) {
       graph.canvas.releasePointerCapture(event.pointerId);
     }
-    graph.canvas.style.cursor = graph.hovered ? "pointer" : "grab";
+    var pointerCursor = "grab";
+    if (graph.hovered) pointerCursor = "pointer";
+    graph.canvas.style.cursor = pointerCursor;
   });
 
-  graph.canvas.addEventListener("pointercancel", function(event) {
+  graph.canvas.addEventListener("pointercancel", (event) => {
     drag = null;
     if (graph.canvas.hasPointerCapture(event.pointerId)) {
       graph.canvas.releasePointerCapture(event.pointerId);
@@ -1090,24 +1192,20 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     graph.canvas.style.cursor = "grab";
   });
 
-  graph.canvas.addEventListener("contextmenu", function(event) {
+  graph.canvas.addEventListener("contextmenu", (event) => {
     event.preventDefault();
   });
 
-  graph.canvas.addEventListener("wheel", function(event) {
+  graph.canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
     const previous = graph.view.scale;
-    var factor;
-    if (event.deltaY < 0) {
-      factor = 1.16;
-    } else {
-      factor = 0.86;
-    }
+    var factor = 0.86;
+    if (event.deltaY < 0) factor = 1.16;
     const next = Math.max(0.08, Math.min(6, previous * factor));
     const rect = graph.canvas.getBoundingClientRect();
     const nextView = zoomViewAt(graph.view, {
       x: event.clientX - rect.left - rect.width / 2,
-      y: event.clientY - rect.top - rect.height / 2
+      y: event.clientY - rect.top - rect.height / 2,
     }, next);
     graph.view.x = nextView.x;
     graph.view.y = nextView.y;
@@ -1116,86 +1214,84 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     updateZoomDisplay();
   }, { passive: false });
 
-  var runLayoutButton = document.querySelector<HTMLButtonElement>("#graph-run-layout");
+  const runLayoutButton = document.querySelector<HTMLButtonElement>("#graph-run-layout");
   if (runLayoutButton) {
-    runLayoutButton.addEventListener("click", function() {
+    runLayoutButton.addEventListener("click", () => {
       runLayout(graph, status);
     });
   }
 
-  var fitButton = document.querySelector<HTMLButtonElement>("#graph-fit");
+  const fitButton = document.querySelector<HTMLButtonElement>("#graph-fit");
   if (fitButton) {
-    fitButton.addEventListener("click", function() {
+    fitButton.addEventListener("click", () => {
       fitGraph(graph);
       updateZoomDisplay();
     });
   }
 
-  var clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
+  const clearButton = document.querySelector<HTMLButtonElement>("#graph-clear-selection");
   if (clearButton) {
-    clearButton.addEventListener("click", function() {
+    clearButton.addEventListener("click", () => {
       setSelection(null);
     });
   }
 
   const requestedSelection = value("node");
-  if (requestedSelection && graph.nodes.some(function(node) { return node.id === requestedSelection; })) {
+  if (requestedSelection && graph.nodes.some((node) => {
+    return node.id === requestedSelection;
+  })) {
     setSelection(requestedSelection);
   } else {
     renderEdgePage(graph);
   }
 }
 
-/**
- * Bind graph node search — highlights matching nodes by name/DOI.
- */
+/** Binds graph node search, highlighting matching nodes by name or DOI. */
 function bindGraphSearch(graph: GraphState): void {
   const searchInput = document.querySelector<HTMLInputElement>("#graph-node-search");
   if (!searchInput) return;
 
-  searchInput.addEventListener("input", function() {
+  searchInput.addEventListener("input", () => {
     graph.searchQuery = searchInput.value.trim().toLocaleLowerCase();
     draw(graph);
   });
 }
 
-/**
- * Bind graph export as PNG — downloads the canvas as a PNG image.
- */
+/** Binds graph export as PNG, downloading the canvas as a PNG image. */
 function bindGraphExport(graph: GraphState, data: any): void {
-  var exportBtn = document.querySelector<HTMLButtonElement>("#graph-export-png");
-  if (!exportBtn) return;
+  const exportButton = document.querySelector<HTMLButtonElement>("#graph-export-png");
+  if (!exportButton) return;
 
-  exportBtn.addEventListener("click", function() {
+  exportButton.addEventListener("click", () => {
     // Draw a clean version without search highlights for export
-    var savedQuery = graph.searchQuery;
+    const savedQuery = graph.searchQuery;
     graph.searchQuery = "";
     draw(graph);
     const image = graph.canvas.toDataURL("image/png");
     graph.searchQuery = savedQuery;
     draw(graph);
 
-    var link = document.createElement("a");
-    link.download = "graph-export.png";
-    link.href = image;
-    link.click();
+    const downloadLink = document.createElement("a");
+    downloadLink.download = "graph-export.png";
+    downloadLink.href = image;
+    downloadLink.click();
   });
 }
 
-/** Binds DOM behavior for graph expand. */
+/** Binds the graph expand button and fullscreen lifecycle. */
 function bindGraphExpand(graph: GraphState): void {
-  const expandButton = document.querySelector<HTMLButtonElement>("#graph-expand");
-  const expandViewport = document.querySelector<HTMLElement>("#graph-viewport");
-  if (!expandButton || !expandViewport) {
-    return;
-  }
-  const button = expandButton;
-  const viewport = expandViewport;
-  /** Updates label. */
+  const expandButtonElement = document.querySelector<HTMLButtonElement>("#graph-expand");
+  const expandViewportElement = document.querySelector<HTMLElement>("#graph-viewport");
+  if (!expandButtonElement || !expandViewportElement) return;
+  const expandButton = expandButtonElement;
+  const expandViewport = expandViewportElement;
+  /** Updates the expand button label and refits the graph after a size change. */
   function updateLabel(): void {
-    const expanded = document.fullscreenElement === viewport || viewport.classList.contains("rw-graph__viewport--expanded");
-    button.textContent = expanded ? "Restore graph" : "Expand graph";
-    requestAnimationFrame(function() {
+    const expanded = document.fullscreenElement === expandViewport || expandViewport.classList.contains("rw-graph__viewport--expanded");
+    var label = "Expand graph";
+    if (expanded) label = "Restore graph";
+    expandButton.textContent = label;
+    requestAnimationFrame(() => {
       if (graph.resizeObserver) {
         const rect = graph.canvas.getBoundingClientRect();
         if (rect.width && rect.height) {
@@ -1204,18 +1300,18 @@ function bindGraphExpand(graph: GraphState): void {
       }
     });
   }
-  button.addEventListener("click", async function() {
+  expandButton.addEventListener("click", async () => {
     try {
-      if (document.fullscreenElement === viewport && document.exitFullscreen) {
+      if (document.fullscreenElement === expandViewport && document.exitFullscreen) {
         await document.exitFullscreen();
-      } else if (viewport.requestFullscreen) {
-        await viewport.requestFullscreen();
+      } else if (expandViewport.requestFullscreen) {
+        await expandViewport.requestFullscreen();
       } else {
-        viewport.classList.toggle("rw-graph__viewport--expanded");
+        expandViewport.classList.toggle("rw-graph__viewport--expanded");
         updateLabel();
       }
     } catch (_) {
-      viewport.classList.toggle("rw-graph__viewport--expanded");
+      expandViewport.classList.toggle("rw-graph__viewport--expanded");
       updateLabel();
     }
   });
@@ -1225,35 +1321,44 @@ function bindGraphExpand(graph: GraphState): void {
 
 /** Renders the selected-node inspection panel. */
 function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: number }): JSX.Element {
-  const node = props.node;
-  if (!node) {
+  if (!props.node) {
     return <p>Select a node to inspect its direct relationships.</p>;
   }
-  var typeLabel;
-  if (node.type === "article") {
+  var typeLabel = "Reference mention";
+  if (props.node.type === "article") {
     typeLabel = "Article revision";
-  } else if (node.type === "author") {
+  } else if (props.node.type === "author") {
     typeLabel = "Author occurrence";
-  } else if (node.type === "referenced_author") {
+  } else if (props.node.type === "referenced_author") {
     typeLabel = "Referenced-author string";
-  } else {
-    typeLabel = "Reference mention";
   }
-  var identifier;
-  if (node.doi) {
-    identifier = node.doi;
-  } else if (node.orcid) {
-    identifier = node.orcid;
-  } else {
-    identifier = "No DOI or ORCID recorded";
+  var identifier = "No DOI or ORCID recorded";
+  if (props.node.doi) {
+    identifier = props.node.doi;
+  } else if (props.node.orcid) {
+    identifier = props.node.orcid;
   }
-  const href = graphLink(node);
+  const href = graphLink(props.node);
+  const clusterLabel = (props.node.cluster || 0) + 1;
+  var recordMarkup: JSX.Element = <span className="ui faded text">No separate domain record exists for this raw referenced-author string.</span>;
+  if (href) recordMarkup = <a href={href}>Open full record</a>;
+  const summaryLine = (
+    <p>
+      {identifier}
+      {"\u00B7"}
+      cluster {clusterLabel}
+      {" \u00B7 "}
+      {props.node.degree} visible relationships
+      {"\u00B7"}
+      {props.neighbours} direct neighbours
+    </p>
+  );
   return (
     <Fragment>
       <h3>{typeLabel}</h3>
-      <p><strong>{node.label || node.id}</strong></p>
-      <p>{identifier} {"\u00B7"} cluster {(node.cluster || 0) + 1}{" \u00B7 "}{node.degree} visible relationships {"\u00B7"} {props.neighbours} direct neighbours</p>
-      {href ? <a href={href}>Open full record</a> : <span className="ui faded text">No separate domain record exists for this raw referenced-author string.</span>}
+      <p><strong>{props.node.label || props.node.id}</strong></p>
+      {summaryLine}
+      {recordMarkup}
     </Fragment>
   );
 }
@@ -1262,56 +1367,76 @@ function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: numbe
 function NodeMarkup(props: { node: GraphNode }): JSX.Element {
   const href = graphLink(props.node);
   const label = props.node.label || props.node.id;
-  if (href) {
-    return <a href={href}>{label}</a>;
-  }
-  return <>{label}</>;
+  if (href) return <a href={href}>{label}</a>;
+  return <Fragment>{label}</Fragment>;
 }
 
-/** Renders edge page. */
+/** Renders the paginated relationship table for the current selection or full graph. */
 function renderEdgePage(graph: GraphState): void {
   const target = document.querySelector<HTMLElement>("#graph-edge-rows");
-  if (!target) {
-    return;
-  }
+  if (!target) return;
 
   const pageSize = 20;
-  const visibleEdges = graph.selection ? graph.edges.filter(function(edge) {
-    return endpointID(edge.source) === graph.selection || endpointID(edge.target) === graph.selection;
-  }) : graph.edges;
-  const pages = Math.max(1, Math.ceil(visibleEdges.length / pageSize));
-  if (graph.edgePage > pages) {
-    graph.edgePage = pages;
+  var visibleEdges = graph.edges;
+  if (graph.selection) {
+    visibleEdges = graph.edges.filter((edge) => {
+      return endpointID(edge.source) === graph.selection || endpointID(edge.target) === graph.selection;
+    });
   }
+  const pages = Math.max(1, Math.ceil(visibleEdges.length / pageSize));
+  if (graph.edgePage > pages) graph.edgePage = pages;
   const rows = visibleEdges.slice((graph.edgePage - 1) * pageSize, graph.edgePage * pageSize);
 
-  var rowsHtml: JSX.Element[];
+  var rowsHtml: JSX.Element[] = [<tr><td colspan={4} className="empty">No relationships.</td></tr>];
   if (rows.length) {
-    rowsHtml = rows.map(function(edge) {
-      return <tr><td>{relationshipLabel(edge)}</td><td><NodeMarkup node={edge.source as GraphNode} /></td><td><NodeMarkup node={edge.target as GraphNode} /></td><td>{edgeDetails(edge)}</td></tr>;
+    rowsHtml = rows.map((edge) => {
+      return (
+        <tr>
+          <td>{relationshipLabel(edge)}</td>
+          <td><NodeMarkup node={edge.source as GraphNode} /></td>
+          <td><NodeMarkup node={edge.target as GraphNode} /></td>
+          <td>{edgeDetails(edge)}</td>
+        </tr>
+      );
     });
-  } else {
-    rowsHtml = [<tr><td colspan={4} className="empty">No relationships.</td></tr>];
   }
 
-  renderTree(
+  var itemLabel = "relationships";
+  if (graph.selection) itemLabel = "relationships in this neighbourhood";
+  const paginationOptions = {
+    itemLabel: itemLabel,
+    pageAttribute: "data-graph-page",
+    pageClass: " graph-page",
+  };
+  const paginationMarkup = raw(pagination({
+    page: graph.edgePage,
+    per_page: pageSize,
+    total_rows: visibleEdges.length,
+    total_pages: pages,
+  }, paginationOptions));
+  const edgeTableMarkup = (
     <Fragment>
       <div className="table-wrap" aria-label="Relationship table">
         <table className="ui table">
-          <thead><tr><th scope="col">Relationship</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Details</th></tr></thead>
+          <thead>
+            <tr>
+              <th scope="col">Relationship</th>
+              <th scope="col">From</th>
+              <th scope="col">To</th>
+              <th scope="col">Details</th>
+            </tr>
+          </thead>
           <tbody>{rowsHtml}</tbody>
         </table>
       </div>
-      {raw(pagination({ page: graph.edgePage, per_page: pageSize, total_rows: visibleEdges.length, total_pages: pages }, {
-        itemLabel: graph.selection ? "relationships in this neighbourhood" : "relationships",
-        pageAttribute: "data-graph-page", pageClass: " graph-page"
-      }))}
-    </Fragment>,
-    target
+      {paginationMarkup}
+    </Fragment>
   );
+  renderTree(edgeTableMarkup, target);
 
-  target.querySelectorAll<HTMLButtonElement>("[data-graph-page]").forEach(function(button) {
-    button.addEventListener("click", function() {
+  const pageButtons = target.querySelectorAll<HTMLButtonElement>("[data-graph-page]");
+  pageButtons.forEach((button) => {
+    button.addEventListener("click", () => {
       graph.edgePage = Number(button.dataset.graphPage) || 1;
       renderEdgePage(graph);
     });
@@ -1323,7 +1448,7 @@ function edgeDetails(edge: GraphEdge): string {
   if (edge.affiliation || edge.author_order) {
     var parts: string[] = [];
     if (edge.author_order) {
-      parts.push("Author " + edge.author_order);
+      parts.push(`Author ${edge.author_order}`);
     } else {
       parts.push("—");
     }
@@ -1333,7 +1458,9 @@ function edgeDetails(edge: GraphEdge): string {
     return parts.join(" \u00B7 ");
   }
   if (edge.shared_reference_count) {
-    return edge.shared_reference_count + " shared cited DOI" + (edge.shared_reference_count === 1 ? "" : "s");
+    var plural = "s";
+    if (edge.shared_reference_count === 1) plural = "";
+    return `${edge.shared_reference_count} shared cited DOI${plural}`;
   }
   if (edge.type === "reference_author") {
     return "Raw author text captured on the reference mention";

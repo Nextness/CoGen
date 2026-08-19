@@ -139,6 +139,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 
 Frontend production source is TypeScript with native ES modules and no application framework, compiled per file by `make frontend-build` into the assembled `frontend/dist` served root. Relative imports use explicit `.ts` or `.tsx` specifiers, type-only imports use `import type` (`verbatimModuleSyntax` and `erasableSyntaxOnly` are enforced by `tsc --noEmit`), and new exports carry required type annotations plus the maintained adjacent JSDoc prose description. Rendering uses the project-owned classic-mode JSX runtime; [JSX-RUNTIME.md](JSX-RUNTIME.md) is the authoritative contract for its semantics and must be updated whenever the runtime's attribute/children handling, escaping, event binding, or wiring change. `state.tsx` owns URL and shared rendering state, `api.tsx` owns JSON transport, `router.tsx` owns dispatch and abort lifecycle, views fetch page data and call `render(<View .../>, app)`, and components own reusable JSX elements or behavior. Run `make check-frontend` for type errors after frontend changes.
 
+- Code style and identifier naming are normative in [FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md); read it before changing frontend source.
 - Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
 - Bind DOM listeners after rendering a tree into the app or a sub-container, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
@@ -189,6 +190,7 @@ Styles load in cascade order `tokens.css`, `base.css`, `elements.css`, `collecti
 - Describe only current supported state; use Git history for superseded designs, completed phases, renamed concepts, and deprecated workflows.
 - Update [ARCHITECTURE.md](ARCHITECTURE.md) for system behavior, boundaries, state, configuration, routes, decisions, assumptions, or current issues.
 - Update [DESIGN.md](DESIGN.md) for frontend behavior, interaction, visual, responsive, accessibility, or content contracts.
+- Update [FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md) when frontend naming, control-flow, or layout conventions change.
 - Run `make docs-catalog-update` after maintained Go or JavaScript declarations move or change, then review [PROJECT_CATALOG.md](PROJECT_CATALOG.md).
 - Run `make docs-state-update` only after every affected document and dependency listed in [DOC-STATE.md](DOC-STATE.md) has been reviewed.
 - Run `make check-docs` after Markdown, migration configuration, migration filenames, documentation-tool code, or generated documentation changes.

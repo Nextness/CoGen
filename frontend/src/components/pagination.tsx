@@ -1,5 +1,4 @@
 // Shared pagination rendering for server-backed and in-memory result sets.
-import { esc } from "../state.tsx";
 import { h, renderToString } from "../jsx/jsx-runtime.ts";
 
 /** Returns the bounded sequence of page numbers surrounding the current page. */
@@ -12,7 +11,7 @@ export function paginationPages(currentPage: any, totalPages: any, visibleCount:
   var end = Math.min(total, start + count - 1);
   start = Math.max(1, end - count + 1);
 
-  const pages = [];
+  const pages: number[] = [];
   for (var page = start; page <= end; page += 1) {
     pages.push(page);
   }
@@ -33,41 +32,56 @@ export interface PaginationOptions {
 /** Renders accessible pagination markup for server-backed or in-memory results. */
 export function Pagination(props: { result: any; options?: PaginationOptions }): JSX.Element {
   const options = props.options || {};
-  const result = props.result;
 
-  const current = Math.max(1, Number(result?.page || options.page) || 1);
-  const totalRows = Math.max(0, Number(result?.total_rows) || 0);
-  const perPage = Math.max(1, Number(result?.per_page || options.perPage) || 50);
-  const totalPages = Math.max(1, Number(result?.total_pages) || Math.ceil(totalRows / perPage) || 1);
+  const current = Math.max(1, Number(props.result?.page || options.page) || 1);
+  const totalRows = Math.max(0, Number(props.result?.total_rows) || 0);
+  const perPage = Math.max(1, Number(props.result?.per_page || options.perPage) || 50);
+  const totalPages = Math.max(1, Number(props.result?.total_pages) || Math.ceil(totalRows / perPage) || 1);
   const safeCurrent = Math.min(current, totalPages);
-  const start = totalRows === 0 ? 0 : (safeCurrent - 1) * perPage + 1;
-  const end = totalRows === 0 ? 0 : Math.min(totalRows, safeCurrent * perPage);
+  var start = 0;
+  if (totalRows !== 0) start = (safeCurrent - 1) * perPage + 1;
+  var end = 0;
+  if (totalRows !== 0) end = Math.min(totalRows, safeCurrent * perPage);
   const itemLabel = options.itemLabel || "records";
   const pageAttribute = options.pageAttribute || "data-page";
   const pageClass = options.pageClass || "";
 
-  const numbered = paginationPages(safeCurrent, totalPages, options.visibleCount).map(function(page) {
-    const active = page === safeCurrent ? " active" : "";
-    const attrs: Record<string, unknown> = { type: "button", className: "item page-number" + active + pageClass, [pageAttribute]: page };
-    if (page === safeCurrent) {
-      attrs["aria-current"] = "page";
-    }
+  const pageNumbers = paginationPages(safeCurrent, totalPages, options.visibleCount);
+  const numbered = pageNumbers.map((page) => {
+    var active = "";
+    if (page === safeCurrent) active = " active";
+    const pageNumberClass = `item page-number${active}${pageClass}`;
+    const attrs: Record<string, unknown> = {
+      type: "button",
+      className: pageNumberClass,
+      [pageAttribute]: page,
+    };
+    if (page === safeCurrent) attrs["aria-current"] = "page";
     return h("button", attrs, String(page));
   });
 
   /** Returns one pagination navigation control. */
   function control(label: string, target: number, disabled: boolean, relation: string): JSX.Element {
-    const attrs: Record<string, unknown> = { type: "button", className: "item" + pageClass, [pageAttribute]: target };
-    if (relation) {
-      attrs["aria-label"] = relation;
-    }
-    if (disabled) {
-      attrs.disabled = true;
-    }
+    const itemClass = `item${pageClass}`;
+    const attrs: Record<string, unknown> = {
+      type: "button",
+      className: itemClass,
+      [pageAttribute]: target,
+    };
+    if (relation) attrs["aria-label"] = relation;
+    if (disabled) attrs.disabled = true;
     return h("button", attrs, label);
   }
 
-  const secondary = options.secondary ? <span className="rw-pagination__secondary">{options.secondary}</span> : null;
+  var secondary: JSX.Element | null = null;
+  if (options.secondary) {
+    secondary = <span className="rw-pagination__secondary">{options.secondary}</span>;
+  }
+
+  const firstControl = control("First", 1, safeCurrent === 1, "First page");
+  const previousControl = control("Previous", Math.max(1, safeCurrent - 1), safeCurrent === 1, "Previous page");
+  const nextControl = control("Next", Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, "Next page");
+  const lastControl = control("Last", totalPages, safeCurrent === totalPages, "Last page");
 
   return (
     <nav className="ui pagination menu" aria-label="Result pages">
@@ -77,11 +91,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
         {secondary}
       </div>
       <div className="pagination-actions">
-        {control("First", 1, safeCurrent === 1, "First page")}
-        {control("Previous", Math.max(1, safeCurrent - 1), safeCurrent === 1, "Previous page")}
+        {firstControl}
+        {previousControl}
         <span className="pagination-pages">{numbered}</span>
-        {control("Next", Math.min(totalPages, safeCurrent + 1), safeCurrent === totalPages, "Next page")}
-        {control("Last", totalPages, safeCurrent === totalPages, "Last page")}
+        {nextControl}
+        {lastControl}
       </div>
     </nav>
   );
@@ -89,5 +103,6 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
 
 /** Returns accessible pagination markup for server-backed or in-memory results. */
 export function pagination(result: any, options?: PaginationOptions): string {
-  return renderToString(<Pagination result={result} options={options} />);
+  const paginationMarkup = <Pagination result={result} options={options} />;
+  return renderToString(paginationMarkup);
 }

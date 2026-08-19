@@ -24,7 +24,7 @@ type scopedRowsDefinition struct {
 
 var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	"articles": {
-		columns: []string{"id", "work_id", "title", "year", "journal", "publisher", "source", "doi", "validation_status", "citation_count", "reference_count", "producer_stage", "created_at", "abstract", "authors"},
+		columns: []string{"id", "work_id", "title", "year", "journal", "publisher", "source", "doi", "validation_status", "citation_count", "reference_count", "producer_stage", "created_at", "abstract", "keywords", "keywords_plus", "authors"},
 		from: `FROM work_revisions wr
             JOIN works w ON w.id=wr.work_id
             LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
@@ -130,6 +130,32 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 			payload["source_result_counts"] = sourceResultCounts
 		}
 	}
+	if err == nil && r.PathValue("kind") == "articles" {
+		termRows, termTotal, termErr := s.runSearchTerms(ctx, runID)
+		if termErr != nil {
+			err = termErr
+		} else if len(termRows) > 0 {
+			revisionIDs := make([]int64, 0, len(items))
+			for _, item := range items {
+				if id, ok := item["id"].(int64); ok {
+					revisionIDs = append(revisionIDs, id)
+				}
+			}
+			matches, matchErr := s.revisionTermMatchesBulk(ctx, runID, revisionIDs)
+			if matchErr != nil {
+				err = matchErr
+			} else {
+				for _, item := range items {
+					id, _ := item["id"].(int64)
+					item["term_matches"] = rowTermMatches(termRows, termTotal, matches[id])
+				}
+			}
+		} else {
+			for _, item := range items {
+				item["term_matches"] = nil
+			}
+		}
+	}
 	s.respond(w, r, payload, err)
 }
 
@@ -137,7 +163,7 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 func corpusSelectColumns(kind string) string {
 	switch kind {
 	case "articles":
-		return "wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi, validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at, wr.abstract, (SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors"
+		return "wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi, validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at, wr.abstract, wr.keywords, wr.keywords_plus, (SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors"
 	case "authors":
 		return "ao.id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, ao.person_id, COUNT(DISTINCT a.work_revision_id) AS article_count, COUNT(DISTINCT NULLIF(a.affiliation, '')) AS affiliation_count, ao.created_at"
 	case "references":
