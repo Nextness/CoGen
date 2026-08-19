@@ -116,18 +116,20 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     if (line.includes("|") && index + 2 < lines.length && tableDelimiter(lines[index + 1])) {
       flushParagraph();
       const tableLines = [line, lines[index + 1], lines[index + 2]];
-      const cells = tableLines.map(splitTableRow);
-      if (cells.some(function(row) { return row === null; }) || cells[0]!.length !== cells[1]!.length || cells[0]!.length !== cells[2]!.length) {
+      const [headerRow, delimiterRow, bodyRow] = tableLines.map(splitTableRow);
+      if (headerRow === null || delimiterRow === null || bodyRow === null || headerRow.length !== delimiterRow.length || headerRow.length !== bodyRow.length) {
         errors.push({ position: offset, length: tableLines.join("\n").length, message: "Malformed table shape." });
       } else {
-        blocks.push({ type: "table", header: cells[0]!, rows: [cells[2]!], offset: offset });
+        blocks.push({ type: "table", header: headerRow, rows: [bodyRow], offset: offset });
         let tableOffset = offset;
         for (const source of [line, lines[index + 2]]) {
           extractLinks(source, tableOffset, links, errors);
           tableOffset += source.length + 1;
         }
       }
-      offset += tableLines.reduce(function(total, item) { return total + item.length + 1; }, 0);
+      offset += tableLines.reduce((total, item) => {
+        return total + item.length + 1;
+      }, 0);
       index += 2;
       continue;
     }
@@ -162,15 +164,25 @@ function extractLinks(text: string, baseOffset: number, links: NoteLink[], error
     const raw = text.slice(start + 2, end);
     const separator = unescapedIndex(raw, ":");
     const displaySeparator = unescapedIndex(raw, "|");
-    const scheme = separator < 1 ? "" : raw.slice(0, separator);
-    const targetEnd = displaySeparator > separator ? displaySeparator : raw.length;
+    var scheme = "";
+    if (separator >= 1) scheme = raw.slice(0, separator);
+    var targetEnd = raw.length;
+    if (displaySeparator > separator) targetEnd = displaySeparator;
     const target = unescapeLink(raw.slice(separator + 1, targetEnd));
-    const display = displaySeparator > separator ? unescapeLink(raw.slice(displaySeparator + 1)) : "";
+    var display = "";
+    if (displaySeparator > separator) display = unescapeLink(raw.slice(displaySeparator + 1));
     const diagnostic = validateLink(scheme, target, raw);
     if (diagnostic) {
       errors.push({ position: baseOffset + start, length: end + 2 - start, message: diagnostic });
     } else {
-      links.push({ ordinal: links.length + 1, target_type: scheme === "pdf" ? "pdf_page" : scheme, raw_target: scheme === "pdf" ? target.slice(5) : target, display_text: display || null, position: baseOffset + start, length: end + 2 - start });
+      links.push({
+        ordinal: links.length + 1,
+        target_type: scheme === "pdf" ? "pdf_page" : scheme,
+        raw_target: scheme === "pdf" ? target.slice(5) : target,
+        display_text: display || null,
+        position: baseOffset + start,
+        length: end + 2 - start,
+      });
     }
     index = end + 1;
   }
@@ -214,7 +226,7 @@ function unescapeLink(text: string): string {
 /** Splits one simple table row while preserving escaped vertical bars. */
 function splitTableRow(line: string): string[] | null {
   const trimmed = line.trim().replace(/^\||\|$/g, "");
-  const cells = [];
+  const cells: string[] = [];
   let cell = "";
   for (let index = 0; index < trimmed.length; index += 1) {
     if (trimmed[index] === "|" && !isEscaped(trimmed, index)) {
@@ -231,7 +243,9 @@ function splitTableRow(line: string): string[] | null {
 /** Reports whether every table cell is a valid delimiter marker. */
 function tableDelimiter(line: string): boolean {
   const cells = splitTableRow(line);
-  return Boolean(cells && cells.every(function(cell) { return /^-{3,}$/.test(cell); }));
+  return Boolean(cells && cells.every((cell) => {
+    return /^-{3,}$/.test(cell);
+  }));
 }
 
 /** One resolved note link used by the preview renderer. */
@@ -248,14 +262,16 @@ export interface ResolvedNoteLink {
 
 /** Renders a parsed note as escaped HTML with context-preserving resolved links. */
 export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] | null }): JSX.Element {
-  const links = new Map((props.resolvedLinks || []).map(function(item) { return [item.ordinal, item]; }));
+  const links = new Map((props.resolvedLinks || []).map((item) => {
+    return [item.ordinal, item];
+  }));
   let ordinal = 0;
 
   /** Splits escaped text on newlines, inserting br elements between lines. */
   function textWithBreaks(text: string): Array<JSX.Element | string> {
     const lines = text.split("\n");
     const nodes: Array<JSX.Element | string> = [];
-    lines.forEach(function(line, index) {
+    lines.forEach((line, index) => {
       if (index > 0) {
         nodes.push(<br />);
       }
@@ -282,56 +298,82 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
     return parts;
   }
 
-  return (
-    <>
-      {props.document.blocks.map(function(block) {
-        if (block.type === "heading") {
-          return <div className={"rw-note-heading rw-note-heading--" + block.level} role="heading" aria-level={(block.level as number) + 4}>{inline(block.text as string)}</div>;
-        }
-        if (block.type === "code") {
-          return <pre><code>{block.text}</code></pre>;
-        }
-        if (block.type === "quote") {
-          return <blockquote>{inline(block.text as string)}</blockquote>;
-        }
-        if (block.type === "list") {
-          const items = (block.items as Array<{ text: string; offset: number }>).map(function(item) {
-            return <li>{inline(item.text)}</li>;
-          });
-          return h(block.ordered ? "ol" : "ul", null, items);
-        }
-        if (block.type === "table") {
-          return (
-            <div className="table-wrap">
-              <table className="ui compact table rw-note-table">
-                <thead><tr>{(block.header as string[]).map(function(cell) { return <th>{inline(cell)}</th>; })}</tr></thead>
-                <tbody>{(block.rows as string[][]).map(function(row) {
-                  return <tr>{row.map(function(cell) { return <td>{inline(cell)}</td>; })}</tr>;
-                })}</tbody>
-              </table>
-            </div>
-          );
-        }
-        return <p>{inline(block.text as string)}</p>;
-      })}
-    </>
-  );
+  const blockElements = props.document.blocks.map((block) => {
+    if (block.type === "heading") {
+      const headingClass = `rw-note-heading rw-note-heading--${block.level}`;
+      const headingText = inline(block.text as string);
+      return <div className={headingClass} role="heading" aria-level={(block.level as number) + 4}>{headingText}</div>;
+    }
+    if (block.type === "code") {
+      return <pre><code>{block.text}</code></pre>;
+    }
+    if (block.type === "quote") {
+      const quoteText = inline(block.text as string);
+      return <blockquote>{quoteText}</blockquote>;
+    }
+    if (block.type === "list") {
+      const items = (block.items as Array<{ text: string; offset: number }>).map((item) => {
+        const itemText = inline(item.text);
+        return <li>{itemText}</li>;
+      });
+      let listTag = "ul";
+      if (block.ordered) listTag = "ol";
+      return h(listTag, null, items);
+    }
+    if (block.type === "table") {
+      const headerCells = (block.header as string[]).map((cell) => {
+        const cellText = inline(cell);
+        return <th>{cellText}</th>;
+      });
+      const bodyRows = (block.rows as string[][]).map((row) => {
+        const rowCells = row.map((cell) => {
+          const cellText = inline(cell);
+          return <td>{cellText}</td>;
+        });
+        return <tr>{rowCells}</tr>;
+      });
+      return (
+        <div className="table-wrap">
+          <table className="ui compact table rw-note-table">
+            <thead><tr>{headerCells}</tr></thead>
+            <tbody>{bodyRows}</tbody>
+          </table>
+        </div>
+      );
+    }
+    const paragraphText = inline(block.text as string);
+    return <p>{paragraphText}</p>;
+  });
+
+  return <>{blockElements}</>;
 }
 
 /** Renders a parsed note as escaped HTML with context-preserving resolved links. */
 export function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] | null): string {
-  return renderToString(<NoteDocument document={document} resolvedLinks={resolvedLinks} />);
+  const documentMarkup = <NoteDocument document={document} resolvedLinks={resolvedLinks} />;
+  return renderToString(documentMarkup);
 }
 
 /** Renders one safe resolved link or an accessible unresolved label. */
 function renderLink(label: string, resolved?: ResolvedNoteLink): JSX.Element {
   if (!resolved?.resolved) {
-    return <span className="rw-note-link rw-note-link--unresolved" aria-label="Unresolved link">{label} <span aria-hidden="true">?</span></span>;
+    return (
+      <span className="rw-note-link rw-note-link--unresolved" aria-label="Unresolved link">
+        {label}
+        <span aria-hidden="true">?</span>
+      </span>
+    );
   }
   if (resolved.target_type === "ext") {
     return <a className="rw-note-link" href={resolved.url} target="_blank" rel="noopener noreferrer">{label}</a>;
   }
-  const updates: Record<string, any> = { view: "article", article_id: resolved.work_revision_id, note_id: "", anchor_id: "", pdf_page: "" };
+  const updates: Record<string, any> = {
+    view: "article",
+    article_id: resolved.work_revision_id,
+    note_id: "",
+    anchor_id: "",
+    pdf_page: "",
+  };
   if (resolved.note_id) updates.note_id = resolved.note_id;
   if (resolved.anchor_id) updates.anchor_id = resolved.anchor_id;
   if (resolved.page) updates.pdf_page = resolved.page;
