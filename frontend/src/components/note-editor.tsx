@@ -156,12 +156,14 @@ function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element 
   return (
     <li data-note-id={note.id}>
       <div className="rw-note-card__meta">
-        <div>
-          <span className="ui note label">{title}</span>
-          <span className="ui label">Version {note.version.id}</span>
-          {inheritedMarkup}
+        <div className="rw-note-card__identity">
+          <h5>{title}</h5>
+          <div className="rw-note-card__badges">
+            <span className="ui label">Version {note.version.id}</span>
+            {inheritedMarkup}
+          </div>
         </div>
-        <p>{note.version.reviewer_display} · {noteTime}</p>
+        <p>{note.version.reviewer_display} <span aria-hidden="true">·</span> <time datetime={note.version.created_at}>{noteTime}</time></p>
       </div>
       <div className="rw-note-content" data-note-content>{contentMarkup}</div>
       <div className="rw-note-card__actions">
@@ -212,26 +214,10 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     <section className="rw-note-editor">
       <div className="rw-review-section__heading">
         <div>
-          <h4 id="review-notes-heading">Review notes</h4>
+          <h4 id="review-notes-heading">Notes</h4>
           <p>Notes keep immutable version history. Unsaved drafts remain only in this browser.</p>
         </div>
       </div>
-      <form className="ui form rw-filter-bar" data-note-filter-form>
-        <label>
-          <span>Search Notes</span>
-          <input type="search" data-note-query placeholder="Title or note text" />
-        </label>
-        <label>
-          <span>Note state</span>
-          <select data-note-state>
-            <option value="active">Active notes</option>
-            <option value="removed">Removed notes</option>
-            <option value="all">All notes</option>
-          </select>
-        </label>
-        <button type="submit" className="ui primary button">Apply note filters</button>
-      </form>
-      <div data-note-list></div>
       <div className="rw-note-workspace">
         <form className="ui form rw-note-form" data-note-form>
           <div className="rw-note-form__heading">
@@ -240,61 +226,67 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
               <p>Use the project note syntax for headings, lists, quotes, code, tables, and evidence links.</p>
             </div>
           </div>
-          <div className="rw-note-link-insert" aria-labelledby="note-link-insert-heading">
-            <div>
-              <h6 id="note-link-insert-heading">Insert evidence link</h6>
-              <p>Links use <code>[[type:target|display]]</code>. Saved links resolve only inside the selected run context.</p>
-            </div>
-            <label>
-              Type
-              <select data-note-link-type>
-                <option value="article">Article DOI</option>
-                <option value="pdf">PDF page</option>
-                <option value="anchor">Saved anchor ID</option>
-                <option value="note">Review note ID</option>
-                <option value="ext">External HTTP(S) URL</option>
-              </select>
-            </label>
-            <label>
-              Target
-              <input data-note-link-target value={initialArticleTarget} list="note-anchor-options" />
-              <datalist id="note-anchor-options" data-note-anchor-options></datalist>
-            </label>
-            <label>
-              Display text <span className="rw-optional">Optional</span>
-              <input data-note-link-display />
-            </label>
-            <button type="button" className="ui basic button" data-note-link-insert>Insert link</button>
-            <button type="button" className="ui basic button" data-note-link-anchors-more hidden>Load more saved anchors</button>
+          <div className="rw-note-editor-tools">
+            <details className="rw-disclosure rw-note-link-tools">
+              <summary>Insert evidence link</summary>
+              <div className="rw-disclosure__content">
+                <div className="rw-note-link-insert">
+                  <p>Links use <code>[[type:target|display]]</code>. Saved links resolve only inside the selected run context.</p>
+                  <label>
+                    Type
+                    <select data-note-link-type>
+                      <option value="article">Article DOI</option>
+                      <option value="pdf">PDF page</option>
+                      <option value="anchor">Saved anchor ID</option>
+                      <option value="note">Review note ID</option>
+                      <option value="ext">External HTTP(S) URL</option>
+                    </select>
+                  </label>
+                  <label>
+                    Target
+                    <input data-note-link-target value={initialArticleTarget} list="note-anchor-options" />
+                    <datalist id="note-anchor-options" data-note-anchor-options></datalist>
+                  </label>
+                  <label>
+                    Display text <span className="rw-optional">Optional</span>
+                    <input data-note-link-display />
+                  </label>
+                  <div className="rw-inline-group">
+                    <button type="button" className="ui basic button" data-note-link-insert>Insert link</button>
+                    <button type="button" className="ui basic button" data-note-link-anchors-more hidden>Load more saved anchors</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+            <details className="rw-disclosure rw-note-syntax">
+              <summary>Note syntax and link examples</summary>
+              <div className="rw-disclosure__content">
+                <p>Use <code>#</code> through <code>####</code> for headings, <code>-</code> for bullets, <code>{">"}</code> for quotes, fenced code blocks, and simple Markdown-style tables.</p>
+                <dl>
+                  <div>
+                    <dt>Article DOI</dt>
+                    <dd><code>[[article:10.1000/example|Article title]]</code></dd>
+                  </div>
+                  <div>
+                    <dt>PDF page</dt>
+                    <dd><code>[[pdf:page=5|Methods page]]</code></dd>
+                  </div>
+                  <div>
+                    <dt>Saved anchor</dt>
+                    <dd><code>[[anchor:a0123456789abcdef0123456789abcdef|Methods excerpt]]</code></dd>
+                  </div>
+                  <div>
+                    <dt>Review note</dt>
+                    <dd><code>[[note:123|Related note]]</code></dd>
+                  </div>
+                  <div>
+                    <dt>External URL</dt>
+                    <dd><code>[[ext:https://example.test|Source]]</code></dd>
+                  </div>
+                </dl>
+              </div>
+            </details>
           </div>
-          <details className="rw-disclosure rw-note-syntax">
-            <summary>Note syntax and link examples</summary>
-            <div className="rw-disclosure__content">
-              <p>Use <code>#</code> through <code>####</code> for headings, <code>-</code> for bullets, <code>{">"}</code> for quotes, fenced code blocks, and simple Markdown-style tables.</p>
-              <dl>
-                <div>
-                  <dt>Article DOI</dt>
-                  <dd><code>[[article:10.1000/example|Article title]]</code></dd>
-                </div>
-                <div>
-                  <dt>PDF page</dt>
-                  <dd><code>[[pdf:page=5|Methods page]]</code></dd>
-                </div>
-                <div>
-                  <dt>Saved anchor</dt>
-                  <dd><code>[[anchor:a0123456789abcdef0123456789abcdef|Methods excerpt]]</code></dd>
-                </div>
-                <div>
-                  <dt>Review note</dt>
-                  <dd><code>[[note:123|Related note]]</code></dd>
-                </div>
-                <div>
-                  <dt>External URL</dt>
-                  <dd><code>[[ext:https://example.test|Source]]</code></dd>
-                </div>
-              </dl>
-            </div>
-          </details>
           <div className="ui field">
             <label htmlFor="review-note-body">Note body</label>
             <textarea id="review-note-body" rows={10} data-note-body disabled={!editable}></textarea>
@@ -315,6 +307,30 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           <div data-note-preview></div>
         </aside>
       </div>
+      <section className="rw-note-saved" aria-labelledby="saved-notes-heading">
+        <div className="rw-note-saved__heading">
+          <div>
+            <h5 id="saved-notes-heading">Saved notes</h5>
+            <p>Search current note heads or inspect removed-note history.</p>
+          </div>
+        </div>
+        <form className="ui form rw-table-controls rw-note-filters" data-note-filter-form>
+          <label className="rw-table-controls__search">
+            <span>Search Notes</span>
+            <input type="search" data-note-query placeholder="Title or note text" />
+          </label>
+          <label>
+            <span>Note state</span>
+            <select data-note-state>
+              <option value="active">Active notes</option>
+              <option value="removed">Removed notes</option>
+              <option value="all">All notes</option>
+            </select>
+          </label>
+          <button type="submit" className="ui primary button">Apply note filters</button>
+        </form>
+        <div data-note-list></div>
+      </section>
       <div data-note-history></div>
     </section>
   );

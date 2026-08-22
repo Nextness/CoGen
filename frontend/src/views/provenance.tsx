@@ -9,6 +9,7 @@ import { api } from "../api.tsx";
 import { setURL, bindFocusContext } from "../router.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
+import { Pagination } from "../components/pagination.tsx";
 import { AuditStream, bindAuditRecordedData } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 
@@ -147,7 +148,7 @@ function AuditFilters(props: { facets: any }): JSX.Element {
           </div>
           <details className="rw-filter-disclosure">
             <summary>Stage and outcome filters</summary>
-            <div className="rw-filter-field-grid rw-filter-field-grid--stacked">
+            <div className="rw-filter-field-grid rw-filter-field-grid--advanced">
               <label>
                 Pipeline stage
                 <input name="audit_stage" value={value("audit_stage")} placeholder="For example, normalize" />
@@ -286,6 +287,14 @@ function ArtifactActions(props: { row: any }): JSX.Element {
 /** Renders the run artifact inventory markup. */
 function ArtifactsView(props: { data: any }): JSX.Element {
   const artifacts = list(props.data, ["artifacts"]);
+  const page = Math.max(1, Number(value("artifact_page") || props.data.pagination?.page || 1));
+  const perPage = Number(value("artifact_per_page") || props.data.pagination?.per_page || 50);
+  const pagination = props.data.pagination || {
+    page: page,
+    per_page: perPage,
+    total_rows: artifacts.length,
+    total_pages: 1,
+  };
   activeArtifactPreview = null;
   activeArtifactRow = null;
   var rows: JSX.Element[] = [<tr><td colspan={6} className="empty">No artifacts were recorded for this run.</td></tr>];
@@ -320,9 +329,25 @@ function ArtifactsView(props: { data: any }): JSX.Element {
     });
   }
   const role = value("artifact_role");
+  var filterSummary: JSX.Element | null = null;
+  if (value("artifact_q") || role) {
+    const activeFilters = {
+      artifact_q: value("artifact_q"),
+      artifact_role: role,
+    };
+    const filterLabels = {
+      artifact_q: "Search",
+      artifact_role: "Relationship",
+    };
+    const filterOptions = {
+      removeUpdates: { artifact_page: 1, artifact_id: "" },
+      clearUpdates: { artifact_q: "", artifact_role: "", artifact_page: 1, artifact_id: "" },
+    };
+    filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
+  }
   const controls = (
-    <form className="rw-table-controls" data-artifact-filters>
-      <label className="rw-table-search">
+    <form className="ui form rw-table-controls" data-artifact-filters>
+      <label className="rw-table-controls__search">
         Search artifacts
         <input name="artifact_q" type="search" value={value("artifact_q")} placeholder="Hash, format, stage, provider, or role" />
       </label>
@@ -337,17 +362,22 @@ function ArtifactsView(props: { data: any }): JSX.Element {
           <option value="identity_candidate_payload" selected={role === "identity_candidate_payload"}>Identity candidate payload</option>
         </select>
       </label>
+      <label>
+        Rows per page
+        <select name="artifact_per_page"><PageSizeOptions current={perPage} /></select>
+      </label>
       <button type="submit" className="ui primary button">Apply filters</button>
+      {filterSummary}
     </form>
   );
-  var nextPage: JSX.Element | null = null;
-  if (props.data.has_more) {
-    nextPage = (
-      <button type="button" className="ui basic button" data-more-artifacts={props.data.next_cursor}>
-        Next artifact page
-      </button>
-    );
-  }
+  const paginationOptions = {
+    page: page,
+    perPage: perPage,
+    itemLabel: "artifacts",
+    pageAttribute: "data-artifact-page",
+  };
+  const paginationMarkup = <Pagination result={pagination} options={paginationOptions} />;
+  const artifactCount = formatNumber(pagination.total_rows);
   return (
     <Fragment>
       <ArtifactContext context={props.data.context || {}} />
@@ -358,7 +388,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
             <h3>Recorded artifacts</h3>
             <p>Content-addressed files linked to this run through configuration roles or execution steps.</p>
           </div>
-          <span className="ui label">{artifacts.length.toLocaleString()} artifacts</span>
+          <span className="ui label">{artifactCount} artifacts</span>
         </div>
         <div className="content">
           {controls}
@@ -377,7 +407,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
               <tbody>{rows}</tbody>
             </table>
           </div>
-          {nextPage}
+          {paginationMarkup}
         </div>
       </section>
       <section className="ui segment rw-artifact-inspector" id="artifact-inspector">
@@ -463,7 +493,7 @@ function CacheView(props: { data: any }): JSX.Element {
       label: "Payload artifact",
       render: (row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_cursor: "" })}>Artifact {raw}</a>;
+          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })}>Artifact {raw}</a>;
         }
         return <span className="ui faded text">None</span>;
       },
@@ -557,10 +587,10 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
     const outcomeDisplay = outcomeText || outcomeFallback;
     const artifacts: JSX.Element[] = [];
     if (step?.input_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_cursor: "" })}>Input artifact {step.input_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })}>Input artifact {step.input_artifact_id}</a>);
     }
     if (step?.output_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_cursor: "" })}>Output artifact {step.output_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })}>Output artifact {step.output_artifact_id}</a>);
     }
     var duration = "Not recorded";
     if (step?.duration_seconds != null) {
@@ -825,9 +855,9 @@ export async function provenanceView(): Promise<void> {
     content = <ArtifactsView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {
       q: value("artifact_q"),
       role: value("artifact_role"),
-      cursor: value("artifact_cursor"),
+      page: value("artifact_page") || 1,
+      per_page: value("artifact_per_page") || 50,
       artifact_id: value("artifact_id"),
-      limit: 25,
     }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "cache") {
     content = <CacheView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/cache-uses`, {
@@ -1011,15 +1041,18 @@ function bindArtifactInspection(): void {
     setURL({
       artifact_q: form.get("artifact_q"),
       artifact_role: form.get("artifact_role"),
-      artifact_cursor: "",
+      artifact_per_page: form.get("artifact_per_page"),
+      artifact_page: 1,
       artifact_id: "",
     }, false);
   });
-  document.querySelector<HTMLButtonElement>("[data-more-artifacts]")?.addEventListener("click", (event) => {
-    setURL({
-      artifact_cursor: (event.currentTarget as HTMLButtonElement).dataset.moreArtifacts,
-      artifact_id: "",
-    }, false);
+  document.querySelectorAll<HTMLButtonElement>("[data-artifact-page]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setURL({
+        artifact_page: button.dataset.artifactPage,
+        artifact_id: "",
+      }, false);
+    });
   });
   const inspectButtons = document.querySelectorAll<HTMLButtonElement>("[data-inspect-artifact]");
   inspectButtons.forEach((button) => {

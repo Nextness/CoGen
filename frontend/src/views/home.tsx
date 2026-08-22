@@ -10,6 +10,7 @@ import {
   params,
   PageHeader,
   Panel,
+  FilterChips,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
 import { api, mutate } from "../api.tsx";
@@ -34,15 +35,15 @@ function hasContext(item: any): boolean {
   return Boolean(item.search_id && item.search_revision_id && item.execution_plan_id && item.id);
 }
 
-/** Renders one direct action for the latest complete run in a search or revision summary. */
-function ContinueAction(props: { searchID: any; revisionID: any; planID: any; runID: any; label?: string }): JSX.Element | null {
+/** Renders one direct action for a search's latest complete run. */
+function ContinueAction(props: { searchID: any; revisionID: any; planID: any; runID: any }): JSX.Element | null {
   if (!props.searchID || !props.revisionID || !props.planID || !props.runID) return null;
   return (
     <a
       className="ui primary basic button"
       href={deepdiveLink(props.searchID, props.revisionID, props.planID, props.runID)}
     >
-      {props.label || "Continue"}
+      Continue
     </a>
   );
 }
@@ -201,43 +202,90 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
 function HomeFilters(): JSX.Element {
   const visibility = value("home_visibility") || "active";
   const status = value("home_status") || "all";
+  const query = value("home_q");
+  const startedAfter = value("home_started_after");
+  const startedBefore = value("home_started_before");
+  var advancedFilterCount = 0;
+  if (visibility !== "active") advancedFilterCount += 1;
+  if (status !== "all") advancedFilterCount += 1;
+  if (startedAfter) advancedFilterCount += 1;
+  if (startedBefore) advancedFilterCount += 1;
+  var advancedSummary = "Active runs, any outcome or start date";
+  if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
+  const advancedOpen = advancedFilterCount > 0;
+  const activeFilters: Record<string, any> = {};
+  if (query) activeFilters.home_q = query;
+  if (visibility !== "active") activeFilters.home_visibility = visibility;
+  if (status !== "all") activeFilters.home_status = status;
+  if (startedAfter) activeFilters.home_started_after = startedAfter;
+  if (startedBefore) activeFilters.home_started_before = startedBefore;
+  const filterLabels = {
+    home_q: "Search",
+    home_visibility: "Visibility",
+    home_status: "Outcome",
+    home_started_after: "Started after",
+    home_started_before: "Started before",
+  };
+  const clearUpdates = {
+    home_q: "",
+    home_visibility: "",
+    home_status: "",
+    home_started_after: "",
+    home_started_before: "",
+    home_search_cursor: "",
+    home_run_cursor: "",
+  };
+  const filterOptions = { clearUpdates: clearUpdates };
+  var filterSummary: JSX.Element | null = null;
+  if (Object.keys(activeFilters).length) {
+    filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
+  }
   return (
-    <form className="ui form rw-filter-panel" data-home-filters>
-      <div className="rw-filter-panel__fields">
-        <label className="field">
+    <form className="ui form rw-filter-panel rw-home-filters" data-home-filters>
+      <div className="rw-home-filters__primary">
+        <label className="field rw-home-filters__search">
           Search runs and history
-          <input name="q" value={value("home_q")} placeholder="Search term, revision, or run ID" />
+          <input name="q" type="search" value={query} placeholder="Search term, revision, or run ID" />
         </label>
-        <label className="field">
-          Visibility
-          <select name="visibility">
-            <option value="active" selected={visibility === "active"}>Active</option>
-            <option value="trashed" selected={visibility === "trashed"}>Trashed</option>
-            <option value="all" selected={visibility === "all"}>Active and trashed</option>
-          </select>
-        </label>
-        <label className="field">
-          Outcome
-          <select name="status">
-            <option value="all" selected={status === "all"}>All outcomes</option>
-            <option value="running" selected={status === "running"}>Running</option>
-            <option value="completed" selected={status === "completed"}>Completed</option>
-            <option value="failed" selected={status === "failed"}>Failed</option>
-          </select>
-        </label>
-        <label className="field">
-          Started on or after
-          <input type="date" name="started_after" value={value("home_started_after")} />
-        </label>
-        <label className="field">
-          Started on or before
-          <input type="date" name="started_before" value={value("home_started_before")} />
-        </label>
+        <div className="rw-filter-panel__actions">
+          <button type="submit" className="ui primary button">Apply filters</button>
+          <button type="button" className="ui basic button" data-home-clear>Clear filters</button>
+        </div>
       </div>
-      <div className="rw-inline-group">
-        <button type="submit" className="ui primary button">Apply filters</button>
-        <button type="button" className="ui basic button" data-home-clear>Clear filters</button>
-      </div>
+      <details className="rw-filter-disclosure rw-home-filters__advanced" open={advancedOpen}>
+        <summary>
+          <span>Visibility, outcome, and dates</span>
+          <small>{advancedSummary}</small>
+        </summary>
+        <div className="rw-filter-panel__fields rw-home-filters__advanced-fields">
+          <label className="field">
+            Visibility
+            <select name="visibility">
+              <option value="active" selected={visibility === "active"}>Active</option>
+              <option value="trashed" selected={visibility === "trashed"}>Trashed</option>
+              <option value="all" selected={visibility === "all"}>Active and trashed</option>
+            </select>
+          </label>
+          <label className="field">
+            Outcome
+            <select name="status">
+              <option value="all" selected={status === "all"}>All outcomes</option>
+              <option value="running" selected={status === "running"}>Running</option>
+              <option value="completed" selected={status === "completed"}>Completed</option>
+              <option value="failed" selected={status === "failed"}>Failed</option>
+            </select>
+          </label>
+          <label className="field">
+            Started on or after
+            <input type="date" name="started_after" value={startedAfter} />
+          </label>
+          <label className="field">
+            Started on or before
+            <input type="date" name="started_before" value={startedBefore} />
+          </label>
+        </div>
+      </details>
+      {filterSummary}
     </form>
   );
 }
@@ -298,22 +346,12 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
       headers: { Accept: "application/json" },
     });
     const rows = result.items.map((revision: any) => {
-      const continueAction = (
-        <ContinueAction
-          searchID={searchID}
-          revisionID={revision.id}
-          planID={revision.latest_plan_id}
-          runID={revision.latest_run_id}
-          label="Open latest run"
-        />
-      );
       return (
         <div>
           <div>
             <strong>{revision.label || `Revision ${revision.id}`}</strong>
             <span>{formatNumber(revision.plan_count)} plans · {formatNumber(revision.run_count)} attempts</span>
           </div>
-          {continueAction}
         </div>
       );
     });
@@ -524,7 +562,6 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
   const runsResult = results[2];
 
   var metrics: JSX.Element = <SectionError title="Workspace totals unavailable" failure={(summaryResult as PromiseRejectedResult).reason} />;
-  var latestMessage: JSX.Element | null = null;
   if (summaryResult.status === "fulfilled") {
     const totals = summaryResult.value.totals;
     metrics = (
@@ -551,29 +588,6 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
         </div>
       </div>
     );
-    const latest = summaryResult.value.latest_run;
-    if (latest) {
-      const latestAction = hasContext(latest) ? (
-        <ContinueAction
-          searchID={latest.search_id}
-          revisionID={latest.search_revision_id}
-          planID={latest.execution_plan_id}
-          runID={latest.id}
-          label="Continue latest"
-        />
-      ) : null;
-      latestMessage = (
-        <div className="ui info message rw-home-latest">
-          <div>
-            <span className="header">Latest execution</span>
-            Run {latest.id} started {formatTime(latest.started_at)} and took {formatDuration(latest.started_at, latest.finished_at)}.
-          </div>
-          {latestAction}
-        </div>
-      );
-    } else {
-      latestMessage = <p className="ui neutral message">No pipeline run has been recorded yet.</p>;
-    }
   }
 
   var searchHistory: JSX.Element = <SectionError title="Research history unavailable" failure={(searchesResult as PromiseRejectedResult).reason} />;
@@ -627,7 +641,6 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
       />
       <p className="rw-sr-status" data-home-lifecycle-status role="status" aria-live="polite">{lifecycleMessage}</p>
       {metrics}
-      {latestMessage}
       <Panel
         title="Research history"
         description="Search terms organize immutable revisions, execution plans, and recorded run attempts."
@@ -637,7 +650,7 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
       <Panel
         title="Run attempts"
         description="Filter a bounded result page, explore a complete context, or change a terminal run's reversible visibility."
-        body={<Fragment><HomeFilters />{runTableMarkup}</Fragment>}
+        body={<div className="rw-content-stack"><HomeFilters />{runTableMarkup}</div>}
         classes="rw-home-run-panel"
       />
       <RunDialog />

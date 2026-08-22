@@ -92,7 +92,7 @@ export const routeOwnedKeys: Record<string, string[]> = {
   corpus: ["section", "q", "sort", "order", "page", "per_page", "expanded"],
   relationships: [...graphFilters, "node"],
   provenance: [
-    "section", "artifact_id", "artifact_q", "artifact_role", "artifact_cursor",
+    "section", "artifact_id", "artifact_q", "artifact_role", "artifact_page", "artifact_per_page",
     "audit_q", "audit_category", "audit_action", "audit_actor", "audit_entity", "audit_stage", "audit_outcome",
     "audit_review_status", "audit_review_reason", "audit_review_substatus",
     "cache_q", "cache_page", "cache_per_page", "cache_sort", "cache_order", "cache_expanded", "cache_layer",

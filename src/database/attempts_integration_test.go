@@ -3,7 +3,10 @@
 
 package database
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // TestExecutionPlanCreateAndGetByFingerprint verifies execution plan create and get by fingerprint.
 func TestExecutionPlanCreateAndGetByFingerprint(t *testing.T) {
@@ -341,6 +344,11 @@ func TestRunStepCreateAndUpdate(t *testing.T) {
 	}
 	if steps[0].FinishedAt == "" {
 		t.Error("expected non-empty finished_at after update")
+	}
+	for name, raw := range map[string]string{"started_at": steps[0].StartedAt, "finished_at": steps[0].FinishedAt} {
+		if _, err := time.Parse("2006-01-02T15:04:05.000000Z", raw); err != nil {
+			t.Errorf("%s = %q, want microsecond-precision UTC timestamp: %v", name, raw, err)
+		}
 	}
 
 	if steps[1].StepName != "enrich" {

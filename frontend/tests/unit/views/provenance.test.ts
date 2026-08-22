@@ -8,7 +8,7 @@ import { app, state } from '../../../src/state.tsx';
 /** Sets location. */
 function setLocation(values: Record<string, string>) {
   const url = new URL(location.href);
-  ['section', 'run_id', 'audit_q', 'audit_category', 'audit_action', 'audit_actor', 'audit_entity', 'audit_stage', 'audit_outcome', 'cache_page', 'stage_page'].forEach(function(key) { url.searchParams.delete(key); });
+  ["section", "run_id", "audit_q", "audit_category", "audit_action", "audit_actor", "audit_entity", "audit_stage", "audit_outcome", "artifact_page", "artifact_per_page", "cache_page", "stage_page"].forEach(function(key) { url.searchParams.delete(key); });
   Object.entries(values).forEach(function(entry) { url.searchParams.set(entry[0], entry[1]); });
   url.searchParams.set('view', 'provenance');
   history.pushState({}, '', url.toString());
@@ -125,12 +125,18 @@ describe('provenance.tsx — provenanceView', function() {
       }
       return response({
         context: { run_id: 1, attempt_number: 1 },
-        artifacts: [{ id: 9, artifact_roles: 'input_manifest', content_hash: 'hash', byte_size: 90000, content_type: 'text/plain', created_at: '2024-01-01T00:00:00Z', has_blob: 1, preview_available: true }]
+        artifacts: [{ id: 9, artifact_roles: 'input_manifest', content_hash: 'hash', byte_size: 90000, content_type: 'text/plain', created_at: '2024-01-01T00:00:00Z', has_blob: 1, preview_available: true }],
+        pagination: { page: 2, per_page: 20, total_rows: 61, total_pages: 4 },
       });
     } as typeof fetch;
-    setLocation({ section: 'artifacts', run_id: '1' });
+    setLocation({ section: "artifacts", run_id: "1", artifact_page: "2", artifact_per_page: "20" });
 
     await provenanceView();
+    assert.ok(app.innerHTML.includes("First"));
+    assert.ok(app.innerHTML.includes("Previous"));
+    assert.ok(app.innerHTML.includes("Page 2 of 4"));
+    assert.ok(app.innerHTML.includes("Next"));
+    assert.ok(app.innerHTML.includes("Last"));
     (document.querySelector('[data-inspect-artifact]') as HTMLButtonElement).click();
     await new Promise(function(resolve) { setTimeout(resolve, 0); });
     assert.ok(app.innerHTML.includes('Preview truncated'));

@@ -103,6 +103,11 @@ describe("evaluation.tsx - evaluationView", function() {
     assert.equal(app.querySelectorAll(".ui.orange.label").length >= 3, true);
     assert.match(app.querySelector(".ui.green.label")?.textContent || "", /Available/);
     assert.match(app.querySelector(".rw-evaluation-table")?.textContent || "", /Not started/);
+    assert.deepEqual(Array.from(app.querySelectorAll(".rw-evaluation-table thead th"), (cell) => {
+      return cell.textContent?.trim();
+    }), ["Title", "DOI", "PDF", "Inventoried at", "Review status", "Review source"]);
+    assert.equal(app.querySelector(".rw-evaluation-table time")?.textContent, "Jul 29, 2026");
+    assert.ok(app.querySelector(".rw-evaluation-filters__advanced"));
     assert.ok(app.querySelector("[data-start-review]"));
     const nextUnreviewed = Array.from(app.querySelectorAll<HTMLAnchorElement>("a")).find((anchor) => {
       return anchor.textContent?.includes("Next unreviewed");

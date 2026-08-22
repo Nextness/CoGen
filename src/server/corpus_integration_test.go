@@ -52,8 +52,11 @@ func TestRunScopedCorpusAndStages(t *testing.T) {
 	if articles.Code != http.StatusOK || !strings.Contains(articles.Body.String(), "Article One") || strings.Contains(articles.Body.String(), "Other Run Article") || strings.Contains(articles.Body.String(), "Article Two") {
 		t.Fatalf("analysis-ready corpus included a non-normalized/other-run article: status=%d body=%s", articles.Code, articles.Body.String())
 	}
+	if _, err := viewer.writeDB.DB.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, started_at, finished_at) VALUES (?, 'subsecond', 'completed', '2026-08-22T00:00:00.100000Z', '2026-08-22T00:00:00.350000Z')", runID); err != nil {
+		t.Fatal(err)
+	}
 	stages := viewerRequest(t, handler, base+"/stages?page=1&per_page=20&sort=id&order=asc")
-	if stages.Code != http.StatusOK || !strings.Contains(stages.Body.String(), `"stage_name":"validate"`) || !strings.Contains(stages.Body.String(), `"stage_summaries"`) || !strings.Contains(stages.Body.String(), `"run_steps"`) || !strings.Contains(stages.Body.String(), `"duration_seconds":5`) {
+	if stages.Code != http.StatusOK || !strings.Contains(stages.Body.String(), `"stage_name":"validate"`) || !strings.Contains(stages.Body.String(), `"stage_summaries"`) || !strings.Contains(stages.Body.String(), `"run_steps"`) || !strings.Contains(stages.Body.String(), `"duration_seconds":5`) || !strings.Contains(stages.Body.String(), `"duration_seconds":0.25`) {
 		t.Fatalf("run stages response: status=%d body=%s", stages.Code, stages.Body.String())
 	}
 	for _, path := range []string{base + "/corpus/nope", base + "/corpus/articles?sort=id;drop", base + "/stages?per_page=21", "/api/runs/999999/corpus/articles", "/api/runs/999999/stages"} {

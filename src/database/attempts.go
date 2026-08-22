@@ -6,6 +6,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"analysis/manifest"
 )
@@ -473,12 +474,17 @@ type RunStepRepository struct {
 	db *Database
 }
 
+// runStepTimestamp returns a microsecond-precision UTC timestamp for persisted stage timing.
+func runStepTimestamp() string {
+	return time.Now().UTC().Format("2006-01-02T15:04:05.000000Z")
+}
+
 // Create inserts a new run step record. Returns the step ID.
 func (r *RunStepRepository) Create(pipelineRunID int64, stepName string) (int64, error) {
 	res, err := r.db.DB.Exec(
 		`INSERT INTO run_steps (pipeline_run_id, step_name, started_at)
 		 VALUES (?, ?, ?)`,
-		pipelineRunID, stepName, timestamp(),
+		pipelineRunID, stepName, runStepTimestamp(),
 	)
 	if err != nil {
 		lg.Debug("run step creation failed",
@@ -506,7 +512,7 @@ func (r *RunStepRepository) UpdateStatus(stepID int64, status string) error {
 	}
 
 	// Only set finished_at for terminal statuses.
-	now := timestamp()
+	now := runStepTimestamp()
 	finishedAt := &now
 	if status == string(manifest.StagePending) || status == string(manifest.StageRunning) {
 		finishedAt = nil
@@ -530,7 +536,7 @@ func (r *RunStepRepository) UpdateStatus(stepID int64, status string) error {
 func (r *RunStepRepository) LinkReuse(stepID int64, reusedFromRunID int64) error {
 	_, err := r.db.DB.Exec(
 		"UPDATE run_steps SET reused_from_run_id = ?, step_status = 'reused', finished_at = ? WHERE id = ?",
-		reusedFromRunID, timestamp(), stepID,
+		reusedFromRunID, runStepTimestamp(), stepID,
 	)
 	if err != nil {
 		lg.Debug("run step reuse link failed", "step_id", stepID, "reused_from_run_id", reusedFromRunID, "error", err)

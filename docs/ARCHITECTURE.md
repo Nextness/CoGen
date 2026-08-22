@@ -319,7 +319,7 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/runs/{id}/visibility` | Moves a terminal attempt between `active` and `trashed` in one transaction and appends the corresponding lifecycle audit event. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
 | `/api/runs/{id}/audit`, `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. The run-specific route is a deprecated compatibility view. |
-| `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists, previews a bounded text prefix, or downloads stored artifacts. |
+| `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists artifacts through numbered page and page-size metadata while retaining the bounded cursor contract for existing callers, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
 | `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
 | `/api/runs/{id}/evaluation`, `/api/runs/{id}/identity-evidence`, `/api/runs/{id}/stages` | Returns evaluation, uncertain identity evidence, or stage outcomes. |

@@ -9,7 +9,7 @@ import {
   FilterChips,
   humanLabel,
   formatNumber,
-  formatTime,
+  formatDate,
   StatusChip,
   currentDetailOrigin,
 } from "../state.tsx";
@@ -41,12 +41,12 @@ function titleLink(row: any): JSX.Element {
   );
 }
 
-/** Renders the recorded PDF inventory time or an unavailable label. */
-function inventoriedTime(row: any): JSX.Element {
+/** Renders the recorded PDF inventory date or an unavailable label. */
+function inventoriedDate(row: any): JSX.Element {
   if (!row.inventoried_at) {
     return <span className="ui faded text">{"\u2014"}</span>;
   }
-  return <time datetime={row.inventoried_at}>{formatTime(row.inventoried_at)}</time>;
+  return <time datetime={row.inventoried_at}>{formatDate(row.inventoried_at)}</time>;
 }
 
 /** Renders explicit review-lineage state from the invariant server response. */
@@ -58,16 +58,6 @@ function reviewSource(row: any, initialized: boolean): JSX.Element {
     return <span className="ui violet label">Inherited</span>;
   }
   return <span className="ui neutral label">This context</span>;
-}
-
-/** Renders the saved decision qualifiers on one queue row. */
-function reviewQualifiers(row: any): JSX.Element {
-  const values = Array.isArray(row.review_sub_statuses) ? row.review_sub_statuses : [];
-  if (!values.length) return <span className="ui faded text">None</span>;
-  const labels = values.map((item: string) => {
-    return <span className="ui neutral label">{humanLabel(item)}</span>;
-  });
-  return <span className="rw-inline-group">{labels}</span>;
 }
 
 /** Renders one select option from an aggregate facet value. */
@@ -130,94 +120,104 @@ export async function evaluationView(): Promise<void> {
   const reviewSourceOptions = facetOptions(facets.review_source, filters.review_source);
   const qualifierOptions = facetOptions(facets.qualifier, filters.qualifier);
   const sourceOptions = facetOptions(facets.source, filters.source);
+  const activeFilters: Record<string, string> = {};
+  evaluationFilterKeys.forEach((key) => {
+    if (filters[key]) activeFilters[key] = filters[key];
+  });
+  const filterLabels = {
+    q: "Search",
+    pdf_status: "PDF",
+    review_status: "Review status",
+    review_source: "Review source",
+    qualifier: "Qualifier",
+    source: "Source",
+    reviewed: "Progress",
+  };
+  const clearUpdates = { q: "", pdf_status: "", review_status: "", review_source: "", qualifier: "", source: "", reviewed: "", page: 1 };
+  const filterOptions = { clearUpdates: clearUpdates };
+  var filterSummary: JSX.Element | null = null;
+  if (Object.keys(activeFilters).length) {
+    filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
+  }
+  const advancedFilterCount = evaluationFilterKeys.filter((key) => {
+    return key !== "q" && Boolean(filters[key]);
+  }).length;
+  const advancedOpen = advancedFilterCount > 0;
+  var advancedSummary = "Any PDF, review, source, or progress state";
+  if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
+  const clearFilterHref = link(clearUpdates);
   const controls = (
-    <form className="ui form rw-filter-panel" data-evaluation-filters>
-      <div className="rw-filter-panel__fields">
-        <label>
+    <form className="ui form rw-filter-panel rw-evaluation-filters" data-evaluation-filters>
+      <div className="rw-evaluation-filters__primary">
+        <label className="rw-evaluation-filters__search">
           <span>Search normalized articles</span>
           <span className="ui input">
             <input id="evaluation-query" name="q" type="search" value={filters.q} placeholder="Title or DOI" />
           </span>
         </label>
-        <label>
-          <span>PDF availability</span>
-          <select name="pdf_status">
-            <option value="">All PDF states</option>
-            {pdfOptions}
-          </select>
-        </label>
-        <label>
-          <span>Review status</span>
-          <select name="review_status">
-            <option value="">All review statuses</option>
-            {reviewStatusOptions}
-          </select>
-        </label>
-        <label>
-          <span>Review source</span>
-          <select name="review_source">
-            <option value="">All review sources</option>
-            {reviewSourceOptions}
-          </select>
-        </label>
-        <label>
-          <span>Qualifier</span>
-          <select name="qualifier">
-            <option value="">All qualifiers</option>
-            {qualifierOptions}
-          </select>
-        </label>
-        <label>
-          <span>Source</span>
-          <select name="source">
-            <option value="">All article sources</option>
-            {sourceOptions}
-          </select>
-        </label>
-        <label>
-          <span>Progress</span>
-          <select name="reviewed">
-            <option value="" selected={!filters.reviewed}>All progress states</option>
-            <option value="unreviewed" selected={filters.reviewed === "unreviewed"}>Unreviewed</option>
-            <option value="reviewed" selected={filters.reviewed === "reviewed"}>Reviewed</option>
-          </select>
-        </label>
-        <label>
+        <label className="rw-evaluation-filters__size">
           <span>Rows per page</span>
           <select id="evaluation-per-page">{pageSizeOptions}</select>
         </label>
+        <div className="rw-filter-panel__actions">
+          <button type="submit" className="ui primary button">Apply filters</button>
+          <a className="ui basic button" href={clearFilterHref}>Clear filters</a>
+        </div>
       </div>
-      <div className="rw-filter-panel__actions">
-        <button type="submit" className="ui primary button">Apply filters</button>
-        <a className="ui basic button" href={link({ q: "", pdf_status: "", review_status: "", review_source: "", qualifier: "", source: "", reviewed: "", page: 1 })}>Clear filters</a>
-      </div>
+      <details className="rw-filter-disclosure rw-evaluation-filters__advanced" open={advancedOpen}>
+        <summary>
+          <span>PDF, review, source, and progress filters</span>
+          <small>{advancedSummary}</small>
+        </summary>
+        <div className="rw-filter-panel__fields rw-evaluation-filters__advanced-fields">
+          <label>
+            <span>PDF availability</span>
+            <select name="pdf_status">
+              <option value="">All PDF states</option>
+              {pdfOptions}
+            </select>
+          </label>
+          <label>
+            <span>Review status</span>
+            <select name="review_status">
+              <option value="">All review statuses</option>
+              {reviewStatusOptions}
+            </select>
+          </label>
+          <label>
+            <span>Review source</span>
+            <select name="review_source">
+              <option value="">All review sources</option>
+              {reviewSourceOptions}
+            </select>
+          </label>
+          <label>
+            <span>Qualifier</span>
+            <select name="qualifier">
+              <option value="">All qualifiers</option>
+              {qualifierOptions}
+            </select>
+          </label>
+          <label>
+            <span>Source</span>
+            <select name="source">
+              <option value="">All article sources</option>
+              {sourceOptions}
+            </select>
+          </label>
+          <label>
+            <span>Progress</span>
+            <select name="reviewed">
+              <option value="" selected={!filters.reviewed}>All progress states</option>
+              <option value="unreviewed" selected={filters.reviewed === "unreviewed"}>Unreviewed</option>
+              <option value="reviewed" selected={filters.reviewed === "reviewed"}>Reviewed</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      {filterSummary}
     </form>
   );
-
-  const activeFilters: Record<string, string> = {};
-  evaluationFilterKeys.forEach((key) => {
-    if (filters[key]) activeFilters[key] = filters[key];
-  });
-  var filterSummary: JSX.Element | null = null;
-  if (Object.keys(activeFilters).length) {
-    filterSummary = (
-      <FilterChips
-        filters={activeFilters}
-        labels={{
-          q: "Search",
-          pdf_status: "PDF",
-          review_status: "Review status",
-          review_source: "Review source",
-          qualifier: "Qualifier",
-          source: "Source",
-          reviewed: "Progress",
-        }}
-        options={{
-          clearUpdates: { q: "", pdf_status: "", review_status: "", review_source: "", qualifier: "", source: "", reviewed: "", page: 1 },
-        }}
-      />
-    );
-  }
 
   const columnConfig: DataTableContext["columnConfig"] = {
     title: {
@@ -229,36 +229,31 @@ export async function evaluationView(): Promise<void> {
       label: "DOI",
       className: "col-doi",
     },
-    source: {
-      label: "Source",
-      className: "col-source",
-    },
     inventory_status: {
       label: "PDF",
+      className: "col-inventory-status",
       render: (row) => {
         return <StatusChip raw={humanLabel(row.inventory_status)} />;
       },
     },
     inventoried_at: {
       label: "Inventoried at",
-      className: "col-captured-at",
-      render: inventoriedTime,
+      className: "col-inventoried-date",
+      render: inventoriedDate,
     },
     review_status: {
       label: "Review status",
+      className: "col-review-status",
       render: (row) => {
         return <StatusChip raw={humanLabel(row.review_status || "not_evaluated")} />;
       },
     },
     review_inherited: {
       label: "Review source",
+      className: "col-review-source",
       render: (row) => {
         return reviewSource(row, data.review_context_initialized === true);
       },
-    },
-    review_sub_statuses: {
-      label: "Qualifiers",
-      render: reviewQualifiers,
     },
   };
   const tableContext: DataTableContext = {
@@ -270,6 +265,7 @@ export async function evaluationView(): Promise<void> {
     itemLabel: "normalized articles",
     tableClass: "rw-evaluation-table",
     columnConfig: columnConfig,
+    columnsWhitelist: ["title", "doi", "inventory_status", "inventoried_at", "review_status", "review_inherited"],
     perPageSelector: "#evaluation-per-page",
     querySelector: "#evaluation-unused-query",
     searchButtonSelector: "[data-evaluation-unused-search]",
@@ -327,7 +323,7 @@ export async function evaluationView(): Promise<void> {
       <PageHeader
         kicker="Review queue"
         title="Evaluation"
-        description="Review normalized articles with explicit PDF, decision, lineage, qualifier, source, and progress filters."
+        description="Review normalized articles with explicit PDF, decision, lineage, and progress filters."
       />
       {progressMarkup}
       <section className="ui segment rw-data-section">
@@ -339,9 +335,8 @@ export async function evaluationView(): Promise<void> {
           {contextAction}
         </div>
         <div className="content">
-          <div data-table-scope="evaluation">
+          <div className="rw-content-stack rw-evaluation-queue" data-table-scope="evaluation">
             {controls}
-            {filterSummary}
             {table}
           </div>
         </div>

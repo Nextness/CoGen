@@ -198,7 +198,7 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 
 - Purpose: Records execution, artifacts, fingerprints, and reuse for one named stage in an attempt.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `pipeline_run_id INTEGER NOT NULL FK pipeline_runs.id`; `step_name TEXT NOT NULL`; `step_status TEXT NOT NULL DEFAULT 'pending'`; `input_artifact_id INTEGER NULL FK artifacts.id`; `output_artifact_id INTEGER NULL FK artifacts.id`; `reused_from_run_id INTEGER NULL FK pipeline_runs.id`; `started_at TEXT NULL`; `finished_at TEXT NULL`; `input_fingerprint TEXT NOT NULL DEFAULT ''`; `output_fingerprint TEXT NOT NULL DEFAULT ''`; `UNIQUE(pipeline_run_id, step_name)`.
-- Relationships and expectations: Repository status vocabulary is `pending`, `running`, `completed`, `skipped`, `reused`, and `failed`; terminal statuses set `finished_at`, and reuse also links the prior run. The schema does not check status vocabulary or require artifacts and fingerprints for a particular status.
+- Relationships and expectations: Repository status vocabulary is `pending`, `running`, `completed`, `skipped`, `reused`, and `failed`; terminal statuses set `finished_at`, and reuse also links the prior run. New repository-written step boundaries use microsecond-precision UTC timestamps in the existing text columns, while legacy rows retain their original precision. The schema does not check status vocabulary or require artifacts and fingerprints for a particular status.
 
 #### `pipeline_run_metrics`
 

@@ -138,7 +138,7 @@
 
 .rw-home-search-card__metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
   margin: var(--space-4) 0;
 }
@@ -167,11 +167,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.rw-home-search-card__metrics > div:last-child dd {
-  font-size: var(--text-xs);
-  line-height: 1.4;
-}
-
 .rw-home-revisions {
   display: grid;
   gap: var(--space-2);
@@ -179,10 +174,8 @@
 }
 
 .rw-home-revisions > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  display: grid;
+  gap: var(--space-1);
   padding-top: var(--space-2);
   border-top: 1px solid var(--color-border-default);
 }
@@ -195,31 +188,46 @@
 .rw-home-revisions span {
   color: var(--color-text-secondary);
   font-size: var(--text-xs);
-  text-align: right;
 }
 
 .rw-home-runs {
   min-width: 1120px;
 }
 
-.rw-home-latest {
+.rw-home-filters__primary {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.rw-home-filters__search {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.rw-home-filters__advanced > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.rw-home-latest > div {
-  display: grid;
-  gap: var(--space-1);
+.rw-home-filters__advanced > summary small {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-normal);
 }
 
-.rw-home-run-panel .rw-filter-panel {
-  margin-bottom: var(--space-4);
+.rw-home-filters__advanced > summary > span,
+.rw-evaluation-filters__advanced > summary > span {
+  margin-right: auto;
 }
 
-.rw-home-run-panel .rw-filter-panel__fields {
-  grid-template-columns: minmax(14rem, 2fr) repeat(4, minmax(9rem, 1fr));
+.rw-home-filters__advanced-fields {
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 .rw-home-search-card details > summary {
@@ -1247,9 +1255,9 @@
   margin-top: var(--space-3);
 }
 
-.rw-filter-field-grid--stacked {
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
+.rw-filter-field-grid--advanced {
+  grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
+  gap: var(--space-2);
   margin: 0;
   padding: var(--space-3);
 }
@@ -1276,11 +1284,6 @@
   color: var(--color-text-primary);
   background: var(--color-bg-surface);
   font-size: var(--text-sm);
-}
-
-.rw-filter-field-grid--stacked input {
-  min-height: 40px;
-  padding: 9px 10px;
 }
 
 .rw-multi-select {
@@ -1724,6 +1727,58 @@
   margin-top: var(--space-2);
   font-size: var(--text-xs);
 }
+
+/* Evaluation queue */
+
+.rw-evaluation-filters__primary {
+  display: grid;
+  grid-template-columns: minmax(16rem, 1fr) minmax(8rem, 10rem) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+.rw-evaluation-filters__search,
+.rw-evaluation-filters__size,
+.rw-evaluation-filters__advanced-fields > label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.rw-evaluation-filters__search .ui.input {
+  width: 100%;
+  max-width: none;
+}
+
+.rw-evaluation-filters__advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rw-evaluation-filters__advanced > summary small {
+  color: var(--color-text-muted);
+  font-weight: var(--weight-normal);
+}
+
+.rw-evaluation-filters__advanced-fields {
+  padding: 0 var(--space-3) var(--space-3);
+}
+
+.rw-evaluation-table {
+  min-width: 980px;
+  table-layout: fixed;
+}
+
+.rw-evaluation-table .col-title { width: 31%; }
+.rw-evaluation-table .col-doi { width: 20%; }
+.rw-evaluation-table .col-inventory-status { width: 12%; }
+.rw-evaluation-table .col-inventoried-date { width: 13%; }
+.rw-evaluation-table .col-review-status { width: 13%; }
+.rw-evaluation-table .col-review-source { width: 11%; }
 
 /* ── Legacy aliases (backward compat, remove after full migration) ── */
 
@@ -2204,21 +2259,42 @@
   font-weight: var(--weight-medium);
 }
 
-.rw-note-card__meta > div,
 .rw-anchor-card__meta > div {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
 
+.rw-note-card__identity {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.rw-note-card__identity h5 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--text-base);
+}
+
+.rw-note-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .rw-note-content {
-  margin: var(--space-4) 0;
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-small);
+  background: var(--color-bg-surface-muted);
   overflow-wrap: anywhere;
 }
 
 .rw-note-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-4);
 }
 
@@ -2234,6 +2310,7 @@
 .rw-note-preview {
   min-height: 18rem;
   overflow-wrap: anywhere;
+  background: var(--color-bg-surface-muted);
 }
 
 .rw-note-preview__heading {
@@ -2243,7 +2320,43 @@
 }
 
 .rw-note-form__heading {
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
+}
+
+.rw-note-form {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+}
+
+.rw-note-editor-tools {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.rw-note-link-insert {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+.rw-note-link-insert > p,
+.rw-note-link-insert > .rw-inline-group {
+  grid-column: 1 / -1;
+}
+
+.rw-note-link-insert > p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rw-note-link-insert > label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
 }
 
 .rw-note-syntax > summary {
@@ -2280,7 +2393,7 @@
 }
 
 .rw-note-form > .rw-review-actions {
-  margin-top: var(--space-4);
+  margin-top: 0;
 }
 
 .rw-note-form :is(.rw-draft-status, .rw-note-diagnostics):not(:empty) {
@@ -2300,6 +2413,33 @@
   color: var(--color-text-secondary);
   background: var(--color-status-danger-soft);
   font-size: var(--text-sm);
+}
+
+.rw-note-saved {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+}
+
+.rw-note-saved__heading h5 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-lg);
+}
+
+.rw-note-saved__heading p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.rw-note-filters {
+  margin-bottom: 0;
+}
+
+.rw-note-card__actions {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .rw-note-heading {
@@ -2378,6 +2518,12 @@
 
 .rw-anchor-panel {
   overflow-wrap: anywhere;
+}
+
+.rw-review-section > details.rw-review-history {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-default);
 }
 
 .rw-anchor-candidate {
@@ -2599,7 +2745,6 @@
 
   .rw-home-search-card > header,
   .rw-home-revisions > div,
-  .rw-home-latest,
   .rw-identity-resolution > header {
     align-items: flex-start;
     flex-direction: column;
@@ -2613,7 +2758,23 @@
     justify-content: flex-start;
   }
 
-  .rw-home-revisions span,
+  .rw-home-filters__primary,
+  .rw-evaluation-filters__primary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rw-home-filters__primary .rw-filter-panel__actions,
+  .rw-evaluation-filters__primary .rw-filter-panel__actions {
+    justify-content: flex-start;
+  }
+
+  .rw-home-filters__advanced > summary,
+  .rw-evaluation-filters__advanced > summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
   .rw-pdf-status-strip__action {
     text-align: left;
   }

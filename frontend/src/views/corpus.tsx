@@ -365,16 +365,27 @@ function corpusColumnConfig(current: string): Record<string, any> {
     };
   }
   if (current === "references") {
+    config.mention_order = {
+      label: "Order",
+      className: "col-reference-order",
+    };
     config.title = {
       label: "Referenced title",
-      className: "col-title",
+      className: "col-reference-title",
       render: (row: any) => {
         return clippedRecordLink("reference", "reference_id", row.id, row.title);
       },
     };
+    config.author = {
+      label: "Referenced author",
+      className: "col-reference-author",
+      render: (row: any) => {
+        return clippedRecordText(row.author);
+      },
+    };
     config.citing_title = {
       label: "Citing article",
-      className: "col-title",
+      className: "col-citing-title",
       render: (row: any) => {
         if (row.work_revision_id) {
           return clippedRecordLink("article", "article_id", row.work_revision_id, row.citing_title);

@@ -136,6 +136,11 @@ func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *test
 	if status != http.StatusOK || len(second["artifacts"].([]any)) < 1 {
 		t.Fatalf("second artifact page status=%d body=%v", status, second)
 	}
+	status, numbered := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/artifacts?page=2&per_page=20")
+	pagination, paginationOK := numbered["pagination"].(map[string]any)
+	if status != http.StatusOK || !paginationOK || pagination["page"] != float64(2) || pagination["total_pages"].(float64) < 2 || len(numbered["artifacts"].([]any)) < 1 {
+		t.Fatalf("numbered artifact page status=%d body=%v", status, numbered)
+	}
 	status, focused := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/artifacts?limit=25&artifact_id="+stringID(focusedID))
 	if status != http.StatusOK || int64(focused["artifacts"].([]any)[0].(map[string]any)["id"].(float64)) != focusedID {
 		t.Fatalf("focused artifact was not sequenced first: status=%d body=%v", status, focused)

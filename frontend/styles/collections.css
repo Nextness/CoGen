@@ -1309,6 +1309,11 @@ td.toggle-cell {
   font-size: var(--text-sm);
 }
 
+.rw-table-controls > .ui.button {
+  min-height: 38px;
+  align-self: flex-end;
+}
+
 .rw-filter-summary {
   display: flex;
   flex: 1 0 100%;
@@ -1387,11 +1392,27 @@ td.toggle-cell {
 .rw-corpus-table .col-title { width: 32%; }
 
 .rw-corpus-table--references {
-  min-width: 1180px;
+  min-width: 1280px;
 }
 
-.rw-corpus-table--references .col-title {
-  width: 28%;
+.rw-corpus-table--references .col-reference-order { width: 74px; }
+.rw-corpus-table--references .col-reference-title { width: 280px; }
+.rw-corpus-table--references .col-reference-author { width: 220px; }
+.rw-corpus-table--references .col-year { width: 84px; }
+.rw-corpus-table--references .col-doi { width: 220px; }
+.rw-corpus-table--references .col-citing-title { width: 340px; }
+
+.rw-corpus-table--references .rw-cell {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rw-corpus-table--references .rw-table-title {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .rw-corpus-table--sources {

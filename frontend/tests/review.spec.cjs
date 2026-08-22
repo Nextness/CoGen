@@ -84,8 +84,22 @@ test.describe('isolated review mutation lifecycle', () => {
     const unresolvedLink = browserNote.locator('[aria-label^="Unresolved note target: 999"]');
     await expect(unresolvedLink).toBeVisible();
     await expect(unresolvedLink).toHaveAttribute('aria-label', /Unresolved note target: 999/);
+    await expect(page.getByText('Insert evidence link')).toBeVisible();
+    await expect(page.getByText('Note syntax and link examples')).toBeVisible();
+    const noteSectionOrder = await page.locator('[data-note-host]').evaluate((notes) => {
+      const workspace = notes.querySelector('.rw-note-workspace').getBoundingClientRect();
+      const saved = notes.querySelector('.rw-note-saved').getBoundingClientRect();
+      return saved.top - workspace.bottom;
+    });
+    expect(noteSectionOrder).toBeGreaterThanOrEqual(15);
     await page.getByRole('tab', { name: 'PDF anchors' }).click();
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
+    const anchorBacklinkGap = await page.locator('.rw-anchor-panel').evaluate((panel) => {
+      const list = panel.querySelector('[data-anchor-list]').getBoundingClientRect();
+      const backlinks = panel.querySelector('.rw-review-history').getBoundingClientRect();
+      return backlinks.top - list.bottom;
+    });
+    expect(anchorBacklinkGap).toBeGreaterThanOrEqual(15);
     await expect(page.locator('.rw-pdf-page--current canvas')).toBeVisible();
     await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture methods');
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);

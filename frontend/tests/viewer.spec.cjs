@@ -283,9 +283,13 @@ test.describe('Corpus view', () => {
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/10\.1000|10\.external/);
-    const citingArticle = page.locator('.rw-corpus-table--references tbody tr:not(.expansion-row)').first().locator('td.col-title').last();
+    const referenceTable = page.locator('.rw-corpus-table--references');
+    const citingArticle = referenceTable.locator('tbody tr:not(.expansion-row)').first().locator('td.col-citing-title');
     await expect(citingArticle.locator('details')).toHaveCount(0);
     await expect(citingArticle.locator('.rw-table-title')).toBeVisible();
+    await expect(referenceTable.locator('td.col-reference-author .rw-table-title').first()).toBeVisible();
+    await expect(referenceTable.locator('.rw-cell').first()).toHaveCSS('max-width', /\d+px|100%/);
+    await expect(referenceTable.locator('xpath=ancestor::div[contains(@class, "table-wrap")]')).toHaveCSS('overflow-x', 'auto');
   });
 
   test('sources section loads and shows source records', async ({ page }) => {
@@ -458,6 +462,11 @@ test.describe('Provenance view', () => {
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Audit|timeline|events|recorded actions/i);
+    await page.getByText('Stage and outcome filters').click();
+    const advancedTops = await page.locator('.rw-filter-field-grid--advanced > label').evaluateAll(function(labels) {
+      return labels.slice(0, 2).map(function(label) { return Math.round(label.getBoundingClientRect().top); });
+    });
+    expect(Math.abs(advancedTops[0] - advancedTops[1])).toBeLessThan(2);
   });
 
   test('audit stream filters events by category on the server', async ({ page }) => {
@@ -495,6 +504,15 @@ test.describe('Provenance view', () => {
     await expect(body).toContainText(/Search|Revision|Execution plan|Run attempt/i);
     await expect(body).toContainText(/Workspace Config|Resolved Manifest|Input Manifest/i);
     await expect(page.getByRole('link', { name: 'Download' }).first()).toHaveAttribute('href', /\/api\/artifacts\/\d+\/content/);
+    const pagination = page.getByRole('navigation', { name: 'Result pages' });
+    await expect(pagination.getByRole('button', { name: 'First page' })).toBeVisible();
+    await expect(pagination.getByRole('button', { name: 'Previous page' })).toBeVisible();
+    await expect(pagination.getByRole('button', { name: 'Next page' })).toBeVisible();
+    await expect(pagination.getByRole('button', { name: 'Last page' })).toBeVisible();
+    const artifactControlBottoms = await page.locator('[data-artifact-filters]').evaluate(function(form) {
+      return Array.from(form.children).slice(0, 4).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
+    });
+    expect(Math.max(...artifactControlBottoms) - Math.min(...artifactControlBottoms)).toBeLessThan(2);
     await page.getByRole('button', { name: 'Inspect preview' }).first().click();
     await expect(body).toContainText(/Artifact preview|artifact-config-1|Bytes shown/i);
     await expect(page.getByRole('button', { name: 'Copy displayed text' })).toBeVisible();
@@ -511,6 +529,10 @@ test.describe('Provenance view', () => {
     await page.locator('#cache-controls').getByRole('button', { name: 'Search' }).click();
     await expect(page).toHaveURL(/(?:\?|&)cache_q=openalex(?:&|$)/);
     await expect(page.locator('.rw-cache-view')).toContainText('openalex');
+    const cacheControlBottoms = await page.locator('#cache-controls').evaluate(function(form) {
+      return Array.from(form.children).slice(0, 3).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
+    });
+    expect(Math.max(...cacheControlBottoms) - Math.min(...cacheControlBottoms)).toBeLessThan(2);
   });
 
   test('stages section loads', async ({ page }) => {
@@ -519,6 +541,10 @@ test.describe('Provenance view', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Stage outcomes and progression|Preflight|Parse|Enrich|Detailed stage outcomes/i);
     await expect(page.locator('.rw-stage-flow')).toBeVisible();
+    const stageControlBottoms = await page.locator('#stage-controls').evaluate(function(form) {
+      return Array.from(form.children).slice(0, 3).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
+    });
+    expect(Math.max(...stageControlBottoms) - Math.min(...stageControlBottoms)).toBeLessThan(2);
   });
 
   test('run details section loads', async ({ page }) => {
@@ -541,6 +567,10 @@ test.describe('Evaluation view', () => {
     await expect(table.locator('thead')).toContainText('DOI');
     await expect(table.locator('thead')).toContainText('PDF');
     await expect(table.locator('thead')).toContainText('Inventoried at');
+    await expect(table.getByRole('columnheader', { name: 'Source', exact: true })).toHaveCount(0);
+    await expect(table.getByRole('columnheader', { name: 'Qualifiers', exact: true })).toHaveCount(0);
+    await expect(table.locator('tbody time').first()).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    await expect(table.locator('xpath=ancestor::div[contains(@class, "table-wrap")]')).toHaveCSS('overflow-x', 'auto');
     await expect(table.locator('.ui.green.label', { hasText: 'Available' })).toHaveCount(1);
     await expect(table.locator('.ui.orange.label', { hasText: 'Not Available' }).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Result pages' })).toContainText(/9 normalized articles/i);
@@ -598,6 +628,7 @@ test.describe('Home lifecycle management', () => {
     await expect(page.locator('.rw-home-runs')).toContainText(/Run 1|Move to trash/i);
     const explore = page.locator('.rw-home-runs').getByRole('link', { name: 'Explore' }).first();
     await expect(explore).toHaveAttribute('href', /view=overview/);
+    await page.locator('[data-home-filters] summary').click();
     await page.locator('[data-home-filters] select[name="visibility"]').selectOption('trashed');
     await page.locator('[data-home-filters]').getByRole('button', { name: 'Apply filters' }).click();
     await expect(page).toHaveURL(/(?:\?|&)home_visibility=trashed(?:&|$)/);

@@ -576,10 +576,6 @@ func (s *Server) trash(w http.ResponseWriter, r *http.Request) {
 
 // runArtifacts returns artifact metadata linked to the selected run.
 func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "limit", "cursor", "q", "role", "artifact_id"); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
 	runID, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -616,12 +612,30 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	cursor, limit, err := reviewIDPage(r, "run_artifacts_"+stringID(runID))
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
+	pageMode := r.URL.Query().Has("page") || r.URL.Query().Has("per_page")
+	page, perPage, order := 1, 50, "ASC"
+	cursor, limit := int64(0), 25
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("q"))
+	if pageMode {
+		fields := map[string]string{"id": "a.id"}
+		parsedPage, parsedPerPage, _, parsedOrder, parsedQuery, parseErr := scopedRowsRequest(r, fields, "id", "role", "artifact_id")
+		if parseErr != nil {
+			s.respond(w, r, nil, parseErr)
+			return
+		}
+		page, perPage, order, searchQuery = parsedPage, parsedPerPage, parsedOrder, parsedQuery
+		limit = perPage
+	} else {
+		if err := validateKnownQuery(r, "limit", "cursor", "q", "role", "artifact_id"); err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+		cursor, limit, err = reviewIDPage(r, "run_artifacts_"+stringID(runID))
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+	}
 	role := strings.TrimSpace(r.URL.Query().Get("role"))
 	focusID, err := optionalHierarchyID(r, "artifact_id")
 	if err != nil {
@@ -650,6 +664,33 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		), selected_artifacts AS (
 			SELECT DISTINCT artifact_id FROM artifact_relationships
 		)`
+	where := " WHERE 1=1"
+	filterArgs := []any{}
+	if searchQuery != "" {
+		where += ` AND (LOWER(a.content_hash) LIKE ? OR LOWER(a.content_type) LIKE ?
+			OR EXISTS (SELECT 1 FROM artifact_relationships searchable
+				WHERE searchable.artifact_id=a.id AND (LOWER(searchable.relationship_role) LIKE ? OR LOWER(searchable.relationship_detail) LIKE ?)))`
+		pattern := "%" + strings.ToLower(searchQuery) + "%"
+		filterArgs = append(filterArgs, pattern, pattern, pattern, pattern)
+	}
+	if role != "" {
+		where += ` AND EXISTS (SELECT 1 FROM artifact_relationships filtered_role
+			WHERE filtered_role.artifact_id=a.id AND filtered_role.relationship_role=?)`
+		filterArgs = append(filterArgs, role)
+	}
+	var total int64
+	if pageMode {
+		countQuery := relationshipsSQL + `
+			SELECT COUNT(*) FROM selected_artifacts selected
+			JOIN artifacts a ON a.id=selected.artifact_id` + where
+		countArgs := []any{runID, runID, runID, runID, runID}
+		countArgs = append(countArgs, filterArgs...)
+		if err := s.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+		page = clampScopedPage(page, perPage, total)
+	}
 	query := relationshipsSQL + `
 		SELECT a.id, a.content_hash, a.byte_size, a.content_type, a.created_at,
 		       (ab.id IS NOT NULL) AS has_blob,
@@ -673,29 +714,26 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
                )), '') AS consumed_by_steps
 		FROM selected_artifacts selected
 		JOIN artifacts a ON a.id=selected.artifact_id
-		LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-		WHERE a.id>?`
-	args := []any{runID, runID, runID, runID, runID, runID, runID, runID, cursor}
-	if searchQuery != "" {
-		query += ` AND (LOWER(a.content_hash) LIKE ? OR LOWER(a.content_type) LIKE ?
-			OR EXISTS (SELECT 1 FROM artifact_relationships searchable
-				WHERE searchable.artifact_id=a.id AND (LOWER(searchable.relationship_role) LIKE ? OR LOWER(searchable.relationship_detail) LIKE ?)))`
-		pattern := "%" + strings.ToLower(searchQuery) + "%"
-		args = append(args, pattern, pattern, pattern, pattern)
-	}
-	if role != "" {
-		query += ` AND EXISTS (SELECT 1 FROM artifact_relationships filtered_role
-			WHERE filtered_role.artifact_id=a.id AND filtered_role.relationship_role=?)`
-		args = append(args, role)
+		LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id` + where
+	args := []any{runID, runID, runID, runID, runID, runID, runID, runID}
+	args = append(args, filterArgs...)
+	if !pageMode {
+		query += " AND a.id>?"
+		args = append(args, cursor)
 	}
 	if cursor > 0 && focusID > 0 {
 		query += " AND a.id!=?"
 		args = append(args, focusID)
 	}
 	query += ` GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
-		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ASC LIMIT ?`
+		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + order + ` LIMIT ?`
 	args = append(args, focusID)
-	args = append(args, limit+1)
+	if pageMode {
+		args = append(args, perPage, (page-1)*perPage)
+		query += " OFFSET ?"
+	} else {
+		args = append(args, limit+1)
+	}
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -715,20 +753,25 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	hasMore := len(items) > limit
-	if hasMore {
+	hasMore := int64(page*perPage) < total
+	if !pageMode && len(items) > limit {
+		hasMore = true
 		items = items[:limit]
 	}
 	var nextCursor any
-	if hasMore {
+	if !pageMode && hasMore {
 		value := encodeReviewCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: items[len(items)-1]["id"].(int64)})
 		nextCursor = value
 	}
-	s.respond(w, r, map[string]any{
+	payload := map[string]any{
 		"run_id": runID, "context": runContext, "artifacts": items,
 		"has_more": hasMore, "next_cursor": nextCursor, "limit": limit,
 		"filters": map[string]any{"q": searchQuery, "role": role, "artifact_id": nullablePositiveID(focusID)},
-	}, nil)
+	}
+	if pageMode {
+		payload["pagination"] = scopedPagination(page, perPage, total, "id", order)
+	}
+	s.respond(w, r, payload, nil)
 }
 
 // nullablePositiveID preserves an invariant null-or-number response for optional focused records.

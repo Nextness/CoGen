@@ -113,6 +113,9 @@ describe("home.tsx homeView", function() {
     }), ["Search terms", "Search revisions", "Execution plans", "Run attempts"]);
     assert.match(app.textContent || "", /process-mining/);
     assert.match(app.textContent || "", /12m 34s/);
+    assert.doesNotMatch(app.textContent || "", /Latest execution|Open latest run/);
+    assert.equal(app.querySelectorAll(".rw-home-search-card__metrics > div").length, 3);
+    assert.ok(app.querySelector(".rw-home-filters__advanced"));
     assert.equal(app.querySelectorAll("[data-home-run]").length, 1);
     assert.ok(app.querySelector("[data-more-searches]"));
     assert.ok(app.querySelector("[data-more-runs]"));
