@@ -1,5 +1,5 @@
 // Shared pagination rendering for server-backed and in-memory result sets.
-import { h, renderToString } from "../jsx/jsx-runtime.ts";
+import { h } from "../jsx/jsx-runtime.ts";
 
 /** Returns the bounded sequence of page numbers surrounding the current page. */
 export function paginationPages(currentPage: any, totalPages: any, visibleCount: any): number[] {
@@ -99,10 +99,4 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
       </div>
     </nav>
   );
-}
-
-/** Returns accessible pagination markup for server-backed or in-memory results. */
-export function pagination(result: any, options?: PaginationOptions): string {
-  const paginationMarkup = <Pagination result={result} options={options} />;
-  return renderToString(paginationMarkup);
 }

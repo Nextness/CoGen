@@ -14,12 +14,12 @@ In the column summaries below, `NULL` means the column is nullable, and a defaul
 
 | Database | Normal filename | Migration chain | Owner | Current role |
 |---|---|---|---|---|
-| Metadata | `corpus.metadata.db` | V00001-V00025 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
+| Metadata | `corpus.metadata.db` | V00001-V00026 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
 | PDF | `corpus.pdf.db` | V00001-V00002 under `migrations/corpus.pdf/` | `src/pdfstore/` | Portable companion inventory for normalized DOIs, content-addressed validated PDF bytes, and cross-database audit delivery. |
 
 `config/database.something` selects the two migration configurations independently. Writable opening creates the parent directory, enables WAL, sets a 5,000 millisecond busy timeout, enables foreign keys on every pooled connection, and applies configured migrations in SOMETHING declaration order. Tracking-table creation and each individual migration use `BEGIN IMMEDIATE` to serialize concurrent schema changes.
 
-Migration identity is the filename. An already recorded filename is skipped, and its stored checksum is not revalidated on later opens. The `previous` and `upgrade` configuration fields document chain adjacency but do not determine execution order. There is no runtime downgrade command even though migration files contain `-- ==DOWN==` sections.
+Migration identity is the filename. An already recorded filename is skipped, and its stored checksum is not revalidated on later opens. The `previous` and `upgrade` configuration fields document chain adjacency but do not determine execution order. The optional `supersedes` field identifies a verified equivalent earlier filename: when that filename is recorded, the migrator records the configured canonical filename and checksum without rerunning its SQL, retains the earlier history row, and reports the adoption. V00026 uses this compatibility path for databases that applied the same anchor-label change under the earlier `V00025_review_anchor_labels.sql` filename. There is no runtime downgrade command even though migration files contain `-- ==DOWN==` sections.
 
 The viewer opens an existing metadata database with one `mode=ro` and `query_only` connection for evidence reads and one existing-only `mode=rw` single connection for review repositories. It never creates a database, never applies migrations, verifies required review tables and append-only triggers during startup, and opens the valid bound companion PDF database read-only.
 
@@ -366,9 +366,9 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 
 #### `review_anchors`
 
-- Purpose: Supplies corpus-unique text identity and stable work ownership for one logical PDF anchor.
-- Columns and defaults: `id TEXT PK`; `work_id INTEGER NOT NULL FK works.id`; `created_at TEXT NOT NULL DEFAULT datetime('now')`.
-- Relationships and expectations: Update and delete triggers enforce append-only identity. Repository IDs match `[A-Za-z][A-Za-z0-9._-]{0,63}`; logical removal uses a deleted version.
+- Purpose: Supplies generated corpus-unique identity, work-scoped human labeling, and stable work ownership for one logical PDF anchor.
+- Columns and defaults: `id TEXT PK`; `work_id INTEGER NOT NULL FK works.id`; `label TEXT NULL`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; partial unique index on `(work_id,label)` when a label is present.
+- Relationships and expectations: Update and delete triggers enforce append-only identity. New repository IDs are opaque values matching `[A-Za-z][A-Za-z0-9._-]{0,63}`; existing IDs remain valid, the displayed label falls back to the ID, and logical removal uses a deleted version.
 
 #### `review_anchor_versions`
 
@@ -485,7 +485,7 @@ Tables omitted from this index table have no explicit named secondary index and 
 5. Cache payloads use the shared artifact store, cache identity remains stable across upserts, and `run_cache_uses` records which attempt and layer used each result.
 6. A normalized work DOI is registered in `pdf_documents`; a validated manual PDF is stored in `pdf_blobs`; outbox delivery mirrors the mutation into metadata `audit_events` without requiring a transaction spanning both database files.
 7. Each attempt stores one optional reviewer identity row. Starting review explicitly creates at most one context for a completed non-trashed run, freezes selected parent heads for stable work matches, and makes the reviewed run and its lineage purge-ineligible.
-8. Review changes require an available PDF, append immutable review, note, or anchor versions, compare-and-swap only the selected context head, and append audit evidence in the same metadata transaction. Review-decision events store the complete previous and new status, optional reason, and sub-statuses in `before_json` and `after_json`; review metadata remains identifier-only, and note bodies, selected PDF text, reviewer email, and browser drafts are not duplicated. The viewer never writes the PDF database.
+8. Review-decision and Note changes require a completed active run, initialized context, and work membership; PDF anchor creation or restoration additionally requires matching available PDF bytes. Each change appends an immutable version, compare-and-swaps only the selected context head, and appends audit evidence in the same metadata transaction. Review-decision events store the complete previous and new status, optional reason, and sub-statuses in `before_json` and `after_json`; generic review metadata remains identifier-only, and note bodies, selected PDF text, reviewer email, and browser drafts are not duplicated. The viewer never writes the PDF database.
 9. Normal operators and the viewer treat stored pipeline corpus evidence as read-only. Schema migrations are append-only files, immutable table corrections create new rows, and parent deletion requires explicit dependency-aware repository behavior because no foreign key cascades.
 
 ## 9. Schema change checklist

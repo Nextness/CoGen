@@ -1,15 +1,14 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, cell, list,
-  setBreadcrumb, statusChip, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
-  PageHeader, EmptyState, Panel, StatusChip
-} from '../state.tsx';
-import { h, Fragment, raw, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api } from '../api.tsx';
-import { pagination } from '../components/pagination.tsx';
-import { bindRecordAuditInvestigation, RecordAuditInvestigation } from '../components/audit-events.tsx';
-import type { AuditEventRecord } from '../components/audit-events.tsx';
-import { mountArticleReview } from '../components/review-panel.tsx';
+  app, value, link, list,
+  setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
+  PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
+} from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api } from "../api.tsx";
+import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
+import type { AuditEventRecord } from "../components/audit-events.tsx";
+import { mountArticleReview } from "../components/review-panel.tsx";
 
 /** One mounted related-record collection. */
 interface CollectionState {
@@ -17,7 +16,16 @@ interface CollectionState {
   description: string;
   columns: Array<{ label: string; render: (row: any) => JSX.Element }>;
   rows: any[];
-  page: number;
+  total: number;
+  hasMore: boolean;
+  nextCursor: string;
+  currentCursor: string;
+  previousCursors: string[];
+  endpoint: string;
+  cursorKey: string;
+  error: string;
+  loading: boolean;
+  request: number;
 }
 
 const collectionState = new Map<string, CollectionState>();
@@ -26,8 +34,9 @@ let activeArticleReview: any = null;
 /** Releases the article review and PDF lifecycle before another SPA view renders. */
 export async function destroyActiveArticleReview(): Promise<void> {
   if (activeArticleReview) {
-    await activeArticleReview.destroy();
+    const review = activeArticleReview;
     activeArticleReview = null;
+    await review.destroy();
   }
 }
 
@@ -38,17 +47,9 @@ function detailLink(kind: string, id: any): string {
     article_id: "",
     author_id: "",
     reference_id: "",
+    origin: currentDetailOrigin(),
   };
   updates[`${kind}_id`] = id;
-
-  const currentKind = value("view");
-  const currentID = value(`${currentKind}_id`);
-  const checkList = ["article", "author", "reference"];
-  if (checkList.includes(currentKind) && currentID) {
-    updates.return_view = currentKind;
-    updates.return_id = currentID;
-  }
-
   return link(updates);
 }
 
@@ -80,14 +81,12 @@ function recorded(raw: any, fallback?: JSX.Element): JSX.Element {
 interface DetailEntry {
   label: string;
   value: any;
-  html?: boolean;
 }
 
 /** Renders definition-list markup for labeled record properties. */
 function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
   const rowItems = entries.map((entry) => {
-    var content = recorded(entry.value);
-    if (entry.html) content = raw(entry.value);
+    const content = recorded(entry.value);
     return (
       <div>
         <dt>{entry.label}</dt>
@@ -107,8 +106,7 @@ function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
 /** Renders compact summary-fact markup for a detail record. */
 function summaryStrip(entries: DetailEntry[]): JSX.Element {
   const rowItems = entries.map((entry) => {
-    var content = recorded(entry.value);
-    if (entry.html) content = raw(entry.value);
+    const content = recorded(entry.value);
     return (
       <div>
         <dt>{entry.label}</dt>
@@ -226,8 +224,7 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
     }
     return {
       label: humanLabel(key),
-      value: cell(item, key),
-      html: true as const,
+      value: <Cell item={item} column={key} />,
     };
   });
 
@@ -243,17 +240,14 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
 }
 
 /** Renders expandable markup for a related-record collection. */
-function CollectionMarkup(props: { collectionKey: string; title: string; description: string; columns: Array<{ label: string; render: (row: any) => JSX.Element }>; rows: any[]; page: number }): JSX.Element {
-  const pageSize = 25;
-  const totalPages = Math.max(1, Math.ceil(props.rows.length / pageSize));
-  const currentPage = Math.min(Math.max(1, props.page), totalPages);
-  const visible = props.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const emptyColumnSpan = Math.max(1, props.columns.length);
+function CollectionMarkup(props: { collectionKey: string; state: CollectionState }): JSX.Element {
+  const collection = props.state;
+  const emptyColumnSpan = Math.max(1, collection.columns.length);
   const emptyCell = <td colspan={emptyColumnSpan} className="empty">No records.</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
-  if (visible.length) {
-    body = visible.map((row) => {
-      const cells = props.columns.map((column) => {
+  if (collection.rows.length) {
+    body = collection.rows.map((row) => {
+      const cells = collection.columns.map((column) => {
         const cellContent = column.render(row);
         return <td>{cellContent}</td>;
       });
@@ -261,11 +255,11 @@ function CollectionMarkup(props: { collectionKey: string; title: string; descrip
     });
   }
 
-  const headerCells = props.columns.map((column) => {
+  const headerCells = collection.columns.map((column) => {
     return <th scope="col">{column.label}</th>;
   });
   const table = (
-    <div className="table-wrap" aria-label={`${props.title} table`}>
+    <div className="table-wrap" aria-label={`${collection.title} table`}>
       <table className="ui table">
         <thead>
           <tr>{headerCells}</tr>
@@ -275,56 +269,93 @@ function CollectionMarkup(props: { collectionKey: string; title: string; descrip
     </div>
   );
 
-  const paginationConfig = {
-    page: currentPage,
-    per_page: pageSize,
-    total_rows: props.rows.length,
-    total_pages: totalPages,
-  };
-
-  const paginationOptions = {
-    itemLabel: props.title.toLocaleLowerCase(),
-    pageAttribute: "data-detail-page",
-    pageClass: " detail-page",
-    visibleCount: 5,
-  };
-
-  var pages: JSX.Element | null = null;
-  if (props.rows.length > pageSize) {
-    const paginationMarkup = pagination(paginationConfig, paginationOptions);
-    const scopedPageLinks = paginationMarkup.replaceAll("data-detail-page=\"", `data-detail-page="${props.collectionKey}:`);
-    pages = raw(scopedPageLinks);
+  var previous: JSX.Element | null = null;
+  if (collection.previousCursors.length) {
+    previous = <button type="button" className="ui basic button" data-detail-previous disabled={collection.loading}>Previous page</button>;
   }
+  var next: JSX.Element | null = null;
+  if (collection.hasMore) {
+    next = <button type="button" className="ui basic button" data-detail-next disabled={collection.loading}>Next page</button>;
+  }
+  var paging: JSX.Element | null = null;
+  if (previous || next) paging = <nav className="rw-detail-collection__paging" aria-label={`${collection.title} pages`}>{previous}{next}</nav>;
+  var error: JSX.Element | null = null;
+  if (collection.error) error = <p className="ui error message" role="alert">{collection.error}</p>;
 
-  const rowCount = props.rows.length.toLocaleString();
+  const rowCount = collection.total.toLocaleString();
   return (
     <section className="ui segment rw-detail-collection" data-detail-collection={props.collectionKey}>
       <div className="ui top attached header">
         <div>
-          <h3>{props.title}</h3>
-          <p>{props.description}</p>
+          <h3>{collection.title}</h3>
+          <p>{collection.description}</p>
         </div>
         <span className="ui label">{rowCount}</span>
       </div>
       <div className="content">
         {table}
-        {pages}
+        {paging}
+        {error}
       </div>
     </section>
   );
 }
 
 /** Mounts collection. */
-function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, rows: any[]): void {
-  collectionState.set(key, {
+function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, source: any, endpoint: string, cursorKey: string): void {
+  const rows = list(source, ["rows", "items"]);
+  const state: CollectionState = {
     title: title,
     description: description,
     columns: columns,
     rows: rows,
-    page: 1,
-  });
-
+    total: Number(source?.total ?? rows.length),
+    hasMore: Boolean(source?.has_more),
+    nextCursor: source?.next_cursor || "",
+    currentCursor: "",
+    previousCursors: [],
+    endpoint: endpoint,
+    cursorKey: cursorKey,
+    error: "",
+    loading: false,
+    request: 0,
+  };
+  collectionState.set(key, state);
   renderCollection(key);
+  const requestedCursor = value(cursorKey);
+  if (requestedCursor) loadCollectionPage(key, requestedCursor, false);
+}
+
+/** Loads one cursor page while preserving the prior visible page after a local failure. */
+async function loadCollectionPage(key: string, cursor: string, rememberCurrent: boolean): Promise<void> {
+  const state = collectionState.get(key);
+  if (!state) return;
+  const sequence = ++state.request;
+  state.loading = true;
+  state.error = "";
+  renderCollection(key);
+  try {
+    const data = await api(state.endpoint, { run_id: value("run_id"), limit: 25, cursor: cursor }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (sequence !== state.request) return;
+    if (rememberCurrent) state.previousCursors.push(state.currentCursor);
+    state.rows = list(data, ["rows", "items"]);
+    state.total = Number(data.total ?? state.rows.length);
+    state.hasMore = Boolean(data.has_more);
+    state.nextCursor = data.next_cursor || "";
+    state.currentCursor = cursor;
+    history.replaceState({}, "", link({ [state.cursorKey]: cursor }));
+  } catch (error: any) {
+    if (sequence !== state.request) return;
+    state.error = error.message || `Unable to load ${state.title.toLocaleLowerCase()}.`;
+  } finally {
+    if (sequence === state.request) {
+      state.loading = false;
+      renderCollection(key);
+    }
+  }
 }
 
 /** Renders collection. */
@@ -332,29 +363,17 @@ function renderCollection(key: string): void {
   const state = collectionState.get(key);
   const container = document.querySelector<HTMLElement>(`[data-detail-collection-host="${key}"]`);
   if (!state || !container) return;
-  const collectionMarkup = (
-    <CollectionMarkup
-      collectionKey={key}
-      title={state.title}
-      description={state.description}
-      columns={state.columns}
-      rows={state.rows}
-      page={state.page}
-    />
-  );
+  var collectionMarkup = <CollectionMarkup collectionKey={key} state={state} />;
+  if (key === "author-identity") collectionMarkup = <IdentityCollectionMarkup state={state} />;
   renderTree(collectionMarkup, container);
-  const pageButtons = container.querySelectorAll<HTMLButtonElement>("[data-detail-page]");
-  pageButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const parts = button.dataset.detailPage!.split(":");
-      state.page = Number(parts[1]) || 1;
-      renderCollection(key);
-      container.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
-    });
+  container.querySelector<HTMLButtonElement>("[data-detail-next]")?.addEventListener("click", () => {
+    loadCollectionPage(key, state.nextCursor, true);
   });
+  container.querySelector<HTMLButtonElement>("[data-detail-previous]")?.addEventListener("click", () => {
+    const cursor = state.previousCursors.pop() || "";
+    loadCollectionPage(key, cursor, false);
+  });
+  if (key === "author-identity") bindIdentityCandidatePages(value("run_id"));
 }
 
 /** Renders escaped validation or failure reason markup for a stage outcome. */
@@ -516,15 +535,10 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
   const extension = parseObject(props.record.extension_data);
   const validation = extension.validation_status || props.record.validation_status || "Not recorded";
   const audits: AuditEventRecord[] = list(props.data.audit_events, ["events", "items"]);
-  const enriched = list(props.data.enriched_fields, ["rows", "items"]);
+  const enrichment = props.data.enrichment_summary || {};
   const pdf = props.data.pdf_status || { status: "not_available" };
-  const providers = new Set();
-  const enrichedFieldNames = new Set();
-  enriched.forEach((item) => {
-    const metadata = parseObject(item.metadata_json);
-    if (metadata.provider) providers.add(metadata.provider);
-    if (metadata.field) enrichedFieldNames.add(metadata.field);
-  });
+  const providers = new Set(list(enrichment, ["providers"]));
+  const enrichedFieldNames = new Set(list(enrichment, ["fields"]));
 
   const summary = summaryStrip([
     {
@@ -549,8 +563,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
     },
     {
       label: "Validation",
-      value: statusChip(validation),
-      html: true as const,
+      value: <StatusChip raw={validation} />,
     },
   ]);
 
@@ -633,7 +646,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
 
   const auditEventsBody = (
     <div data-article-audit-host>
-      <RecordAuditInvestigation events={audits} />
+      <RecordAuditInvestigation events={audits} collection={props.data.audit_events} endpoint={`/api/articles/${encodeURIComponent(props.record.id)}/collections/audit`} cursorKey="detail_audit_cursor" />
     </div>
   );
 
@@ -678,8 +691,7 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
   const pdfGrid = propertyGrid([
     {
       label: "Status",
-      value: statusChip(pdfLabels[props.pdf.status] || humanLabel(props.pdf.status)),
-      html: true as const,
+      value: <StatusChip raw={pdfLabels[props.pdf.status] || humanLabel(props.pdf.status)} />,
     },
     {
       label: "Size",
@@ -709,9 +721,37 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
   );
 }
 
+/** Renders one ranked ORCID candidate list without implying confirmed identity. */
+function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
+  if (!props.candidates.length) return <p className="ui faded text">No provider candidate was returned.</p>;
+  const candidateItems = props.candidates.map((candidate) => {
+    var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
+    if (candidate.payload_artifact_id) {
+      links = (
+        <Fragment>
+          {links}
+          <span aria-hidden="true">·</span>
+          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })}>Raw payload artifact</a>
+        </Fragment>
+      );
+    }
+    return (
+      <li>
+        <div>
+          <strong>{candidate.candidate_orcid}</strong>
+          <span>{candidate.provider_display_name || "Provider name not recorded"}</span>
+        </div>
+        <span className="ui basic label">Rank {candidate.provider_rank}</span>
+        <div className="rw-inline-group">{links}</div>
+      </li>
+    );
+  });
+  return <ol className="rw-identity-candidate-list">{candidateItems}</ol>;
+}
+
 /** Renders candidate ORCID evidence associated with the selected author occurrence. */
-function AuthorIdentityEvidence(props: { data: any }): JSX.Element {
-  const evidence = list(props.data.identity_evidence, ["rows", "items"]);
+function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
+  const evidence = props.evidence;
   if (!evidence.length) {
     const emptyEvidenceBody = <p className="ui faded text">No ORCID name-search evidence was recorded for this author occurrence.</p>;
     return <Panel title="ORCID candidate evidence" description="Name-search candidates remain uncertain evidence and are never assigned automatically." body={emptyEvidenceBody} classes="rw-detail-section" />;
@@ -719,31 +759,14 @@ function AuthorIdentityEvidence(props: { data: any }): JSX.Element {
 
   const body = evidence.map((resolution) => {
     const candidates = list(resolution, ["candidates"]);
-    var candidateList: JSX.Element = <p className="ui faded text">No provider candidate was returned.</p>;
-    if (candidates.length) {
-      const candidateItems = candidates.map((candidate) => {
-        var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
-        if (candidate.payload_artifact_id) {
-          links = (
-            <Fragment>
-              {links}
-              <span aria-hidden="true">·</span>
-              <a href={`/api/artifacts/${encodeURIComponent(candidate.payload_artifact_id)}/content`}>Raw payload</a>
-            </Fragment>
-          );
-        }
-        return (
-          <li>
-            <div>
-              <strong>{candidate.candidate_orcid}</strong>
-              <span>{candidate.provider_display_name || "Provider name not recorded"}</span>
-            </div>
-            <span className="ui basic label">Rank {candidate.provider_rank}</span>
-            <div className="rw-inline-group">{links}</div>
-          </li>
-        );
-      });
-      candidateList = <ol className="rw-identity-candidate-list">{candidateItems}</ol>;
+    const candidateList = <IdentityCandidateList candidates={candidates} />;
+    var moreCandidates: JSX.Element | null = null;
+    if (resolution.candidates_truncated) {
+      moreCandidates = (
+        <button type="button" className="ui basic button" data-load-identity-candidates>
+          Browse {resolution.candidate_count} candidates
+        </button>
+      );
     }
     var providerError: JSX.Element | null = null;
     if (resolution.error_message) {
@@ -755,7 +778,7 @@ function AuthorIdentityEvidence(props: { data: any }): JSX.Element {
       );
     }
     return (
-      <section className="rw-identity-resolution">
+      <section className="rw-identity-resolution" data-identity-resolution={resolution.resolution_id}>
         <header>
           <div>
             <h4>{humanLabel(resolution.provider || "ORCID")} name search</h4>
@@ -764,13 +787,67 @@ function AuthorIdentityEvidence(props: { data: any }): JSX.Element {
           <StatusChip raw={resolution.status} />
         </header>
         {providerError}
-        {candidateList}
+        <div data-identity-candidate-list>{candidateList}</div>
+        {moreCandidates}
       </section>
     );
   });
 
   const evidenceBody = <Fragment>{body}</Fragment>;
   return <Panel title="ORCID candidate evidence" description="Review provider candidates here without treating a name-search match as confirmed identity." body={evidenceBody} classes="rw-detail-section" />;
+}
+
+/** Renders one cursor page of author identity resolutions with local continuation status. */
+function IdentityCollectionMarkup(props: { state: CollectionState }): JSX.Element {
+  const evidence = <AuthorIdentityEvidence evidence={props.state.rows} />;
+  var previous: JSX.Element | null = null;
+  if (props.state.previousCursors.length) previous = <button type="button" className="ui basic button" data-detail-previous disabled={props.state.loading}>Previous identity page</button>;
+  var next: JSX.Element | null = null;
+  if (props.state.hasMore) next = <button type="button" className="ui basic button" data-detail-next disabled={props.state.loading}>Next identity page</button>;
+  var controls: JSX.Element | null = null;
+  if (previous || next) controls = <nav className="rw-detail-collection__paging" aria-label="Identity resolution pages">{previous}{next}</nav>;
+  var error: JSX.Element | null = null;
+  if (props.state.error) error = <p className="ui error message" role="alert">{props.state.error}</p>;
+  return <section className="rw-content-stack" data-detail-collection="author-identity">{evidence}{controls}{error}</section>;
+}
+
+/** Binds on-demand traversal for paged author identity candidates. */
+function bindIdentityCandidatePages(runID: string): void {
+  app.querySelectorAll<HTMLElement>("[data-identity-resolution]").forEach((section) => {
+    const button = section.querySelector<HTMLButtonElement>("[data-load-identity-candidates]");
+    if (!button) return;
+    var cursor = "";
+    button.addEventListener("click", async () => {
+      const resolutionID = section.dataset.identityResolution || "";
+      const host = section.querySelector<HTMLElement>("[data-identity-candidate-list]")!;
+      button.disabled = true;
+      button.classList.add("loading");
+      try {
+        const page = await api(`/api/identity-resolutions/${encodeURIComponent(resolutionID)}/candidates`, {
+          run_id: runID,
+          limit: 25,
+          cursor: cursor,
+        }, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const candidateMarkup = <IdentityCandidateList candidates={list(page, ["items"])} />;
+        renderTree(candidateMarkup, host);
+        cursor = page.next_cursor || "";
+        if (cursor) {
+          button.textContent = "Next candidate page";
+          button.disabled = false;
+          button.classList.remove("loading");
+        } else {
+          button.remove();
+        }
+      } catch (failure: any) {
+        button.textContent = `Retry candidates: ${failure.message}`;
+        button.disabled = false;
+        button.classList.remove("loading");
+      }
+    });
+  });
 }
 
 /** Renders the author occurrence detail view with related articles and audit evidence. */
@@ -791,12 +868,11 @@ function AuthorView(props: { record: any; data: any }): JSX.Element {
     },
     {
       label: "Identity status",
-      value: statusChip(identity),
-      html: true as const,
+      value: <StatusChip raw={identity} />,
     },
     {
       label: "Articles in response",
-      value: articles.length,
+      value: props.data.articles?.total ?? articles.length,
     },
   ]);
 
@@ -829,7 +905,7 @@ function AuthorView(props: { record: any; data: any }): JSX.Element {
 
   const rawRecordMarkup = rawRecord(props.record, ["citation_name", "first_name", "last_name", "orcid", "person_id", "person_orcid"]);
 
-  const authorAuditBody = <RecordAuditInvestigation events={audits} />;
+  const authorAuditBody = <RecordAuditInvestigation events={audits} collection={props.data.audit_events} endpoint={`/api/authors/${encodeURIComponent(props.record.id)}/collections/audit`} cursorKey="detail_audit_cursor" />;
 
   return (
     <Fragment>
@@ -839,7 +915,7 @@ function AuthorView(props: { record: any; data: any }): JSX.Element {
       </div>
       {summary}
       <Panel title="Observed identity data" description="The exact name and identity values stored for this occurrence." body={identityGrid} classes="rw-detail-section" />
-      <AuthorIdentityEvidence data={props.data} />
+      <div data-detail-collection-host="author-identity"></div>
       <div data-detail-collection-host="author-articles"></div>
       <Panel title="Audit events" description="Filter and inspect append-only events directly associated with this author occurrence." body={authorAuditBody} classes="rw-detail-section" />
       {rawRecordMarkup}
@@ -869,8 +945,7 @@ function ReferenceView(props: { record: any }): JSX.Element {
     },
     {
       label: "Resolution",
-      value: statusChip(resolutionLabel),
-      html: true as const,
+      value: <StatusChip raw={resolutionLabel} />,
     },
   ]);
 
@@ -906,8 +981,7 @@ function ReferenceView(props: { record: any }): JSX.Element {
       },
       {
         label: "Resolution",
-        value: statusChip("Resolved internally"),
-        html: true as const,
+        value: <StatusChip raw="Resolved internally" />,
       },
     ]);
   }
@@ -963,8 +1037,7 @@ export async function detailView(kind: string): Promise<void> {
   }
 
   collectionState.clear();
-  var apiOptions: Record<string, any> = {};
-  if (kind === "author") apiOptions = { run_id: value("run_id") };
+  const apiOptions: Record<string, any> = { run_id: value("run_id") };
 
   const data = await api(`/api/${kind}s/${encodeURIComponent(id)}`, apiOptions, {
     method: "GET",
@@ -973,6 +1046,26 @@ export async function detailView(kind: string): Promise<void> {
     },
   });
   const record = data.article || data.author || data.reference || data;
+  const origin = detailOrigin();
+  var evaluationNavigation: any = null;
+  var evaluationNavigationError = "";
+  if (kind === "article" && origin?.view === "evaluation") {
+    const navigationQuery: Record<string, any> = { current_revision_id: id };
+    routeOwnedKeys.evaluation.forEach((key) => {
+      if (key !== "page" && key !== "per_page") navigationQuery[key] = origin.params.get(key) || "";
+    });
+    navigationQuery.page = 1;
+    navigationQuery.per_page = 20;
+    try {
+      const queue = await api(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      evaluationNavigation = queue.queue_navigation;
+    } catch (error: any) {
+      evaluationNavigationError = error.message;
+    }
+  }
 
   var title = labels[kind];
   if (kind === "article") title = record.title || labels[kind];
@@ -991,18 +1084,15 @@ export async function detailView(kind: string): Promise<void> {
     article_id: "",
     author_id: "",
     reference_id: "",
-    return_view: "",
-    return_id: "",
+    origin: "",
   });
   const deepdiveHref = link({
     view: "overview",
     article_id: "",
     author_id: "",
     reference_id: "",
-    return_view: "",
-    return_id: "",
+    origin: "",
   });
-  const corpusHref = backToCorpus(kind);
   const crumbs: Array<{ label: string; href?: string }> = [
     {
       label: "Home",
@@ -1012,20 +1102,22 @@ export async function detailView(kind: string): Promise<void> {
       label: "Deepdive",
       href: deepdiveHref,
     },
-    {
-      label: "Corpus",
-      href: corpusHref,
-    },
   ];
-  if (kind === "article") {
+  if (origin) {
+    crumbs.push({ label: origin.label, href: origin.href });
+    crumbs.push({ label: record.doi || title });
+  } else if (kind === "article") {
+    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
     crumbs.push({
       label: "Analysis-ready articles",
       href: backToCorpus("article"),
     });
     crumbs.push({ label: record.doi || title });
   } else if (kind === "author") {
+    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
     crumbs.push({ label: "Author" });
   } else {
+    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
     crumbs.push({
       label: "Reference mentions",
       href: backToCorpus("reference"),
@@ -1034,9 +1126,32 @@ export async function detailView(kind: string): Promise<void> {
   }
   setBreadcrumb(crumbs);
 
+  var originActions: JSX.Element | null = null;
+  if (origin) {
+    var previousAction: JSX.Element | null = null;
+    var nextAction: JSX.Element | null = null;
+    if (evaluationNavigation?.previous_work_revision_id) {
+      previousAction = <a className="ui basic button" href={link({ view: "article", article_id: evaluationNavigation.previous_work_revision_id })}>Previous unreviewed</a>;
+    }
+    if (evaluationNavigation?.next_work_revision_id) {
+      nextAction = <a className="ui primary button" href={link({ view: "article", article_id: evaluationNavigation.next_work_revision_id })}>Next unreviewed</a>;
+    }
+    var navigationError: JSX.Element | null = null;
+    if (evaluationNavigationError) navigationError = <span className="ui warning message">Queue navigation is unavailable: {evaluationNavigationError}</span>;
+    originActions = (
+      <nav className="rw-detail-navigation" aria-label="Detail record navigation">
+        <a className="ui basic button" href={origin.href}>Return to {origin.label}</a>
+        {previousAction}
+        {nextAction}
+        {navigationError}
+      </nav>
+    );
+  }
+
   const page = (
     <Fragment>
       <PageHeader kicker={labels[kind]} title={title} description="" />
+      {originActions}
       <article className="rw-record-detail">{body}</article>
     </Fragment>
   );
@@ -1067,7 +1182,7 @@ export async function detailView(kind: string): Promise<void> {
           return <StatusChip raw="Observed occurrence only" />;
         },
       },
-    ], list(data.authors, ["rows", "items"]));
+    ], data.authors, `/api/articles/${encodeURIComponent(record.id)}/collections/authors`, "detail_authors_cursor");
     mountCollection("article-references", "Reference mentions", "Ordered references captured for this article revision.", [
       {
         label: "Order",
@@ -1094,7 +1209,7 @@ export async function detailView(kind: string): Promise<void> {
           return <StatusChip raw="Unresolved" />;
         },
       },
-    ], list(data.references, ["rows", "items"]));
+    ], data.references, `/api/articles/${encodeURIComponent(record.id)}/collections/references`, "detail_references_cursor");
     mountCollection("article-stage-outcomes", "Pipeline stage history", "Recorded per-work outcomes for the selected run. Audit events below are persisted append-only records.", [
       {
         label: "Stage",
@@ -1116,7 +1231,7 @@ export async function detailView(kind: string): Promise<void> {
         label: "Last updated",
         render: (row) => recorded(formatTime(row.updated_at)),
       },
-    ], list(data.stage_outcomes, ["rows", "items"]));
+    ], data.stage_outcomes, `/api/articles/${encodeURIComponent(record.id)}/collections/stages`, "detail_stages_cursor");
     if (Number(record.id) > 0 && Number(record.work_id) > 0 && Number(record.pipeline_run_id) > 0) {
       activeArticleReview = await mountArticleReview(
         document.querySelector("[data-review-host]") as HTMLElement,
@@ -1124,7 +1239,7 @@ export async function detailView(kind: string): Promise<void> {
         record,
         data,
         async () => {
-          const refreshed = await api(`/api/articles/${encodeURIComponent(record.id)}`, {}, {
+          const refreshed = await api(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") }, {
             method: "GET",
             headers: {
               Accept: "application/json",
@@ -1162,7 +1277,8 @@ export async function detailView(kind: string): Promise<void> {
         label: "Affiliation",
         render: (row) => recorded(row.affiliation),
       },
-    ], list(data.articles, ["rows", "items"]));
+    ], data.articles, `/api/authors/${encodeURIComponent(record.id)}/collections/articles`, "detail_articles_cursor");
+    mountCollection("author-identity", "ORCID candidate evidence", "Name-search candidates remain uncertain evidence and are never assigned automatically.", [], data.identity_evidence, `/api/authors/${encodeURIComponent(record.id)}/collections/identity`, "detail_identity_cursor");
   }
   bindRecordAuditInvestigation(list(data.audit_events, ["events", "items"]));
   bindCopyButtons();

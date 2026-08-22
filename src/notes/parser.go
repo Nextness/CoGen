@@ -21,6 +21,7 @@ const (
 )
 
 var anchorPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9._-]{0,63}$`)
+var doiPattern = regexp.MustCompile(`^10\.\d{4,}/\S+$`)
 
 // ValidAnchorID reports whether an anchor identifier is safe for storage, links, and URLs.
 func ValidAnchorID(value string) bool { return anchorPattern.MatchString(value) }
@@ -34,20 +35,23 @@ type SyntaxError struct {
 
 // Link is one syntactically valid custom link extracted from a note version.
 type Link struct {
+	Ordinal     int     `json:"ordinal"`
 	TargetType  string  `json:"target_type"`
 	RawTarget   string  `json:"raw_target"`
-	DisplayText *string `json:"display_text,omitempty"`
+	DisplayText *string `json:"display_text"`
 	Position    int     `json:"position"`
 	Length      int     `json:"length"`
 }
 
 // Block is a normalized note block used by cross-language conformance fixtures.
 type Block struct {
-	Kind  string     `json:"kind"`
-	Level int        `json:"level,omitempty"`
-	Text  string     `json:"text,omitempty"`
-	Items []string   `json:"items,omitempty"`
-	Rows  [][]string `json:"rows,omitempty"`
+	Type    string     `json:"type"`
+	Text    string     `json:"text,omitempty"`
+	Level   int        `json:"level,omitempty"`
+	Ordered bool       `json:"ordered,omitempty"`
+	Items   []string   `json:"items,omitempty"`
+	Header  []string   `json:"header,omitempty"`
+	Rows    [][]string `json:"rows,omitempty"`
 }
 
 // Document is the normalized parser result. Any syntax error makes the document unsaveable.
@@ -104,15 +108,15 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 			}
 			if i == len(lines) {
 				problems = append(problems, SyntaxError{Position: utf16Offset(body, start), Length: 3, Message: "unclosed code fence"})
-				blocks = append(blocks, Block{Kind: "code", Text: strings.Join(contents, "\n")})
+				blocks = append(blocks, Block{Type: "code", Text: strings.Join(contents, "\n")})
 				continue
 			}
 			i++
-			blocks = append(blocks, Block{Kind: "code", Text: strings.Join(contents, "\n")})
+			blocks = append(blocks, Block{Type: "code", Text: strings.Join(contents, "\n")})
 			continue
 		}
 		if level, text, ok := heading(current.text); ok {
-			blocks = append(blocks, Block{Kind: "heading", Level: level, Text: text})
+			blocks = append(blocks, Block{Type: "heading", Level: level, Text: text})
 			i++
 			continue
 		}
@@ -122,7 +126,7 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 				items = append(items, strings.TrimPrefix(lines[i].text, "> "))
 				i++
 			}
-			blocks = append(blocks, Block{Kind: "blockquote", Text: strings.Join(items, "\n")})
+			blocks = append(blocks, Block{Type: "quote", Text: strings.Join(items, "\n")})
 			continue
 		}
 		if kind, text, ok := listItem(current.text); ok {
@@ -136,7 +140,7 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 				items = append(items, nextText)
 				i++
 			}
-			blocks = append(blocks, Block{Kind: kind, Items: items})
+			blocks = append(blocks, Block{Type: "list", Ordered: kind == "ordered", Items: items})
 			continue
 		}
 		if hasUnescapedPipe(current.text) && i+1 < len(lines) && hasUnescapedPipe(lines[i+1].text) {
@@ -144,26 +148,34 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 			delimiter := splitTableRow(lines[i+1].text)
 			valid := len(header) >= 2 && len(delimiter) == len(header)
 			for _, cell := range delimiter {
-				valid = valid && regexp.MustCompile(`^-+$`).MatchString(strings.TrimSpace(cell))
+				valid = valid && regexp.MustCompile(`^-{3,}$`).MatchString(strings.TrimSpace(cell))
 			}
 			if !valid || i+2 >= len(lines) || lines[i+2].text == "" || len(splitTableRow(lines[i+2].text)) != len(header) {
+				start := i
 				problems = append(problems, SyntaxError{Position: utf16Offset(body, current.start), Length: utf16Length(current.text), Message: "malformed table"})
-				blocks = append(blocks, Block{Kind: "paragraph", Text: current.text})
-				i++
+				for i < len(lines) && lines[i].text != "" && hasUnescapedPipe(lines[i].text) {
+					i++
+				}
+				paragraph := make([]string, 0, i-start)
+				for _, item := range lines[start:i] {
+					paragraph = append(paragraph, item.text)
+				}
+				blocks = append(blocks, Block{Type: "paragraph", Text: strings.Join(paragraph, "\n")})
 				continue
 			}
-			rows := [][]string{header}
+			rows := make([][]string, 0)
 			i += 2
 			for i < len(lines) && lines[i].text != "" && hasUnescapedPipe(lines[i].text) {
 				row := splitTableRow(lines[i].text)
 				if len(row) != len(header) {
 					problems = append(problems, SyntaxError{Position: utf16Offset(body, lines[i].start), Length: utf16Length(lines[i].text), Message: "table row has the wrong number of cells"})
-					break
+					i++
+					continue
 				}
 				rows = append(rows, row)
 				i++
 			}
-			blocks = append(blocks, Block{Kind: "table", Rows: rows})
+			blocks = append(blocks, Block{Type: "table", Header: header, Rows: rows})
 			continue
 		}
 		paragraph := []string{current.text}
@@ -181,7 +193,7 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 			paragraph = append(paragraph, lines[i].text)
 			i++
 		}
-		blocks = append(blocks, Block{Kind: "paragraph", Text: strings.Join(paragraph, "\n")})
+		blocks = append(blocks, Block{Type: "paragraph", Text: strings.Join(paragraph, "\n")})
 	}
 	return blocks, problems
 }
@@ -200,10 +212,10 @@ func heading(line string) (int, string, bool) {
 // listItem recognizes bullet and deliberately simple ordered-list lines.
 func listItem(line string) (string, string, bool) {
 	if strings.HasPrefix(line, "- ") {
-		return "unordered_list", strings.TrimPrefix(line, "- "), true
+		return "unordered", strings.TrimPrefix(line, "- "), true
 	}
 	if strings.HasPrefix(line, "1. ") {
-		return "ordered_list", strings.TrimPrefix(line, "1. "), true
+		return "ordered", strings.TrimPrefix(line, "1. "), true
 	}
 	return "", "", false
 }
@@ -279,6 +291,9 @@ func parseLinks(body string, problems []SyntaxError) ([]Link, []SyntaxError) {
 		} else if !inFence {
 			var lineLinks []Link
 			lineLinks, problems = parseLineLinks(body, line, lineStart, problems)
+			for index := range lineLinks {
+				lineLinks[index].Ordinal = len(links) + index + 1
+			}
 			links = append(links, lineLinks...)
 		}
 		if lineEnd == len(body) {
@@ -370,7 +385,7 @@ func decodeLink(input string) (Link, string) {
 		link.TargetType = "note"
 	case "article":
 		target = normalizeDOI(target)
-		if target == "" {
+		if len(target) > 60 || !doiPattern.MatchString(target) {
 			return Link{}, "article target must be a DOI"
 		}
 		link.TargetType, link.RawTarget = "article", target
@@ -387,10 +402,9 @@ func decodeLink(input string) (Link, string) {
 		}
 		link.TargetType = "anchor"
 	case "ext":
-		if parsed, err := url.Parse(target); err == nil && parsed.Scheme != "" {
-			if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-				return Link{}, "external URL must use absolute http or https"
-			}
+		parsed, err := url.Parse(target)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return Link{}, "external URL must use absolute http or https"
 		}
 		link.TargetType = "ext"
 	default:

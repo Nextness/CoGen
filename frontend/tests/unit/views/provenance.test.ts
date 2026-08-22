@@ -10,6 +10,7 @@ function setLocation(values: Record<string, string>) {
   const url = new URL(location.href);
   ['section', 'run_id', 'audit_q', 'audit_category', 'audit_action', 'audit_actor', 'audit_entity', 'audit_stage', 'audit_outcome', 'cache_page', 'stage_page'].forEach(function(key) { url.searchParams.delete(key); });
   Object.entries(values).forEach(function(entry) { url.searchParams.set(entry[0], entry[1]); });
+  url.searchParams.set('view', 'provenance');
   history.pushState({}, '', url.toString());
 }
 
@@ -18,7 +19,7 @@ function response(data: unknown) {
   return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: data }); } } as unknown as Response);
 }
 
-describe('provenance.js — provenanceView', function() {
+describe('provenance.tsx — provenanceView', function() {
   before(function() {
     state.searches = [];
     state.plans = [];
@@ -71,6 +72,7 @@ describe('provenance.js — provenanceView', function() {
     category.checked = true;
     document.querySelector('#audit-filter-form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
     assert.equal(new URL(location.href).searchParams.get('audit_category'), 'validation');
+    await new Promise(function(resolve) { setTimeout(resolve, 0); });
 
     globalThis.fetch = originalFetch;
   });

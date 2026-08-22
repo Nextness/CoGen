@@ -2,7 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
-import { paginationPages, pagination } from '../../../src/components/pagination.tsx';
+import { paginationPages, Pagination } from '../../../src/components/pagination.tsx';
+import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
+
+const pagination = (result: any, options?: any): string => renderToString(Pagination({ result: result, options: options }));
 
 describe('pagination.tsx', function() {
   it('keeps a bounded page window around the current page', function() {

@@ -307,6 +307,7 @@ func (d *Database) runMigrations(configPath string) error {
 	}
 
 	appliedCount := 0
+	adoptedCount := 0
 	skippedCount := 0
 	for _, entry := range entries {
 		fn := entry.filename
@@ -328,13 +329,32 @@ func (d *Database) runMigrations(configPath string) error {
 		}
 
 		wasApplied := false
+		wasAdopted := false
 		if err := d.withMigrationLock(ctx, func(conn *sql.Conn) error {
-			var count int
-			if err := conn.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE filename=?", migrationsTable), fn).Scan(&count); err != nil {
+			var appliedFilename string
+			filenames := append([]string{fn}, entry.supersedes...)
+			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(filenames)), ",")
+			args := make([]any, len(filenames))
+			for index := range filenames {
+				args[index] = filenames[index]
+			}
+			query := fmt.Sprintf("SELECT filename FROM %s WHERE filename IN (%s) ORDER BY CASE filename WHEN ? THEN 0 ELSE 1 END LIMIT 1", migrationsTable, placeholders)
+			args = append(args, fn)
+			err := conn.QueryRowContext(ctx, query, args...).Scan(&appliedFilename)
+			if err != nil && err != sql.ErrNoRows {
 				return fmt.Errorf("query applied migration %s: %w", fn, err)
 			}
-			if count > 0 {
+			if appliedFilename == fn {
 				wasApplied = true
+				return nil
+			}
+			if appliedFilename != "" {
+				if _, err := conn.ExecContext(ctx,
+					fmt.Sprintf("INSERT INTO %s (filename, checksum) VALUES (?, ?)", migrationsTable), fn, cs,
+				); err != nil {
+					return fmt.Errorf("record migration %s superseding %s: %w", fn, appliedFilename, err)
+				}
+				wasAdopted = true
 				return nil
 			}
 			if _, err := conn.ExecContext(ctx, upSQL); err != nil {
@@ -355,6 +375,11 @@ func (d *Database) runMigrations(configPath string) error {
 			lg.Debug("migration skip successful", "file", fn, "result", "already_applied")
 			continue
 		}
+		if wasAdopted {
+			adoptedCount++
+			lg.Info("migration adoption successful", "file", fn, "supersedes", entry.supersedes)
+			continue
+		}
 		appliedCount++
 		lg.Debug("migration application successful", "file", fn)
 	}
@@ -363,6 +388,7 @@ func (d *Database) runMigrations(configPath string) error {
 		"config", configPath,
 		"configured", len(entries),
 		"applied", appliedCount,
+		"adopted", adoptedCount,
 		"skipped", skippedCount)
 	return nil
 }
@@ -398,9 +424,10 @@ func (d *Database) withMigrationLock(ctx context.Context, action func(*sql.Conn)
 
 // migrationEntry stores one configured migration filename and its descriptive linkage fields.
 type migrationEntry struct {
-	filename string
-	previous string
-	upgrade  string
+	filename   string
+	previous   string
+	upgrade    string
+	supersedes []string
 }
 
 // loadMigrationChain evaluates the database registry and returns its migrations in declaration order.

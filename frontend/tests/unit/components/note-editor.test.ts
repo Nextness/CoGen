@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import '../setup.ts';
 import { clearDraft, draftKey, lineDiff, readDraft, writeDraft } from '../../../src/components/note-editor.tsx';
 
-describe('note-editor.js', function() {
+describe('note-editor.tsx', function() {
   it('namespaces and clears only an exact saved draft', function() {
     const values = new Map<string, string>();
     const storage = {

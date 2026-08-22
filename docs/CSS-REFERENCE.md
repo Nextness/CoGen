@@ -122,6 +122,8 @@ The following custom properties are active aliases in `tokens.css`. New rules us
 | `--shadow` | `--shadow-low` |
 | `--radius` | `--radius-default` |
 
+Interactive controls use the dedicated `--color-control-boundary`, `--color-control-disabled-border`, `--color-control-disabled-surface`, and `--color-control-disabled-text` tokens. The light control boundary meets the non-text contrast requirement independently from decorative panel borders, and disabled controls remain explicit at opacity 1.
+
 ## 7. Base and shell selectors
 
 | Family | Principal selectors | Responsibility |
@@ -161,7 +163,7 @@ Active elemental alternates include raw `button` states, `.empty`, `.muted`, `.l
 | Corpus collection | `.rw-corpus-collection` | One labeled collection selector below the Deepdive tabs without introducing nested tab navigation. |
 | Tables | `.ui.table`, `.table-wrap`, `.rw-table-controls`, `.toggle-cell`, `.expansion-row`, `.rw-table-number`, `.rw-table-time` | Bounded records, sortable headers, selectable or expandable row states, stable disclosure, data alignment, and horizontal overflow. |
 | Pagination | `.ui.pagination.menu`, `.rw-pagination__summary`, `.pagination`, `.pagination-pages`, `.pagination-actions` | Result summary and boundary-aware page controls. |
-| Forms and controls | `.ui.form`, `.controls`, `.rw-table-controls`, `.rw-filter-disclosure`, `.filter-chips` | Shared control states, filter bars, advanced filters, active chips, sorting, search, and page-size inputs. |
+| Forms and controls | `.ui.form`, `.controls`, `.rw-table-controls`, `.rw-filter-bar`, `.rw-filter-panel`, `.rw-filter-panel__fields`, `.rw-filter-panel__actions`, `.rw-filter-disclosure`, `.rw-filter-summary`, `.rw-filter-chips`, `.rw-filter-chip`, `.rw-filter-clear` | Shared control states, simple and complex filter surfaces, advanced filters, one removable chip per value, sorting, search, and page-size inputs. |
 | Panels and stacks | `.rw-panel`, `.rw-panel__header`, `.rw-panel__body`, `.rw-page-stack`, `.rw-section-stack`, `.rw-content-stack`, `.rw-inline-group`, `.panel`, `.panel-heading`, `.panel-body` | Parent surfaces, layout-owned separation, current panel markup, and legacy aliases. |
 | Query evidence | `.query-row`, `.query-source`, `.query-code` | Source query and captured input presentation. |
 

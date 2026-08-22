@@ -10,7 +10,7 @@ The viewer is a framework-free native ES-module SPA compiled per file by esbuild
 - **No dependency.** The runtime is project-owned and tiny. It keeps the documented no-framework-dependency property and avoids the vendoring, build, test-loader, and documentation costs of adopting React.
 - **Classic JSX mode.** `tsconfig.json` uses `jsx: "react"`, `jsxFactory: "h"`, and `jsxFragmentFactory: "Fragment"`. Classic mode is required because the automatic `react-jsx` transform emits an import specifier that cannot resolve in a per-file, no-bundler, no-import-map build (see section 7).
 - **Automatic escaping.** Text children are inserted through `document.createTextNode` and attribute values through `setAttribute`, so raw HTML in data is inert. This replaces manual `esc()` in JSX-rendered content.
-- **Controlled raw-HTML escape hatch.** The container helpers (`panel`, `table`, `pageHeader`, `emptyState`, `emptyPanel`, `retentionFlow`, `breakdown`, `sourceSearchQueries`, `detailTable`) accept HTML-string bodies. The `raw()` helper builds a `Node` from a trusted, already-escaped string. It is used only for these container bodies during the migration bridge and is removed once callers are converted to JSX children.
+- **No application HTML-string bridge.** Application views and components compose JSX Nodes directly. The runtime still exposes `renderToString` for DOM-based unit assertions and the isolated `raw()` escape hatch for compatibility testing, but production source has no `raw()` or `renderToString()` caller.
 - **Event binding via `addEventListener`.** `on*` props bind listeners at element creation (before insertion). Listeners on replaced nodes are released with the node, so no explicit cleanup is required.
 
 ## 2. Runtime API semantics
@@ -20,8 +20,8 @@ The runtime exports `h`, `Fragment`, `render`, `renderToString`, and `raw`. The 
 - `h(type, props, ...children): Node` — the JSX factory. If `type === Fragment`, returns a `DocumentFragment` containing the children. If `type` is a function, calls it with `{ ...props, children }` and returns its result (function component). Otherwise creates `document.createElement(type)` and applies attributes and children.
 - `Fragment(props?): DocumentFragment` — a callable function returning a fragment containing its children. It must be callable (not a `Symbol`) because classic-mode `<>...</>` compiles to `Fragment(...)` and `tsc` requires a call signature.
 - `render(node, host): void` — replaces `host` children with the node via `host.replaceChildren(node)`. If `node` is `null`/`undefined`, clears the host.
-- `renderToString(node): string` — serializes a rendered node to an HTML string. For a single element, `node.outerHTML`. For a `DocumentFragment` or an array, concatenates each child's serialization. For `null`/`undefined`/empty, returns `""`. Used as the migration bridge.
-- `raw(html: string): Node` — builds a `Node` from a trusted, already-escaped HTML string via a detached container's `innerHTML`. It must only be fed already-escaped or trusted content, never raw user data.
+- `renderToString(node): string` — serializes a rendered node to an HTML string. For a single element, `node.outerHTML`. For a `DocumentFragment` or an array, concatenates each child's serialization. For `null`/`undefined`/empty, returns `""`. Application code does not use this test serializer.
+- `raw(html: string): Node` — builds a `Node` from a trusted, already-escaped HTML string via a detached container's `innerHTML`. Application code has no caller; compatibility tests must never pass raw user data.
 
 ## 3. Attribute handling rules
 
@@ -45,11 +45,11 @@ The runtime exports `h`, `Fragment`, `render`, `renderToString`, and `raw`. The 
 
 ## 5. Escaping model
 
-Text children are escaped automatically through `document.createTextNode`, and attribute values through `setAttribute`. This replaces manual `esc()` in JSX-rendered content. `esc()` must be removed from JSX content at conversion time (both text children and attribute values) to avoid double-escaping. The `raw()` helper is the only path that inserts markup and must only ever be fed already-escaped or trusted content; no `esc()` removal may occur on any path that still serializes through `innerHTML`.
+Text children are escaped automatically through `document.createTextNode`, and attribute values through `setAttribute`. This replaces manual `esc()` in JSX-rendered content. `esc()` must not wrap JSX text or attribute expressions because that would double-escape data. Application views and components have no `raw()` caller, so user, provider, note, and database values always remain text unless a dedicated parser creates safe Nodes.
 
 ## 6. Event binding model
 
-`on*` props bind listeners at element creation, before insertion, and are released with the node when `render` replaces the host children. `on*` handlers are incompatible with `renderToString` bridging because serialization drops listeners; keep event binding in the existing `bind*` functions during the migration bridge. `onClick` on internal `?`-links must call `preventDefault` to avoid double handling with the document-level navigation delegation in `app.tsx`.
+`on*` props bind listeners at element creation, before insertion, and are released with the node when `render` replaces the host children. Test serialization drops listeners, so production interaction tests must mount Nodes through `render` before exercising behavior. `onClick` on internal `?`-links must call `preventDefault` to avoid double handling with the document-level navigation delegation in `app.tsx`.
 
 ## 7. Wiring and classic-mode rationale
 
@@ -59,7 +59,7 @@ Text children are escaped automatically through `document.createTextNode`, and a
 
 ## 8. Migration mapping
 
-The migration converts string-returning helpers and components to JSX components. The `renderToString` bridge keeps string-asserting tests green approximately; serialization diverges for boolean attributes, style normalization, and attribute escaping, so affected assertions are updated by review, not treated as byte-parity. Container helpers that accept HTML-string bodies use the `raw` escape hatch during the bridge, and markup-returning helpers (`statusChip`, `cell`, render callbacks) become Node-returning components. `esc()` is removed from each helper at conversion time. The `render` runtime export is aliased in views that also use the router `render` (for example `import { render as renderTree } from "../jsx/jsx-runtime.ts"`).
+The migration is complete for application source: container, status, cell, pagination, audit, graph, note, and table helpers are Node-returning components, and views pass JSX children directly. Unit tests may serialize a component result for markup assertions, while behavioral tests mount through `render`. The `render` runtime export is aliased in views that also use the router `render` (for example `import { render as renderTree } from "../jsx/jsx-runtime.ts"`).
 
 ## 9. Known limitations
 
@@ -67,8 +67,8 @@ The migration converts string-returning helpers and components to JSX components
 - There is no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`.
 - SVG and namespaced elements are not supported (no current usage); SVG would require `createElementNS`.
 - The `0` child is not skipped; use ternaries or `count > 0 && ...`.
-- `renderToString` serialization diverges from hand-written templates for boolean attributes (`disabled=""` vs ` disabled`), style normalization (`style="width: 50%;"` vs `width:50%`), and attribute escaping.
-- `createElement`/`createTextNode` is generally somewhat slower than `innerHTML` parsing for trees with many small nodes, but the difference is negligible for this viewer's bounded collections. The `renderToString` bridge adds a temporary DOM-to-string-to-DOM round trip on the largest collections. `createTextNode` is more efficient for large text payloads.
+- `renderToString` test serialization differs from browser-authored source conventions for boolean attributes, style normalization, and attribute escaping, so tests assert semantics rather than hand-written template byte parity.
+- `createElement`/`createTextNode` is generally somewhat slower than `innerHTML` parsing for trees with many small nodes, but the difference is negligible for this viewer's bounded collections and avoids an application DOM-to-string-to-DOM round trip.
 
 ## 10. How to add a new component
 

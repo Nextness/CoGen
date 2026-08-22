@@ -1,9 +1,9 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
-import { graphFilters, link, list, value } from "../state.tsx";
-import { h, Fragment, render as renderTree, renderToString, raw } from "../jsx/jsx-runtime.ts";
-import { pagination } from "./pagination.tsx";
+import { currentDetailOrigin, graphFilters, humanLabel, link, list, value } from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { Pagination } from "./pagination.tsx";
 
 /** One graph node with its resolved layout and cluster state. */
 export interface GraphNode extends SimulationNode {
@@ -56,6 +56,10 @@ interface GraphState {
   simulation: ReturnType<typeof forceSimulation>;
   resizeObserver?: ResizeObserver;
   fullscreenHandler?: () => void;
+  expandCleanup?: () => void;
+  themeObserver?: MutationObserver;
+  themeMedia?: MediaQueryList;
+  themeHandler?: () => void;
   overviewLayout?: Array<{ id: number; x: number; y: number; radius: number }>;
 }
 
@@ -70,12 +74,6 @@ export function GraphField(props: { name: string; label: string; type?: string }
       <input name={props.name} type={type} value={value(props.name)} />
     </label>
   );
-}
-
-/** Returns an escaped graph-filter input with its current URL value. */
-export function graphField(name: string, label: string, type?: string): string {
-  const fieldMarkup = <GraphField name={name} label={label} type={type} />;
-  return renderToString(fieldMarkup);
 }
 
 /** Returns the current graph-filter values keyed by query parameter. */
@@ -93,18 +91,21 @@ export function graphLink(node: GraphNode): string {
     return link({
       view: "article",
       article_id: node.revision_id,
+      origin: currentDetailOrigin(),
     });
   }
   if (node.type === "author") {
     return link({
       view: "author",
       author_id: node.author_id,
+      origin: currentDetailOrigin(),
     });
   }
   if (node.type === "reference") {
     return link({
       view: "reference",
       reference_id: node.reference_id,
+      origin: currentDetailOrigin(),
     });
   }
   return "";
@@ -242,6 +243,12 @@ export function GraphResult(props: { data: any }): JSX.Element {
       <button type="button" id="graph-export-png" className="ui button" title="Download graph as PNG">Export PNG</button>
     </div>
   );
+  const searchResultsMarkup = (
+    <section className="rw-graph__search-results" aria-label="Matching graph nodes">
+      <p id="graph-search-summary" role="status">Enter a node name, DOI, ORCID, or identifier to search the rendered graph.</p>
+      <ul id="graph-search-results"></ul>
+    </section>
+  );
   const helpMarkup = (
     <p className="rw-graph__help">
       Shape identifies the entity type, color identifies a connected cluster, and size reflects visible relationship count. {" "}
@@ -268,13 +275,14 @@ export function GraphResult(props: { data: any }): JSX.Element {
       {warning}
       <div className="rw-graph__viewport" id="graph-viewport">
         {toolbarMarkup}
+        {searchResultsMarkup}
         {helpMarkup}
         <div className="rw-graph__wrap">
           {legendMarkup}
           <canvas className="rw-graph__canvas"></canvas>
         </div>
       </div>
-      <section className="rw-graph__selection" id="graph-selection" aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
+      <section className="rw-graph__selection" id="graph-selection" tabindex={-1} aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
       <section className="rw-graph__edges">
         <h3>Relationship table</h3>
         <p>The exact, paginated relationship records behind the graph.</p>
@@ -282,12 +290,6 @@ export function GraphResult(props: { data: any }): JSX.Element {
       </section>
     </Fragment>
   );
-}
-
-/** Returns the graph result markup for the relationships view. */
-export function graphResult(data: any): string {
-  const graphMarkup = <GraphResult data={data} />;
-  return renderToString(graphMarkup);
 }
 
 /** Calculates a node radius from entity type and visible degree. */
@@ -389,6 +391,11 @@ export function destroyGraph(): void {
   }
   if (activeGraph.fullscreenHandler) {
     document.removeEventListener("fullscreenchange", activeGraph.fullscreenHandler);
+  }
+  if (activeGraph.expandCleanup) activeGraph.expandCleanup();
+  if (activeGraph.themeObserver) activeGraph.themeObserver.disconnect();
+  if (activeGraph.themeMedia && activeGraph.themeHandler) {
+    activeGraph.themeMedia.removeEventListener("change", activeGraph.themeHandler);
   }
   cancelAnimationFrame(activeGraph.frame);
   activeGraph = undefined;
@@ -564,10 +571,11 @@ export function mountGraph(data: any): void {
   graph.resizeObserver.observe(canvas);
   resize();
 
-  bindInteractions(graph, status, selectionPanel, zoomIndicator);
-  bindGraphSearch(graph);
+  const setSelection = bindInteractions(graph, status, selectionPanel, zoomIndicator);
+  bindGraphSearch(graph, setSelection);
   bindGraphExport(graph, data);
   bindGraphExpand(graph);
+  bindGraphTheme(graph);
   runLayout(graph, status);
 }
 
@@ -1038,7 +1046,7 @@ function nearestNode(graph: GraphState, point: { x: number; y: number }): GraphN
 }
 
 /** Binds pointer, keyboard, and toolbar interactions for the graph viewport. */
-function bindInteractions(graph: GraphState, status: HTMLElement | null, selectionPanel: HTMLElement | null, zoomIndicator: HTMLElement | null): void {
+function bindInteractions(graph: GraphState, status: HTMLElement | null, selectionPanel: HTMLElement | null, zoomIndicator: HTMLElement | null): (id: string | number | null) => void {
   var drag: any = null;
   const dragThreshold = 4;
 
@@ -1244,17 +1252,65 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   } else {
     renderEdgePage(graph);
   }
+  return setSelection;
 }
 
 /** Binds graph node search, highlighting matching nodes by name or DOI. */
-function bindGraphSearch(graph: GraphState): void {
+function bindGraphSearch(graph: GraphState, setSelection: (id: string | number | null) => void): void {
   const searchInput = document.querySelector<HTMLInputElement>("#graph-node-search");
-  if (!searchInput) return;
+  const summary = document.querySelector<HTMLElement>("#graph-search-summary");
+  const results = document.querySelector<HTMLElement>("#graph-search-results");
+  if (!searchInput || !summary || !results) return;
+
+  var debounce: number | undefined;
+
+  /** Renders the bounded, keyboard-operable equivalent of canvas search highlighting. */
+  function updateResults(): void {
+    graph.searchQuery = searchInput!.value.trim().toLocaleLowerCase();
+    const matches = graph.nodes.filter((node) => {
+      const searchableParts = [node.label, node.id, node.doi, node.orcid, node.author].filter(Boolean);
+      return searchableParts.join(" ").toLocaleLowerCase().includes(graph.searchQuery);
+    });
+    const visible = matches.slice(0, 100);
+    if (!graph.searchQuery) {
+      summary!.textContent = "Enter a node name, DOI, ORCID, or identifier to search the rendered graph.";
+      renderTree(null, results!);
+    } else {
+      var suffix = "";
+      if (matches.length > visible.length) suffix = "; showing the first 100";
+      summary!.textContent = `${matches.length.toLocaleString()} matching nodes${suffix}.`;
+      const items = visible.map((node) => {
+        const label = node.label || node.id;
+        return <li><button type="button" data-graph-search-node={node.id}>{label}<span>{humanLabel(node.type)}</span></button></li>;
+      });
+      renderTree(<Fragment>{items}</Fragment>, results!);
+      results!.querySelectorAll<HTMLButtonElement>("[data-graph-search-node]").forEach((button) => {
+        button.addEventListener("click", () => {
+          setSelection(button.dataset.graphSearchNode || null);
+          document.querySelector<HTMLElement>("#graph-selection")?.focus({ preventScroll: false });
+        });
+      });
+    }
+    draw(graph);
+  }
 
   searchInput.addEventListener("input", () => {
-    graph.searchQuery = searchInput.value.trim().toLocaleLowerCase();
-    draw(graph);
+    if (debounce !== undefined) window.clearTimeout(debounce);
+    debounce = window.setTimeout(updateResults, 150);
   });
+}
+
+/** Repaints the canvas when either explicit or operating-system theme state changes. */
+function bindGraphTheme(graph: GraphState): void {
+  const repaint = () => {
+    graph.colors = palette();
+    draw(graph);
+  };
+  graph.themeObserver = new MutationObserver(repaint);
+  graph.themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
+  graph.themeMedia = globalThis.matchMedia("(prefers-color-scheme: dark)");
+  graph.themeHandler = repaint;
+  graph.themeMedia.addEventListener("change", repaint);
 }
 
 /** Binds graph export as PNG, downloading the canvas as a PNG image. */
@@ -1267,7 +1323,20 @@ function bindGraphExport(graph: GraphState, data: any): void {
     const savedQuery = graph.searchQuery;
     graph.searchQuery = "";
     draw(graph);
-    const image = graph.canvas.toDataURL("image/png");
+    const captionHeight = Math.max(72, Math.round(72 * (window.devicePixelRatio || 1)));
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = graph.canvas.width;
+    exportCanvas.height = graph.canvas.height + captionHeight;
+    const exportContext = exportCanvas.getContext("2d")!;
+    exportContext.fillStyle = graph.colors.surface;
+    exportContext.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+    exportContext.drawImage(graph.canvas, 0, 0);
+    exportContext.fillStyle = graph.colors.text;
+    exportContext.font = `${Math.max(12, Math.round(12 * (window.devicePixelRatio || 1)))}px sans-serif`;
+    const filters = JSON.stringify(data.filters || {});
+    const caption = `Research graph · run ${data.filters?.run_id || "not recorded"} · ${data.filters?.mode || "model not recorded"} · ${filters}`;
+    exportContext.fillText(caption.slice(0, 240), 16, graph.canvas.height + Math.round(captionHeight * 0.58));
+    const image = exportCanvas.toDataURL("image/png");
     graph.searchQuery = savedQuery;
     draw(graph);
 
@@ -1285,12 +1354,23 @@ function bindGraphExpand(graph: GraphState): void {
   if (!expandButtonElement || !expandViewportElement) return;
   const expandButton = expandButtonElement;
   const expandViewport = expandViewportElement;
+  var previouslyExpanded = false;
+  var priorOverflow = "";
+  /** Leaves the CSS fallback state and restores document and opener state. */
+  function closeFallback(): void {
+    if (!expandViewport.classList.contains("rw-graph__viewport--expanded")) return;
+    expandViewport.classList.remove("rw-graph__viewport--expanded");
+    document.body.style.overflow = priorOverflow;
+    updateLabel();
+  }
   /** Updates the expand button label and refits the graph after a size change. */
   function updateLabel(): void {
     const expanded = document.fullscreenElement === expandViewport || expandViewport.classList.contains("rw-graph__viewport--expanded");
     var label = "Expand graph";
     if (expanded) label = "Restore graph";
     expandButton.textContent = label;
+    if (previouslyExpanded && !expanded) expandButton.focus();
+    previouslyExpanded = expanded;
     requestAnimationFrame(() => {
       if (graph.resizeObserver) {
         const rect = graph.canvas.getBoundingClientRect();
@@ -1307,16 +1387,41 @@ function bindGraphExpand(graph: GraphState): void {
       } else if (expandViewport.requestFullscreen) {
         await expandViewport.requestFullscreen();
       } else {
-        expandViewport.classList.toggle("rw-graph__viewport--expanded");
-        updateLabel();
+        if (expandViewport.classList.contains("rw-graph__viewport--expanded")) {
+          closeFallback();
+        } else {
+          priorOverflow = document.body.style.overflow;
+          document.body.style.overflow = "hidden";
+          expandViewport.classList.add("rw-graph__viewport--expanded");
+          updateLabel();
+        }
       }
     } catch (_) {
-      expandViewport.classList.toggle("rw-graph__viewport--expanded");
-      updateLabel();
+      if (expandViewport.classList.contains("rw-graph__viewport--expanded")) closeFallback();
+      else {
+        priorOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        expandViewport.classList.add("rw-graph__viewport--expanded");
+        updateLabel();
+      }
     }
   });
+  const escapeHandler = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && expandViewport.classList.contains("rw-graph__viewport--expanded")) {
+      event.preventDefault();
+      closeFallback();
+    }
+  };
+  document.addEventListener("keydown", escapeHandler);
   graph.fullscreenHandler = updateLabel;
   document.addEventListener("fullscreenchange", updateLabel);
+  graph.expandCleanup = () => {
+    document.removeEventListener("keydown", escapeHandler);
+    if (expandViewport.classList.contains("rw-graph__viewport--expanded")) {
+      expandViewport.classList.remove("rw-graph__viewport--expanded");
+      document.body.style.overflow = priorOverflow;
+    }
+  };
 }
 
 /** Renders the selected-node inspection panel. */
@@ -1408,12 +1513,13 @@ function renderEdgePage(graph: GraphState): void {
     pageAttribute: "data-graph-page",
     pageClass: " graph-page",
   };
-  const paginationMarkup = raw(pagination({
+  const paginationResult = {
     page: graph.edgePage,
     per_page: pageSize,
     total_rows: visibleEdges.length,
     total_pages: pages,
-  }, paginationOptions));
+  };
+  const paginationMarkup = <Pagination result={paginationResult} options={paginationOptions} />;
   const edgeTableMarkup = (
     <Fragment>
       <div className="table-wrap" aria-label="Relationship table">

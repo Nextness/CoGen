@@ -63,3 +63,80 @@ func TestRunScopedCorpusAndStages(t *testing.T) {
 		}
 	}
 }
+
+// TestCorpusPaginationUsesStableTiesAndClamps verifies deterministic complete traversal and populated out-of-range pages.
+func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	for index := 0; index < 41; index++ {
+		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/tied-"+stringID(int64(index)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		workID, err := work.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := viewer.writeDB.DB.Exec(`INSERT INTO work_revisions
+			(work_id, pipeline_run_id, payload_hash, title, producer_stage)
+			VALUES (?, ?, ?, 'Tied title', 'normalize')`, workID, runID, "tied-"+stringID(int64(index))); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := viewer.writeDB.DB.Exec(`INSERT INTO run_work_stages
+			(pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')`, runID, workID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	handler := viewer.Handler()
+	seen := make(map[int64]bool)
+	for page := 1; page <= 3; page++ {
+		response := viewerRequest(t, handler, "/api/runs/"+stringID(runID)+"/corpus/articles?page="+stringID(int64(page))+"&per_page=20&sort=title&order=asc")
+		if response.Code != http.StatusOK {
+			t.Fatalf("corpus page %d status=%d body=%s", page, response.Code, response.Body.String())
+		}
+		var payload struct {
+			Rows       []map[string]any `json:"rows"`
+			Pagination struct {
+				Page       int `json:"page"`
+				TotalPages int `json:"total_pages"`
+			} `json:"pagination"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Pagination.Page != page || payload.Pagination.TotalPages != 3 {
+			t.Fatalf("corpus page metadata = %+v", payload.Pagination)
+		}
+		for _, row := range payload.Rows {
+			id := int64(row["id"].(float64))
+			if seen[id] {
+				t.Fatalf("corpus revision %d appeared on multiple pages", id)
+			}
+			seen[id] = true
+		}
+	}
+	if len(seen) != 42 {
+		t.Fatalf("traversed %d corpus revisions, want 42", len(seen))
+	}
+	outOfRange := viewerRequest(t, handler, "/api/runs/"+stringID(runID)+"/corpus/articles?page=999&per_page=20&sort=title&order=asc")
+	if outOfRange.Code != http.StatusOK {
+		t.Fatalf("out-of-range corpus status=%d body=%s", outOfRange.Code, outOfRange.Body.String())
+	}
+	var clamped struct {
+		Rows       []map[string]any `json:"rows"`
+		Pagination struct {
+			Page int `json:"page"`
+		} `json:"pagination"`
+	}
+	if err := json.Unmarshal(outOfRange.Body.Bytes(), &clamped); err != nil {
+		t.Fatal(err)
+	}
+	if clamped.Pagination.Page != 3 || len(clamped.Rows) != 2 {
+		t.Fatalf("out-of-range corpus page=%d rows=%d, want page 3 with 2 rows", clamped.Pagination.Page, len(clamped.Rows))
+	}
+}

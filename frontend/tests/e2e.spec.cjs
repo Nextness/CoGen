@@ -102,7 +102,7 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   const noteResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/notes`, { data: { body: 'A1 future link [[note:2|target note]].' } });
   expect(noteResponse.status()).toBe(201);
   const a1Note = (await noteResponse.json()).note;
-  const anchorResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/anchors`, { data: { anchor_id: 'e2e-methods', page: 1, selected_text: 'Selectable E2E methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
+  const anchorResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/anchors`, { data: { label: 'e2e-methods', page: 1, selected_text: 'Selectable E2E methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
   expect(anchorResponse.status()).toBe(201);
 
   const a2ContextResponse = await request.post(`/api/runs/${a2Run.id}/review-context`, { data: { parent_context_id: a1Context.id } });
@@ -111,7 +111,9 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   expect(inheritedReview.review.version.id).toBe(a1Review.version.id);
   expect(inheritedReview.review.inherited_from_context_id).toBe(a1Context.id);
   const inheritedNotes = await (await request.get(`/api/runs/${a2Run.id}/articles/${a2Revision}/notes`)).json();
-  expect(inheritedNotes.notes[0].version.links[0].resolved).toBeFalsy();
+  expect(inheritedNotes.notes[0].id).toBe(a1Note.id);
+  const inheritedNote = await (await request.get(`/api/runs/${a2Run.id}/notes/${a1Note.id}`)).json();
+  expect(inheritedNote.note.version.links[0].resolved).toBeFalsy();
   const targetResponse = await request.post(`/api/runs/${a2Run.id}/articles/${a2Revision}/notes`, { data: { body: 'A2 target note.' } });
   expect((await targetResponse.json()).note.id).toBe(2);
   const resolvedNote = await (await request.get(`/api/runs/${a2Run.id}/notes/${a1Note.id}`)).json();
@@ -130,6 +132,7 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   await page.goto(generatedURL({ ...context, run_id: a2Run.id }, { view: 'article', article_id: a2Revision }));
   await page.waitForLoadState('networkidle');
   await expect(page.locator('[data-review-host]')).toContainText('A2 changed evidence');
+  await page.getByRole('tab', { name: 'PDF anchors' }).click();
   await expect(page.locator('[data-anchor-list]')).toContainText('e2e-methods');
   await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable E2E methods');
 });

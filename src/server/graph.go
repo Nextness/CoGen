@@ -96,8 +96,7 @@ func (s *Server) graph(w http.ResponseWriter, r *http.Request) {
 func (s *Server) graphArticles(ctx context.Context, r *http.Request, runID int64, limit int) ([]map[string]any, int, error) {
 	clauses, args := []string{
 		"wr.pipeline_run_id=?",
-		"wr.producer_stage='normalize'",
-		"EXISTS (SELECT 1 FROM run_work_stages rws WHERE rws.pipeline_run_id=wr.pipeline_run_id AND rws.work_id=wr.work_id AND rws.stage_name='validate' AND rws.outcome='valid')",
+		currentNormalizedRevisionPredicate("wr"),
 	}, []any{runID}
 	query := r.URL.Query()
 	if value := query.Get("q"); value != "" {
@@ -159,6 +158,11 @@ func (s *Server) graphArticles(ctx context.Context, r *http.Request, runID int64
 
 // graphEdges builds bounded nodes and edges for one supported relationship mode.
 func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[string]any) ([]map[string]any, []map[string]any, bool, error) {
+	return s.graphEdgesWithinBudget(ctx, mode, articles, maxRelatedNodes, maxGraphEdges)
+}
+
+// graphEdgesWithinBudget reads no more than one sentinel row beyond the remaining response budget.
+func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error) {
 	if mode == "research_network" {
 		return s.graphResearchNetwork(ctx, articles)
 	}
@@ -175,6 +179,12 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 	if len(articleIDs) == 0 {
 		return nodes, edges, false, nil
 	}
+	if relatedBudget < 0 {
+		relatedBudget = 0
+	}
+	if edgeBudget < 0 {
+		edgeBudget = 0
+	}
 	placeholders, args := placeholders(articleIDs)
 	var query string
 	switch mode {
@@ -189,6 +199,8 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 		query = `SELECT rm.id AS reference_id, rm.work_revision_id, rm.doi, rm.title, rm.author, rm.year, rm.source
             FROM reference_mentions rm WHERE rm.work_revision_id IN (` + placeholders + `) ORDER BY rm.id`
 	}
+	query += " LIMIT ?"
+	args = append(args, edgeBudget+1)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, false, err
@@ -199,7 +211,10 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 		return nil, nil, false, err
 	}
 	related := map[string]bool{}
-	truncated := false
+	truncated := len(items) > edgeBudget
+	if len(items) > edgeBudget {
+		items = items[:edgeBudget]
+	}
 	for _, item := range items {
 		if len(edges) >= maxGraphEdges {
 			truncated = true
@@ -210,7 +225,7 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 		case "article_author":
 			to := "author:" + stringID(item["author_id"].(int64))
 			if !related[to] {
-				if len(related) >= maxRelatedNodes {
+				if len(related) >= relatedBudget {
 					truncated = true
 					continue
 				}
@@ -226,7 +241,7 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 		case "article_reference":
 			to := "reference:" + stringID(item["reference_id"].(int64))
 			if !related[to] {
-				if len(related) >= maxRelatedNodes {
+				if len(related) >= relatedBudget {
 					truncated = true
 					continue
 				}
@@ -289,7 +304,13 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 	}
 
 	for _, mode := range []string{"article_author", "article_reference", "citation"} {
-		modeNodes, modeEdges, modeTruncated, err := s.graphEdges(ctx, mode, articles)
+		remainingNodes := maxRelatedNodes - relatedNodes
+		remainingEdges := maxGraphEdges - len(edges)
+		if remainingNodes <= 0 || remainingEdges <= 0 {
+			truncated = true
+			break
+		}
+		modeNodes, modeEdges, modeTruncated, err := s.graphEdgesWithinBudget(ctx, mode, articles, remainingNodes, remainingEdges)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -356,10 +377,15 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 		articleIDs = append(articleIDs, articleID)
 	}
 	sort.Strings(articleIDs)
+coauthorPairs:
 	for _, articleID := range articleIDs {
 		authors := authorsByArticle[articleID]
 		for left := 0; left < len(authors); left++ {
 			for right := left + 1; right < len(authors); right++ {
+				if len(edges) >= maxGraphEdges {
+					truncated = true
+					break coauthorPairs
+				}
 				pair := []string{authors[left], authors[right]}
 				sort.Strings(pair)
 				addEdge(map[string]any{
@@ -384,6 +410,8 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 	}
 	pairCounts := make(map[string]int)
 	pairArticles := make(map[string][2]string)
+	pairBudget := maxGraphEdges - len(edges)
+pairCollection:
 	for _, articlesForDOI := range articlesByDOI {
 		ids := make([]string, 0, len(articlesForDOI))
 		for id := range articlesForDOI {
@@ -393,6 +421,10 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 		for left := 0; left < len(ids); left++ {
 			for right := left + 1; right < len(ids); right++ {
 				key := ids[left] + "|" + ids[right]
+				if _, exists := pairCounts[key]; !exists && len(pairCounts) >= pairBudget {
+					truncated = true
+					break pairCollection
+				}
 				pairCounts[key]++
 				pairArticles[key] = [2]string{ids[left], ids[right]}
 			}

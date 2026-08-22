@@ -1,44 +1,45 @@
 // Entry point: imports modules, sets up event listeners, kicks off initial render.
-import { bindDismissibleMessages, bindLoadingButtons } from "./state.tsx";
-import { render, setURL } from "./router.tsx";
+import { bindDismissibleMessages, bindLoadingButtons, contextChange } from "./state.tsx";
+import { navigationAllowed, render, setURL } from "./router.tsx";
 import { selects } from "./components/context-selector.tsx";
 import { initHealthCheck, initMobileNavToggle } from "./components/shell.tsx";
 
 selects.search.addEventListener("change", (event: Event) => {
-  setURL({
+  setURL(contextChange({
     search_id: (event.target as HTMLSelectElement).value,
     search_revision_id: "",
     plan_id: "",
     run_id: "",
-  }, false);
+  }), false);
 });
 
 selects.revision.addEventListener("change", (event: Event) => {
-  setURL({
+  setURL(contextChange({
     search_revision_id: (event.target as HTMLSelectElement).value,
     plan_id: "",
     run_id: "",
-  }, false);
+  }), false);
 });
 
 selects.plan.addEventListener("change", (event: Event) => {
-  setURL({
+  setURL(contextChange({
     plan_id: (event.target as HTMLSelectElement).value,
     run_id: "",
-  }, false);
+  }), false);
 });
 
 selects.run.addEventListener("change", (event: Event) => {
-  setURL({ run_id: (event.target as HTMLSelectElement).value }, false);
+  setURL(contextChange({ run_id: (event.target as HTMLSelectElement).value }), false);
 });
 
 document.addEventListener("click", (event) => {
   const anchor = (event.target as HTMLElement).closest<HTMLAnchorElement>(`a[href^="?"]`);
   if (!anchor) return;
-  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || anchor.target || anchor.hasAttribute("download")) return;
   event.preventDefault();
+  if (!navigationAllowed()) return;
   history.pushState({}, "", anchor.getAttribute("href"));
-  render();
+  render({ focusTitle: true, resetScroll: true });
 });
 
 // Delegate dismissible messages and loading buttons
@@ -60,6 +61,10 @@ document.addEventListener("click", (event) => {
 });
 
 window.addEventListener("popstate", () => {
+  if (!navigationAllowed()) {
+    history.forward();
+    return;
+  }
   render();
 });
 

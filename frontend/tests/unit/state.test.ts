@@ -1,4 +1,4 @@
-// Unit tests for state.js — shared state, DOM references, and utility functions.
+// Unit tests for state.tsx: shared state, DOM references, and utility components.
 import { describe, it, before, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,14 +6,31 @@ import assert from 'node:assert/strict';
 import './setup.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
-  params, value, view, section, esc, asJSON, list, pickID, text, number, formatNumber,
-  percent, formatTime, formatDuration, formatBytes, humanLabel, parseObject, statusClass, statusChip, metricEntries, selectedRun, showError,
-  clearError, busy, link, pageHeader, breadcrumb, setBreadcrumb, emptyState, panel, table, subnav,
-  filterChips, metricCard, flowStage, retentionFlow, breakdown, sourceResultCountSummary, timeline,
-  detailTable, cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
+  params, value, view, section, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
+  percent, formatTime, formatDate, formatDuration, formatBytes, humanLabel, parseObject, statusClass, StatusChip, metricEntries, selectedRun, showError,
+  clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
+  FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary, Timeline,
+  DetailTable, Cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
 } from '../../src/state.tsx';
+import { h, renderToString } from "../../src/jsx/jsx-runtime.ts";
 
-describe('state.js — constants', function() {
+const statusChip = (raw: any): string => renderToString(StatusChip({ raw: raw }));
+const pageHeader = (kicker: string, title: string, description: string, extra?: JSX.Element): string => renderToString(PageHeader({ kicker: kicker, title: title, description: description, extra: extra }));
+const breadcrumb = (items: Array<{ href?: string; label: string }>): string => renderToString(Breadcrumb({ items: items }));
+const emptyState = (title: string, detail: string): string => renderToString(EmptyState({ title: title, detail: detail }));
+const table = (title: string, description: string, columns: any[], rows: any[]): string => renderToString(Table({ title: title, description: description, columns: columns, rows: rows }));
+const subnav = (items: Array<[string, string]>, current: string, key: string): string => renderToString(Subnav({ items: items, current: current, key: key }));
+const filterChips = (filters: Record<string, any>, labels?: Record<string, string>, options?: any): string => renderToString(FilterChips({ filters: filters, labels: labels, options: options }));
+const metricCard = (name: string, metric: any, href?: string): string => renderToString(MetricCard({ name: name, metric: metric, href: href }));
+const flowStage = (label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: any): string => renderToString(FlowStage({ label: label, raw: raw, base: base, previous: previous, extraClass: extraClass, stageKey: stageKey, options: options }));
+const retentionFlow = (overview: any): string => renderToString(RetentionFlow({ overview: overview }));
+const breakdown = (title: string, source: any, valueLabel?: string, useTotal?: boolean): string => renderToString(Breakdown({ title: title, source: source, valueLabel: valueLabel, useTotal: useTotal }));
+const sourceResultCountSummary = (items: any[]): string => renderToString(SourceResultCountSummary({ items: items }));
+const timeline = (rows: any[]): string => renderToString(Timeline({ rows: rows }));
+const detailTable = (title: string, rows: any): string => renderToString(DetailTable({ title: title, rows: rows }));
+const cell = (item: any, column: string, tableName?: string): string => renderToString(Cell({ item: item, column: column, tableName: tableName }));
+
+describe('state.tsx — constants', function() {
 
   it('app is a DOM element', function() {
     assert.ok(app instanceof HTMLElement);
@@ -70,7 +87,7 @@ describe('state.js — constants', function() {
 
 });
 
-describe('state.js — params / value / view / section', function() {
+describe('state.tsx — params / value / view / section', function() {
 
   it('params returns URLSearchParams from location.search', function() {
     const p = params();
@@ -100,7 +117,7 @@ describe('state.js — params / value / view / section', function() {
 
 });
 
-describe('state.js — esc', function() {
+describe('state.tsx — esc', function() {
 
   it('escapes HTML special characters', function() {
     const result = esc('<script>alert("xss")</script>');
@@ -125,7 +142,7 @@ describe('state.js — esc', function() {
 
 });
 
-describe('state.js — asJSON', function() {
+describe('state.tsx — asJSON', function() {
 
   it('returns strings unchanged', function() {
     assert.equal(asJSON('hello'), 'hello');
@@ -148,7 +165,7 @@ describe('state.js — asJSON', function() {
 
 });
 
-describe('state.js — list', function() {
+describe('state.tsx — list', function() {
 
   it('returns the first matching key from data', function() {
     const data = { items: [1, 2, 3], rows: [4, 5] };
@@ -171,7 +188,7 @@ describe('state.js — list', function() {
 
 });
 
-describe('state.js — pickID', function() {
+describe('state.tsx — pickID', function() {
 
   it('prefers .id', function() {
     assert.equal(pickID({ id: 'abc', search_id: 'xyz' }), 'abc');
@@ -197,7 +214,7 @@ describe('state.js — pickID', function() {
 
 });
 
-describe('state.js — text', function() {
+describe('state.tsx — text', function() {
 
   it('returns the first non-empty field', function() {
     assert.equal(text({ a: '', b: 'hello', c: 'world' }, ['a', 'b', 'c']), 'hello');
@@ -214,32 +231,36 @@ describe('state.js — text', function() {
 
 });
 
-describe('state.js — number', function() {
+describe('state.tsx — number', function() {
 
   it('parses numeric values', function() {
     assert.equal(number(42), 42);
     assert.equal(number('42'), 42);
   });
 
-  it('returns 0 for non-numeric values', function() {
-    assert.equal(number(null), 0);
-    assert.equal(number(undefined), 0);
-    assert.equal(number('abc'), 0);
+  it('does not conflate unavailable or invalid values with recorded zero', function() {
+    assert.equal(Number.isNaN(number(null)), true);
+    assert.equal(Number.isNaN(number(undefined)), true);
+    assert.equal(Number.isNaN(number('abc')), true);
+    assert.deepEqual(numericEvidence(null), { state: 'unavailable', value: null });
+    assert.deepEqual(numericEvidence('abc'), { state: 'invalid', value: null });
+    assert.deepEqual(numericEvidence(0), { state: 'recorded', value: 0 });
+    assert.deepEqual(numericEvidence({ state: 'derived', value: 0 }), { state: 'derived', value: 0 });
   });
 
   it('handles { value } objects', function() {
     assert.equal(number({ value: 42 }), 42);
-    assert.equal(number({ value: null }), 0);
+    assert.equal(Number.isNaN(number({ value: null })), true);
   });
 
-  it('returns 0 for NaN and Infinity', function() {
-    assert.equal(number(NaN), 0);
-    assert.equal(number(Infinity), 0);
+  it('returns NaN for NaN and Infinity', function() {
+    assert.equal(Number.isNaN(number(NaN)), true);
+    assert.equal(Number.isNaN(number(Infinity)), true);
   });
 
 });
 
-describe('state.js — formatNumber', function() {
+describe('state.tsx — formatNumber', function() {
 
   it('formats numbers with locale separators', function() {
     const result = formatNumber(1234567);
@@ -256,9 +277,14 @@ describe('state.js — formatNumber', function() {
     assert.ok(typeof result === 'string');
   });
 
+  it('labels unavailable and invalid evidence explicitly', function() {
+    assert.equal(formatNumber(null), 'Not recorded');
+    assert.equal(formatNumber('not-a-number'), 'Invalid value');
+  });
+
 });
 
-describe('state.js — percent', function() {
+describe('state.tsx — percent', function() {
 
   it('calculates percentage', function() {
     assert.equal(percent(25, 100), '25.0%');
@@ -274,7 +300,7 @@ describe('state.js — percent', function() {
 
 });
 
-describe('state.js — formatTime', function() {
+describe('state.tsx — formatTime', function() {
 
   it('returns em dash for falsy input', function() {
     assert.equal(formatTime(null), '—');
@@ -293,9 +319,14 @@ describe('state.js — formatTime', function() {
     assert.notEqual(result, '—');
   });
 
+  it("uses the documented English UTC calendar policy at a day boundary", function() {
+    assert.equal(formatDate("2024-01-01T00:30:00+14:00"), "Dec 31, 2023");
+    assert.equal(formatTime("2024-01-01T00:30:00+14:00"), "Dec 31, 2023, 10:30:00 AM");
+  });
+
 });
 
-describe('state.js — formatDuration', function() {
+describe('state.tsx — formatDuration', function() {
 
   it('formats recorded elapsed time', function() {
     assert.equal(formatDuration('2024-01-01T00:00:00Z', '2024-01-01T01:02:03Z'), '1h 2m 3s');
@@ -309,7 +340,7 @@ describe('state.js — formatDuration', function() {
 
 });
 
-describe('state.js — display helpers', function() {
+describe('state.tsx — display helpers', function() {
 
   it('formats byte counts without treating kilobytes as decimal units', function() {
     assert.equal(formatBytes(512), '512 B');
@@ -327,6 +358,8 @@ describe('state.js — display helpers', function() {
   });
 
   it('uses namespaced pagination updates when a filter chip is removed', function() {
+    const originalURL = location.href;
+    history.replaceState({}, '', '?view=provenance&section=cache');
     const html = filterChips({ cache_q: 'crossref' }, { cache_q: 'Search' }, {
       removeUpdates: { cache_page: 1 }, clearUpdates: { cache_q: '', cache_page: 1 }
     });
@@ -335,11 +368,12 @@ describe('state.js — display helpers', function() {
     const url = new URL((host.querySelector('.rw-filter-chip') as HTMLAnchorElement).href);
     assert.equal(url.searchParams.get('cache_page'), '1');
     assert.equal(url.searchParams.get('page'), null);
+    history.replaceState({}, '', originalURL);
   });
 
 });
 
-describe('state.js — statusClass', function() {
+describe('state.tsx — statusClass', function() {
 
   it('returns red for failure-related statuses', function() {
     assert.equal(statusClass('fail'), 'red');
@@ -364,6 +398,7 @@ describe('state.js — statusClass', function() {
     assert.equal(statusClass('unresolved'), 'orange');
     assert.equal(statusClass('unmatched'), 'orange');
     assert.equal(statusClass('orcid_is_unclear'), 'orange');
+    assert.equal(statusClass('not_evaluated'), 'orange');
   });
 
   it('returns blue for informational statuses and neutral for unrecorded values', function() {
@@ -379,7 +414,7 @@ describe('state.js — statusClass', function() {
 
 });
 
-describe('state.js — statusChip', function() {
+describe('state.tsx — statusChip', function() {
 
   it('wraps status in a span with class', function() {
     const result = statusChip('complete');
@@ -394,7 +429,7 @@ describe('state.js — statusChip', function() {
 
 });
 
-describe('state.js — metricEntries', function() {
+describe('state.tsx — metricEntries', function() {
 
   it('converts arrays of objects to entries', function() {
     const input = [
@@ -419,7 +454,7 @@ describe('state.js — metricEntries', function() {
 
 });
 
-describe('state.js — selectedRun', function() {
+describe('state.tsx — selectedRun', function() {
 
   it('returns undefined when no run_id is set', function() {
     assert.equal(selectedRun(), undefined);
@@ -444,7 +479,7 @@ describe('state.js — selectedRun', function() {
 
 });
 
-describe('state.js — showError / clearError / busy', function() {
+describe('state.tsx — showError / clearError / busy', function() {
 
   it('showError sets notice text and removes hidden', function() {
     notice.hidden = true;
@@ -473,7 +508,7 @@ describe('state.js — showError / clearError / busy', function() {
 
 });
 
-describe('state.js — link', function() {
+describe('state.tsx — link', function() {
 
   it('builds a query string from updates', function() {
     const result = link({ view: 'corpus', section: 'articles' });
@@ -507,9 +542,48 @@ describe('state.js — link', function() {
     assert.ok(result.startsWith('?'));
   });
 
+  it("keeps only canonical context and destination-owned route state", () => {
+    history.replaceState({}, "", "?view=corpus&search_id=1&search_revision_id=2&plan_id=3&run_id=4&section=articles&q=term&page=2&note_id=9&audit_q=stale");
+
+    const provenance = new URL(link({ view: "provenance", section: "audit" }), location.origin).searchParams;
+    assert.equal(provenance.get("run_id"), "4");
+    assert.equal(provenance.get("section"), "audit");
+    assert.equal(provenance.has("q"), false);
+    assert.equal(provenance.has("page"), false);
+    assert.equal(provenance.has("note_id"), false);
+
+    const home = new URL(link({ view: "home" }), location.origin).searchParams;
+    assert.deepEqual(Array.from(home.keys()), ["view"]);
+    history.replaceState({}, "", "?view=overview");
+  });
+
+  it("returns detail context changes to the corresponding collection without record focus", () => {
+    history.replaceState({}, "", "?view=article&search_id=1&search_revision_id=2&plan_id=3&run_id=4&article_id=8&note_id=9&anchor_id=a1&pdf_page=2");
+    const updates = contextChange({ run_id: "5" });
+    const target = new URL(link(updates), location.origin).searchParams;
+    assert.equal(target.get("view"), "corpus");
+    assert.equal(target.get("section"), "articles");
+    assert.equal(target.get("run_id"), "5");
+    assert.equal(target.has("article_id"), false);
+    assert.equal(target.has("note_id"), false);
+    assert.equal(target.has("anchor_id"), false);
+    assert.equal(target.has("pdf_page"), false);
+    history.replaceState({}, "", "?view=overview");
+  });
+
+  it("clears article-local note, anchor, and page focus when the article changes", () => {
+    history.replaceState({}, "", "?view=article&run_id=4&article_id=8&note_id=9&anchor_id=a1&pdf_page=2");
+    const target = new URL(link({ view: "article", article_id: "10" }), location.origin).searchParams;
+    assert.equal(target.get("article_id"), "10");
+    assert.equal(target.has("note_id"), false);
+    assert.equal(target.has("anchor_id"), false);
+    assert.equal(target.has("pdf_page"), false);
+    history.replaceState({}, "", "?view=overview");
+  });
+
 });
 
-describe('state.js — pageHeader', function() {
+describe('state.tsx — pageHeader', function() {
 
   it('renders a page header with kicker, title, description', function() {
     const result = pageHeader('Kicker', 'Title', 'Description');
@@ -522,7 +596,7 @@ describe('state.js — pageHeader', function() {
   });
 
   it('includes extra content when provided', function() {
-    const result = pageHeader('K', 'T', 'D', '<a>link</a>');
+    const result = pageHeader('K', 'T', 'D', h("a", null, "link"));
     assert.ok(result.includes('<a>link</a>'));
   });
 
@@ -534,7 +608,7 @@ describe('state.js — pageHeader', function() {
 
 });
 
-describe('state.js — breadcrumb', function() {
+describe('state.tsx — breadcrumb', function() {
 
   it('returns empty string when no context is set', function() {
     assert.equal(breadcrumb([]), '');
@@ -559,7 +633,7 @@ describe('state.js — breadcrumb', function() {
 
 });
 
-describe('state.js — emptyState', function() {
+describe('state.tsx — emptyState', function() {
 
   it('renders an empty state with page header and panel', function() {
     const result = emptyState('Title', 'Detail');
@@ -570,7 +644,7 @@ describe('state.js — emptyState', function() {
 
 });
 
-describe('state.js — table', function() {
+describe('state.tsx — table', function() {
 
   it('renders a table with header and rows', function() {
     const columns = ['name', 'age'];
@@ -591,7 +665,7 @@ describe('state.js — table', function() {
 
 });
 
-describe('state.js — subnav', function() {
+describe('state.tsx — subnav', function() {
 
   it('renders subnavigation links', function() {
     const items: Array<[string, string]> = [['a', 'Alpha'], ['b', 'Beta']];
@@ -605,7 +679,7 @@ describe('state.js — subnav', function() {
 
 });
 
-describe('state.js — metricCard', function() {
+describe('state.tsx — metricCard', function() {
 
   it('renders a metric card with value', function() {
     const result = metricCard('Articles', { value: 42 });
@@ -632,7 +706,7 @@ describe('state.js — metricCard', function() {
 
 });
 
-describe('state.js — flowStage', function() {
+describe('state.tsx — flowStage', function() {
 
   it('renders a flow stage with count', function() {
     const result = flowStage('Parsed', 100, 200, null, '', '', {});
@@ -664,7 +738,7 @@ describe('state.js — flowStage', function() {
 
 });
 
-describe('state.js — retentionFlow', function() {
+describe('state.tsx — retentionFlow', function() {
 
   it('renders not recorded when input is missing', function() {
     const result = retentionFlow({ retention_funnel: {} });
@@ -740,9 +814,30 @@ describe('state.js — retentionFlow', function() {
     assert.equal(document.querySelectorAll('.rw-flow__info').length, 10);
   });
 
+  it('does not repeat a shorter source sequence into later aggregate stages', function() {
+    const overview = {
+      source_filter_counts: [
+        { source: 'alpha', filters: ['NO_FILTER'], count: 100 },
+        { source: 'alpha', filters: ['NO_FILTER', 'RANGE_10_YEARS'], count: 60 },
+        { source: 'alpha', filters: ['NO_FILTER', 'RANGE_10_YEARS', 'ARTICLE_ONLY'], count: 30 },
+        { source: 'beta', filters: ['NO_FILTER'], count: 200 },
+        { source: 'beta', filters: ['NO_FILTER', 'RANGE_10_YEARS'], count: 100 },
+      ],
+      retention_funnel: { input_records: 68, parsed_articles: 60, deduplicated_articles: 50, valid_articles: 45, discarded_articles: 5 },
+      enrichment_breakdown: { enrichment_candidates: 50 },
+      normalization_breakdown: { normalized_articles_processed: 45 },
+    };
+
+    document.body.innerHTML = retentionFlow(overview);
+    const sourceValues = Array.from(document.querySelectorAll('.rw-flow--source .rw-flow__step')).map(function(stage) {
+      return (stage.querySelector('.rw-flow__value strong, .rw-flow__unavailable') as HTMLElement).textContent;
+    });
+    assert.deepEqual(sourceValues, ['300', '160', 'Not recorded', 'Not recorded']);
+  });
+
 });
 
-describe('state.js — breakdown', function() {
+describe('state.tsx — breakdown', function() {
 
   it('renders not recorded for empty entries', function() {
     const result = breakdown('Test', null, 'Count');
@@ -766,7 +861,7 @@ describe('state.js — breakdown', function() {
 
 });
 
-describe('state.js — sourceResultCountSummary', function() {
+describe('state.tsx — sourceResultCountSummary', function() {
 
   it('renders a table with source counts', function() {
     const items = [
@@ -786,7 +881,7 @@ describe('state.js — sourceResultCountSummary', function() {
 
 });
 
-describe('state.js — timeline', function() {
+describe('state.tsx — timeline', function() {
 
   it('renders empty state for no rows', function() {
     assert.equal(timeline([]), '<p class="ui faded text">No records.</p>');
@@ -878,7 +973,7 @@ describe('state.js — timeline', function() {
 
 });
 
-describe('state.js — detailTable', function() {
+describe('state.tsx — detailTable', function() {
 
   it('renders a table from an array of records', function() {
     const rows = [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }];
@@ -897,7 +992,7 @@ describe('state.js — detailTable', function() {
 
 });
 
-describe('state.js — cell', function() {
+describe('state.tsx — cell', function() {
 
   it('renders NULL for null/undefined', function() {
     const result = cell(null, 'col');
@@ -953,7 +1048,7 @@ describe('state.js — cell', function() {
 
 });
 
-describe('state.js — bindCopyButtons', function() {
+describe('state.tsx — bindCopyButtons', function() {
 
   beforeEach(function() {
     document.querySelectorAll('[data-copy-text]').forEach(function(el) { el.remove(); });
@@ -1012,7 +1107,7 @@ describe('state.js — bindCopyButtons', function() {
 
 });
 
-describe('state.js — bindDismissibleMessages', function() {
+describe('state.tsx — bindDismissibleMessages', function() {
 
   beforeEach(function() {
     document.querySelectorAll('.ui.message').forEach(function(el) { el.remove(); });
@@ -1037,7 +1132,7 @@ describe('state.js — bindDismissibleMessages', function() {
 
 });
 
-describe('state.js — bindLoadingButtons', function() {
+describe('state.tsx — bindLoadingButtons', function() {
 
   beforeEach(function() {
     document.querySelectorAll('[data-loading]').forEach(function(el) { el.remove(); });

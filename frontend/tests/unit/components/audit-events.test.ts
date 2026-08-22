@@ -3,9 +3,13 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
-import { auditCategory, auditEventMarkup, auditStream } from '../../../src/components/audit-events.tsx';
+import { auditCategory, AuditEventMarkup, AuditStream } from '../../../src/components/audit-events.tsx';
+import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
 
-describe('audit-events.js', function() {
+const auditEventMarkup = (event: any): string => renderToString(AuditEventMarkup({ event: event }));
+const auditStream = (events: any[]): string => renderToString(AuditStream({ events: events }));
+
+describe('audit-events.tsx', function() {
   it('classifies review and PDF evidence independently from pipeline events', function() {
     assert.equal(auditCategory({ action: 'work_review_version_created' }), 'review');
     assert.equal(auditCategory({ action: 'pdf_inventory_registered' }), 'pdf');
@@ -79,7 +83,9 @@ describe('audit-events.js', function() {
     }]);
     assert.ok(html.includes('<ol class="rw-audit-events">'));
     assert.ok(html.includes('rw-audit-event--review'));
-    assert.ok(html.includes('safe_id'));
+    assert.ok(html.includes('data-audit-recorded-details="9"'));
+    assert.ok(html.includes('load privacy-scrubbed recorded JSON'));
+    assert.ok(!html.includes('safe_id'));
     assert.ok(!html.includes('private prose'));
     assert.ok(!html.includes('private@example.test'));
     assert.ok(!html.includes('private version'));

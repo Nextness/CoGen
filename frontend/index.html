@@ -21,10 +21,17 @@
       <h1>Research workspace</h1>
     </div>
     <div class="server-status" aria-label="Viewer status">
-      <span id="health-status" class="status" role="status" aria-live="polite">Checking database…</span>
+      <details class="rw-capability-status">
+        <summary><span id="health-status" class="status" role="status" aria-live="polite">Checking database…</span></summary>
+        <dl>
+          <div><dt>Metadata</dt><dd id="metadata-capability">Checking…</dd></div>
+          <div><dt>Review changes</dt><dd id="review-capability">Checking…</dd></div>
+          <div><dt>PDF companion</dt><dd id="pdf-capability">Checking…</dd></div>
+        </dl>
+      </details>
       <span class="read-only">Local review</span>
     </div>
-    <button id="mobile-nav-toggle" class="rw-mobile-nav-toggle" type="button" aria-expanded="false">Menu</button>
+    <button id="mobile-nav-toggle" class="rw-mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
   </header>
 
   <div id="workspace-breadcrumb" class="rw-shell-breadcrumb"></div>
@@ -78,7 +85,7 @@
     </div>
   </section>
 
-  <nav class="primary-nav ui tabular menu rw-section-tabs" aria-label="Deepdive navigation" hidden>
+  <nav id="primary-navigation" class="primary-nav ui tabular menu rw-section-tabs" aria-label="Deepdive navigation" hidden>
     <a class="item" data-view-link="overview">Overview</a>
     <a class="item" data-view-link="corpus">Corpus</a>
     <a class="item" data-view-link="relationships">Relationships</a>
@@ -90,7 +97,7 @@
   <main id="main-content">
     <div id="notice" class="notice" role="alert" hidden></div>
     <div id="loading" class="loading" role="status" aria-live="polite" hidden><span class="ui loader"></span>Loading selected research context…</div>
-    <div id="app" aria-live="polite"></div>
+    <div id="app" class="rw-page-stack"></div>
   </main>
 
   <script type="module" src="/app.js"></script>

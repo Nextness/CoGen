@@ -112,7 +112,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 func TestArticleDetailTermMatches(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.normalizedID))
+	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.normalizedID)+"?run_id="+stringID(fx.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -154,7 +154,7 @@ func TestArticleDetailTermMatches(t *testing.T) {
 func TestArticleDetailTermMatchesNullForNonNormalize(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.parseRevisionID))
+	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.parseRevisionID)+"?run_id="+stringID(fx.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -167,7 +167,7 @@ func TestArticleDetailTermMatchesNullForNonNormalize(t *testing.T) {
 func TestArticleDetailTermMatchesNullForEmptyRun(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.emptyRevisionID))
+	code, body := requestJSON(t, handler, "/api/articles/"+stringID(fx.emptyRevisionID)+"?run_id="+stringID(fx.emptyRunID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -271,7 +271,7 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	code, body := requestJSON(t, handler, "/api/articles/"+stringID(revisionID))
+	code, body := requestJSON(t, handler, "/api/articles/"+stringID(revisionID)+"?run_id="+stringID(runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}

@@ -1,21 +1,30 @@
 // Advanced: table browser, pagination, sort.
-import { app, value, pageSizes, PageHeader, EmptyState } from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api, tables } from '../api.tsx';
-import { DataTable, bindTableControls } from '../components/data-table.tsx';
-import type { DataTableContext } from '../components/data-table.tsx';
-import { setURL } from '../router.tsx';
+import { app, value, link, PageHeader, EmptyState } from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api, tables } from "../api.tsx";
+import { DataTable, bindTableControls } from "../components/data-table.tsx";
+import type { DataTableContext } from "../components/data-table.tsx";
+import { setURL } from "../router.tsx";
+
+const advancedPageSizes = [20, 50, 100];
 
 /** Asynchronously implements advanced view for the viewer. */
 export async function advancedView(): Promise<void> {
   const allTables = await tables();
   var current = value("table");
-  if (!current && allTables[0]) current = allTables[0].name;
+  const requestedTable = current;
+  const selectedTable = allTables.find((item) => {
+    return item.name === current;
+  });
+  if (!selectedTable && allTables[0]) {
+    current = allTables[0].name;
+    history.replaceState({}, "", link({ table: current, page: 1, sort: "", order: "" }));
+  }
 
   const page = Math.max(1, Number(value("page") || 1));
   const requestedPerPage = Number(value("per_page"));
   var perPage = 50;
-  if (pageSizes.includes(requestedPerPage)) perPage = requestedPerPage;
+  if (advancedPageSizes.includes(requestedPerPage)) perPage = requestedPerPage;
 
   if (!current) {
     const emptyStateMarkup = <EmptyState title="Advanced database inspection" detail="No browseable SQLite tables are available." />;
@@ -23,11 +32,11 @@ export async function advancedView(): Promise<void> {
     return;
   }
 
-  const selectedTable = allTables.find((item) => {
+  const currentTable = allTables.find((item) => {
     return item.name === current;
   });
 
-  const rawColumns = selectedTable?.columns || [];
+  const rawColumns = currentTable?.columns || [];
   const columnNames = rawColumns.map((column: any) => {
     if (typeof column === "string") return column;
     return column.name;
@@ -41,21 +50,31 @@ export async function advancedView(): Promise<void> {
   var order = "asc";
   if (value("order").toLowerCase() === "desc") order = "desc";
 
-  const data = await api(`/api/tables/${encodeURIComponent(current)}`, {
-    page: page,
-    per_page: perPage,
-    sort: sort,
-    order: order,
-  }, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  var data: any = null;
+  var tableError = "";
+  try {
+    data = await api(`/api/tables/${encodeURIComponent(current)}`, {
+      page: page,
+      per_page: perPage,
+      sort: sort,
+      order: order,
+    }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+  } catch (failure: any) {
+    tableError = failure.message;
+  }
+
+  if (data && Number(data.pagination?.page) !== page) {
+    history.replaceState({}, "", link({ page: data.pagination.page }));
+  }
 
   const tableOptions = allTables.map((item) => {
-    return <option value={item.name} selected={item.name === current}>{item.name} ({item.row_count})</option>;
+    return <option value={item.name} selected={item.name === current}>{item.name}</option>;
   });
 
-  const sizeOptions = pageSizes.map((size) => {
+  const sizeOptions = advancedPageSizes.map((size) => {
     return <option value={size} selected={size === perPage}>{size}</option>;
   });
 
@@ -90,6 +109,15 @@ export async function advancedView(): Promise<void> {
     tableClass: "rw-advanced-table",
   };
 
+  var tableBody: JSX.Element = <p className="ui error message" role="alert">{tableError}</p>;
+  if (data) {
+    tableBody = <DataTable tableName={current} result={data} context={context} />;
+  }
+  var canonicalNotice: JSX.Element | null = null;
+  if (requestedTable && requestedTable !== current) {
+    canonicalNotice = <p className="ui info message">The requested table was not found. The first available table is shown.</p>;
+  }
+
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="Implementation-level transparency" title="Advanced database inspection" description="Inspect discovered SQLite tables and stored values. This view is for transparency and debugging, not record editing." />
@@ -101,8 +129,11 @@ export async function advancedView(): Promise<void> {
           </div>
         </div>
         <div className="content">
-          {controls}
-          <DataTable tableName={current} result={data} context={context} />
+          <div data-table-scope={current}>
+            {canonicalNotice}
+            {controls}
+            {tableBody}
+          </div>
         </div>
       </section>
     </Fragment>
@@ -119,5 +150,5 @@ export async function advancedView(): Promise<void> {
     }, false);
   });
 
-  bindTableControls(current, page);
+  if (data) bindTableControls(current, Number(data.pagination?.page || page));
 }

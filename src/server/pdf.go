@@ -13,6 +13,14 @@ import (
 	"time"
 )
 
+// cachedPDF retains one validated companion document for repeated browser range requests.
+type cachedPDF struct {
+	WorkID        int64
+	ContentHash   string
+	InventoriedAt string
+	Data          []byte
+}
+
 // workPDFStatus returns normalized DOI inventory status for the requested work.
 func (s *Server) workPDFStatus(w http.ResponseWriter, r *http.Request) {
 	workID, err := positiveID(r.PathValue("work_id"))
@@ -96,11 +104,11 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	var data []byte
-	var inventoriedAt string
-	err = s.pdfDB.QueryRowContext(ctx, `SELECT b.data, d.inventoried_at FROM pdf_documents d
+	var contentHash, inventoriedAt string
+	var byteSize int64
+	err = s.pdfDB.QueryRowContext(ctx, `SELECT d.content_hash, d.inventoried_at, b.byte_size FROM pdf_documents d
 		JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=? AND d.status='available'`, doi).Scan(&data, &inventoriedAt)
+		WHERE d.doi=? AND d.status='available'`, doi).Scan(&contentHash, &inventoriedAt, &byteSize)
 	if err == sql.ErrNoRows {
 		s.respond(w, r, nil, notFound("PDF is not available"))
 		return
@@ -109,8 +117,34 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	s.pdfCacheMu.Lock()
+	var data []byte
+	if s.pdfCache != nil && s.pdfCache.WorkID == workID && s.pdfCache.ContentHash == contentHash {
+		data = s.pdfCache.Data
+	} else {
+		err = s.pdfDB.QueryRowContext(ctx, "SELECT data FROM pdf_blobs WHERE content_hash=?", contentHash).Scan(&data)
+		if err == sql.ErrNoRows {
+			s.pdfCacheMu.Unlock()
+			s.respond(w, r, nil, notFound("PDF content is not available"))
+			return
+		}
+		if err != nil {
+			s.pdfCacheMu.Unlock()
+			s.respond(w, r, nil, err)
+			return
+		}
+		if int64(len(data)) != byteSize || len(data) < 5 || string(data[:5]) != "%PDF-" {
+			s.pdfCacheMu.Unlock()
+			s.respond(w, r, nil, &apiProblem{Status: http.StatusUnprocessableEntity, Code: "pdf_integrity_error", Message: "stored PDF content failed integrity validation"})
+			return
+		}
+		s.pdfCache = &cachedPDF{WorkID: workID, ContentHash: contentHash, InventoriedAt: inventoriedAt, Data: data}
+	}
+	s.pdfCacheMu.Unlock()
 	modified, _ := time.Parse(time.RFC3339Nano, inventoriedAt)
 	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("ETag", `"`+contentHash+`"`)
+	w.Header().Set("Cache-Control", "private, max-age=0, must-revalidate")
 	disposition := mime.FormatMediaType("inline", map[string]string{"filename": "work-" + strconv.FormatInt(workID, 10) + ".pdf"})
 	w.Header().Set("Content-Disposition", disposition)
 	http.ServeContent(w, r, "work-"+strconv.FormatInt(workID, 10)+".pdf", modified, bytes.NewReader(data))

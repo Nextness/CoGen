@@ -8,6 +8,7 @@ db_migration: setup = {
     description: string;
     previous: string;
     upgrade: string;
+    supersedes?: []string = []string{};
 }
 
 #assert db_migration {
@@ -199,5 +200,13 @@ database_migrations: database_migration_config = {
     filename = "V00025_work_revision_term_matches.sql",
     description = "Store per-run parsed search-term inventories and per-revision field matches derived from recorded source queries.",
     previous = "V00024_review_notes_links_anchors.sql",
-    upgrade = "NONE"
+    upgrade = "V00026_review_anchor_labels.sql"
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00026_review_anchor_labels.sql",
+    description = "Separate generated global anchor identity from a work-scoped human label while preserving existing anchor IDs.",
+    previous = "V00025_work_revision_term_matches.sql",
+    upgrade = "NONE",
+    supersedes = []string { "V00025_review_anchor_labels.sql" }
 };

@@ -6,12 +6,98 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// TestRunContextReturnsCanonicalAncestryAndLifecycle verifies one run determines every visible parent identifier.
+func TestRunContextReturnsCanonicalAncestryAndLifecycle(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	response := viewerRequest(t, viewer.Handler(), "/api/runs/"+stringID(runID)+"/context")
+	if response.Code != http.StatusOK {
+		t.Fatalf("run context status=%d body=%s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Search struct {
+			ID       int64  `json:"id"`
+			SearchID string `json:"search_id"`
+		} `json:"search"`
+		Revision struct {
+			ID       int64 `json:"id"`
+			SearchID int64 `json:"search_id"`
+		} `json:"revision"`
+		Plan struct {
+			ID               int64 `json:"id"`
+			SearchRevisionID int64 `json:"search_revision_id"`
+		} `json:"plan"`
+		Run struct {
+			ID              int64  `json:"id"`
+			ExecutionPlanID int64  `json:"execution_plan_id"`
+			Status          string `json:"status"`
+			VisibilityState string `json:"visibility_state"`
+		} `json:"run"`
+		Lifecycle struct {
+			ReviewWritable bool `json:"review_writable"`
+		} `json:"lifecycle"`
+		Review struct {
+			Initialized bool `json:"initialized"`
+		} `json:"review"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	data := payload
+	if data.Search.ID < 1 || data.Search.SearchID != "research" || data.Revision.SearchID != data.Search.ID {
+		t.Fatalf("canonical search ancestry = %+v %+v", data.Search, data.Revision)
+	}
+	if data.Plan.SearchRevisionID != data.Revision.ID || data.Run.ExecutionPlanID != data.Plan.ID || data.Run.ID != runID {
+		t.Fatalf("canonical run ancestry = %+v %+v %+v", data.Revision, data.Plan, data.Run)
+	}
+	if data.Run.Status != "completed" || data.Run.VisibilityState != "active" || !data.Lifecycle.ReviewWritable || data.Review.Initialized {
+		t.Fatalf("canonical lifecycle = run %+v lifecycle %+v review %+v", data.Run, data.Lifecycle, data.Review)
+	}
+
+	missing := viewerRequest(t, viewer.Handler(), "/api/runs/999999/context")
+	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"code":"not_found"`) {
+		t.Fatalf("missing run context status=%d body=%s", missing.Code, missing.Body.String())
+	}
+}
+
+// TestHealthReportsIndependentCapabilities verifies absent PDF storage is not reported as readable.
+func TestHealthReportsIndependentCapabilities(t *testing.T) {
+	path, _, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	status, payload := requestJSON(t, viewer.Handler(), "/api/health")
+	if status != http.StatusOK {
+		t.Fatalf("health status=%d payload=%+v", status, payload)
+	}
+	data := payload
+	if data["metadata_readable"] != true || data["review_writable"] != true {
+		t.Fatalf("metadata capabilities = %+v", data)
+	}
+	if data["pdf_store_bound"] != false || data["pdf_store_readable"] != false {
+		t.Fatalf("unbound PDF capabilities = %+v", data)
+	}
+	review := data["review"].(map[string]any)
+	if review["pdf_store_read_only"] != false {
+		t.Fatalf("legacy PDF capability = %+v", review)
+	}
+}
 
 // TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase verifies open is read only and does not create missing database.
 func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T) {

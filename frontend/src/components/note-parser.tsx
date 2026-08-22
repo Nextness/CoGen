@@ -1,6 +1,6 @@
 // Bounded note parsing and safe preview rendering for the review editor.
 import { esc, link } from "../state.tsx";
-import { h, Fragment, renderToString } from "../jsx/jsx-runtime.ts";
+import { h, Fragment } from "../jsx/jsx-runtime.ts";
 
 export const noteBodyLimit = 262144;
 const supportedSchemes = new Set(["note", "article", "pdf", "anchor", "ext"]);
@@ -10,10 +10,9 @@ const anchorPattern = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/;
 export interface NoteBlock {
   type: string;
   text?: string;
-  offset?: number;
   level?: number;
   ordered?: boolean;
-  items?: Array<{ text: string; offset: number }>;
+  items?: string[];
   header?: string[];
   rows?: string[][];
 }
@@ -43,154 +42,145 @@ export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; 
     errors.push({
       position: 0,
       length: body.length,
-      message: `Note body exceeds ${noteBodyLimit} UTF-8 bytes.`,
+      message: `note body exceeds ${noteBodyLimit} bytes`,
     });
+    return { blocks: [], links: [], errors: errors };
   }
-  const normalized = body.replace(/\r\n?/g, "\n");
-  const lines = normalized.split("\n");
+
+  const rawLines: string[] = body.split("\n");
+  const lines: Array<{ text: string; start: number }> = [];
+  let sourceOffset = 0;
+  rawLines.forEach((rawLine) => {
+    var text = rawLine;
+    if (text.endsWith("\r")) text = text.slice(0, -1);
+    lines.push({ text: text, start: sourceOffset });
+    sourceOffset += rawLine.length + 1;
+  });
+
   const blocks: NoteBlock[] = [];
   const links: NoteLink[] = [];
-  let offset = 0;
-  let fence: { lines: string[]; offset: number } | null = null;
-  let paragraph: string[] = [];
-  let paragraphOffset = 0;
 
-  /** Commits accumulated paragraph lines and their custom links to parser output. */
-  function flushParagraph(): void {
-    if (!paragraph.length) return;
-    const text = paragraph.join("\n");
-    blocks.push({
-      type: "paragraph",
-      text: text,
-      offset: paragraphOffset,
-    });
-    extractLinks(text, paragraphOffset, links, errors);
-    paragraph = [];
-  }
+  let index = 0;
+  while (index < lines.length) {
+    const current = lines[index];
+    if (current.text === "") {
+      index += 1;
+      continue;
+    }
 
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (fence) {
-      if (line === "```") {
-        blocks.push({
-          type: "code",
-          text: fence.lines.join("\n"),
-          offset: fence.offset,
-        });
-        fence = null;
-      } else fence.lines.push(line);
-      offset += line.length + 1;
+    if (current.text === "```") {
+      const fenceStart = current.start;
+      const contents: string[] = [];
+      index += 1;
+      while (index < lines.length && lines[index].text !== "```") {
+        contents.push(lines[index].text);
+        index += 1;
+      }
+      if (index === lines.length) {
+        errors.push({ position: fenceStart, length: 3, message: "unclosed code fence" });
+      } else {
+        index += 1;
+      }
+      blocks.push({ type: "code", text: contents.join("\n") });
       continue;
     }
-    if (line === "```") {
-      flushParagraph();
-      fence = { lines: [], offset: offset };
-      offset += line.length + 1;
-      continue;
-    }
-    if (!line.trim()) {
-      flushParagraph();
-      offset += line.length + 1;
-      continue;
-    }
-    const heading = /^(#{1,4}) (.*)$/.exec(line);
+
+    const heading = /^(#{1,4}) (.*)$/.exec(current.text);
     if (heading) {
-      flushParagraph();
-      blocks.push({
-        type: "heading",
-        level: heading[1].length,
-        text: heading[2],
-        offset: offset + heading[1].length + 1,
-      });
-      extractLinks(heading[2], offset + heading[1].length + 1, links, errors);
-      offset += line.length + 1;
+      blocks.push({ type: "heading", level: heading[1].length, text: heading[2] });
+      index += 1;
       continue;
     }
-    const listItem = /^(?:- |1\. )(.*)$/.exec(line);
+
+    if (current.text.startsWith("> ")) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && lines[index].text.startsWith("> ")) {
+        quoteLines.push(lines[index].text.slice(2));
+        index += 1;
+      }
+      blocks.push({ type: "quote", text: quoteLines.join("\n") });
+      continue;
+    }
+
+    const listItem = parseListItem(current.text);
     if (listItem) {
-      flushParagraph();
-      const ordered = line.startsWith("1. ");
-      var itemOffset = offset + 2;
-      if (ordered) itemOffset = offset + 3;
-      const previous = blocks.at(-1);
-      if (previous?.type === "list" && previous.ordered === ordered) {
-        previous.items!.push({
-          text: listItem[1],
-          offset: itemOffset,
-        });
-      } else {
-        blocks.push({
-          type: "list",
-          ordered: ordered,
-          items: [{
-            text: listItem[1],
-            offset: itemOffset,
-          }],
-        });
+      const items: string[] = [listItem.text];
+      index += 1;
+      while (index < lines.length) {
+        const next = parseListItem(lines[index].text);
+        if (!next || next.ordered !== listItem.ordered) break;
+        items.push(next.text);
+        index += 1;
       }
-      extractLinks(listItem[1], itemOffset, links, errors);
-      offset += line.length + 1;
+      const block: NoteBlock = { type: "list", items: items };
+      if (listItem.ordered) block.ordered = true;
+      blocks.push(block);
       continue;
     }
-    if (line.startsWith("> ")) {
-      flushParagraph();
-      const text = line.slice(2);
-      blocks.push({
-        type: "quote",
-        text: text,
-        offset: offset + 2,
-      });
-      extractLinks(text, offset + 2, links, errors);
-      offset += line.length + 1;
-      continue;
-    }
-    if (line.includes("|") && index + 2 < lines.length && tableDelimiter(lines[index + 1])) {
-      flushParagraph();
-      const tableLines = [line, lines[index + 1], lines[index + 2]];
-      const [headerRow, delimiterRow, bodyRow] = tableLines.map(splitTableRow);
-      if (headerRow === null || delimiterRow === null || bodyRow === null || headerRow.length !== delimiterRow.length || headerRow.length !== bodyRow.length) {
-        errors.push({
-          position: offset,
-          length: tableLines.join("\n").length,
-          message: "Malformed table shape.",
-        });
-      } else {
-        blocks.push({
-          type: "table",
-          header: headerRow,
-          rows: [bodyRow],
-          offset: offset,
-        });
-        let tableOffset = offset;
-        for (const source of [line, lines[index + 2]]) {
-          extractLinks(source, tableOffset, links, errors);
-          tableOffset += source.length + 1;
+
+    if (hasUnescapedPipe(current.text) && index + 1 < lines.length && hasUnescapedPipe(lines[index + 1].text)) {
+      const header = splitTableRow(current.text);
+      const delimiter = splitTableRow(lines[index + 1].text);
+      const delimiterValid = header.length >= 2 && delimiter.length === header.length && delimiter.every((cell) => /^-{3,}$/.test(cell.trim()));
+      const firstRowValid = index + 2 < lines.length && lines[index + 2].text !== "" && splitTableRow(lines[index + 2].text).length === header.length;
+      if (!delimiterValid || !firstRowValid) {
+        const paragraphLines: string[] = [];
+        errors.push({ position: current.start, length: current.text.length, message: "malformed table" });
+        while (index < lines.length && lines[index].text !== "" && hasUnescapedPipe(lines[index].text)) {
+          paragraphLines.push(lines[index].text);
+          index += 1;
         }
+        blocks.push({ type: "paragraph", text: paragraphLines.join("\n") });
+      } else {
+        const rows: string[][] = [];
+        index += 2;
+        while (index < lines.length && lines[index].text !== "" && hasUnescapedPipe(lines[index].text)) {
+          const row = splitTableRow(lines[index].text);
+          if (row.length !== header.length) {
+            errors.push({
+              position: lines[index].start,
+              length: lines[index].text.length,
+              message: "table row has the wrong number of cells",
+            });
+          } else {
+            rows.push(row);
+          }
+          index += 1;
+        }
+        blocks.push({ type: "table", header: header, rows: rows });
       }
-      offset += tableLines.reduce((total, item) => {
-        return total + item.length + 1;
-      }, 0);
-      index += 2;
       continue;
     }
-    if (!paragraph.length) paragraphOffset = offset;
-    paragraph.push(line);
-    offset += line.length + 1;
+
+    const paragraphLines: string[] = [current.text];
+    index += 1;
+    while (index < lines.length && lines[index].text !== "" && lines[index].text !== "```") {
+      if (/^#{1,4} /.test(lines[index].text)) break;
+      if (lines[index].text.startsWith("> ")) break;
+      if (parseListItem(lines[index].text)) break;
+      paragraphLines.push(lines[index].text);
+      index += 1;
+    }
+    blocks.push({ type: "paragraph", text: paragraphLines.join("\n") });
   }
-  flushParagraph();
-  if (fence) {
-    errors.push({
-      position: fence.offset,
-      length: body.length - fence.offset,
-      message: "Unclosed code fence.",
-    });
-    blocks.push({
-      type: "code",
-      text: fence.lines.join("\n"),
-      offset: fence.offset,
-    });
-  }
+
+  var inFence = false;
+  lines.forEach((line) => {
+    if (line.text === "```") {
+      inFence = !inFence;
+    } else if (!inFence) {
+      extractLinks(line.text, line.start, links, errors);
+    }
+  });
+
   return { blocks: blocks, links: links, errors: errors };
+}
+
+/** Parses one supported list marker and its plain item text. */
+function parseListItem(line: string): { ordered: boolean; text: string } | null {
+  if (line.startsWith("- ")) return { ordered: false, text: line.slice(2) };
+  if (line.startsWith("1. ")) return { ordered: true, text: line.slice(3) };
+  return null;
 }
 
 /** Extracts syntactically valid custom links and positional diagnostics from plain text. */
@@ -209,37 +199,23 @@ function extractLinks(text: string, baseOffset: number, links: NoteLink[], error
       errors.push({
         position: baseOffset + start,
         length: text.length - start,
-        message: "Unclosed note link.",
+        message: "unclosed custom link",
       });
       return;
     }
-    const raw = text.slice(start + 2, end);
-    const separator = unescapedIndex(raw, ":");
-    const displaySeparator = unescapedIndex(raw, "|");
-    let scheme = "";
-    if (separator >= 1) scheme = raw.slice(0, separator);
-    let targetEnd = raw.length;
-    if (displaySeparator > separator) targetEnd = displaySeparator;
-    const target = unescapeLink(raw.slice(separator + 1, targetEnd));
-    let display = "";
-    if (displaySeparator > separator) display = unescapeLink(raw.slice(displaySeparator + 1));
-    const diagnostic = validateLink(scheme, target, raw);
-    if (diagnostic) {
+    const decoded = decodeLink(text.slice(start + 2, end));
+    if (decoded.message || !decoded.link) {
       errors.push({
         position: baseOffset + start,
         length: end + 2 - start,
-        message: diagnostic,
+        message: decoded.message,
       });
     } else {
-      var targetType = scheme;
-      if (scheme === "pdf") targetType = "pdf_page";
-      var rawTarget = target;
-      if (scheme === "pdf") rawTarget = target.slice(5);
       links.push({
         ordinal: links.length + 1,
-        target_type: targetType,
-        raw_target: rawTarget,
-        display_text: display || null,
+        target_type: decoded.link.target_type,
+        raw_target: decoded.link.raw_target,
+        display_text: decoded.link.display_text,
         position: baseOffset + start,
         length: end + 2 - start,
       });
@@ -248,19 +224,52 @@ function extractLinks(text: string, baseOffset: number, links: NoteLink[], error
   }
 }
 
-/** Validates scheme-specific target grammar without requiring target existence. */
-function validateLink(scheme: string, target: string, raw: string): string {
-  if (!supportedSchemes.has(scheme)) return "Unknown or missing link scheme.";
-  if (!target) return "Link target must not be empty.";
-  if (/\\(?![\]\\|])/.test(raw)) return "Malformed link escape.";
-  if (scheme === "note" && !/^[1-9]\d*$/.test(target)) return "Note links require a positive numeric ID.";
-  if (scheme === "pdf" && !/^page=[1-9]\d*$/.test(target)) return "PDF links require page=<positive number>.";
-  if (scheme === "anchor" && !anchorPattern.test(target)) return "Anchor link ID has an invalid format.";
-  if (scheme === "ext") {
-    const protocol = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(target);
-    if (protocol && protocol[1] !== "http" && protocol[1] !== "https") return "External URL protocol must be HTTP or HTTPS.";
+/** Decodes one custom-link payload into its canonical persisted identity. */
+function decodeLink(input: string): { link: Pick<NoteLink, "target_type" | "raw_target" | "display_text"> | null; message: string } {
+  const split = splitEscaped(input);
+  if (split.message) return { link: null, message: split.message };
+  if (split.parts.length > 2) return { link: null, message: "custom link contains more than one display separator" };
+
+  const separator = split.parts[0].indexOf(":");
+  if (separator < 0 || !split.parts[0].slice(separator + 1)) return { link: null, message: "custom link target is empty" };
+
+  const scheme = split.parts[0].slice(0, separator);
+  var target = split.parts[0].slice(separator + 1);
+  if (new TextEncoder().encode(target).length > 2048) return { link: null, message: "custom link target exceeds 2048 bytes" };
+
+  var displayText: string | null = null;
+  if (split.parts.length === 2) {
+    displayText = split.parts[1];
+    if (new TextEncoder().encode(displayText).length > 1024) return { link: null, message: "custom link display text exceeds 1024 bytes" };
   }
-  return "";
+
+  if (!supportedSchemes.has(scheme)) return { link: null, message: `unknown custom link scheme ${JSON.stringify(scheme)}` };
+  if (scheme === "note") {
+    if (!/^[1-9]\d*$/.test(target)) return { link: null, message: "note target must be a positive integer" };
+    return { link: { target_type: "note", raw_target: target, display_text: displayText }, message: "" };
+  }
+  if (scheme === "article") {
+    target = normalizeDOI(target);
+    if (target.length > 60 || !/^10\.\d{4,}\/\S+$/.test(target)) return { link: null, message: "article target must be a DOI" };
+    return { link: { target_type: "article", raw_target: target, display_text: displayText }, message: "" };
+  }
+  if (scheme === "pdf") {
+    const pageMatch = /^page=([1-9]\d*)$/.exec(target);
+    if (!pageMatch) return { link: null, message: "PDF target must use page=<positive integer>" };
+    return { link: { target_type: "pdf_page", raw_target: String(Number(pageMatch[1])), display_text: displayText }, message: "" };
+  }
+  if (scheme === "anchor") {
+    if (!anchorPattern.test(target)) return { link: null, message: "anchor target has an invalid identifier" };
+    return { link: { target_type: "anchor", raw_target: target, display_text: displayText }, message: "" };
+  }
+
+  try {
+    const parsed = new URL(target);
+    if ((parsed.protocol !== "http:" && parsed.protocol !== "https:") || !parsed.host) throw new Error("unsupported protocol");
+  } catch {
+    return { link: null, message: "external URL must use absolute http or https" };
+  }
+  return { link: { target_type: "ext", raw_target: target, display_text: displayText }, message: "" };
 }
 
 /** Reports whether the character at an index has an odd backslash prefix. */
@@ -271,42 +280,82 @@ function isEscaped(text: string, index: number): boolean {
 }
 
 /** Returns the first unescaped delimiter index or minus one. */
-function unescapedIndex(text: string, character: string): number {
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === character && !isEscaped(text, index)) return index;
+function splitEscaped(input: string): { parts: string[]; message: string } {
+  const parts: string[] = [""];
+  var escaped = false;
+  for (const character of input) {
+    if (escaped) {
+      if (character !== "]" && character !== "|" && character !== "\\") return { parts: [], message: "malformed custom link escape" };
+      parts[parts.length - 1] += character;
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === "|") {
+      parts.push("");
+      continue;
+    }
+    parts[parts.length - 1] += character;
   }
-  return -1;
-}
-
-/** Removes only the escapes supported inside custom-link fields. */
-function unescapeLink(text: string): string {
-  return text.replace(/\\([\]\\|])/g, "$1");
+  if (escaped) return { parts: [], message: "malformed custom link escape" };
+  return { parts: parts, message: "" };
 }
 
 /** Splits one simple table row while preserving escaped vertical bars. */
-function splitTableRow(line: string): string[] | null {
+function splitTableRow(line: string): string[] {
   const trimmedLine = line.trim();
-  const trimmed = trimmedLine.replace(/^\||\|$/g, "");
+  var trimmed = trimmedLine;
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
   const cells: string[] = [];
   let cell = "";
+  var escaped = false;
   for (let index = 0; index < trimmed.length; index += 1) {
-    if (trimmed[index] === "|" && !isEscaped(trimmed, index)) {
-      cells.push(unescapeLink(cell.trim()));
+    const character = trimmed[index];
+    if (escaped) {
+      if (character === "|" || character === "\\") {
+        cell += character;
+      } else {
+        cell += `\\${character}`;
+      }
+      escaped = false;
+      continue;
+    }
+    if (character === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (character === "|") {
+      cells.push(cell.trim());
       cell = "";
     } else {
-      cell += trimmed[index];
+      cell += character;
     }
   }
-  cells.push(unescapeLink(cell.trim()));
-  return cells.length >= 2 ? cells : null;
+  if (escaped) cell += "\\";
+  cells.push(cell.trim());
+  return cells;
 }
 
-/** Reports whether every table cell is a valid delimiter marker. */
-function tableDelimiter(line: string): boolean {
-  const cells = splitTableRow(line);
-  return Boolean(cells && cells.every((cell) => {
-    return /^-{3,}$/.test(cell);
-  }));
+/** Reports whether a line contains an unescaped table separator. */
+function hasUnescapedPipe(line: string): boolean {
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === "|" && !isEscaped(line, index)) return true;
+  }
+  return false;
+}
+
+/** Canonicalizes article-link DOI targets without database access. */
+function normalizeDOI(value: string): string {
+  var normalized = value.trim().toLowerCase();
+  const prefixes = ["https://doi.org/", "http://doi.org/", "doi:"];
+  for (const prefix of prefixes) {
+    if (normalized.startsWith(prefix)) normalized = normalized.slice(prefix.length);
+  }
+  return normalized.trim();
 }
 
 /** One resolved note link used by the preview renderer. */
@@ -314,6 +363,8 @@ export interface ResolvedNoteLink {
   ordinal: number;
   resolved: boolean;
   target_type?: string;
+  raw_target?: string;
+  display_text?: string | null;
   url?: string;
   work_revision_id?: any;
   note_id?: any;
@@ -350,9 +401,11 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
     for (const item of parsed) {
       parts.push(...textWithBreaks(text.slice(cursor, item.position)));
       ordinal += 1;
-      const resolved = links.get(ordinal);
+      const candidate = links.get(ordinal);
+      var resolved: ResolvedNoteLink | undefined;
+      if (resolutionMatches(item, candidate)) resolved = candidate;
       const label = item.display_text || item.raw_target;
-      parts.push(renderLink(label, resolved));
+      parts.push(renderLink(label, item, resolved));
       cursor = item.position + item.length;
     }
     parts.push(...textWithBreaks(text.slice(cursor)));
@@ -374,8 +427,8 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
       return <blockquote>{quoteText}</blockquote>;
     }
     if (block.type === "list") {
-      const items = (block.items as Array<{ text: string; offset: number }>).map((item) => {
-        const itemText = inline(item.text);
+      const items = (block.items as string[]).map((item) => {
+        const itemText = inline(item);
         return <li>{itemText}</li>;
       });
       let listTag = "ul";
@@ -410,19 +463,14 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
   return <>{blockElements}</>;
 }
 
-/** Renders a parsed note as escaped HTML with context-preserving resolved links. */
-export function renderNote(document: { blocks: NoteBlock[] }, resolvedLinks?: ResolvedNoteLink[] | null): string {
-  const documentMarkup = <NoteDocument document={document} resolvedLinks={resolvedLinks} />;
-  return renderToString(documentMarkup);
-}
-
 /** Renders one safe resolved link or an accessible unresolved label. */
-function renderLink(label: string, resolved?: ResolvedNoteLink): JSX.Element {
+function renderLink(label: string, source: NoteLink, resolved?: ResolvedNoteLink): JSX.Element {
   if (!resolved?.resolved) {
+    const diagnostic = `Unresolved ${source.target_type} target: ${source.raw_target}. Save the note to resolve links against the selected review context.`;
     return (
-      <span className="rw-note-link rw-note-link--unresolved" aria-label="Unresolved link">
+      <span className="rw-note-link rw-note-link--unresolved" aria-label={diagnostic} title={diagnostic}>
         {label}
-        <span aria-hidden="true">?</span>
+        <span aria-hidden="true"> ?</span>
       </span>
     );
   }
@@ -440,4 +488,12 @@ function renderLink(label: string, resolved?: ResolvedNoteLink): JSX.Element {
   if (resolved.anchor_id) updates.anchor_id = resolved.anchor_id;
   if (resolved.page) updates.pdf_page = resolved.page;
   return <a className="rw-note-link" href={link(updates)}>{label}</a>;
+}
+
+/** Confirms that a persisted ordinal resolution still describes the exact parsed draft link identity. */
+export function resolutionMatches(source: NoteLink, resolved?: ResolvedNoteLink): boolean {
+  if (!resolved) return false;
+  return resolved.target_type === source.target_type
+    && resolved.raw_target === source.raw_target
+    && (resolved.display_text || null) === (source.display_text || null);
 }

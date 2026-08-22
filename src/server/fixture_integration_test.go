@@ -20,6 +20,9 @@ import (
 	"analysis/searchterms"
 )
 
+// viewerFixtureContractVersion identifies the generated data contract expected by frontend browser tests.
+const viewerFixtureContractVersion = 1
+
 // TestGenerateFixture creates a workspace fixture database at
 // src/server/testdata/workspace.fixture.db. It is used by the dev server
 // and by Playwright tests. Run it with:
@@ -200,7 +203,7 @@ func TestGenerateFixture(t *testing.T) {
 	}
 
 	for _, r := range revisions {
-		exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2024-01-01T00:00:00Z')`,
 			r.workID, r.runID, r.hash, r.title, r.year, r.journal, r.source, r.citations, r.refs, r.stage, r.extension, r.abstract, r.keywords, r.keywordsPlus)
 	}
 
@@ -519,11 +522,21 @@ func TestGenerateFixture(t *testing.T) {
 	if _, err := pdfs.FlushAuditOutbox(ctx, db.DB); err != nil {
 		t.Fatal(err)
 	}
+	normalizeFixtureTimestamps(t, pdfs.DB)
+	if _, err := pdfs.DB.Exec(sprintf("PRAGMA user_version=%d", viewerFixtureContractVersion)); err != nil {
+		t.Fatalf("set PDF fixture contract version: %v", err)
+	}
 	if _, err := pdfs.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatalf("PDF WAL checkpoint: %v", err)
 	}
 	if err := pdfs.Close(); err != nil {
 		t.Fatalf("close PDF database: %v", err)
+	}
+
+	// Normalize migration and default timestamps so browser output does not depend on fixture generation time.
+	normalizeFixtureTimestamps(t, db.DB)
+	if _, err := db.DB.Exec(sprintf("PRAGMA user_version=%d", viewerFixtureContractVersion)); err != nil {
+		t.Fatalf("set metadata fixture contract version: %v", err)
 	}
 
 	// Checkpoint WAL and close
@@ -549,6 +562,78 @@ func TestGenerateFixture(t *testing.T) {
 	metadataBytes := copyFixture(tmpPath, outputPath)
 	pdfBytes := copyFixture(tmpPDFPath, outputPDFPath)
 	t.Logf("fixtures written to %s (%d bytes) and %s (%d bytes)", outputPath, metadataBytes, outputPDFPath, pdfBytes)
+}
+
+// normalizeFixtureTimestamps replaces SQLite-generated timestamps with one fixed instant while preserving explicit fixture evidence.
+func normalizeFixtureTimestamps(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		t.Fatalf("list fixture tables: %v", err)
+	}
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			rows.Close()
+			t.Fatalf("scan fixture table: %v", err)
+		}
+		if !validFixtureIdentifier(table) {
+			rows.Close()
+			t.Fatalf("unsafe fixture table identifier %q", table)
+		}
+		tables = append(tables, table)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatalf("close fixture table rows: %v", err)
+	}
+	for _, table := range tables {
+		var protected int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master
+			WHERE type='trigger' AND tbl_name=? AND lower(sql) LIKE '%before update%'`, table).Scan(&protected); err != nil {
+			t.Fatalf("inspect update protection for %s: %v", table, err)
+		}
+		if protected > 0 {
+			continue
+		}
+		columns, err := db.Query(`SELECT name FROM pragma_table_info(?)
+			WHERE name IN ('applied_at', 'created_at', 'updated_at', 'enriched_at', 'used_at') ORDER BY cid`, table)
+		if err != nil {
+			t.Fatalf("list timestamp columns for %s: %v", table, err)
+		}
+		var names []string
+		for columns.Next() {
+			var name string
+			if err := columns.Scan(&name); err != nil {
+				columns.Close()
+				t.Fatalf("scan timestamp column for %s: %v", table, err)
+			}
+			names = append(names, name)
+		}
+		if err := columns.Close(); err != nil {
+			t.Fatalf("close timestamp columns for %s: %v", table, err)
+		}
+		for _, name := range names {
+			query := sprintf(`UPDATE "%s" SET "%s"='2024-01-01T00:00:00Z'
+				WHERE "%s" IS NOT NULL AND instr("%s", 'T')=0`, table, name, name, name)
+			if _, err := db.Exec(query); err != nil {
+				t.Fatalf("normalize %s.%s: %v", table, name, err)
+			}
+		}
+	}
+}
+
+// validFixtureIdentifier reports whether a discovered SQLite identifier is safe to quote in fixture-only SQL.
+func validFixtureIdentifier(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, char := range value {
+		if (char < 'a' || char > 'z') && char != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 // populateFixtureTermMatches computes and stores the derived per-run term

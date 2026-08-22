@@ -20,7 +20,7 @@ The viewer requires an existing fully migrated metadata database. It does not cr
 
 ## 3. Research context
 
-Home does not require a selected run. Choose Explore on a run attempt to open Deepdive with its search, search revision, execution plan, and run already selected. The Research context panel then offers four dependent searchable single-select controls; a child becomes available after its parent is known, a sole valid child may be selected automatically, and changing a parent clears invalid descendants.
+Home does not require a selected run. Choose Explore on a run attempt to open Deepdive with its search, search revision, execution plan, and run already selected. The compact context surface then offers four dependent searchable single-select controls without a separate title or Clear action; a child becomes available after its parent is known, a sole valid child is selected automatically, and changing a parent clears invalid descendants.
 
 The URL stores `search_id`, `search_revision_id`, `plan_id`, and `run_id`. Navigation, reload, browser back and forward, and internal links preserve that context. Filters, sorting, pagination, sections, expanded rows, graph state, artifact inspection, focused `note_id`, focused `anchor_id`, and `pdf_page` are also URL-backed where sharing or reload continuity matters.
 
@@ -90,9 +90,9 @@ Notes support headings through level four, paragraphs, block quotes, bullet or `
 
 Editing, removing, and restoring a note append immutable versions. History compares bounded line sets and retains tombstones. Unsaved drafts are best-effort browser-local values scoped by corpus, run, article revision, logical note, and expected version. Successful saves clear only the matching draft; conflicts or storage failures do not clear the editor. Browser clearing, quota, privacy mode, or another profile can lose drafts, and OSF preparation does not copy them.
 
-The custom PDF reader renders one current page with selectable text, page navigation, zoom, and rotation. One Previous or Next activation loads exactly one adjacent page, and the controls become unavailable at the first and last page. The document remains inside its own scrollable viewport instead of covering later article content. Selecting text on one page opens the PDF anchors section and a named anchor form; supply an ID beginning with a letter and containing only letters, digits, `.`, `_`, or `-`. The keyboard-operable anchor list identifies current or inherited state, page, availability, selected text, and history. An anchor tied to different PDF content remains recorded but is labeled unavailable and is not drawn over the current PDF.
+The custom PDF reader renders one current page with selectable text, page navigation, zoom, rotation, Fit width, and keyboard page or zoom shortcuts. One Previous or Next activation loads exactly one adjacent page, and the controls become unavailable at the first and last page. The document remains inside its own scrollable viewport instead of covering later article content. Selecting text on one page opens the PDF anchors section and a work-scoped label form; the repository generates the stable opaque anchor ID used by note links. The keyboard-operable anchor list identifies current or inherited state, page, availability, selected text, and history. An anchor tied to different PDF content remains recorded but is labeled unavailable, is not drawn over the current PDF, and does not offer an unqualified page action.
 
-Articles without available PDF bytes remain readable but cannot save status, note, or anchor changes. This protects the review contract that every mutation is associated with an available document while leaving immutable pipeline evidence accessible.
+Articles without available PDF bytes remain readable and can save review decisions and Notes when the active run, review context, and work membership are valid. PDF anchor creation or restoration additionally requires matching available PDF bytes because anchor geometry is bound to a document content hash.
 
 ## 12. Advanced
 
@@ -114,7 +114,7 @@ Local actions such as loading older audit events, inspecting an artifact prefix,
 - The frontend escapes dynamic content and the server bounds previews, but the viewer can still reveal the research data stored in the selected database.
 - Production assets are served from the assembled `frontend/dist` directory and make no CDN request; provider APIs are not contacted while serving the viewer.
 - Credentials, tokens, private keys, and sensitive environment values must never be stored as artifacts intended for viewing.
-- Reviewer username and email may appear as local version attribution but are not copied into audit metadata. Empty and sanitized reviewer identity displays as `Anonymous or redacted`; review the bundle before sharing screenshots or browser profiles.
+- Review version attribution displays the optional reviewer username only. Reviewer email is retained in local run metadata but is not returned in review version responses or copied into audit metadata. Empty or sanitized reviewer identity displays as `Anonymous or redacted`; review the bundle before sharing screenshots or browser profiles.
 
 ## 15. Accessibility and responsive expectations
 
@@ -128,7 +128,7 @@ Light and dark themes follow system preference. Reduced-motion preference suppre
 
 The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
 
-If the viewer cannot start, confirm that the metadata path exists, is a file, is writable by the local reviewer, has V00025 and required review triggers, and has been migrated explicitly. If context selectors are empty, confirm that the database contains searches, revisions, plans, and runs. If PDF status is unavailable, confirm the relative companion binding and database move together with metadata. On a database migrated only to V00024, the corpus and article detail pages still work but show No search terms recorded because the term-coverage tables do not exist.
+If the viewer cannot start, confirm that the metadata path exists, is a file, is writable by the local reviewer, has V00026 and required review triggers, and has been migrated explicitly. If context selectors are empty, confirm that the database contains searches, revisions, plans, and runs. If PDF status is unavailable, confirm the relative companion binding and database move together with metadata. On a database migrated only to V00024, the corpus and article detail pages still work but show No search terms recorded because the term-coverage tables do not exist; V00026 is required for generated anchor IDs and work-scoped labels.
 
 ## 17. Current limitations
 

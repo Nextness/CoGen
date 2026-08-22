@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -35,6 +36,47 @@ type ReviewConflictError struct {
 
 // Error returns a safe optimistic-concurrency diagnostic.
 func (e *ReviewConflictError) Error() string { return "review head changed; reload before saving" }
+
+// ReviewError is a safe repository error with a stable client-visible category.
+type ReviewError struct {
+	Kind    string
+	Message string
+}
+
+// Error returns the safe repository diagnostic.
+func (e *ReviewError) Error() string { return e.Message }
+
+// ReviewContextParentConflictError reports conflicting idempotent initialization choices.
+type ReviewContextParentConflictError struct {
+	Requested *int64
+	Existing  *int64
+}
+
+// ReviewAnchorLabelConflictError reports a duplicate human anchor label within one work.
+type ReviewAnchorLabelConflictError struct {
+	Label string
+}
+
+// Error returns a safe work-scoped label diagnostic.
+func (e *ReviewAnchorLabelConflictError) Error() string {
+	return "anchor label is already used for this article"
+}
+
+// Error returns a safe immutable-lineage diagnostic.
+func (e *ReviewContextParentConflictError) Error() string {
+	return "review context was already initialized with a different parent"
+}
+
+// reviewValidation reports invalid caller-controlled review input.
+func reviewValidation(message string) error {
+	return &ReviewError{Kind: "validation", Message: message}
+}
+
+// reviewNotFound reports a missing review-scoped record.
+func reviewNotFound(message string) error { return &ReviewError{Kind: "not_found", Message: message} }
+
+// reviewLifecycle reports a valid request rejected by immutable run lifecycle.
+func reviewLifecycle(message string) error { return &ReviewError{Kind: "lifecycle", Message: message} }
 
 // NoteSyntaxError reports parser diagnostics that make a note version unsaveable.
 type NoteSyntaxError struct{ Errors []notes.SyntaxError }
@@ -72,6 +114,7 @@ type WorkReviewVersion struct {
 	Status             string   `json:"status"`
 	Substatuses        []string `json:"sub_statuses"`
 	Reason             *string  `json:"reason"`
+	ReasonTruncated    bool     `json:"reason_truncated"`
 	CreatedAt          string   `json:"created_at"`
 	ReviewerDisplay    string   `json:"reviewer_display"`
 }
@@ -139,7 +182,7 @@ func (r *ReviewRepository) ProposeParent(ctx context.Context, runID int64) (*Rev
 		return nil, err
 	}
 	if target.Status != string(manifest.AttemptCompleted) || target.Visibility == string(manifest.RunTrashed) {
-		return nil, fmt.Errorf("run %d is not reviewable", runID)
+		return nil, reviewLifecycle("run is not reviewable")
 	}
 	for _, samePlan := range []bool{true, false} {
 		candidate, err := r.firstParentCandidate(ctx, runID, target, samePlan)
@@ -169,7 +212,7 @@ func (r *ReviewRepository) reviewTarget(ctx context.Context, q queryRower, runID
 		JOIN searches s ON s.id=sr.search_id
 		WHERE pr.id=?`, runID).Scan(&target.RunID, &target.PlanID, &target.SearchDBID, &target.StartedAt, &target.Status, &target.Visibility)
 	if err == sql.ErrNoRows {
-		return target, fmt.Errorf("pipeline run %d not found or has no execution plan", runID)
+		return target, reviewNotFound("pipeline run not found or has no execution plan")
 	}
 	if err != nil {
 		return target, fmt.Errorf("load review target: %w", err)
@@ -188,7 +231,7 @@ func (r *ReviewRepository) firstParentCandidate(ctx context.Context, runID int64
 		(SELECT COUNT(*) FROM review_context_work_heads parent_head
 		 WHERE parent_head.review_context_id=rc.id AND EXISTS (
 		   SELECT 1 FROM work_revisions target_wr
-		   WHERE target_wr.pipeline_run_id=? AND target_wr.producer_stage='normalize'
+		   WHERE target_wr.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("target_wr")+`
 		     AND target_wr.work_id=parent_head.work_id))
 		FROM review_contexts rc
 		JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id
@@ -211,12 +254,12 @@ func (r *ReviewRepository) firstParentCandidate(ctx context.Context, runID int64
 }
 
 // ListParentCandidates returns bounded earlier contexts in stable descending run order.
-func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64, scope string, cursor int64, limit int, query string) ([]ReviewContextCandidate, error) {
+func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64, scope, cursorStartedAt string, cursorRunID int64, limit int, query string) ([]ReviewContextCandidate, error) {
 	if scope != "same_search" && scope != "all" {
-		return nil, fmt.Errorf("candidate scope must be same_search or all")
+		return nil, reviewValidation("candidate scope must be same_search or all")
 	}
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("candidate limit must be between 1 and 100")
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("candidate fetch limit must be between 1 and 101")
 	}
 	target, err := r.reviewTarget(ctx, r.db.DB, runID)
 	if err != nil {
@@ -228,9 +271,9 @@ func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64
 		clauses = append(clauses, "s.id=?")
 		args = append(args, target.SearchDBID)
 	}
-	if cursor > 0 {
-		clauses = append(clauses, "pr.id < ?")
-		args = append(args, cursor)
+	if cursorStartedAt != "" {
+		clauses = append(clauses, "(pr.started_at < ? OR (pr.started_at=? AND pr.id < ?))")
+		args = append(args, cursorStartedAt, cursorStartedAt, cursorRunID)
 	}
 	if query = strings.TrimSpace(query); query != "" {
 		clauses = append(clauses, "(s.search_id LIKE ? OR sr.revision_label LIKE ?)")
@@ -243,7 +286,7 @@ func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64
 		(SELECT COUNT(*) FROM review_context_work_heads parent_head
 		 WHERE parent_head.review_context_id=rc.id AND EXISTS (
 		   SELECT 1 FROM work_revisions target_wr
-		   WHERE target_wr.pipeline_run_id=? AND target_wr.producer_stage='normalize'
+		   WHERE target_wr.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("target_wr")+`
 		     AND target_wr.work_id=parent_head.work_id))
 		FROM review_contexts rc
 		JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id
@@ -278,6 +321,9 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 			return err
 		}
 		if existing != nil {
+			if !sameNullableID(existing.ParentContextID, parentContextID) {
+				return &ReviewContextParentConflictError{Requested: parentContextID, Existing: existing.ParentContextID}
+			}
 			created = existing
 			return nil
 		}
@@ -286,7 +332,7 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 			return err
 		}
 		if target.Status != string(manifest.AttemptCompleted) || target.Visibility == string(manifest.RunTrashed) {
-			return fmt.Errorf("run %d must be completed and non-trashed", runID)
+			return reviewLifecycle("run must be completed and non-trashed")
 		}
 		if parentContextID != nil {
 			var parentRunID int64
@@ -295,16 +341,16 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 				FROM review_contexts rc JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id WHERE rc.id=?`, *parentContextID).
 				Scan(&parentRunID, &startedAt, &status, &visibility)
 			if err == sql.ErrNoRows {
-				return fmt.Errorf("parent review context %d not found", *parentContextID)
+				return reviewNotFound("parent review context not found")
 			}
 			if err != nil {
 				return err
 			}
 			if status != string(manifest.AttemptCompleted) || visibility == string(manifest.RunTrashed) {
-				return fmt.Errorf("parent review context is not eligible")
+				return reviewLifecycle("parent review context is not eligible")
 			}
 			if startedAt > target.StartedAt || (startedAt == target.StartedAt && parentRunID >= runID) {
-				return fmt.Errorf("parent review context must belong to an earlier run")
+				return reviewValidation("parent review context must belong to an earlier run")
 			}
 		}
 		createdAt := timestamp()
@@ -323,9 +369,7 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 			FROM work_revisions latest
 			LEFT JOIN review_context_work_heads parent
 			  ON parent.review_context_id=? AND parent.work_id=latest.work_id
-			WHERE latest.id=(SELECT MAX(candidate.id) FROM work_revisions candidate
-			 WHERE candidate.pipeline_run_id=? AND candidate.producer_stage='normalize'
-			 AND candidate.work_id=latest.work_id)`, contextID, nullableInt64(parentContextID), runID)
+			WHERE latest.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("latest"), contextID, nullableInt64(parentContextID), runID)
 		if err != nil {
 			return fmt.Errorf("initialize review work heads: %w", err)
 		}
@@ -371,7 +415,7 @@ func (r *ReviewRepository) GetWorkReview(ctx context.Context, contextID, workRev
 		FROM review_context_work_heads WHERE review_context_id=? AND work_revision_id=?`, contextID, workRevisionID).
 		Scan(&state.ContextID, &state.WorkID, &state.WorkRevisionID, &versionID)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("work revision does not belong to review context")
+		return nil, reviewNotFound("work revision does not belong to review context")
 	}
 	if err != nil {
 		return nil, err
@@ -481,21 +525,21 @@ func (r *ReviewRepository) mutableWorkHead(ctx context.Context, tx *sql.Tx, cont
 		WHERE head.review_context_id=? AND head.work_revision_id=?`, contextID, workRevisionID).
 		Scan(&runID, &workID, &current, &status, &visibility)
 	if err == sql.ErrNoRows {
-		return 0, 0, nil, fmt.Errorf("work revision does not belong to review context")
+		return 0, 0, nil, reviewNotFound("work revision does not belong to review context")
 	}
 	if err != nil {
 		return 0, 0, nil, err
 	}
 	if status != string(manifest.AttemptCompleted) || visibility == string(manifest.RunTrashed) {
-		return 0, 0, nil, fmt.Errorf("review context run is read-only")
+		return 0, 0, nil, reviewLifecycle("review context run is read-only")
 	}
 	return runID, workID, nullInt64Pointer(current), nil
 }
 
 // ListWorkReviewVersions follows only the selected head's ancestor chain.
 func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID, workRevisionID, cursor int64, limit int) ([]WorkReviewVersion, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("version limit must be between 1 and 100")
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
 		SELECT review_version_id FROM review_context_work_heads
@@ -504,18 +548,39 @@ func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID
 		SELECT version.parent_version_id FROM work_review_versions version JOIN ancestry ON version.id=ancestry.id
 		 WHERE version.parent_version_id IS NOT NULL
 	)
-	SELECT version.id FROM ancestry JOIN work_review_versions version ON version.id=ancestry.id
+	SELECT version.id, version.work_id, version.work_revision_id, version.created_in_context_id,
+		version.parent_version_id, version.status, substr(version.reason, 1, 1024),
+		COALESCE(length(CAST(version.reason AS BLOB)), 0), version.created_at, reviewer.username, reviewer.email,
+		COALESCE((SELECT json_group_array(sub_status) FROM (
+			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=version.id ORDER BY sub_status)), '[]')
+	FROM ancestry JOIN work_review_versions version ON version.id=ancestry.id
+	JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+	LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
 	WHERE (?=0 OR version.id<?) ORDER BY version.id DESC LIMIT ?`, contextID, workRevisionID, cursor, cursor, limit)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0)
+	versions := make([]WorkReviewVersion, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var item WorkReviewVersion
+		var parent sql.NullInt64
+		var reason, username, email sql.NullString
+		var reasonBytes int
+		var substatusesJSON string
+		if err := rows.Scan(&item.ID, &item.WorkID, &item.WorkRevisionID, &item.CreatedInContextID,
+			&parent, &item.Status, &reason, &reasonBytes, &item.CreatedAt, &username, &email, &substatusesJSON); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		item.ParentVersionID = nullInt64Pointer(parent)
+		if reason.Valid {
+			item.Reason = &reason.String
+			item.ReasonTruncated = reasonBytes > len([]byte(reason.String))
+		}
+		item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
+		if err := json.Unmarshal([]byte(substatusesJSON), &item.Substatuses); err != nil {
+			return nil, err
+		}
+		versions = append(versions, item)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -524,15 +589,25 @@ func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	versions := make([]WorkReviewVersion, 0, len(ids))
-	for _, id := range ids {
-		version, err := r.getWorkReviewVersion(ctx, r.db.DB, id)
-		if err != nil {
-			return nil, err
-		}
-		versions = append(versions, *version)
-	}
 	return versions, nil
+}
+
+// GetWorkReviewVersion returns one full version only when it belongs to the selected head ancestry.
+func (r *ReviewRepository) GetWorkReviewVersion(ctx context.Context, contextID, workRevisionID, versionID int64) (*WorkReviewVersion, error) {
+	var exists bool
+	if err := r.db.DB.QueryRowContext(ctx, `WITH RECURSIVE ancestry(id) AS (
+		SELECT review_version_id FROM review_context_work_heads
+		 WHERE review_context_id=? AND work_revision_id=? AND review_version_id IS NOT NULL
+		UNION ALL
+		SELECT version.parent_version_id FROM work_review_versions version JOIN ancestry ON version.id=ancestry.id
+		 WHERE version.parent_version_id IS NOT NULL
+	) SELECT EXISTS(SELECT 1 FROM ancestry WHERE id=?)`, contextID, workRevisionID, versionID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+	return r.getWorkReviewVersion(ctx, r.db.DB, versionID)
 }
 
 // getWorkReviewVersion reads one immutable version with canonical sub-statuses and reviewer attribution.
@@ -593,28 +668,28 @@ func queryRowsContext(ctx context.Context, q any, query string, args ...any) (*s
 // validateReviewState normalizes one complete review state and enforces vocabulary compatibility.
 func validateReviewState(status string, substatuses []string, reason *string) ([]string, *string, error) {
 	if !validReviewStatuses[status] {
-		return nil, nil, fmt.Errorf("invalid review status %q", status)
+		return nil, nil, reviewValidation(fmt.Sprintf("invalid review status %q", status))
 	}
 	seen := make(map[string]bool, len(substatuses))
 	canonical := append([]string(nil), substatuses...)
 	for _, value := range canonical {
 		if !validReviewSubstatuses[value] {
-			return nil, nil, fmt.Errorf("invalid review sub-status %q", value)
+			return nil, nil, reviewValidation(fmt.Sprintf("invalid review sub-status %q", value))
 		}
 		if seen[value] {
-			return nil, nil, fmt.Errorf("duplicate review sub-status %q", value)
+			return nil, nil, reviewValidation(fmt.Sprintf("duplicate review sub-status %q", value))
 		}
 		seen[value] = true
 	}
 	if len(canonical) > 0 && status != "not_approved" && status != "removed" {
-		return nil, nil, fmt.Errorf("sub-statuses are allowed only for not_approved or removed")
+		return nil, nil, reviewValidation("sub-statuses are allowed only for not_approved or removed")
 	}
 	sort.Strings(canonical)
 	var normalized *string
 	if reason != nil && strings.TrimSpace(*reason) != "" {
 		value := strings.TrimSpace(*reason)
 		if utf8.RuneCountInString(value) > 32768 {
-			return nil, nil, fmt.Errorf("review reason exceeds 32768 characters")
+			return nil, nil, reviewValidation("review reason exceeds 32768 characters")
 		}
 		normalized = &value
 	}
@@ -712,17 +787,11 @@ func stringSlicesEqual(left, right []string) bool {
 	return true
 }
 
-// reviewerDisplay formats optional run attribution and supplies the redacted fallback.
-func reviewerDisplay(username, email string) string {
-	username, email = strings.TrimSpace(username), strings.TrimSpace(email)
-	if username != "" && email != "" {
-		return username + " <" + email + ">"
-	}
+// reviewerDisplay exposes only the optional username and never places reviewer email in portable API responses.
+func reviewerDisplay(username, _ string) string {
+	username = strings.TrimSpace(username)
 	if username != "" {
 		return username
-	}
-	if email != "" {
-		return email
 	}
 	return "Anonymous or redacted"
 }
@@ -735,6 +804,11 @@ type ReviewNoteVersion struct {
 	CreatedInContextID int64        `json:"created_in_context_id"`
 	State              string       `json:"state"`
 	Body               *string      `json:"body"`
+	BodyBytes          int          `json:"body_bytes"`
+	BodyTruncated      bool         `json:"body_truncated"`
+	Title              string       `json:"title"`
+	Excerpt            string       `json:"excerpt"`
+	LinkCount          int          `json:"link_count"`
 	CreatedAt          string       `json:"created_at"`
 	ReviewerDisplay    string       `json:"reviewer_display"`
 	Links              []ReviewLink `json:"links"`
@@ -773,7 +847,7 @@ func (r *ReviewRepository) CreateNote(ctx context.Context, contextID, workRevisi
 		return nil, &NoteSyntaxError{Errors: document.Errors}
 	}
 	if strings.TrimSpace(body) == "" {
-		return nil, fmt.Errorf("active note body must not be blank")
+		return nil, reviewValidation("active note body must not be blank")
 	}
 	var note *ReviewNote
 	err := r.db.withTx(ctx, func(tx *sql.Tx) error {
@@ -823,7 +897,7 @@ func (r *ReviewRepository) CreateNote(ctx context.Context, contextID, workRevisi
 // AppendNoteVersion appends an active edit or deletion tombstone with optimistic concurrency.
 func (r *ReviewRepository) AppendNoteVersion(ctx context.Context, contextID, noteID int64, expectedVersionID int64, state, body string) (*ReviewNote, bool, error) {
 	if state != "active" && state != "deleted" {
-		return nil, false, fmt.Errorf("note state must be active or deleted")
+		return nil, false, reviewValidation("note state must be active or deleted")
 	}
 	var document notes.Document
 	if state == "active" {
@@ -832,10 +906,10 @@ func (r *ReviewRepository) AppendNoteVersion(ctx context.Context, contextID, not
 			return nil, false, &NoteSyntaxError{Errors: document.Errors}
 		}
 		if strings.TrimSpace(body) == "" {
-			return nil, false, fmt.Errorf("active note body must not be blank")
+			return nil, false, reviewValidation("active note body must not be blank")
 		}
 	} else if body != "" {
-		return nil, false, fmt.Errorf("deleted note version must not contain a body")
+		return nil, false, reviewValidation("deleted note version must not contain a body")
 	}
 	var note *ReviewNote
 	changed := false
@@ -852,13 +926,13 @@ func (r *ReviewRepository) AppendNoteVersion(ctx context.Context, contextID, not
 			WHERE head.review_context_id=? AND head.note_id=?`, contextID, noteID).
 			Scan(&runID, &workID, &workRevisionID, &currentID, &createdAt, &runStatus, &visibility)
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("note does not belong to review context")
+			return reviewNotFound("note does not belong to review context")
 		}
 		if err != nil {
 			return err
 		}
 		if runStatus != string(manifest.AttemptCompleted) || visibility == string(manifest.RunTrashed) {
-			return fmt.Errorf("review context run is read-only")
+			return reviewLifecycle("review context run is read-only")
 		}
 		if currentID != expectedVersionID {
 			current := currentID
@@ -965,53 +1039,62 @@ func (r *ReviewRepository) getNote(ctx context.Context, q interface {
 
 // ListNotes returns bounded current note heads for one context work, excluding tombstones unless requested.
 func (r *ReviewRepository) ListNotes(ctx context.Context, contextID, workRevisionID, cursor int64, limit int, includeDeleted bool) ([]ReviewNote, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("note limit must be between 1 and 100")
-	}
-	clause := "version.state='active'"
+	state := "active"
 	if includeDeleted {
-		clause = "1=1"
+		state = "all"
 	}
-	rows, err := r.db.DB.QueryContext(ctx, `SELECT head.note_id
+	return r.ListNotesFiltered(ctx, contextID, &workRevisionID, cursor, limit, state, "")
+}
+
+// ListNotesFiltered returns bounded current note-head summaries for one work or the complete run context.
+func (r *ReviewRepository) ListNotesFiltered(ctx context.Context, contextID int64, workRevisionID *int64, cursor int64, limit int, state, query string) ([]ReviewNote, error) {
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("note fetch limit must be between 1 and 101")
+	}
+	clauses := []string{"head.review_context_id=?", "(?=0 OR head.note_id<?)"}
+	args := []any{contextID, cursor, cursor}
+	switch state {
+	case "active":
+		clauses = append(clauses, "version.state='active'")
+	case "removed":
+		clauses = append(clauses, "version.state='deleted'")
+	case "all":
+	default:
+		return nil, reviewValidation("note state must be active, removed, or all")
+	}
+	if workRevisionID != nil {
+		clauses = append(clauses, "work_head.work_revision_id=?")
+		args = append(args, *workRevisionID)
+	}
+	if query = strings.TrimSpace(query); query != "" {
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(query)
+		clauses = append(clauses, `version.body LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+escaped+"%")
+	}
+	args = append(args, limit)
+	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, logical.work_id, work_head.work_revision_id, logical.created_at,
+		version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
+		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		reviewer.username, reviewer.email,
+		(SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id=version.id)
 		FROM review_context_note_heads head
 		JOIN review_context_work_heads work_head ON work_head.review_context_id=head.review_context_id
 		JOIN review_notes logical ON logical.id=head.note_id AND logical.work_id=work_head.work_id
 		JOIN review_note_versions version ON version.id=head.note_version_id
-		WHERE head.review_context_id=? AND work_head.work_revision_id=? AND `+clause+`
-		AND (?=0 OR head.note_id<?) ORDER BY head.note_id DESC LIMIT ?`, contextID, workRevisionID, cursor, cursor, limit)
+		JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+		LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
+		WHERE `+strings.Join(clauses, " AND ")+`
+		ORDER BY head.note_id DESC LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0)
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	items := make([]ReviewNote, 0, len(ids))
-	for _, id := range ids {
-		note, err := r.getNote(ctx, r.db.DB, contextID, id)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *note)
-	}
-	return items, nil
+	return scanReviewNoteSummaries(rows, contextID)
 }
 
 // ListNoteVersions follows only the selected context note head's ancestors.
 func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, noteID, cursor int64, limit int) ([]ReviewNoteVersion, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("note version limit must be between 1 and 100")
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("note version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
 		SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=?
@@ -1019,18 +1102,35 @@ func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, note
 		SELECT version.parent_version_id FROM review_note_versions version JOIN ancestry ON version.id=ancestry.id
 		 WHERE version.parent_version_id IS NOT NULL
 	)
-	SELECT version.id FROM ancestry JOIN review_note_versions version ON version.id=ancestry.id
+	SELECT version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
+		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		reviewer.username, reviewer.email,
+		(SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id=version.id)
+	FROM ancestry JOIN review_note_versions version ON version.id=ancestry.id
+	JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+	LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
 	WHERE (?=0 OR version.id<?) ORDER BY version.id DESC LIMIT ?`, contextID, noteID, cursor, cursor, limit)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0)
+	versions := make([]ReviewNoteVersion, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var item ReviewNoteVersion
+		var parent sql.NullInt64
+		var body, username, email sql.NullString
+		if err := rows.Scan(&item.ID, &item.NoteID, &parent, &item.CreatedInContextID, &item.State,
+			&body, &item.BodyBytes, &item.CreatedAt, &username, &email, &item.LinkCount); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		item.ParentVersionID = nullInt64Pointer(parent)
+		if body.Valid {
+			item.Body = &body.String
+			item.BodyTruncated = item.BodyBytes > len([]byte(body.String))
+			item.Title, item.Excerpt = noteSummary(body.String)
+		}
+		item.Links = []ReviewLink{}
+		item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
+		versions = append(versions, item)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -1039,15 +1139,24 @@ func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, note
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	versions := make([]ReviewNoteVersion, 0, len(ids))
-	for _, id := range ids {
-		version, err := r.getNoteVersion(ctx, r.db.DB, contextID, id)
-		if err != nil {
-			return nil, err
-		}
-		versions = append(versions, *version)
-	}
 	return versions, nil
+}
+
+// GetNoteVersion returns one full body and link set only when it belongs to the selected head ancestry.
+func (r *ReviewRepository) GetNoteVersion(ctx context.Context, contextID, noteID, versionID int64) (*ReviewNoteVersion, error) {
+	var exists bool
+	if err := r.db.DB.QueryRowContext(ctx, `WITH RECURSIVE ancestry(id) AS (
+		SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=?
+		UNION ALL
+		SELECT version.parent_version_id FROM review_note_versions version JOIN ancestry ON version.id=ancestry.id
+		 WHERE version.parent_version_id IS NOT NULL
+	) SELECT EXISTS(SELECT 1 FROM ancestry WHERE id=?)`, contextID, noteID, versionID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+	return r.getNoteVersion(ctx, r.db.DB, contextID, versionID)
 }
 
 // getNoteVersion reads one immutable note version and resolves its version-scoped links.
@@ -1072,6 +1181,8 @@ func (r *ReviewRepository) getNoteVersion(ctx context.Context, q interface {
 	item.ParentVersionID = nullInt64Pointer(parent)
 	if body.Valid {
 		item.Body = &body.String
+		item.BodyBytes = len([]byte(body.String))
+		item.Title, item.Excerpt = noteSummary(body.String)
 	}
 	item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
 	links, err := r.linksForVersion(ctx, q, contextID, item.NoteID, versionID)
@@ -1079,6 +1190,7 @@ func (r *ReviewRepository) getNoteVersion(ctx context.Context, q interface {
 		return nil, err
 	}
 	item.Links = links
+	item.LinkCount = len(links)
 	return &item, nil
 }
 
@@ -1203,43 +1315,90 @@ func (r *ReviewRepository) resolveLink(ctx context.Context, q queryRower, contex
 }
 
 // ListBacklinks returns links from current note heads only.
-func (r *ReviewRepository) ListBacklinks(ctx context.Context, contextID int64, targetType, targetID string, cursor int64, limit int) ([]ReviewNote, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("backlink limit must be between 1 and 100")
+func (r *ReviewRepository) ListBacklinks(ctx context.Context, contextID int64, targetType, targetID string, sourceWorkID, cursor int64, limit int) ([]ReviewNote, error) {
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("backlink fetch limit must be between 1 and 101")
 	}
-	rows, err := r.db.DB.QueryContext(ctx, `SELECT DISTINCT head.note_id
+	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, logical.work_id, work_head.work_revision_id, logical.created_at,
+		version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
+		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		reviewer.username, reviewer.email,
+		(SELECT COUNT(*) FROM review_note_links all_links WHERE all_links.note_version_id=version.id)
 		FROM review_context_note_heads head
 		JOIN review_note_versions version ON version.id=head.note_version_id AND version.state='active'
+		JOIN review_notes logical ON logical.id=head.note_id
+		JOIN review_context_work_heads work_head ON work_head.review_context_id=head.review_context_id AND work_head.work_id=logical.work_id
+		JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+		LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
 		JOIN review_note_links link ON link.note_version_id=head.note_version_id
 		WHERE head.review_context_id=? AND link.target_type=? AND link.raw_target=?
-		AND (?=0 OR head.note_id<?) ORDER BY head.note_id DESC LIMIT ?`, contextID, targetType, targetID, cursor, cursor, limit)
+		AND (?=0 OR logical.work_id=?)
+		AND (?=0 OR head.note_id<?)
+		GROUP BY logical.id, version.id
+		ORDER BY head.note_id DESC LIMIT ?`, contextID, targetType, targetID, sourceWorkID, sourceWorkID, cursor, cursor, limit)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0)
+	return scanReviewNoteSummaries(rows, contextID)
+}
+
+// scanReviewNoteSummaries reads bounded list projections without loading full bodies or resolving every link.
+func scanReviewNoteSummaries(rows *sql.Rows, contextID int64) ([]ReviewNote, error) {
+	defer rows.Close()
+	items := make([]ReviewNote, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var item ReviewNote
+		var version ReviewNoteVersion
+		var parent sql.NullInt64
+		var body, username, email sql.NullString
+		if err := rows.Scan(&item.ID, &item.WorkID, &item.WorkRevisionID, &item.CreatedAt,
+			&version.ID, &version.NoteID, &parent, &version.CreatedInContextID, &version.State,
+			&body, &version.BodyBytes, &version.CreatedAt, &username, &email, &version.LinkCount); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, err
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	items := make([]ReviewNote, 0, len(ids))
-	for _, id := range ids {
-		note, err := r.getNote(ctx, r.db.DB, contextID, id)
-		if err != nil {
-			return nil, err
+		version.ParentVersionID = nullInt64Pointer(parent)
+		if body.Valid {
+			version.Body = &body.String
+			version.BodyTruncated = version.BodyBytes > len([]byte(body.String))
+			version.Title, version.Excerpt = noteSummary(body.String)
 		}
-		items = append(items, *note)
+		version.Links = []ReviewLink{}
+		version.ReviewerDisplay = reviewerDisplay(username.String, email.String)
+		item.Version = version
+		if version.CreatedInContextID != contextID {
+			value := version.CreatedInContextID
+			item.InheritedFromContextID = &value
+		}
+		items = append(items, item)
 	}
-	return items, nil
+	return items, rows.Err()
+}
+
+// noteSummary derives a safe title and excerpt from one stored body or bounded prefix.
+func noteSummary(body string) (string, string) {
+	lines := strings.Split(body, "\n")
+	title := "Untitled note"
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "```") {
+			continue
+		}
+		trimmed := strings.TrimSpace(strings.TrimLeft(line, "#"))
+		if trimmed != "" {
+			title = trimmed
+			break
+		}
+	}
+	return truncateRunes(title, 80), truncateRunes(strings.Join(strings.Fields(body), " "), 180)
+}
+
+// truncateRunes returns a Unicode-safe bounded label with an explicit truncation marker.
+func truncateRunes(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit-1]) + "…"
 }
 
 // AnchorRectangle is one normalized highlight rectangle on a single PDF page.
@@ -1252,42 +1411,59 @@ type AnchorRectangle struct {
 
 // ReviewAnchorVersion is one immutable active highlight snapshot or deletion tombstone.
 type ReviewAnchorVersion struct {
-	ID                 int64             `json:"id"`
-	AnchorID           string            `json:"anchor_id"`
-	ParentVersionID    *int64            `json:"parent_version_id,omitempty"`
-	CreatedInContextID int64             `json:"created_in_context_id"`
-	WorkRevisionID     int64             `json:"work_revision_id"`
-	PDFContentHash     string            `json:"pdf_content_hash"`
-	State              string            `json:"state"`
-	Page               *int              `json:"page,omitempty"`
-	SelectedText       *string           `json:"selected_text,omitempty"`
-	Rectangles         []AnchorRectangle `json:"rectangles,omitempty"`
-	CreatedAt          string            `json:"created_at"`
-	ReviewerDisplay    string            `json:"reviewer_display"`
+	ID                    int64             `json:"id"`
+	AnchorID              string            `json:"anchor_id"`
+	ParentVersionID       *int64            `json:"parent_version_id,omitempty"`
+	CreatedInContextID    int64             `json:"created_in_context_id"`
+	WorkRevisionID        int64             `json:"work_revision_id"`
+	PDFContentHash        string            `json:"pdf_content_hash"`
+	State                 string            `json:"state"`
+	Page                  *int              `json:"page,omitempty"`
+	SelectedText          *string           `json:"selected_text,omitempty"`
+	SelectedTextTruncated bool              `json:"selected_text_truncated"`
+	Rectangles            []AnchorRectangle `json:"rectangles,omitempty"`
+	CreatedAt             string            `json:"created_at"`
+	ReviewerDisplay       string            `json:"reviewer_display"`
 }
 
 // ReviewAnchor is one stable corpus-wide anchor with the selected context's current head.
 type ReviewAnchor struct {
 	ID                     string              `json:"id"`
+	Label                  string              `json:"label"`
 	WorkID                 int64               `json:"work_id"`
 	CreatedAt              string              `json:"created_at"`
 	Version                ReviewAnchorVersion `json:"version"`
 	InheritedFromContextID *int64              `json:"inherited_from_context_id,omitempty"`
 }
 
-// CreateAnchor creates one logical anchor and immutable first version atomically.
-func (r *ReviewRepository) CreateAnchor(ctx context.Context, contextID, workRevisionID int64, anchorID, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) (*ReviewAnchor, error) {
+// CreateAnchor creates one generated logical anchor with a work-scoped label and immutable first version atomically.
+func (r *ReviewRepository) CreateAnchor(ctx context.Context, contextID, workRevisionID int64, label, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) (*ReviewAnchor, error) {
+	if !notes.ValidAnchorID(label) {
+		return nil, reviewValidation("anchor label has an invalid format")
+	}
+	anchorID, err := newAnchorID()
+	if err != nil {
+		return nil, fmt.Errorf("generate review anchor identity: %w", err)
+	}
 	if err := validateAnchorVersion(anchorID, contentHash, "active", page, selectedText, rectangles); err != nil {
 		return nil, err
 	}
 	var anchor *ReviewAnchor
-	err := r.db.withTx(ctx, func(tx *sql.Tx) error {
+	err = r.db.withTx(ctx, func(tx *sql.Tx) error {
 		runID, workID, _, err := r.mutableWorkHead(ctx, tx, contextID, workRevisionID)
 		if err != nil {
 			return err
 		}
+		var labelExists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(
+			SELECT 1 FROM review_anchors WHERE work_id=? AND label=?)`, workID, label).Scan(&labelExists); err != nil {
+			return err
+		}
+		if labelExists {
+			return &ReviewAnchorLabelConflictError{Label: label}
+		}
 		createdAt := timestamp()
-		if _, err := tx.ExecContext(ctx, `INSERT INTO review_anchors (id, work_id, created_at) VALUES (?, ?, ?)`, anchorID, workID, createdAt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO review_anchors (id, work_id, label, created_at) VALUES (?, ?, ?, ?)`, anchorID, workID, label, createdAt); err != nil {
 			return fmt.Errorf("insert review anchor: %w", err)
 		}
 		rectanglesJSON, _ := json.Marshal(rectangles)
@@ -1313,7 +1489,7 @@ func (r *ReviewRepository) CreateAnchor(ctx context.Context, contextID, workRevi
 		if err != nil {
 			return err
 		}
-		anchor = &ReviewAnchor{ID: anchorID, WorkID: workID, CreatedAt: createdAt, Version: *version}
+		anchor = &ReviewAnchor{ID: anchorID, Label: label, WorkID: workID, CreatedAt: createdAt, Version: *version}
 		return nil
 	})
 	return anchor, err
@@ -1322,7 +1498,7 @@ func (r *ReviewRepository) CreateAnchor(ctx context.Context, contextID, workRevi
 // AppendAnchorVersion appends an active replacement or tombstone using optimistic concurrency.
 func (r *ReviewRepository) AppendAnchorVersion(ctx context.Context, contextID int64, anchorID string, expectedVersionID int64, state, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) (*ReviewAnchor, bool, error) {
 	if state != "active" && state != "deleted" {
-		return nil, false, fmt.Errorf("anchor state must be active or deleted")
+		return nil, false, reviewValidation("anchor state must be active or deleted")
 	}
 	if err := validateAnchorVersion(anchorID, contentHash, state, page, selectedText, rectangles); err != nil {
 		return nil, false, err
@@ -1331,24 +1507,24 @@ func (r *ReviewRepository) AppendAnchorVersion(ctx context.Context, contextID in
 	changed := false
 	err := r.db.withTx(ctx, func(tx *sql.Tx) error {
 		var runID, workID, workRevisionID, currentID int64
-		var createdAt, runStatus, visibility string
+		var label, createdAt, runStatus, visibility string
 		err := tx.QueryRowContext(ctx, `SELECT rc.pipeline_run_id, logical.work_id, work_head.work_revision_id,
-			head.anchor_version_id, logical.created_at, pr.status, pr.visibility_state
+			head.anchor_version_id, COALESCE(logical.label, logical.id), logical.created_at, pr.status, pr.visibility_state
 			FROM review_context_anchor_heads head
 			JOIN review_contexts rc ON rc.id=head.review_context_id
 			JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id
 			JOIN review_anchors logical ON logical.id=head.anchor_id
 			JOIN review_context_work_heads work_head ON work_head.review_context_id=head.review_context_id AND work_head.work_id=logical.work_id
 			WHERE head.review_context_id=? AND head.anchor_id=?`, contextID, anchorID).
-			Scan(&runID, &workID, &workRevisionID, &currentID, &createdAt, &runStatus, &visibility)
+			Scan(&runID, &workID, &workRevisionID, &currentID, &label, &createdAt, &runStatus, &visibility)
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("anchor does not belong to review context")
+			return reviewNotFound("anchor does not belong to review context")
 		}
 		if err != nil {
 			return err
 		}
 		if runStatus != string(manifest.AttemptCompleted) || visibility == string(manifest.RunTrashed) {
-			return fmt.Errorf("review context run is read-only")
+			return reviewLifecycle("review context run is read-only")
 		}
 		if currentID != expectedVersionID {
 			current, expected := currentID, expectedVersionID
@@ -1359,7 +1535,7 @@ func (r *ReviewRepository) AppendAnchorVersion(ctx context.Context, contextID in
 			return err
 		}
 		if anchorsEqual(current, state, contentHash, page, selectedText, rectangles) {
-			anchor = &ReviewAnchor{ID: anchorID, WorkID: workID, CreatedAt: createdAt, Version: *current}
+			anchor = &ReviewAnchor{ID: anchorID, Label: label, WorkID: workID, CreatedAt: createdAt, Version: *current}
 			if current.CreatedInContextID != contextID {
 				value := current.CreatedInContextID
 				anchor.InheritedFromContextID = &value
@@ -1404,35 +1580,46 @@ func (r *ReviewRepository) AppendAnchorVersion(ctx context.Context, contextID in
 		if err != nil {
 			return err
 		}
-		anchor = &ReviewAnchor{ID: anchorID, WorkID: workID, CreatedAt: createdAt, Version: *version}
+		anchor = &ReviewAnchor{ID: anchorID, Label: label, WorkID: workID, CreatedAt: createdAt, Version: *version}
 		changed = true
 		return nil
 	})
 	return anchor, changed, err
 }
 
+// GetAnchor returns one selected-context logical anchor and its current head.
+func (r *ReviewRepository) GetAnchor(ctx context.Context, contextID int64, anchorID string) (*ReviewAnchor, error) {
+	return r.getAnchor(ctx, contextID, anchorID)
+}
+
 // ListAnchors returns bounded active current anchors for one context work.
 func (r *ReviewRepository) ListAnchors(ctx context.Context, contextID, workRevisionID int64, cursor string, limit int) ([]ReviewAnchor, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("anchor limit must be between 1 and 100")
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("anchor fetch limit must be between 1 and 101")
 	}
-	rows, err := r.db.DB.QueryContext(ctx, `SELECT head.anchor_id
+	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, COALESCE(logical.label, logical.id), logical.work_id, logical.created_at,
+		version.id, version.anchor_id, version.parent_version_id, version.created_in_context_id,
+		version.work_revision_id, version.pdf_content_hash, version.state, version.page,
+		substr(version.selected_text, 1, 512), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
+		version.rectangles_json, version.created_at, reviewer.username, reviewer.email
 		FROM review_context_anchor_heads head
 		JOIN review_anchors logical ON logical.id=head.anchor_id
 		JOIN review_context_work_heads work_head ON work_head.review_context_id=head.review_context_id AND work_head.work_id=logical.work_id
 		JOIN review_anchor_versions version ON version.id=head.anchor_version_id AND version.state='active'
+		JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+		LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
 		WHERE head.review_context_id=? AND work_head.work_revision_id=? AND (?='' OR head.anchor_id>?)
 		ORDER BY head.anchor_id LIMIT ?`, contextID, workRevisionID, cursor, cursor, limit)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]string, 0)
+	items := make([]ReviewAnchor, 0)
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		item, err := scanReviewAnchor(rows, contextID)
+		if err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -1441,14 +1628,6 @@ func (r *ReviewRepository) ListAnchors(ctx context.Context, contextID, workRevis
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	items := make([]ReviewAnchor, 0, len(ids))
-	for _, id := range ids {
-		anchor, err := r.getAnchor(ctx, contextID, id)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *anchor)
-	}
 	return items, nil
 }
 
@@ -1456,10 +1635,10 @@ func (r *ReviewRepository) ListAnchors(ctx context.Context, contextID, workRevis
 func (r *ReviewRepository) getAnchor(ctx context.Context, contextID int64, anchorID string) (*ReviewAnchor, error) {
 	var item ReviewAnchor
 	var versionID int64
-	err := r.db.DB.QueryRowContext(ctx, `SELECT logical.id, logical.work_id, logical.created_at, head.anchor_version_id
+	err := r.db.DB.QueryRowContext(ctx, `SELECT logical.id, COALESCE(logical.label, logical.id), logical.work_id, logical.created_at, head.anchor_version_id
 		FROM review_context_anchor_heads head JOIN review_anchors logical ON logical.id=head.anchor_id
 		WHERE head.review_context_id=? AND head.anchor_id=?`, contextID, anchorID).
-		Scan(&item.ID, &item.WorkID, &item.CreatedAt, &versionID)
+		Scan(&item.ID, &item.Label, &item.WorkID, &item.CreatedAt, &versionID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -1480,8 +1659,8 @@ func (r *ReviewRepository) getAnchor(ctx context.Context, contextID int64, ancho
 
 // ListAnchorVersions follows only the selected context anchor head's ancestors.
 func (r *ReviewRepository) ListAnchorVersions(ctx context.Context, contextID int64, anchorID string, cursor int64, limit int) ([]ReviewAnchorVersion, error) {
-	if limit < 1 || limit > 100 {
-		return nil, fmt.Errorf("anchor version limit must be between 1 and 100")
+	if limit < 1 || limit > 101 {
+		return nil, reviewValidation("anchor version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
 		SELECT anchor_version_id FROM review_context_anchor_heads WHERE review_context_id=? AND anchor_id=?
@@ -1489,18 +1668,24 @@ func (r *ReviewRepository) ListAnchorVersions(ctx context.Context, contextID int
 		SELECT version.parent_version_id FROM review_anchor_versions version JOIN ancestry ON version.id=ancestry.id
 		 WHERE version.parent_version_id IS NOT NULL
 	)
-	SELECT version.id FROM ancestry JOIN review_anchor_versions version ON version.id=ancestry.id
+	SELECT version.id, version.anchor_id, version.parent_version_id, version.created_in_context_id,
+		version.work_revision_id, version.pdf_content_hash, version.state, version.page,
+		substr(version.selected_text, 1, 512), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
+		version.rectangles_json, version.created_at, reviewer.username, reviewer.email
+	FROM ancestry JOIN review_anchor_versions version ON version.id=ancestry.id
+	JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
+	LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id=version_context.pipeline_run_id
 	WHERE (?=0 OR version.id<?) ORDER BY version.id DESC LIMIT ?`, contextID, anchorID, cursor, cursor, limit)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0)
+	items := make([]ReviewAnchorVersion, 0)
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		item, err := scanReviewAnchorVersion(rows)
+		if err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -1509,15 +1694,78 @@ func (r *ReviewRepository) ListAnchorVersions(ctx context.Context, contextID int
 	if err := rows.Close(); err != nil {
 		return nil, err
 	}
-	items := make([]ReviewAnchorVersion, 0, len(ids))
-	for _, id := range ids {
-		version, err := r.getAnchorVersion(ctx, r.db.DB, id)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, *version)
-	}
 	return items, nil
+}
+
+// GetAnchorVersion returns one full geometry version only when it belongs to the selected head ancestry.
+func (r *ReviewRepository) GetAnchorVersion(ctx context.Context, contextID int64, anchorID string, versionID int64) (*ReviewAnchorVersion, error) {
+	var exists bool
+	if err := r.db.DB.QueryRowContext(ctx, `WITH RECURSIVE ancestry(id) AS (
+		SELECT anchor_version_id FROM review_context_anchor_heads WHERE review_context_id=? AND anchor_id=?
+		UNION ALL
+		SELECT version.parent_version_id FROM review_anchor_versions version JOIN ancestry ON version.id=ancestry.id
+		 WHERE version.parent_version_id IS NOT NULL
+	) SELECT EXISTS(SELECT 1 FROM ancestry WHERE id=?)`, contextID, anchorID, versionID).Scan(&exists); err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, nil
+	}
+	return r.getAnchorVersion(ctx, r.db.DB, versionID)
+}
+
+// scanReviewAnchor reads one bounded logical-anchor list projection.
+func scanReviewAnchor(scanner interface{ Scan(...any) error }, contextID int64) (ReviewAnchor, error) {
+	var item ReviewAnchor
+	version, err := scanReviewAnchorVersionWithPrefix(scanner, &item)
+	if err != nil {
+		return item, err
+	}
+	item.Version = version
+	if version.CreatedInContextID != contextID {
+		value := version.CreatedInContextID
+		item.InheritedFromContextID = &value
+	}
+	return item, nil
+}
+
+// scanReviewAnchorVersion reads one bounded immutable anchor-version projection.
+func scanReviewAnchorVersion(scanner interface{ Scan(...any) error }) (ReviewAnchorVersion, error) {
+	return scanReviewAnchorVersionWithPrefix(scanner, nil)
+}
+
+// scanReviewAnchorVersionWithPrefix shares decoding for logical-head and history projections.
+func scanReviewAnchorVersionWithPrefix(scanner interface{ Scan(...any) error }, anchor *ReviewAnchor) (ReviewAnchorVersion, error) {
+	var item ReviewAnchorVersion
+	var parent, page sql.NullInt64
+	var selectedText, rectanglesJSON, username, email sql.NullString
+	var selectedTextBytes int
+	targets := make([]any, 0, 18)
+	if anchor != nil {
+		targets = append(targets, &anchor.ID, &anchor.Label, &anchor.WorkID, &anchor.CreatedAt)
+	}
+	targets = append(targets, &item.ID, &item.AnchorID, &parent, &item.CreatedInContextID,
+		&item.WorkRevisionID, &item.PDFContentHash, &item.State, &page, &selectedText,
+		&selectedTextBytes, &rectanglesJSON, &item.CreatedAt, &username, &email)
+	if err := scanner.Scan(targets...); err != nil {
+		return item, err
+	}
+	item.ParentVersionID = nullInt64Pointer(parent)
+	if page.Valid {
+		value := int(page.Int64)
+		item.Page = &value
+	}
+	if selectedText.Valid {
+		item.SelectedText = &selectedText.String
+		item.SelectedTextTruncated = selectedTextBytes > len([]byte(selectedText.String))
+	}
+	if rectanglesJSON.Valid {
+		if err := json.Unmarshal([]byte(rectanglesJSON.String), &item.Rectangles); err != nil {
+			return item, fmt.Errorf("decode anchor rectangles: %w", err)
+		}
+	}
+	item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
+	return item, nil
 }
 
 // getAnchorVersion reads one immutable geometry snapshot or tombstone.
@@ -1559,45 +1807,54 @@ func (r *ReviewRepository) getAnchorVersion(ctx context.Context, q queryRower, v
 // validateAnchorVersion enforces safe identity, PDF binding, state, and normalized geometry.
 func validateAnchorVersion(anchorID, contentHash, state string, page int, selectedText string, rectangles []AnchorRectangle) error {
 	if !notes.ValidAnchorID(anchorID) {
-		return fmt.Errorf("anchor ID has an invalid format")
+		return reviewValidation("anchor ID has an invalid format")
 	}
 	decoded, err := hex.DecodeString(contentHash)
 	if err != nil || len(decoded) != 32 {
-		return fmt.Errorf("PDF content hash must be a lowercase SHA-256 value")
+		return reviewValidation("PDF content hash must be a lowercase SHA-256 value")
 	}
 	if contentHash != strings.ToLower(contentHash) {
-		return fmt.Errorf("PDF content hash must be lowercase")
+		return reviewValidation("PDF content hash must be lowercase")
 	}
 	if state == "deleted" {
 		if page != 0 || selectedText != "" || len(rectangles) != 0 {
-			return fmt.Errorf("deleted anchor version must not contain replacement geometry")
+			return reviewValidation("deleted anchor version must not contain replacement geometry")
 		}
 		return nil
 	}
 	if page < 1 {
-		return fmt.Errorf("anchor page must be positive")
+		return reviewValidation("anchor page must be positive")
 	}
 	if strings.TrimSpace(selectedText) == "" {
-		return fmt.Errorf("anchor selected text must not be blank")
+		return reviewValidation("anchor selected text must not be blank")
 	}
 	if len(selectedText) > 16384 {
-		return fmt.Errorf("anchor selected text exceeds 16384 bytes")
+		return reviewValidation("anchor selected text exceeds 16384 bytes")
 	}
 	if len(rectangles) < 1 || len(rectangles) > 64 {
-		return fmt.Errorf("anchor requires between 1 and 64 rectangles")
+		return reviewValidation("anchor requires between 1 and 64 rectangles")
 	}
 	for _, rectangle := range rectangles {
 		values := []float64{rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height}
 		for _, value := range values {
 			if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
-				return fmt.Errorf("anchor rectangle coordinates must be finite and normalized")
+				return reviewValidation("anchor rectangle coordinates must be finite and normalized")
 			}
 		}
 		if rectangle.Width <= 0 || rectangle.Height <= 0 || rectangle.X+rectangle.Width > 1 || rectangle.Y+rectangle.Height > 1 {
-			return fmt.Errorf("anchor rectangle dimensions must be positive and remain within the page")
+			return reviewValidation("anchor rectangle dimensions must be positive and remain within the page")
 		}
 	}
 	return nil
+}
+
+// newAnchorID returns an opaque global identifier compatible with the note-language anchor grammar.
+func newAnchorID() (string, error) {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err != nil {
+		return "", err
+	}
+	return "a" + hex.EncodeToString(random[:]), nil
 }
 
 // anchorsEqual detects an identical save so the repository can avoid redundant history.
@@ -1617,6 +1874,14 @@ func anchorsEqual(current *ReviewAnchorVersion, state, contentHash string, page 
 		}
 	}
 	return true
+}
+
+// sameNullableID compares optional immutable identifiers by value.
+func sameNullableID(left, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 // IsReviewConflict reports whether an error is an optimistic head conflict.

@@ -539,10 +539,10 @@ test.describe('Evaluation view', () => {
     await expect(table).toBeVisible();
     await expect(table.locator('thead')).toContainText('Title');
     await expect(table.locator('thead')).toContainText('DOI');
-    await expect(table.locator('thead')).toContainText('Inventory Status');
+    await expect(table.locator('thead')).toContainText('PDF');
     await expect(table.locator('thead')).toContainText('Inventoried at');
     await expect(table.locator('.ui.green.label', { hasText: 'Available' })).toHaveCount(1);
-    await expect(table.locator('.ui.orange.label').first()).toContainText('Not Available');
+    await expect(table.locator('.ui.orange.label', { hasText: 'Not Available' }).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Result pages' })).toContainText(/9 normalized articles/i);
   });
 
@@ -595,9 +595,13 @@ test.describe('Home lifecycle management', () => {
   test('Home shows all research hierarchy totals and manages trashed runs through a modal', async ({ page }) => {
     await goto(page, '/');
     await expect(page.locator('.rw-home-kpis')).toContainText(/Search terms|Search revisions|Execution plans|Run attempts/i);
-    await expect(page.locator('.rw-home-runs')).toContainText(/Run 1|Run 3|Restore|Move to trash/i);
+    await expect(page.locator('.rw-home-runs')).toContainText(/Run 1|Move to trash/i);
     const explore = page.locator('.rw-home-runs').getByRole('link', { name: 'Explore' }).first();
     await expect(explore).toHaveAttribute('href', /view=overview/);
+    await page.locator('[data-home-filters] select[name="visibility"]').selectOption('trashed');
+    await page.locator('[data-home-filters]').getByRole('button', { name: 'Apply filters' }).click();
+    await expect(page).toHaveURL(/(?:\?|&)home_visibility=trashed(?:&|$)/);
+    await expect(page.locator('.rw-home-runs')).toContainText(/Run 3|Restore/i);
     await page.getByRole('button', { name: 'Restore' }).first().click();
     const dialog = page.getByRole('dialog', { name: /Restore run/ });
     await expect(dialog).toBeVisible();
@@ -636,7 +640,13 @@ test.describe('Detail views', () => {
   });
 
   test('article detail shows no search terms recorded for a run without queries', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: '17' }));
+    await goto(page, contextURL({
+      view: 'article',
+      search_revision_id: REV_DL_R3,
+      plan_id: PLAN_DL_R3,
+      run_id: RUN_4_NO_ENRICH,
+      article_id: '17',
+    }));
     await page.waitForLoadState('networkidle');
     await expect(page.getByRole('heading', { name: 'Search term coverage' })).toBeVisible();
     await expect(page.locator('body')).toContainText('No search terms recorded for this run.');
@@ -666,9 +676,10 @@ test.describe('Detail views', () => {
     await goto(page, contextURL({ view: 'corpus', section: 'articles', q: 'Attention', page: '1', sort: 'title', order: 'asc', expanded: '1' }));
     await page.getByRole('link', { name: /Attention Mechanisms/i }).first().click();
     await expect(page).toHaveURL(/view=article/);
-    await expect(page).toHaveURL(/q=Attention/);
-    await expect(page).toHaveURL(/expanded=1/);
-    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Analysis-ready articles' }).click();
+    const origin = new URL(page.url()).searchParams.get('origin');
+    expect(origin).toContain('q=Attention');
+    expect(origin).toContain('expanded=1');
+    await page.getByRole('navigation', { name: 'Detail record navigation' }).getByRole('link', { name: 'Return to Corpus' }).click();
     await expect(page).toHaveURL(/view=corpus/);
     await expect(page).toHaveURL(/q=Attention/);
     await expect(page).toHaveURL(/expanded=1/);
@@ -749,7 +760,7 @@ test.describe('Error states', () => {
   });
 
   test('handles article detail with nonexistent ID gracefully', async ({ page }) => {
-    const resp = await page.request.get('/api/articles/99999');
+    const resp = await page.request.get('/api/articles/99999?run_id=1');
     expect(resp.status()).toBe(404);
   });
 

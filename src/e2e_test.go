@@ -128,7 +128,8 @@ func TestE2EReviewEvidence(t *testing.T) {
 		t.Fatal("A2 note edit moved the A1 note head")
 	}
 	var anchorHeads, auditEvents int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM review_context_anchor_heads WHERE anchor_id='e2e-methods'").Scan(&anchorHeads); err != nil || anchorHeads != 2 {
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM review_context_anchor_heads head
+		JOIN review_anchors anchor ON anchor.id=head.anchor_id WHERE anchor.label='e2e-methods'`).Scan(&anchorHeads); err != nil || anchorHeads != 2 {
 		t.Fatalf("anchor heads=%d err=%v", anchorHeads, err)
 	}
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'review_%' OR action='work_review_version_created'").Scan(&auditEvents); err != nil || auditEvents < 8 {
@@ -713,7 +714,7 @@ func assertE2EAPI(t *testing.T, result e2eResult) {
 	base := "/api/runs/" + strconv.FormatInt(result.runID, 10)
 	corpus := requestE2EJSON(t, handler, base+"/corpus/articles?per_page=20&sort=title&order=asc")
 	evaluation := requestE2EJSON(t, handler, base+"/evaluation?per_page=20&sort=title&order=asc")
-	audit := requestE2EJSON(t, handler, base+"/audit")
+	auditActions := requestE2EAuditActions(t, handler, result.runID)
 	for _, title := range result.titles {
 		if !strings.Contains(mustE2EJSON(t, corpus), title) || !strings.Contains(mustE2EJSON(t, evaluation), title) {
 			t.Errorf("viewer corpus or evaluation is missing normalized title %q", title)
@@ -725,10 +726,38 @@ func assertE2EAPI(t *testing.T, result e2eResult) {
 		}
 	}
 	for _, action := range []string{"run_started", "validation_changed", "pdf_inventory_registered", "run_completed"} {
-		if !strings.Contains(mustE2EJSON(t, audit), action) {
+		if !auditActions[action] {
 			t.Errorf("viewer audit is missing %q", action)
 		}
 	}
+}
+
+// requestE2EAuditActions traverses the bounded canonical audit route for one generated run.
+func requestE2EAuditActions(t *testing.T, handler http.Handler, runID int64) map[string]bool {
+	t.Helper()
+	actions := make(map[string]bool)
+	cursor := ""
+	for page := 0; page < 100; page++ {
+		path := "/api/audit?run_id=" + strconv.FormatInt(runID, 10) + "&limit=100"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		payload := requestE2EJSON(t, handler, path)
+		for _, raw := range payload["events"].([]any) {
+			event := raw.(map[string]any)
+			actions[event["action"].(string)] = true
+		}
+		if payload["has_more"] != true {
+			return actions
+		}
+		next, ok := payload["next_cursor"].(float64)
+		if !ok || next < 1 {
+			t.Fatalf("viewer audit page %d has invalid cursor %#v", page, payload["next_cursor"])
+		}
+		cursor = strconv.FormatInt(int64(next), 10)
+	}
+	t.Fatal("viewer audit traversal exceeded 100 pages")
+	return nil
 }
 
 // requestE2EJSON invokes one read-only viewer route and decodes its object response.

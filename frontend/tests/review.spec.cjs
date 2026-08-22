@@ -31,11 +31,11 @@ test.describe('isolated review mutation lifecycle', () => {
     expect(saved.ok()).toBeTruthy();
     const note = await request.post('/api/runs/1/articles/1/notes', { data: { body: `See [[pdf:page=2|${browserName} results page]] and [[note:999|unresolved note]].` } });
     expect(note.status()).toBe(201);
-    const anchorID = `methods-${browserName}`;
+    const anchorLabel = `methods-${browserName}`;
     const anchors = await request.get('/api/runs/1/articles/1/anchors?limit=100');
     expect(anchors.ok()).toBeTruthy();
-    if (!(await anchors.json()).anchors.some((anchor) => anchor.id === anchorID)) {
-      const anchor = await request.post('/api/runs/1/articles/1/anchors', { data: { anchor_id: anchorID, page: 1, selected_text: 'Selectable fixture methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
+    if (!(await anchors.json()).anchors.some((anchor) => anchor.label === anchorLabel)) {
+      const anchor = await request.post('/api/runs/1/articles/1/anchors', { data: { label: anchorLabel, page: 1, selected_text: 'Selectable fixture methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
       expect(anchor.status()).toBe(201);
     }
 
@@ -81,9 +81,11 @@ test.describe('isolated review mutation lifecycle', () => {
     expect(noteFormGaps.actions).toBeGreaterThanOrEqual(15);
     const browserNote = page.locator('[data-note-list] p').filter({ hasText: `${browserName} results page` });
     await expect(browserNote).toContainText('unresolved note');
-    await expect(browserNote.locator('[aria-label="Unresolved link"]')).toBeVisible();
+    const unresolvedLink = browserNote.locator('[aria-label^="Unresolved note target: 999"]');
+    await expect(unresolvedLink).toBeVisible();
+    await expect(unresolvedLink).toHaveAttribute('aria-label', /Unresolved note target: 999/);
     await page.getByRole('tab', { name: 'PDF anchors' }).click();
-    await expect(page.locator('[data-anchor-list]')).toContainText(anchorID);
+    await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
     await expect(page.locator('.rw-pdf-page--current canvas')).toBeVisible();
     await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture methods');
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
@@ -104,6 +106,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.waitForLoadState('networkidle');
     await expect(page.locator('[data-review-host]')).toContainText(updatedReason);
     await expect(page.locator('[data-review-status]')).toHaveValue('not_approved');
-    await expect(page.locator('[data-anchor-list]')).toContainText(anchorID);
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
+    await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
   });
 });

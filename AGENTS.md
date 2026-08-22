@@ -91,9 +91,9 @@ The viewer is a URL-state SPA assembled into `frontend/dist` from `frontend/src`
 
 ## 6. Data, migration, and security essentials
 
-The metadata chain is V00001-V00025 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
+The metadata chain is V00001-V00026 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
 
-Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
+Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. A configured `supersedes` filename adopts an already applied renamed migration by recording the canonical filename without rerunning its SQL; retain both history rows and use this only for an explicitly verified equivalent migration. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 
 Provider payloads and pipeline artifacts are inline and content-addressed. The pipeline registers normalized DOIs as `not_available`; only `build/pdf-store add` stores validated PDF bytes and changes a DOI to `available`. Manual PDFs are capped at 20,000,000 bytes, require a PDF signature, use SHA-256 identity, and write metadata audit through the outbox.
 

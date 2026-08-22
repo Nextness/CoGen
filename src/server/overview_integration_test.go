@@ -48,6 +48,11 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 			Observed   int    `json:"observed_result_count"`
 			Comparison string `json:"result_count_comparison"`
 		} `json:"source_result_counts"`
+		RelationshipTotals map[string]struct {
+			Available bool   `json:"available"`
+			State     string `json:"state"`
+			Value     int64  `json:"value"`
+		} `json:"relationship_totals"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
@@ -82,6 +87,12 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	if len(payload.SourceResultCounts) != 1 || payload.SourceResultCounts[0].SourceName != "fixture" || payload.SourceResultCounts[0].Expected != 4 || payload.SourceResultCounts[0].Observed != 1 || payload.SourceResultCounts[0].Comparison != "below" {
 		t.Fatalf("source result count summary = %#v", payload.SourceResultCounts)
 	}
+	if metric := payload.RelationshipTotals["analysis_ready_articles"]; !metric.Available || metric.State != "derived" || metric.Value != 1 {
+		t.Fatalf("analysis-ready article total = %#v", metric)
+	}
+	if metric := payload.RelationshipTotals["work_revisions"]; metric.Value != 3 {
+		t.Fatalf("all-revision total = %#v, want 3", metric)
+	}
 	viewer.AssetsFS = os.DirFS(filepath.Join("..", "..", "frontend", "src"))
 	handler := viewer.Handler()
 	for _, check := range []struct {
@@ -102,6 +113,41 @@ func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 		if !strings.Contains(asset.Body.String(), check.needle) {
 			t.Fatalf("frontend %s is missing %q", check.path, check.needle)
 		}
+	}
+}
+
+// TestOverviewReportsMalformedSourceFilterEvidence verifies invalid stored JSON is visible and never fabricated as zero.
+func TestOverviewReportsMalformedSourceFilterEvidence(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	db, err := database.Open(path, filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO source_filter_counts (pipeline_run_id, source_name, filter_data)
+		VALUES (?, 'broken-source', '{not-json')`, runID); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	status, body := requestJSON(t, viewer.Handler(), "/api/overview?run_id="+stringID(runID))
+	if status != http.StatusOK {
+		t.Fatalf("overview status=%d body=%v", status, body)
+	}
+	diagnostics := body["source_filter_diagnostics"].([]any)
+	if len(diagnostics) != 1 {
+		t.Fatalf("source filter diagnostics=%#v, want one", diagnostics)
+	}
+	diagnostic := diagnostics[0].(map[string]any)
+	if diagnostic["source"] != "broken-source" || diagnostic["state"] != "invalid" || diagnostic["code"] != "invalid_json" {
+		t.Fatalf("source filter diagnostic=%#v", diagnostic)
 	}
 }
 

@@ -6,7 +6,9 @@
 package server
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/url"
 	"testing"
 )
 
@@ -20,9 +22,9 @@ func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 	defer viewer.Close()
 	handler := viewer.Handler()
 	for _, path := range []string{
-		"/api/articles/" + stringID(revisionID),
+		"/api/articles/" + stringID(revisionID) + "?run_id=" + stringID(runID),
 		"/api/authors/1?run_id=" + stringID(runID),
-		"/api/references/" + stringID(mentionID),
+		"/api/references/" + stringID(mentionID) + "?run_id=" + stringID(runID),
 	} {
 		response := viewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
@@ -39,6 +41,108 @@ func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 	}
 }
 
+// TestAPIDetailsRejectCrossRunRecords verifies crafted identifiers cannot escape the selected run.
+func TestAPIDetailsRejectCrossRunRecords(t *testing.T) {
+	path, runID, revisionID, mentionID := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	handler := viewer.Handler()
+
+	for _, path := range []string{
+		"/api/articles/" + stringID(revisionID) + "?run_id=" + stringID(runID+1),
+		"/api/authors/1?run_id=" + stringID(runID+1),
+		"/api/references/" + stringID(mentionID) + "?run_id=" + stringID(runID+1),
+	} {
+		response := viewerRequest(t, handler, path)
+		if response.Code != http.StatusNotFound {
+			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+	for _, path := range []string{
+		"/api/articles/" + stringID(revisionID),
+		"/api/authors/1",
+		"/api/references/" + stringID(mentionID),
+	} {
+		response := viewerRequest(t, handler, path)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("GET %s without run: status=%d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+}
+
+// TestArticleDetailCollectionsTraverseBeyondOneHundred verifies endpoint-bound cursor paging and ownership.
+func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
+	path, runID, revisionID, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	for index := 0; index < 103; index++ {
+		author, err := viewer.writeDB.DB.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", "Paged author "+stringID(int64(index)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		authorID, _ := author.LastInsertId()
+		if _, err := viewer.writeDB.DB.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, authorID, index+10); err != nil {
+			t.Fatal(err)
+		}
+	}
+	handler := viewer.Handler()
+	seen := make(map[int64]bool)
+	cursor := ""
+	for {
+		requestPath := "/api/articles/" + stringID(revisionID) + "/collections/authors?run_id=" + stringID(runID)
+		if cursor != "" {
+			requestPath += "&cursor=" + url.QueryEscape(cursor)
+		}
+		response := viewerRequest(t, handler, requestPath)
+		if response.Code != http.StatusOK {
+			t.Fatalf("article authors request=%s status=%d body=%s", requestPath, response.Code, response.Body.String())
+		}
+		var payload struct {
+			Items      []map[string]any `json:"items"`
+			Total      int              `json:"total"`
+			HasMore    bool             `json:"has_more"`
+			NextCursor string           `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.Total != 106 {
+			t.Fatalf("article author total=%d, want 106", payload.Total)
+		}
+		for _, item := range payload.Items {
+			id := int64(item["id"].(float64))
+			if seen[id] {
+				t.Fatalf("author %d appeared on multiple pages", id)
+			}
+			seen[id] = true
+		}
+		if !payload.HasMore {
+			break
+		}
+		if payload.NextCursor == "" {
+			t.Fatal("article authors reported more without a cursor")
+		}
+		cursor = payload.NextCursor
+	}
+	if len(seen) != 106 {
+		t.Fatalf("traversed %d article authors, want 106", len(seen))
+	}
+	badCursor := viewerRequest(t, handler, "/api/articles/"+stringID(revisionID)+"/collections/references?run_id="+stringID(runID)+"&cursor="+url.QueryEscape(cursor))
+	if badCursor.Code != http.StatusBadRequest {
+		t.Fatalf("cross-collection cursor status=%d body=%s", badCursor.Code, badCursor.Body.String())
+	}
+	crossRun := viewerRequest(t, handler, "/api/articles/"+stringID(revisionID)+"/collections/authors?run_id="+stringID(runID+1))
+	if crossRun.Code != http.StatusNotFound {
+		t.Fatalf("cross-run collection status=%d body=%s", crossRun.Code, crossRun.Body.String())
+	}
+}
+
 // TestAPIAuthorDetailIncludesRunScopedIdentityCandidates verifies candidate evidence moved from the corpus table into author detail.
 func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
 	path, runID, _, _ := viewerFixture(t)
@@ -52,7 +156,7 @@ func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("author detail: status=%d body=%v", status, body)
 	}
-	evidence := body["identity_evidence"].([]any)
+	evidence := body["identity_evidence"].(map[string]any)["items"].([]any)
 	if len(evidence) != 1 {
 		t.Fatalf("identity evidence=%#v, want one resolution", evidence)
 	}
@@ -80,11 +184,11 @@ func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 	defer viewer.Close()
 	handler := viewer.Handler()
 
-	code, article := requestJSON(t, handler, "/api/articles/"+stringID(fixture.citingRevisionID))
+	code, article := requestJSON(t, handler, "/api/articles/"+stringID(fixture.citingRevisionID)+"?run_id="+stringID(fixture.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article response: code=%d body=%v", code, article)
 	}
-	references := article["references"].([]any)
+	references := article["references"].(map[string]any)["items"].([]any)
 	if len(references) != 2 {
 		t.Fatalf("article references = %#v, want exactly the two stored mentions", references)
 	}
@@ -107,7 +211,7 @@ func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 		}
 	}
 
-	code, detail := requestJSON(t, handler, "/api/references/"+stringID(fixture.resolvedMentionID))
+	code, detail := requestJSON(t, handler, "/api/references/"+stringID(fixture.resolvedMentionID)+"?run_id="+stringID(fixture.runID))
 	if code != http.StatusOK {
 		t.Fatalf("reference response: code=%d body=%v", code, detail)
 	}
@@ -130,11 +234,11 @@ func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 	defer viewer.Close()
 	handler := viewer.Handler()
 
-	code, article := requestJSON(t, handler, "/api/articles/"+stringID(fixture.normalizedRevisionID))
+	code, article := requestJSON(t, handler, "/api/articles/"+stringID(fixture.normalizedRevisionID)+"?run_id="+stringID(fixture.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article response: code=%d body=%v", code, article)
 	}
-	stages := article["stage_outcomes"].([]any)
+	stages := article["stage_outcomes"].(map[string]any)["items"].([]any)
 	wantStages := []struct {
 		name    string
 		outcome string
@@ -157,7 +261,7 @@ func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 	}
 
 	correlations := make(map[string]bool)
-	for _, raw := range article["audit_events"].([]any) {
+	for _, raw := range article["audit_events"].(map[string]any)["items"].([]any) {
 		correlations[raw.(map[string]any)["correlation_id"].(string)] = true
 	}
 	for _, correlationID := range []string{
@@ -171,24 +275,18 @@ func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 		t.Errorf("audit events included prior-run validation: %#v", correlations)
 	}
 
-	enriched := make(map[string]bool)
-	for _, raw := range article["enriched_fields"].([]any) {
-		enriched[raw.(map[string]any)["metadata_json"].(string)] = true
-	}
-	for _, metadata := range []string{
-		`{"field":"title","provider":"crossref"}`,
-		`{"field":"orcid","provider":"orcid"}`,
-	} {
-		if !enriched[metadata] {
-			t.Errorf("enriched fields missing %s: %#v", metadata, enriched)
-		}
+	enrichment := article["enrichment_summary"].(map[string]any)
+	providers := enrichment["providers"].([]any)
+	fields := enrichment["fields"].([]any)
+	if len(providers) != 2 || len(fields) != 2 {
+		t.Errorf("enrichment summary providers=%v fields=%v", providers, fields)
 	}
 
-	code, discarded := requestJSON(t, handler, "/api/articles/"+stringID(fixture.discardedRevisionID))
+	code, discarded := requestJSON(t, handler, "/api/articles/"+stringID(fixture.discardedRevisionID)+"?run_id="+stringID(fixture.runID))
 	if code != http.StatusOK {
 		t.Fatalf("discarded response: code=%d body=%v", code, discarded)
 	}
-	for _, raw := range discarded["stage_outcomes"].([]any) {
+	for _, raw := range discarded["stage_outcomes"].(map[string]any)["items"].([]any) {
 		stage := raw.(map[string]any)
 		if stage["stage_name"] == "validate" {
 			if stage["outcome"] != "discarded" || stage["reason"] != fixture.discardedReason {

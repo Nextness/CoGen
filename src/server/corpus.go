@@ -29,7 +29,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
             JOIN works w ON w.id=wr.work_id
             LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
                 AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
-		where:  "wr.pipeline_run_id=? AND wr.producer_stage='normalize' AND validation.outcome='valid'",
+		where:  "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
 		search: "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
 		sortFields: map[string]string{
 			"id": "wr.id", "title": "wr.title", "year": "wr.year", "journal": "wr.journal", "publisher": "wr.publisher", "source": "wr.source", "doi": "w.doi", "validation_status": "validation.outcome", "citation_count": "wr.citation_count", "reference_count": "wr.reference_count", "created_at": "wr.created_at",
@@ -40,7 +40,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 		from: `FROM author_occurrences ao
             JOIN authorships a ON a.author_occurrence_id=ao.id
             JOIN work_revisions wr ON wr.id=a.work_revision_id`,
-		where:   "wr.pipeline_run_id=?",
+		where:   "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
 		groupBy: "ao.id",
 		search:  "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
 		sortFields: map[string]string{
@@ -51,7 +51,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 		columns: []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
 		from: `FROM reference_mentions rm
             JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
-		where:  "wr.pipeline_run_id=?",
+		where:  "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
 		search: "rm.doi, rm.title, rm.author, rm.source, wr.title",
 		sortFields: map[string]string{
 			"id": "rm.id", "work_revision_id": "rm.work_revision_id", "mention_order": "rm.mention_order", "doi": "rm.doi", "title": "rm.title", "author": "rm.author", "year": "rm.year", "source": "rm.source", "resolved_work_id": "rm.resolved_work_id", "created_at": "rm.created_at",
@@ -101,12 +101,14 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	page = clampScopedPage(page, perPage, total)
 	selectColumns := corpusSelectColumns(r.PathValue("kind"))
 	querySQL := "SELECT " + selectColumns + " " + definition.from + " WHERE " + where
 	if definition.groupBy != "" {
 		querySQL += " GROUP BY " + definition.groupBy
 	}
-	querySQL += " ORDER BY " + definition.sortFields[sort] + " " + order + " LIMIT ? OFFSET ?"
+	uniqueOrder := map[string]string{"articles": "wr.id", "authors": "ao.id", "references": "rm.id", "sources": "sr.id"}[r.PathValue("kind")]
+	querySQL += " ORDER BY " + stableScopedOrder(definition.sortFields[sort], uniqueOrder, order) + " LIMIT ? OFFSET ?"
 	args = append(args, perPage, (page-1)*perPage)
 	rows, err := s.db.QueryContext(ctx, querySQL, args...)
 	if err != nil {
@@ -200,8 +202,9 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	page = clampScopedPage(page, perPage, total)
 	queryArgs := append(args, perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, "SELECT rws.id, rws.work_id, rws.stage_name, rws.outcome, rws.reason, rws.created_at, rws.updated_at FROM run_work_stages rws WHERE "+where+" ORDER BY "+fields[sort]+" "+order+" LIMIT ? OFFSET ?", queryArgs...)
+	rows, err := s.db.QueryContext(ctx, "SELECT rws.id, rws.work_id, rws.stage_name, rws.outcome, rws.reason, rws.created_at, rws.updated_at FROM run_work_stages rws WHERE "+where+" ORDER BY "+stableScopedOrder(fields[sort], "rws.id", order)+" LIMIT ? OFFSET ?", queryArgs...)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -294,8 +297,10 @@ func (s *Server) runStageSummaries(ctx context.Context, runID int64) ([]map[stri
 }
 
 // scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request.
-func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string) (int, int, string, string, string, error) {
-	if err := validateKnownQuery(r, "page", "per_page", "sort", "order", "q"); err != nil {
+func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string, additionalQueryKeys ...string) (int, int, string, string, string, error) {
+	queryKeys := []string{"page", "per_page", "sort", "order", "q"}
+	queryKeys = append(queryKeys, additionalQueryKeys...)
+	if err := validateKnownQuery(r, queryKeys...); err != nil {
 		return 0, 0, "", "", "", err
 	}
 	page, perPage := 1, 50
@@ -353,6 +358,27 @@ func scopedPagination(page, perPage int, total int64, sort, order string) map[st
 		"total_pages": (total + int64(perPage) - 1) / int64(perPage),
 		"has_next":    int64(page*perPage) < total, "sort": sort, "order": strings.ToLower(order),
 	}
+}
+
+// clampScopedPage maps an offset request past the end to the final populated page.
+func clampScopedPage(page, perPage int, total int64) int {
+	totalPages := (total + int64(perPage) - 1) / int64(perPage)
+	if totalPages == 0 {
+		return 1
+	}
+	if int64(page) > totalPages {
+		return int(totalPages)
+	}
+	return page
+}
+
+// stableScopedOrder appends a unique key in the requested direction when needed.
+func stableScopedOrder(expression, uniqueExpression, order string) string {
+	result := expression + " " + order
+	if expression != uniqueExpression {
+		result += ", " + uniqueExpression + " " + order
+	}
+	return result
 }
 
 // requireRun requires a valid run value.

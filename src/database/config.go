@@ -6,6 +6,7 @@ package database
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"analysis/something"
 )
@@ -134,6 +135,18 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 		if v, ok := s["upgrade"]; ok {
 			e.upgrade, _ = v.(string)
 		}
+		if raw, ok := s["supersedes"].([]any); ok {
+			for _, value := range raw {
+				filename, ok := value.(string)
+				if !ok || !validMigrationFilename(filename) {
+					return nil, fmt.Errorf("migration %s supersedes must contain filenames in V00001_description.sql form", e.filename)
+				}
+				if filename == e.filename {
+					return nil, fmt.Errorf("migration %s cannot supersede itself", e.filename)
+				}
+				e.supersedes = append(e.supersedes, filename)
+			}
+		}
 
 		if e.filename == "" {
 			lg.Debug("migration configuration entry validation failed", "reason", "missing_filename")
@@ -143,4 +156,17 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 	}
 	lg.Debug("migration configuration query successful", "entries", len(entries))
 	return entries, nil
+}
+
+// validMigrationFilename reports whether filename follows the configured VNNNNN_description.sql migration identity form.
+func validMigrationFilename(filename string) bool {
+	if len(filename) < len("V00001_a.sql") || filename[0] != 'V' || filename[6] != '_' || !strings.HasSuffix(filename, ".sql") {
+		return false
+	}
+	for _, character := range filename[1:6] {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return len(strings.TrimSuffix(filename[7:], ".sql")) > 0
 }

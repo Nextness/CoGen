@@ -1,21 +1,68 @@
 [
   {
-    "name": "blocks and links",
-    "body": "# Heading [[article:10.1000/example]]\n\n- first\n- second\n\n> quote\n\n```\n[[note:9]]\n```",
-    "link_types": ["article"],
-    "error_count": 0
+    "name": "complete block grammar",
+    "body": "# Heading [[article:https://doi.org/10.1000/Example|paper]]\n\nParagraph.\n\n- first [[note:12]]\n- second\n\n1. ordered one\n1. ordered two\n\n> quoted [[ext:https://example.test/path]]\n> continuation\n\n| Field | Evidence |\n| --- | --- |\n| Anchor | [[anchor:methods-1]] |\n| Page | [[pdf:page=5]] |\n\n```\n[[note:99]]\n```",
+    "blocks": [
+      { "type": "heading", "text": "Heading [[article:https://doi.org/10.1000/Example|paper]]", "level": 1 },
+      { "type": "paragraph", "text": "Paragraph." },
+      { "type": "list", "items": ["first [[note:12]]", "second"] },
+      { "type": "list", "ordered": true, "items": ["ordered one", "ordered two"] },
+      { "type": "quote", "text": "quoted [[ext:https://example.test/path]]\ncontinuation" },
+      { "type": "table", "header": ["Field", "Evidence"], "rows": [["Anchor", "[[anchor:methods-1]]"], ["Page", "[[pdf:page=5]]"]] },
+      { "type": "code", "text": "[[note:99]]" }
+    ],
+    "links": [
+      { "ordinal": 1, "target_type": "article", "raw_target": "10.1000/example", "display_text": "paper", "position": 10, "length": 49 },
+      { "ordinal": 2, "target_type": "note", "raw_target": "12", "display_text": null, "position": 81, "length": 11 },
+      { "ordinal": 3, "target_type": "ext", "raw_target": "https://example.test/path", "display_text": null, "position": 143, "length": 33 },
+      { "ordinal": 4, "target_type": "anchor", "raw_target": "methods-1", "display_text": null, "position": 239, "length": 20 },
+      { "ordinal": 5, "target_type": "pdf_page", "raw_target": "5", "display_text": null, "position": 271, "length": 14 }
+    ],
+    "errors": []
   },
   {
-    "name": "unsafe external URL",
+    "name": "unsafe external URL uses UTF-16 positions",
     "body": "😀 [[ext:javascript:alert(1)]]",
-    "link_types": [],
-    "error_count": 1,
-    "first_error_position": 3
+    "blocks": [{ "type": "paragraph", "text": "😀 [[ext:javascript:alert(1)]]" }],
+    "links": [],
+    "errors": [{ "position": 3, "length": 27, "message": "external URL must use absolute http or https" }]
   },
   {
-    "name": "all internal targets",
-    "body": "[[note:12]] [[pdf:page=5]] [[anchor:methods-1]]",
-    "link_types": ["note", "pdf_page", "anchor"],
-    "error_count": 0
+    "name": "relative external URL",
+    "body": "[[ext:/relative/path]]",
+    "blocks": [{ "type": "paragraph", "text": "[[ext:/relative/path]]" }],
+    "links": [],
+    "errors": [{ "position": 0, "length": 22, "message": "external URL must use absolute http or https" }]
+  },
+  {
+    "name": "short table delimiter",
+    "body": "| A | B |\n| - | --- |\n| 1 | 2 |",
+    "blocks": [{ "type": "paragraph", "text": "| A | B |\n| - | --- |\n| 1 | 2 |" }],
+    "links": [],
+    "errors": [{ "position": 0, "length": 9, "message": "malformed table" }]
+  },
+  {
+    "name": "wrong table row shape",
+    "body": "| A | B |\n| --- | --- |\n| 1 | 2 |\n| only one |\n| 3 | 4 |",
+    "blocks": [{ "type": "table", "header": ["A", "B"], "rows": [["1", "2"], ["3", "4"]] }],
+    "links": [],
+    "errors": [{ "position": 34, "length": 12, "message": "table row has the wrong number of cells" }]
+  },
+  {
+    "name": "escaped fields and DOI normalization",
+    "body": "See [[article: DOI:10.1234/ABC.DEF |Study \\| one]] and [[ext:https://example.test/a\\]b]].",
+    "blocks": [{ "type": "paragraph", "text": "See [[article: DOI:10.1234/ABC.DEF |Study \\| one]] and [[ext:https://example.test/a\\]b]]." }],
+    "links": [
+      { "ordinal": 1, "target_type": "article", "raw_target": "10.1234/abc.def", "display_text": "Study | one", "position": 4, "length": 46 },
+      { "ordinal": 2, "target_type": "ext", "raw_target": "https://example.test/a]b", "display_text": null, "position": 55, "length": 33 }
+    ],
+    "errors": []
+  },
+  {
+    "name": "unclosed code fence",
+    "body": "before\n\n```\n[[note:99]]",
+    "blocks": [{ "type": "paragraph", "text": "before" }, { "type": "code", "text": "[[note:99]]" }],
+    "links": [],
+    "errors": [{ "position": 8, "length": 3, "message": "unclosed code fence" }]
   }
 ]

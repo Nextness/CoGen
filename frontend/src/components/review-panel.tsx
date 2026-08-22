@@ -4,9 +4,29 @@ import { formatTime, humanLabel, link } from "../state.tsx";
 import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
 import { mountNoteEditor } from "./note-editor.tsx";
 import { mountPDFViewer } from "./pdf-viewer.tsx";
+import { bindReviewContextInitializer, ReviewContextDialog, reviewContextSummary } from "./review-context-dialog.tsx";
+import type { ProposedParent } from "./review-context-dialog.tsx";
+import { mountBacklinks } from "./backlinks.tsx";
 
 const statuses = ["not_evaluated", "in_progress", "approved", "not_approved", "removed"];
 const substatuses = ["redacted", "unrelated", "out_of_scope", "duplicate", "retracted", "withdrawn", "superseded", "predatory_low_quality", "copyright_licensing", "not_peer_reviewed"];
+let reviewHealthPromise: Promise<any> | null = null;
+
+/** Loads immutable viewer capability data once per page and retries after a failed request. */
+async function reviewHealth(): Promise<any> {
+  if (!reviewHealthPromise) {
+    reviewHealthPromise = api("/api/health", {}, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+  }
+  try {
+    return await reviewHealthPromise;
+  } catch (error) {
+    reviewHealthPromise = null;
+    throw error;
+  }
+}
 
 /** One PDF text selection captured by the reader. */
 export interface PDFSelection {
@@ -18,6 +38,7 @@ export interface PDFSelection {
 /** One anchor head returned by the review anchors API. */
 export interface AnchorHead {
   id: string;
+  label: string;
   version: {
     id: any;
     page: number;
@@ -30,32 +51,23 @@ export interface AnchorHead {
   inherited_from_context_id?: any;
 }
 
-/** One proposed parent review context returned by the server. */
-export interface ProposedParent {
-  context_id: number;
-  pipeline_run_id: number;
-  search_id: any;
-  search_revision: any;
-  inherited_work_count: number;
-}
-
 /** Mounts all editable review controls for one immutable run article revision. */
 export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: any, detailData: any, onAuditChange?: () => Promise<void>): Promise<{ destroy: () => any }> {
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
-  const health = await api("/api/health", {}, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
-  const context = await api(`/api/runs/${runID}/review-context`, {}, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
   let pdfController: any = null;
   let pendingSelection: PDFSelection | null = null;
   let reviewEditable = false;
+  let notesEditable = false;
+  let anchorsEditable = false;
+  let loadedAnchors: AnchorHead[] = [];
+  let anchorCursor = "";
+  let anchorHasMore = false;
   let setReviewSection: (name: string) => void = () => {};
+  let activateReviewSection: (name: string) => Promise<void> = async (name) => {
+    setReviewSection(name);
+  };
 
   if (detailData.pdf_status?.status === "available" && pdfHost) {
     pdfController = await mountPDFViewer(pdfHost, {
@@ -66,14 +78,41 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       },
       onSelection: (selection: PDFSelection) => {
         pendingSelection = selection;
-        setReviewSection("anchors");
-        renderAnchorCandidate();
+        void activateReviewSection("anchors").then(() => {
+          renderAnchorCandidate();
+          const anchorLabel = host.querySelector<HTMLInputElement>("[data-anchor-label]");
+          anchorLabel?.focus();
+          const candidate = host.querySelector<HTMLElement>("[data-anchor-candidate]");
+          candidate?.scrollIntoView({ block: "nearest" });
+        });
       },
     }).catch((error: any) => {
       const errorMarkup = <p className="ui negative message">The embedded PDF could not be rendered. The original PDF remains available through the download endpoint: {error.message}</p>;
       renderTree(errorMarkup, pdfHost!);
       return null;
     });
+  }
+
+  var context: any;
+  try {
+    context = await api(`/api/runs/${runID}/review-context`, {}, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+  } catch (error: any) {
+    const contextErrorMarkup = (
+      <section className="ui error message" role="alert">
+        <span className="header">Article review is unavailable</span>
+        <p>{error.message}</p>
+        <p>The immutable article and document reader remain available.</p>
+        <button type="button" className="ui basic button" data-review-context-retry>Retry Article review</button>
+      </section>
+    );
+    renderTree(contextErrorMarkup, host);
+    host.querySelector<HTMLButtonElement>("[data-review-context-retry]")?.addEventListener("click", () => {
+      void mountArticleReview(host, null, record, detailData, onAuditChange);
+    });
+    return { destroy: () => { return pdfController?.destroy(); } };
   }
 
   if (!context.context_initialized) {
@@ -85,16 +124,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Renders explicit context initialization with safe parent confirmation. */
   function renderStartReview(proposed: ProposedParent | null): void {
-    var proposedSummary = "No earlier compatible review context was proposed. You can start this run with an empty review context.";
-    if (proposed) {
-      var plural = "s";
-      if (proposed.inherited_work_count === 1) plural = "";
-      proposedSummary = `Run ${proposed.pipeline_run_id} from ${proposed.search_id} / ${proposed.search_revision} contains ${proposed.inherited_work_count} matching work${plural}.`;
-    }
-    var recommendedOption: JSX.Element | null = null;
-    if (proposed) {
-      recommendedOption = <option selected value={proposed.context_id}>{`Recommended: run ${proposed.pipeline_run_id} · ${proposed.search_id} / ${proposed.search_revision} · ${proposed.inherited_work_count} matching`}</option>;
-    }
+    const proposedSummary = reviewContextSummary(proposed);
     const startReviewMarkup = (
       <section className="ui segment rw-review-panel rw-review-panel--empty">
         <div className="ui top attached header">
@@ -114,182 +144,25 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           </div>
           <p className="ui info message"><span className="header">Suggested lineage</span>{proposedSummary}</p>
         </div>
-        <dialog className="rw-review-dialog" data-review-dialog aria-labelledby="review-dialog-title" aria-describedby="review-dialog-description">
-          <form className="ui form rw-review-dialog__form" data-review-context-form>
-            <div className="rw-review-dialog__header">
-              <div>
-                <p className="rw-review-dialog__eyebrow">Review lineage</p>
-                <h3 id="review-dialog-title">Start article review</h3>
-                <p id="review-dialog-description">Choose which earlier review context to inherit, or start empty. This choice cannot be changed after initialization.</p>
-              </div>
-              <button type="button" className="ui icon basic button rw-review-dialog__close" data-review-close aria-label="Close review setup">{"\u00D7"}</button>
-            </div>
-            <div className="rw-review-dialog__body">
-              <div className="ui info message">
-                <span className="header">Recommended starting point</span>
-                {`${proposedSummary} Inheritance is frozen when review starts.`}
-              </div>
-              <div className="ui field">
-                <label htmlFor="review-parent-context">Parent review context</label>
-                <div className="ui selection dropdown">
-                  <select id="review-parent-context" data-review-parent>
-                    <option value="">Start empty with no inherited review evidence</option>
-                    {recommendedOption}
-                  </select>
-                </div>
-                <p className="rw-field-help">Only earlier review contexts are eligible. Matching work heads are copied by immutable version reference.</p>
-              </div>
-              <section className="rw-review-candidate-panel" aria-labelledby="review-candidate-heading">
-                <div>
-                  <h4 id="review-candidate-heading">Available context scope</h4>
-                  <p>Same-search contexts load automatically. Expand only when you intentionally need lineage from another search.</p>
-                </div>
-                <button type="button" className="ui basic button" data-all-review-candidates>Include all earlier searches</button>
-              </section>
-              <div className="ui info message rw-review-candidate-status" data-review-candidates aria-live="polite"><span className="header">Same-search contexts</span>Open this dialog to load eligible alternatives.</div>
-            </div>
-            <div className="rw-review-dialog__actions">
-              <button type="button" className="ui basic button" data-review-cancel>Cancel</button>
-              <button type="submit" className="ui primary button" data-confirm-review>Initialize review</button>
-            </div>
-          </form>
-        </dialog>
+        <ReviewContextDialog proposed={proposed} />
       </section>
     );
     renderTree(startReviewMarkup, host);
-    const dialog = host.querySelector("[data-review-dialog]") as HTMLDialogElement;
-    let sameSearchLoaded = false;
-    let allSearchesLoaded = false;
-    /** Closes the setup dialog in browsers and test DOMs with partial dialog support. */
-    function closeDialog(): void {
-      if (typeof dialog.close === "function") dialog.close();
-      else dialog.removeAttribute("open");
-    }
-    /** Adds bounded eligible parents from same-search or explicitly expanded scope. */
-    async function appendCandidates(scope: string): Promise<void> {
-      const status = host.querySelector("[data-review-candidates]") as HTMLElement;
-      const expandButton = host.querySelector("[data-all-review-candidates]") as HTMLButtonElement;
-      status.className = "ui info message rw-review-candidate-status";
-      var scopeLabel = "same-search";
-      if (scope === "all") scopeLabel = "cross-search";
-      const loadingMarkup = (
-        <>
-          <span className="header">Searching review history</span>
-          Loading eligible {scopeLabel} contexts.
-        </>
-      );
-      renderTree(loadingMarkup, status);
-      if (scope === "all") {
-        expandButton.disabled = true;
-        expandButton.classList.add("loading");
-      }
-      try {
-        const candidates = await api(`/api/runs/${runID}/review-context-candidates`, {
-          scope: scope,
-          limit: 100,
-        }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const select = host.querySelector("[data-review-parent]") as HTMLSelectElement;
-        let added = 0;
-        for (const candidate of candidates.rows || []) {
-          const existingOptions = Array.from(select.options);
-          if (existingOptions.some((option) => {
-            return option.value === String(candidate.context_id);
-          })) continue;
-          const option = document.createElement("option");
-          option.value = candidate.context_id;
-          option.textContent = `${candidate.search_id} / ${candidate.search_revision} / run ${candidate.pipeline_run_id} · ${candidate.inherited_work_count} matching`;
-          select.append(option);
-          added += 1;
-        }
-        const total = Math.max(0, select.options.length - 1);
-        if (scope === "all") {
-          allSearchesLoaded = true;
-          expandButton.textContent = "All earlier searches included";
-          var addedSummary = "No additional cross-search contexts were found. ";
-          if (added) {
-            var addedVerb = "s were";
-            if (added === 1) addedVerb = " was";
-            addedSummary = `${added} additional eligible context${addedVerb} added. `;
-          }
-          var totalVerb = "s are";
-          if (total === 1) totalVerb = " is";
-          const allMarkup = (
-            <>
-              <span className="header">All earlier searches checked</span>
-              {addedSummary}{total} total parent option{totalVerb} available.
-            </>
-          );
-          renderTree(allMarkup, status);
-        } else {
-          sameSearchLoaded = true;
-          var sameSummary = "No same-search parent is available. Start empty or deliberately include all earlier searches.";
-          if (total) {
-            var sameVerb = "s are";
-            if (total === 1) sameVerb = " is";
-            sameSummary = `${total} eligible parent option${sameVerb} available, including the recommendation when present.`;
-          }
-          const sameMarkup = (
-            <>
-              <span className="header">Same-search contexts ready</span>
-              {sameSummary}
-            </>
-          );
-          renderTree(sameMarkup, status);
-        }
-      } catch (error: any) {
-        status.className = "ui error message rw-review-candidate-status";
-        const errorMarkup = (
-          <>
-            <span className="header">Context search failed</span>
-            {error.message}
-          </>
-        );
-        renderTree(errorMarkup, status);
-        if (scope === "all") expandButton.disabled = false;
-      } finally {
-        expandButton.classList.remove("loading");
-      }
-    }
-    host.querySelector("[data-start-review]")!.addEventListener("click", async () => {
-      dialog.showModal?.();
-      if (!dialog.open) dialog.setAttribute("open", "");
-      if (!sameSearchLoaded) await appendCandidates("same_search");
-    });
-    host.querySelector("[data-all-review-candidates]")!.addEventListener("click", async () => {
-      if (allSearchesLoaded) return;
-      await appendCandidates("all");
-    });
-    host.querySelector("[data-review-close]")!.addEventListener("click", closeDialog);
-    host.querySelector("[data-review-cancel]")!.addEventListener("click", closeDialog);
-    dialog.addEventListener("click", (event) => {
-      if (event.target === dialog) closeDialog();
-    });
-    host.querySelector("[data-review-context-form]")!.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = (host.querySelector("[data-review-parent]") as HTMLSelectElement).value;
-      const button = host.querySelector("[data-confirm-review]") as HTMLButtonElement;
-      const status = host.querySelector("[data-review-candidates]") as HTMLElement;
-      button.disabled = true;
-      button.classList.add("loading");
-      try {
-        await mutate(`/api/runs/${runID}/review-context`, "POST", { parent_context_id: raw ? Number(raw) : null });
-        closeDialog();
+    bindReviewContextInitializer(host, {
+      runID: runID,
+      proposed: proposed,
+      onInitialized: async () => {
         await renderReview();
-      } catch (error: any) {
-        status.className = "ui error message rw-review-candidate-status";
-        const errorMarkup = (
-          <>
-            <span className="header">Review could not be initialized</span>
-            {error.message}
-          </>
-        );
-        renderTree(errorMarkup, status);
-        button.disabled = false;
-        button.classList.remove("loading");
-      }
+        try {
+          await onAuditChange?.();
+        } catch (_) {
+          const message = host.querySelector<HTMLElement>("[data-review-message]");
+          if (message) {
+            message.className = "ui warning message rw-review-feedback";
+            message.textContent = "Review context was saved, but the article audit display could not be refreshed.";
+          }
+        }
+      },
     });
   }
 
@@ -299,7 +172,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    reviewEditable = data.editable;
+    reviewEditable = data.editability?.decision ?? data.editable;
+    notesEditable = data.editability?.notes ?? data.editable;
+    anchorsEditable = data.editability?.anchors ?? (data.editable && detailData.pdf_status?.status === "available");
     const state = data.review || { version: null };
     const version = state.version;
     const selectedStatus = version?.status || "not_evaluated";
@@ -314,7 +189,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     const substatusOptions = substatuses.map((status) => {
       return (
         <label className="rw-review-check">
-          <input type="checkbox" value={status} checked={selectedSubstatuses.has(status)} disabled={!data.editable} />
+          <input type="checkbox" value={status} checked={selectedSubstatuses.has(status)} disabled={!reviewEditable} />
           <span>{humanLabel(status)}</span>
         </label>
       );
@@ -362,12 +237,12 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
                 <div className="ui field">
                   <label htmlFor="article-review-status">Decision status</label>
                   <div className="ui selection dropdown">
-                    <select id="article-review-status" data-review-status disabled={!data.editable}>{statusOptions}</select>
+                    <select id="article-review-status" data-review-status disabled={!reviewEditable}>{statusOptions}</select>
                   </div>
                 </div>
                 <div className="ui field">
                   <label htmlFor="article-review-reason">Reason or review summary <span className="rw-optional">Optional</span></label>
-                  <textarea id="article-review-reason" rows={4} data-review-reason maxlength={32768} disabled={!data.editable}>{version?.reason || ""}</textarea>
+                  <textarea id="article-review-reason" rows={4} data-review-reason maxlength={32768} disabled={!reviewEditable}>{version?.reason || ""}</textarea>
                   <p className="rw-field-help">The saved reason is included in the append-only audit change for this decision.</p>
                 </div>
               </div>
@@ -378,7 +253,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
               </fieldset>
               <div className="ui info message rw-review-feedback" data-review-message aria-live="polite">{feedbackMarkup}</div>
               <div className="rw-review-actions">
-                <button type="submit" className="ui primary button" data-review-save disabled={!data.editable}>Save review decision</button>
+                <button type="submit" className="ui primary button" data-review-save disabled={!reviewEditable}>Save review decision</button>
                 <button type="button" className="ui basic button" data-review-history aria-expanded="false">Show version history</button>
               </div>
             </form>
@@ -386,6 +261,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           </section>
           <section id="review-panel-notes" className="rw-review-section" role="tabpanel" data-review-section-panel="notes" aria-labelledby="review-tab-notes" hidden>
             <div data-note-host></div>
+            <details className="rw-review-history">
+              <summary>Inbound links to this article</summary>
+              <div>
+                <button type="button" className="ui basic button" data-article-backlinks disabled={!record.doi}>Load article backlinks</button>
+                <div data-article-backlink-list></div>
+              </div>
+            </details>
           </section>
           <section id="review-panel-anchors" className="rw-review-section rw-anchor-panel" role="tabpanel" data-review-section-panel="anchors" aria-labelledby="review-tab-anchors" hidden>
             <div className="rw-review-section__heading">
@@ -396,6 +278,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             </div>
             <div data-anchor-candidate></div>
             <div data-anchor-list></div>
+            <details className="rw-review-history">
+              <summary>Inbound links to the current PDF page</summary>
+              <div>
+                <button type="button" className="ui basic button" data-page-backlinks>Load page backlinks</button>
+                <div data-page-backlink-list></div>
+              </div>
+            </details>
           </section>
         </div>
       </section>
@@ -403,6 +292,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     renderTree(reviewMarkup, host);
     const sectionButtons = Array.from(host.querySelectorAll<HTMLButtonElement>("[data-review-section]"));
     const sectionPanels = Array.from(host.querySelectorAll<HTMLElement>("[data-review-section-panel]"));
+    let notesLoaded = false;
+    let anchorsLoaded = false;
     /** Switches visible review content without hiding its section identity or state. */
     setReviewSection = (name: string) => {
       sectionButtons.forEach((button) => {
@@ -417,9 +308,88 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         panel.hidden = panel.dataset.reviewSectionPanel !== name;
       });
     };
+    /** Activates one review tab and isolates optional panel loading failures. */
+    activateReviewSection = async (name: string): Promise<void> => {
+      setReviewSection(name);
+      if (name === "notes" && !notesLoaded) {
+        const noteHost = host.querySelector("[data-note-host]") as HTMLElement;
+        const loadingMarkup = <p className="ui info message">Loading Notes.</p>;
+        renderTree(loadingMarkup, noteHost);
+        try {
+          const health = await reviewHealth();
+          await mountNoteEditor(noteHost, {
+            corpusID: health.corpus_id,
+            runID: runID,
+            workRevisionID: revisionID,
+            articleDOI: record.doi || "",
+            editable: notesEditable,
+            onChanged: onAuditChange,
+          });
+          notesLoaded = true;
+        } catch (error: any) {
+          const errorMarkup = (
+            <p className="ui error message" role="alert">
+              <span className="header">Notes could not be loaded</span>
+              {error.message}
+              <button type="button" className="ui basic button" data-notes-retry>Retry Notes</button>
+            </p>
+          );
+          renderTree(errorMarkup, noteHost);
+          noteHost.querySelector<HTMLButtonElement>("[data-notes-retry]")?.addEventListener("click", () => {
+            void activateReviewSection("notes");
+          });
+        }
+      }
+      if (name === "anchors" && !anchorsLoaded) {
+        const anchorHost = host.querySelector("[data-anchor-list]") as HTMLElement;
+        const loadingMarkup = <p className="ui info message">Loading PDF anchors.</p>;
+        renderTree(loadingMarkup, anchorHost);
+        try {
+          await loadAnchors(true);
+          renderAnchorCandidate();
+          anchorsLoaded = true;
+        } catch (error: any) {
+          const errorMarkup = (
+            <p className="ui error message" role="alert">
+              <span className="header">PDF anchors could not be loaded</span>
+              {error.message}
+              <button type="button" className="ui basic button" data-anchors-retry>Retry PDF anchors</button>
+            </p>
+          );
+          renderTree(errorMarkup, anchorHost);
+          anchorHost.querySelector<HTMLButtonElement>("[data-anchors-retry]")?.addEventListener("click", () => {
+            void activateReviewSection("anchors");
+          });
+        }
+      }
+    };
     sectionButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        setReviewSection(button.dataset.reviewSection as string);
+        void activateReviewSection(button.dataset.reviewSection as string);
+      });
+    });
+    host.querySelector<HTMLButtonElement>("[data-article-backlinks]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      const target = host.querySelector<HTMLElement>("[data-article-backlink-list]")!;
+      button.disabled = true;
+      await mountBacklinks(target, {
+        runID: runID,
+        targetType: "article",
+        targetID: String(record.doi),
+        heading: "Notes linking to this article",
+      });
+    });
+    host.querySelector<HTMLButtonElement>("[data-page-backlinks]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      const target = host.querySelector<HTMLElement>("[data-page-backlink-list]")!;
+      const currentPage = new URLSearchParams(location.search).get("pdf_page") || "1";
+      button.disabled = true;
+      await mountBacklinks(target, {
+        runID: runID,
+        targetType: "pdf_page",
+        targetID: currentPage,
+        workRevisionID: revisionID,
+        heading: `Notes linking to PDF page ${currentPage}`,
       });
     });
     host.querySelector<HTMLElement>(".rw-review-nav")!.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -432,74 +402,217 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       else if (event.key === "End") target = sectionButtons.length - 1;
       else return;
       event.preventDefault();
-      setReviewSection(sectionButtons[target].dataset.reviewSection as string);
+      void activateReviewSection(sectionButtons[target].dataset.reviewSection as string);
       sectionButtons[target].focus();
     });
     const statusSelect = host.querySelector("[data-review-status]") as HTMLSelectElement;
     const substatusField = host.querySelector("[data-review-substatuses]") as HTMLFieldSetElement;
+    const reviewForm = host.querySelector("[data-review-form]") as HTMLFormElement;
+    const reasonInput = host.querySelector("[data-review-reason]") as HTMLTextAreaElement;
+    let expectedVersionID = version?.id || null;
+    /** Serializes only user-editable decision input for dirty-state comparison. */
+    function decisionDraft(): string {
+      const checked = Array.from(substatusField.querySelectorAll<HTMLInputElement>("input:checked")).map((input) => input.value).sort();
+      return JSON.stringify({ status: statusSelect.value, reason: reasonInput.value, qualifiers: checked });
+    }
+    let savedDecisionDraft = decisionDraft();
+    /** Prevents route changes from silently discarding a local decision draft. */
+    function protectDecision(event: Event): void {
+      if (!reviewForm.isConnected) {
+        document.removeEventListener("rw-before-navigate", protectDecision);
+        window.removeEventListener("beforeunload", protectDecision);
+        return;
+      }
+      if (decisionDraft() === savedDecisionDraft) return;
+      if (event.type === "beforeunload") {
+        event.preventDefault();
+        (event as BeforeUnloadEvent).returnValue = "";
+        return;
+      }
+      if (!window.confirm("Leave this article and discard the unsaved review decision?")) event.preventDefault();
+    }
+    document.addEventListener("rw-before-navigate", protectDecision);
+    window.addEventListener("beforeunload", protectDecision);
     /** Enables sub-status choices only for the two compatible terminal statuses. */
     function updateSubstatuses(): void {
       const compatible = statusSelect.value === "not_approved" || statusSelect.value === "removed";
       substatusField.disabled = !reviewEditable || !compatible;
-      if (!compatible) {
-        const checkedInputs = substatusField.querySelectorAll("input");
-        checkedInputs.forEach((input) => {
-          (input as HTMLInputElement).checked = false;
-        });
-      }
     }
     statusSelect.addEventListener("change", updateSubstatuses);
     updateSubstatuses();
-    host.querySelector("[data-review-form]")!.addEventListener("submit", async (event) => {
+    reviewForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const message = host.querySelector("[data-review-message]") as HTMLElement;
       const saveButton = host.querySelector("[data-review-save]") as HTMLButtonElement;
-      const reasonText = (host.querySelector("[data-review-reason]") as HTMLTextAreaElement).value.trim();
+      const reasonText = reasonInput.value.trim();
       saveButton.disabled = true;
       saveButton.classList.add("loading");
+      const compatible = statusSelect.value === "not_approved" || statusSelect.value === "removed";
+      var checkedInputs: HTMLInputElement[] = [];
+      if (compatible) checkedInputs = Array.from(substatusField.querySelectorAll<HTMLInputElement>("input:checked"));
+      var saved: any;
       try {
-        const checkedInputs = substatusField.querySelectorAll("input:checked");
-        const saved = await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, "PUT", {
-          expected_version_id: version?.id || null,
+        saved = await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, "PUT", {
+          expected_version_id: expectedVersionID,
           status: statusSelect.value,
-          sub_statuses: Array.from(checkedInputs).map((input) => {
-            return (input as HTMLInputElement).value;
+          sub_statuses: checkedInputs.map((input) => {
+            return input.value;
           }),
           reason: reasonText || null,
         });
-        await renderReview();
-        if (saved.changed && onAuditChange) {
-          try {
-            await onAuditChange();
-          } catch (error) {
-            const currentMessage = host.querySelector("[data-review-message]") as HTMLElement;
-            currentMessage.className = "ui warning message rw-review-feedback";
-            const warningMarkup = (
-              <>
-                <span className="header">Decision saved</span>
-                The audit display could not be refreshed. Reload the article to see the persisted event.
-              </>
-            );
-            renderTree(warningMarkup, currentMessage);
-          }
-        }
       } catch (error: any) {
         message.className = "ui error message rw-review-feedback";
         var errorMessage = error.message;
-        if (error instanceof APIError && error.status === 409) {
-          errorMessage = "A newer version exists. Your input is preserved; inspect version history before retrying.";
+        var rebaseAction: JSX.Element | null = null;
+        if (error instanceof APIError && error.code === "version_conflict") {
+          rebaseAction = <button type="button" className="ui basic button" data-review-load-latest>Load latest while keeping my input</button>;
         }
+        if (rebaseAction) errorMessage = "A newer version exists. Your input is preserved.";
         const errorMarkup = (
           <>
             <span className="header">Review was not saved</span>
             {errorMessage}
+            {rebaseAction}
           </>
         );
         renderTree(errorMarkup, message);
         saveButton.disabled = false;
         saveButton.classList.remove("loading");
+        host.querySelector<HTMLButtonElement>("[data-review-load-latest]")?.addEventListener("click", async () => {
+          const latest = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          expectedVersionID = latest.review?.version?.id || null;
+          message.className = "ui warning message rw-review-feedback";
+          const latestStatus = humanLabel(latest.review?.version?.status || "not_evaluated");
+          const latestMarkup = (
+            <Fragment>
+              <span className="header">Latest saved decision loaded</span>
+              <p>Version {expectedVersionID || "none"}: {latestStatus}. Your local status, reason, and qualifiers remain unchanged; save again to reapply them.</p>
+              <button type="button" className="ui basic button" data-review-history-after-conflict>Inspect version history</button>
+            </Fragment>
+          );
+          renderTree(latestMarkup, message);
+          host.querySelector<HTMLButtonElement>("[data-review-history-after-conflict]")?.addEventListener("click", () => {
+            (host.querySelector("[data-review-history]") as HTMLButtonElement).click();
+          });
+        });
+        return;
+      }
+      expectedVersionID = saved.review?.version?.id || expectedVersionID;
+      savedDecisionDraft = decisionDraft();
+      message.className = "ui success message rw-review-feedback";
+      const savedMarkup = (
+        <Fragment>
+          <span className="header">Decision saved</span>
+          Immutable version {expectedVersionID} is now database evidence.
+        </Fragment>
+      );
+      renderTree(savedMarkup, message);
+      saveButton.disabled = false;
+      saveButton.classList.remove("loading");
+      try {
+        await renderReview();
+      } catch (refreshError: any) {
+        message.className = "ui warning message rw-review-feedback";
+        const refreshMarkup = (
+          <Fragment>
+            <span className="header">Decision saved, refresh failed</span>
+            <p>{refreshError.message}</p>
+            <button type="button" className="ui basic button" data-review-refresh>Retry refresh</button>
+          </Fragment>
+        );
+        renderTree(refreshMarkup, message);
+        message.querySelector<HTMLButtonElement>("[data-review-refresh]")?.addEventListener("click", () => { void renderReview(); });
+        return;
+      }
+      if (saved.changed && onAuditChange) {
+        try {
+          await onAuditChange();
+        } catch (_) {
+          const currentMessage = host.querySelector("[data-review-message]") as HTMLElement;
+          currentMessage.className = "ui warning message rw-review-feedback";
+          const auditWarningMarkup = (
+            <Fragment>
+              <span className="header">Decision saved</span>
+              The audit display could not be refreshed. Reload the article to see the persisted event.
+            </Fragment>
+          );
+          renderTree(auditWarningMarkup, currentMessage);
+        }
       }
     });
+    let decisionVersions: any[] = [];
+    let decisionCursor = "";
+    let decisionHasMore = false;
+    /** Renders every loaded decision-summary page and lazy full-reason controls. */
+    function renderDecisionHistory(): void {
+      const target = host.querySelector("[data-review-history-list]") as HTMLElement;
+      const historyItems = decisionVersions.map((item: any) => {
+        var reasonMarkup: JSX.Element | null = null;
+        if (item.reason) {
+          var reasonSuffix = "";
+          if (item.reason_truncated) reasonSuffix = "…";
+          reasonMarkup = <blockquote data-review-reason-version={item.id}>{item.reason}{reasonSuffix}</blockquote>;
+        }
+        var fullReasonMarkup: JSX.Element | null = null;
+        if (item.reason_truncated) fullReasonMarkup = <button type="button" className="ui basic button" data-review-full-version={item.id}>Load full reason</button>;
+        var qualifiersMarkup: JSX.Element | null = null;
+        if (item.sub_statuses?.length) {
+          const qualifierLabels = item.sub_statuses.map(humanLabel);
+          qualifiersMarkup = <p className="rw-review-qualifiers">{qualifierLabels.join(" · ")}</p>;
+        }
+        return <li><div><strong>Version {item.id} · {humanLabel(item.status)}</strong><p>{item.reviewer_display} · {formatTime(item.created_at)}</p></div>{reasonMarkup}{fullReasonMarkup}{qualifiersMarkup}</li>;
+      });
+      var olderMarkup: JSX.Element | null = null;
+      if (decisionHasMore) olderMarkup = <button type="button" className="ui basic button" data-review-history-more>Load older decisions</button>;
+      const historyMarkup = (
+        <Fragment>
+          <div className="rw-review-section__heading">
+            <div>
+              <h4>Version history</h4>
+              <p>The newest immutable decision appears first.</p>
+            </div>
+          </div>
+          <ol className="rw-review-history">{historyItems}</ol>
+          {olderMarkup}
+        </Fragment>
+      );
+      renderTree(historyMarkup, target);
+      target.querySelector<HTMLButtonElement>("[data-review-history-more]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        button.disabled = true;
+        button.classList.add("loading");
+        await loadDecisionHistoryPage();
+      });
+      for (const button of Array.from(target.querySelectorAll<HTMLButtonElement>("[data-review-full-version]"))) {
+        button.addEventListener("click", async () => {
+          const versionID = button.dataset.reviewFullVersion as string;
+          const data = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions/${versionID}`, {}, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+          });
+          const quote = target.querySelector(`[data-review-reason-version="${CSS.escape(versionID)}"]`) as HTMLElement;
+          quote.textContent = data.version.reason || "";
+          button.remove();
+        });
+      }
+    }
+    /** Appends one opaque decision-history page without replacing prior rows. */
+    async function loadDecisionHistoryPage(): Promise<void> {
+      const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 25, cursor: decisionCursor }, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      const known = new Set(decisionVersions.map((item) => String(item.id)));
+      for (const item of historyData.items || historyData.versions || []) {
+        if (!known.has(String(item.id))) decisionVersions.push(item);
+      }
+      decisionCursor = historyData.next_cursor || "";
+      decisionHasMore = Boolean(historyData.has_more);
+      renderDecisionHistory();
+    }
     host.querySelector("[data-review-history]")!.addEventListener("click", async () => {
       const button = host.querySelector("[data-review-history]") as HTMLButtonElement;
       const target = host.querySelector("[data-review-history-list]") as HTMLElement;
@@ -512,44 +625,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.disabled = true;
       button.classList.add("loading");
       try {
-        const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 100 }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
-        const historyItems = (historyData.versions || []).map((item: any) => {
-          var reasonMarkup: JSX.Element | null = null;
-          if (item.reason) {
-            reasonMarkup = <blockquote>{item.reason}</blockquote>;
-          }
-          var qualifiersMarkup: JSX.Element | null = null;
-          if (item.sub_statuses?.length) {
-            const qualifiers = item.sub_statuses.map(humanLabel);
-            const qualifiersText = qualifiers.join(" · ");
-            qualifiersMarkup = <p className="rw-review-qualifiers">{qualifiersText}</p>;
-          }
-          return (
-            <li>
-              <div>
-                <strong>Version {item.id} · {humanLabel(item.status)}</strong>
-                <p>{item.reviewer_display} · {formatTime(item.created_at)}</p>
-              </div>
-              {reasonMarkup}
-              {qualifiersMarkup}
-            </li>
-          );
-        });
-        const historyMarkup = (
-          <Fragment>
-            <div className="rw-review-section__heading">
-              <div>
-                <h4>Version history</h4>
-                <p>The newest immutable decision appears first.</p>
-              </div>
-            </div>
-            <ol className="rw-review-history">{historyItems}</ol>
-          </Fragment>
-        );
-        renderTree(historyMarkup, target);
+        if (!decisionVersions.length) await loadDecisionHistoryPage();
         target.hidden = false;
         button.setAttribute("aria-expanded", "true");
         button.textContent = "Hide version history";
@@ -567,22 +643,16 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         button.classList.remove("loading");
       }
     });
-    if (data.editable) {
-      await mountNoteEditor(host.querySelector("[data-note-host]") as HTMLElement, { corpusID: health.corpus_id, runID: runID, workRevisionID: revisionID });
-    } else {
-      const noteLockedMarkup = <p className="ui faded text">An available PDF is required before review notes can be changed.</p>;
-      renderTree(noteLockedMarkup, host.querySelector("[data-note-host]") as HTMLElement);
-    }
-    await loadAnchors();
-    renderAnchorCandidate();
-    if (pendingSelection || new URLSearchParams(location.search).get("anchor_id")) setReviewSection("anchors");
-    else if (new URLSearchParams(location.search).get("note_id")) setReviewSection("notes");
+    var initialSection = "decision";
+    if (pendingSelection || new URLSearchParams(location.search).get("anchor_id")) initialSection = "anchors";
+    else if (new URLSearchParams(location.search).get("note_id")) initialSection = "notes";
+    await activateReviewSection(initialSection);
   }
 
   /** Converts one current PDF text selection into an accessible anchor creation form. */
   function renderAnchorCandidate(): void {
     const targetElement = host.querySelector<HTMLElement>("[data-anchor-candidate]");
-    if (!targetElement || !pendingSelection || !reviewEditable) return;
+    if (!targetElement || !pendingSelection || !anchorsEditable) return;
     const selection = pendingSelection;
     const anchorFormMarkup = (
       <form className="ui form rw-anchor-candidate" data-anchor-form>
@@ -591,8 +661,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           <blockquote>{"\u201C"}{selection.selectedText}{"\u201D"}</blockquote>
         </div>
         <div className="ui field">
-          <label htmlFor="review-anchor-id">Anchor ID</label>
-          <input id="review-anchor-id" required pattern="[A-Za-z][A-Za-z0-9._-]{0,63}" placeholder="methods-sample" data-anchor-id />
+          <label htmlFor="review-anchor-label">Anchor label</label>
+          <input id="review-anchor-label" required pattern="[A-Za-z][A-Za-z0-9._-]{0,63}" placeholder="methods-sample" data-anchor-label />
           <p className="rw-field-help">Begin with a letter, then use letters, numbers, periods, underscores, or hyphens.</p>
         </div>
         <div className="rw-review-actions">
@@ -618,15 +688,24 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.classList.add("loading");
       try {
         await mutate(`/api/runs/${runID}/articles/${revisionID}/anchors`, "POST", {
-          anchor_id: (targetElement.querySelector("[data-anchor-id]") as HTMLInputElement).value,
+          label: (targetElement.querySelector("[data-anchor-label]") as HTMLInputElement).value,
           page: selection.page,
           selected_text: selection.selectedText,
           rectangles: selection.rectangles,
         });
         pendingSelection = null;
-        targetElement.textContent = "";
         window.getSelection?.()?.removeAllRanges?.();
-        await loadAnchors();
+        message.className = "ui success message";
+        message.textContent = "PDF anchor saved as immutable review evidence.";
+        button.classList.remove("loading");
+        try {
+          await loadAnchors();
+          await onAuditChange?.();
+          targetElement.textContent = "";
+        } catch (refreshError: any) {
+          message.className = "ui warning message";
+          message.textContent = `PDF anchor saved, refresh failed: ${refreshError.message}`;
+        }
       } catch (error: any) {
         message.className = "ui error message";
         const errorMarkup = (
@@ -643,18 +722,30 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   }
 
   /** Loads bounded active anchor heads, textual controls, and content-matched highlights. */
-  async function loadAnchors(): Promise<void> {
+  async function loadAnchors(reset = true): Promise<void> {
     const target = host.querySelector("[data-anchor-list]") as HTMLElement | null;
     if (!target) return;
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 100 }, {
+    if (reset) {
+      loadedAnchors = [];
+      anchorCursor = "";
+      anchorHasMore = false;
+    }
+    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 25, cursor: anchorCursor }, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    const activeAnchors: AnchorHead[] = data.anchors || [];
+    const known = new Set(loadedAnchors.map((anchor) => anchor.id));
+    for (const anchor of data.items || data.anchors || []) {
+      if (!known.has(anchor.id)) loadedAnchors.push(anchor);
+    }
+    anchorCursor = data.next_cursor || "";
+    anchorHasMore = Boolean(data.has_more);
+    const activeAnchors = loadedAnchors;
     var anchorsMarkup: JSX.Element = <p className="ui faded text">No active anchors. Select PDF text to add one, or use this keyboard-operable list to revisit existing anchors.</p>;
     if (activeAnchors.length) {
       const anchorItems = activeAnchors.map((anchor) => {
         const mismatch = anchor.version.pdf_content_hash !== detailData.pdf_status?.content_hash;
+        const anchorLabel = anchor.label || anchor.id;
         var contextLabel: JSX.Element = <span className="ui neutral label">This context</span>;
         if (anchor.inherited_from_context_id) {
           contextLabel = <span className="ui violet label">Inherited</span>;
@@ -665,11 +756,17 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           statusClass = "ui red label";
           statusText = "PDF changed";
         }
+        var pageButtonText = `Open page ${anchor.version.page}`;
+        var pageButtonLabel = `Open anchor ${anchorLabel} on PDF page ${anchor.version.page}`;
+        if (mismatch) {
+          pageButtonText = "Page unavailable for changed PDF";
+          pageButtonLabel = `Anchor ${anchorLabel} belongs to different PDF content`;
+        }
         return (
           <li data-anchor-id={anchor.id}>
             <div className="rw-anchor-card__meta">
               <div>
-                <span className="ui label">{anchor.id}</span>
+                <span className="ui label">{anchorLabel}</span>
                 <span className="ui label">Page {anchor.version.page}</span>
                 {contextLabel}
               </div>
@@ -677,20 +774,29 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             </div>
             <blockquote>{anchor.version.selected_text || ""}</blockquote>
             <div className="rw-anchor-card__actions">
-              <button type="button" className="ui primary button" data-anchor-page={anchor.version.page} aria-label={`Open anchor ${anchor.id} on PDF page ${anchor.version.page}`}>Open page {anchor.version.page}</button>
+              <button type="button" className="ui primary button" data-anchor-page={anchor.version.page} disabled={mismatch} aria-label={pageButtonLabel}>{pageButtonText}</button>
               <button type="button" className="ui basic button" data-anchor-history>History</button>
-              <button type="button" className="ui danger button" data-anchor-delete disabled={!reviewEditable}>Remove</button>
+              <button type="button" className="ui danger button" data-anchor-delete disabled={!anchorsEditable}>Remove</button>
             </div>
           </li>
         );
       });
       anchorsMarkup = <ul className="rw-anchor-list">{anchorItems}</ul>;
     }
+    var loadMoreMarkup: JSX.Element | null = null;
+    if (anchorHasMore) loadMoreMarkup = <button type="button" className="ui basic button" data-anchor-load-more>Load more anchors</button>;
+    anchorsMarkup = <Fragment><p className="ui error message" data-anchor-list-message role="alert" hidden></p>{anchorsMarkup}{loadMoreMarkup}</Fragment>;
     renderTree(anchorsMarkup, target);
     const matchedAnchors = activeAnchors.filter((anchor) => {
       return anchor.version.pdf_content_hash === detailData.pdf_status?.content_hash;
     });
     pdfController?.setAnchors(matchedAnchors);
+    target.querySelector<HTMLButtonElement>("[data-anchor-load-more]")?.addEventListener("click", async (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      button.disabled = true;
+      button.classList.add("loading");
+      await loadAnchors(false);
+    });
     for (const anchor of activeAnchors) {
       const row = target.querySelector(`[data-anchor-id="${CSS.escape(anchor.id)}"]`) as HTMLElement;
       const pageButton = row.querySelector("[data-anchor-page]") as HTMLButtonElement;
@@ -702,20 +808,41 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         pdfController?.goToPage(Number(anchor.version.page));
       });
       const historyButton = row.querySelector("[data-anchor-history]") as HTMLButtonElement;
-      historyButton.addEventListener("click", () => { void showAnchorHistory(anchor.id); });
+      historyButton.addEventListener("click", () => { void showAnchorHistory(anchor.id, anchor.label); });
       const deleteButton = row.querySelector("[data-anchor-delete]") as HTMLButtonElement;
       deleteButton.addEventListener("click", async () => {
-        if (!reviewEditable) return;
-        await mutate(`/api/runs/${runID}/anchors/${encodeURIComponent(anchor.id)}/versions`, "POST", {
-          expected_version_id: anchor.version.id,
-          state: "deleted",
-          page: 0,
-          selected_text: "",
-          rectangles: [],
-        });
-        history.replaceState({}, "", link({ anchor_id: anchor.id }));
-        await showAnchorHistory(anchor.id);
-        await loadAnchors();
+        if (!anchorsEditable || !window.confirm(`Remove anchor ${anchor.label || anchor.id}? Its immutable history will remain available.`)) return;
+        deleteButton.disabled = true;
+        deleteButton.classList.add("loading");
+        try {
+          await mutate(`/api/runs/${runID}/anchors/${encodeURIComponent(anchor.id)}/versions`, "POST", {
+            expected_version_id: anchor.version.id,
+            state: "deleted",
+            page: 0,
+            selected_text: "",
+            rectangles: [],
+          });
+          history.replaceState({}, "", link({ anchor_id: anchor.id }));
+          const message = target.querySelector("[data-anchor-list-message]") as HTMLElement;
+          message.className = "ui success message";
+          message.textContent = "Anchor removed. Its immutable history remains available.";
+          message.hidden = false;
+          deleteButton.classList.remove("loading");
+          try {
+            await loadAnchors();
+            await showAnchorHistory(anchor.id, anchor.label);
+            await onAuditChange?.();
+          } catch (refreshError: any) {
+            message.className = "ui warning message";
+            message.textContent = `Anchor removed, refresh failed: ${refreshError.message}`;
+          }
+        } catch (error: any) {
+          const message = target.querySelector("[data-anchor-list-message]") as HTMLElement;
+          message.textContent = error.message || "Anchor could not be removed.";
+          message.hidden = false;
+          deleteButton.disabled = false;
+          deleteButton.classList.remove("loading");
+        }
       });
     }
     const focused = new URLSearchParams(location.search).get("anchor_id");
@@ -725,41 +852,129 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   }
 
   /** Displays bounded immutable active and tombstone ancestry for a focused anchor. */
-  async function showAnchorHistory(anchorID: string): Promise<void> {
+  async function showAnchorHistory(anchorID: string, anchorLabel?: string): Promise<void> {
     const target = host.querySelector("[data-anchor-list]") as HTMLElement;
-    const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 100 }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
-    const historyItems = (data.versions || []).map((version: any) => {
-      var pageSummary = " · tombstone";
-      if (version.state === "active") pageSummary = ` · page ${version.page}`;
-      var quoteMarkup: JSX.Element | null = null;
-      if (version.state === "active") {
-        quoteMarkup = <blockquote>{version.selected_text || ""}</blockquote>;
+    let versions: any[] = [];
+    let cursor = "";
+    let hasMore = false;
+    /** Renders all loaded immutable anchor summaries and their continuation controls. */
+    function renderHistory(): void {
+      const newest = versions[0];
+      const restorable = versions.find((version: any) => {
+        return version.state === "active";
+      });
+      const restorableOnCurrentPDF = restorable && restorable.pdf_content_hash === detailData.pdf_status?.content_hash;
+      var restoreMarkup: JSX.Element | null = null;
+      if (newest?.state === "deleted") {
+        var restoreText = "Load older versions to find restorable geometry";
+        if (restorable) {
+          restoreText = "Cannot restore after PDF change";
+          if (restorableOnCurrentPDF) restoreText = "Restore anchor";
+        }
+        restoreMarkup = <button type="button" className="ui primary button" data-anchor-restore disabled={!anchorsEditable || !restorableOnCurrentPDF}>{restoreText}</button>;
       }
-      return (
-        <li>
-          <div>
-            <strong>Version {version.id} · {version.state}</strong>
-            <p>{version.reviewer_display} · {formatTime(version.created_at)}{pageSummary}</p>
+      const historyItems = versions.map((version: any) => {
+        var pageSummary = " · tombstone";
+        if (version.state === "active") pageSummary = ` · page ${version.page}`;
+        var quoteMarkup: JSX.Element | null = null;
+        if (version.state === "active") {
+          var quoteSuffix = "";
+          if (version.selected_text_truncated) quoteSuffix = "…";
+          quoteMarkup = <blockquote>{version.selected_text || ""}{quoteSuffix}</blockquote>;
+        }
+        return (
+          <li>
+            <div>
+              <strong>Version {version.id} · {version.state}</strong>
+              <p>{version.reviewer_display} · {formatTime(version.created_at)}{pageSummary}</p>
+            </div>
+            {quoteMarkup}
+          </li>
+        );
+      });
+      var olderMarkup: JSX.Element | null = null;
+      if (hasMore) olderMarkup = <button type="button" className="ui basic button" data-anchor-history-more>Load older versions</button>;
+      const historyNode = (
+        <section className="rw-anchor-history">
+          <div className="rw-review-section__heading">
+            <div>
+              <h4>Anchor {anchorLabel || anchorID} history</h4>
+              <p>The newest immutable anchor version appears first.</p>
+            </div>
+            <div className="rw-inline-group">{restoreMarkup}<button type="button" className="ui basic button" data-anchor-backlinks>Backlinks</button></div>
           </div>
-          {quoteMarkup}
-        </li>
+          <ol>{historyItems}</ol>
+          {olderMarkup}
+          <div data-anchor-backlink-list></div>
+          <p className="ui error message" data-anchor-history-message role="alert" hidden></p>
+        </section>
       );
-    });
-    const historyNode = (
-      <section className="rw-anchor-history">
-        <div className="rw-review-section__heading">
-          <div>
-            <h4>Anchor {anchorID} history</h4>
-            <p>The newest immutable anchor version appears first.</p>
-          </div>
-        </div>
-        <ol>{historyItems}</ol>
-      </section>
-    );
-    target.querySelector(".rw-anchor-history")?.remove();
-    target.appendChild(historyNode);
+      target.querySelector(".rw-anchor-history")?.remove();
+      target.appendChild(historyNode);
+      target.querySelector<HTMLButtonElement>("[data-anchor-history-more]")?.addEventListener("click", async (event) => {
+        const button = event.currentTarget as HTMLButtonElement;
+        button.disabled = true;
+        button.classList.add("loading");
+        await loadHistoryPage();
+      });
+      target.querySelector<HTMLButtonElement>("[data-anchor-backlinks]")?.addEventListener("click", async () => {
+        const backlinkTarget = target.querySelector("[data-anchor-backlink-list]") as HTMLElement;
+        await mountBacklinks(backlinkTarget, {
+          runID: runID,
+          targetType: "anchor",
+          targetID: anchorID,
+        });
+      });
+      const restoreButton = target.querySelector<HTMLButtonElement>("[data-anchor-restore]");
+      restoreButton?.addEventListener("click", async () => {
+        if (!restorable || !restorableOnCurrentPDF) return;
+        restoreButton.disabled = true;
+        restoreButton.classList.add("loading");
+        try {
+          await mutate(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, "POST", {
+            expected_version_id: newest.id,
+            state: "active",
+            restore_from_version_id: restorable.id,
+            page: 0,
+            selected_text: "",
+            rectangles: [],
+          });
+          const message = target.querySelector("[data-anchor-history-message]") as HTMLElement;
+          message.className = "ui success message";
+          message.textContent = "Anchor restored as a new immutable version.";
+          message.hidden = false;
+          restoreButton.classList.remove("loading");
+          try {
+            await loadAnchors(true);
+            await onAuditChange?.();
+          } catch (refreshError: any) {
+            message.className = "ui warning message";
+            message.textContent = `Anchor restored, refresh failed: ${refreshError.message}`;
+          }
+        } catch (error: any) {
+          const message = target.querySelector("[data-anchor-history-message]") as HTMLElement;
+          message.textContent = error.message || "Anchor could not be restored.";
+          message.hidden = false;
+          restoreButton.disabled = false;
+          restoreButton.classList.remove("loading");
+        }
+      });
+    }
+    /** Appends one anchor-version cursor page without duplicating existing history. */
+    async function loadHistoryPage(): Promise<void> {
+      const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 25, cursor: cursor }, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+      anchorLabel ||= data.anchor?.label;
+      const known = new Set(versions.map((version) => String(version.id)));
+      for (const version of data.items || data.versions || []) {
+        if (!known.has(String(version.id))) versions.push(version);
+      }
+      cursor = data.next_cursor || "";
+      hasMore = Boolean(data.has_more);
+      renderHistory();
+    }
+    await loadHistoryPage();
   }
 }

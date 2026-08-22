@@ -91,7 +91,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 - Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap. Review audit metadata remains identifier-only; decision events deliberately record the complete bounded previous and new decision in the audit before/after fields.
 - Context creation requires a completed non-trashed run, an earlier acyclic parent when supplied, and stable-work head materialization. Parent heads are frozen at creation and never propagate later changes.
-- Review, note, and anchor mutations require an available PDF for the selected work. Note bodies, selected PDF text, reviewer email, and browser drafts must not enter audit metadata or before/after state. A review decision's status, optional reason, and all sub-statuses are deliberate before/after audit evidence.
+- Review-decision and Note mutations require a completed active run, initialized review context, and exact work membership. PDF anchor creation or restoration additionally requires the matching available PDF bytes. Note bodies, selected PDF text, reviewer email, and browser drafts must not enter audit metadata or generic before/after state. A review decision's status, optional reason, and all sub-statuses are deliberate bounded before/after audit evidence.
 - Bound collection, graph, preview, table-browser, review history, note, anchor, backlink, and candidate queries even though the viewer runs locally.
 
 ## 10. Migration standards
@@ -101,6 +101,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Use the next contiguous `VNNNNN_description.sql` filename and include both `-- ==UP==` and `-- ==DOWN==` sections.
 - Never rewrite an applied migration.
 - Treat SOMETHING iteration order and filename as execution identity; `previous` and `upgrade` are descriptive rather than ordering inputs.
+- Use `supersedes` only when a migration was renamed after equivalent SQL was applied under the earlier filename; retain the historical row, record the canonical filename transactionally without rerunning SQL, and test both fresh and legacy upgrade paths.
 - Account for existing records, nullability, defaults, indexes, constraints, transaction behavior, runtime cost, and application versions that may overlap during deployment.
 - Preserve data and transactional integrity; destructive or irreversible transformations require explicit approval and documented rollout safeguards.
 - Run `make check-docs` so configured filenames, present SQL files, contiguous versions, and documented boundaries remain consistent.
@@ -143,7 +144,7 @@ Frontend production source is TypeScript with native ES modules and no applicati
 - Every internal link uses `link()` and preserves `search_id`, `search_revision_id`, `plan_id`, `run_id`, focused `note_id`, focused `anchor_id`, and `pdf_page` unless a parent or target change invalidates descendant context.
 - Bind DOM listeners after rendering a tree into the app or a sub-container, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
-- Rely on the JSX runtime's automatic escaping for text and attributes, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states. Use the `raw` escape hatch only for trusted, already-escaped markup while it remains during migration.
+- Rely on the JSX runtime's automatic escaping for text and attributes, compose application markup as JSX Nodes, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states. Application views and components do not use the `raw` or `renderToString` compatibility helpers.
 - Keep server-backed collections bounded and URL-addressable where reload or sharing matters.
 - The Go binary contains no frontend assets. `serve` requires `--assets-dir` (normally the assembled `frontend/dist` produced by `make frontend-build`), and serving makes no CDN request.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.

@@ -62,18 +62,18 @@ func TestPDFContentSupportsInlineRanges(t *testing.T) {
 	}
 }
 
-// TestArticleIncludesManualPDFAuditEvent verifies article includes manual pdf audit event.
+// TestArticleIncludesManualPDFAuditEvent verifies that article audit pagination includes manual PDF evidence.
 func TestArticleIncludesManualPDFAuditEvent(t *testing.T) {
 	fixture := newPDFViewerFixture(t)
 	handler := fixture.server.Handler()
-	code, article := requestJSON(t, handler, fmt.Sprintf("/api/articles/%d", fixture.revisionID))
+	code, article := requestJSON(t, handler, fmt.Sprintf("/api/articles/%d?run_id=%d", fixture.revisionID, fixture.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article code=%d body=%v", code, article)
 	}
 	if article["pdf_status"].(map[string]any)["status"] != "available" {
 		t.Fatalf("article PDF status = %#v", article["pdf_status"])
 	}
-	events := article["audit_events"].([]any)
+	events := article["audit_events"].(map[string]any)["items"].([]any)
 	found := false
 	for _, raw := range events {
 		if raw.(map[string]any)["action"] == "pdf_document_inventoried" {

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"analysis/database"
@@ -34,19 +35,20 @@ var log = logging.Logger("viewer")
 // AssetsFS is the frontend asset file system served at the web root; it must
 // be set because the binary does not embed frontend assets.
 type Server struct {
-	db       *sql.DB
-	writeDB  *database.Database
-	pdfDB    *sql.DB
-	pdfPath  string
-	tables   map[string]tableInfo
-	AssetsFS fs.FS // serves frontend assets from this filesystem
+	db         *sql.DB
+	writeDB    *database.Database
+	pdfDB      *sql.DB
+	pdfPath    string
+	pdfCacheMu sync.Mutex
+	pdfCache   *cachedPDF
+	tables     map[string]tableInfo
+	AssetsFS   fs.FS // serves frontend assets from this filesystem
 }
 
 // tableInfo stores the discovered columns for one browsable SQLite table.
 type tableInfo struct {
 	Name    string       `json:"name"`
 	Columns []columnInfo `json:"columns"`
-	Count   int64        `json:"row_count"`
 }
 
 // columnInfo records a SQLite column's name, declared type, and primary-key position.
@@ -155,9 +157,11 @@ func (s *Server) PDFStoreBound() bool { return s.pdfDB != nil }
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.HandleFunc("GET /api/hierarchy", s.hierarchy)
 	mux.HandleFunc("GET /api/searches", s.searches)
 	mux.HandleFunc("GET /api/plans", s.plans)
 	mux.HandleFunc("GET /api/runs", s.runs)
+	mux.HandleFunc("GET /api/runs/{id}/context", s.runContext)
 	mux.HandleFunc("PUT /api/runs/{run_id}/visibility", s.updateRunVisibility)
 	mux.HandleFunc("GET /api/overview", s.overview)
 	mux.HandleFunc("GET /api/runs/{id}/audit", s.runAudit)
@@ -173,26 +177,34 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/review", s.articleReview)
 	mux.HandleFunc("PUT /api/runs/{run_id}/articles/{work_revision_id}/review", s.updateArticleReview)
 	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/review/versions", s.articleReviewVersions)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/review/versions/{version_id}", s.articleReviewVersion)
 	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/notes", s.articleNotes)
 	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/notes", s.createArticleNote)
+	mux.HandleFunc("GET /api/runs/{run_id}/notes", s.runNotes)
 	mux.HandleFunc("GET /api/runs/{run_id}/notes/{note_id}", s.note)
 	mux.HandleFunc("GET /api/runs/{run_id}/notes/{note_id}/versions", s.noteVersions)
+	mux.HandleFunc("GET /api/runs/{run_id}/notes/{note_id}/versions/{version_id}", s.noteVersion)
 	mux.HandleFunc("POST /api/runs/{run_id}/notes/{note_id}/versions", s.createNoteVersion)
 	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/anchors", s.articleAnchors)
 	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/anchors", s.createArticleAnchor)
 	mux.HandleFunc("GET /api/runs/{run_id}/anchors/{anchor_id}/versions", s.anchorVersions)
+	mux.HandleFunc("GET /api/runs/{run_id}/anchors/{anchor_id}/versions/{version_id}", s.anchorVersion)
 	mux.HandleFunc("POST /api/runs/{run_id}/anchors/{anchor_id}/versions", s.createAnchorVersion)
 	mux.HandleFunc("GET /api/runs/{run_id}/links/backlinks", s.reviewBacklinks)
 	mux.HandleFunc("GET /api/runs/{id}/identity-evidence", s.runIdentityEvidence)
+	mux.HandleFunc("GET /api/identity-resolutions/{id}/candidates", s.identityCandidates)
 	mux.HandleFunc("GET /api/runs/{id}/stages", s.runStages)
 	mux.HandleFunc("GET /api/audit", s.audit)
+	mux.HandleFunc("GET /api/audit/{id}/recorded-data", s.auditRecordedData)
 	mux.HandleFunc("GET /api/trash", s.trash)
 	mux.HandleFunc("GET /api/tables", s.tablesHandler)
 	mux.HandleFunc("GET /api/tables/{table}", s.tableRows)
 	mux.HandleFunc("GET /api/articles/{id}", s.articleDetail)
+	mux.HandleFunc("GET /api/articles/{id}/collections/{kind}", s.articleDetailCollection)
 	mux.HandleFunc("GET /api/works/{work_id}/pdf-status", s.workPDFStatus)
 	mux.HandleFunc("GET /api/pdf/{work_id}", s.workPDF)
 	mux.HandleFunc("GET /api/authors/{id}", s.authorDetail)
+	mux.HandleFunc("GET /api/authors/{id}/collections/{kind}", s.authorDetailCollection)
 	mux.HandleFunc("GET /api/references/{id}", s.referenceDetail)
 	mux.HandleFunc("GET /api/graph", s.graph)
 	mux.HandleFunc("GET /api/", func(w http.ResponseWriter, r *http.Request) {
@@ -391,11 +403,7 @@ func (s *Server) discoverTables(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var count int64
-		if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+quoteIdentifier(name)).Scan(&count); err != nil {
-			return fmt.Errorf("count table %q: %w", name, err)
-		}
-		s.tables[name] = tableInfo{Name: name, Columns: columns, Count: count}
+		s.tables[name] = tableInfo{Name: name, Columns: columns}
 	}
 	return nil
 }

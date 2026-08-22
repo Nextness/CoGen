@@ -5,12 +5,13 @@ package notes
 import (
 	"encoding/json"
 	"os"
+	"reflect"
 	"testing"
 )
 
 // TestParseSupportedBlocksAndLinks verifies bounded blocks, escaping, link normalization, and code suppression.
 func TestParseSupportedBlocksAndLinks(t *testing.T) {
-	body := "# Heading [[article:https://doi.org/10.1000/Example|paper]]\n\n- one\n- two\n\n> quote\n\n| A | B |\n| - | -- |\n| x\\|y | [[note:12]] |\n\n```\n[[anchor:ignored]]\n```"
+	body := "# Heading [[article:https://doi.org/10.1000/Example|paper]]\n\n- one\n- two\n\n> quote\n\n| A | B |\n| --- | --- |\n| x\\|y | [[note:12]] |\n\n```\n[[anchor:ignored]]\n```"
 	document := Parse(body)
 	if len(document.Errors) != 0 {
 		t.Fatalf("Parse errors = %+v", document.Errors)
@@ -50,11 +51,9 @@ func TestConformanceFixtures(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixtures []struct {
-		Name               string   `json:"name"`
-		Body               string   `json:"body"`
-		LinkTypes          []string `json:"link_types"`
-		ErrorCount         int      `json:"error_count"`
-		FirstErrorPosition *int     `json:"first_error_position"`
+		Name string `json:"name"`
+		Body string `json:"body"`
+		Document
 	}
 	if err := json.Unmarshal(data, &fixtures); err != nil {
 		t.Fatal(err)
@@ -62,16 +61,10 @@ func TestConformanceFixtures(t *testing.T) {
 	for _, fixture := range fixtures {
 		t.Run(fixture.Name, func(t *testing.T) {
 			document := Parse(fixture.Body)
-			if len(document.Errors) != fixture.ErrorCount || len(document.Links) != len(fixture.LinkTypes) {
-				t.Fatalf("document=%+v", document)
-			}
-			for index, kind := range fixture.LinkTypes {
-				if document.Links[index].TargetType != kind {
-					t.Fatalf("link %d type=%q want=%q", index, document.Links[index].TargetType, kind)
-				}
-			}
-			if fixture.FirstErrorPosition != nil && document.Errors[0].Position != *fixture.FirstErrorPosition {
-				t.Fatalf("error position=%d want=%d", document.Errors[0].Position, *fixture.FirstErrorPosition)
+			if !reflect.DeepEqual(document, fixture.Document) {
+				got, _ := json.MarshalIndent(document, "", "  ")
+				want, _ := json.MarshalIndent(fixture.Document, "", "  ")
+				t.Fatalf("document mismatch\ngot: %s\nwant: %s", got, want)
 			}
 		})
 	}

@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"mime"
 	"net/http"
 	"strconv"
@@ -15,9 +16,15 @@ import (
 
 const maxInlineArtifactBytes = 256 * 1024
 const defaultInlineArtifactPreviewBytes = 64 * 1024
+const auditListPayloadBytes = 4 * 1024
+const auditDetailPayloadBytes = 64 * 1024
 
 // runAudit returns run-scoped and eligible global audit events with filters and facets.
 func (s *Server) runAudit(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r, "limit", "cursor"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
 	runID, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -33,13 +40,58 @@ func (s *Server) runAudit(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	items, err := s.auditRows(ctx, "pipeline_run_id=?", runID)
-	s.respond(w, r, map[string]any{"run_id": runID, "events": items}, err)
+	limit, err := reviewLimit(r)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	cursor := int64(0)
+	if raw := r.URL.Query().Get("cursor"); raw != "" {
+		cursor, err = positiveID(raw)
+		if err != nil {
+			s.respond(w, r, nil, badRequest("cursor must be a positive audit event ID"))
+			return
+		}
+	}
+	query := `SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
+		before_json, after_json, metadata_json, correlation_id
+		FROM audit_events WHERE pipeline_run_id=?`
+	args := []any{runID}
+	if cursor > 0 {
+		query += " AND id<?"
+		args = append(args, cursor)
+	}
+	query += " ORDER BY id DESC LIMIT ?"
+	args = append(args, limit+1)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	defer rows.Close()
+	items, err := rowsAsMaps(rows)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	boundAuditEventPayloads(items, auditListPayloadBytes)
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	var nextCursor any
+	if hasMore {
+		nextCursor = items[len(items)-1]["id"]
+	}
+	s.respond(w, r, map[string]any{
+		"run_id": runID, "events": items, "has_more": hasMore, "next_cursor": nextCursor,
+		"deprecated": true, "replacement": "/api/audit?run_id=" + strconv.FormatInt(runID, 10),
+	}, nil)
 }
 
 // audit validates filters and returns a cursor-paginated audit timeline with summary and facets.
 func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id", "entity_type", "entity_id", "action", "actor", "category", "stage", "outcome", "q", "limit", "cursor"); err != nil {
+	if err := validateKnownQuery(r, "run_id", "entity_type", "entity_id", "action", "actor", "category", "stage", "outcome", "q", "limit", "cursor", "pdf_scope", "review_status", "review_reason", "review_substatus"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -62,7 +114,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 			args = append(args, valueArgs...)
 		}
 	}
-	includeGlobalPDF := false
+	pdfSelected := false
 	if category := r.URL.Query().Get("category"); category != "" {
 		categories, err := auditMultiValues(category, "category")
 		if err != nil {
@@ -79,10 +131,12 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 			case "validation":
 				categoryClauses = append(categoryClauses, "action LIKE 'validation_%'")
 			case "pdf":
-				includeGlobalPDF = true
+				pdfSelected = true
 				categoryClauses = append(categoryClauses, "action LIKE 'pdf_%'")
+			case "review":
+				categoryClauses = append(categoryClauses, "(action LIKE 'review_%' OR action LIKE 'work_review_%')")
 			default:
-				s.respond(w, r, nil, badRequest("category values must be pipeline, enrichment, validation, or pdf"))
+				s.respond(w, r, nil, badRequest("category values must be pipeline, enrichment, validation, review, or pdf"))
 				return
 			}
 		}
@@ -96,27 +150,73 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		clauses = append(clauses, "CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.outcome'), json_extract(metadata_json, '$.status'), '') ELSE '' END=?")
 		args = append(args, outcome)
 	}
+	if status := strings.TrimSpace(r.URL.Query().Get("review_status")); status != "" {
+		if len(status) > 100 {
+			s.respond(w, r, nil, badRequest("review_status is too long"))
+			return
+		}
+		clauses = append(clauses, "CASE WHEN json_valid(after_json) THEN COALESCE(json_extract(after_json, '$.status'), '') ELSE '' END=?")
+		args = append(args, status)
+	}
+	if reason := strings.TrimSpace(r.URL.Query().Get("review_reason")); reason != "" {
+		if len(reason) > 1000 {
+			s.respond(w, r, nil, badRequest("review_reason is too long"))
+			return
+		}
+		clauses = append(clauses, "CASE WHEN json_valid(after_json) THEN COALESCE(json_extract(after_json, '$.reason'), '') ELSE '' END=?")
+		args = append(args, reason)
+	}
+	if substatus := strings.TrimSpace(r.URL.Query().Get("review_substatus")); substatus != "" {
+		if len(substatus) > 100 {
+			s.respond(w, r, nil, badRequest("review_substatus is too long"))
+			return
+		}
+		clauses = append(clauses, "json_valid(after_json) AND EXISTS (SELECT 1 FROM json_each(after_json, '$.sub_statuses') WHERE value=?)")
+		args = append(args, substatus)
+	}
 	if query := strings.TrimSpace(r.URL.Query().Get("q")); query != "" {
-		clauses = append(clauses, "(LOWER(actor) LIKE ? OR LOWER(entity_type) LIKE ? OR LOWER(entity_id) LIKE ? OR LOWER(action) LIKE ? OR LOWER(COALESCE(metadata_json, '')) LIKE ?)")
+		clauses = append(clauses, "(LOWER(actor) LIKE ? OR LOWER(entity_type) LIKE ? OR LOWER(entity_id) LIKE ? OR LOWER(action) LIKE ?)")
 		needle := "%" + strings.ToLower(query) + "%"
-		args = append(args, needle, needle, needle, needle, needle)
+		args = append(args, needle, needle, needle, needle)
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var selectedRunID *int64
+	var scopeClause string
+	var scopeArgs []any
+	pdfScope := r.URL.Query().Get("pdf_scope")
+	if pdfScope == "" {
+		pdfScope = "run"
+	}
+	if pdfScope != "run" && pdfScope != "workspace" {
+		s.respond(w, r, nil, badRequest("pdf_scope must be run or workspace"))
+		return
+	}
+	if pdfScope == "workspace" && !pdfSelected {
+		s.respond(w, r, nil, badRequest("pdf_scope=workspace requires the PDF category"))
+		return
+	}
 	if raw := r.URL.Query().Get("run_id"); raw != "" {
 		runID, err := positiveID(raw)
 		if err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
-		if includeGlobalPDF {
-			clauses = append(clauses, "(pipeline_run_id=? OR action LIKE 'pdf_%')")
+		if pdfSelected && pdfScope == "workspace" {
+			scopeClause = "(pipeline_run_id=? OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%'))"
+			scopeArgs = []any{runID}
+		} else if pdfSelected {
+			scopeClause = `(pipeline_run_id=? OR (
+				pipeline_run_id IS NULL AND action LIKE 'pdf_%' AND entity_type='work'
+				AND EXISTS (SELECT 1 FROM work_revisions scoped_revision
+					WHERE scoped_revision.pipeline_run_id=?
+					AND CAST(scoped_revision.work_id AS TEXT)=audit_events.entity_id)))`
+			scopeArgs = []any{runID, runID}
 		} else {
-			clauses = append(clauses, "pipeline_run_id=?")
+			scopeClause = "pipeline_run_id=?"
+			scopeArgs = []any{runID}
 		}
-		args = append(args, runID)
-		selectedRunID = &runID
+		clauses = append(clauses, scopeClause)
+		args = append(args, scopeArgs...)
 		if err := s.requireRun(ctx, runID); err != nil {
 			s.respond(w, r, nil, err)
 			return
@@ -125,17 +225,38 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	limit := 100
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		parsed, err := parseOptionalInt(raw, "limit")
-		if err != nil || parsed < 1 || parsed > 500 {
-			s.respond(w, r, nil, badRequest("limit must be between 1 and 500"))
+		if err != nil || parsed < 1 || parsed > 100 {
+			s.respond(w, r, nil, badRequest("limit must be between 1 and 100"))
 			return
 		}
 		limit = int(parsed)
 	}
 	where := auditWhere(clauses)
-	summary, err := s.auditSummary(ctx, where, args)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	var summary any
+	var facets any
+	if r.URL.Query().Get("cursor") == "" {
+		var summaryErr error
+		summary, summaryErr = s.auditSummary(ctx, where, args)
+		if summaryErr != nil {
+			s.respond(w, r, nil, summaryErr)
+			return
+		}
+		actorFacets, facetErr := s.auditFacet(ctx, "actor", scopeClause, scopeArgs)
+		if facetErr != nil {
+			s.respond(w, r, nil, facetErr)
+			return
+		}
+		actionFacets, facetErr := s.auditFacet(ctx, "action", scopeClause, scopeArgs)
+		if facetErr != nil {
+			s.respond(w, r, nil, facetErr)
+			return
+		}
+		entityFacets, facetErr := s.auditFacet(ctx, "entity_type", scopeClause, scopeArgs)
+		if facetErr != nil {
+			s.respond(w, r, nil, facetErr)
+			return
+		}
+		facets = map[string]any{"actors": actorFacets, "actions": actionFacets, "entity_types": entityFacets}
 	}
 	queryClauses := append([]string(nil), clauses...)
 	queryArgs := append([]any(nil), args...)
@@ -170,6 +291,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	boundAuditEventPayloads(items, auditListPayloadBytes)
 	hasMore := len(items) > limit
 	if hasMore {
 		items = items[:limit]
@@ -178,26 +300,142 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	if hasMore && len(items) > 0 {
 		nextCursor = items[len(items)-1]["id"]
 	}
-	actorFacets, err := s.auditFacet(ctx, "actor", selectedRunID, includeGlobalPDF)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	actionFacets, err := s.auditFacet(ctx, "action", selectedRunID, includeGlobalPDF)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	entityFacets, err := s.auditFacet(ctx, "entity_type", selectedRunID, includeGlobalPDF)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
 	s.respond(w, r, map[string]any{
 		"events": items, "has_more": hasMore, "next_cursor": nextCursor,
 		"summary": summary,
-		"facets":  map[string]any{"actors": actorFacets, "actions": actionFacets, "entity_types": entityFacets},
+		"facets":  facets,
+		"scope":   map[string]any{"run_id": nullableRunScope(r.URL.Query().Get("run_id")), "pdf_scope": pdfScope},
 	}, nil)
+}
+
+// auditRecordedData returns one privacy-scrubbed, byte-bounded payload only after explicit expansion.
+func (s *Server) auditRecordedData(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r, "run_id"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	eventID, err := positiveID(r.PathValue("id"))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	runID, err := requiredQueryID(r, "run_id")
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	ctx, cancel := queryContext(r)
+	defer cancel()
+	if err := s.requireRun(ctx, runID); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	row, err := s.oneRow(ctx, `SELECT id, before_json, after_json, metadata_json FROM audit_events
+		WHERE id=? AND (pipeline_run_id=? OR (
+			pipeline_run_id IS NULL AND action LIKE 'pdf_%' AND entity_type='work'
+			AND EXISTS (SELECT 1 FROM work_revisions scoped_revision
+				WHERE scoped_revision.pipeline_run_id=?
+				AND CAST(scoped_revision.work_id AS TEXT)=audit_events.entity_id)))`, eventID, runID, runID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if row == nil {
+		s.respond(w, r, nil, notFound("audit event not found"))
+		return
+	}
+	payload := map[string]any{"event_id": eventID, "byte_limit": auditDetailPayloadBytes}
+	truncated := make([]string, 0)
+	remaining := auditDetailPayloadBytes
+	for _, field := range []string{"metadata_json", "before_json", "after_json"} {
+		label := strings.TrimSuffix(field, "_json")
+		value, size, wasTruncated := safeAuditJSON(row[field], remaining)
+		if wasTruncated {
+			truncated = append(truncated, label)
+			payload[label] = nil
+			continue
+		}
+		payload[label] = value
+		remaining -= size
+	}
+	payload["truncated_fields"] = truncated
+	s.respond(w, r, payload, nil)
+}
+
+// boundAuditEventPayloads removes private fields and keeps timeline pages within a fixed payload budget per field.
+func boundAuditEventPayloads(items []map[string]any, limit int) {
+	for _, item := range items {
+		available := false
+		truncated := make([]string, 0)
+		for _, field := range []string{"metadata_json", "before_json", "after_json"} {
+			if raw, ok := item[field].(string); ok && raw != "" {
+				available = true
+			}
+			value, _, wasTruncated := safeAuditJSON(item[field], limit)
+			if wasTruncated {
+				item[field] = nil
+				truncated = append(truncated, strings.TrimSuffix(field, "_json"))
+				continue
+			}
+			if value == nil {
+				item[field] = nil
+				continue
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				item[field] = nil
+				continue
+			}
+			item[field] = string(encoded)
+		}
+		item["recorded_data_available"] = available
+		item["recorded_data_truncated_fields"] = truncated
+	}
+}
+
+// safeAuditJSON decodes and recursively removes prose and contact fields before enforcing the byte budget.
+func safeAuditJSON(raw any, limit int) (any, int, bool) {
+	text, ok := raw.(string)
+	if !ok || strings.TrimSpace(text) == "" {
+		return nil, 0, false
+	}
+	var value any
+	if err := json.Unmarshal([]byte(text), &value); err != nil {
+		value = map[string]any{"state": "invalid_json", "message": "Stored recorded data is not valid JSON."}
+	}
+	value = scrubAuditValue(value)
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, 0, true
+	}
+	if len(encoded) > limit {
+		return nil, len(encoded), true
+	}
+	return value, len(encoded), false
+}
+
+// scrubAuditValue recursively omits review prose, selected text, and reviewer contact fields.
+func scrubAuditValue(raw any) any {
+	private := map[string]bool{"note_body": true, "body": true, "selected_text": true, "reviewer_email": true, "email": true}
+	switch value := raw.(type) {
+	case []any:
+		result := make([]any, len(value))
+		for index, item := range value {
+			result[index] = scrubAuditValue(item)
+		}
+		return result
+	case map[string]any:
+		result := make(map[string]any, len(value))
+		for key, item := range value {
+			if private[strings.ToLower(key)] {
+				continue
+			}
+			result[key] = scrubAuditValue(item)
+		}
+		return result
+	default:
+		return raw
+	}
 }
 
 // auditMultiValues parses, deduplicates, and bounds a comma-separated audit facet filter.
@@ -261,18 +499,13 @@ func (s *Server) auditSummary(ctx context.Context, where string, args []any) (ma
 }
 
 // auditFacet returns distinct non-empty values for an allowlisted audit column and run scope.
-func (s *Server) auditFacet(ctx context.Context, column string, runID *int64, includeGlobalPDF bool) ([]string, error) {
+func (s *Server) auditFacet(ctx context.Context, column, scopeClause string, scopeArgs []any) ([]string, error) {
 	query := "SELECT DISTINCT COALESCE(" + column + ", '') FROM audit_events"
-	args := make([]any, 0, 1)
-	if runID != nil {
-		query += " WHERE pipeline_run_id=?"
-		if includeGlobalPDF {
-			query += " OR action LIKE 'pdf_%'"
-		}
-		args = append(args, *runID)
+	if scopeClause != "" {
+		query += " WHERE " + scopeClause
 	}
-	query += " ORDER BY " + column
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	query += " ORDER BY " + column + " LIMIT 101"
+	rows, err := s.db.QueryContext(ctx, query, scopeArgs...)
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +519,19 @@ func (s *Server) auditFacet(ctx context.Context, column string, runID *int64, in
 		if value != "" {
 			values = append(values, value)
 		}
+		if len(values) == 100 {
+			break
+		}
 	}
 	return values, rows.Err()
+}
+
+// nullableRunScope preserves an invariant null-or-string scope value in audit responses.
+func nullableRunScope(raw string) any {
+	if raw == "" {
+		return nil
+	}
+	return raw
 }
 
 // auditRows returns audit event rows matching a caller-supplied parameterized condition.
@@ -300,7 +544,7 @@ func (s *Server) auditRows(ctx context.Context, condition string, args ...any) (
 	return rowsAsMaps(rows)
 }
 
-// trash returns runs whose visibility state is trashed.
+// trash returns a bounded compatibility view of trashed runs.
 func (s *Server) trash(w http.ResponseWriter, r *http.Request) {
 	if err := validateKnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
@@ -309,18 +553,33 @@ func (s *Server) trash(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	rows, err := s.db.QueryContext(ctx, `SELECT id, execution_plan_id, attempt_number, status, started_at, finished_at, trashed_at, trash_reason
-        FROM pipeline_runs WHERE visibility_state='trashed' ORDER BY trashed_at DESC, id DESC`)
+		FROM pipeline_runs WHERE visibility_state='trashed' ORDER BY trashed_at DESC, id DESC LIMIT ?`, legacyDiscoveryLimit+1)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	defer rows.Close()
 	items, err := rowsAsMaps(rows)
-	s.respond(w, r, map[string]any{"runs": items, "restore_allowed": false}, err)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(items) > legacyDiscoveryLimit
+	if hasMore {
+		items = items[:legacyDiscoveryLimit]
+	}
+	s.respond(w, r, map[string]any{
+		"runs": items, "restore_allowed": false, "has_more": hasMore, "limit": legacyDiscoveryLimit,
+		"deprecated": true, "replacement": "/api/hierarchy?section=runs&visibility=trashed",
+	}, nil)
 }
 
 // runArtifacts returns artifact metadata linked to the selected run.
 func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r, "limit", "cursor", "q", "role", "artifact_id"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
 	runID, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -357,18 +616,53 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	rows, err := s.db.QueryContext(ctx, `WITH selected_artifacts AS (
-            SELECT input_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id=?
-            UNION
-            SELECT output_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id=?
-            UNION
-            SELECT artifact_id FROM run_artifacts WHERE pipeline_run_id=?
-        )
-        SELECT a.id, a.content_hash, a.byte_size, a.content_type, a.created_at,
-               (ab.id IS NOT NULL) AS has_blob,
-               COALESCE(GROUP_CONCAT(DISTINCT ra.artifact_role), '') AS artifact_roles,
-               COALESCE((SELECT GROUP_CONCAT(step_name, ', ') FROM (
-                   SELECT DISTINCT step_name FROM run_steps
+	cursor, limit, err := reviewIDPage(r, "run_artifacts_"+stringID(runID))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	searchQuery := strings.TrimSpace(r.URL.Query().Get("q"))
+	role := strings.TrimSpace(r.URL.Query().Get("role"))
+	focusID, err := optionalHierarchyID(r, "artifact_id")
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	const relationshipsSQL = `WITH artifact_relationships AS (
+			SELECT artifact_id, 'run_role' AS relationship_role, artifact_role AS relationship_detail
+			FROM run_artifacts WHERE pipeline_run_id=?
+			UNION ALL
+			SELECT input_artifact_id, 'step_input', step_name FROM run_steps
+			WHERE pipeline_run_id=? AND input_artifact_id IS NOT NULL
+			UNION ALL
+			SELECT output_artifact_id, 'step_output', step_name FROM run_steps
+			WHERE pipeline_run_id=? AND output_artifact_id IS NOT NULL
+			UNION ALL
+			SELECT ce.payload_artifact_id, 'cache_payload', ce.provider || ':' || ce.namespace
+			FROM run_cache_uses use_record
+			JOIN cache_entries ce ON ce.id=use_record.cache_entry_id
+			WHERE use_record.pipeline_run_id=? AND ce.payload_artifact_id IS NOT NULL
+			UNION ALL
+			SELECT candidate.payload_artifact_id, 'identity_candidate_payload', resolution.provider
+			FROM author_identity_resolutions resolution
+			JOIN author_identity_candidates candidate ON candidate.identity_resolution_id=resolution.id
+			WHERE resolution.pipeline_run_id=? AND candidate.payload_artifact_id IS NOT NULL
+		), selected_artifacts AS (
+			SELECT DISTINCT artifact_id FROM artifact_relationships
+		)`
+	query := relationshipsSQL + `
+		SELECT a.id, a.content_hash, a.byte_size, a.content_type, a.created_at,
+		       (ab.id IS NOT NULL) AS has_blob,
+		       COALESCE((SELECT GROUP_CONCAT(role.artifact_role, ', ') FROM (
+		           SELECT DISTINCT artifact_role FROM run_artifacts
+		           WHERE pipeline_run_id=? AND artifact_id=a.id ORDER BY artifact_role
+		       ) role), '') AS artifact_roles,
+		       COALESCE((SELECT GROUP_CONCAT(relationship_role, ', ') FROM (
+		           SELECT DISTINCT relationship_role FROM artifact_relationships
+		           WHERE artifact_id=a.id ORDER BY relationship_role
+		       )), '') AS relationship_roles,
+		       COALESCE((SELECT GROUP_CONCAT(step_name, ', ') FROM (
+		           SELECT DISTINCT step_name FROM run_steps
                    WHERE pipeline_run_id=? AND output_artifact_id=a.id
                    ORDER BY step_name
                )), '') AS produced_by_steps,
@@ -377,12 +671,32 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
                    WHERE pipeline_run_id=? AND input_artifact_id=a.id
                    ORDER BY step_name
                )), '') AS consumed_by_steps
-        FROM selected_artifacts selected
-        JOIN artifacts a ON a.id=selected.artifact_id
-        LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-        LEFT JOIN run_artifacts ra ON ra.pipeline_run_id=? AND ra.artifact_id=a.id
-        GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
-		ORDER BY a.id`, runID, runID, runID, runID, runID, runID)
+		FROM selected_artifacts selected
+		JOIN artifacts a ON a.id=selected.artifact_id
+		LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
+		WHERE a.id>?`
+	args := []any{runID, runID, runID, runID, runID, runID, runID, runID, cursor}
+	if searchQuery != "" {
+		query += ` AND (LOWER(a.content_hash) LIKE ? OR LOWER(a.content_type) LIKE ?
+			OR EXISTS (SELECT 1 FROM artifact_relationships searchable
+				WHERE searchable.artifact_id=a.id AND (LOWER(searchable.relationship_role) LIKE ? OR LOWER(searchable.relationship_detail) LIKE ?)))`
+		pattern := "%" + strings.ToLower(searchQuery) + "%"
+		args = append(args, pattern, pattern, pattern, pattern)
+	}
+	if role != "" {
+		query += ` AND EXISTS (SELECT 1 FROM artifact_relationships filtered_role
+			WHERE filtered_role.artifact_id=a.id AND filtered_role.relationship_role=?)`
+		args = append(args, role)
+	}
+	if cursor > 0 && focusID > 0 {
+		query += " AND a.id!=?"
+		args = append(args, focusID)
+	}
+	query += ` GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
+		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ASC LIMIT ?`
+	args = append(args, focusID)
+	args = append(args, limit+1)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -397,7 +711,32 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 			item["preview_limit_bytes"] = defaultInlineArtifactPreviewBytes
 		}
 	}
-	s.respond(w, r, map[string]any{"run_id": runID, "context": runContext, "artifacts": items}, err)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	var nextCursor any
+	if hasMore {
+		value := encodeReviewCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: items[len(items)-1]["id"].(int64)})
+		nextCursor = value
+	}
+	s.respond(w, r, map[string]any{
+		"run_id": runID, "context": runContext, "artifacts": items,
+		"has_more": hasMore, "next_cursor": nextCursor, "limit": limit,
+		"filters": map[string]any{"q": searchQuery, "role": role, "artifact_id": nullablePositiveID(focusID)},
+	}, nil)
+}
+
+// nullablePositiveID preserves an invariant null-or-number response for optional focused records.
+func nullablePositiveID(id int64) any {
+	if id < 1 {
+		return nil
+	}
+	return id
 }
 
 // artifactContent streams one stored artifact blob with a safe content disposition.
@@ -409,18 +748,42 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	contentType, _, data, err := s.artifactBlob(ctx, artifactID)
+	var contentType string
+	var storedSize int64
+	var hasBlob bool
+	err = s.db.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL,
+		COALESCE(length(CAST(ab.data AS BLOB)), 0)
+		FROM artifacts a LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
+		WHERE a.id=?`, artifactID).Scan(&contentType, &hasBlob, &storedSize)
+	if err == sql.ErrNoRows {
+		s.respond(w, r, nil, notFound("artifact not found"))
+		return
+	}
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
+	if !hasBlob {
+		s.respond(w, r, nil, notFound("artifact has no blob data"))
+		return
+	}
 	w.Header().Set("Content-Type", normalizedArtifactContentType(contentType))
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": s.artifactFilename(ctx, artifactID, contentType)}))
-	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(data)), 10))
+	w.Header().Set("Content-Length", strconv.FormatInt(storedSize, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	const chunkBytes = 64 * 1024
+	for offset := int64(0); offset < storedSize; offset += chunkBytes {
+		var chunk []byte
+		if err := s.db.QueryRowContext(ctx, `SELECT substr(CAST(data AS BLOB), ?, ?)
+			FROM artifact_blobs WHERE artifact_id=?`, offset+1, chunkBytes, artifactID).Scan(&chunk); err != nil {
+			return
+		}
+		if _, err := w.Write(chunk); err != nil {
+			return
+		}
+	}
 }
 
 // artifactInspection returns bounded metadata and preview content for one artifact.
@@ -604,12 +967,13 @@ func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	page = clampScopedPage(page, perPage, total)
 	args = append(args, perPage, (page-1)*perPage)
 	rows, err := s.db.QueryContext(ctx, `SELECT rcu.id, rcu.cache_layer, rcu.outcome, rcu.used_at,
         ce.id AS cache_entry_id, ce.provider, ce.namespace, ce.request_fingerprint,
         ce.response_status, ce.payload_artifact_id, ce.fetched_at, ce.expires_at, ce.extractor_version
         FROM run_cache_uses rcu JOIN cache_entries ce ON ce.id=rcu.cache_entry_id
-		WHERE `+where+` ORDER BY `+fields[sort]+` `+order+` LIMIT ? OFFSET ?`, args...)
+		WHERE `+where+` ORDER BY `+stableScopedOrder(fields[sort], "rcu.id", order)+` LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return

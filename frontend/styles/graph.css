@@ -262,6 +262,46 @@
   font-size: var(--text-sm);
 }
 
+.rw-graph__search-results {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.rw-graph__search-results p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.rw-graph__search-results ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--space-2);
+  max-height: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.rw-graph__search-results button {
+  display: grid;
+  width: 100%;
+  min-height: 34px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-small);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  text-align: left;
+}
+
+.rw-graph__search-results button span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-xs);
+}
+
 /* ── Relationship investigation layout ── */
 
 .rw-relationship-layout {
@@ -300,12 +340,16 @@
   background: var(--color-bg-surface-raised);
 }
 
+.rw-graph-model legend {
+  padding: 0 var(--space-1);
+  font-weight: var(--weight-bold);
+}
+
 .rw-graph-model__heading,
 .rw-graph-filter-heading {
   margin-bottom: var(--space-2);
 }
 
-.rw-graph-model__heading h4,
 .rw-graph-model__heading p,
 .rw-graph-filter-heading h4,
 .rw-graph-filter-heading p {

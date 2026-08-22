@@ -48,6 +48,8 @@ var knownRunMetrics = []string{
 	"cache_invalid_payloads",
 }
 
+const legacyDiscoveryLimit = 100
+
 // sourceResultCounts returns the stored source inventory and result-count evidence for a run.
 func (s *Server) sourceResultCounts(ctx context.Context, runID int64) ([]map[string]any, error) {
 	dateColumn := "NULL AS export_date"
@@ -68,54 +70,81 @@ func (s *Server) sourceResultCounts(ctx context.Context, runID int64) ([]map[str
 	return rowsAsMaps(rows)
 }
 
-// sourceFilterCounts decodes the stored per-source filter-stage counts for a run.
-func (s *Server) sourceFilterCounts(ctx context.Context, runID int64) ([]map[string]any, error) {
+// sourceFilterCounts decodes stored per-source filter stages and reports malformed evidence without exposing its raw content.
+func (s *Server) sourceFilterCounts(ctx context.Context, runID int64) ([]map[string]any, []map[string]any, error) {
 	if !s.tableHasColumns("source_filter_counts") {
-		return nil, nil
+		return nil, nil, nil
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT source_name, filter_data FROM source_filter_counts WHERE pipeline_run_id=? ORDER BY source_name`, runID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	items, err := rowsAsMaps(rows)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// Parse each filter_data JSON into the response
 	result := make([]map[string]any, 0, len(items))
+	diagnostics := make([]map[string]any, 0)
 	for _, item := range items {
 		sourceName, _ := item["source_name"].(string)
 		filterDataRaw, _ := item["filter_data"].(string)
 		if filterDataRaw == "" || filterDataRaw == "[]" {
 			continue
 		}
-		var filterStages []map[string]any
+		var filterStages []struct {
+			Filters []string `json:"filters"`
+			Count   *int64   `json:"count"`
+		}
 		if err := json.Unmarshal([]byte(filterDataRaw), &filterStages); err != nil {
+			diagnostics = append(diagnostics, map[string]any{"source": sourceName, "state": "invalid", "code": "invalid_json", "message": "Stored source-filter evidence is not valid JSON."})
 			continue
 		}
-		for _, stage := range filterStages {
-			stage["source"] = sourceName
-			result = append(result, stage)
+		for index, stage := range filterStages {
+			if len(stage.Filters) == 0 || stage.Count == nil || *stage.Count < 0 {
+				diagnostics = append(diagnostics, map[string]any{"source": sourceName, "state": "invalid", "code": "invalid_stage", "stage_index": index, "message": "Stored source-filter evidence has an invalid filter list or count."})
+				continue
+			}
+			result = append(result, map[string]any{"source": sourceName, "filters": stage.Filters, "count": *stage.Count, "state": "recorded"})
 		}
 	}
-	return result, nil
+	return result, diagnostics, nil
 }
 
 // health reports database readability and the discovered table inventory.
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	err := s.db.PingContext(ctx)
+	metadataErr := s.db.PingContext(ctx)
+	metadataReadable := metadataErr == nil
 	corpusID := ""
-	if err == nil {
-		corpusID, err = s.writeDB.Reviews.CorpusID(ctx)
+	reviewWritable := false
+	if metadataReadable && s.writeDB != nil {
+		var queryOnly int
+		if err := s.writeDB.DB.PingContext(ctx); err == nil {
+			if err := s.writeDB.DB.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err == nil && queryOnly == 0 {
+				var reviewErr error
+				corpusID, reviewErr = s.writeDB.Reviews.CorpusID(ctx)
+				reviewWritable = reviewErr == nil
+			}
+		}
+	}
+	pdfBound := s.pdfDB != nil
+	pdfReadable := false
+	if pdfBound {
+		pdfReadable = s.pdfDB.PingContext(ctx) == nil
 	}
 	s.respond(w, r, map[string]any{
-		"readable": err == nil, "table_count": len(s.tables), "tables": s.tableNames(),
-		"corpus_id": corpusID, "review": map[string]any{"available": err == nil, "metadata_writable": err == nil, "pdf_store_read_only": true},
-	}, err)
+		"readable": metadataReadable, "metadata_readable": metadataReadable,
+		"table_count": len(s.tables), "tables": s.tableNames(), "corpus_id": corpusID,
+		"review_writable": reviewWritable, "pdf_store_bound": pdfBound, "pdf_store_readable": pdfReadable,
+		"review": map[string]any{
+			"available": reviewWritable, "metadata_writable": reviewWritable,
+			"pdf_store_bound": pdfBound, "pdf_store_readable": pdfReadable,
+			"pdf_store_read_only": pdfBound && pdfReadable,
+		},
+	}, metadataErr)
 }
 
 // tableNames returns discovered table names in deterministic order.
@@ -134,15 +163,28 @@ func (s *Server) tableNames() []string {
 	return names
 }
 
-// searches returns searches with their immutable revisions.
+// searches returns a bounded compatibility view of searches and their newest revisions.
 func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT s.id, s.search_id, s.created_at,
+	rows, err := s.db.QueryContext(ctx, `WITH selected_searches AS (
+		SELECT id, search_id, created_at FROM searches ORDER BY id DESC LIMIT ?
+	), ranked_revisions AS (
+		SELECT sr.id, sr.search_id, sr.revision_label, sr.config_artifact_hash,
+			sr.resolved_manifest_hash, sr.created_at,
+			ROW_NUMBER() OVER (PARTITION BY sr.search_id ORDER BY sr.id DESC) AS row_number
+		FROM search_revisions sr JOIN selected_searches selected ON selected.id=sr.search_id
+	)
+		SELECT s.id, s.search_id, s.created_at,
         sr.id AS revision_id, sr.revision_label, sr.config_artifact_hash,
         sr.resolved_manifest_hash, sr.created_at AS revision_created_at
-        FROM searches s LEFT JOIN search_revisions sr ON sr.search_id=s.id
-        ORDER BY s.id, sr.id`)
+		FROM selected_searches s
+		LEFT JOIN ranked_revisions sr ON sr.search_id=s.id AND sr.row_number<=?
+		ORDER BY s.id DESC, sr.id DESC`, legacyDiscoveryLimit+1, legacyDiscoveryLimit+1)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -156,10 +198,11 @@ func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 		CreatedAt            string `json:"created_at"`
 	}
 	type search struct {
-		ID        int64      `json:"id"`
-		SearchID  string     `json:"search_id"`
-		CreatedAt string     `json:"created_at"`
-		Revisions []revision `json:"revisions"`
+		ID                 int64      `json:"id"`
+		SearchID           string     `json:"search_id"`
+		CreatedAt          string     `json:"created_at"`
+		Revisions          []revision `json:"revisions"`
+		RevisionsTruncated bool       `json:"revisions_truncated"`
 	}
 	byID := map[int64]*search{}
 	ordered := make([]*search, 0)
@@ -178,20 +221,37 @@ func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 			byID[item.ID] = existing
 			ordered = append(ordered, existing)
 		}
-		if revisionID.Valid {
+		if revisionID.Valid && len(existing.Revisions) < legacyDiscoveryLimit {
 			rev.ID = revisionID.Int64
 			rev.Label = nullable[0].String
 			rev.ConfigArtifactHash = nullable[1].String
 			rev.ResolvedManifestHash = nullable[2].String
 			rev.CreatedAt = nullable[3].String
 			existing.Revisions = append(existing.Revisions, rev)
+		} else if revisionID.Valid {
+			existing.RevisionsTruncated = true
 		}
 	}
-	s.respond(w, r, map[string]any{"searches": ordered}, rows.Err())
+	if err := rows.Err(); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(ordered) > legacyDiscoveryLimit
+	if hasMore {
+		ordered = ordered[:legacyDiscoveryLimit]
+	}
+	s.respond(w, r, map[string]any{
+		"searches": ordered, "has_more": hasMore, "limit": legacyDiscoveryLimit,
+		"deprecated": true, "replacement": "/api/hierarchy?section=searches",
+	}, nil)
 }
 
-// plans returns execution plans for the required search revision.
+// plans returns a bounded compatibility view of execution plans for one revision.
 func (s *Server) plans(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r, "search_revision_id"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
 	id, err := requiredQueryID(r, "search_revision_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -201,14 +261,25 @@ func (s *Server) plans(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rows, err := s.db.QueryContext(ctx, `SELECT id, search_revision_id, execution_fingerprint,
         resolved_manifest_hash, input_manifest_hash, enrichment_enabled, created_at
-        FROM execution_plans WHERE search_revision_id=? ORDER BY id`, id)
+		FROM execution_plans WHERE search_revision_id=? ORDER BY id DESC LIMIT ?`, id, legacyDiscoveryLimit+1)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	defer rows.Close()
 	items, err := rowsAsMaps(rows)
-	s.respond(w, r, map[string]any{"plans": items}, err)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(items) > legacyDiscoveryLimit
+	if hasMore {
+		items = items[:legacyDiscoveryLimit]
+	}
+	s.respond(w, r, map[string]any{
+		"plans": items, "has_more": hasMore, "limit": legacyDiscoveryLimit,
+		"deprecated": true, "replacement": "/api/hierarchy?section=plans&search_revision_id=" + strconv.FormatInt(id, 10),
+	}, nil)
 }
 
 // runs returns pipeline attempts filtered by research context and visibility.
@@ -252,7 +323,8 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 	if len(clauses) != 0 {
 		query += " WHERE " + strings.Join(clauses, " AND ")
 	}
-	query += " ORDER BY pr.id"
+	query += " ORDER BY pr.id DESC LIMIT ?"
+	args = append(args, legacyDiscoveryLimit+1)
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -262,7 +334,112 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	items, err := rowsAsMaps(rows)
-	s.respond(w, r, map[string]any{"runs": items}, err)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(items) > legacyDiscoveryLimit
+	if hasMore {
+		items = items[:legacyDiscoveryLimit]
+	}
+	s.respond(w, r, map[string]any{
+		"runs": items, "has_more": hasMore, "limit": legacyDiscoveryLimit,
+		"deprecated": true, "replacement": "/api/hierarchy?section=runs",
+	}, nil)
+}
+
+// runContext returns the canonical complete ancestry and lifecycle for one run.
+func (s *Server) runContext(w http.ResponseWriter, r *http.Request) {
+	runID, err := positiveID(r.PathValue("id"))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	ctx, cancel := queryContext(r)
+	defer cancel()
+
+	type searchContext struct {
+		ID        int64  `json:"id"`
+		SearchID  string `json:"search_id"`
+		CreatedAt string `json:"created_at"`
+	}
+	type revisionContext struct {
+		ID                   int64  `json:"id"`
+		SearchID             int64  `json:"search_id"`
+		Label                string `json:"label"`
+		ConfigArtifactHash   string `json:"config_artifact_hash"`
+		ResolvedManifestHash string `json:"resolved_manifest_hash"`
+		CreatedAt            string `json:"created_at"`
+	}
+	type planContext struct {
+		ID                   int64  `json:"id"`
+		SearchRevisionID     int64  `json:"search_revision_id"`
+		ExecutionFingerprint string `json:"execution_fingerprint"`
+		ResolvedManifestHash string `json:"resolved_manifest_hash"`
+		InputManifestHash    string `json:"input_manifest_hash"`
+		EnrichmentEnabled    bool   `json:"enrichment_enabled"`
+		CreatedAt            string `json:"created_at"`
+	}
+	type runContext struct {
+		ID              int64   `json:"id"`
+		ExecutionPlanID int64   `json:"execution_plan_id"`
+		Step            string  `json:"step"`
+		StartedAt       string  `json:"started_at"`
+		FinishedAt      *string `json:"finished_at"`
+		Status          string  `json:"status"`
+		Summary         *string `json:"summary"`
+		AttemptNumber   int64   `json:"attempt_number"`
+		VisibilityState string  `json:"visibility_state"`
+		TrashedAt       *string `json:"trashed_at"`
+		TrashReason     *string `json:"trash_reason"`
+	}
+
+	var search searchContext
+	var revision revisionContext
+	var plan planContext
+	var run runContext
+	var reviewContextID sql.NullInt64
+	err = s.db.QueryRowContext(ctx, `SELECT
+		s.id, s.search_id, s.created_at,
+		sr.id, sr.search_id, sr.revision_label, sr.config_artifact_hash, sr.resolved_manifest_hash, sr.created_at,
+		ep.id, ep.search_revision_id, ep.execution_fingerprint, ep.resolved_manifest_hash, ep.input_manifest_hash, ep.enrichment_enabled, ep.created_at,
+		pr.id, pr.execution_plan_id, pr.step, pr.started_at, pr.finished_at, pr.status, pr.summary,
+		pr.attempt_number, pr.visibility_state, pr.trashed_at, pr.trash_reason, rc.id
+		FROM pipeline_runs pr
+		JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+		JOIN search_revisions sr ON sr.id=ep.search_revision_id
+		JOIN searches s ON s.id=sr.search_id
+		LEFT JOIN review_contexts rc ON rc.pipeline_run_id=pr.id
+		WHERE pr.id=?`, runID).Scan(
+		&search.ID, &search.SearchID, &search.CreatedAt,
+		&revision.ID, &revision.SearchID, &revision.Label, &revision.ConfigArtifactHash, &revision.ResolvedManifestHash, &revision.CreatedAt,
+		&plan.ID, &plan.SearchRevisionID, &plan.ExecutionFingerprint, &plan.ResolvedManifestHash, &plan.InputManifestHash, &plan.EnrichmentEnabled, &plan.CreatedAt,
+		&run.ID, &run.ExecutionPlanID, &run.Step, &run.StartedAt, &run.FinishedAt, &run.Status, &run.Summary,
+		&run.AttemptNumber, &run.VisibilityState, &run.TrashedAt, &run.TrashReason, &reviewContextID,
+	)
+	if err == sql.ErrNoRows {
+		s.respond(w, r, nil, notFound("run context not found"))
+		return
+	}
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+
+	runWritable := run.Status == "completed" && run.VisibilityState != "trashed"
+	var contextID any
+	if reviewContextID.Valid {
+		contextID = reviewContextID.Int64
+	}
+	s.respond(w, r, map[string]any{
+		"search": search, "revision": revision, "plan": plan, "run": run,
+		"lifecycle": map[string]any{
+			"status": run.Status, "visibility_state": run.VisibilityState, "review_writable": runWritable,
+		},
+		"review": map[string]any{
+			"initialized": reviewContextID.Valid, "context_id": contextID, "run_writable": runWritable,
+		},
+	}, nil)
 }
 
 // overview returns captured metrics, coverage, relationships, and source evidence for a run.
@@ -306,7 +483,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	byName := make(map[string]map[string]any, len(metrics))
 	for _, metric := range metrics {
-		item := map[string]any{"metric": metric["metric"], "source": metric["source"], "available": true, "value": metric["value"]}
+		item := map[string]any{"metric": metric["metric"], "source": metric["source"], "available": true, "state": "recorded", "value": metric["value"]}
 		if metric["source"] == "" {
 			denominator, ok := metricDenominator(metric["metric"].(string), metricValues)
 			if ok && denominator > 0 {
@@ -323,12 +500,12 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		if item, ok := byName[name]; ok {
 			metricSummary = append(metricSummary, item)
 		} else {
-			metricSummary = append(metricSummary, map[string]any{"metric": name, "source": "", "available": false})
+			metricSummary = append(metricSummary, map[string]any{"metric": name, "source": "", "available": false, "state": "unavailable"})
 		}
 	}
 	for _, metric := range metrics {
 		if metric["source"] != "" {
-			metricSummary = append(metricSummary, map[string]any{"metric": metric["metric"], "source": metric["source"], "available": true, "value": metric["value"]})
+			metricSummary = append(metricSummary, map[string]any{"metric": metric["metric"], "source": metric["source"], "available": true, "state": "recorded", "value": metric["value"]})
 		}
 	}
 	coverage, err := s.currentCoverage(ctx, runID)
@@ -346,7 +523,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	sourceFilterCounts, err := s.sourceFilterCounts(ctx, runID)
+	sourceFilterCounts, sourceFilterDiagnostics, err := s.sourceFilterCounts(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -358,6 +535,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		"source_breakdown":              sourceBreakdown(metrics, metricValues),
 		"source_result_counts":          sourceResultCounts,
 		"source_filter_counts":          sourceFilterCounts,
+		"source_filter_diagnostics":     sourceFilterDiagnostics,
 		"validation_breakdown":          metricGroup(byName, "valid_articles", "discarded_articles"),
 		"cache_breakdown":               metricGroup(byName, "cache_hits", "cache_misses", "cache_negative", "cache_stale", "cache_network_fetches", "cache_invalid_payloads"),
 		"enrichment_breakdown":          metricGroup(byName, "enrichment_skipped", "enrichment_candidates", "enriched_article_updates"),
@@ -377,7 +555,7 @@ func metricGroup(metrics map[string]map[string]any, names ...string) map[string]
 		if metric, ok := metrics[name]; ok {
 			result[name] = metric
 		} else {
-			result[name] = map[string]any{"available": false}
+			result[name] = map[string]any{"available": false, "state": "unavailable"}
 		}
 	}
 	return result
@@ -392,7 +570,7 @@ func sourceBreakdown(metrics []map[string]any, totals map[string]int64) map[stri
 			continue
 		}
 		value, _ := metric["value"].(int64)
-		item := map[string]any{"available": true, "value": value}
+		item := map[string]any{"available": true, "state": "recorded", "value": value}
 		if denominator := totals["input_records"]; denominator > 0 {
 			item["denominator"] = denominator
 			item["percentage"] = float64(value) * 100 / float64(denominator)
@@ -432,7 +610,7 @@ func enrichmentProviderBreakdown(metrics []map[string]any) map[string]any {
 		if m != "enriched_fields" || source == "" {
 			continue
 		}
-		result[source] = map[string]any{"available": true, "value": metric["value"]}
+		result[source] = map[string]any{"available": true, "state": "recorded", "value": metric["value"]}
 	}
 	return result
 }
@@ -445,7 +623,7 @@ func normalizationFieldBreakdown(metrics []map[string]any) map[string]map[string
 	for _, field := range fields {
 		result[field] = make(map[string]any, len(statuses))
 		for _, status := range statuses {
-			result[field][status] = map[string]any{"available": false}
+			result[field][status] = map[string]any{"available": false, "state": "unavailable"}
 		}
 	}
 	for _, metric := range metrics {
@@ -462,7 +640,7 @@ func normalizationFieldBreakdown(metrics []map[string]any) map[string]map[string
 		if _, ok := result[field][status]; !ok {
 			continue
 		}
-		result[field][status] = map[string]any{"available": true, "value": metric["value"]}
+		result[field][status] = map[string]any{"available": true, "state": "recorded", "value": metric["value"]}
 	}
 	for _, field := range fields {
 		processed, _ := result[field]["processed"].(map[string]any)
@@ -504,26 +682,27 @@ func (s *Server) currentCoverage(ctx context.Context, runID int64) (map[string]a
 	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(CASE WHEN journal IS NOT NULL AND journal != '' THEN 1 ELSE 0 END),0) FROM work_revisions WHERE pipeline_run_id=?", runID).Scan(&total, &normalized); err != nil {
 		return nil, err
 	}
-	result["work_revisions"] = map[string]any{"value": total, "available": true}
-	result["journal_coverage"] = map[string]any{"value": normalized, "denominator": total, "percentage": percent(normalized, total)}
+	result["work_revisions"] = map[string]any{"value": total, "available": true, "state": "derived"}
+	result["journal_coverage"] = map[string]any{"value": normalized, "denominator": total, "percentage": percent(normalized, total), "available": true, "state": "derived"}
 	return result, nil
 }
 
 // relationshipTotals counts canonical works, authorships, references, and resolved citations for a run.
-func (s *Server) relationshipTotals(ctx context.Context, runID int64) (map[string]int64, error) {
+func (s *Server) relationshipTotals(ctx context.Context, runID int64) (map[string]any, error) {
 	queries := map[string]string{
-		"work_revisions":     "SELECT COUNT(*) FROM work_revisions WHERE pipeline_run_id=?",
-		"authorships":        "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=?",
-		"reference_mentions": "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=?",
-		"internal_citations": "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL",
+		"work_revisions":          "SELECT COUNT(*) FROM work_revisions WHERE pipeline_run_id=?",
+		"analysis_ready_articles": "SELECT COUNT(*) FROM work_revisions wr WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
+		"authorships":             "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
+		"reference_mentions":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
+		"internal_citations":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL AND " + currentNormalizedRevisionPredicate("wr"),
 	}
-	result := map[string]int64{}
+	result := map[string]any{}
 	for name, query := range queries {
 		var count int64
 		if err := s.db.QueryRowContext(ctx, query, runID).Scan(&count); err != nil {
 			return nil, err
 		}
-		result[name] = count
+		result[name] = map[string]any{"value": count, "available": true, "state": "derived"}
 	}
 	return result, nil
 }

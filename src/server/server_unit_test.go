@@ -474,6 +474,14 @@ func TestHelper_normalizedArtifactContentType(t *testing.T) {
 	}
 }
 
+// TestMapReviewErrorPreservesUnknownFailures verifies unclassified repository failures reach the safe internal-error responder.
+func TestMapReviewErrorPreservesUnknownFailures(t *testing.T) {
+	unexpected := errors.New("database schema detail")
+	if mapped := mapReviewError(unexpected); !errors.Is(mapped, unexpected) {
+		t.Fatalf("mapped error=%v, want original internal failure", mapped)
+	}
+}
+
 // TestHelper_jsonArtifactContentType verifies helper json artifact content type.
 func TestHelper_jsonArtifactContentType(t *testing.T) {
 	tests := []struct {

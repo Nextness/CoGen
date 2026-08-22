@@ -126,7 +126,7 @@ func TestReferenceMentionSnapshotsAreAppendOnly(t *testing.T) {
 	}
 }
 
-// TestV00005ReferenceMentionsMigrationApplies verifies v00005 reference mentions migration applies.
+// TestV00005ReferenceMentionsMigrationApplies verifies the reference-mentions migration remains applied in the current chain.
 func TestV00005ReferenceMentionsMigrationApplies(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
@@ -135,8 +135,8 @@ func TestV00005ReferenceMentionsMigrationApplies(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 25 {
-		t.Fatalf("expected 25 applied migrations, got %d", count)
+	if count != 26 {
+		t.Fatalf("expected 26 applied migrations, got %d", count)
 	}
 	for _, name := range []string{"reference_mentions"} {
 		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&count); err != nil || count != 1 {

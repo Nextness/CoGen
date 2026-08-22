@@ -24,8 +24,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 25 {
-		t.Fatalf("expected 25 applied metadata migrations, got %d", count)
+	if count != 26 {
+		t.Fatalf("expected 26 applied metadata migrations, got %d", count)
 	}
 
 	// Verify every workspace table exists.
@@ -75,7 +75,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 		"idx_review_contexts_parent", "idx_work_review_versions_work", "idx_work_review_versions_parent",
 		"idx_work_review_versions_context", "idx_review_context_work_heads_version",
 		"idx_review_note_versions_note", "idx_review_note_versions_parent", "idx_review_context_note_heads_version",
-		"idx_review_note_links_target", "idx_review_anchors_work", "idx_review_anchor_versions_anchor",
+		"idx_review_note_links_target", "idx_review_anchors_work", "idx_review_anchors_work_label", "idx_review_anchor_versions_anchor",
 		"idx_review_anchor_versions_parent", "idx_review_context_anchor_heads_version",
 	}
 	for _, name := range expectedIndexes {
@@ -203,8 +203,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count2 != 25 {
-		t.Fatalf("expected 25 migrations after reopen, got %d", count2)
+	if count2 != 26 {
+		t.Fatalf("expected 26 migrations after reopen, got %d", count2)
 	}
 }
 
@@ -307,8 +307,8 @@ func TestV00003MigrationApplies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 25 {
-		t.Fatalf("expected 25 applied migrations, got %d", count)
+	if count != 26 {
+		t.Fatalf("expected 26 applied migrations, got %d", count)
 	}
 
 	// Verify the four append-only triggers exist
@@ -598,8 +598,8 @@ func TestV00002MigrationApplies(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 25 {
-		t.Fatalf("expected 25 applied metadata migrations, got %d", count)
+	if count != 26 {
+		t.Fatalf("expected 26 applied metadata migrations, got %d", count)
 	}
 
 	// Verify the new tables exist
@@ -671,8 +671,8 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&metadataMigrations); err != nil {
 		t.Fatal(err)
 	}
-	if metadataMigrations != 25 {
-		t.Fatalf("metadata migrations = %d, want 25", metadataMigrations)
+	if metadataMigrations != 26 {
+		t.Fatalf("metadata migrations = %d, want 26", metadataMigrations)
 	}
 	for _, table := range []string{"pdf_store_binding", "pdf_audit_links"} {
 		var found int
@@ -813,7 +813,47 @@ func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T) {
 		'V00021_rename_pdf_audit_links.sql')`).Scan(&additions); err != nil {
 		t.Fatal(err)
 	}
-	if total != 25 || historical != 1 || additions != 3 {
+	if total != 26 || historical != 1 || additions != 3 {
 		t.Fatalf("migration history after V00018 upgrade: total=%d historical=%d additions=%d", total, historical, additions)
+	}
+}
+
+// TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration verifies that databases which applied the anchor-label migration under its earlier V00025 filename do not execute the renamed V00026 SQL a second time.
+func TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration(t *testing.T) {
+	registry := filepath.Join("..", "..", "config", "database.something")
+	databasePath := filepath.Join(t.TempDir(), "corpus.metadata.db")
+	metadata, err := Open(databasePath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := metadata.DB.Exec(`DELETE FROM schema_migrations WHERE filename='V00026_review_anchor_labels.sql';
+		INSERT INTO schema_migrations (filename, checksum) VALUES ('V00025_review_anchor_labels.sql', 'legacy-anchor-label-migration');`); err != nil {
+		metadata.Close()
+		t.Fatal(err)
+	}
+	if err := metadata.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	metadata, err = Open(databasePath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+
+	var adopted int
+	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE filename IN
+		('V00025_review_anchor_labels.sql', 'V00026_review_anchor_labels.sql')`).Scan(&adopted); err != nil {
+		t.Fatal(err)
+	}
+	if adopted != 2 {
+		t.Fatalf("anchor-label migration history entries = %d, want 2", adopted)
+	}
+	version, err := metadata.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if version != "V00026_review_anchor_labels.sql" {
+		t.Fatalf("schema version = %q, want V00026_review_anchor_labels.sql", version)
 	}
 }

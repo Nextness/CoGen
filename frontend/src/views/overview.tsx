@@ -214,15 +214,20 @@ export async function overviewView(): Promise<void> {
   const normalizationFields = overview.normalization_field_breakdown || {};
 
   const corpusCards = [
-    ["Work revisions", relationship.work_revisions, link({
+    ["Analysis-ready articles", relationship.analysis_ready_articles, link({
       view: "corpus",
       section: "articles",
     })],
-    ["Authorships", relationship.authorships, link({
+    ["All immutable work revisions", relationship.work_revisions, link({
+      view: "advanced",
+      table: "work_revisions",
+      page: 1,
+    })],
+    ["Analysis-ready authorships", relationship.authorships, link({
       view: "corpus",
       section: "authors",
     })],
-    ["Reference mentions", relationship.reference_mentions, link({
+    ["Analysis-ready reference mentions", relationship.reference_mentions, link({
       view: "corpus",
       section: "references",
     })],
@@ -371,12 +376,27 @@ export async function overviewView(): Promise<void> {
     </Fragment>
   );
 
+  var sourceFilterDiagnostics: JSX.Element | null = null;
+  if (overview.source_filter_diagnostics?.length) {
+    const diagnosticItems = overview.source_filter_diagnostics.map((diagnostic: any) => {
+      return <li><strong>{diagnostic.source || "Unknown source"}:</strong> {diagnostic.message || "Stored source-filter evidence is invalid."}</li>;
+    });
+    sourceFilterDiagnostics = (
+      <div className="ui negative message span-all" role="alert">
+        <h3>Source-filter evidence needs attention</h3>
+        <p>The retention flow excludes malformed stored counts instead of treating them as zero.</p>
+        <ul>{diagnosticItems}</ul>
+      </div>
+    );
+  }
+
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="" title="Overview" description="Recorded execution evidence and current coverage are shown separately to preserve their meaning." />
       <div className="ui grid dashboard-grid">
         <section className="rw-run-identity-strip span-all">{runIdentity}</section>
         <RetentionFlow overview={overview} />
+        {sourceFilterDiagnostics}
         <SourceResultCountSummary items={overview.source_result_counts} classes="span-all" />
         <SourceSearchQueries items={overview.source_result_counts} classes="span-all" />
         <Panel title="Corpus summary" description="Immutable records available for this selected run." body={corpusSummaryBody} />

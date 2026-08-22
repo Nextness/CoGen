@@ -4,8 +4,11 @@ package database
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
+
+	"analysis/notes"
 )
 
 // TestReviewCopyOnWriteLineage verifies context inheritance, immutable heads, note history, anchors, audit, and purge protection.
@@ -23,6 +26,9 @@ func TestReviewCopyOnWriteLineage(t *testing.T) {
 	if err != nil || !changed || a1State.Version == nil {
 		t.Fatalf("append A1 review: state=%+v changed=%v err=%v", a1State, changed, err)
 	}
+	if a1State.Version.ReviewerDisplay != "Researcher" || strings.Contains(a1State.Version.ReviewerDisplay, "@") {
+		t.Fatalf("reviewer display=%q, want username without email", a1State.Version.ReviewerDisplay)
+	}
 	note, err := db.Reviews.CreateNote(ctx, a1.ID, a1Revision, "See [[article:10.1000/missing|future article]].")
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +42,14 @@ func TestReviewCopyOnWriteLineage(t *testing.T) {
 	a2, _, err := db.Reviews.CreateContext(ctx, a2Run, &a1.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if _, _, err := db.Reviews.CreateContext(ctx, a2Run, nil); err == nil {
+		t.Fatal("context initialization accepted a different parent")
+	} else {
+		var conflict *ReviewContextParentConflictError
+		if !errors.As(err, &conflict) || conflict.Existing == nil || *conflict.Existing != a1.ID || conflict.Requested != nil {
+			t.Fatalf("parent conflict=%+v err=%v", conflict, err)
+		}
 	}
 	inherited, err := db.Reviews.GetWorkReview(ctx, a2.ID, a2Revision)
 	if err != nil || inherited.Version == nil || inherited.Version.ID != a1State.Version.ID || inherited.InheritedFromContextID == nil {
@@ -62,7 +76,7 @@ func TestReviewCopyOnWriteLineage(t *testing.T) {
 	if err != nil || len(inheritedNotes) != 1 || inheritedNotes[0].Version.ID != note.Version.ID {
 		t.Fatalf("inherited notes = %+v err=%v", inheritedNotes, err)
 	}
-	edited, changed, err := db.Reviews.AppendNoteVersion(ctx, a2.ID, note.ID, note.Version.ID, "active", "Edited [[anchor:methods-1]].")
+	edited, changed, err := db.Reviews.AppendNoteVersion(ctx, a2.ID, note.ID, note.Version.ID, "active", "Edited [[anchor:"+anchor.ID+"|methods-1]].")
 	if err != nil || !changed {
 		t.Fatalf("edit inherited note: %+v changed=%v err=%v", edited, changed, err)
 	}
@@ -86,6 +100,9 @@ func TestReviewCopyOnWriteLineage(t *testing.T) {
 	anchors, err := db.Reviews.ListAnchors(ctx, a2.ID, a2Revision, "", 20)
 	if err != nil || len(anchors) != 1 || anchors[0].Version.ID != anchor.Version.ID {
 		t.Fatalf("inherited anchors = %+v err=%v", anchors, err)
+	}
+	if anchor.ID == anchor.Label || anchor.Label != "methods-1" || !notes.ValidAnchorID(anchor.ID) {
+		t.Fatalf("generated anchor identity=%q label=%q", anchor.ID, anchor.Label)
 	}
 	deletedAnchor, changed, err := db.Reviews.AppendAnchorVersion(ctx, a2.ID, anchor.ID, anchor.Version.ID, "deleted", hash, 0, "", nil)
 	if err != nil || !changed || deletedAnchor.Version.State != "deleted" {
@@ -219,6 +236,9 @@ func createReviewLineageFixture(t *testing.T, db *Database) (int64, int64, int64
 	makeRevision := func(runID int64, hash, title string) int64 {
 		return exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage)
 			VALUES (?, ?, ?, ?, 'normalize')`, workID, runID, hash, title)
+	}
+	for _, runID := range []int64{a1Run, a2Run} {
+		exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", runID, workID)
 	}
 	return a1Run, a2Run, workID, makeRevision(a1Run, "a1", "A1 article"), makeRevision(a2Run, "a2", "A2 article")
 }

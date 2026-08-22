@@ -57,7 +57,7 @@ Source exports + SOMETHING configuration
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00025. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00026. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
@@ -257,7 +257,7 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00025 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections.
+The metadata chain is V00001-V00026 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
 
 The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
@@ -315,10 +315,10 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | Route | Responsibility and bounds |
 |---|---|
 | `/api/health` | Reports database health, review capability, and the opaque corpus ID used to namespace browser drafts. |
-| `/api/searches`, `/api/plans`, `/api/runs` | Resolves hierarchical research context. |
+| `/api/hierarchy`, `/api/runs/{id}/context` | Returns bounded searchable hierarchy pages and one canonical complete run ancestry. Legacy `/api/searches`, `/api/plans`, and `/api/runs` discovery responses are explicitly deprecated and hard-bounded. |
 | `/api/runs/{id}/visibility` | Moves a terminal attempt between `active` and `trashed` in one transaction and appends the corresponding lifecycle audit event. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
-| `/api/runs/{id}/audit`, `/api/audit` | Returns bounded cursor audit pages, facets, and supported filters. |
+| `/api/runs/{id}/audit`, `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. The run-specific route is a deprecated compatibility view. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
 | `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
@@ -326,24 +326,24 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/runs/{id}/review-context`, `/api/runs/{id}/review-context-candidates` | Returns, proposes, explicitly initializes, or lists bounded eligible parents for one completed non-trashed run. |
 | `/api/runs/{id}/articles/{revision}/review`, `/api/runs/{id}/articles/{revision}/review/versions` | Reads or appends complete review state and returns bounded immutable ancestry with optimistic concurrency. |
 | `/api/runs/{id}/articles/{revision}/notes`, `/api/runs/{id}/notes/{note}`, `/api/runs/{id}/notes/{note}/versions` | Creates, reads, edits, tombstones, restores, and lists bounded immutable note versions and resolved links. |
-| `/api/runs/{id}/articles/{revision}/anchors`, `/api/runs/{id}/anchors/{anchor}/versions`, `/api/runs/{id}/review-backlinks` | Creates and reads bounded PDF anchors, tombstones, ancestry, and current-version backlinks. |
+| `/api/runs/{id}/articles/{revision}/anchors`, `/api/runs/{id}/anchors/{anchor}/versions`, `/api/runs/{id}/links/backlinks` | Creates and reads bounded PDF anchors, tombstones, ancestry, and current-version backlinks. |
 | `/api/tables`, `/api/tables/{table}` | Discovers tables and browses an allowlisted schema with bounded page sizes. |
-| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}` | Returns detail records and selected-run provenance; article detail includes stored search-term coverage for normalized revisions, and author detail includes bounded run-scoped identity candidates when `run_id` is supplied. |
+| `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}`, `/api/articles/{id}/collections/{kind}`, `/api/authors/{id}/collections/{kind}`, `/api/identity-resolutions/{id}/candidates` | Requires selected-run membership, returns bounded detail summaries, and exposes counted run-owned cursor subresources for related evidence and identity candidates. Article summary retains stored search-term coverage for its exact normalized revision. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
-| `/api/trash` | Returns read-only trashed-run and restore history. |
+| `/api/trash` | Returns an explicitly deprecated hard-bounded compatibility view; `/api/hierarchy?section=runs&visibility=trashed` is the supported run-management collection. |
 
 Run-scoped articles contain valid normalize-stage revisions. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
 
-Audit supports run context, text search, category, action, actor, entity, stage, and outcome filters. Categories accepted by the server are pipeline, enrichment, validation, and PDF; review actions have their own visual classification and remain filterable by action. The frontend presents date-grouped timeline cards and cursor-based loading without discarding already-loaded evidence. Artifact preview defaults to 64 KiB and caps at 256 KiB; only recognized text, JSON, and SOMETHING media are previewed.
+Audit supports run context, text search, category, action, actor, entity, stage, outcome, review status, review reason, and review substatus filters. Categories accepted by the server are pipeline, enrichment, validation, PDF, and review. Run-scoped PDF history includes only works that belong to that run, while workspace-global PDF history is an explicit scope. The frontend presents UTC date-grouped timeline cards and cursor-based loading without discarding already-loaded evidence; Recorded data loads separately under fixed privacy and byte budgets. Artifact preview defaults to 64 KiB and caps at 256 KiB; only recognized text, JSON, and SOMETHING media are previewed.
 
 Graph modes are `research_network`, `article_author`, `citation`, and `article_reference`. The endpoint caps article nodes at 2,000, related nodes at 10,000, and edges at 20,000, and reports truncation and its reason.
 
-Every review mutation validates the selected completed run, context head, work revision, vocabulary, expected version, and current PDF availability before one metadata transaction inserts a child version, compare-and-swap moves only that context head, and appends an audit event containing identifiers rather than note bodies, selected text, or reviewer email. The companion PDF availability check remains outside the metadata transaction because supported PDF inventory never removes or replaces an available document.
+Every review mutation validates the selected completed active run, context head, work revision, vocabulary, and expected version before one metadata transaction inserts a child version, compare-and-swap moves only that context head, and appends safe audit evidence. Decision and Note mutations require exact work membership; anchor creation and restoration additionally require current matching PDF availability. The companion PDF availability check remains outside the metadata transaction because supported PDF inventory never removes or replaces an available document.
 
 ```text
 browser GET/HEAD -> read-only metadata or PDF query -> bounded response
-browser POST/PUT -> transport and context validation -> PDF availability read -> metadata version + head CAS + audit transaction
+browser POST/PUT -> transport and context validation -> optional anchor PDF check -> metadata version + head CAS + audit transaction
 ```
 
 ## 15. Frontend architecture
@@ -381,7 +381,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 | `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels, tables, flows, links, statuses, and global UI behavior. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
 | `router.tsx` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
-| `components/context-selector.tsx` | Dependent searchable single-select hydration, skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/context-selector.tsx` | Dependent bounded searchable single-select hydration, skeletons, keyboard listbox interaction, exact selected options, and sole-child auto-selection. |
 | `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.tsx` | First, Previous, numbered, Next, and Last controls plus result ranges. |
 | `components/audit-events.tsx` | Audit classification, summaries, metadata disclosures, stream markup, and investigation export. |

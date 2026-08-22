@@ -2,14 +2,14 @@
 import {
   app, value, link, pageSizes, corpusSections, section, PageHeader,
   formatNumber, percent,
-  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip
-} from '../state.tsx';
-import { h, Fragment, raw, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api, tables } from '../api.tsx';
-import { DataTable, bindTableControls } from '../components/data-table.tsx';
-import type { DataTableContext } from '../components/data-table.tsx';
-import { pagination as renderPagination } from '../components/pagination.tsx';
-import { setURL } from '../router.tsx';
+  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, currentDetailOrigin,
+} from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api, tables } from "../api.tsx";
+import { DataTable, bindTableControls } from "../components/data-table.tsx";
+import type { DataTableContext } from "../components/data-table.tsx";
+import { Pagination } from "../components/pagination.tsx";
+import { setURL } from "../router.tsx";
 
 // Core columns shown in the articles table; extra fields appear in expandable rows.
 const articlesColumns = ["doi", "title", "year", "journal", "source"];
@@ -204,6 +204,7 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
       const authorHref = link({
         view: "author",
         author_id: row.author_occurrence_id,
+        origin: currentDetailOrigin(),
       });
       return (
         <tr>
@@ -227,7 +228,7 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
     perPage: props.context.perPage,
     itemLabel: "author records",
   };
-  const paginationMarkup = raw(renderPagination(paginationData, paginationOptions));
+  const paginationMarkup = <Pagination result={paginationData} options={paginationOptions} />;
 
   return (
     <Fragment>
@@ -262,6 +263,7 @@ function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JS
     article_id: "",
     author_id: "",
     reference_id: "",
+    origin: currentDetailOrigin(),
   };
   updates[idKey] = id;
   const recordHref = link(updates);
@@ -595,10 +597,12 @@ export async function corpusView(): Promise<void> {
           </div>
         </div>
         <div className="content">
-          {controls}
-          {filterSummary}
-          {explanation}
-          {body}
+          <div data-table-scope={definition.table}>
+            {controls}
+            {filterSummary}
+            {explanation}
+            {body}
+          </div>
         </div>
       </section>
     </Fragment>

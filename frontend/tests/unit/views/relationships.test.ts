@@ -1,4 +1,4 @@
-// Unit tests for views/relationships.js — relationships view.
+// Unit tests for views/relationships.tsx — relationships view.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import '../setup.ts';
 import { relationshipsView } from '../../../src/views/relationships.tsx';
 import { app, state } from '../../../src/state.tsx';
 
-describe('relationships.js — relationshipsView', function() {
+describe('relationships.tsx — relationshipsView', function() {
 
   before(function() {
     state.searches = [];

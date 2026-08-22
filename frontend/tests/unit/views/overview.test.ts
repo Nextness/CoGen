@@ -1,4 +1,4 @@
-// Unit tests for views/overview.js — overview view.
+// Unit tests for views/overview.tsx — overview view.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import '../setup.ts';
 import { overviewView } from '../../../src/views/overview.tsx';
 import { app, state, value } from '../../../src/state.tsx';
 
-describe('overview.js — overviewView', function() {
+describe('overview.tsx — overviewView', function() {
 
   before(function() {
     state.runs = [];
@@ -42,7 +42,13 @@ describe('overview.js — overviewView', function() {
                   valid_articles: 80,
                   discarded_articles: 5,
                 },
-                relationship_totals: { work_revisions: 80, authorships: 200, reference_mentions: 500, internal_citations: 50 },
+                relationship_totals: {
+                  analysis_ready_articles: { state: 'derived', available: true, value: 80 },
+                  work_revisions: { state: 'derived', available: true, value: 100 },
+                  authorships: { state: 'derived', available: true, value: 200 },
+                  reference_mentions: { state: 'derived', available: true, value: 500 },
+                  internal_citations: { state: 'derived', available: true, value: 50 }
+                },
                 captured_metrics: [
                   { metric: 'parsed_articles', source: '', available: true, value: 90 },
                   { metric: 'deduplicated_articles', source: '', available: true, value: 85 },
@@ -87,6 +93,8 @@ describe('overview.js — overviewView', function() {
     assert.ok(app.innerHTML.includes('Parsing'));
     assert.ok(app.innerHTML.includes('Deduplication'));
     assert.ok(app.innerHTML.includes('25.00%'));
+    assert.ok(app.innerHTML.includes('Analysis-Ready Articles'));
+    assert.ok(app.innerHTML.includes('All Immutable Work Revisions'));
     assert.ok(app.innerHTML.includes('rw-run-identity-strip'));
     assert.ok(app.innerHTML.includes('5m 30s'));
     assert.ok(!app.innerHTML.includes('Selected historical run'));

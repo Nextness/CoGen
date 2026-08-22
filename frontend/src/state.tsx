@@ -1,7 +1,7 @@
 // Shared state, DOM references, and utility functions.
 // This module is imported by every other module. It avoids circular dependencies
 // by importing only the leaf JSX runtime.
-import { h, Fragment, render as renderTree, renderToString, raw } from "./jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree } from "./jsx/jsx-runtime.ts";
 
 // The viewer shell guarantees these elements exist (index.html), so the DOM
 // roots are declared with non-null assertions at module scope.
@@ -68,6 +68,59 @@ export const provenanceSections: Record<string, [string, string]> = {
 
 export const graphFilters = ["mode", "q", "author", "orcid", "reference", "source", "year_min", "year_max", "citation_min", "citation_max", "reference_min", "reference_max", "article_limit"];
 
+/** The intentionally English, UTC presentation policy used by every recorded timestamp. */
+export const interfaceLocale = "en-US";
+export const interfaceTimeZone = "UTC";
+const dateTimeFormatter = new Intl.DateTimeFormat(interfaceLocale, {
+  dateStyle: "medium",
+  timeStyle: "medium",
+  timeZone: interfaceTimeZone,
+});
+const dateFormatter = new Intl.DateTimeFormat(interfaceLocale, {
+  dateStyle: "medium",
+  timeZone: interfaceTimeZone,
+});
+
+/** The complete ancestry keys shared by Deepdive routes. */
+export const canonicalContextKeys = ["search_id", "search_revision_id", "plan_id", "run_id"];
+
+/** URL keys owned by each route in addition to canonical research context. */
+export const routeOwnedKeys: Record<string, string[]> = {
+  home: ["home_q", "home_visibility", "home_status", "home_started_after", "home_started_before", "home_search_cursor", "home_run_cursor"],
+  trash: [],
+  overview: [],
+  corpus: ["section", "q", "sort", "order", "page", "per_page", "expanded"],
+  relationships: [...graphFilters, "node"],
+  provenance: [
+    "section", "artifact_id", "artifact_q", "artifact_role", "artifact_cursor",
+    "audit_q", "audit_category", "audit_action", "audit_actor", "audit_entity", "audit_stage", "audit_outcome",
+    "audit_review_status", "audit_review_reason", "audit_review_substatus",
+    "cache_q", "cache_page", "cache_per_page", "cache_sort", "cache_order", "cache_expanded", "cache_layer",
+    "stage_q", "stage_page", "stage_per_page", "stage_sort", "stage_order", "stage_expanded",
+  ],
+  evaluation: ["q", "sort", "order", "page", "per_page", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"],
+  advanced: ["table", "q", "sort", "order", "page", "per_page", "expanded"],
+  article: ["article_id", "note_id", "anchor_id", "pdf_page", "origin", "detail_authors_cursor", "detail_references_cursor", "detail_stages_cursor", "detail_audit_cursor"],
+  author: ["author_id", "origin", "detail_articles_cursor", "detail_identity_cursor", "detail_audit_cursor"],
+  reference: ["reference_id", "origin"],
+};
+
+const detailOriginViews = new Set(["evaluation", "corpus", "relationships", "provenance"]);
+const detailOriginLabels: Record<string, string> = {
+  evaluation: "Evaluation queue",
+  corpus: "Corpus",
+  relationships: "Relationships",
+  provenance: "Provenance",
+};
+
+/** One validated origin route used to return from a detail record. */
+export interface DetailOrigin {
+  view: string;
+  label: string;
+  href: string;
+  params: URLSearchParams;
+}
+
 /** Returns the current URL search parameters. */
 export function params(): URLSearchParams {
   return new URLSearchParams(location.search);
@@ -86,6 +139,43 @@ export function view(): string {
 /** Returns a named section parameter or its fallback. */
 export function section(name: string, fallback: string): string {
   return value(name) || fallback;
+}
+
+/** Serializes the current supported collection route for use by a detail link. */
+export function currentDetailOrigin(): string {
+  const currentView = view();
+  if (["article", "author", "reference"].includes(currentView)) {
+    return value("origin");
+  }
+  if (!detailOriginViews.has(currentView)) return "";
+  const current = params();
+  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[currentView] || [])]);
+  Array.from(current.keys()).forEach((key) => {
+    if (!allowed.has(key)) current.delete(key);
+  });
+  return current.toString();
+}
+
+/** Validates the stored detail origin against route ownership and visible canonical context. */
+export function detailOrigin(): DetailOrigin | null {
+  const raw = value("origin");
+  if (!raw) return null;
+  const origin = new URLSearchParams(raw);
+  const originView = origin.get("view") || "";
+  if (!detailOriginViews.has(originView)) return null;
+  for (const key of canonicalContextKeys) {
+    if ((origin.get(key) || "") !== value(key)) return null;
+  }
+  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[originView] || [])]);
+  Array.from(origin.keys()).forEach((key) => {
+    if (!allowed.has(key)) origin.delete(key);
+  });
+  return {
+    view: originView,
+    label: detailOriginLabels[originView],
+    href: `?${origin.toString()}`,
+    params: origin,
+  };
 }
 
 /** Escapes a value for safe HTML text insertion. */
@@ -131,16 +221,27 @@ export function text(item: any, fields: string[]): string {
   return "Unnamed";
 }
 
-/** Converts a value to a finite number or zero. */
-export function number(raw: any): number {
+/** Classifies numeric evidence without conflating missing or malformed values with recorded zero. */
+export function numericEvidence(raw: any): { state: "recorded" | "derived" | "unavailable" | "invalid"; value: number | null } {
+  if (raw?.state === "invalid") return { state: "invalid", value: null };
+  if (raw?.available === false || raw == null || raw === "") return { state: "unavailable", value: null };
   const parsed = Number(raw?.value ?? raw);
-  if (Number.isFinite(parsed)) return parsed;
-  return 0;
+  if (!Number.isFinite(parsed)) return { state: "invalid", value: null };
+  if (raw?.state === "derived") return { state: "derived", value: parsed };
+  return { state: "recorded", value: parsed };
+}
+
+/** Converts numeric evidence to a number, returning NaN when it is unavailable or invalid. */
+export function number(raw: any): number {
+  return numericEvidence(raw).value ?? Number.NaN;
 }
 
 /** Formats number. */
 export function formatNumber(raw: any): string {
-  return number(raw).toLocaleString();
+  const evidence = numericEvidence(raw);
+  if (evidence.state === "unavailable") return "Not recorded";
+  if (evidence.state === "invalid") return "Invalid value";
+  return evidence.value!.toLocaleString();
 }
 
 /** Formats a count as a percentage of its denominator. */
@@ -158,7 +259,15 @@ export function formatTime(raw: any): string {
   if (!raw) return "—";
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return String(raw);
-  return date.toLocaleString();
+  return dateTimeFormatter.format(date);
+}
+
+/** Formats a timestamp as one UTC calendar date for grouping and display. */
+export function formatDate(raw: any): string {
+  if (!raw) return "Not recorded";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return String(raw);
+  return dateFormatter.format(date);
 }
 
 /** Formats the elapsed time between two recorded timestamps. */
@@ -181,7 +290,9 @@ export function formatDuration(startedAt: any, finishedAt: any): string {
 
 /** Formats bytes. */
 export function formatBytes(raw: any): string {
-  const bytes = Math.max(0, number(raw));
+  const rawBytes = number(raw);
+  if (!Number.isFinite(rawBytes)) return formatNumber(raw);
+  const bytes = Math.max(0, rawBytes);
   if (bytes < 1024) return `${bytes.toLocaleString()} B`;
   const units = ["KB", "MB", "GB", "TB"];
   var value = bytes;
@@ -225,9 +336,9 @@ export function statusClass(raw: any): string {
   const normalized = String(raw || "").trim().toLowerCase();
   const status = normalized.replace(/[ -]+/g, "_");
   const danger = new Set(["fail", "failed", "parse_failed", "provider_failed", "network_failed", "discard", "discarded", "error", "errored", "trash", "trashed", "purge", "purged", "reject", "rejected", "invalid", "removed"]);
-  const warning = new Set(["warning", "skip", "skipped", "stale", "negative", "unresolved", "unclear", "orcid_is_unclear", "disabled", "incomplete", "below", "above", "unmatched", "not_available", "unavailable", "not_approved"]);
+  const warning = new Set(["warning", "skip", "skipped", "stale", "negative", "unresolved", "unclear", "orcid_is_unclear", "disabled", "incomplete", "below", "above", "unmatched", "not_available", "unavailable", "not_approved", "not_evaluated"]);
   const success = new Set(["complete", "completed", "valid", "success", "successful", "hit", "cache_hit", "ready", "available", "approved", "resolved", "resolved_internally", "enriched", "normalized", "linked", "linked_global_person", "match", "matched"]);
-  const info = new Set(["pending", "running", "recorded", "active", "visible", "inventoried", "not_evaluated", "observed_occurrence_only"]);
+  const info = new Set(["pending", "running", "recorded", "active", "visible", "inventoried", "observed_occurrence_only"]);
   const review = new Set(["inherited", "reviewed", "review"]);
   const neutral = new Set(["no_orcid_candidate", "no_candidate", "no_match", "unknown", "not_recorded"]);
 
@@ -244,12 +355,6 @@ export function statusClass(raw: any): string {
 export function StatusChip(props: { raw: any }): JSX.Element {
   const chipClass = `ui ${statusClass(props.raw)} label`;
   return <span className={chipClass}>{props.raw || "Not recorded"}</span>;
-}
-
-/** Returns escaped label markup for a recorded status. */
-export function statusChip(raw: any): string {
-  const statusChipMarkup = <StatusChip raw={raw} />;
-  return renderToString(statusChipMarkup);
 }
 
 /** Normalizes array- or object-backed metrics to display-name and value pairs. */
@@ -287,14 +392,17 @@ export function clearError(): void {
 /** Shows or hides the global loading indicator. */
 export function busy(isBusy: boolean): void {
   loading.hidden = !isBusy;
+  app.setAttribute("aria-busy", String(isBusy));
+  app.inert = isBusy;
 }
 
-/** Builds an internal URL that preserves current research context and applies supplied updates. */
+/** Builds an internal URL from canonical context and destination-owned state only. */
 export function link(updates?: Record<string, any>): string {
   if (!updates) {
     updates = {};
   }
   const next = params();
+  const previousArticleID = next.get("article_id");
   const updateEntries = Object.entries(updates);
   updateEntries.forEach(([key, raw]) => {
     if (raw === "" || raw === null || raw === undefined) {
@@ -306,11 +414,53 @@ export function link(updates?: Record<string, any>): string {
   if (!next.get("view")) {
     next.set("view", "home");
   }
+
+  const destination = next.get("view") as string;
+  if (destination === "article" && Object.hasOwn(updates, "article_id") && next.get("article_id") !== previousArticleID) {
+    next.delete("note_id");
+    next.delete("anchor_id");
+    next.delete("pdf_page");
+    next.delete("detail_authors_cursor");
+    next.delete("detail_references_cursor");
+    next.delete("detail_stages_cursor");
+    next.delete("detail_audit_cursor");
+  }
+  const allowed = new Set<string>(["view", ...(routeOwnedKeys[destination] || [])]);
+  if (destination !== "home" && destination !== "trash") {
+    canonicalContextKeys.forEach((key) => {
+      allowed.add(key);
+    });
+  }
+  const keys = Array.from(next.keys());
+  keys.forEach((key) => {
+    if (!allowed.has(key)) next.delete(key);
+  });
   return `?${next.toString()}`;
 }
 
+/** Adds route and focus cleanup required when a parent research context changes. */
+export function contextChange(updates: Record<string, any>): Record<string, any> {
+  const cleaned: Record<string, any> = {
+    ...updates,
+    article_id: "",
+    author_id: "",
+    reference_id: "",
+    note_id: "",
+    anchor_id: "",
+    pdf_page: "",
+    origin: "",
+  };
+  const current = view();
+  if (current === "article" || current === "author" || current === "reference") {
+    cleaned.view = "corpus";
+    cleaned.section = `${current}s`;
+    if (current === "reference") cleaned.section = "references";
+  }
+  return cleaned;
+}
+
 /** Renders the standard page header with escaped copy and optional actions. */
-export function PageHeader(props: { kicker: string; title: string; description: string; extra?: string }): JSX.Element {
+export function PageHeader(props: { kicker: string; title: string; description: string; extra?: JSX.Element }): JSX.Element {
   return (
     <header className="rw-page-header">
       <div className="rw-page-header__main">
@@ -318,15 +468,9 @@ export function PageHeader(props: { kicker: string; title: string; description: 
         <h2 id="page-title">{props.title}</h2>
         {props.description ? <p className="rw-page-header__description">{props.description}</p> : null}
       </div>
-      {props.extra ? <div className="rw-page-header__actions">{raw(props.extra)}</div> : null}
+      {props.extra ? <div className="rw-page-header__actions">{props.extra}</div> : null}
     </header>
   );
-}
-
-/** Returns the standard page header with escaped copy and optional actions. */
-export function pageHeader(kicker: string, title: string, description: string, extra?: string): string {
-  const pageHeaderMarkup = <PageHeader kicker={kicker} title={title} description={description} extra={extra} />;
-  return renderToString(pageHeaderMarkup);
 }
 
 /** Renders escaped breadcrumb markup for an ordered page hierarchy. */
@@ -352,12 +496,6 @@ export function Breadcrumb(props: { items: Array<{ href?: string; label: string 
   return <nav className="ui breadcrumb" aria-label="Breadcrumb">{children}</nav>;
 }
 
-/** Returns escaped breadcrumb markup for an ordered page hierarchy. */
-export function breadcrumb(items: Array<{ href?: string; label: string }>): string {
-  const breadcrumbMarkup = <Breadcrumb items={items} />;
-  return renderToString(breadcrumbMarkup);
-}
-
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
 export function setBreadcrumb(items: Array<{ href?: string; label: string }>): void {
   const breadcrumbMarkup = <Breadcrumb items={items} />;
@@ -377,14 +515,6 @@ export function EmptyState(props: { title: string; detail: string; action?: JSX.
   );
 }
 
-/** Returns a complete empty-view state with the standard page header. */
-export function emptyState(title: string, detail: string, action?: string): string {
-  var actionMarkup: JSX.Element | undefined;
-  if (action) actionMarkup = raw(action);
-  const emptyStateMarkup = <EmptyState title={title} detail={detail} action={actionMarkup} />;
-  return renderToString(emptyStateMarkup);
-}
-
 /** Renders a compact empty-state panel. */
 export function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element }): JSX.Element {
   return (
@@ -394,14 +524,6 @@ export function EmptyPanel(props: { title: string; detail: string; action?: JSX.
       {props.action}
     </section>
   );
-}
-
-/** Returns compact empty-state panel markup. */
-export function emptyPanel(title: string, detail: string, action?: string): string {
-  var actionMarkup: JSX.Element | undefined;
-  if (action) actionMarkup = raw(action);
-  const emptyPanelMarkup = <EmptyPanel title={title} detail={detail} action={actionMarkup} />;
-  return renderToString(emptyPanelMarkup);
 }
 
 /** Renders the standard titled content panel. */
@@ -418,13 +540,6 @@ export function Panel(props: { title: string; description: string; body: JSX.Ele
       <div className="content rw-panel__body">{props.body}</div>
     </section>
   );
-}
-
-/** Returns the standard titled content-panel markup. */
-export function panel(title: string, description: string, body: string, classes?: string): string {
-  const bodyMarkup = raw(body);
-  const panelMarkup = <Panel title={title} description={description} body={bodyMarkup} classes={classes} />;
-  return renderToString(panelMarkup);
 }
 
 /** One table column definition: a field name or a labeled renderer. */
@@ -447,7 +562,7 @@ export function Table(props: { title: string; description: string; columns: Tabl
       const cells = props.columns.map((column) => {
         var content: JSX.Element;
         if (typeof column === "string") {
-          content = raw(cell(row[column], column));
+          content = <Cell item={row[column]} column={column} />;
         } else {
           content = column.render(row);
         }
@@ -467,12 +582,6 @@ export function Table(props: { title: string; description: string; columns: Tabl
   return <Panel title={props.title} description={props.description} body={tableWrap} classes={props.classes} />;
 }
 
-/** Returns an escaped data table inside the standard panel wrapper. */
-export function table(title: string, description: string, columns: TableColumn[], rows: any[], classes?: string): string {
-  const tableMarkup = <Table title={title} description={description} columns={columns} rows={rows} classes={classes} />;
-  return renderToString(tableMarkup);
-}
-
 /** Renders context-preserving tab navigation for a keyed section. */
 export function Subnav(props: { items: Array<[string, string]>; current: string; key: string }): JSX.Element {
   const links = props.items.map(([id, label]) => {
@@ -485,12 +594,6 @@ export function Subnav(props: { items: Array<[string, string]>; current: string;
     return <a href={href} className={itemClass} aria-current={ariaCurrent}>{label}</a>;
   });
   return <nav className="ui tabular menu rw-section-tabs" aria-label="Section navigation">{links}</nav>;
-}
-
-/** Returns context-preserving tab navigation for a keyed section. */
-export function subnav(items: Array<[string, string]>, current: string, key: string): string {
-  const subnavMarkup = <Subnav items={items} current={current} key={key} />;
-  return renderToString(subnavMarkup);
 }
 
 /** One filter summary rendering option set. */
@@ -509,18 +612,28 @@ export function FilterChips(props: { filters: Record<string, any> | null; labels
   if (!entries.length) {
     return <div className="rw-filter-summary"><span className="ui faded text">No filters applied.</span></div>;
   }
-  const chips = entries.map(([key, raw]) => {
-    const updates = { ...(options.removeUpdates || { page: 1 }), [key]: "" };
-    const href = link(updates);
-    return (
-      <a className="rw-filter-chip" href={href} title="Remove filter">
-        <span>{props.labels?.[key] || humanLabel(key)}:</span>
-        {" "}
-        {raw}
-        {" "}
-        <b aria-hidden="true">{"\u00D7"}</b>
-      </a>
-    );
+  const chips = entries.flatMap(([key, raw]) => {
+    var values = [raw];
+    if (Array.isArray(raw)) values = raw;
+    return values.map((item) => {
+      var remaining: any = "";
+      if (Array.isArray(raw)) {
+        remaining = raw.filter((candidate) => {
+          return candidate !== item;
+        }).join(",");
+      }
+      const updates = { ...(options.removeUpdates || { page: 1 }), [key]: remaining };
+      const href = link(updates);
+      return (
+        <a className="rw-filter-chip" href={href} title="Remove filter">
+          <span>{props.labels?.[key] || humanLabel(key)}:</span>
+          {" "}
+          {item}
+          {" "}
+          <b aria-hidden="true">{"\u00D7"}</b>
+        </a>
+      );
+    });
   });
   var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
@@ -538,15 +651,10 @@ export function FilterChips(props: { filters: Record<string, any> | null; labels
   );
 }
 
-/** Filters chips. */
-export function filterChips(filters: Record<string, any> | null, labels?: Record<string, string>, options?: FilterChipOptions): string {
-  const filterChipsMarkup = <FilterChips filters={filters} labels={labels} options={options} />;
-  return renderToString(filterChipsMarkup);
-}
-
 /** Renders a metric card with availability, denominator, and optional navigation. */
 export function MetricCard(props: { name: string; metric: any; href?: string }): JSX.Element {
-  const unavailable = props.metric?.available === false;
+  const evidence = numericEvidence(props.metric);
+  const unavailable = evidence.state === "unavailable";
   var content: JSX.Element = (
     <>
       <span className="label">{humanLabel(props.name)}</span>
@@ -554,7 +662,15 @@ export function MetricCard(props: { name: string; metric: any; href?: string }):
       <small>Not captured for this run</small>
     </>
   );
-  if (!unavailable) {
+  if (evidence.state === "invalid") {
+    content = (
+      <>
+        <span className="label">{humanLabel(props.name)}</span>
+        <span className="value">Invalid value</span>
+        <small>Stored evidence could not be interpreted</small>
+      </>
+    );
+  } else if (!unavailable) {
     const value = formatNumber(props.metric?.value ?? props.metric);
     var detail: JSX.Element | null = null;
     if (props.metric?.denominator != null) {
@@ -575,12 +691,6 @@ export function MetricCard(props: { name: string; metric: any; href?: string }):
     return <div className="ui statistic rw-kpi"><a href={props.href}>{content}</a></div>;
   }
   return <div className="ui statistic rw-kpi">{content}</div>;
-}
-
-/** Returns a metric card with availability, denominator, and optional navigation. */
-export function metricCard(name: string, metric: any, href?: string): string {
-  const metricCardMarkup = <MetricCard name={name} metric={metric} href={href} />;
-  return renderToString(metricCardMarkup);
 }
 
 /** One retention-flow stage option set. */
@@ -610,21 +720,24 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
     );
   }
 
-  if (props.raw?.available === false || props.raw == null) {
+  const evidence = numericEvidence(props.raw);
+  if (evidence.state === "unavailable" || evidence.state === "invalid") {
     const articleClass = `${stageClass} disabled`;
+    const stateLabel = evidence.state === "invalid" ? "Invalid value" : "Not recorded";
+    const stateDetail = evidence.state === "invalid" ? "Stored evidence could not be interpreted." : "This stage was not captured.";
     return (
       <article className={articleClass} data-flow-stage={props.stageKey || undefined}>
         {info}
         <div className="rw-flow__content">
           <h5>{props.label}</h5>
-          <strong className="rw-flow__unavailable">Not recorded</strong>
-          <small>This stage was not captured.</small>
+          <strong className="rw-flow__unavailable">{stateLabel}</strong>
+          <small>{stateDetail}</small>
         </div>
       </article>
     );
   }
 
-  const count = number(props.raw);
+  const count = evidence.value!;
   const baseCount = number(props.base);
   var percentage: number | null = null;
   if (baseCount > 0) percentage = count * 100 / baseCount;
@@ -690,12 +803,6 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
   );
 }
 
-/** Returns one retention-flow stage with counts, percentages, and optional links. */
-export function flowStage(label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: FlowStageOptions): string {
-  const flowStageMarkup = <FlowStage label={label} raw={raw} base={base} previous={previous} extraClass={extraClass} stageKey={stageKey} options={options} />;
-  return renderToString(flowStageMarkup);
-}
-
 const filterPresentations: Record<string, { groupLabel: string; label: string; description: string }> = {
   "NO_FILTER": {
     groupLabel: "Unfiltered Source Data",
@@ -720,47 +827,47 @@ const filterPresentations: Record<string, { groupLabel: string; label: string; d
 };
 
 /** Combines cumulative source filter counts into ordered cross-source stages. */
-function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number; groupLabel: string; label: string; description: string }>; sourceCount: number } {
-  var bySource = new Map<string, Array<{ count: number; filters: string[] }>>();
+function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: any; groupLabel: string; label: string; description: string }>; sourceCount: number } {
+  var bySource = new Map<string, Map<string, { count: number; filters: string[] }>>();
   (items || []).forEach((item) => {
     if (!Array.isArray(item?.filters) || item.filters.length === 0) {
       return;
     }
     const sourceName = String(item.source || "source");
-    if (!bySource.has(sourceName)) {
-      bySource.set(sourceName, []);
-    }
-    bySource.get(sourceName)!.push({
-      count: Math.max(0, number(item.count)),
-      filters: item.filters.map(String)
-    });
+    const filters = item.filters.map(String);
+    const count = number(item.count);
+    if (!Number.isFinite(count) || count < 0) return;
+    if (!bySource.has(sourceName)) bySource.set(sourceName, new Map());
+    bySource.get(sourceName)!.set(filters.join("\u001f"), { count: count, filters: filters });
   });
 
-  const sourceGroups = Array.from(bySource.values());
-  const sources = sourceGroups.filter((stages) => {
-    return stages.length > 0;
+  const sources = Array.from(bySource.values()).filter((stages) => {
+    return stages.size > 0;
   });
-  const stageCount = sources.reduce((maximum, stages) => {
-    return Math.max(maximum, stages.length);
-  }, 0);
-  var stages: Array<{ count: number; groupLabel: string; label: string; description: string }> = [];
-  for (var index = 0; index < stageCount; index += 1) {
-    var count = 0;
-    var appliedFilters = new Set<string>();
-    sources.forEach((sourceStages) => {
-      const stage = sourceStages[Math.min(index, sourceStages.length - 1)];
-      count += stage.count;
-      if (index < sourceStages.length) {
-        const currentFilter = stage.filters[stage.filters.length - 1];
-        if (currentFilter) {
-          appliedFilters.add(currentFilter);
-        }
-      }
+  const identities = new Map<string, string[]>();
+  sources.forEach((sourceStages) => {
+    sourceStages.forEach((stage, identity) => {
+      identities.set(identity, stage.filters);
     });
-    const filters = Array.from(appliedFilters);
+  });
+  const orderedIdentities = Array.from(identities.entries()).sort((left, right) => {
+    return left[1].length - right[1].length || left[0].localeCompare(right[0]);
+  });
+  var stages: Array<{ count: any; groupLabel: string; label: string; description: string }> = [];
+  orderedIdentities.forEach(([identity, filters], index) => {
+    const matching = sources.map((sourceStages) => {
+      return sourceStages.get(identity);
+    });
+    var count: any = { available: false, state: "unavailable" };
+    if (matching.every(Boolean)) {
+      count = matching.reduce((sum, stage) => {
+        return sum + stage!.count;
+      }, 0);
+    }
+    const appliedFilters = filters.slice(-1);
     var presentation: { groupLabel: string; label: string; description: string } | null = null;
-    if (filters.length === 1) presentation = filterPresentations[filters[0]];
-    const filterLabels = filters.map((name) => {
+    if (appliedFilters.length === 1) presentation = filterPresentations[appliedFilters[0]];
+    const filterLabels = appliedFilters.map((name) => {
       return humanLabel(name);
     });
     var groupLabel = presentation?.groupLabel || "Unfiltered Source Data";
@@ -774,7 +881,7 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: number
       label: label,
       description: description,
     });
-  }
+  });
   return { stages: stages, sourceCount: sources.length };
 }
 
@@ -804,7 +911,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   const hasFilterStages = filterStages.length > 0;
   const inputCount = number(input);
   var initialCount = inputCount;
-  if (hasFilterStages) initialCount = filterStages[0].count;
+  if (hasFilterStages && Number.isFinite(number(filterStages[0].count))) initialCount = number(filterStages[0].count);
   var denominatorLabel = "input records";
   if (hasFilterStages) denominatorLabel = "initial raw results";
   const sourceDefinitions = [
@@ -822,7 +929,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
       baselineLabel: "Initial raw-data baseline",
     };
     const stage = <FlowStage label={label} raw={recordedStage?.count} base={initialCount} previous={previousFilterCount} extraClass="source" stageKey={`filter_${index}`} options={stageOptions} />;
-    if (recordedStage) previousFilterCount = recordedStage.count;
+    if (recordedStage && Number.isFinite(number(recordedStage.count))) previousFilterCount = number(recordedStage.count);
     return stage;
   });
   var sourceSummary = "Aggregate source-filter counts were not recorded";
@@ -836,7 +943,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     </RetentionPhase>
   ];
 
-  if (!input || input.available === false) {
+  if (numericEvidence(input).value == null) {
     phases.push(
       <RetentionPhase title="Pipeline processing" description="Records loaded, parsed, and deduplicated by the pipeline." summary="Pipeline counts not recorded" className="rw-retention__phase--pipeline">
         <div className="ui fluid steps rw-flow">
@@ -871,7 +978,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     enrichmentCount = number(enrichmentCandidates);
   }
   var pipelinePrevious: any = null;
-  if (hasFilterStages) pipelinePrevious = filterStages[filterStages.length - 1].count;
+  if (hasFilterStages && Number.isFinite(number(filterStages[filterStages.length - 1].count))) pipelinePrevious = number(filterStages[filterStages.length - 1].count);
   const stageHref = (stage: string) => {
     if (stage === "input") return link({ view: "corpus", section: "sources", q: "", page: 1 });
     return link({ view: "provenance", section: "stages", stage_q: stage, stage_page: 1 });
@@ -896,7 +1003,8 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   );
 
   const discardedCount = number(source.discarded_articles);
-  const validationTotal = validCount + discardedCount;
+  var validationTotal: any = { available: false, state: "unavailable" };
+  if (Number.isFinite(validCount) && Number.isFinite(discardedCount)) validationTotal = validCount + discardedCount;
   const corpusSteps = [
     <FlowStage label="Candidate articles" raw={enrichmentCandidates} base={initialCount} previous={dedupedCount} extraClass="" stageKey="enrichment_candidates" options={stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich"))} />,
     <FlowStage label="Accepted + Discarded" raw={validationTotal} base={initialCount} previous={enrichmentCount} extraClass="" stageKey="validation_outcomes" options={{
@@ -915,12 +1023,6 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="span-all rw-panel--no-separator" />;
 }
 
-/** Returns the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
-export function retentionFlow(overview: any): string {
-  const retentionFlowMarkup = <RetentionFlow overview={overview} />;
-  return renderToString(retentionFlowMarkup);
-}
-
 /** Renders a metric breakdown table with relative bars and optional total percentages. */
 export function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean }): JSX.Element {
   const valueLabel = props.valueLabel || "Count";
@@ -932,9 +1034,12 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
 
   var total: number | null;
   if (props.useTotal) {
-    total = entries.reduce((sum, [, entry]) => {
-      return sum + number(entry);
-    }, 0);
+    const values = entries.map(([, entry]) => {
+      return number(entry);
+    });
+    total = values.every(Number.isFinite) ? values.reduce((sum, entry) => {
+      return sum + entry;
+    }, 0) : null;
   } else {
     total = null;
   }
@@ -942,13 +1047,16 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const entryValues = entries.map(([, entry]) => {
     return number(entry);
   });
-  const max = total || Math.max.apply(null, entryValues.concat([1]));
+  const finiteEntryValues = entryValues.filter(Number.isFinite);
+  const max = total || Math.max.apply(null, finiteEntryValues.concat([1]));
 
   /** Renders one breakdown value with availability and optional percentage. */
   function valueRender(row: any): JSX.Element {
-    if (row.raw?.available === false) {
+    const evidence = numericEvidence(row.raw);
+    if (evidence.state === "unavailable") {
       return <span className="ui faded text">Not recorded</span>;
     }
+    if (evidence.state === "invalid") return <span className="ui negative text">Invalid value</span>;
     if (!props.useTotal) {
       return <strong className="rw-metric-value">{formatNumber(row.raw)}</strong>;
     }
@@ -966,10 +1074,11 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
 
   /** Renders an accessible relative-volume bar for one breakdown row. */
   function barRender(row: any): JSX.Element {
-    if (row.raw?.available === false) {
+    const value = number(row.raw);
+    if (!Number.isFinite(value)) {
       return <span className="ui faded text">—</span>;
     }
-    const pct = Math.min(100, number(row.raw) / max * 100);
+    const pct = Math.min(100, value / max * 100);
     var basis = "relative to the largest recorded value";
     if (props.useTotal) basis = "share of total";
     return <span className="ui progress" role="img" aria-label={`${humanLabel(row.name)}: ${pct.toFixed(1)}% ${basis}`}><span className="bar" style={`width:${pct}%`}></span></span>;
@@ -1001,12 +1110,6 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
     },
   ];
   return <Table title={props.title} description="Recorded activity for this run." columns={columns} rows={rows} classes="rw-metric-table" />;
-}
-
-/** Returns a metric breakdown table with relative bars and optional total percentages. */
-export function breakdown(title: string, source: any, valueLabel?: string, useTotal?: boolean): string {
-  const breakdownMarkup = <Breakdown title={title} source={source} valueLabel={valueLabel} useTotal={useTotal} />;
-  return renderToString(breakdownMarkup);
 }
 
 /** Renders the expected-versus-observed source export count table. */
@@ -1084,12 +1187,6 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     columns={columns} rows={rows} classes={classes} />;
 }
 
-/** Returns the expected-versus-observed source export count table. */
-export function sourceResultCountSummary(items: any[] | null, classes?: string): string {
-  const sourceResultCountSummaryMarkup = <SourceResultCountSummary items={items} classes={classes} />;
-  return renderToString(sourceResultCountSummaryMarkup);
-}
-
 /** Renders expandable exact-query markup for source exports. */
 export function SourceSearchQueries(props: { items: any[] | null; classes?: string }): JSX.Element | null {
   const classes = props.classes || "";
@@ -1116,12 +1213,6 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
   return <Panel title="Search queries"
     description="The exact search terms used to obtain each source export. Expand a source to inspect or copy its query."
     body={body} classes={classes} />;
-}
-
-/** Returns expandable exact-query markup for source exports. */
-export function sourceSearchQueries(items: any[] | null, classes?: string): string {
-  const sourceSearchQueriesMarkup = <SourceSearchQueries items={items} classes={classes} />;
-  return renderToString(sourceSearchQueriesMarkup);
 }
 
 /** Renders chronological audit feed markup for generic event rows. */
@@ -1186,12 +1277,6 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
   return <ol className="ui feed">{items}</ol>;
 }
 
-/** Returns chronological audit feed markup for generic event rows. */
-export function timeline(rows: any[]): string {
-  const timelineMarkup = <Timeline rows={rows} />;
-  return renderToString(timelineMarkup);
-}
-
 /** Renders a table whose columns are derived from the supplied detail records. */
 export function DetailTable(props: { title: string; rows: any }): JSX.Element {
   const records = list(props.rows, ["items", "rows"]);
@@ -1203,17 +1288,11 @@ export function DetailTable(props: { title: string; rows: any }): JSX.Element {
     return {
       label: key,
       render: (row: any) => {
-        return raw(cell(row[key], key));
+        return <Cell item={row[key]} column={key} />;
       },
     };
   });
   return <Table title={props.title} description="" columns={colDefs} rows={records} />;
-}
-
-/** Builds a table whose columns are derived from the supplied detail records. */
-export function detailTable(title: string, rows: any): string {
-  const detailTableMarkup = <DetailTable title={title} rows={rows} />;
-  return renderToString(detailTableMarkup);
 }
 
 /** One cell rendering option set. */
@@ -1252,12 +1331,6 @@ export function Cell(props: { item: any; column: string; tableName?: string; opt
     return <details><summary>{shown}</summary><pre>{full}</pre></details>;
   }
   return shown;
-}
-
-/** Formats and links a table cell according to its column and table context. */
-export function cell(item: any, column: string, tableName?: string, options?: CellOptions): string {
-  const cellMarkup = <Cell item={item} column={column} tableName={tableName} options={options} />;
-  return renderToString(cellMarkup);
 }
 
 /**

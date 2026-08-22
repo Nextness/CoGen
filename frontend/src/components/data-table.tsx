@@ -1,7 +1,7 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { esc, asJSON, list, value, cell, humanLabel } from "../state.tsx";
+import { esc, asJSON, list, value, Cell, humanLabel } from "../state.tsx";
 import { setURL } from "../router.tsx";
-import { h, Fragment, renderToString, raw } from "../jsx/jsx-runtime.ts";
+import { h, Fragment } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
 
 /** Returns whether a row contains the case-insensitive filter text. */
@@ -16,9 +16,9 @@ export function rowFilter(rows: any[], query: string): any[] {
 }
 
 /** Moves focus and scroll position to the table region when available. */
-function scrollTableIntoView(): void {
-  const wrap = document.querySelector<HTMLElement>(".table-wrap");
-  if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+function scrollTableIntoView(root: HTMLElement): void {
+  const wrap = root.querySelector<HTMLElement>(".table-wrap");
+  if (wrap?.scrollIntoView) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 /** One data table option set. */
@@ -112,7 +112,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
 
       const cells = columns.map((column) => {
         const config = columnConfig[column] || {};
-        var content: JSX.Element = raw(cell(row[column], column, props.tableName, { expandLong: context.expandLongCells !== false }));
+        var content: JSX.Element = <Cell item={row[column]} column={column} tableName={props.tableName} options={{ expandLong: context.expandLongCells !== false }} />;
         if (config.render) content = config.render(row, row[column]);
         return <td className={config.className}>{content}</td>;
       });
@@ -215,7 +215,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   }
 
   return (
-    <Fragment>
+    <section className="rw-table-region" data-table-owner={props.tableName}>
       <div className="table-wrap" data-table-root {...expandAttr}>
         <table className={tableClasses} aria-label={`${props.tableName} results`}>
           <thead>
@@ -233,19 +233,18 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         itemLabel: context.itemLabel || "records",
         secondary: sortDescription,
       }} />
-    </Fragment>
+    </section>
   );
-}
-
-/** Renders a data table to an HTML string. */
-export function dataTable(tableName: string, result: any, context?: DataTableContext): string {
-  const tableMarkup = <DataTable tableName={tableName} result={result} context={context} />;
-  return renderToString(tableMarkup);
 }
 
 /** Binds DOM behavior for table controls. */
 export function bindTableControls(tableName: string, page: number, context?: DataTableContext): void {
   if (!context) context = {};
+  const root = Array.from(document.querySelectorAll<HTMLElement>("[data-table-owner]")).find((candidate) => {
+    return candidate.dataset.tableOwner === tableName;
+  });
+  if (!root) return;
+  const controlScope = root.closest<HTMLElement>("[data-table-scope]") || root;
   const keys = {
     page: context.pageKey || "page",
     perPage: context.perPageKey || "per_page",
@@ -263,13 +262,13 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     return result;
   }
 
-  const sortButtons = document.querySelectorAll<HTMLButtonElement>("[data-sort]");
+  const sortButtons = root.querySelectorAll<HTMLButtonElement>("[data-sort]");
   sortButtons.forEach((button) => {
     button.addEventListener("click", () => {
       const sort = button.dataset.sort as string;
       var order = "asc";
       if (value(keys.sort) === sort && value(keys.order) !== "desc") order = "desc";
-      scrollTableIntoView();
+      scrollTableIntoView(root);
       setURL(updates({
         sort: sort,
         order: order,
@@ -279,10 +278,10 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   });
 
-  const pageButtons = document.querySelectorAll<HTMLButtonElement>("[data-page]");
+  const pageButtons = root.querySelectorAll<HTMLButtonElement>("[data-page]");
   pageButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      scrollTableIntoView();
+      scrollTableIntoView(root);
       setURL(updates({
         page: button.dataset.page,
         expanded: "",
@@ -290,10 +289,10 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   });
 
-  const perPage = document.querySelector<HTMLSelectElement>(context.perPageSelector || "#per-page");
+  const perPage = controlScope.querySelector<HTMLSelectElement>(context.perPageSelector || "#per-page");
   if (perPage) {
     perPage.addEventListener("change", (event) => {
-      scrollTableIntoView();
+      scrollTableIntoView(root);
       setURL(updates({
         perPage: (event.target as HTMLSelectElement).value,
         page: 1,
@@ -302,7 +301,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   }
 
-  const queryInput = document.querySelector<HTMLInputElement>(context.querySelector || "#corpus-query");
+  const queryInput = controlScope.querySelector<HTMLInputElement>(context.querySelector || "#corpus-query");
   const queryForm = queryInput?.closest<HTMLFormElement>("form");
   if (queryForm) {
     queryForm.addEventListener("submit", (event) => {
@@ -315,10 +314,10 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   }
 
-  const searchButton = document.querySelector<HTMLButtonElement>(context.searchButtonSelector || "[data-search-query]");
+  const searchButton = controlScope.querySelector<HTMLButtonElement>(context.searchButtonSelector || "[data-search-query]");
   if (searchButton && searchButton.type !== "submit") {
     searchButton.addEventListener("click", () => {
-      const input = document.querySelector<HTMLInputElement>(context.querySelector || "#corpus-query");
+      const input = controlScope.querySelector<HTMLInputElement>(context.querySelector || "#corpus-query");
       var query = "";
       if (input) query = input.value;
       setURL(updates({
@@ -329,7 +328,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   }
 
-  const clearButton = document.querySelector<HTMLButtonElement>(context.clearButtonSelector || "[data-clear-query]");
+  const clearButton = controlScope.querySelector<HTMLButtonElement>(context.clearButtonSelector || "[data-clear-query]");
   if (clearButton) {
     clearButton.addEventListener("click", () => {
       setURL(updates({
@@ -340,7 +339,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     });
   }
 
-  const expandTable = document.querySelector<HTMLElement>("[data-expandable-table]");
+  const expandTable = root.querySelector<HTMLElement>("[data-expandable-table]");
   if (expandTable) {
     expandTable.addEventListener("click", handleExpandToggle);
   }
@@ -360,7 +359,8 @@ function handleExpandToggle(event: Event): void {
   }
 
   const rowIdx = toggle.dataset.expandRow as string;
-  const expandRow = document.querySelector<HTMLElement>(`tr.expansion-row[data-expand-row="${rowIdx}"]`);
+  const table = toggle.closest<HTMLElement>("[data-expandable-table]");
+  const expandRow = table?.querySelector<HTMLElement>(`tr.expansion-row[data-expand-row="${rowIdx}"]`);
   if (!expandRow) return;
 
   const expanded = !expandRow.hidden;
@@ -382,7 +382,6 @@ function handleExpandToggle(event: Event): void {
 
   const rowKey = toggle.dataset.rowKey;
   if (rowKey) {
-    const table = toggle.closest<HTMLElement>("[data-expandable-table]");
     const expandedParam = table?.dataset.expandedParam || "expanded";
     const expandedKeys = new Set(String(value(expandedParam) || "").split(",").filter(Boolean));
     if (expanded) expandedKeys.delete(rowKey);

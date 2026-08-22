@@ -25,7 +25,7 @@ export interface APIRequestOptions {
   method: string;
   headers: Record<string, string>;
   body?: string;
-  signal?: AbortSignal;
+  signal?: AbortSignal | null;
 }
 
 /** Represents an HTTP API failure while preserving its status and structured details. */
@@ -47,11 +47,13 @@ export class APIError extends Error {
 
 /** Fetches and decodes one JSON API response. */
 export async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions): Promise<any> {
+  var signal = options.signal;
+  if (signal === undefined) signal = state.controller?.signal;
   const response = await fetch(endpoint(path, query), {
     method: options.method,
     headers: options.headers,
     body: options.body,
-    signal: options.signal ?? state.controller?.signal,
+    signal: signal ?? undefined,
   });
 
   var body: any;
@@ -80,6 +82,7 @@ export function mutate(path: string, method: string, body: any): Promise<any> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: null,
   });
 }
 

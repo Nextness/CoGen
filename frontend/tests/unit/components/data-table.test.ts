@@ -1,13 +1,15 @@
-// Unit tests for components/data-table.js — row filter, data table rendering, controls.
+// Unit tests for components/data-table.tsx — row filter, data table rendering, controls.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
-import { rowFilter, dataTable, bindTableControls } from '../../../src/components/data-table.tsx';
-import { h } from '../../../src/jsx/jsx-runtime.ts';
+import { rowFilter, DataTable, bindTableControls } from '../../../src/components/data-table.tsx';
+import { h, renderToString } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
 
-describe('data-table.js — rowFilter', function() {
+const dataTable = (tableName: string, result: any, context?: any): string => renderToString(DataTable({ tableName: tableName, result: result, context: context }));
+
+describe('data-table.tsx — rowFilter', function() {
 
   const rows = [
     { name: 'Alice', email: 'alice@example.com' },
@@ -43,7 +45,7 @@ describe('data-table.js — rowFilter', function() {
 
 });
 
-describe('data-table.js — dataTable', function() {
+describe('data-table.tsx — dataTable', function() {
 
   it('renders a table with header and rows', function() {
     const result = {
@@ -199,33 +201,57 @@ describe('data-table.js — dataTable', function() {
 
 });
 
-describe('data-table.js — bindTableControls', function() {
+describe("data-table.tsx - bindTableControls", function() {
 
-  it('binds click handlers to sort buttons', function() {
-    document.body.innerHTML = '<div id="app"><table><thead><tr>'
-      + '<th scope="col"><button type="button" data-sort="name">name</button></th>'
-      + '</tr></thead></table></div>';
+  it("binds sort controls only inside the requested table root", function() {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    host.innerHTML = dataTable("first", { columns: ["id", "name"], rows: [{ id: 1, name: "A" }], pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 } })
+      + dataTable("second", { columns: ["id", "name"], rows: [{ id: 2, name: "B" }], pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 } });
+    history.replaceState({}, "", "?view=advanced&table=first");
 
-    bindTableControls('test', 1);
+    bindTableControls("second", 1);
 
-    const button = document.querySelector('[data-sort]') as HTMLButtonElement;
-    assert.ok(button);
+    const roots = host.querySelectorAll<HTMLElement>("[data-table-owner]");
+    const firstButton = roots[0].querySelector<HTMLButtonElement>(`[data-sort="name"]`)!;
+    const secondButton = roots[1].querySelector<HTMLButtonElement>(`[data-sort="name"]`)!;
+    firstButton.click();
+    assert.equal(value("sort"), "");
 
-    button.click();
-    assert.ok(true);
+    secondButton.click();
+    assert.equal(value("sort"), "name");
+    host.remove();
   });
 
-  it('binds click handlers to page buttons', function() {
-    document.body.innerHTML = '<div id="app">'
-      + '<button type="button" data-page="2">Next</button>'
-      + '</div>';
+  it("binds page controls inside the requested table root", function() {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    host.innerHTML = dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 2, total_pages: 2 } });
+    history.replaceState({}, "", "?view=advanced&table=test&page=1");
 
-    bindTableControls('test', 1);
+    bindTableControls("test", 1);
 
-    const button = document.querySelector('[data-page]') as HTMLButtonElement;
-    assert.ok(button);
+    const button = host.querySelector<HTMLButtonElement>(`[data-page="2"]`)!;
     button.click();
-    assert.ok(true);
+    assert.equal(value("page"), "2");
+    host.remove();
+  });
+
+  it("binds a sibling filter form inside the requested table scope", function() {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    host.innerHTML = `<div data-table-scope="test"><form><input id="scoped-query" value="openalex"><button type="submit">Search</button></form>${dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 1, total_pages: 1 } })}</div>`;
+    history.replaceState({}, "", "?view=provenance&section=cache&run_id=1");
+
+    bindTableControls("test", 1, {
+      queryKey: "cache_q",
+      querySelector: "#scoped-query",
+    });
+
+    host.querySelector<HTMLFormElement>("form")!.requestSubmit();
+    assert.equal(value("cache_q"), "openalex");
+    assert.equal(value("view"), "provenance");
+    host.remove();
   });
 
 });

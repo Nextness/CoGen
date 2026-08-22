@@ -41,7 +41,7 @@ The retention flow is supported by counts and tables. Relationship graphs includ
 
 ### 3.6 Type hierarchy
 
-The system font stack is used for interface text and the system monospace stack is used only for code, identifiers, hashes, URLs, JSON, and machine values. Body copy is 15px with a 1.55 line height on larger screens and 14px on mobile. The semantic heading hierarchy is H1 for the product identity at 23px, H2 for the page title at 28px, H3 for a parent panel at 20px, H4 for a section at 16px, H5 for a subsection or timeline event at 14px, and H6 for a 12px uppercase eyebrow. A subheader is sentence-case supporting copy beneath its owning heading, while an eyebrow is a short uppercase contextual label above it. Headings have no hover, selected, or disabled state because they are not controls; a linked heading follows the standard link states. Rendered review-note headings use a scoped visual hierarchy and do not create page-level H1 through H4 elements.
+The system font stack is used for interface text and the system monospace stack is used only for code, identifiers, hashes, URLs, JSON, and machine values. Body copy is 15px with a 1.55 line height on larger screens and 14px on mobile. The semantic heading hierarchy is H1 for the product identity at 24px, H2 for the page title at 28px, H3 for a parent panel at 20px, H4 for a section at 16px, H5 for a subsection or timeline event at 14px, and H6 for a 12px uppercase eyebrow. A subheader is sentence-case supporting copy beneath its owning heading, while an eyebrow is a short uppercase contextual label above it. Headings have no hover, selected, or disabled state because they are not controls; a linked heading follows the standard link states. Rendered review-note headings use a scoped visual hierarchy and do not create page-level H1 through H4 elements.
 
 ### 3.7 Container and spacing hierarchy
 
@@ -95,7 +95,7 @@ Home is the context-independent entry point. Selecting Explore opens the Deepdiv
 
 The shell begins with a skip link, then a site header containing Local research workspace, Research workspace, the database health state, and a persistent Local review marker. This header and a breadcrumb are present on every route. Home hides run-scoped controls; Deepdive displays the research context followed by its fixed tab order. A mobile Menu button controls the Deepdive tabs below 720px.
 
-The Research context panel contains only its title, dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls, and Clear context. Each control presents every value eligible under its current parent, supports text filtering and keyboard listbox navigation, disables unavailable descendants, selects a sole available option automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
+The compact context surface contains only dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls. It has no separate title or Clear context action. Each control presents a bounded server-searchable page eligible under its current parent, supports keyboard listbox navigation, preserves an exact selected option outside the current page, selects a sole available child automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
 
 The main region contains an alert notice, a polite live loading indicator, and the view container. View titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
 
@@ -151,11 +151,11 @@ Review notes use a bounded project grammar with headings, paragraphs, quotes, li
 
 Unsaved note drafts remain only in browser storage under a key containing the opaque corpus ID, run, revision, logical note, and expected version. A successful save clears only the matching draft. Storage failures and version conflicts keep textarea content and display a warning. OSF export does not scan or copy browser drafts.
 
-Selecting text on one rendered PDF page creates one through 64 normalized rectangles and opens an anchor form with a corpus-unique safe ID. Anchors retain exact work revision, PDF content hash, selected text, geometry, immutable history, and inherited or current labels. A hash mismatch displays the anchor as unavailable and does not project stale geometry. The textual anchor list is keyboard operable, can navigate to a page, shows history and tombstones, and remains the non-visual equivalent of highlights.
+Selecting text on one rendered PDF page creates one through 64 normalized rectangles and opens an anchor form with a work-scoped human label. The repository generates the corpus-unique opaque anchor ID used by stable note links. Anchors retain exact work revision, PDF content hash, selected text, geometry, immutable history, and inherited or current labels. A hash mismatch displays the anchor as unavailable and does not project stale geometry or offer an unqualified page action. The textual anchor list is keyboard operable, can navigate to a matching page, shows history and tombstones, and remains the non-visual equivalent of highlights.
 
 Author detail describes one author occurrence and its linked articles, affiliations, person identity, and audit context. Reference detail describes one mention, its citing revision, captured fields, and resolved target when the selected run contains a suitable revision.
 
-Related collections paginate in memory because detail APIs return bounded relationship sets. Breadcrumbs and return links preserve the view, section, run, and relevant entity identifier.
+Related article and author collections use counted, run-owned cursor subresources. Each section keeps independent URL cursor state, loads one bounded page at a time, and retains the current page when continuation fails. Breadcrumbs and return links preserve the view, section, run, and relevant entity identifier.
 
 ## 10. Relationships
 
@@ -165,7 +165,7 @@ Common filters are title/DOI, year range, and source. Advanced filters are autho
 
 The server response is authoritative about matched articles, rendered nodes/edges, entity counts, limits, truncation, and truncation reason. The view must warn when the selected article set or related entities were truncated rather than implying a complete network.
 
-The graph canvas supports deterministic initial layout, fit, zoom, wheel zoom around the pointer, pan, node drag, keyboard-accessible controls, node search, cluster overview selection, expansion mode, and PNG export. Destroying or leaving the view stops the simulation, observers, animation frames, and event state.
+The graph canvas supports deterministic initial layout, fit, zoom, wheel zoom around the pointer, pan, keyboard-accessible controls, a bounded keyboard-operable node result list, cluster overview selection, expansion mode, and PNG export with run and filter context. The exact relationship table remains the authoritative keyboard-accessible evidence. Destroying or leaving the view stops the simulation, observers, animation frames, and event state.
 
 Entity type is encoded by shape and label: articles, observed authors, references, and raw referenced-author strings remain distinguishable without color. Connected component is encoded by one of six token colors, repeated when necessary. Edge style and the relationship legend distinguish authorship, citation, reference, coauthor, and shared-reference relationships.
 
@@ -193,7 +193,7 @@ Evaluation combines reading inventory and current selected-context review state;
 
 Search is server-backed over title and DOI. Sorting is limited to title and DOI, and table controls use the shared page-size and pagination behavior. Article titles link to the selected revision detail while retaining research context.
 
-Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically and provides no PDF add action. A completed run without a context presents Start review; after initialization, article rows link to the detail review workspace. Articles without an available PDF remain readable but review mutations are disabled.
+Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically and provides no PDF add action. A completed run without a context presents Start review; after initialization, article rows link to the detail review workspace. Articles without an available PDF remain readable and permit review-decision and Note mutations when the active-run context and work membership are valid; only PDF anchor creation or restoration remains unavailable.
 
 ## 13. Home lifecycle and Advanced
 
@@ -209,7 +209,7 @@ Row click may toggle expansion only when it does not steal behavior from links, 
 
 Empty states state what is absent and, when relevant, how to select context. Error states use the global alert or a local message near the failed operation. Loading buttons disable themselves and display a loading class until the operation settles. Review mutations announce success, parser failure, unavailable-PDF state, and optimistic conflict near the affected form without discarding user input.
 
-IDs, hashes, URLs, raw JSON, and machine values use monospace or code treatment and remain copyable. Times use the browser locale for display while stored raw values remain available in detail or raw views. Numeric values use locale grouping; unavailable values use descriptive text or a neutral symbol with context.
+IDs, hashes, URLs, raw JSON, and machine values use monospace or code treatment and remain copyable. The English-only interface formats recorded timestamps consistently with the `en-US` locale and UTC time zone and emits machine-readable datetime attributes where time is presented. Numeric values use locale grouping; unavailable values use descriptive text or a neutral symbol with context.
 
 ## 15. Visual language
 
@@ -255,7 +255,7 @@ The header always displays Local review. Copy explains that pipeline evidence is
 
 Artifact and PDF downloads are direct local API links. Preview content is escaped before insertion, JSON is formatted only after parsing, dynamic labels and table cells use the shared escaping helper, and no provider payload is interpreted as HTML.
 
-The interface must not render credentials, tokens, private keys, raw environment values, or newly exposed sensitive fields. Reviewer username and email are deliberate local version attribution; empty or sanitized identity appears as `Anonymous or redacted`, and audit metadata does not duplicate the email. New table/detail surfaces require an explicit review of whether values are safe for a local viewer and whether preview, mutation, and download behavior remains bounded.
+The interface must not render credentials, tokens, private keys, raw environment values, or newly exposed sensitive fields. Review version attribution exposes only the optional reviewer username; reviewer email remains local run metadata and is not returned in version responses or duplicated in audit data. Empty or sanitized identity appears as `Anonymous or redacted`. New table/detail surfaces require an explicit review of whether values are safe for a local viewer and whether preview, mutation, and download behavior remains bounded.
 
 ## 20. Frontend module ownership
 
@@ -268,7 +268,7 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
 | `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
-| `components/context-selector.tsx` | Dependent searchable single-select hydration, loading skeletons, clear controls, keyboard listbox interaction, and auto-selection. |
+| `components/context-selector.tsx` | Dependent bounded searchable single-select hydration, loading skeletons, keyboard listbox interaction, exact selected options, and sole-child auto-selection. |
 | `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.tsx` | First/Previous/numbered/Next/Last controls and result ranges. |
 | `components/audit-events.tsx` | Audit classification, summaries, metadata disclosures, timeline markup, and optional investigation export. |
@@ -308,7 +308,7 @@ Acceptance requires no hard-coded context-dropping internal links, no unbounded 
 - Corpus author and reference lists include relationships from all revision snapshots in a run, so repeated conceptual values are possible and must remain labeled as occurrences or mentions.
 - Graph limits can truncate large networks; the endpoint reports this, but the browser does not stream beyond the configured bounds.
 - The frontend uses the project-owned JSX runtime in [JSX-RUNTIME.md](JSX-RUNTIME.md). Text and attribute values are escaped automatically; the controlled `raw` escape hatch accepts only trusted, already-escaped markup.
-- The JSX runtime has no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`. The `renderToString` bridge and the `raw` escape hatch remain only while string-returning wrappers and container bodies still use them during migration.
+- The JSX runtime has no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`. Application views and components compose Nodes directly. `renderToString` remains a test serializer, and `raw` has no application caller.
 - Router and context-selector currently form one ES-module cycle to connect selector navigation with render-time hydration; it is initialized safely, but new modules should not add dependencies to that cycle.
 - The URL contains research context and filters, which is useful for reproducibility but can reveal search/run identifiers through copied links or browser history.
 - The local fixture and screenshot baselines represent controlled test data and Chromium/Linux rendering; they do not prove visual identity across every platform font and browser.

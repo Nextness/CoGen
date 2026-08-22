@@ -141,10 +141,14 @@ select {
 .rw-header__brand h1,
 .brand h1 {
   margin: 0;
-  font-size: clamp(var(--text-xl), 2.4vw, 26px);
-  line-height: 1.15;
+  font-size: var(--text-product);
+  line-height: var(--leading-tight);
   font-weight: var(--weight-bold);
   letter-spacing: -0.02em;
+}
+
+:is([role="status"], [role="alert"]):empty {
+  display: none;
 }
 
 main,

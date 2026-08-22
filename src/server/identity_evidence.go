@@ -5,9 +5,13 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"net/http"
+	"strconv"
+	"strings"
 )
+
+const identityCandidatePreviewLimit = 3
 
 // runIdentityEvidence exposes name-derived ORCID evidence without presenting
 // it as an author identity. The endpoint is unavailable for databases created
@@ -49,11 +53,21 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	totalPages := (total + int64(perPage) - 1) / int64(perPage)
+	if totalPages == 0 {
+		page = 1
+	} else if int64(page) > totalPages {
+		page = int(totalPages)
+	}
+	orderSQL := fields[sort] + " " + order
+	if fields[sort] != "r.id" {
+		orderSQL += ", r.id " + order
+	}
 	rows, err := s.db.QueryContext(ctx, `SELECT r.id AS resolution_id, r.status, r.provider, r.queried_citation_name,
         r.error_message, r.resolved_at, ao.id AS author_occurrence_id, ao.orcid AS observed_orcid,
         ao.person_id, MIN(wr.title) AS article_title, MIN(w.doi) AS doi,
         COUNT(DISTINCT c.id) AS candidate_count
-        `+from+" WHERE "+where+" GROUP BY r.id ORDER BY "+fields[sort]+" "+order+" LIMIT ? OFFSET ?", append(args, perPage, (page-1)*perPage)...)
+		`+from+" WHERE "+where+" GROUP BY r.id ORDER BY "+orderSQL+" LIMIT ? OFFSET ?", append(args, perPage, (page-1)*perPage)...)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -64,7 +78,7 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := s.attachIdentityCandidates(ctx, items); err != nil {
+	if err := s.attachIdentityCandidatePreviews(ctx, items); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -99,24 +113,143 @@ func (s *Server) identityEvidenceStats(ctx context.Context, runID int64) (map[st
 	return map[string]int64{"resolutions": resolutions, "unclear": unclear, "no_candidate": noCandidate, "provider_failed": providerFailed, "candidates": candidates}, nil
 }
 
-// attachIdentityCandidates groups stored identity candidates under their resolution records.
-func (s *Server) attachIdentityCandidates(ctx context.Context, resolutions []map[string]any) error {
+// attachIdentityCandidatePreviews batches a small ranked preview for every visible resolution.
+func (s *Server) attachIdentityCandidatePreviews(ctx context.Context, resolutions []map[string]any) error {
+	if len(resolutions) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(resolutions))
+	byID := make(map[int64]map[string]any, len(resolutions))
 	for _, resolution := range resolutions {
 		resolutionID, ok := resolution["resolution_id"].(int64)
 		if !ok {
-			return fmt.Errorf("identity evidence has an invalid resolution identifier")
+			return &apiProblem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "identity evidence has an invalid resolution identifier"}
 		}
-		rows, err := s.rows(ctx, `SELECT id, candidate_orcid, provider_display_name, query_url,
-            payload_artifact_id, provider_rank, created_at
-            FROM author_identity_candidates WHERE identity_resolution_id=?
-            ORDER BY provider_rank, id LIMIT 100`, resolutionID)
-		if err != nil {
+		ids = append(ids, resolutionID)
+		byID[resolutionID] = resolution
+		resolution["candidates"] = []map[string]any{}
+	}
+	markers := make([]string, len(ids))
+	args := make([]any, len(ids)+1)
+	for index, id := range ids {
+		markers[index] = "?"
+		args[index] = id
+	}
+	args[len(ids)] = identityCandidatePreviewLimit
+	rows, err := s.db.QueryContext(ctx, `SELECT identity_resolution_id, id, candidate_orcid,
+		provider_display_name, query_url, payload_artifact_id, provider_rank, created_at
+		FROM (SELECT candidate.*,
+			ROW_NUMBER() OVER (PARTITION BY identity_resolution_id ORDER BY provider_rank, id) AS candidate_row
+			FROM author_identity_candidates candidate
+			WHERE identity_resolution_id IN (`+strings.Join(markers, ",")+`))
+		WHERE candidate_row<=? ORDER BY identity_resolution_id, provider_rank, id`, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var resolutionID, id int64
+		var candidateORCID, queryURL, createdAt string
+		var displayName sql.NullString
+		var payloadID, rank sql.NullInt64
+		if err := rows.Scan(&resolutionID, &id, &candidateORCID, &displayName, &queryURL, &payloadID, &rank, &createdAt); err != nil {
 			return err
 		}
-		resolution["candidates"] = rows
-		if count, ok := resolution["candidate_count"].(int64); ok {
-			resolution["candidates_truncated"] = count > int64(len(rows))
-		}
+		resolution := byID[resolutionID]
+		candidates := resolution["candidates"].([]map[string]any)
+		resolution["candidates"] = append(candidates, map[string]any{
+			"id": id, "candidate_orcid": candidateORCID, "provider_display_name": nullableString(displayName),
+			"query_url": queryURL, "payload_artifact_id": nullableInt64(payloadID), "provider_rank": nullableInt64(rank), "created_at": createdAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, resolution := range resolutions {
+		count, _ := resolution["candidate_count"].(int64)
+		resolution["candidate_preview_limit"] = identityCandidatePreviewLimit
+		resolution["candidates_truncated"] = count > int64(len(resolution["candidates"].([]map[string]any)))
 	}
 	return nil
+}
+
+// identityCandidates returns one cursor-paginated ranked candidate page for a run-owned resolution.
+func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
+	if err := validateKnownQuery(r, "run_id", "limit", "cursor"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	runID, err := hierarchyRequiredID(r, "run_id")
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	resolutionID, err := positiveID(r.PathValue("id"))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	limit, err := reviewLimit(r)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	kind := "identity_candidates_" + stringID(runID) + "_" + stringID(resolutionID)
+	cursor, err := decodeReviewCursor(r.URL.Query().Get("cursor"), kind)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	cursorRank := int64(0)
+	if r.URL.Query().Get("cursor") != "" && cursor.Text == "" {
+		s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
+		return
+	}
+	if cursor.Text != "" {
+		cursorRank, err = strconv.ParseInt(cursor.Text, 10, 64)
+		if err != nil || cursorRank < 0 || cursor.ID < 1 {
+			s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
+			return
+		}
+	}
+	ctx, cancel := queryContext(r)
+	defer cancel()
+	var exists int
+	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM author_identity_resolutions
+		WHERE id=? AND pipeline_run_id=?`, resolutionID, runID).Scan(&exists); err == sql.ErrNoRows {
+		s.respond(w, r, nil, notFound("identity resolution not found"))
+		return
+	} else if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	query := `SELECT id, candidate_orcid, provider_display_name, query_url,
+		payload_artifact_id, provider_rank, created_at
+		FROM author_identity_candidates WHERE identity_resolution_id=?`
+	args := []any{resolutionID}
+	if cursor.Text != "" {
+		query += " AND (COALESCE(provider_rank, 0)>? OR (COALESCE(provider_rank, 0)=? AND id>?))"
+		args = append(args, cursorRank, cursorRank, cursor.ID)
+	}
+	query += " ORDER BY COALESCE(provider_rank, 0), id LIMIT ?"
+	args = append(args, limit+1)
+	items, err := s.rows(ctx, query, args...)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	var nextCursor any
+	if hasMore {
+		last := items[len(items)-1]
+		rank, _ := last["provider_rank"].(int64)
+		id, _ := last["id"].(int64)
+		nextCursor = encodeReviewCursor(reviewCursor{Kind: kind, ID: id, Text: strconv.FormatInt(rank, 10)})
+	}
+	s.respond(w, r, map[string]any{
+		"resolution_id": resolutionID, "items": items, "has_more": hasMore, "next_cursor": nextCursor, "limit": limit,
+	}, nil)
 }

@@ -1,6 +1,7 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { formatTime, humanLabel, link, parseObject, StatusChip } from "../state.tsx";
-import { h, Fragment, render as renderTree, renderToString } from "../jsx/jsx-runtime.ts";
+import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, list, parseObject, StatusChip, value } from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api } from "../api.tsx";
 
 const recordAuditBatchSize = 25;
 
@@ -60,16 +61,19 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
     href = link({
       view: "article",
       article_id: id,
+      origin: currentDetailOrigin(),
     });
   } else if (id && type === "author_occurrence") {
     href = link({
       view: "author",
       author_id: id,
+      origin: currentDetailOrigin(),
     });
   } else if (id && type === "reference_mention") {
     href = link({
       view: "reference",
       reference_id: id,
+      origin: currentDetailOrigin(),
     });
   } else if (type === "pipeline_run") {
     href = link({
@@ -169,34 +173,6 @@ function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<s
   );
 }
 
-/** Returns metadata fields not already represented in the primary event presentation. */
-function additionalMetadata(metadata: Record<string, any>): Record<string, any> {
-  const displayed = new Set([
-    "stage", "stage_name", "outcome", "status", "provider", "field", "reasons",
-    "error", "reason", "search_id", "revision", "duration_seconds", "duration",
-    "input_artifact_id", "output_artifact_id",
-    "note_body", "body", "selected_text", "reviewer_email", "email"
-  ]);
-  const remaining = Object.entries(metadata).filter(([key]) => {
-    return !displayed.has(key);
-  });
-  return safeAuditPayload(Object.fromEntries(remaining));
-}
-
-/** Removes review prose and reviewer contact fields from generic audit payload inspection. */
-function safeAuditPayload(raw: any): any {
-  const privateKeys = new Set(["note_body", "body", "selected_text", "reviewer_email", "email"]);
-  if (Array.isArray(raw)) return raw.map(safeAuditPayload);
-  if (!raw || typeof raw !== "object") return raw;
-  const kept = Object.entries(raw).filter(([key]) => {
-    return !privateKeys.has(String(key).toLocaleLowerCase());
-  });
-  const scrubbed = kept.map(([key, value]) => {
-    return [key, safeAuditPayload(value)];
-  });
-  return Object.fromEntries(scrubbed);
-}
-
 /** Renders expandable facts and JSON payloads for an audit event. */
 function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> }): JSX.Element | null {
   var duration = props.metadata.duration;
@@ -210,14 +186,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: Record<string,
   ].filter(([, value]) => {
     return value !== null && value !== undefined && value !== "";
   }) as Array<[string, any]>;
-  const payloads = [
-    ["Metadata", additionalMetadata(props.metadata)],
-    ["Before", safeAuditPayload(props.before)],
-    ["After", safeAuditPayload(props.after)],
-  ].filter(([, value]) => {
-    return Object.keys(value).length > 0;
-  });
-  if (!facts.length && !payloads.length) {
+  if (!facts.length && !props.event.id) {
     return null;
   }
   var factsMarkup: JSX.Element | null = null;
@@ -236,23 +205,54 @@ function EventDetails(props: { event: AuditEventRecord; metadata: Record<string,
     });
     factsMarkup = <dl className="rw-event-facts">{factRows}</dl>;
   }
-  const payloadSections = payloads.map(([label, value]) => {
-    return (
-      <div>
-        <h5>{label}</h5>
-        <pre>{JSON.stringify(value, null, 2)}</pre>
-      </div>
-    );
-  });
   return (
-    <details className="rw-event-details">
+    <details className="rw-event-details" data-audit-recorded-details={props.event.id}>
       <summary>Recorded data</summary>
       <div className="rw-event-details__body">
         {factsMarkup}
-        {payloadSections}
+        <div data-audit-recorded-host><p className="ui faded text">Open this disclosure to load privacy-scrubbed recorded JSON.</p></div>
       </div>
     </details>
   );
+}
+
+/** Renders one lazy audit recorded-data response. */
+function RecordedData(props: { data: any }): JSX.Element {
+  const sections = [["Metadata", props.data.metadata], ["Before", props.data.before], ["After", props.data.after]].filter(([, item]) => {
+    return item && Object.keys(item).length > 0;
+  }).map(([label, item]) => {
+    return <div><h5>{label}</h5><pre>{JSON.stringify(item, null, 2)}</pre></div>;
+  });
+  var truncation: JSX.Element | null = null;
+  if (props.data.truncated_fields?.length) {
+    truncation = <p className="ui warning message">The {props.data.truncated_fields.join(", ")} payload exceeded the {props.data.byte_limit.toLocaleString()} byte inspection budget and was not loaded.</p>;
+  }
+  if (!sections.length && !truncation) return <p className="ui faded text">No recorded JSON fields are available for this event.</p>;
+  return <Fragment>{truncation}{sections}</Fragment>;
+}
+
+/** Binds one-shot, run-scoped loading for every visible Recorded data disclosure. */
+export function bindAuditRecordedData(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLDetailsElement>("[data-audit-recorded-details]").forEach((details) => {
+    if (details.dataset.auditRecordedBound) return;
+    details.dataset.auditRecordedBound = "true";
+    details.addEventListener("toggle", async () => {
+      if (!details.open || details.dataset.auditRecordedLoaded) return;
+      const host = details.querySelector<HTMLElement>("[data-audit-recorded-host]")!;
+      const eventID = details.dataset.auditRecordedDetails || "";
+      host.textContent = "Loading recorded data…";
+      try {
+        const data = await api(`/api/audit/${encodeURIComponent(eventID)}/recorded-data`, { run_id: value("run_id") }, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        renderTree(<RecordedData data={data} />, host);
+        details.dataset.auditRecordedLoaded = "true";
+      } catch (error: any) {
+        renderTree(<p className="ui error message">{error.message || "Unable to load recorded data."}</p>, host);
+      }
+    });
+  });
 }
 
 /** Renders the complete escaped markup for one audit event. */
@@ -303,12 +303,6 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   );
 }
 
-/** Returns the complete escaped markup for one audit event. */
-export function auditEventMarkup(event: AuditEventRecord): string {
-  const markup = <AuditEventMarkup event={event} />;
-  return renderToString(markup);
-}
-
 /** Renders audit events grouped by local date as a timeline. */
 export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string }): JSX.Element {
   if (!props.events.length) {
@@ -325,7 +319,7 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
     var parsed: Date | null = null;
     if (timestamp) parsed = new Date(timestamp);
     var key = "Date not recorded";
-    if (parsed && !Number.isNaN(parsed.getTime())) key = parsed.toLocaleDateString();
+    if (parsed && !Number.isNaN(parsed.getTime())) key = formatDate(parsed);
     if (!groups.has(key)) {
       groups.set(key, []);
     }
@@ -346,20 +340,17 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
   return <Fragment>{daySections}</Fragment>;
 }
 
-/** Groups audit events by local date and returns timeline markup. */
-export function auditStream(events: AuditEventRecord[], emptyMessage?: string): string {
-  const markup = <AuditStream events={events} emptyMessage={emptyMessage} />;
-  return renderToString(markup);
-}
-
 /** Renders the record audit investigation controls and initial event batch. */
-export function RecordAuditInvestigation(props: { events: AuditEventRecord[] }): JSX.Element {
+export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; collection?: any; endpoint?: string; cursorKey?: string }): JSX.Element {
   const actionNames = props.events.map((event) => {
     return String(event.action || "event");
   });
   const actionSet = new Set(actionNames);
   const actions = Array.from(actionSet).sort();
   const initialEvents = props.events.slice(0, recordAuditBatchSize);
+  const hasMore = Boolean(props.collection?.has_more);
+  const nextCursor = props.collection?.next_cursor || "";
+  const total = Number(props.collection?.total ?? props.events.length);
   const actionOptionElements = actions.map((action) => {
     return <option value={action}>{humanLabel(action)}</option>;
   });
@@ -368,7 +359,7 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[] }):
     ...actionOptionElements,
   ];
   return (
-    <div className="rw-record-audit" data-record-audit>
+    <div className="rw-record-audit" data-record-audit data-record-audit-endpoint={props.endpoint || ""} data-record-audit-cursor-key={props.cursorKey || ""} data-record-audit-next-cursor={nextCursor}>
       <div className="rw-record-audit__controls">
         <label>
           Search events
@@ -381,6 +372,7 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[] }):
             <option value="pipeline">Pipeline</option>
             <option value="enrichment">Enrichment</option>
             <option value="validation">Validation</option>
+            <option value="review">Review</option>
             <option value="pdf">PDF</option>
           </select>
         </label>
@@ -391,20 +383,15 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[] }):
       </div>
       <div className="rw-record-audit__count">
         <strong data-record-audit-count>{initialEvents.length.toLocaleString()}</strong> of
-        <span data-record-audit-matches>{props.events.length.toLocaleString()}</span> events shown
+        <span data-record-audit-matches>{total.toLocaleString()}</span> recorded events available
       </div>
       <div data-record-audit-stream><AuditStream events={initialEvents} emptyMessage="No recorded events match the local detail filters." /></div>
       <div className="rw-record-audit__actions">
-        <button type="button" className="ui button" data-record-audit-more hidden={initialEvents.length >= props.events.length}>Load {recordAuditBatchSize} more events</button>
+        <button type="button" className="ui button" data-record-audit-more hidden={initialEvents.length >= props.events.length && !hasMore}>Load {recordAuditBatchSize} more events</button>
+        <span className="ui faded text" data-record-audit-page-status role="status"></span>
       </div>
     </div>
   );
-}
-
-/** Records audit investigation. */
-export function recordAuditInvestigation(events: AuditEventRecord[]): string {
-  const markup = <RecordAuditInvestigation events={events} />;
-  return renderToString(markup);
 }
 
 /** Binds DOM behavior for record audit investigation. */
@@ -418,7 +405,9 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
     const count = root.querySelector("[data-record-audit-count]") as HTMLElement;
     const matches = root.querySelector("[data-record-audit-matches]") as HTMLElement;
     const more = root.querySelector("[data-record-audit-more]") as HTMLButtonElement;
+    const pageStatus = root.querySelector("[data-record-audit-page-status]") as HTMLElement;
     var visibleLimit = recordAuditBatchSize;
+    var nextCursor = (root as HTMLElement).dataset.recordAuditNextCursor || "";
     /** Applies the current filter controls to the visible event batch. */
     function apply(): void {
       const needle = search.value.trim().toLocaleLowerCase();
@@ -437,10 +426,15 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
       });
       const visible = matching.slice(0, visibleLimit);
       count.textContent = visible.length.toLocaleString();
-      matches.textContent = matching.length.toLocaleString();
-      more.hidden = visible.length >= matching.length;
+      var availableCount = matching.length;
+      if (!search.value && !category.value && !action.value) {
+        availableCount = Number(matches.textContent?.replace(/[^0-9]/g, "")) || matching.length;
+      }
+      matches.textContent = availableCount.toLocaleString();
+      more.hidden = visible.length >= matching.length && !nextCursor;
       const streamMarkup = <AuditStream events={visible} emptyMessage="No recorded events match the local detail filters." />;
       renderTree(streamMarkup, stream);
+      bindAuditRecordedData(stream);
     }
     /** Resets the visible batch limit and reapplies the filters. */
     function resetAndApply(): void {
@@ -450,9 +444,41 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
     search.addEventListener("input", resetAndApply);
     category.addEventListener("change", resetAndApply);
     action.addEventListener("change", resetAndApply);
-    more.addEventListener("click", () => {
-      visibleLimit += recordAuditBatchSize;
-      apply();
+    more.addEventListener("click", async () => {
+      if (visibleLimit < events.length) {
+        visibleLimit += recordAuditBatchSize;
+        apply();
+        return;
+      }
+      const endpoint = (root as HTMLElement).dataset.recordAuditEndpoint || "";
+      if (!endpoint || !nextCursor) return;
+      more.disabled = true;
+      pageStatus.textContent = "Loading older audit events…";
+      try {
+        const cursor = nextCursor;
+        const data = await api(endpoint, { run_id: value("run_id"), limit: recordAuditBatchSize, cursor: cursor }, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+        });
+        const known = new Set(events.map((event) => String(event.id)));
+        list(data, ["events", "items"]).forEach((event) => {
+          if (!known.has(String(event.id))) {
+            known.add(String(event.id));
+            events.push(event);
+          }
+        });
+        nextCursor = data.next_cursor || "";
+        const cursorKey = (root as HTMLElement).dataset.recordAuditCursorKey || "";
+        if (cursorKey) history.replaceState({}, "", link({ [cursorKey]: cursor }));
+        visibleLimit += recordAuditBatchSize;
+        pageStatus.textContent = `${events.length.toLocaleString()} audit events loaded.`;
+        apply();
+      } catch (error: any) {
+        pageStatus.textContent = error.message || "Unable to load older audit events.";
+      } finally {
+        more.disabled = false;
+      }
     });
   });
+  bindAuditRecordedData();
 }

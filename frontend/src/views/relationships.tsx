@@ -1,9 +1,9 @@
 // Bounded relationship exploration with common and advanced graph filters.
-import { app, value, graphFilters, PageHeader, EmptyState, list, filterChips, formatNumber, humanLabel } from '../state.tsx';
-import { h, Fragment, render as renderTree, raw } from '../jsx/jsx-runtime.ts';
-import { api } from '../api.tsx';
-import { graphClusters, GraphField, graphQuery, GraphResult, mountGraph } from '../components/graph.tsx';
-import { setURL, bindFocusContext } from '../router.tsx';
+import { app, value, graphFilters, PageHeader, EmptyState, FilterChips, list, formatNumber, humanLabel } from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api } from "../api.tsx";
+import { graphClusters, GraphField, graphQuery, GraphResult, mountGraph } from "../components/graph.tsx";
+import { setURL, bindFocusContext } from "../router.tsx";
 
 const graphModes: Record<string, { label: string; description: string }> = {
   research_network: {
@@ -54,20 +54,20 @@ function ModeControl(props: { current: string }): JSX.Element {
     );
   });
   return (
-    <section className="rw-graph-model">
+    <fieldset className="rw-graph-model">
+      <legend>Graph model</legend>
       <div className="rw-graph-model__heading">
-        <h4>Graph model</h4>
         <p>Changing the model updates the network immediately and preserves the current filters.</p>
       </div>
       <div className="rw-segmented-control" role="group" aria-label="Graph model">
         {modeItems}
       </div>
-    </section>
+    </fieldset>
   );
 }
 
 /** Renders markup summarizing the active relationship filters. */
-function appliedFilters(): string {
+function AppliedFilters(): JSX.Element {
   const filters: Record<string, string> = {};
   const filterKeys = Object.keys(filterLabels);
   filterKeys.forEach((key) => {
@@ -81,7 +81,8 @@ function appliedFilters(): string {
   filterKeys.forEach((key) => {
     clear[key] = "";
   });
-  return filterChips(filters, filterLabels, { clearUpdates: clear });
+  const options = { clearUpdates: clear };
+  return <FilterChips filters={filters} labels={filterLabels} options={options} />;
 }
 
 /** Renders markup summarizing connected graph clusters. */
@@ -135,7 +136,7 @@ export async function relationshipsView(): Promise<void> {
     headers: { Accept: "application/json" },
   });
   const modeDefinition = graphModes[mode];
-  const appliedFilterMarkup = raw(appliedFilters());
+  const appliedFilterMarkup = <AppliedFilters />;
   const edgeCount = formatNumber(list(data, ["edges"]).length);
 
   const filterPanel = (

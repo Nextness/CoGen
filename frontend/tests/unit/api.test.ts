@@ -1,4 +1,4 @@
-// Unit tests for api.js — endpoint builder and fetch helpers.
+// Unit tests for api.tsx — endpoint builder and fetch helpers.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import './setup.ts';
 import { endpoint, api, mutate, tables } from '../../src/api.tsx';
 import { state } from '../../src/state.tsx';
 
-describe('api.js — endpoint', function() {
+describe('api.tsx — endpoint', function() {
 
   it('builds a path with query parameters', function() {
     const result = endpoint('/api/test', { a: '1', b: '2' });
@@ -27,7 +27,7 @@ describe('api.js — endpoint', function() {
 
 });
 
-describe('api.js — api', function() {
+describe('api.tsx — api', function() {
 
   before(function() {
     state.controller = null;
@@ -142,16 +142,21 @@ describe('api.js — api', function() {
       request = options;
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ saved: true }); } } as unknown as Response);
     } as typeof fetch;
+    state.controller = new AbortController();
     assert.deepEqual(await mutate('/api/review', 'PUT', { status: 'approved' }), { saved: true });
     assert.equal(request?.method, 'PUT');
     assert.equal((request?.headers as Record<string, string> | undefined)?.['Content-Type'], 'application/json');
     assert.equal(request?.body, '{"status":"approved"}');
+    assert.equal(request?.signal, undefined);
+    state.controller.abort();
+    assert.equal(request?.signal, undefined);
     globalThis.fetch = originalFetch;
+    state.controller = null;
   });
 
 });
 
-describe('api.js — tables', function() {
+describe('api.tsx — tables', function() {
 
   before(function() {
     state.tables = [];

@@ -67,6 +67,7 @@ func deterministicFixturePDF(pageText ...string) []byte {
 // pdfViewerFixture is a fixture type used by the package test suite.
 type pdfViewerFixture struct {
 	server                 *Server
+	metadataPath           string
 	runID                  int64
 	availableID            int64
 	notAvailableID         int64
@@ -78,6 +79,7 @@ type pdfViewerFixture struct {
 // referenceResolutionFixture is a fixture type used by the package test suite.
 type referenceResolutionFixture struct {
 	path                  string
+	runID                 int64
 	citingRevisionID      int64
 	externalMentionID     int64
 	resolvedMentionID     int64
@@ -88,6 +90,7 @@ type referenceResolutionFixture struct {
 // articleActivityFixture is a fixture type used by the package test suite.
 type articleActivityFixture struct {
 	path                 string
+	runID                int64
 	normalizedRevisionID int64
 	discardedRevisionID  int64
 	discardedReason      string
@@ -219,6 +222,11 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	citingWorkID := createWork("10.1000/viewer-citing")
 	citingRevisionID := createRevision(citingWorkID, runID, database.ProducerStageNormalize, "Citing normalized title")
 	targetWorkID := createWork("10.1000/viewer-target")
+	for _, workID := range []int64{citingWorkID, targetWorkID} {
+		if err := db.RunWorkStages.SetOutcome(runID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 	stages := []struct {
 		stage string
 		title string
@@ -266,6 +274,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	}
 	return referenceResolutionFixture{
 		path:                  path,
+		runID:                 runID,
 		citingRevisionID:      citingRevisionID,
 		externalMentionID:     externalMentionID,
 		resolvedMentionID:     resolvedMentionID,
@@ -367,6 +376,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	return articleActivityFixture{
 		path:                 path,
+		runID:                runID,
 		normalizedRevisionID: normalizedRevisionID,
 		discardedRevisionID:  discardedRevisionID,
 		discardedReason:      discardedReason,
@@ -450,6 +460,11 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, workID := range []int64{availableID, notAvailableID} {
+		if err := metadata.RunWorkStages.SetOutcome(pipelineRunID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
@@ -489,7 +504,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	}
 	t.Cleanup(func() { _ = viewer.Close() })
 	return pdfViewerFixture{
-		server: viewer, runID: pipelineRunID, availableID: availableID,
+		server: viewer, metadataPath: metadataPath, runID: pipelineRunID, availableID: availableID,
 		notAvailableID: notAvailableID, unavailableID: unavailableID, revisionID: revisionID,
 		notAvailableRevisionID: notAvailableRevisionID,
 	}

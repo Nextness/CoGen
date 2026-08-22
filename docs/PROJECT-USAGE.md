@@ -86,7 +86,7 @@ make migrate DB=corpus.metadata.db
 ./build/analysis migrate --db ./corpus.metadata.db
 ```
 
-The migration command rejects a missing database and does not run a workspace. The viewer verifies required review tables and append-only triggers at startup but never migrates or repairs the database itself.
+The migration command rejects a missing database and does not run a workspace. When a configured migration explicitly supersedes an equivalent earlier filename already recorded in the database, migration retains the earlier history row and records the canonical filename without rerunning the SQL; operators must not edit migration history manually. The viewer verifies required review tables and append-only triggers at startup but never migrates or repairs the database itself.
 
 Serve an existing metadata database with the assembled production assets:
 

@@ -1,11 +1,19 @@
-// Home: workspace history, aggregate context metrics, and reversible run lifecycle controls.
+// Home: bounded workspace history, aggregate context metrics, and reversible run lifecycle controls.
 import {
-  app, state, list, pickID, formatNumber, formatTime, formatDuration,
-  StatusChip, link, params, PageHeader, Panel
-} from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api, mutate } from '../api.tsx';
-import { render } from '../router.tsx';
+  app,
+  value,
+  formatNumber,
+  formatTime,
+  formatDuration,
+  StatusChip,
+  link,
+  params,
+  PageHeader,
+  Panel,
+} from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api, mutate } from "../api.tsx";
+import { setURL } from "../router.tsx";
 
 /** Returns a clean Deepdive URL for one complete research context. */
 function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any): string {
@@ -21,125 +29,137 @@ function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any): 
   });
 }
 
-/** Renders one compact search-history card with revision, plan, and attempt counts. */
-function SearchCard(props: { search: any; plans: any[]; runs: any[] }): JSX.Element {
-  const revisions = list(props.search, ["revisions", "search_revisions"]);
-  const revisionIDs = new Set(revisions.map((revision) => {
-    return String(pickID(revision));
-  }));
-  const searchPlans = props.plans.filter((plan) => {
-    return revisionIDs.has(String(plan.search_revision_id));
-  });
-  const planIDs = new Set(searchPlans.map((plan) => {
-    return String(pickID(plan));
-  }));
-  const searchRuns = props.runs.filter((run) => {
-    return revisionIDs.has(String(run.search_revision_id)) || planIDs.has(String(run.execution_plan_id));
-  });
-  const latest = searchRuns.reduce((current: any, run) => {
-    if (!current || String(run.started_at || "") > String(current.started_at || "")) return run;
-    return current;
-  }, null);
-  var latestExecution = "—";
-  if (latest) latestExecution = formatTime(latest.started_at);
-  var revisionItems: JSX.Element[] = [<p className="ui faded text">No search revisions are recorded.</p>];
-  if (revisions.length) {
-    revisionItems = revisions.map((revision) => {
-      const revisionPlans = searchPlans.filter((plan) => {
-        return String(plan.search_revision_id) === String(pickID(revision));
-      });
-      const revisionPlanIDs = new Set(revisionPlans.map((plan) => {
-        return String(pickID(plan));
-      }));
-      const revisionRuns = searchRuns.filter((run) => {
-        return revisionPlanIDs.has(String(run.execution_plan_id));
-      });
-      return (
-        <div>
-          <strong>{revision.label || (`Revision ${pickID(revision)}`)}</strong>
-          <span>{formatNumber(revisionPlans.length)} plans · {formatNumber(revisionRuns.length)} attempts</span>
-        </div>
-      );
-    });
-  }
+/** Returns whether one hierarchy item contains a complete planned-run context. */
+function hasContext(item: any): boolean {
+  return Boolean(item.search_id && item.search_revision_id && item.execution_plan_id && item.id);
+}
+
+/** Renders one direct action for the latest complete run in a search or revision summary. */
+function ContinueAction(props: { searchID: any; revisionID: any; planID: any; runID: any; label?: string }): JSX.Element | null {
+  if (!props.searchID || !props.revisionID || !props.planID || !props.runID) return null;
+  return (
+    <a
+      className="ui primary basic button"
+      href={deepdiveLink(props.searchID, props.revisionID, props.planID, props.runID)}
+    >
+      {props.label || "Continue"}
+    </a>
+  );
+}
+
+/** Renders one bounded search-history summary with lazy revision discovery. */
+function SearchCard(props: { search: any }): JSX.Element {
+  const search = props.search;
+  const continueAction = (
+    <ContinueAction
+      searchID={search.id}
+      revisionID={search.latest_revision_id}
+      planID={search.latest_plan_id}
+      runID={search.latest_run_id}
+    />
+  );
   return (
     <article className="rw-home-search-card">
       <header>
         <div>
           <p className="rw-eyebrow">Search term</p>
-          <h3>{props.search.search_id || pickID(props.search)}</h3>
+          <h3>{search.search_id}</h3>
+          <p>Created {formatTime(search.created_at)}</p>
         </div>
-        <span className="ui basic label">Created {formatTime(props.search.created_at)}</span>
+        {continueAction}
       </header>
       <dl className="rw-home-search-card__metrics">
         <div>
           <dt>Search revisions</dt>
-          <dd>{formatNumber(revisions.length)}</dd>
+          <dd>{formatNumber(search.revision_count)}</dd>
         </div>
         <div>
           <dt>Execution plans</dt>
-          <dd>{formatNumber(searchPlans.length)}</dd>
+          <dd>{formatNumber(search.plan_count)}</dd>
         </div>
         <div>
           <dt>Run attempts</dt>
-          <dd>{formatNumber(searchRuns.length)}</dd>
-        </div>
-        <div>
-          <dt>Latest execution</dt>
-          <dd>{latestExecution}</dd>
+          <dd>{formatNumber(search.run_count)}</dd>
         </div>
       </dl>
-      <div className="rw-home-revisions">{revisionItems}</div>
+      <details data-home-search={search.id}>
+        <summary>Browse revision history</summary>
+        <div className="rw-home-revisions" data-home-revisions>
+          <p className="ui faded text">Open this disclosure to load a bounded revision page.</p>
+        </div>
+      </details>
     </article>
   );
 }
 
-/** Renders the run-management table for all planned attempts in the workspace. */
-function RunTable(props: { searches: any[]; plans: any[]; runs: any[] }): JSX.Element {
-  const revisionContext = new Map<string, { search: any; revision: any }>();
-  props.searches.forEach((search) => {
-    list(search, ["revisions", "search_revisions"]).forEach((revision) => {
-      revisionContext.set(String(pickID(revision)), {
-        search: search,
-        revision: revision,
-      });
-    });
-  });
-  const plansByID = new Map(props.plans.map((plan) => {
-    return [String(pickID(plan)), plan];
-  }));
-  const sortedRuns = props.runs.slice().sort((a, b) => {
-    return Number(pickID(b)) - Number(pickID(a));
-  });
-  const rows = sortedRuns.map((run) => {
-    const plan = plansByID.get(String(run.execution_plan_id));
-    const context = revisionContext.get(String(run.search_revision_id || plan?.search_revision_id));
-    const canExplore = Boolean(context && plan);
+/** Renders one hierarchy API failure without hiding successful sibling sections. */
+function SectionError(props: { title: string; failure: any }): JSX.Element {
+  var message = "The section could not be loaded.";
+  if (props.failure?.message) message = props.failure.message;
+  return (
+    <p className="ui error message" role="alert">
+      <span className="header">{props.title}</span>
+      {message}
+    </p>
+  );
+}
+
+/** Renders one bounded page of run attempts and lifecycle controls. */
+function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
+  const rows = props.runs.map((run) => {
+    const canExplore = hasContext(run);
     const visibility = run.visibility_state || "active";
-    var lifecycleAction: JSX.Element = <button type="button" className="ui danger basic button" data-run-visibility="trashed" data-run-id={pickID(run)}>Move to trash</button>;
+    var lifecycleAction: JSX.Element = (
+      <button
+        type="button"
+        className="ui danger basic button"
+        data-run-visibility="trashed"
+        data-run-id={run.id}
+      >
+        Move to trash
+      </button>
+    );
     if (run.status === "running") {
       lifecycleAction = <button type="button" className="ui basic button" disabled>Running</button>;
     } else if (visibility === "trashed") {
-      lifecycleAction = <button type="button" className="ui basic button" data-run-visibility="active" data-run-id={pickID(run)}>Restore</button>;
+      lifecycleAction = (
+        <button
+          type="button"
+          className="ui basic button"
+          data-run-visibility="active"
+          data-run-id={run.id}
+        >
+          Restore
+        </button>
+      );
     }
     var explore: JSX.Element = <span className="ui faded text">Context unavailable</span>;
     if (canExplore) {
-      explore = <a className="ui primary button" href={deepdiveLink(pickID(context!.search), pickID(context!.revision), pickID(plan!), pickID(run))}>Explore</a>;
+      explore = (
+        <a
+          className="ui primary button"
+          href={deepdiveLink(run.search_id, run.search_revision_id, run.execution_plan_id, run.id)}
+        >
+          Explore
+        </a>
+      );
     }
+    var planLabel = "Not recorded";
+    if (run.execution_plan_id) planLabel = `Plan ${run.execution_plan_id}`;
     return (
-      <tr data-home-run={pickID(run)}>
-        <td>
-          <strong>Run {pickID(run)}</strong>
-          <small>Attempt {run.attempt_number || "—"}</small>
+      <tr data-home-run={run.id}>
+        <td data-label="Run attempt">
+          <strong>Run {run.id}</strong>
+          <small>Attempt {run.attempt_number || "Not recorded"}</small>
         </td>
-        <td>{context?.search?.search_id || "Unplanned"}</td>
-        <td>{context?.revision?.label || "—"}</td>
-        <td>Plan {run.execution_plan_id || "—"}</td>
-        <td>{formatTime(run.started_at)}</td>
-        <td>{formatDuration(run.started_at, run.finished_at)}</td>
-        <td><StatusChip raw={run.status} /></td>
-        <td><StatusChip raw={visibility} /></td>
-        <td>
+        <td data-label="Search">{run.search_name || "Unplanned"}</td>
+        <td data-label="Revision">{run.revision_label || "Not recorded"}</td>
+        <td data-label="Execution plan">{planLabel}</td>
+        <td data-label="Started">{formatTime(run.started_at)}</td>
+        <td data-label="Duration">{formatDuration(run.started_at, run.finished_at)}</td>
+        <td data-label="Outcome"><StatusChip raw={run.status} /></td>
+        <td data-label="Visibility"><StatusChip raw={visibility} /></td>
+        <td data-label="Actions">
           <div className="rw-inline-group">
             {explore}
             {lifecycleAction}
@@ -148,87 +168,255 @@ function RunTable(props: { searches: any[]; plans: any[]; runs: any[] }): JSX.El
       </tr>
     );
   });
-  var body: JSX.Element[] = [<tr><td colspan={9} className="empty">No run attempts are recorded.</td></tr>];
-  if (rows.length) {
-    body = rows;
-  }
+  var body: JSX.Element[] = [<tr><td colspan={9} className="empty">No run attempts match these filters.</td></tr>];
+  if (rows.length) body = rows;
+  var resultLabel = `Showing ${formatNumber(rows.length)} run attempts.`;
+  if (props.hasMore) resultLabel = `Showing ${formatNumber(rows.length)} run attempts. More results are available.`;
   return (
-    <div className="table-wrap" aria-label="Run attempts table">
-      <table className="ui table rw-home-runs">
-        <thead>
-          <tr>
-            <th>Run attempt</th>
-            <th>Search</th>
-            <th>Revision</th>
-            <th>Execution plan</th>
-            <th>Started</th>
-            <th>Duration</th>
-            <th>Outcome</th>
-            <th>Visibility</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>{body}</tbody>
-      </table>
-    </div>
+    <Fragment>
+      <p className="rw-result-summary" aria-live="polite">{resultLabel}</p>
+      <div className="table-wrap" aria-label="Run attempts table">
+        <table className="ui table rw-home-runs">
+          <thead>
+            <tr>
+              <th>Run attempt</th>
+              <th>Search</th>
+              <th>Revision</th>
+              <th>Execution plan</th>
+              <th>Started</th>
+              <th>Duration</th>
+              <th>Outcome</th>
+              <th>Visibility</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>{body}</tbody>
+        </table>
+      </div>
+    </Fragment>
   );
 }
 
-/** Renders the confirmation dialog used for reversible run lifecycle changes. */
+/** Renders server-backed Home filters with explicit visibility and calendar scope. */
+function HomeFilters(): JSX.Element {
+  const visibility = value("home_visibility") || "active";
+  const status = value("home_status") || "all";
+  return (
+    <form className="ui form rw-filter-panel" data-home-filters>
+      <div className="rw-filter-panel__fields">
+        <label className="field">
+          Search runs and history
+          <input name="q" value={value("home_q")} placeholder="Search term, revision, or run ID" />
+        </label>
+        <label className="field">
+          Visibility
+          <select name="visibility">
+            <option value="active" selected={visibility === "active"}>Active</option>
+            <option value="trashed" selected={visibility === "trashed"}>Trashed</option>
+            <option value="all" selected={visibility === "all"}>Active and trashed</option>
+          </select>
+        </label>
+        <label className="field">
+          Outcome
+          <select name="status">
+            <option value="all" selected={status === "all"}>All outcomes</option>
+            <option value="running" selected={status === "running"}>Running</option>
+            <option value="completed" selected={status === "completed"}>Completed</option>
+            <option value="failed" selected={status === "failed"}>Failed</option>
+          </select>
+        </label>
+        <label className="field">
+          Started on or after
+          <input type="date" name="started_after" value={value("home_started_after")} />
+        </label>
+        <label className="field">
+          Started on or before
+          <input type="date" name="started_before" value={value("home_started_before")} />
+        </label>
+      </div>
+      <div className="rw-inline-group">
+        <button type="submit" className="ui primary button">Apply filters</button>
+        <button type="button" className="ui basic button" data-home-clear>Clear filters</button>
+      </div>
+    </form>
+  );
+}
+
+/** Renders the native lifecycle confirmation dialog. */
 function RunDialog(): JSX.Element {
   return (
-    <div className="rw-modal-backdrop" data-run-dialog hidden>
-      <section className="rw-modal" role="dialog" aria-modal="true" aria-labelledby="run-dialog-title" aria-describedby="run-dialog-description">
-        <header className="rw-modal__header">
+    <dialog
+      className="rw-review-dialog rw-home-run-dialog"
+      data-run-dialog
+      aria-labelledby="run-dialog-title"
+      aria-describedby="run-dialog-description"
+    >
+      <form className="ui form rw-review-dialog__form" data-run-dialog-form>
+        <div className="rw-review-dialog__header">
           <div>
-            <p className="rw-eyebrow">Run lifecycle</p>
+            <p className="rw-review-dialog__eyebrow">Run lifecycle</p>
             <h3 id="run-dialog-title">Change run visibility</h3>
+            <p id="run-dialog-description"></p>
           </div>
-          <button type="button" className="ui icon basic button" data-run-dialog-close aria-label="Close run lifecycle dialog">{"\u00D7"}</button>
-        </header>
-        <form className="ui form rw-modal__body" data-run-dialog-form>
-          <p id="run-dialog-description"></p>
+          <button
+            type="button"
+            className="ui icon basic button rw-review-dialog__close"
+            data-run-dialog-close
+            aria-label="Close run lifecycle dialog"
+          >
+            {"\u00D7"}
+          </button>
+        </div>
+        <div className="rw-review-dialog__body">
           <label className="field" data-run-reason-field>
             Reason
             <textarea name="reason" maxlength={1000} rows={3} placeholder="Why should this run move out of the active workspace?"></textarea>
-          </label>          <p className="ui info message" data-run-dialog-guidance></p>
+          </label>
+          <p className="ui info message" data-run-dialog-guidance></p>
           <p className="ui error message" data-run-dialog-error role="alert" hidden></p>
-          <div className="rw-modal__actions">
-            <button type="button" className="ui basic button" data-run-dialog-close>Cancel</button>
-            <button type="submit" className="ui danger button" data-run-dialog-submit>Confirm</button>
-          </div>
-        </form>
-      </section>
-    </div>
+        </div>
+        <div className="rw-review-dialog__actions">
+          <button type="button" className="ui basic button" data-run-dialog-close>Cancel</button>
+          <button type="submit" className="ui danger button" data-run-dialog-submit>Confirm</button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 
-/** Binds confirmation and mutation behavior for Home run lifecycle controls. */
-function bindRunLifecycle(runs: any[]): void {
-  const dialog = document.querySelector<HTMLElement>("[data-run-dialog]");
-  if (!dialog) return;
-  const form = dialog.querySelector("[data-run-dialog-form]") as HTMLFormElement;
-  const title = dialog.querySelector("#run-dialog-title") as HTMLElement;
-  const description = dialog.querySelector("#run-dialog-description") as HTMLElement;
-  const guidance = dialog.querySelector("[data-run-dialog-guidance]") as HTMLElement;
-  const reasonField = dialog.querySelector("[data-run-reason-field]") as HTMLElement;
-  const reason = form.elements.namedItem("reason") as HTMLTextAreaElement;
-  const submit = dialog.querySelector("[data-run-dialog-submit]") as HTMLButtonElement;
-  const error = dialog.querySelector("[data-run-dialog-error]") as HTMLElement;
+/** Loads and renders one bounded revision page inside an open search disclosure. */
+async function loadRevisions(searchID: string, cursor: string, host: HTMLElement): Promise<void> {
+  const loadingMarkup = <p className="ui info message">Loading revision history.</p>;
+  renderTree(loadingMarkup, host);
+  try {
+    const result = await api("/api/hierarchy", {
+      section: "revisions",
+      search_id: searchID,
+      cursor: cursor,
+    }, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    const rows = result.items.map((revision: any) => {
+      const continueAction = (
+        <ContinueAction
+          searchID={searchID}
+          revisionID={revision.id}
+          planID={revision.latest_plan_id}
+          runID={revision.latest_run_id}
+          label="Open latest run"
+        />
+      );
+      return (
+        <div>
+          <div>
+            <strong>{revision.label || `Revision ${revision.id}`}</strong>
+            <span>{formatNumber(revision.plan_count)} plans · {formatNumber(revision.run_count)} attempts</span>
+          </div>
+          {continueAction}
+        </div>
+      );
+    });
+    var empty: JSX.Element | null = null;
+    if (!rows.length) empty = <p className="ui faded text">No search revisions are recorded.</p>;
+    var more: JSX.Element | null = null;
+    if (result.has_more) {
+      more = (
+        <button type="button" className="ui basic button" data-more-revisions={result.next_cursor}>
+          Next revision page
+        </button>
+      );
+    }
+    const pageMarkup = (
+      <Fragment>
+        {empty}
+        {rows}
+        {more}
+      </Fragment>
+    );
+    renderTree(pageMarkup, host);
+    host.querySelector<HTMLButtonElement>("[data-more-revisions]")?.addEventListener("click", (event) => {
+      const button = event.currentTarget as HTMLButtonElement;
+      void loadRevisions(searchID, button.dataset.moreRevisions || "", host);
+    });
+  } catch (failure: any) {
+    const errorMarkup = <SectionError title="Revision history unavailable" failure={failure} />;
+    renderTree(errorMarkup, host);
+  }
+}
 
-  /** Dismisses the lifecycle dialog and clears its transient form state. */
+/** Binds search disclosures and cursor paging for the bounded Home sections. */
+function bindHomeDiscovery(): void {
+  app.querySelectorAll<HTMLDetailsElement>("[data-home-search]").forEach((details) => {
+    let loaded = false;
+    details.addEventListener("toggle", () => {
+      if (!details.open || loaded) return;
+      loaded = true;
+      const host = details.querySelector<HTMLElement>("[data-home-revisions]")!;
+      void loadRevisions(details.dataset.homeSearch || "", "", host);
+    });
+  });
+  app.querySelector<HTMLButtonElement>("[data-more-searches]")?.addEventListener("click", (event) => {
+    setURL({ home_search_cursor: (event.currentTarget as HTMLButtonElement).dataset.moreSearches }, false);
+  });
+  app.querySelector<HTMLButtonElement>("[data-more-runs]")?.addEventListener("click", (event) => {
+    setURL({ home_run_cursor: (event.currentTarget as HTMLButtonElement).dataset.moreRuns }, false);
+  });
+  app.querySelector<HTMLFormElement>("[data-home-filters]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget as HTMLFormElement);
+    setURL({
+      home_q: form.get("q"),
+      home_visibility: form.get("visibility"),
+      home_status: form.get("status"),
+      home_started_after: form.get("started_after"),
+      home_started_before: form.get("started_before"),
+      home_search_cursor: "",
+      home_run_cursor: "",
+    }, false);
+  });
+  app.querySelector<HTMLButtonElement>("[data-home-clear]")?.addEventListener("click", () => {
+    setURL({
+      home_q: "",
+      home_visibility: "",
+      home_status: "",
+      home_started_after: "",
+      home_started_before: "",
+      home_search_cursor: "",
+      home_run_cursor: "",
+    }, false);
+  });
+}
+
+/** Binds native-dialog confirmation and mutation behavior for Home lifecycle controls. */
+function bindRunLifecycle(): void {
+  const dialog = app.querySelector<HTMLDialogElement>("[data-run-dialog]");
+  if (!dialog) return;
+  const form = dialog.querySelector<HTMLFormElement>("[data-run-dialog-form]")!;
+  const title = dialog.querySelector<HTMLElement>("#run-dialog-title")!;
+  const description = dialog.querySelector<HTMLElement>("#run-dialog-description")!;
+  const guidance = dialog.querySelector<HTMLElement>("[data-run-dialog-guidance]")!;
+  const reasonField = dialog.querySelector<HTMLElement>("[data-run-reason-field]")!;
+  const reason = form.elements.namedItem("reason") as HTMLTextAreaElement;
+  const submit = dialog.querySelector<HTMLButtonElement>("[data-run-dialog-submit]")!;
+  const error = dialog.querySelector<HTMLElement>("[data-run-dialog-error]")!;
+  const closeButtons = dialog.querySelectorAll<HTMLButtonElement>("[data-run-dialog-close]");
+  let mutating = false;
+  let opener: HTMLButtonElement | null = null;
+
+  /** Dismisses the lifecycle dialog and restores focus to its exact opener. */
   function close(): void {
-    dialog!.hidden = true;
-    document.body.classList.remove("rw-modal-open");
+    if (mutating) return;
+    if (typeof dialog!.close === "function") dialog!.close();
+    else dialog!.removeAttribute("open");
     error.hidden = true;
     form.reset();
+    opener?.focus();
   }
+
   /** Configures and opens the lifecycle dialog for the selected run action. */
   function open(button: HTMLButtonElement): void {
-    const run = runs.find((item) => {
-      return String(pickID(item)) === button.dataset.runId;
-    });
-    if (!run) return;
+    opener = button;
     dialog!.dataset.runId = button.dataset.runId;
     dialog!.dataset.visibilityState = button.dataset.runVisibility;
     const trashing = button.dataset.runVisibility === "trashed";
@@ -247,140 +435,215 @@ function bindRunLifecycle(runs: any[]): void {
     submit.textContent = submitText;
     submit.classList.toggle("danger", trashing);
     submit.classList.toggle("primary", !trashing);
-    dialog!.hidden = false;
-    document.body.classList.add("rw-modal-open");
+    dialog!.showModal?.();
+    if (!dialog!.open) dialog!.setAttribute("open", "");
     if (trashing) reason.focus();
     else submit.focus();
   }
 
-  const visibilityButtons = document.querySelectorAll<HTMLButtonElement>("[data-run-visibility]");
-  visibilityButtons.forEach((button) => {
+  app.querySelectorAll<HTMLButtonElement>("[data-run-visibility]").forEach((button) => {
     button.addEventListener("click", () => {
       open(button);
     });
   });
-  const closeButtons = dialog.querySelectorAll<HTMLButtonElement>("[data-run-dialog-close]");
   closeButtons.forEach((button) => {
     button.addEventListener("click", close);
   });
   dialog.addEventListener("click", (event) => {
     if (event.target === dialog) close();
   });
-  dialog.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !dialog!.hidden) close();
+  dialog.addEventListener("cancel", (event) => {
+    if (mutating) event.preventDefault();
   });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     error.hidden = true;
+    mutating = true;
     submit.disabled = true;
     submit.classList.add("loading");
+    closeButtons.forEach((button) => {
+      button.disabled = true;
+    });
+    const runID = dialog.dataset.runId || "";
+    const visibilityState = dialog.dataset.visibilityState || "";
     try {
       var reasonValue = "";
-      if (dialog!.dataset.visibilityState === "trashed") reasonValue = reason.value;
-      await mutate(`/api/runs/${encodeURIComponent(dialog!.dataset.runId!)}/visibility`, "PUT", {
-        visibility_state: dialog!.dataset.visibilityState,
+      if (visibilityState === "trashed") reasonValue = reason.value;
+      await mutate(`/api/runs/${encodeURIComponent(runID)}/visibility`, "PUT", {
+        visibility_state: visibilityState,
         reason: reasonValue,
       });
-      state.runs = [];
-      close();
-      await render();
     } catch (failure: any) {
       error.textContent = failure.message;
       error.hidden = false;
-    } finally {
+      mutating = false;
       submit.disabled = false;
       submit.classList.remove("loading");
+      closeButtons.forEach((button) => {
+        button.disabled = false;
+      });
+      return;
+    }
+    mutating = false;
+    submit.disabled = false;
+    submit.classList.remove("loading");
+    closeButtons.forEach((button) => {
+      button.disabled = false;
+    });
+    close();
+    try {
+      var actionLabel = "Restored";
+      if (visibilityState === "trashed") actionLabel = "Moved";
+      await homeView(`${actionLabel} run ${runID}.`);
+    } catch (failure: any) {
+      const status = app.querySelector<HTMLElement>("[data-home-lifecycle-status]");
+      if (status) status.textContent = `Run ${runID} was updated, but Home could not refresh: ${failure.message}`;
     }
   });
 }
 
-/** Renders the workspace Home page and its research-history controls. */
-export async function homeView(): Promise<void> {
-  const searchResponse = await api("/api/searches", {}, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
-  const searches = list(searchResponse, ["searches", "items"]);
-  state.searches = searches;
-  const revisions = searches.flatMap((search) => {
-    return list(search, ["revisions", "search_revisions"]);
-  });
-  const [planResponses, runResponse] = await Promise.all([
-    Promise.all(revisions.map((revision) => {
-      return api("/api/plans", { search_revision_id: pickID(revision) }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-    })),
-    api("/api/runs", { include_trashed: "true" }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    }),
+/** Renders the workspace Home page from independently recoverable bounded hierarchy requests. */
+export async function homeView(lifecycleMessage = ""): Promise<void> {
+  const query = value("home_q");
+  const visibility = value("home_visibility") || "active";
+  const status = value("home_status") || "all";
+  const dateQuery = {
+    q: query,
+    visibility: visibility,
+    status: status,
+    started_after: value("home_started_after"),
+    started_before: value("home_started_before"),
+  };
+  const results = await Promise.allSettled([
+    api("/api/hierarchy", { section: "summary" }, { method: "GET", headers: { Accept: "application/json" } }),
+    api("/api/hierarchy", { section: "searches", q: query, cursor: value("home_search_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
+    api("/api/hierarchy", { section: "runs", ...dateQuery, cursor: value("home_run_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
   ]);
-  const plans = planResponses.flatMap((response) => {
-    return list(response, ["plans", "items"]);
-  });
-  const runs = list(runResponse, ["runs", "items"]);
-  const latest = runs.reduce((current: any, run) => {
-    if (!current || String(run.started_at || "") > String(current.started_at || "")) return run;
-    return current;
-  }, null);
-  const completed = runs.filter((run) => {
-    return run.status === "completed";
-  }).length;
+  const summaryResult = results[0];
+  const searchesResult = results[1];
+  const runsResult = results[2];
 
-  const metrics = (
-    <div className="rw-kpi-grid rw-home-kpis">
-      <div className="rw-kpi">
-        <span className="label">Search terms</span>
-        <span className="value">{formatNumber(searches.length)}</span>
-        <small>Declared research scopes</small>
+  var metrics: JSX.Element = <SectionError title="Workspace totals unavailable" failure={(summaryResult as PromiseRejectedResult).reason} />;
+  var latestMessage: JSX.Element | null = null;
+  if (summaryResult.status === "fulfilled") {
+    const totals = summaryResult.value.totals;
+    metrics = (
+      <div className="rw-kpi-grid rw-home-kpis">
+        <div className="rw-kpi">
+          <span className="label">Search terms</span>
+          <span className="value">{formatNumber(totals.searches)}</span>
+          <small>Declared research scopes</small>
+        </div>
+        <div className="rw-kpi">
+          <span className="label">Search revisions</span>
+          <span className="value">{formatNumber(totals.revisions)}</span>
+          <small>Immutable configurations</small>
+        </div>
+        <div className="rw-kpi">
+          <span className="label">Execution plans</span>
+          <span className="value">{formatNumber(totals.plans)}</span>
+          <small>Resolved pipeline plans</small>
+        </div>
+        <div className="rw-kpi">
+          <span className="label">Run attempts</span>
+          <span className="value">{formatNumber(totals.runs)}</span>
+          <small>{formatNumber(totals.completed_runs)} completed</small>
+        </div>
       </div>
-      <div className="rw-kpi">
-        <span className="label">Search revisions</span>
-        <span className="value">{formatNumber(revisions.length)}</span>
-        <small>Immutable configurations</small>
-      </div>
-      <div className="rw-kpi">
-        <span className="label">Execution plans</span>
-        <span className="value">{formatNumber(plans.length)}</span>
-        <small>Resolved pipeline plans</small>
-      </div>
-      <div className="rw-kpi">
-        <span className="label">Run attempts</span>
-        <span className="value">{formatNumber(runs.length)}</span>
-        <small>{formatNumber(completed)} completed</small>
-      </div>
-    </div>
-  );
-  var latestMessage: JSX.Element = <p className="ui neutral message">No pipeline run has been recorded yet.</p>;
-  if (latest) {
-    latestMessage = (
-      <p className="ui info message">
-        <span className="header">Latest execution</span>
-        Run {pickID(latest)} started {formatTime(latest.started_at)} and took {formatDuration(latest.started_at, latest.finished_at)}.
-      </p>
+    );
+    const latest = summaryResult.value.latest_run;
+    if (latest) {
+      const latestAction = hasContext(latest) ? (
+        <ContinueAction
+          searchID={latest.search_id}
+          revisionID={latest.search_revision_id}
+          planID={latest.execution_plan_id}
+          runID={latest.id}
+          label="Continue latest"
+        />
+      ) : null;
+      latestMessage = (
+        <div className="ui info message rw-home-latest">
+          <div>
+            <span className="header">Latest execution</span>
+            Run {latest.id} started {formatTime(latest.started_at)} and took {formatDuration(latest.started_at, latest.finished_at)}.
+          </div>
+          {latestAction}
+        </div>
+      );
+    } else {
+      latestMessage = <p className="ui neutral message">No pipeline run has been recorded yet.</p>;
+    }
+  }
+
+  var searchHistory: JSX.Element = <SectionError title="Research history unavailable" failure={(searchesResult as PromiseRejectedResult).reason} />;
+  if (searchesResult.status === "fulfilled") {
+    const cards = searchesResult.value.items.map((search: any) => {
+      return <SearchCard search={search} />;
+    });
+    var searchEmpty: JSX.Element | null = null;
+    if (!cards.length) searchEmpty = <p className="empty">No search terms match this search.</p>;
+    var nextSearchPage: JSX.Element | null = null;
+    if (searchesResult.value.has_more) {
+      nextSearchPage = (
+        <button type="button" className="ui basic button" data-more-searches={searchesResult.value.next_cursor}>
+          Next search page
+        </button>
+      );
+    }
+    searchHistory = (
+      <Fragment>
+        {searchEmpty}
+        <div className="rw-home-searches">{cards}</div>
+        {nextSearchPage}
+      </Fragment>
     );
   }
-  var searchHistory: JSX.Element = <p className="empty">No search terms are recorded.</p>;
-  if (searches.length) {
-    const searchCards = searches.map((search) => {
-      return <SearchCard search={search} plans={plans} runs={runs} />;
-    });
-    searchHistory = <div className="rw-home-searches">{searchCards}</div>;
+
+  var runTableMarkup: JSX.Element = <SectionError title="Run attempts unavailable" failure={(runsResult as PromiseRejectedResult).reason} />;
+  if (runsResult.status === "fulfilled") {
+    var nextRunPage: JSX.Element | null = null;
+    if (runsResult.value.has_more) {
+      nextRunPage = (
+        <button type="button" className="ui basic button" data-more-runs={runsResult.value.next_cursor}>
+          Next run page
+        </button>
+      );
+    }
+    runTableMarkup = (
+      <Fragment>
+        <RunTable runs={runsResult.value.items} hasMore={runsResult.value.has_more} />
+        {nextRunPage}
+      </Fragment>
+    );
   }
-  const runTableMarkup = <RunTable searches={searches} plans={plans} runs={runs} />;
 
   const pageMarkup = (
     <Fragment>
-      <PageHeader kicker="" title="Home" description="Choose a captured run for Deepdive analysis or manage which completed attempts remain active." />
+      <PageHeader
+        kicker=""
+        title="Home"
+        description="Choose a captured run for Deepdive analysis or manage which completed attempts remain active."
+      />
+      <p className="rw-sr-status" data-home-lifecycle-status role="status" aria-live="polite">{lifecycleMessage}</p>
       {metrics}
       {latestMessage}
-      <Panel title="Research history" description="Search terms organize immutable revisions, execution plans, and recorded run attempts." body={searchHistory} classes="rw-home-history" />
-      <Panel title="Run attempts" description="Explore a complete context or move a terminal run into the reversible trash lifecycle." body={runTableMarkup} classes="rw-home-run-panel" />
+      <Panel
+        title="Research history"
+        description="Search terms organize immutable revisions, execution plans, and recorded run attempts."
+        body={searchHistory}
+        classes="rw-home-history"
+      />
+      <Panel
+        title="Run attempts"
+        description="Filter a bounded result page, explore a complete context, or change a terminal run's reversible visibility."
+        body={<Fragment><HomeFilters />{runTableMarkup}</Fragment>}
+        classes="rw-home-run-panel"
+      />
       <RunDialog />
     </Fragment>
   );
   renderTree(pageMarkup, app);
-  bindRunLifecycle(runs);
+  bindHomeDiscovery();
+  bindRunLifecycle();
 }

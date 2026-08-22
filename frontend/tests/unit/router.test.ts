@@ -1,4 +1,4 @@
-// Unit tests for router.js — URL state, view routing, render orchestrator.
+// Unit tests for router.tsx — URL state, view routing, render orchestrator.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import './setup.ts';
 import { setURL, bindFocusContext, render } from '../../src/router.tsx';
 import { state, app } from '../../src/state.tsx';
 
-describe('router.js — setURL', function() {
+describe('router.tsx — setURL', function() {
 
   it('updates URL and triggers render', function() {
     const originalHref = location.href;
@@ -26,7 +26,7 @@ describe('router.js — setURL', function() {
 
 });
 
-describe('router.js — bindFocusContext', function() {
+describe('router.tsx — bindFocusContext', function() {
 
   it('binds click handler to focus-context button', function() {
     const button = document.createElement('button');
@@ -48,7 +48,7 @@ describe('router.js — bindFocusContext', function() {
 
 });
 
-describe('router.js — render', function() {
+describe('router.tsx — render', function() {
 
   before(function() {
     state.request = 0;
@@ -93,6 +93,27 @@ describe('router.js — render', function() {
     assert.equal((document.querySelector('.primary-nav') as HTMLElement).hidden, true);
     assert.equal(document.querySelector('#workspace-breadcrumb')!.textContent.trim(), 'Home');
 
+    globalThis.fetch = originalFetch;
+  });
+
+  it("claims the next route controller synchronously before teardown yields", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (() => {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ data: [] }),
+      } as Response);
+    }) as typeof fetch;
+    history.replaceState({}, "", "?view=home");
+    const previous = new AbortController();
+    state.controller = previous;
+
+    const pending = render();
+
+    assert.equal(previous.signal.aborted, true);
+    assert.notEqual(state.controller, previous);
+    await pending;
     globalThis.fetch = originalFetch;
   });
 

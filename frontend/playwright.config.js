@@ -23,6 +23,8 @@ export default defineConfig({
   ],
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:8080',
+    locale: 'en-US',
+    timezoneId: 'UTC',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

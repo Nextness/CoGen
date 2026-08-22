@@ -1,7 +1,7 @@
 // View routing, URL state, and render orchestrator.
 import { state, app, view, link, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
 import { render as renderTree } from "./jsx/jsx-runtime.ts";
-import { selects, hydrateSelectors } from "./components/context-selector.tsx";
+import { focusContextSelector, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";
 import { overviewView } from "./views/overview.tsx";
 import { corpusView } from "./views/corpus.tsx";
@@ -12,12 +12,18 @@ import { advancedView } from "./views/advanced.tsx";
 import { detailView, destroyActiveArticleReview } from "./views/detail.tsx";
 import { destroyGraph } from "./components/graph.tsx";
 
-/** Replaces the current URL state without triggering a navigation reload. */
+/** Pushes or replaces URL state and immediately renders the resulting route. */
 export function setURL(updates: Record<string, any>, replace: boolean): void {
+  if (!navigationAllowed()) return;
   const href = link(updates);
   if (replace) history.replaceState({}, "", href);
   else history.pushState({}, "", href);
-  render();
+  render({ focusTitle: true, resetScroll: true });
+}
+
+/** Gives mounted editors one cancelable opportunity to protect unsaved local input. */
+export function navigationAllowed(): boolean {
+  return document.dispatchEvent(new CustomEvent("rw-before-navigate", { cancelable: true }));
 }
 
 /** Binds DOM behavior for focus context. */
@@ -25,7 +31,7 @@ export function bindFocusContext(): void {
   const button = document.querySelector<HTMLButtonElement>("[data-focus-context]");
   if (button) {
     button.addEventListener("click", () => {
-      selects.search.focus();
+      focusContextSelector();
     });
   }
 }
@@ -113,29 +119,36 @@ async function renderView(): Promise<any> {
 }
 
 /** Asynchronously renders the associated state. */
-export async function render(): Promise<void> {
+export async function render(options?: { focusTitle?: boolean; resetScroll?: boolean }): Promise<void> {
   const sequence = ++state.request;
-  syncShell(view());
-  syncPrimaryNavigation(view());
-  destroyGraph();
-  await destroyActiveArticleReview();
-
   if (state.controller) state.controller.abort();
   state.controller = new AbortController();
 
+  syncShell(view());
+  syncPrimaryNavigation(view());
+  destroyGraph();
   clearError();
   busy(true);
 
   try {
+    await destroyActiveArticleReview();
+    if (sequence !== state.request) return;
+
     if (view() !== "home" && view() !== "trash") await hydrateSelectors();
     if (sequence !== state.request) return;
 
     await renderView();
+    if (sequence !== state.request) return;
     var pageTitle = "Research workspace";
     const titleElement = document.querySelector<HTMLElement>("#page-title");
     if (titleElement) pageTitle = titleElement.textContent || "Research workspace";
 
     document.title = `${pageTitle} · Research workspace`;
+    if (options?.resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    if (options?.focusTitle && titleElement) {
+      titleElement.tabIndex = -1;
+      titleElement.focus({ preventScroll: true });
+    }
   } catch (error) {
     if ((error as any)?.name !== "AbortError" && sequence === state.request) {
       renderTree(null, app);

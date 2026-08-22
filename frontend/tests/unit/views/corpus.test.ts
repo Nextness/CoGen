@@ -1,4 +1,4 @@
-// Unit tests for views/corpus.js — corpus view, columnNames, identityEvidenceTable.
+// Unit tests for views/corpus.tsx — corpus view, columnNames, identityEvidenceTable.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import '../setup.ts';
 import { corpusView } from '../../../src/views/corpus.tsx';
 import { app, state, value } from '../../../src/state.tsx';
 
-describe('corpus.js — corpusView', function() {
+describe('corpus.tsx — corpusView', function() {
 
   before(function() {
     state.tables = [];

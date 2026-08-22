@@ -1,12 +1,16 @@
-// Unit tests for components/graph.js — graph field, query, link, result, and pure internal functions.
+// Unit tests for components/graph.tsx — graph field, query, link, result, and pure internal functions.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
-import { graphField, graphQuery, graphLink, graphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.tsx';
+import { GraphField, graphQuery, graphLink, GraphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.tsx';
+import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
 
-describe('graph.js — graphField', function() {
+const graphField = (name: string, label: string, type?: string): string => renderToString(GraphField({ name: name, label: label, type: type }));
+const graphResult = (data: any): string => renderToString(GraphResult({ data: data }));
+
+describe('graph.tsx — graphField', function() {
 
   it('renders a labeled input field', function() {
     const result = graphField('q', 'Search');
@@ -29,7 +33,7 @@ describe('graph.js — graphField', function() {
 
 });
 
-describe('graph.js — graphQuery', function() {
+describe('graph.tsx — graphQuery', function() {
 
   it('returns an object with all graph filter values', function() {
     const result = graphQuery();
@@ -42,7 +46,7 @@ describe('graph.js — graphQuery', function() {
 
 });
 
-describe('graph.js — graphLink', function() {
+describe('graph.tsx — graphLink', function() {
 
   it('links to article view for article nodes', function() {
     const result = graphLink({ type: 'article', revision_id: 'r1' } as unknown as import('../../../src/components/graph.tsx').GraphNode);
@@ -65,7 +69,7 @@ describe('graph.js — graphLink', function() {
 
 });
 
-describe('graph.js — graphResult', function() {
+describe('graph.tsx — graphResult', function() {
 
   it('renders graph result with nodes and edges', function() {
     const data = {
@@ -123,7 +127,7 @@ describe('graph.js — graphResult', function() {
 
 });
 
-describe('graph.js — graphClusters', function() {
+describe('graph.tsx — graphClusters', function() {
   it('assigns deterministic connected components', function() {
     const result = graphClusters(
       [{ id: 'a' }, { id: 'b' }, { id: 'c' }] as unknown as import('../../../src/components/graph.tsx').GraphNode[],
@@ -135,7 +139,7 @@ describe('graph.js — graphClusters', function() {
   });
 });
 
-describe('graph.js — zoomViewAt', function() {
+describe('graph.tsx — zoomViewAt', function() {
   it('keeps the world position beneath the pointer fixed while zooming', function() {
     const view = { x: 15, y: -10, scale: 2 };
     const pointer = { x: 115, y: 50 };
@@ -149,7 +153,7 @@ describe('graph.js — zoomViewAt', function() {
   });
 });
 
-describe('graph.js — destroyGraph', function() {
+describe('graph.tsx — destroyGraph', function() {
 
   it('does nothing when no active graph', function() {
     destroyGraph();
@@ -158,7 +162,7 @@ describe('graph.js — destroyGraph', function() {
 
 });
 
-describe('graph.js — mountGraph', function() {
+describe('graph.tsx — mountGraph', function() {
 
   it('does nothing when canvas is missing', function() {
     const canvas = document.querySelector('.rw-graph__canvas, .graph-canvas');

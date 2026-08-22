@@ -1,16 +1,16 @@
 // Read-only execution evidence: audit events, artifacts, cache uses, stages, and run details.
 import {
   app, value, link, state, provenanceSections, section,
-  cell, list, selectedRun, pickID, formatTime, formatBytes,
-  formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips
-} from '../state.tsx';
-import { h, Fragment, raw, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api } from '../api.tsx';
-import { setURL, bindFocusContext } from '../router.tsx';
-import { DataTable, bindTableControls } from '../components/data-table.tsx';
-import type { DataTableContext } from '../components/data-table.tsx';
-import { AuditStream } from '../components/audit-events.tsx';
-import type { AuditEventRecord } from '../components/audit-events.tsx';
+  Cell, list, selectedRun, pickID, formatTime, formatBytes,
+  formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips,
+} from "../state.tsx";
+import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { api } from "../api.tsx";
+import { setURL, bindFocusContext } from "../router.tsx";
+import { DataTable, bindTableControls } from "../components/data-table.tsx";
+import type { DataTableContext } from "../components/data-table.tsx";
+import { AuditStream, bindAuditRecordedData } from "../components/audit-events.tsx";
+import type { AuditEventRecord } from "../components/audit-events.tsx";
 
 const auditFilterKeys: Record<string, string> = {
   audit_q: "Search",
@@ -20,10 +20,14 @@ const auditFilterKeys: Record<string, string> = {
   audit_entity: "Entity type",
   audit_stage: "Pipeline stage",
   audit_outcome: "Outcome",
+  audit_review_status: "Review status",
+  audit_review_reason: "Review reason",
+  audit_review_substatus: "Review subclassification",
 };
 
 let activeArtifactPreview: any = null;
 let activeArtifactRow: HTMLElement | null = null;
+let artifactInspectionSequence = 0;
 let auditEvents: AuditEventRecord[] = [];
 let auditCursor = "";
 let auditHasMore = false;
@@ -85,6 +89,9 @@ function auditQuery(cursor: string): Record<string, any> {
     entity_type: value("audit_entity"),
     stage: value("audit_stage"),
     outcome: value("audit_outcome"),
+    review_status: value("audit_review_status"),
+    review_reason: value("audit_review_reason"),
+    review_substatus: value("audit_review_substatus"),
     limit: 25,
     cursor: cursor || "",
   };
@@ -92,10 +99,15 @@ function auditQuery(cursor: string): Record<string, any> {
 
 /** Renders markup summarizing active audit filters and their removal links. */
 function AuditFilterSummary(): JSX.Element {
-  const filters: Record<string, string> = {};
+  const filters: Record<string, any> = {};
   const filterKeys = Object.keys(auditFilterKeys);
   filterKeys.forEach((key) => {
-    if (value(key)) filters[key] = value(key);
+    if (!value(key)) return;
+    if (["audit_category", "audit_action", "audit_actor", "audit_entity"].includes(key)) {
+      filters[key] = selectedValues(value(key));
+    } else {
+      filters[key] = value(key);
+    }
   });
   const clearUpdates: Record<string, string> = {};
   filterKeys.forEach((key) => {
@@ -128,7 +140,7 @@ function AuditFilters(props: { facets: any }): JSX.Element {
             <input name="audit_q" type="search" value={value("audit_q")} placeholder="Action, entity, source, or metadata" />
           </label>
           <div className="rw-filter-field-grid">
-            <AuditMultiSelect name="audit_category" label="Category" options={["pipeline", "enrichment", "validation", "pdf"]} selectedRaw={value("audit_category")} />
+            <AuditMultiSelect name="audit_category" label="Category" options={["pipeline", "enrichment", "validation", "review", "pdf"]} selectedRaw={value("audit_category")} />
             <AuditMultiSelect name="audit_action" label="Event type" options={actions} selectedRaw={value("audit_action")} />
             <AuditMultiSelect name="audit_actor" label="Source system" options={actors} selectedRaw={value("audit_actor")} />
             <AuditMultiSelect name="audit_entity" label="Entity type" options={entityTypes} selectedRaw={value("audit_entity")} />
@@ -143,6 +155,18 @@ function AuditFilters(props: { facets: any }): JSX.Element {
               <label>
                 Outcome
                 <input name="audit_outcome" value={value("audit_outcome")} placeholder="For example, completed" />
+              </label>
+              <label>
+                Review status
+                <input name="audit_review_status" value={value("audit_review_status")} placeholder="For example, approved" />
+              </label>
+              <label>
+                Review reason
+                <input name="audit_review_reason" value={value("audit_review_reason")} />
+              </label>
+              <label>
+                Review subclassification
+                <input name="audit_review_substatus" value={value("audit_review_substatus")} placeholder="For example, duplicate" />
               </label>
             </div>
           </details>
@@ -267,7 +291,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   var rows: JSX.Element[] = [<tr><td colspan={6} className="empty">No artifacts were recorded for this run.</td></tr>];
   if (artifacts.length) {
     rows = artifacts.map((row) => {
-      const role = row.artifact_roles || "Stage artifact";
+      const role = row.artifact_roles || row.relationship_roles || "Stage artifact";
       var producedPart = "";
       if (row.produced_by_steps) producedPart = `Produced: ${row.produced_by_steps}`;
       var consumedPart = "";
@@ -276,8 +300,15 @@ function ArtifactsView(props: { data: any }): JSX.Element {
       const stages = stageParts.filter(Boolean).join(" / ");
       var stageCell: JSX.Element = <span className="ui faded text">Not linked to a recorded step</span>;
       if (stages) stageCell = <>{stages}</>;
+      const focused = String(row.id) === value("artifact_id");
+      var rowClass = "";
+      var rowTabIndex: number | null = null;
+      if (focused) {
+        rowClass = "selected";
+        rowTabIndex = -1;
+      }
       return (
-        <tr data-artifact-row={row.id}>
+        <tr data-artifact-row={row.id} className={rowClass} tabindex={rowTabIndex}>
           <td><strong>{humanLabel(role)}</strong><small className="rw-cell-note">Artifact {row.id}</small></td>
           <td>{stageCell}</td>
           <td><span className="rw-mono">{row.content_type}</span><small className="rw-cell-note">{formatBytes(row.byte_size)}</small></td>
@@ -287,6 +318,35 @@ function ArtifactsView(props: { data: any }): JSX.Element {
         </tr>
       );
     });
+  }
+  const role = value("artifact_role");
+  const controls = (
+    <form className="rw-table-controls" data-artifact-filters>
+      <label className="rw-table-search">
+        Search artifacts
+        <input name="artifact_q" type="search" value={value("artifact_q")} placeholder="Hash, format, stage, provider, or role" />
+      </label>
+      <label>
+        Relationship
+        <select name="artifact_role">
+          <option value="" selected={!role}>All relationships</option>
+          <option value="run_role" selected={role === "run_role"}>Run configuration role</option>
+          <option value="step_input" selected={role === "step_input"}>Step input</option>
+          <option value="step_output" selected={role === "step_output"}>Step output</option>
+          <option value="cache_payload" selected={role === "cache_payload"}>Cache payload</option>
+          <option value="identity_candidate_payload" selected={role === "identity_candidate_payload"}>Identity candidate payload</option>
+        </select>
+      </label>
+      <button type="submit" className="ui primary button">Apply filters</button>
+    </form>
+  );
+  var nextPage: JSX.Element | null = null;
+  if (props.data.has_more) {
+    nextPage = (
+      <button type="button" className="ui basic button" data-more-artifacts={props.data.next_cursor}>
+        Next artifact page
+      </button>
+    );
   }
   return (
     <Fragment>
@@ -301,6 +361,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
           <span className="ui label">{artifacts.length.toLocaleString()} artifacts</span>
         </div>
         <div className="content">
+          {controls}
           <div className="table-wrap">
             <table className="ui table rw-artifact-table">
               <thead>
@@ -316,12 +377,13 @@ function ArtifactsView(props: { data: any }): JSX.Element {
               <tbody>{rows}</tbody>
             </table>
           </div>
+          {nextPage}
         </div>
       </section>
       <section className="ui segment rw-artifact-inspector" id="artifact-inspector">
         <div className="ui top attached header">
           <div>
-            <h3>Artifact preview</h3>
+            <h3 tabindex={-1} data-artifact-inspector-title>Artifact preview</h3>
             <p>Inspect a safe prefix of a text-based artifact without loading the full file into the document.</p>
           </div>
         </div>
@@ -401,7 +463,7 @@ function CacheView(props: { data: any }): JSX.Element {
       label: "Payload artifact",
       render: (row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts" })}>Artifact {raw}</a>;
+          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_cursor: "" })}>Artifact {raw}</a>;
         }
         return <span className="ui faded text">None</span>;
       },
@@ -424,10 +486,10 @@ function CacheView(props: { data: any }): JSX.Element {
   };
   const tableMarkup = <DataTable tableName="Cache uses" result={result} context={context} />;
   const body = (
-    <Fragment>
+    <div data-table-scope="Cache uses">
       {controls}
       {tableMarkup}
-    </Fragment>
+    </div>
   );
   return <Panel title="Cache use records" description="Recorded provider-response reuse and negative or stale outcomes for this run." body={body} classes="rw-cache-view" />;
 }
@@ -495,10 +557,10 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
     const outcomeDisplay = outcomeText || outcomeFallback;
     const artifacts: JSX.Element[] = [];
     if (step?.input_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts" })}>Input artifact {step.input_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_cursor: "" })}>Input artifact {step.input_artifact_id}</a>);
     }
     if (step?.output_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts" })}>Output artifact {step.output_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_cursor: "" })}>Output artifact {step.output_artifact_id}</a>);
     }
     var duration = "Not recorded";
     if (step?.duration_seconds != null) {
@@ -621,10 +683,10 @@ function StagesView(props: { data: any }): JSX.Element {
   };
   const details = <DataTable tableName="Detailed stage outcomes" result={result} context={context} />;
   const body = (
-    <Fragment>
+    <div data-table-scope="Detailed stage outcomes">
       {controls}
       {details}
-    </Fragment>
+    </div>
   );
   return (
     <Fragment>
@@ -699,7 +761,7 @@ function RunView(props: { artifactData: any }): JSX.Element {
     return (
       <div>
         <dt>{humanLabel(field)}</dt>
-        <dd>{raw(cell(fieldValue, field))}</dd>
+        <dd><Cell item={fieldValue} column={field} /></dd>
       </div>
     );
   });
@@ -760,7 +822,13 @@ export async function provenanceView(): Promise<void> {
   if (current === "audit") {
     content = <AuditView data={await api("/api/audit", auditQuery(""), { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "artifacts") {
-    content = <ArtifactsView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {}, { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <ArtifactsView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {
+      q: value("artifact_q"),
+      role: value("artifact_role"),
+      cursor: value("artifact_cursor"),
+      artifact_id: value("artifact_id"),
+      limit: 25,
+    }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "cache") {
     content = <CacheView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/cache-uses`, {
       page: value("cache_page") || 1,
@@ -778,7 +846,7 @@ export async function provenanceView(): Promise<void> {
       q: value("stage_q"),
     }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else {
-    content = <RunView artifactData={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {}, { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <RunView artifactData={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, { role: "run_role", limit: 100 }, { method: "GET", headers: { Accept: "application/json" } })} />;
   }
 
   const pageMarkup = (
@@ -795,7 +863,7 @@ export async function provenanceView(): Promise<void> {
   } else if (current === "artifacts") {
     bindArtifactInspection();
   } else if (current === "cache") {
-    bindTableControls("cache", Number(value("cache_page") || 1), {
+    bindTableControls("Cache uses", Number(value("cache_page") || 1), {
       pageKey: "cache_page",
       perPageKey: "cache_per_page",
       sortKey: "cache_sort",
@@ -807,7 +875,7 @@ export async function provenanceView(): Promise<void> {
       searchButtonSelector: "[data-cache-search]",
     });
   } else if (current === "stages") {
-    bindTableControls("stages", Number(value("stage_page") || 1), {
+    bindTableControls("Detailed stage outcomes", Number(value("stage_page") || 1), {
       pageKey: "stage_page",
       perPageKey: "stage_per_page",
       sortKey: "stage_sort",
@@ -823,6 +891,7 @@ export async function provenanceView(): Promise<void> {
 
 /** Binds DOM behavior for audit controls. */
 function bindAuditControls(): void {
+  bindAuditRecordedData();
   const form = document.querySelector<HTMLFormElement>("#audit-filter-form");
   if (form) {
     form.addEventListener("submit", (event) => {
@@ -908,6 +977,7 @@ function bindAuditControls(): void {
         auditHasMore = Boolean(data.has_more);
         const auditStreamMarkup = <AuditStream events={auditEvents} />;
         renderTree(auditStreamMarkup, stream);
+        bindAuditRecordedData(stream);
         const openEventElements = Array.from(stream.querySelectorAll(".rw-audit-event[data-audit-event-id]"));
         openEventIDs.forEach((id) => {
           const event = openEventElements.find((item) => {
@@ -935,10 +1005,29 @@ function bindAuditControls(): void {
 
 /** Binds DOM behavior for artifact inspection. */
 function bindArtifactInspection(): void {
+  document.querySelector<HTMLFormElement>("[data-artifact-filters]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget as HTMLFormElement);
+    setURL({
+      artifact_q: form.get("artifact_q"),
+      artifact_role: form.get("artifact_role"),
+      artifact_cursor: "",
+      artifact_id: "",
+    }, false);
+  });
+  document.querySelector<HTMLButtonElement>("[data-more-artifacts]")?.addEventListener("click", (event) => {
+    setURL({
+      artifact_cursor: (event.currentTarget as HTMLButtonElement).dataset.moreArtifacts,
+      artifact_id: "",
+    }, false);
+  });
   const inspectButtons = document.querySelectorAll<HTMLButtonElement>("[data-inspect-artifact]");
   inspectButtons.forEach((button) => {
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", async (event) => {
+      const sequence = ++artifactInspectionSequence;
+      const explicitSelection = event.isTrusted;
       const id = button.dataset.inspectArtifact as string;
+      history.replaceState({}, "", link({ artifact_id: id }));
       activeArtifactRow = button.closest("tr");
       const artifactRows = document.querySelectorAll<HTMLElement>("[data-artifact-row]");
       artifactRows.forEach((row) => {
@@ -952,6 +1041,7 @@ function bindArtifactInspection(): void {
           method: "GET",
           headers: { Accept: "application/json" },
         });
+        if (sequence !== artifactInspectionSequence) return;
         const raw = payload.content || "";
         var formatted = raw;
         var formatError = false;
@@ -974,7 +1064,13 @@ function bindArtifactInspection(): void {
           wrap: false,
         };
         renderArtifactInspector();
+        if (explicitSelection) {
+          const title = document.querySelector<HTMLElement>("[data-artifact-inspector-title]");
+          title?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+          title?.focus({ preventScroll: true });
+        }
       } catch (error: any) {
+        if (sequence !== artifactInspectionSequence) return;
         const errorMarkup = (
           <Fragment>
             <div className="ui error message">
@@ -992,6 +1088,20 @@ function bindArtifactInspection(): void {
       }
     });
   });
+  const focusedID = value("artifact_id");
+  if (focusedID) {
+    const focusedRow = Array.from(document.querySelectorAll<HTMLElement>("[data-artifact-row]")).find((row) => {
+      return row.dataset.artifactRow === focusedID;
+    });
+    focusedRow?.focus();
+    focusedRow?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    const focusedButton = Array.from(inspectButtons).find((button) => {
+      return button.dataset.inspectArtifact === focusedID;
+    });
+    if (focusedButton) {
+      focusedButton.click();
+    }
+  }
 }
 
 /** Renders artifact inspector. */

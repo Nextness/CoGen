@@ -1,4 +1,4 @@
-// Unit tests for views/detail.js — article, author, reference detail views.
+// Unit tests for views/detail.tsx — article, author, reference detail views.
 import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -6,7 +6,7 @@ import '../setup.ts';
 import { detailView } from '../../../src/views/detail.tsx';
 import { app, state } from '../../../src/state.tsx';
 
-describe('detail.js — detailView', function() {
+describe('detail.tsx — detailView', function() {
 
   before(function() {
     state.searches = [];
@@ -64,9 +64,7 @@ describe('detail.js — detailView', function() {
     const url = new URL(location.href);
     url.searchParams.set('article_id', 'a1');
     url.searchParams.set('view', 'article');
-    url.searchParams.set('q', 'preserved query');
-    url.searchParams.set('page', '3');
-    url.searchParams.set('expanded', 'a1');
+    url.searchParams.set('origin', 'view=corpus&section=articles&q=preserved+query&page=3&expanded=a1');
     history.pushState({}, '', url.toString());
 
     await detailView('article');
@@ -95,20 +93,18 @@ describe('detail.js — detailView', function() {
     assert.equal(document.querySelectorAll('.rw-audit-event').length, 30);
     assert.equal(moreEvents.hidden, true);
     const breadcrumb = document.querySelector('#workspace-breadcrumb') as HTMLElement;
-    assert.match(breadcrumb.textContent, /Home.*Deepdive.*Corpus.*Analysis-ready articles.*10.1000\/test/);
+    assert.match(breadcrumb.textContent, /Home.*Deepdive.*Corpus.*10.1000\/test/);
     const corpusCrumb = Array.from(breadcrumb.querySelectorAll('a')).find(function(anchor) { return anchor.textContent === 'Corpus'; }) as HTMLAnchorElement;
     assert.ok(corpusCrumb.href.includes('q=preserved+query'));
     assert.ok(corpusCrumb.href.includes('page=3'));
     assert.ok(corpusCrumb.href.includes('expanded=a1'));
     const authorLink = Array.from(document.querySelectorAll('a')).find(function(anchor) { return anchor.textContent.includes('Smith, J'); }) as HTMLAnchorElement;
-    assert.ok(authorLink.href.includes('return_view=article'));
-    assert.ok(authorLink.href.includes('return_id=a1'));
+    assert.ok(authorLink.href.includes('origin='));
+    assert.ok(decodeURIComponent(authorLink.href).includes('view=corpus'));
 
     globalThis.fetch = originalFetch;
     url.searchParams.delete('article_id');
-    url.searchParams.delete('q');
-    url.searchParams.delete('page');
-    url.searchParams.delete('expanded');
+    url.searchParams.delete('origin');
     url.searchParams.set('view', 'overview');
     history.pushState({}, '', url.toString());
   });
@@ -180,8 +176,6 @@ describe('detail.js — detailView', function() {
     const url = new URL(location.href);
     url.searchParams.set('author_id', 'auth1');
     url.searchParams.set('view', 'author');
-    url.searchParams.set('return_view', 'article');
-    url.searchParams.set('return_id', 'a1');
     history.pushState({}, '', url.toString());
 
     await detailView('author');
@@ -195,8 +189,6 @@ describe('detail.js — detailView', function() {
 
     globalThis.fetch = originalFetch;
     url.searchParams.delete('author_id');
-    url.searchParams.delete('return_view');
-    url.searchParams.delete('return_id');
     url.searchParams.set('view', 'overview');
     history.pushState({}, '', url.toString());
   });

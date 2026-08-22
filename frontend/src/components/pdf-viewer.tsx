@@ -142,6 +142,10 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let anchors: PDFAnchorHead[] = [];
   let renderSequence = 0;
   const renderTasks = new Set<any>();
+  const pageCache = new Map<number, Promise<any>>();
+  const textCache = new Map<number, Promise<any>>();
+  let lastSelectionIdentity = "";
+  let pendingSelection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] } | null = null;
 
   const headerMarkup = (
     <div className="ui top attached header">
@@ -167,7 +171,9 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
       <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
       <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
+      <button type="button" className="ui basic button" data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
       <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+      <button type="button" className="ui primary button rw-pdf-review-selection" data-pdf-review-selection hidden>Review selection</button>
     </div>
   );
   const statusText = <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>;
@@ -178,7 +184,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
         {pageToolbar}
         {displayToolbar}
       </div>
-      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" aria-live="polite" tabindex={0}></div>
+      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" tabindex={0}></div>
       {statusText}
     </section>
   );
@@ -192,6 +198,24 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   });
   const document = await loadingTask.promise;
   pageNumber = Math.min(pageNumber, document.numPages);
+
+  /** Returns one cached PDF.js page object without repeating document parsing. */
+  function cachedPage(requestedPage: number): Promise<any> {
+    const cached = pageCache.get(requestedPage);
+    if (cached) return cached;
+    const requested = Promise.resolve(document.getPage(requestedPage));
+    pageCache.set(requestedPage, requested);
+    return requested;
+  }
+
+  /** Returns one cached text-content projection for a loaded page. */
+  function cachedText(requestedPage: number, page: any): Promise<any> {
+    const cached = textCache.get(requestedPage);
+    if (cached) return cached;
+    const requested = Promise.resolve(page.getTextContent());
+    textCache.set(requestedPage, requested);
+    return requested;
+  }
 
   /** Synchronizes page boundaries, input bounds, and current zoom feedback. */
   function updateControls(): void {
@@ -214,10 +238,9 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     renderTasks.clear();
     const pagesHost = host.querySelector("[data-pdf-pages]") as HTMLElement;
     pagesHost.setAttribute("aria-busy", "true");
-    pagesHost.textContent = "";
     host.querySelector("[data-pdf-status]")!.textContent = `Loading page ${requestedPage} of ${document.numPages}.`;
     updateControls();
-    const page = await document.getPage(requestedPage);
+    const page = await cachedPage(requestedPage);
     if (destroyed || sequence !== renderSequence) return;
     const viewport = page.getViewport({ scale: requestedScale, rotation: requestedRotation });
     const section = window.document.createElement("section");
@@ -240,7 +263,6 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     const anchorLayer = window.document.createElement("div");
     anchorLayer.className = "rw-pdf-anchor-layer";
     section.append(anchorLayer);
-    pagesHost.append(section);
     const context = canvas.getContext("2d");
     let transform: number[] | null = [ratio, 0, 0, ratio, 0, 0];
     if (ratio === 1) transform = null;
@@ -255,49 +277,124 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     });
     renderTasks.delete(renderTask);
     if (destroyed || sequence !== renderSequence) return;
-    const content = await page.getTextContent();
+    const content = await cachedText(requestedPage, page);
     if (destroyed || sequence !== renderSequence) return;
     renderSelectableText(pdfjs, content, textLayer, viewport);
     const pageAnchors = anchors.filter(({ version }) => {
       return Number(version.page) === requestedPage;
-    });    renderAnchors(anchorLayer, pageAnchors, requestedRotation);
+    });
+    renderAnchors(anchorLayer, pageAnchors, requestedRotation);
+    pagesHost.replaceChildren(section);
     pagesHost.setAttribute("aria-busy", "false");
     host.querySelector("[data-pdf-status]")!.textContent = `PDF page ${requestedPage} of ${document.numPages}.`;
     options.onPageChange?.(requestedPage);
   }
 
+  /** Runs one render with a local retry state while preserving the previous completed frame. */
+  async function requestRender(): Promise<void> {
+    try {
+      await render();
+    } catch (error: any) {
+      if (destroyed || error?.name === "RenderingCancelledException") return;
+      const pagesHost = host.querySelector<HTMLElement>("[data-pdf-pages]");
+      pagesHost?.setAttribute("aria-busy", "false");
+      const status = host.querySelector<HTMLElement>("[data-pdf-status]");
+      if (!status) return;
+      const errorMarkup = (
+        <Fragment>
+          Page {pageNumber} could not be rendered: {error.message}
+          <button type="button" className="ui basic button" data-pdf-retry>Retry page</button>
+        </Fragment>
+      );
+      renderTree(errorMarkup, status);
+      status.querySelector<HTMLButtonElement>("[data-pdf-retry]")?.addEventListener("click", () => {
+        void requestRender();
+      });
+    }
+  }
+
   /** Clamps and renders a requested current page. */
   function changePage(next: any): void {
     pageNumber = Math.max(1, Math.min(document.numPages, Number(next) || pageNumber));
-    void render();
+    void requestRender();
   }
   host.querySelector("[data-pdf-previous]")!.addEventListener("click", () => { changePage(pageNumber - 1); });
   host.querySelector("[data-pdf-next]")!.addEventListener("click", () => { changePage(pageNumber + 1); });
   host.querySelector("[data-pdf-page]")!.addEventListener("change", (event) => { changePage((event.target as HTMLInputElement).value); });
-  host.querySelector("[data-pdf-zoom-out]")!.addEventListener("click", () => { scale = Math.max(0.6, scale - 0.15); void render(); });
-  host.querySelector("[data-pdf-zoom-in]")!.addEventListener("click", () => { scale = Math.min(3, scale + 0.15); void render(); });
-  host.querySelector("[data-pdf-rotate]")!.addEventListener("click", () => { rotation = (rotation + 90) % 360; void render(); });
-  host.addEventListener("mouseup", () => {
+  host.querySelector("[data-pdf-zoom-out]")!.addEventListener("click", () => { scale = Math.max(0.6, scale - 0.15); void requestRender(); });
+  host.querySelector("[data-pdf-zoom-in]")!.addEventListener("click", () => { scale = Math.min(3, scale + 0.15); void requestRender(); });
+  host.querySelector("[data-pdf-rotate]")!.addEventListener("click", () => { rotation = (rotation + 90) % 360; void requestRender(); });
+  host.querySelector("[data-pdf-fit-width]")!.addEventListener("click", async () => {
+    const page = await cachedPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1, rotation: rotation });
+    const pagesHost = host.querySelector("[data-pdf-pages]") as HTMLElement;
+    const availableWidth = Math.max(1, pagesHost.clientWidth - 32);
+    scale = Math.max(0.6, Math.min(3, availableWidth / viewport.width));
+    await requestRender();
+  });
+
+  /** Hands one mouse- or keyboard-originated same-page text selection to review controls. */
+  function captureSelection(): void {
     const selection = window.getSelection();
     const anchorNode = selection?.anchorNode;
     const page = anchorNode?.parentElement?.closest?.(".rw-pdf-page") as HTMLElement | null;
     const rectangles = selectionRectangles(selection, page, Number(page?.dataset.rotation || 0));
     if (rectangles.length) {
-      options.onSelection?.({
+      const identity = `${page?.dataset.pdfPageNumber}:${selection!.toString()}:${JSON.stringify(rectangles)}`;
+      if (identity === lastSelectionIdentity) return;
+      lastSelectionIdentity = identity;
+      pendingSelection = {
         page: Number(page!.dataset.pdfPageNumber),
         selectedText: selection!.toString().slice(0, 16384),
         rectangles: rectangles,
-      });
+      };
+      const handoff = host.querySelector<HTMLButtonElement>("[data-pdf-review-selection]")!;
+      handoff.hidden = false;
+      host.querySelector("[data-pdf-status]")!.textContent = "Text selected. Activate Review selection to create a PDF anchor.";
+    }
+  }
+  host.addEventListener("mouseup", captureSelection);
+  const pagesHost = host.querySelector("[data-pdf-pages]") as HTMLElement;
+  pagesHost.addEventListener("keyup", captureSelection);
+  host.querySelector("[data-pdf-review-selection]")!.addEventListener("click", () => {
+    if (!pendingSelection) return;
+    options.onSelection?.(pendingSelection);
+    pendingSelection = null;
+    (host.querySelector("[data-pdf-review-selection]") as HTMLButtonElement).hidden = true;
+  });
+  pagesHost.addEventListener("keydown", (event) => {
+    if (event.key === "PageUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      changePage(pageNumber - 1);
+    } else if (event.key === "PageDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      changePage(pageNumber + 1);
+    } else if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      scale = Math.min(3, scale + 0.15);
+      void requestRender();
+    } else if (event.key === "-") {
+      event.preventDefault();
+      scale = Math.max(0.6, scale - 0.15);
+      void requestRender();
     }
   });
-  await render();
+  await requestRender();
   return {
     goToPage: changePage,
     setAnchors: (nextAnchors: PDFAnchorHead[] | any) => {
       let effectiveAnchors: PDFAnchorHead[] = [];
       if (Array.isArray(nextAnchors)) effectiveAnchors = nextAnchors;
       anchors = effectiveAnchors;
-      void render();
+      const section = host.querySelector<HTMLElement>(".rw-pdf-page--current");
+      const anchorLayer = section?.querySelector<HTMLElement>(".rw-pdf-anchor-layer");
+      if (anchorLayer && section) {
+        anchorLayer.textContent = "";
+        const visible = anchors.filter(({ version }) => {
+          return Number(version.page) === Number(section.dataset.pdfPageNumber);
+        });
+        renderAnchors(anchorLayer, visible, Number(section.dataset.rotation || 0));
+      }
     },
     destroy: async (): Promise<void> => {
       destroyed = true;

@@ -12,7 +12,7 @@
   gap: var(--space-2);
   min-height: 34px;
   padding: 6px 14px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-control-boundary);
   border-radius: var(--radius-small);
   color: var(--color-text-primary);
   background: var(--color-bg-surface);
@@ -39,10 +39,10 @@
 
 .ui.button:disabled {
   cursor: not-allowed;
-  border-color: var(--color-border-default);
-  color: var(--color-text-muted);
-  background: var(--color-bg-surface-muted);
-  opacity: 0.72;
+  border-color: var(--color-control-disabled-border);
+  color: var(--color-control-disabled-text);
+  background: var(--color-control-disabled-surface);
+  opacity: 1;
 }
 
 /* Basic (ghost / quiet) */
@@ -156,9 +156,10 @@ button.ui.label:hover:not(:disabled) {
 
 .ui.label.disabled,
 .ui.label[aria-disabled="true"] {
-  color: var(--color-text-muted);
-  background: var(--color-bg-surface-muted);
-  opacity: 0.72;
+  border-color: var(--color-control-disabled-border);
+  color: var(--color-control-disabled-text);
+  background: var(--color-control-disabled-surface);
+  opacity: 1;
 }
 
 .ui.label:first-child {
@@ -372,7 +373,7 @@ button.ui.label:hover:not(:disabled) {
   justify-content: space-between;
   align-items: end;
   gap: var(--space-5);
-  margin: 0 0 var(--space-6);
+  margin: 0;
 }
 
 .rw-page-header__main {
@@ -491,7 +492,7 @@ button.ui.label:hover:not(:disabled) {
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-default);
   background: var(--color-bg-surface);
-  box-shadow: var(--shadow-low);
+  box-shadow: none;
   padding: var(--space-4);
   margin: 0;
 }
@@ -539,11 +540,17 @@ button.ui.label:hover:not(:disabled) {
   min-width: 0;
 }
 
-.rw-panel-stack,
-.rw-section-stack {
+.rw-page-stack,
+.rw-panel-stack {
   display: grid;
   min-width: 0;
   gap: var(--space-6);
+}
+
+.rw-section-stack {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
 }
 
 .rw-content-stack {
@@ -597,7 +604,10 @@ button:hover:not(:disabled) {
 
 button:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  border-color: var(--color-control-disabled-border);
+  color: var(--color-control-disabled-text);
+  background: var(--color-control-disabled-surface);
+  opacity: 1;
 }
 
 /* Empty / muted */

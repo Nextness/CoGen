@@ -1,11 +1,11 @@
-// Unit tests for components/shell.js — health check.
+// Unit tests for components/shell.tsx — health check.
 import { describe, it, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { healthStatus, initHealthCheck, initMobileNavToggle } from '../../../src/components/shell.tsx';
 
-describe('shell.js — healthStatus', function() {
+describe('shell.tsx — healthStatus', function() {
 
   it('is a DOM element', function() {
     assert.ok(healthStatus instanceof HTMLElement);
@@ -14,7 +14,7 @@ describe('shell.js — healthStatus', function() {
 
 });
 
-describe('shell.js — initHealthCheck', function() {
+describe('shell.tsx — initHealthCheck', function() {
 
   beforeEach(function() {
     healthStatus.textContent = '';
@@ -70,7 +70,7 @@ it('sets unavailable status on fetch failure', async function() {
   });
 });
 
-describe('shell.js — initMobileNavToggle', function() {
+describe('shell.tsx — initMobileNavToggle', function() {
 
   var toggle: HTMLButtonElement;
   var nav: HTMLElement;
@@ -114,6 +114,22 @@ describe('shell.js — initMobileNavToggle', function() {
     link.click();
     assert.ok(!nav.classList.contains('rw-mobile-nav-open'));
     assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  });
+
+  it("owns the disclosure and restores focus when Escape closes it", function() {
+    toggle.click();
+    assert.equal(toggle.getAttribute("aria-controls"), nav.id);
+
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+    assert.equal(toggle.getAttribute("aria-expanded"), "false");
+    assert.equal(document.activeElement, toggle);
+  });
+
+  it("closes the disclosure after an outside click", function() {
+    toggle.click();
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    assert.equal(toggle.getAttribute("aria-expanded"), "false");
   });
 
   it('is a no-op when toggle or nav is missing', function() {
