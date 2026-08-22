@@ -76,7 +76,7 @@ describe('shell.tsx — initMobileNavToggle', function() {
   var nav: HTMLElement;
 
   before(function() {
-    document.querySelectorAll('#mobile-nav-toggle, .primary-nav').forEach(function(el) { el.remove(); });
+    document.querySelectorAll('#mobile-nav-toggle, .rw-primary-nav').forEach(function(el) { el.remove(); });
     document.body.classList.remove('rw-mobile-nav-open');
 
     toggle = document.createElement('button');
@@ -85,7 +85,7 @@ describe('shell.tsx — initMobileNavToggle', function() {
     document.body.appendChild(toggle);
 
     nav = document.createElement('nav');
-    nav.className = 'primary-nav';
+    nav.className = 'rw-primary-nav';
     var link = document.createElement('a');
     link.href = '#';
     nav.appendChild(link);

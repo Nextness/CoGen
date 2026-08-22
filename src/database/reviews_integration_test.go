@@ -6,10 +6,61 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"analysis/notes"
 )
+
+// TestReviewConcurrentNoteWriters verifies one optimistic head wins when two writers start from the same version.
+func TestReviewConcurrentNoteWriters(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+	ctx := context.Background()
+	runID, _, _, revisionID, _ := createReviewLineageFixture(t, db)
+	contextRecord, _, err := db.Reviews.CreateContext(ctx, runID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := db.Reviews.CreateNote(ctx, contextRecord.ID, revisionID, "Initial concurrent body")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var ready sync.WaitGroup
+	ready.Add(2)
+	for _, body := range []string{"Writer one", "Writer two"} {
+		body := body
+		go func() {
+			ready.Done()
+			<-start
+			_, _, appendErr := db.Reviews.AppendNoteVersion(context.Background(), contextRecord.ID, note.ID, note.Version.ID, "active", body)
+			results <- appendErr
+		}()
+	}
+	ready.Wait()
+	close(start)
+	var successes, conflicts int
+	for range 2 {
+		result := <-results
+		if result == nil {
+			successes++
+		} else if IsReviewConflict(result) {
+			conflicts++
+		} else {
+			t.Fatalf("concurrent append error=%v", result)
+		}
+	}
+	if successes != 1 || conflicts != 1 {
+		t.Fatalf("concurrent results successes=%d conflicts=%d", successes, conflicts)
+	}
+	versions, err := db.Reviews.ListNoteVersions(ctx, contextRecord.ID, note.ID, 0, 10)
+	if err != nil || len(versions) != 2 {
+		t.Fatalf("versions=%d err=%v", len(versions), err)
+	}
+}
 
 // TestReviewCopyOnWriteLineage verifies context inheritance, immutable heads, note history, anchors, audit, and purge protection.
 func TestReviewCopyOnWriteLineage(t *testing.T) {

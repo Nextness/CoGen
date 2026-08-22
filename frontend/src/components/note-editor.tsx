@@ -314,8 +314,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             <p>Search current note heads or inspect removed-note history.</p>
           </div>
         </div>
-        <form className="ui form rw-table-controls rw-note-filters" data-note-filter-form>
-          <label className="rw-table-controls__search">
+        <form className="ui form rw-filter-bar rw-note-filters" data-note-filter-form>
+          <label className="rw-filter-bar__search">
             <span>Search Notes</span>
             <input type="search" data-note-query placeholder="Title or note text" />
           </label>

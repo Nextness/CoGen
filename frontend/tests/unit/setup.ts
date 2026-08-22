@@ -17,13 +17,13 @@ const document = window.document;
 document.body.innerHTML = `
   <header class="site-header"><div class="brand"><p>Local research workspace</p><h1>Research workspace</h1></div><div><span id="health-status"></span><span>Local review</span></div><button id="mobile-nav-toggle"></button></header>
   <div id="workspace-breadcrumb"></div>
-  <section class="context-panel">
+  <section class="rw-context-panel">
     <div class="ui field"><div data-context-dropdown="search"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="search-select"><option value="">Select a search</option></select></div></div>
     <div class="ui field"><div data-context-dropdown="revision"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="revision-select"><option value="">Select a revision</option></select></div></div>
     <div class="ui field"><div data-context-dropdown="plan"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="plan-select"><option value="">Select a plan</option></select></div></div>
     <div class="ui field"><div data-context-dropdown="run"><button class="rw-search-dropdown__trigger"></button><div class="rw-search-dropdown__menu" hidden><input class="rw-search-dropdown__query"><div class="rw-search-dropdown__options"></div></div><select id="run-select"><option value="">Select a run</option></select></div></div>
   </section>
-  <nav class="primary-nav"><a data-view-link="overview">Overview</a><a data-view-link="corpus">Corpus</a><a data-view-link="relationships">Relationships</a><a data-view-link="provenance">Provenance</a><a data-view-link="evaluation">Evaluation</a><a data-view-link="advanced">Advanced</a></nav>
+  <nav class="rw-primary-nav"><a data-view-link="overview">Overview</a><a data-view-link="corpus">Corpus</a><a data-view-link="relationships">Relationships</a><a data-view-link="provenance">Provenance</a><a data-view-link="evaluation">Evaluation</a><a data-view-link="advanced">Advanced</a></nav>
   <div id="app"></div>
   <div id="notice" hidden></div>
   <div id="loading" hidden></div>

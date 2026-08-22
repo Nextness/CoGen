@@ -169,7 +169,7 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
       </tr>
     );
   });
-  var body: JSX.Element[] = [<tr><td colspan={9} className="empty">No run attempts match these filters.</td></tr>];
+  var body: JSX.Element[] = [<tr><td colspan={9} className="rw-table-empty">No run attempts match these filters.</td></tr>];
   if (rows.length) body = rows;
   var resultLabel = `Showing ${formatNumber(rows.length)} run attempts.`;
   if (props.hasMore) resultLabel = `Showing ${formatNumber(rows.length)} run attempts. More results are available.`;
@@ -596,7 +596,7 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
       return <SearchCard search={search} />;
     });
     var searchEmpty: JSX.Element | null = null;
-    if (!cards.length) searchEmpty = <p className="empty">No search terms match this search.</p>;
+    if (!cards.length) searchEmpty = <p className="ui faded text">No search terms match this search.</p>;
     var nextSearchPage: JSX.Element | null = null;
     if (searchesResult.value.has_more) {
       nextSearchPage = (

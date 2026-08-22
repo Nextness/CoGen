@@ -48,7 +48,7 @@ export function initHealthCheck(): void {
  */
 export function initMobileNavToggle(): void {
   const toggle = document.querySelector<HTMLElement>("#mobile-nav-toggle");
-  const nav = document.querySelector<HTMLElement>(".primary-nav");
+  const nav = document.querySelector<HTMLElement>(".rw-primary-nav");
   if (!toggle || !nav) return;
   if (!nav.id) nav.id = "primary-navigation";
   toggle.setAttribute("aria-controls", nav.id);

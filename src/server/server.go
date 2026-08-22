@@ -4,6 +4,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -27,6 +28,15 @@ import (
 )
 
 const requestTimeout = 5 * time.Second
+
+const (
+	compactAPIResponseBytes    = 512 * 1024
+	collectionAPIResponseBytes = 2 * 1024 * 1024
+	detailAPIResponseBytes     = 4 * 1024 * 1024
+	compactAPIQueries          = 64
+	collectionAPIQueries       = 256
+	detailAPIQueries           = 1024
+)
 
 var log = logging.Logger("viewer")
 
@@ -96,7 +106,7 @@ func Open(path string) (*Server, error) {
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
 	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
-	db, err := sql.Open("sqlite", uri)
+	db, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace database read-only: %w", err)
 	}
@@ -117,7 +127,7 @@ func Open(path string) (*Server, error) {
 		db.Close()
 		return nil, err
 	}
-	writeDB, err := database.OpenExisting(absolute)
+	writeDB, err := database.OpenExistingWithDriver(absolute, queryBudgetDriverName)
 	if err != nil {
 		db.Close()
 		return nil, fmt.Errorf("open metadata mutation connection: %w", err)
@@ -214,10 +224,122 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusServiceUnavailable, "assets_not_configured", "frontend assets not configured; serve requires --assets-dir")
 		})
-		return withJSONErrors(mux)
+		return withAPIResponseBudgets(withJSONErrors(mux))
 	}
 	mux.Handle("GET /", http.FileServer(http.FS(s.AssetsFS)))
-	return withJSONErrors(mux)
+	return withAPIResponseBudgets(withJSONErrors(mux))
+}
+
+// apiResponseByteBudget returns the serialized JSON budget for one API route.
+// Binary PDF and artifact-content routes stream outside this JSON contract.
+func apiResponseByteBudget(path string) int {
+	if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/pdf/") || (strings.HasPrefix(path, "/api/artifacts/") && strings.HasSuffix(path, "/content")) {
+		return 0
+	}
+	if path == "/api/graph" || strings.HasPrefix(path, "/api/articles/") || strings.HasPrefix(path, "/api/authors/") || strings.HasPrefix(path, "/api/references/") || strings.HasPrefix(path, "/api/tables/") {
+		return detailAPIResponseBytes
+	}
+	if path == "/api/audit" || strings.HasPrefix(path, "/api/audit/") || path == "/api/hierarchy" || strings.Contains(path, "/review") || strings.Contains(path, "/notes") || strings.Contains(path, "/anchors") || strings.Contains(path, "/links/backlinks") || strings.Contains(path, "/corpus/") || strings.Contains(path, "/evaluation") || strings.Contains(path, "/identity-evidence") || strings.Contains(path, "/cache-uses") || strings.Contains(path, "/stages") || strings.Contains(path, "/artifacts") {
+		return collectionAPIResponseBytes
+	}
+	return compactAPIResponseBytes
+}
+
+// apiQueryBudget returns the maximum SQL statements one API request may execute.
+func apiQueryBudget(path string) int {
+	if !strings.HasPrefix(path, "/api/") {
+		return 0
+	}
+	if path == "/api/graph" || strings.HasPrefix(path, "/api/articles/") || strings.HasPrefix(path, "/api/authors/") || strings.HasPrefix(path, "/api/references/") || strings.HasPrefix(path, "/api/tables/") || strings.Contains(path, "/review") || strings.Contains(path, "/notes") || strings.Contains(path, "/anchors") || strings.Contains(path, "/links/backlinks") {
+		return detailAPIQueries
+	}
+	if path == "/api/audit" || strings.HasPrefix(path, "/api/audit/") || path == "/api/hierarchy" || strings.Contains(path, "/corpus/") || strings.Contains(path, "/evaluation") || strings.Contains(path, "/identity-evidence") || strings.Contains(path, "/cache-uses") || strings.Contains(path, "/stages") || strings.Contains(path, "/artifacts") {
+		return collectionAPIQueries
+	}
+	return compactAPIQueries
+}
+
+// responseBudgetWriter buffers one bounded JSON response before it is committed.
+type responseBudgetWriter struct {
+	header   http.Header
+	body     bytes.Buffer
+	status   int
+	limit    int
+	exceeded bool
+}
+
+// Header implements http.ResponseWriter.
+func (w *responseBudgetWriter) Header() http.Header { return w.header }
+
+// WriteHeader records the first response status without committing it.
+func (w *responseBudgetWriter) WriteHeader(status int) {
+	if w.status == 0 {
+		w.status = status
+	}
+}
+
+// Write retains at most the configured byte budget and reports a complete write.
+func (w *responseBudgetWriter) Write(data []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	remaining := w.limit - w.body.Len()
+	if remaining < len(data) {
+		w.exceeded = true
+		if remaining > 0 {
+			_, _ = w.body.Write(data[:remaining])
+		}
+		return len(data), nil
+	}
+	_, _ = w.body.Write(data)
+	return len(data), nil
+}
+
+// withAPIResponseBudgets enforces route-specific serialized JSON limits.
+func withAPIResponseBudgets(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		limit := apiResponseByteBudget(r.URL.Path)
+		queryLimit := apiQueryBudget(r.URL.Path)
+		if limit == 0 && queryLimit == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx, queryState := withQueryBudget(r.Context(), queryLimit)
+		r = r.WithContext(ctx)
+		if limit == 0 {
+			w.Header().Set("X-Query-Count-Limit", strconv.Itoa(queryLimit))
+			w.Header().Add("Trailer", "X-Query-Count-Used")
+			next.ServeHTTP(w, r)
+			w.Header().Set("X-Query-Count-Used", strconv.FormatInt(queryState.used.Load(), 10))
+			return
+		}
+		buffered := &responseBudgetWriter{header: make(http.Header), limit: limit}
+		next.ServeHTTP(buffered, r)
+		if limit > 0 {
+			w.Header().Set("X-Response-Byte-Limit", strconv.Itoa(limit))
+		}
+		w.Header().Set("X-Query-Count-Limit", strconv.Itoa(queryLimit))
+		w.Header().Set("X-Query-Count-Used", strconv.FormatInt(queryState.used.Load(), 10))
+		if queryState.exceeded.Load() {
+			writeDetailedError(w, http.StatusInternalServerError, "query_budget_exceeded", "the request exceeded its SQL statement budget", map[string]any{"query_limit": queryLimit})
+			return
+		}
+		if buffered.exceeded {
+			writeDetailedError(w, http.StatusInternalServerError, "response_budget_exceeded", "the bounded response exceeded its serialized byte limit", map[string]any{"byte_limit": limit})
+			return
+		}
+		for key, values := range buffered.header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		status := buffered.status
+		if status == 0 {
+			status = http.StatusOK
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write(buffered.body.Bytes())
+	})
 }
 
 // verifyReviewSchema rejects an unmigrated metadata database before writable controls are served.
@@ -279,7 +401,7 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 		return fmt.Errorf("bound PDF store path is a directory")
 	}
 	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
-	pdfDB, err := sql.Open("sqlite", uri)
+	pdfDB, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
 	}

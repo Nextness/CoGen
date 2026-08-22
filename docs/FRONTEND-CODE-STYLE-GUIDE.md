@@ -90,11 +90,11 @@ Write callback functions that are passed as parameters with arrow syntax: `(butt
 
 Inside an element, JSX expressions may reference variables only; do not inline complete statements such as `{reasons.map((reason) => {...})}` into the markup. Compute the mapped or filtered values into a named variable before the element: `const reasonsMap = reasons.map((reason) => ...); return <ul className="rw-mapping-values">{reasonsMap}</ul>;`. Mapped arrays used in both matched and unmatched sections are derived once, before the markup, exactly like `matchedTermTags` and `unmatchedTermTags`.
 
-Computed class strings and markup-producing calls are extracted the same way: `const gridClass = `property-grid ${classes || ""}`;` feeds `className={gridClass}`, and `const mappingResult = mappingValue(item);` feeds `{mappingResult}`.
+Computed class strings and markup-producing calls are extracted the same way: `const gridClass = `rw-property-grid ${classes || ""}`;` feeds `className={gridClass}`, and `const mappingResult = mappingValue(item);` feeds `{mappingResult}`.
 
 Keep `map` and `filter` callbacks small: destructure the incoming entry, use the resulting names, and return one element or one boolean.
 
-Do not restate presentation logic in markup; the classes `rw-term-field`, `rw-keyword-tags`, `rw-term-sources`, `ui label`, and `muted` stay in the JSX, and every state decided by `if` branches arrives through a variable.
+Do not restate presentation logic in markup; the classes `rw-term-field`, `rw-keyword-tags`, `rw-term-sources`, `ui label`, and `ui faded text` stay in the JSX, and every state decided by `if` branches arrives through a variable.
 
 ## 8. Reuse and helpers
 
@@ -119,10 +119,10 @@ The disclosure content of `SearchTermCoveragePanel` before refactoring nested te
 ```tsx
 {allTerms.length
   ? <Fragment>
-    {matchedTerms.length ? <Fragment><p className="muted">Matched terms</p><div className="rw-keyword-tags">{matchedTerms.map(function(entry) {
+    {matchedTerms.length ? <Fragment><p className="ui faded text">Matched terms</p><div className="rw-keyword-tags">{matchedTerms.map(function(entry) {
       return <span className="ui label">{entry[0]}<span className="rw-term-sources">({entry[1].join(', ')})</span></span>;
     })}</div></Fragment> : null}
-    {unmatchedTerms.length ? <Fragment><p className="muted">Unmatched terms</p><div className="rw-keyword-tags">{unmatchedTerms.map(function(entry) {
+    {unmatchedTerms.length ? <Fragment><p className="ui faded text">Unmatched terms</p><div className="rw-keyword-tags">{unmatchedTerms.map(function(entry) {
       return <span className="ui label">{entry[0]}<span className="rw-term-sources">({entry[1].join(', ')})</span></span>;
     })}</div></Fragment> : null}
   </Fragment>
@@ -144,7 +144,7 @@ if (termEntries.length) {
   if (matchedTerms.length) {
     sections.push(
       <Fragment>
-        <p className="muted">Matched terms</p>
+        <p className="ui faded text">Matched terms</p>
         <div className="rw-keyword-tags">{matchedTermTags}</div>
       </Fragment>
     );
@@ -152,7 +152,7 @@ if (termEntries.length) {
   if (unmatchedTerms.length) {
     sections.push(
       <Fragment>
-        <p className="muted">Unmatched terms</p>
+        <p className="ui faded text">Unmatched terms</p>
         <div className="rw-keyword-tags">{unmatchedTermTags}</div>
       </Fragment>
     );

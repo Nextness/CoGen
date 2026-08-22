@@ -30,8 +30,11 @@ let activeArtifactPreview: any = null;
 let activeArtifactRow: HTMLElement | null = null;
 let artifactInspectionSequence = 0;
 let auditEvents: AuditEventRecord[] = [];
+let auditKnownEventIDs = new Set<string>();
+let auditLoadedCount = 0;
 let auditCursor = "";
 let auditHasMore = false;
+export const auditVisibleEventLimit = 200;
 
 /** Renders a formatted timestamp cell for a data-table column. */
 function renderTime(row: any, raw: any): JSX.Element {
@@ -135,12 +138,12 @@ function AuditFilters(props: { facets: any }): JSX.Element {
         </div>
       </div>
       <div className="content">
-        <form id="audit-filter-form" className="ui form">
+        <form id="audit-filter-form" className="ui form rw-filter-panel">
           <label className="rw-filter-search">
             Search events
             <input name="audit_q" type="search" value={value("audit_q")} placeholder="Action, entity, source, or metadata" />
           </label>
-          <div className="rw-filter-field-grid">
+          <div className="rw-filter-panel__fields rw-filter-field-grid">
             <AuditMultiSelect name="audit_category" label="Category" options={["pipeline", "enrichment", "validation", "review", "pdf"]} selectedRaw={value("audit_category")} />
             <AuditMultiSelect name="audit_action" label="Event type" options={actions} selectedRaw={value("audit_action")} />
             <AuditMultiSelect name="audit_actor" label="Source system" options={actors} selectedRaw={value("audit_actor")} />
@@ -148,7 +151,7 @@ function AuditFilters(props: { facets: any }): JSX.Element {
           </div>
           <details className="rw-filter-disclosure">
             <summary>Stage and outcome filters</summary>
-            <div className="rw-filter-field-grid rw-filter-field-grid--advanced">
+            <div className="rw-filter-panel__fields rw-filter-field-grid rw-filter-field-grid--advanced">
               <label>
                 Pipeline stage
                 <input name="audit_stage" value={value("audit_stage")} placeholder="For example, normalize" />
@@ -172,7 +175,7 @@ function AuditFilters(props: { facets: any }): JSX.Element {
             </div>
           </details>
           <AuditFilterSummary />
-          <div className="rw-filter-actions">
+          <div className="rw-filter-panel__actions">
             <button type="submit" className="ui primary button">Apply filters</button>
             <a className="ui basic button" href={resetLink}>Reset</a>
           </div>
@@ -200,7 +203,7 @@ function AuditSummary(props: { data: any }): JSX.Element {
       </div>
       <div>
         <dt>Events loaded</dt>
-        <dd data-audit-loaded-count>{formatNumber(auditEvents.length)}</dd>
+        <dd data-audit-loaded-count>{formatNumber(auditLoadedCount)}</dd>
       </div>
       <div>
         <dt>Event types</dt>
@@ -217,6 +220,8 @@ function AuditSummary(props: { data: any }): JSX.Element {
 /** Renders the audit timeline and pagination markup. */
 function AuditView(props: { data: any }): JSX.Element {
   auditEvents = list(props.data, ["events", "items"]);
+  auditKnownEventIDs = new Set(auditEvents.map((event) => String(event.id)));
+  auditLoadedCount = auditEvents.length;
   auditCursor = props.data.next_cursor || "";
   auditHasMore = Boolean(props.data.has_more);
   return (
@@ -232,6 +237,7 @@ function AuditView(props: { data: any }): JSX.Element {
         <div className="content">
           <AuditSummary data={props.data} />
           <div id="audit-event-stream" aria-busy="false"><AuditStream events={auditEvents} /></div>
+          <p className="ui info message" data-audit-window-status role="status" hidden></p>
           <div className="rw-load-more" hidden={!auditHasMore}>
             <p className="ui faded text" role="status" aria-live="polite" data-audit-page-status>{formatNumber(auditEvents.length)} events loaded.</p>
             <button type="button" className="ui button" data-audit-load-more>Load 25 older events</button>
@@ -242,6 +248,46 @@ function AuditView(props: { data: any }): JSX.Element {
       </section>
     </div>
   );
+}
+
+/** Appends audit events into stable date groups without replacing existing event nodes. */
+export function appendAuditEvents(stream: HTMLElement, events: AuditEventRecord[]): number {
+  if (!events.length) return 0;
+  const staging = document.createElement("div");
+  renderTree(<AuditStream events={events} />, staging);
+  const incomingDays = Array.from(staging.querySelectorAll<HTMLElement>(".rw-audit-day"));
+  incomingDays.forEach((incomingDay) => {
+    const date = incomingDay.dataset.auditDate || "";
+    const existingDay = Array.from(stream.querySelectorAll<HTMLElement>(".rw-audit-day")).find((day) => {
+      return day.dataset.auditDate === date;
+    });
+    if (!existingDay) {
+      stream.append(incomingDay);
+      return;
+    }
+    const existingList = existingDay.querySelector(".rw-audit-events")!;
+    const incomingItems = Array.from(incomingDay.querySelectorAll(":scope > .rw-audit-events > li"));
+    incomingItems.forEach((item) => existingList.append(item));
+  });
+  return events.length;
+}
+
+/** Bounds visible audit-event nodes while preserving disclosures the reviewer has opened. */
+export function boundAuditWindow(stream: HTMLElement, limit: number = auditVisibleEventLimit): number {
+  const events = Array.from(stream.querySelectorAll<HTMLElement>(".rw-audit-event"));
+  var removeCount = Math.max(0, events.length - limit);
+  var removed = 0;
+  for (const event of events) {
+    if (!removeCount) break;
+    if (event.querySelector<HTMLDetailsElement>(".rw-event-details[open]")) continue;
+    event.closest("li")?.remove();
+    removeCount -= 1;
+    removed += 1;
+  }
+  stream.querySelectorAll<HTMLElement>(".rw-audit-day").forEach((day) => {
+    if (!day.querySelector(".rw-audit-event")) day.remove();
+  });
+  return removed;
 }
 
 /** Renders the research-context fields displayed for an artifact. */
@@ -297,7 +343,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   };
   activeArtifactPreview = null;
   activeArtifactRow = null;
-  var rows: JSX.Element[] = [<tr><td colspan={6} className="empty">No artifacts were recorded for this run.</td></tr>];
+  var rows: JSX.Element[] = [<tr><td colspan={6} className="rw-table-empty">No artifacts were recorded for this run.</td></tr>];
   if (artifacts.length) {
     rows = artifacts.map((row) => {
       const role = row.artifact_roles || row.relationship_roles || "Stage artifact";
@@ -346,8 +392,8 @@ function ArtifactsView(props: { data: any }): JSX.Element {
     filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
   }
   const controls = (
-    <form className="ui form rw-table-controls" data-artifact-filters>
-      <label className="rw-table-controls__search">
+    <form className="ui form rw-filter-bar" data-artifact-filters>
+      <label className="rw-filter-bar__search">
         Search artifacts
         <input name="artifact_q" type="search" value={value("artifact_q")} placeholder="Hash, format, stage, provider, or role" />
       </label>
@@ -457,8 +503,8 @@ function CacheView(props: { data: any }): JSX.Element {
     }} />;
   }
   const controls = (
-    <form className="rw-table-controls" id="cache-controls">
-      <label className="rw-table-search">
+    <form className="ui form rw-filter-bar" id="cache-controls">
+      <label className="rw-filter-bar__search">
           Search cache evidence
           <input id="cache-query" type="search" value={value("cache_q")} placeholder="Provider, namespace, outcome, or fingerprint" />
         </label>
@@ -665,8 +711,8 @@ function StagesView(props: { data: any }): JSX.Element {
     }} />;
   }
   const controls = (
-    <form className="rw-table-controls" id="stage-controls">
-      <label className="rw-table-search">
+    <form className="ui form rw-filter-bar" id="stage-controls">
+      <label className="rw-filter-bar__search">
         Search detailed outcomes
         <input id="stage-query" type="search" value={value("stage_q")} placeholder="Stage, outcome, reason, or work ID" />
       </label>
@@ -796,7 +842,7 @@ function RunView(props: { artifactData: any }): JSX.Element {
     );
   });
   const properties = (
-    <dl className="property-grid property-grid--compact">{propertyItems}</dl>
+    <dl className="rw-property-grid rw-property-grid--compact">{propertyItems}</dl>
   );
   var snapshotRows: JSX.Element = <p className="ui faded text">No configuration snapshots were recorded for this legacy run.</p>;
   if (snapshotArtifacts.length) {
@@ -979,10 +1025,6 @@ function bindAuditControls(): void {
       const stream = document.querySelector<HTMLElement>("#audit-event-stream")!;
       const pageStatus = document.querySelector<HTMLElement>("[data-audit-page-status]")!;
       const pageError = document.querySelector<HTMLElement>("[data-audit-page-error]")!;
-      const openDetails = Array.from(stream.querySelectorAll(".rw-event-details[open]"));
-      const openEventIDs = new Set(openDetails.map((details) => {
-        return (details.closest(".rw-audit-event") as HTMLElement | null)?.dataset.auditEventId;
-      }));
       pageError.hidden = true;
       pageError.textContent = "";
       stream.setAttribute("aria-busy", "true");
@@ -993,31 +1035,24 @@ function bindAuditControls(): void {
           method: "GET",
           headers: { Accept: "application/json" },
         });
-        const knownIDs = new Set(auditEvents.map((event) => {
-          return String(event.id);
-        }));
-        const newEvents = list(data, ["events", "items"]);
-        newEvents.forEach((event) => {
-          if (!knownIDs.has(String(event.id))) {
-            knownIDs.add(String(event.id));
-            auditEvents.push(event as AuditEventRecord);
-          }
+        const newEvents = list(data, ["events", "items"]).filter((event) => {
+          const id = String(event.id);
+          if (auditKnownEventIDs.has(id)) return false;
+          auditKnownEventIDs.add(id);
+          return true;
         });
+        auditLoadedCount += newEvents.length;
         auditCursor = data.next_cursor || "";
         auditHasMore = Boolean(data.has_more);
-        const auditStreamMarkup = <AuditStream events={auditEvents} />;
-        renderTree(auditStreamMarkup, stream);
+        appendAuditEvents(stream, newEvents as AuditEventRecord[]);
         bindAuditRecordedData(stream);
-        const openEventElements = Array.from(stream.querySelectorAll(".rw-audit-event[data-audit-event-id]"));
-        openEventIDs.forEach((id) => {
-          const event = openEventElements.find((item) => {
-            return (item as HTMLElement).dataset.auditEventId === id;
-          });
-          const details = event?.querySelector<HTMLDetailsElement>(".rw-event-details");
-          if (details) details.open = true;
-        });
-        (document.querySelector("[data-audit-loaded-count]") as HTMLElement).textContent = formatNumber(auditEvents.length);
-        pageStatus.textContent = `${formatNumber(auditEvents.length)} events loaded.`;
+        const removed = boundAuditWindow(stream);
+        const visible = stream.querySelectorAll(".rw-audit-event").length;
+        const windowStatus = document.querySelector<HTMLElement>("[data-audit-window-status]")!;
+        windowStatus.hidden = removed === 0;
+        if (removed) windowStatus.textContent = `${formatNumber(visible)} events remain visible to keep this long timeline responsive. Reset or change the filters to return to the newest matching evidence.`;
+        (document.querySelector("[data-audit-loaded-count]") as HTMLElement).textContent = formatNumber(auditLoadedCount);
+        pageStatus.textContent = `${formatNumber(auditLoadedCount)} events loaded; ${formatNumber(visible)} currently visible.`;
         (document.querySelector(".rw-load-more") as HTMLElement).hidden = !auditHasMore;
         (document.querySelector("[data-audit-end]") as HTMLElement).hidden = auditHasMore;
       } catch (error: any) {

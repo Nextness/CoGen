@@ -2,7 +2,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
-import { provenanceView } from '../../../src/views/provenance.tsx';
+import { appendAuditEvents, auditVisibleEventLimit, boundAuditWindow, provenanceView } from '../../../src/views/provenance.tsx';
 import { app, state } from '../../../src/state.tsx';
 
 /** Sets location. */
@@ -104,17 +104,34 @@ describe('provenance.tsx — provenanceView', function() {
 
     await provenanceView();
     const details = document.querySelector('.rw-event-details') as HTMLDetailsElement;
+    const originalEvent = document.querySelector('[data-audit-event-id="3"]');
     details.open = true;
     (document.querySelector('[data-audit-load-more]') as HTMLButtonElement).click();
     await new Promise(function(resolve) { setTimeout(resolve, 0); });
 
     assert.equal(document.querySelectorAll('[data-audit-event-id]').length, 2);
+    assert.equal(document.querySelector('[data-audit-event-id="3"]'), originalEvent);
     assert.equal((document.querySelector('[data-audit-event-id="3"] .rw-event-details') as HTMLDetailsElement).open, true);
     assert.equal((document.querySelector('[data-audit-loaded-count]') as HTMLElement).textContent, '2');
     assert.equal((document.querySelector('[data-audit-end]') as HTMLElement).hidden, false);
     assert.equal((document.querySelector('.rw-load-more') as HTMLElement).hidden, true);
 
     globalThis.fetch = originalFetch;
+  });
+
+  it('windows long appended audit histories without removing open evidence', function() {
+    const stream = document.createElement('div');
+    const events = Array.from({ length: auditVisibleEventLimit + 5 }, function(_, index) {
+      return { id: index + 1, action: 'pipeline_completed', occurred_at: '2024-01-01T00:00:00Z' };
+    });
+    appendAuditEvents(stream, events);
+    const retained = stream.querySelector('[data-audit-event-id="1"] .rw-event-details') as HTMLDetailsElement;
+    retained.open = true;
+    const removed = boundAuditWindow(stream);
+    assert.equal(removed, 5);
+    assert.equal(stream.querySelectorAll('.rw-audit-event').length, auditVisibleEventLimit);
+    assert.equal(retained.open, true);
+    assert.ok(stream.querySelector('[data-audit-event-id="1"]'));
   });
 
   it('renders bounded artifact preview metadata and truncation guidance', async function() {

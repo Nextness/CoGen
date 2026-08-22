@@ -117,7 +117,7 @@ function ClusterSummary(props: { data: any }): JSX.Element {
 export async function relationshipsView(): Promise<void> {
   if (!value("run_id")) {
     const emptyStateMarkup = (
-      <EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={<button type="button" data-focus-context>Focus context selector</button>} />
+      <EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={<button type="button" className="ui basic button" data-focus-context>Focus context selector</button>} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -149,12 +149,12 @@ export async function relationshipsView(): Promise<void> {
       </div>
       <div className="content">
         <ModeControl current={mode} />
-        <form id="graph-form" className="rw-graph__controls">
+        <form id="graph-form" className="rw-filter-panel rw-graph__controls">
           <div className="rw-graph-filter-heading">
             <h4>Article filters</h4>
             <p>Filters apply to the selected run without changing the graph model.</p>
           </div>
-          <div className="rw-graph__common-filters">
+          <div className="rw-filter-panel__fields rw-graph__common-filters">
             <GraphField name="q" label="Title or DOI" />
             <GraphField name="year_min" label="Year from" type="number" />
             <GraphField name="year_max" label="Year to" type="number" />
@@ -162,7 +162,7 @@ export async function relationshipsView(): Promise<void> {
           </div>
           <details className="rw-filter-disclosure">
             <summary>Advanced filters</summary>
-            <div className="rw-graph__advanced-filters">
+            <div className="rw-filter-panel__fields rw-graph__advanced-filters">
               <GraphField name="author" label="Author" />
               <GraphField name="orcid" label="ORCID" />
               <GraphField name="reference" label="Reference" />
@@ -178,7 +178,7 @@ export async function relationshipsView(): Promise<void> {
             </div>
           </details>
           {appliedFilterMarkup}
-          <div className="rw-graph__filter-actions">
+          <div className="rw-filter-panel__actions rw-graph__filter-actions">
             <button type="submit" className="ui primary button">Apply filters</button>
             <button type="button" id="graph-reset" className="ui basic button">Reset filters</button>
           </div>

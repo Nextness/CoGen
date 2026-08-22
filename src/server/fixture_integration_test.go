@@ -138,12 +138,12 @@ func TestGenerateFixture(t *testing.T) {
 	exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, input_artifact_id, output_artifact_id, started_at, finished_at, input_fingerprint, output_fingerprint) VALUES (4, 'parse', 'completed', 5, 6, '2024-04-05T11:01:00Z', '2024-04-05T11:05:00Z', 'fp-parse-in-v3', 'fp-parse-out-v3')")
 	exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, input_artifact_id, output_artifact_id, started_at, finished_at, input_fingerprint, output_fingerprint) VALUES (5, 'preflight', 'completed', 7, 7, '2025-07-20T09:00:00Z', '2025-07-20T09:01:00Z', 'fp-preflight-in-v4', 'fp-preflight-out-v4')")
 
-	// 8. Works (27 DOIs for 27 work revisions)
-	for i := 1; i <= 27; i++ {
+	// 8. Works (46 DOIs for 46 work revisions)
+	for i := 1; i <= 46; i++ {
 		exec("INSERT INTO works (doi) VALUES (?)", sprintf("10.1000/%d", i))
 	}
 
-	// 9. Work revisions (27, distributed across the 6 runs)
+	// 9. Work revisions (46, distributed across the 6 runs)
 	// Helper: work_revision records
 	// [work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus]
 	type rev struct {
@@ -201,6 +201,9 @@ func TestGenerateFixture(t *testing.T) {
 		{26, 6, "ph-cr-screening", "CRISPR Screening in Cancer Research", 2024, "Cancer Cell", "scopus", 34, 23, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 		{27, 6, "ph-cr-epi", "Epigenetic Editing: Tools and Applications", 2023, "Nature Reviews", "wos", 45, 12, "normalize", `{"validation_status":"valid"}`, "", "", ""},
 	}
+	for index := 28; index <= 46; index++ {
+		revisions = append(revisions, rev{index, 6, sprintf("ph-cr-page-%d", index), sprintf("CRISPR pagination evidence %02d", index-27), 2024, "Fixture Journal", "scopus", index, index + 10, "normalize", `{"validation_status":"valid"}`, "", "", ""})
+	}
 
 	for _, r := range revisions {
 		exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, journal, source, citation_count, reference_count, producer_stage, extension_data, abstract, keywords, keywords_plus, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2024-01-01T00:00:00Z')`,
@@ -253,7 +256,7 @@ func TestGenerateFixture(t *testing.T) {
 		exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (5, ?, 'normalize', 'normalized')", w)
 	}
 	// Run 6 stages
-	for _, w := range []int{26, 27} {
+	for w := 26; w <= 46; w++ {
 		exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (6, ?, 'validate', 'valid')", w)
 		exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (6, ?, 'enrich', 'enriched')", w)
 		exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (6, ?, 'normalize', 'normalized')", w)

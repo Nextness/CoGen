@@ -188,7 +188,7 @@ function fixedPercentageMetric(metric: any): any {
 export async function overviewView(): Promise<void> {
   if (!value("run_id")) {
     const emptyStateMarkup = (
-      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" data-focus-context>Focus context selector</button>} />
+      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" className="ui basic button" data-focus-context>Focus context selector</button>} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -301,7 +301,7 @@ export async function overviewView(): Promise<void> {
   }
 
   const capturedMetrics = (
-    <details className="rw-disclosure rw-overview-evidence span-all">
+    <details className="rw-disclosure rw-overview-evidence rw-grid-span-all">
       <summary>
         <span>All recorded execution metrics</span>
         <small>{formatNumber(captured.length)} metric rows grouped by stage</small>
@@ -371,7 +371,7 @@ export async function overviewView(): Promise<void> {
   );
   const cacheBody = (
     <Fragment>
-      <div className="metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
+      <div className="rw-metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
       <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
     </Fragment>
   );
@@ -382,7 +382,7 @@ export async function overviewView(): Promise<void> {
       return <li><strong>{diagnostic.source || "Unknown source"}:</strong> {diagnostic.message || "Stored source-filter evidence is invalid."}</li>;
     });
     sourceFilterDiagnostics = (
-      <div className="ui negative message span-all" role="alert">
+      <div className="ui negative message rw-grid-span-all" role="alert">
         <h3>Source-filter evidence needs attention</h3>
         <p>The retention flow excludes malformed stored counts instead of treating them as zero.</p>
         <ul>{diagnosticItems}</ul>
@@ -393,12 +393,12 @@ export async function overviewView(): Promise<void> {
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="" title="Overview" description="Recorded execution evidence and current coverage are shown separately to preserve their meaning." />
-      <div className="ui grid dashboard-grid">
-        <section className="rw-run-identity-strip span-all">{runIdentity}</section>
+      <div className="ui grid rw-dashboard-grid">
+        <section className="rw-run-identity-strip rw-grid-span-all">{runIdentity}</section>
         <RetentionFlow overview={overview} />
         {sourceFilterDiagnostics}
-        <SourceResultCountSummary items={overview.source_result_counts} classes="span-all" />
-        <SourceSearchQueries items={overview.source_result_counts} classes="span-all" />
+        <SourceResultCountSummary items={overview.source_result_counts} classes="rw-grid-span-all" />
+        <SourceSearchQueries items={overview.source_result_counts} classes="rw-grid-span-all" />
         <Panel title="Corpus summary" description="Immutable records available for this selected run." body={corpusSummaryBody} />
         <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed." body={coverageBody} />
         <Breakdown title="Enrichment activity" source={overview.enrichment_breakdown} />

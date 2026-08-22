@@ -8,6 +8,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,6 +45,7 @@ func TestAPIDetailsGraphModes(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/api/graph?mode=article_author",
+		"/api/graph?run_id=" + stringID(runID) + "&mode=unsupported",
 		"/api/graph?run_id=" + stringID(runID) + "&article_limit=2001",
 		"/api/graph?run_id=" + stringID(runID) + "&status=valid",
 	} {
@@ -141,5 +143,44 @@ func TestAPIGraphFiltersAndTruncation(t *testing.T) {
 	invalid := viewerRequest(t, handler, base+"&year_min=not-a-year")
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid numeric graph filter status=%d body=%s", invalid.Code, invalid.Body.String())
+	}
+}
+
+// TestGraphEdgeBudgets verifies empty and exhausted relationship budgets without large fixtures.
+func TestGraphEdgeBudgets(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	request := httptest.NewRequest(http.MethodGet, "/api/graph?run_id="+stringID(runID), nil)
+	articles, _, err := viewer.graphArticles(request.Context(), request, runID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(articles) == 0 {
+		t.Fatal("fixture has no graph articles")
+	}
+	nodes, edges, truncated, err := viewer.graphEdgesWithinBudget(request.Context(), "article_author", nil, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 0 || len(edges) != 0 || truncated {
+		t.Fatalf("empty graph nodes=%d edges=%d truncated=%v", len(nodes), len(edges), truncated)
+	}
+	nodes, edges, truncated, err = viewer.graphEdgesWithinBudget(request.Context(), "article_author", articles, 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != len(articles) || len(edges) != 0 || !truncated {
+		t.Fatalf("related budget graph nodes=%d articles=%d edges=%d truncated=%v", len(nodes), len(articles), len(edges), truncated)
+	}
+	_, edges, truncated, err = viewer.graphEdgesWithinBudget(request.Context(), "article_author", articles, 10, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edges) != 0 || !truncated {
+		t.Fatalf("edge budget graph edges=%d truncated=%v", len(edges), truncated)
 	}
 }

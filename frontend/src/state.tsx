@@ -493,7 +493,7 @@ export function Breadcrumb(props: { items: Array<{ href?: string; label: string 
       children.push(<span className="section current" aria-current={ariaCurrent}>{item.label}</span>);
     }
   });
-  return <nav className="ui breadcrumb" aria-label="Breadcrumb">{children}</nav>;
+  return <nav className="rw-breadcrumb" aria-label="Breadcrumb">{children}</nav>;
 }
 
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
@@ -556,7 +556,7 @@ export function Table(props: { title: string; description: string; columns: Tabl
     }
     return <th scope="col">{label}</th>;
   });
-  var body: JSX.Element[] = [<tr><td colspan={Math.max(props.columns.length, 1)} className="empty">No records.</td></tr>];
+  var body: JSX.Element[] = [<tr><td colspan={Math.max(props.columns.length, 1)} className="rw-table-empty">No records.</td></tr>];
   if (props.rows.length) {
     body = props.rows.map((row) => {
       const cells = props.columns.map((column) => {
@@ -963,7 +963,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
       </RetentionPhase>
     );
     const retentionBody = <div className="rw-retention">{phases}</div>;
-    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="span-all rw-panel--no-separator" />;
+    return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="rw-grid-span-all rw-panel--no-separator" />;
   }
 
   const parsed = source.parsed_articles;
@@ -1020,7 +1020,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   );
 
   const retentionBody = <div className="rw-retention">{phases}</div>;
-  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="span-all rw-panel--no-separator" />;
+  return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes="rw-grid-span-all rw-panel--no-separator" />;
 }
 
 /** Renders a metric breakdown table with relative bars and optional total percentages. */
@@ -1028,7 +1028,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const valueLabel = props.valueLabel || "Count";
   const entries = metricEntries(props.source);
   if (!entries.length) {
-    const emptyBody = <p className="empty">Not recorded for this run.</p>;
+    const emptyBody = <p className="ui faded text">Not recorded for this run.</p>;
     return <Panel title={props.title} description="Recorded activity for this run." body={emptyBody} />;
   }
 
@@ -1081,7 +1081,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
     const pct = Math.min(100, value / max * 100);
     var basis = "relative to the largest recorded value";
     if (props.useTotal) basis = "share of total";
-    return <span className="ui progress" role="img" aria-label={`${humanLabel(row.name)}: ${pct.toFixed(1)}% ${basis}`}><span className="bar" style={`width:${pct}%`}></span></span>;
+    return <span className="ui progress" role="img" aria-label={`${humanLabel(row.name)}: ${pct.toFixed(1)}% ${basis}`}><span className="rw-progress__bar" style={`width:${pct}%`}></span></span>;
   }
 
   const rows = entries.map(([name, raw]) => {
@@ -1119,7 +1119,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
   /** Formats a source count or its unavailable state. */
   function count(raw: any): JSX.Element {
     if (raw == null) {
-      return <span className="muted">Not recorded</span>;
+      return <span className="ui faded text">Not recorded</span>;
     }
     return <>{formatNumber(raw)}</>;
   }
@@ -1129,7 +1129,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     if (raw) {
       return <StatusChip raw={raw} />;
     }
-    return <span className="muted">Not recorded</span>;
+    return <span className="ui faded text">Not recorded</span>;
   }
 
   /** Renders an export date or its unavailable state. */
@@ -1137,7 +1137,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     if (raw) {
       return <>{raw}</>;
     }
-    return <span className="muted">Not recorded</span>;
+    return <span className="ui faded text">Not recorded</span>;
   }
 
   const rows = (props.items || []).map((item) => {
@@ -1196,13 +1196,13 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: stri
 
   const rows = props.items.map((item) => {
     return (
-      <details className="query-row">
+      <details className="rw-query-row">
         <summary>
-          <span className="query-source">{item.source_name || "Unnamed source"}</span>
+          <span className="rw-query-row__source">{item.source_name || "Unnamed source"}</span>
           <span className="ui faded text">Inspect exact query</span>
         </summary>
-        <div className="query-content">
-          <code className="query-code">{item.query || ""}</code>
+        <div className="rw-query-row__content">
+          <code className="rw-query-row__code">{item.query || ""}</code>
           <button type="button" className="ui button" data-copy-text={item.query || ""}>Copy query</button>
         </div>
       </details>

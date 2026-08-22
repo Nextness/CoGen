@@ -88,7 +88,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   var emptyMessage = "No records on this page.";
   if (context.query) emptyMessage = "No displayed records match this search.";
   const emptyColspan = Math.max(1, colCount);
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={emptyColspan} className="empty">{emptyMessage}</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colspan={emptyColspan} className="rw-table-empty">{emptyMessage}</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((row, idx) => {
       const key = String(row[rowKey] ?? idx);
@@ -142,7 +142,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         expandRowHtml = (
           <tr id={detailID} className="expansion-row" data-expand-row={idx} data-row-key={key} hidden={!initiallyExpanded}>
             <td colspan={colCount}>
-              <dl className="property-grid">{fieldsHtml}</dl>
+              <dl className="rw-property-grid">{fieldsHtml}</dl>
             </td>
           </tr>
         );

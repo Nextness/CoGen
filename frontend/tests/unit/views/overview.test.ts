@@ -102,7 +102,7 @@ describe('overview.tsx — overviewView', function() {
       'Source selection', 'Pipeline processing', 'Corpus enrichment'
     ]);
     assert.ok((document.querySelector('[data-flow-stage="parsed_articles"] a') as HTMLAnchorElement).href.includes('stage_q=parse'));
-    assert.equal((document.querySelector('.dashboard-grid') as HTMLElement).lastElementChild!.classList.contains('rw-overview-evidence'), true);
+    assert.equal((document.querySelector('.rw-dashboard-grid') as HTMLElement).lastElementChild!.classList.contains('rw-overview-evidence'), true);
     assert.ok(fetchCount >= 2);
 
     globalThis.fetch = originalFetch;

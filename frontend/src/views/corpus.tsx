@@ -195,12 +195,12 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
 
   var emptyMessage = "No name-search evidence was recorded for this run.";
   if (value("q")) emptyMessage = "No evidence matches this search.";
-  const emptyCell = <td colspan={4} className="empty">{emptyMessage}</td>;
+  const emptyCell = <td colspan={4} className="rw-table-empty">{emptyMessage}</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (rows.length) {
     body = rows.map((row: any) => {
       var errorHtml: JSX.Element | null = null;
-      if (row.error_message) errorHtml = <p className="muted">{row.error_message}</p>;
+      if (row.error_message) errorHtml = <p className="ui faded text">{row.error_message}</p>;
       const authorHref = link({
         view: "author",
         author_id: row.author_occurrence_id,
@@ -318,7 +318,7 @@ function termMatchMarkup(row: any): JSX.Element {
   const termTotal = row.term_matches.term_total;
   return (
     <Fragment>
-      <p className="muted">{matchedTotal} of {termTotal} search terms matched</p>
+      <p className="ui faded text">{matchedTotal} of {termTotal} search terms matched</p>
       <div className="rw-term-fields">{fieldElements}</div>
     </Fragment>
   );
@@ -505,15 +505,15 @@ export async function corpusView(): Promise<void> {
     return <option value={size} selected={size === perPage}>{size}</option>;
   });
   const controls = (
-    <form className="ui form rw-table-controls" data-table-search>
-      <label className="rw-table-controls__search">
+    <form className="ui form rw-filter-bar" data-table-search>
+      <label className="rw-filter-bar__search">
         <span>{searchLabel}</span>
         <span className="ui input">
           <input id="corpus-query" type="search" value={query} placeholder="Title, DOI, person, source\u2026" />
           <button type="button" className="clear" data-clear-query disabled={clearDisabled} aria-label="Clear search">{"\u00D7"}</button>
         </span>
       </label>
-      <label className="rw-table-controls__size">
+      <label className="rw-filter-bar__size">
         Rows per page
         <select id="per-page">{pageSizeOptions}</select>
       </label>
@@ -576,10 +576,10 @@ export async function corpusView(): Promise<void> {
 
   var sourceCounts: JSX.Element | null = null;
   if (current === "sources" && scoped && data) {
-    sourceCounts = <SourceResultCountSummary items={data.source_result_counts} classes="span-all" />;
+    sourceCounts = <SourceResultCountSummary items={data.source_result_counts} classes="rw-grid-span-all" />;
   }
 
-  var body: JSX.Element = <p className="empty">This database does not contain the expected table.</p>;
+  var body: JSX.Element = <p className="ui faded text">This database does not contain the expected table.</p>;
   if (current === "identity_evidence" && data) {
     body = <IdentityEvidenceTable data={data} context={context} />;
   } else if (data) {

@@ -321,14 +321,14 @@ function palette() {
     return css.getPropertyValue(name).trim() || fallback;
   }
   return {
-    article: get("--accent", "#0b5e8e"),
-    author: get("--warning", "#8f5f00"),
-    reference: get("--success", "#2f6f52"),
-    edge: get("--border-strong", "#adb9c2"),
-    muted: get("--border", "#d2d9de"),
-    text: get("--text", "#18232c"),
-    surface: get("--surface", "#ffffff"),
-    focus: get("--focus", "#d36d00"),
+    article: get("--color-accent-default", "#0b5e8e"),
+    author: get("--color-status-warning", "#8f5f00"),
+    reference: get("--color-status-success", "#2f6f52"),
+    edge: get("--color-border-strong", "#adb9c2"),
+    muted: get("--color-border-default", "#d2d9de"),
+    text: get("--color-text-primary", "#18232c"),
+    surface: get("--color-bg-surface", "#ffffff"),
+    focus: get("--focus-ring", "#d36d00"),
     clusters: [
       get("--graph-cluster-1", "#236b8e"), get("--graph-cluster-2", "#8b6417"),
       get("--graph-cluster-3", "#35765b"), get("--graph-cluster-4", "#6e58a3"),
@@ -422,7 +422,7 @@ function layoutNode(node: GraphNode, clusters: { byID: Map<string | number, numb
 /** Mounts the interactive graph viewport and its force-layout simulation. */
 export function mountGraph(data: any): void {
   destroyGraph();
-  const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas, .graph-canvas");
+  const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas");
   if (!canvasElement) return;
   const canvas = canvasElement;
 
@@ -1492,7 +1492,7 @@ function renderEdgePage(graph: GraphState): void {
   if (graph.edgePage > pages) graph.edgePage = pages;
   const rows = visibleEdges.slice((graph.edgePage - 1) * pageSize, graph.edgePage * pageSize);
 
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={4} className="empty">No relationships.</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colspan={4} className="rw-table-empty">No relationships.</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((edge) => {
       return (

@@ -128,6 +128,8 @@ Light and dark themes follow system preference. Reduced-motion preference suppre
 
 The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
 
+JSON API responses expose their serialized-byte ceiling through `X-Response-Byte-Limit`; all API responses expose their SQLite statement ceiling through `X-Query-Count-Limit` and completed use through `X-Query-Count-Used`, which is a response trailer for streamed PDF and artifact downloads. A stable `response_budget_exceeded` or `query_budget_exceeded` response means the requested route crossed its hard resource contract rather than returning incomplete JSON.
+
 If the viewer cannot start, confirm that the metadata path exists, is a file, is writable by the local reviewer, has V00026 and required review triggers, and has been migrated explicitly. If context selectors are empty, confirm that the database contains searches, revisions, plans, and runs. If PDF status is unavailable, confirm the relative companion binding and database move together with metadata. On a database migrated only to V00024, the corpus and article detail pages still work but show No search terms recorded because the term-coverage tables do not exist; V00026 is required for generated anchor IDs and work-scoped labels.
 
 ## 17. Current limitations

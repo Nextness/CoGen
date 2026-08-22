@@ -56,8 +56,8 @@ function syncPrimaryNavigation(current: string): void {
 /** Synchronizes shell visibility and the page-level breadcrumb before a view renders. */
 function syncShell(current: string): void {
   const isHome = current === "home" || current === "trash";
-  const contextPanel = document.querySelector<HTMLElement>(".context-panel");
-  const navigation = document.querySelector<HTMLElement>(".primary-nav");
+  const contextPanel = document.querySelector<HTMLElement>(".rw-context-panel");
+  const navigation = document.querySelector<HTMLElement>(".rw-primary-nav");
   const mobileToggle = document.querySelector<HTMLElement>("#mobile-nav-toggle");
 
   if (contextPanel) contextPanel.hidden = isHome;

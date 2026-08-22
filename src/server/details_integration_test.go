@@ -174,6 +174,36 @@ func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
 	}
 }
 
+// TestAuthorDetailCollectionsValidateScopeAndCursor verifies each bounded author subresource route.
+func TestAuthorDetailCollectionsValidateScopeAndCursor(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	handler := viewer.Handler()
+	for _, kind := range []string{"articles", "audit", "identity"} {
+		response := viewerRequest(t, handler, "/api/authors/2/collections/"+kind+"?run_id="+stringID(runID)+"&limit=1")
+		if response.Code != http.StatusOK {
+			t.Errorf("author %s collection: status=%d body=%s", kind, response.Code, response.Body.String())
+		}
+	}
+	for _, requestPath := range []string{
+		"/api/authors/2/collections/articles",
+		"/api/authors/not-a-number/collections/articles?run_id=" + stringID(runID),
+		"/api/authors/999999/collections/articles?run_id=" + stringID(runID),
+		"/api/authors/2/collections/articles?run_id=" + stringID(runID) + "&unknown=1",
+		"/api/authors/2/collections/articles?run_id=" + stringID(runID) + "&cursor=invalid",
+		"/api/authors/2/collections/unknown?run_id=" + stringID(runID),
+	} {
+		response := viewerRequest(t, handler, requestPath)
+		if response.Code != http.StatusBadRequest && response.Code != http.StatusNotFound {
+			t.Errorf("GET %s: status=%d body=%s", requestPath, response.Code, response.Body.String())
+		}
+	}
+}
+
 // TestAPIReferenceResolutionUsesFinalRevision verifies api reference resolution uses final revision.
 func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 	fixture := viewerReferenceResolutionFixture(t)

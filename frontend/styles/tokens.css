@@ -107,25 +107,6 @@
   --bp-mobile: 720px;
   --bp-tablet: 1100px;
 
-  /* ── Legacy aliases (backward compat, remove after full migration) ── */
-  --canvas: var(--color-bg-canvas);
-  --surface: var(--color-bg-surface);
-  --surface-raised: var(--color-bg-surface-raised);
-  --surface-muted: var(--color-bg-surface-muted);
-  --text: var(--color-text-primary);
-  --muted: var(--color-text-secondary);
-  --faint: var(--color-text-muted);
-  --border: var(--color-border-default);
-  --border-strong: var(--color-border-strong);
-  --accent: var(--color-accent-default);
-  --accent-soft: var(--color-accent-soft);
-  --accent-contrast: var(--color-accent-contrast);
-  --success: var(--color-status-success);
-  --warning: var(--color-status-warning);
-  --danger: var(--color-status-danger);
-  --focus: var(--focus-ring);
-  --shadow: var(--shadow-low);
-  --radius: var(--radius-default);
 }
 
 @media (prefers-color-scheme: dark) {

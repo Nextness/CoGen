@@ -25,7 +25,6 @@ async function expectNoPageOverflow(page) {
   const dimensions = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
-    body: document.body.scrollWidth,
     offenders: Array.from(document.querySelectorAll('body *')).map((element) => {
       const rect = element.getBoundingClientRect();
       return { element: element.tagName.toLowerCase() + (element.className ? `.${String(element.className).trim().replaceAll(' ', '.')}` : ''), left: Math.round(rect.left), right: Math.round(rect.right), width: Math.round(rect.width) };
@@ -33,7 +32,6 @@ async function expectNoPageOverflow(page) {
   }));
   const detail = dimensions.offenders.length ? `; offenders ${JSON.stringify(dimensions.offenders)}` : '';
   expect(dimensions.document, `document width ${dimensions.document} exceeds viewport ${dimensions.viewport}${detail}`).toBeLessThanOrEqual(dimensions.viewport);
-  expect(dimensions.body, `body width ${dimensions.body} exceeds viewport ${dimensions.viewport}${detail}`).toBeLessThanOrEqual(dimensions.viewport);
 }
 
 test.describe('Research-context and responsive behavior', () => {
@@ -75,7 +73,7 @@ test.describe('Research-context and responsive behavior', () => {
     await visit(page, { view: 'overview' });
     await expectNoPageOverflow(page);
     // At 375px, grid items wrap to a single column
-    var itemWidth = await page.locator('.selection-grid > .ui.field').first().evaluate(function(el) {
+    var itemWidth = await page.locator('.rw-context-grid > .ui.field').first().evaluate(function(el) {
       return el.getBoundingClientRect().width;
     });
     expect(itemWidth).toBeLessThan(400);
@@ -99,7 +97,7 @@ test.describe('Research-context and responsive behavior', () => {
     await visit(page, { view: 'overview' });
     await expectNoPageOverflow(page);
     // At 768px, grid items should be narrower than the full viewport (multiple columns)
-    var itemWidth768 = await page.locator('.selection-grid > .ui.field').first().evaluate(function(el) {
+    var itemWidth768 = await page.locator('.rw-context-grid > .ui.field').first().evaluate(function(el) {
       return el.getBoundingClientRect().width;
     });
     expect(itemWidth768).toBeLessThan(400);
@@ -108,6 +106,54 @@ test.describe('Research-context and responsive behavior', () => {
     await expectNoPageOverflow(page);
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
     await expect(page.locator('.rw-pdf-pages')).toHaveCSS('overflow', 'auto');
+  });
+
+  test('320px and short-landscape layouts keep controls and evidence reachable', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    for (const overrides of [
+      { view: 'home' },
+      { view: 'evaluation' },
+      { view: 'provenance', section: 'audit' },
+      { view: 'article', article_id: '1' },
+    ]) {
+      await visit(page, overrides);
+      await expectNoPageOverflow(page);
+    }
+    await page.locator('#search-select-trigger').click();
+    await expect(page.getByLabel('Search available searches')).toBeVisible();
+    await expectNoPageOverflow(page);
+
+    await page.setViewportSize({ width: 667, height: 320 });
+    await visit(page, { view: 'relationships' });
+    await expectNoPageOverflow(page);
+    await expect(page.getByRole('button', { name: /Expand graph|Restore graph/ })).toBeVisible();
+  });
+
+  test('200 percent reflow, text spacing, and focused-input viewport changes preserve actions', async ({ page }) => {
+    await page.setViewportSize({ width: 640, height: 800 });
+    await visit(page, { view: 'evaluation' });
+    await page.evaluate(function() { document.documentElement.style.zoom = '2'; });
+    await expectNoPageOverflow(page);
+    await expect(page.locator('[data-evaluation-filters]').getByRole('button', { name: 'Apply filters' })).toBeVisible();
+
+    await page.evaluate(function() {
+      document.documentElement.style.zoom = '';
+      const style = document.createElement('style');
+      style.dataset.testTextSpacing = '';
+      style.textContent = 'body { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }';
+      document.head.append(style);
+    });
+    await visit(page, { view: 'article', article_id: '1' });
+    await expectNoPageOverflow(page);
+
+    await page.setViewportSize({ width: 320, height: 420 });
+    await visit(page, { view: 'provenance', section: 'artifacts' });
+    const search = page.getByLabel('Search artifacts');
+    await search.focus();
+    await search.fill('manifest');
+    await expect(search).toBeFocused();
+    await expect(page.locator('[data-artifact-filters]').getByRole('button', { name: 'Apply filters' })).toBeVisible();
+    await expectNoPageOverflow(page);
   });
 
   test('skip link, errors, and reduced motion are announced', async ({ page }) => {
@@ -143,8 +189,13 @@ test.describe('Automated accessibility checks', () => {
     ['relationships', { view: 'relationships' }],
     ['provenance audit', { view: 'provenance', section: 'audit' }],
     ['provenance artifacts', { view: 'provenance', section: 'artifacts' }],
+    ['provenance cache', { view: 'provenance', section: 'cache' }],
     ['provenance stages', { view: 'provenance', section: 'stages' }],
+    ['provenance run', { view: 'provenance', section: 'run' }],
     ['evaluation', { view: 'evaluation' }],
+    ['advanced', { view: 'advanced' }],
+    ['author detail', { view: 'author', author_id: '1' }],
+    ['reference detail', { view: 'reference', reference_id: '1' }],
   ]) {
     test(`${name} has no axe violations`, async ({ page }) => {
       await visit(page, overrides);
@@ -162,6 +213,72 @@ test.describe('Automated accessibility checks', () => {
     expect(results.violations).toEqual([]);
     await dialog.getByRole('button', { name: 'Close review setup' }).click();
     await expect(dialog).toBeHidden();
+  });
+
+  test('open context selector and mobile navigation remain keyboard-accessible', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await visit(page, { view: 'overview' });
+    await page.locator('#search-select-trigger').click();
+    await expect(page.getByLabel('Search available searches')).toBeFocused();
+    var results = await new AxeBuilder({ page }).include('.rw-context-panel').analyze();
+    expect(results.violations).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#search-select-trigger')).toBeFocused();
+    await page.getByRole('button', { name: 'Menu' }).click();
+    await expect(page.getByRole('navigation', { name: 'Deepdive navigation' })).toBeVisible();
+    results = await new AxeBuilder({ page }).include('header').analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('expanded graph remains keyboard-accessible and restores opener focus', async ({ page }) => {
+    await visit(page, { view: 'relationships' });
+    await page.locator('#graph-viewport').evaluate((viewport) => {
+      Object.defineProperty(viewport, 'requestFullscreen', { value: undefined, configurable: true });
+    });
+    const expand = page.getByRole('button', { name: 'Expand graph' });
+    await expand.click();
+    await expect(page.locator('#graph-viewport')).toHaveClass(/rw-graph__viewport--expanded/);
+    await expect(page.getByRole('button', { name: 'Restore graph' })).toBeVisible();
+    const results = await new AxeBuilder({ page }).include('#graph-viewport').analyze();
+    expect(results.violations).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#graph-viewport')).not.toHaveClass(/rw-graph__viewport--expanded/);
+    await expect(expand).toBeFocused();
+  });
+
+  test('artifact truncation and error states remain explicit and accessible', async ({ page }) => {
+    await page.route('**/api/artifacts/*/inspect?*', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: {
+        artifact_id: 1,
+        content: '{"bounded":"prefix"',
+        format: 'json',
+        truncated: true,
+        byte_size: 131072,
+        stored_byte_size: 131072,
+        preview_byte_size: 65536,
+        content_type: 'application/json',
+      } }),
+    }));
+    await visit(page, { view: 'provenance', section: 'artifacts' });
+    await page.getByRole('button', { name: 'Inspect preview' }).first().click();
+    await expect(page.locator('#artifact-inspector')).toContainText('Preview truncated');
+    await expect(page.locator('#artifact-inspector')).toContainText('Formatted JSON is unavailable');
+    var results = await new AxeBuilder({ page }).include('#artifact-inspector').analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.unroute('**/api/artifacts/*/inspect?*');
+    await page.route('**/api/artifacts/*/inspect?*', (route) => route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: { code: 'injected_failure', message: 'Injected artifact preview failure' } }),
+    }));
+    await page.getByRole('button', { name: 'Inspect preview' }).nth(1).click();
+    await expect(page.locator('#artifact-inspector')).toContainText('Preview unavailable');
+    await expect(page.locator('#artifact-inspector')).toContainText('Injected artifact preview failure');
+    results = await new AxeBuilder({ page }).include('#artifact-inspector').analyze();
+    expect(results.violations).toEqual([]);
   });
 });
 

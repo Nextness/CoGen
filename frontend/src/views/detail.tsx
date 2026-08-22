@@ -95,7 +95,7 @@ function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
     );
   });
 
-  const gridClass = `property-grid ${classes || ""}`;
+  const gridClass = `rw-property-grid ${classes || ""}`;
   return (
     <dl className={gridClass}>
       {rowItems}
@@ -228,7 +228,7 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
     };
   });
 
-  const grid = propertyGrid(gridEntries, "property-grid--compact");
+  const grid = propertyGrid(gridEntries, "rw-property-grid--compact");
   return (
     <details className="rw-disclosure">
       <summary>Advanced raw record data</summary>
@@ -243,7 +243,7 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
 function CollectionMarkup(props: { collectionKey: string; state: CollectionState }): JSX.Element {
   const collection = props.state;
   const emptyColumnSpan = Math.max(1, collection.columns.length);
-  const emptyCell = <td colspan={emptyColumnSpan} className="empty">No records.</td>;
+  const emptyCell = <td colspan={emptyColumnSpan} className="rw-table-empty">No records.</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (collection.rows.length) {
     body = collection.rows.map((row) => {
@@ -492,7 +492,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     if (matchedTerms.length) {
       sections.push(
         <Fragment>
-          <p className="muted">Matched terms</p>
+          <p className="ui faded text">Matched terms</p>
           <div className="rw-keyword-tags">{matchedTermTags}</div>
         </Fragment>
       );
@@ -500,7 +500,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     if (unmatchedTerms.length) {
       sections.push(
         <Fragment>
-          <p className="muted">Unmatched terms</p>
+          <p className="ui faded text">Unmatched terms</p>
           <div className="rw-keyword-tags">{unmatchedTermTags}</div>
         </Fragment>
       );
@@ -512,7 +512,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
   const termTotal = props.matches.term_total;
   const panelBody: JSX.Element = (
     <Fragment>
-      <p className="muted">{matchedTotal} of {termTotal} search terms matched this article.</p>
+      <p className="ui faded text">{matchedTotal} of {termTotal} search terms matched this article.</p>
       <div className="rw-term-fields">{fieldElements}</div>
       <details className="rw-disclosure">
         <summary>All search terms</summary>
@@ -626,7 +626,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
       label: "Reference count",
       value: props.record.reference_count,
     },
-  ], "property-grid--compact");
+  ], "rw-property-grid--compact");
 
   const bibliographyBody = (
     <Fragment>
@@ -705,7 +705,7 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
       label: "Content hash",
       value: props.pdf.content_hash,
     },
-  ], "property-grid--compact");
+  ], "rw-property-grid--compact");
 
   const pdfStatusBody = (
     <div className="rw-pdf-status-strip">

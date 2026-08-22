@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { readFile } = require('node:fs/promises');
 
 // ── Fixture identifiers ───────────────────────────────────────────────
 // URL parameters use row IDs (not search_id strings or execution fingerprints)
@@ -98,8 +99,8 @@ test.describe('Health and page load', () => {
     await expect(page.locator('body')).toContainText('Local review');
     await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toHaveText('Home');
-    await expect(page.locator('.context-panel')).toBeHidden();
-    await expect(page.locator('.primary-nav')).toBeHidden();
+    await expect(page.locator('.rw-context-panel')).toBeHidden();
+    await expect(page.locator('.rw-primary-nav')).toBeHidden();
   });
 
   test('primary navigation links are present', async ({ page }) => {
@@ -126,17 +127,70 @@ test.describe('Health and page load', () => {
   test('research context is displayed after selecting a run', async ({ page }) => {
     await goto(page, contextURL());
     await page.waitForLoadState('networkidle');
-    const context = page.locator('.context-panel');
+    const context = page.locator('.rw-context-panel');
     await expect(context).toContainText(/Search revision|Execution plan|Run attempt/i);
     await expect(context).not.toContainText('Research context');
     await expect(context).toContainText(/deep-learning-nlp|Run 1/i);
     await expect(context).not.toContainText(/Select a captured run|Inspecting run attempt/i);
     const contextGap = await context.evaluate((element) => {
-      const tabs = document.querySelector('.primary-nav');
+      const tabs = document.querySelector('.rw-primary-nav');
       return tabs.getBoundingClientRect().top - element.getBoundingClientRect().bottom;
     });
     expect(contextGap).toBeGreaterThanOrEqual(20);
     await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Overview/i);
+  });
+});
+
+test.describe('Research-context canonicalization', () => {
+  test('a selected run owns the complete displayed ancestry across crossed URLs and reload', async ({ page }) => {
+    const contextRequest = page.waitForRequest((request) => request.url().includes('/api/runs/5/context'));
+    await goto(page, contextURL({ search_id: SEARCH_DL, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1, run_id: RUN_5_QC }));
+    await contextRequest;
+    await expect.poll(() => new URL(page.url()).searchParams.get('search_id')).toBe(SEARCH_QC);
+    const current = new URL(page.url());
+    expect(current.searchParams.get('search_revision_id')).toBe(REV_QC_R1);
+    expect(current.searchParams.get('plan_id')).toBe(PLAN_QC_R1);
+    expect(current.searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
+    await expect(page.locator('#revision-select-trigger')).toContainText('r1');
+    await expect(page.locator('#plan-select-trigger')).toContainText('Plan 4');
+    await expect(page.locator('#run-select-trigger')).toContainText('Run 5');
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    expect(new URL(page.url()).searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
+  });
+
+  test('run-only, stale descendant, trashed, and history states remain deterministic and visibly focused', async ({ page }) => {
+    await goto(page, `/?view=overview&run_id=${RUN_5_QC}`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('plan_id')).toBe(PLAN_QC_R1);
+    expect(new URL(page.url()).searchParams.get('search_id')).toBe(SEARCH_QC);
+
+    await goto(page, `/?view=overview&search_id=${SEARCH_QC}&search_revision_id=${REV_DL_R1}&plan_id=${PLAN_DL_R1}`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('search_revision_id')).toBe(REV_QC_R1);
+    const stale = new URL(page.url());
+    expect(stale.searchParams.get('search_id')).toBe(SEARCH_QC);
+    expect(stale.searchParams.get('plan_id')).toBe(PLAN_QC_R1);
+    expect(stale.searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
+    await expect(page.locator('#revision-select-trigger')).toContainText('r1');
+
+    await goto(page, `/?view=overview&run_id=${RUN_3_TRASHED}`);
+    await expect.poll(() => new URL(page.url()).searchParams.get('plan_id')).toBe(PLAN_DL_R2);
+    expect(new URL(page.url()).searchParams.get('search_revision_id')).toBe(REV_DL_R2);
+    await expect(page.locator('#run-select-trigger')).toContainText('Run 3');
+
+    await goto(page, contextURL({ run_id: RUN_1_COMPLETED }));
+    await goto(page, contextURL({ search_id: SEARCH_QC, search_revision_id: REV_QC_R1, plan_id: PLAN_QC_R1, run_id: RUN_5_QC }));
+    await page.goBack();
+    await page.waitForLoadState('networkidle');
+    await expect.poll(() => new URL(page.url()).searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
+    await expect(page.locator('#run-select-trigger')).toContainText('Run 1');
+    await page.goForward();
+    await page.waitForLoadState('networkidle');
+    await expect.poll(() => new URL(page.url()).searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
   });
 });
 
@@ -300,7 +354,7 @@ test.describe('Corpus view', () => {
     await expect(body).toContainText(/Source export counts|Expected initial count|Observed raw records/i);
     await expect(body).toContainText(/below|match/i);
     await page.locator('.rw-corpus-table--sources .expand-toggle').first().click();
-    const facts = page.locator('.rw-corpus-table--sources tr.expansion-row').first().locator('.property-grid > div');
+    const facts = page.locator('.rw-corpus-table--sources tr.expansion-row').first().locator('.rw-property-grid > div');
     await expect(facts).toHaveCount(3);
     const positions = await facts.evaluateAll(function(items) {
       return items.map(function(item) { return item.getBoundingClientRect().top; });
@@ -323,7 +377,7 @@ test.describe('Corpus view', () => {
   });
 
   test('corpus supports pagination', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', per_page: '20' }));
+    await goto(page, contextURL({ view: 'corpus', section: 'articles', per_page: '20', search_id: SEARCH_CR, search_revision_id: REV_CR_R1, plan_id: PLAN_CR_R1, run_id: RUN_6_CR }));
     await page.waitForLoadState('networkidle');
     const pagination = page.getByRole('navigation', { name: 'Result pages' });
     await expect(pagination).toContainText(/Page 1 of \d+/i);
@@ -331,6 +385,13 @@ test.describe('Corpus view', () => {
     await expect(pagination.getByRole('button', { name: 'Previous page' })).toBeVisible();
     await expect(pagination.getByRole('button', { name: 'Next page' })).toBeVisible();
     await expect(pagination.getByRole('button', { name: 'Last page' })).toBeVisible();
+    const firstPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
+    await pagination.getByRole('button', { name: 'Next page' }).click();
+    await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
+    const secondPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
+    expect(secondPageIDs.length).toBeGreaterThan(0);
+    expect(secondPageIDs).not.toEqual(firstPageIDs);
+    expect(secondPageIDs.filter((id) => firstPageIDs.includes(id))).toEqual([]);
   });
 
   test('corpus ignores a sort field that is unsupported by its selected section', async ({ page }) => {
@@ -380,17 +441,30 @@ test.describe('Relationships (graph) view', () => {
     const searchInput = page.locator('#graph-node-search');
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toHaveAttribute('placeholder', /Search nodes/i);
-    // Typing a search term should not cause an error
     await searchInput.fill('Attention');
-    await page.waitForTimeout(200);
-    await expect(page.locator('body')).toBeAttached();
+    await expect(page.locator('#graph-search-summary')).toHaveText(/3 matching nodes/i);
+    const results = page.locator('#graph-search-results [data-graph-search-node]');
+    await expect(results).toHaveCount(3);
+    const result = results.filter({ hasText: 'Attention Mechanisms' }).first();
+    await expect(result).toContainText('Attention Mechanisms');
+    await result.click();
+    await expect(page.locator('#graph-selection')).toBeFocused();
+    await expect(page.locator('#graph-selection')).toContainText('Attention Mechanisms');
   });
 
-  test('graph export PNG button is present', async ({ page }) => {
+  test('graph export downloads a valid PNG', async ({ page }) => {
     await goto(page, contextURL({ view: 'relationships' }));
     const exportBtn = page.locator('#graph-export-png');
     await expect(exportBtn).toBeVisible();
     await expect(exportBtn).toContainText(/Export|PNG/i);
+    const downloadPromise = page.waitForEvent('download');
+    await exportBtn.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe('graph-export.png');
+    const path = await download.path();
+    expect(path).not.toBeNull();
+    const bytes = await readFile(path);
+    expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   });
 
   test('graph legend is anchored at the bottom left of the canvas', async ({ page }) => {
@@ -916,7 +990,7 @@ test.describe('Expandable article rows', () => {
     await toggle.click();
     const expandRow = page.locator('tr.expansion-row').first();
     await expect(expandRow).not.toHaveAttribute('hidden');
-    await expect(expandRow.locator('.property-grid')).toBeAttached();
+    await expect(expandRow.locator('.rw-property-grid')).toBeAttached();
     await expect(expandRow).toContainText(/title|journal|publisher|work_id|year|source|doi|validation_status|citation_count|reference_count|producer_stage|created_at/i);
   });
 
@@ -969,17 +1043,17 @@ test.describe('Expandable article rows', () => {
 test.describe('Dismissible messages', () => {
   test('clicking close button hides the message', async ({ page }) => {
     await goto(page, contextURL({ view: 'overview' }));
-    // The overview page shows a message that can be dismissed
-    // Look for a .ui.message with a .close child
-    const message = page.locator('.ui.message').first();
-    const close = message.locator('.close');
-    if (await close.count() > 0) {
-      await close.click();
-      await expect(message).toBeHidden();
-    } else {
-      // No dismissible message on this page — that's acceptable
-      test.skip();
-    }
+    await page.evaluate(() => {
+      const message = document.createElement('div');
+      message.className = 'ui info message';
+      message.dataset.testDismissible = '';
+      message.innerHTML = '<button type="button" class="close" aria-label="Dismiss test message">×</button><p>Deterministic dismissible message.</p>';
+      document.querySelector('#main-content').prepend(message);
+    });
+    const message = page.locator('[data-test-dismissible]');
+    await expect(message).toBeVisible();
+    await message.getByRole('button', { name: 'Dismiss test message' }).click();
+    await expect(message).toBeHidden();
   });
 });
 
@@ -991,7 +1065,7 @@ test.describe('Mobile navigation toggle', () => {
     await goto(page, contextURL({ view: 'overview' }));
     const toggle = page.locator('#mobile-nav-toggle');
     await expect(toggle).toBeVisible();
-    const nav = page.locator('.primary-nav');
+    const nav = page.locator('.rw-primary-nav');
     // On mobile, the nav should not have the open class initially
     const initialClass = await nav.getAttribute('class');
     expect(initialClass).not.toContain('rw-mobile-nav-open');

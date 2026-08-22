@@ -102,6 +102,20 @@ func MigrateExisting(dbPath, configPath string) error {
 // OpenExisting opens an existing metadata database for narrowly scoped review
 // writes. It never creates directories, changes journal mode, or runs migrations.
 func OpenExisting(dbPath string) (*Database, error) {
+	return openExistingWithDriver(dbPath, "sqlite")
+}
+
+// OpenExistingWithDriver opens an existing metadata database through a caller-provided registered SQL driver.
+// It exists so the viewer can enforce request-scoped query budgets without changing pipeline connections.
+func OpenExistingWithDriver(dbPath, driverName string) (*Database, error) {
+	if strings.TrimSpace(driverName) == "" {
+		return nil, fmt.Errorf("database driver is required")
+	}
+	return openExistingWithDriver(dbPath, driverName)
+}
+
+// openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers.
+func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 	if strings.TrimSpace(dbPath) == "" {
 		return nil, fmt.Errorf("database path is required")
 	}
@@ -120,7 +134,7 @@ func OpenExisting(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
 	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=rw&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"}).String()
-	conn, err := sql.Open("sqlite", uri)
+	conn, err := sql.Open(driverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open existing sqlite: %w", err)
 	}

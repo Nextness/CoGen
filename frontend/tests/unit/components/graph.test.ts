@@ -165,7 +165,7 @@ describe('graph.tsx — destroyGraph', function() {
 describe('graph.tsx — mountGraph', function() {
 
   it('does nothing when canvas is missing', function() {
-    const canvas = document.querySelector('.rw-graph__canvas, .graph-canvas');
+    const canvas = document.querySelector('.rw-graph__canvas');
     if (canvas) {
       canvas.remove();
     }

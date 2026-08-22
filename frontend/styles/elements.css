@@ -584,7 +584,7 @@ button.ui.label:hover:not(:disabled) {
   color: var(--color-text-secondary);
 }
 
-/* ── Legacy aliases (backward compat, remove after full migration) ── */
+/* ── Native element fallbacks ── */
 
 /* Buttons */
 button {
@@ -608,21 +608,6 @@ button:disabled {
   color: var(--color-control-disabled-text);
   background: var(--color-control-disabled-surface);
   opacity: 1;
-}
-
-/* Empty / muted */
-.empty {
-  color: var(--color-text-secondary);
-}
-
-.muted {
-  color: var(--color-text-secondary);
-}
-
-/* Loading */
-.loading {
-  color: var(--color-text-secondary);
-  font-size: var(--text-sm);
 }
 
 .notice {

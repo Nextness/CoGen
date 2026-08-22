@@ -325,13 +325,14 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
     }
     groups.get(key)!.push(event);
   });
-  const daySections = Array.from(groups.entries()).map(([date, events], index) => {
-    const headingID = `audit-day-${index}`;
+  const daySections = Array.from(groups.entries()).map(([date, events]) => {
+    const firstEventID = String(events[0]?.id || "unrecorded").replace(/[^a-zA-Z0-9_-]/g, "-");
+    const headingID = `audit-day-${firstEventID}`;
     const eventItems = events.map((event) => {
       return <li><AuditEventMarkup event={event} /></li>;
     });
     return (
-      <section className="rw-audit-day" aria-labelledby={headingID}>
+      <section className="rw-audit-day" aria-labelledby={headingID} data-audit-date={date}>
         <h4 id={headingID}>{date}</h4>
         <ol className="rw-audit-events">{eventItems}</ol>
       </section>
@@ -360,7 +361,7 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; co
   ];
   return (
     <div className="rw-record-audit" data-record-audit data-record-audit-endpoint={props.endpoint || ""} data-record-audit-cursor-key={props.cursorKey || ""} data-record-audit-next-cursor={nextCursor}>
-      <div className="rw-record-audit__controls">
+      <div className="rw-filter-bar rw-record-audit__controls">
         <label>
           Search events
           <input type="search" data-record-audit-search placeholder="Action, source, identifier, or metadata" />

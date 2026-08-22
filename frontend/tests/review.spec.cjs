@@ -1,10 +1,24 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const AxeBuilder = require('@axe-core/playwright').default;
 
 test.describe.configure({ mode: 'serial' });
 
+/** Activates a continuation control until the collection reports its terminal page. */
+async function exhaustContinuation(page, selector) {
+  for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
+    const button = page.locator(selector);
+    if (await button.count() === 0) return;
+    const priorButton = await button.elementHandle();
+    await button.click();
+    await expect.poll(async () => priorButton.evaluate((element) => element.isConnected).catch(() => false)).toBe(false);
+  }
+  throw new Error(`Continuation control ${selector} did not terminate.`);
+}
+
 test.describe('isolated review mutation lifecycle', () => {
-  test('persists status, note, anchor, and custom PDF rendering across reload', async ({ page, request, browserName }) => {
+  test('creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI', async ({ page, request, browserName }) => {
+    test.setTimeout(60_000);
     const context = await request.get('/api/runs/1/review-context');
     expect(context.ok()).toBeTruthy();
     if (!(await context.json()).context_initialized) {
@@ -23,29 +37,53 @@ test.describe('isolated review mutation lifecycle', () => {
       await setupDialog.getByRole('button', { name: 'Initialize review' }).click();
       await expect(page.getByRole('heading', { name: 'Review decision' })).toBeVisible();
     }
-    const current = await request.get('/api/runs/1/articles/1/review');
-    expect(current.ok()).toBeTruthy();
-    const currentReview = await current.json();
-    const reason = `Browser ${browserName} review evidence`;
-    const saved = await request.put('/api/runs/1/articles/1/review', { data: { expected_version_id: currentReview.review?.version?.id ?? null, status: 'approved', sub_statuses: [], reason } });
-    expect(saved.ok()).toBeTruthy();
-    const note = await request.post('/api/runs/1/articles/1/notes', { data: { body: `See [[pdf:page=2|${browserName} results page]] and [[note:999|unresolved note]].` } });
-    expect(note.status()).toBe(201);
-    const anchorLabel = `methods-${browserName}`;
-    const anchors = await request.get('/api/runs/1/articles/1/anchors?limit=100');
-    expect(anchors.ok()).toBeTruthy();
-    if (!(await anchors.json()).anchors.some((anchor) => anchor.label === anchorLabel)) {
-      const anchor = await request.post('/api/runs/1/articles/1/anchors', { data: { label: anchorLabel, page: 1, selected_text: 'Selectable fixture methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
-      expect(anchor.status()).toBe(201);
-    }
-
     await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
     await page.waitForLoadState('networkidle');
+    const reason = `Browser ${browserName} review evidence`;
+    await page.locator('[data-review-status]').selectOption('approved');
+    await page.locator('[data-review-reason]').fill(reason);
+    const [decisionSaveResponse] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'PUT' && /\/api\/runs\/1\/articles\/\d+\/review$/.test(new URL(response.url()).pathname)),
+      page.getByRole('button', { name: 'Save review decision' }).click(),
+    ]);
+    expect(decisionSaveResponse.ok()).toBeTruthy();
+    await page.waitForLoadState('networkidle');
+    await expect(page.locator('[data-review-host]')).toContainText(reason);
+
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.locator('[data-note-body]').fill(`# ${browserName} results page\n\nSee [[pdf:page=2|${browserName} results page]] and [[note:999|unresolved note]].`);
+    await expect(page.locator('[data-draft-status]')).toContainText('Browser draft saved');
+    const [noteSaveResponse] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/runs\/1\/articles\/\d+\/notes$/.test(new URL(response.url()).pathname)),
+      page.getByRole('button', { name: 'Save note' }).click(),
+    ]);
+    expect(noteSaveResponse.status()).toBe(201);
+    await expect(page.locator('[data-note-list]')).toContainText(`${browserName} results page`);
+
+    const anchorLabel = `methods-${browserName}`;
+    await page.evaluate(() => {
+      const layer = document.querySelector('.rw-pdf-page--current .textLayer');
+      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent.includes('Selectable fixture methods'));
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.querySelector('.rw-pdf-viewer').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
+    await page.getByRole('button', { name: 'Review selection' }).click();
+    await expect(page.getByRole('tab', { name: 'PDF anchors' })).toHaveAttribute('aria-selected', 'true');
+    await page.locator('[data-anchor-label]').fill(anchorLabel);
+    await page.getByRole('button', { name: 'Save anchor' }).click();
+    await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
+
     await expect(page.locator('[data-review-host]')).toContainText('Approved');
     const reviewAuditEvents = page.locator('.rw-article-audit-panel .rw-audit-event--review');
     const reviewAuditCount = await reviewAuditEvents.count();
     await expect(page.locator('.rw-article-audit-panel')).toContainText('Work Review Version Created');
     const updatedReason = `${reason} saved from the review form`;
+    await page.getByRole('tab', { name: 'Decision' }).click();
     await page.locator('[data-review-status]').selectOption('not_approved');
     await page.locator('[data-review-substatuses] input[value="not_peer_reviewed"]').check();
     await page.locator('[data-review-substatuses] input[value="out_of_scope"]').check();
@@ -122,5 +160,253 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.locator('[data-review-status]')).toHaveValue('not_approved');
     await page.getByRole('tab', { name: 'PDF anchors' }).click();
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
+  });
+
+  test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', async ({ page, request, browserName }) => {
+    test.setTimeout(60_000);
+    const articleURL = '/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1';
+    const noteTitle = `${browserName} results page`;
+    const anchorLabel = `methods-${browserName}`;
+    await page.goto(articleURL);
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('tab', { name: 'Decision' }).click();
+    await page.getByRole('button', { name: 'Show version history' }).click();
+    await expect(page.locator('[data-review-history-list]')).toContainText(/Version \d+.*Not Approved/i);
+
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.locator('[data-note-body]').fill('[[unknown:evidence]]');
+    await expect(page.locator('[data-note-diagnostics]')).toContainText('unknown custom link scheme');
+    var axe = await new AxeBuilder({ page }).include('[data-note-form]').analyze();
+    expect(axe.violations).toEqual([]);
+    var targetRow = page.locator('[data-note-id]').filter({ hasText: noteTitle }).first();
+    const targetNoteID = await targetRow.getAttribute('data-note-id');
+    expect(targetNoteID).toMatch(/^\d+$/);
+    await targetRow.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.locator('[data-note-editor-title]')).toContainText('Editing');
+    await expect(page.locator('[data-note-body]')).toHaveValue(/unresolved note/);
+    const localConflictBody = `# ${noteTitle}\n\n${'Long review evidence '.repeat(240)}\n\nLocal conflict resolution.`;
+    await page.locator('[data-note-body]').fill(localConflictBody);
+    await expect(page.locator('[data-note-body]')).toHaveValue(localConflictBody);
+    await expect(page.locator('[data-draft-status]')).toContainText('Browser draft saved');
+    const current = await request.get(`/api/runs/1/notes/${targetNoteID}`);
+    expect(current.ok()).toBeTruthy();
+    const currentNote = await current.json();
+    const external = await request.post(`/api/runs/1/notes/${targetNoteID}/versions`, { data: {
+      expected_version_id: currentNote.note.version.id,
+      state: 'active',
+      body: `# ${noteTitle}\n\nExternal writer update.`,
+    } });
+    expect(external.status()).toBe(201);
+    await page.getByRole('button', { name: 'Save note' }).click();
+    await expect(page.locator('.rw-draft-status')).toContainText('changed elsewhere');
+    axe = await new AxeBuilder({ page }).include('[data-note-form]').analyze();
+    expect(axe.violations).toEqual([]);
+    await page.getByRole('button', { name: 'Load latest while keeping my input' }).click();
+    await expect(page.locator('[data-note-body]')).toHaveValue(localConflictBody);
+    await page.getByRole('button', { name: 'Save note' }).click();
+    await expect(page.locator('[data-note-list]')).toContainText('Long review evidence');
+
+    targetRow = page.locator(`[data-note-id="${targetNoteID}"]`);
+    await targetRow.getByRole('button', { name: 'History' }).click();
+    const noteHistory = page.locator('[data-note-history]');
+    await expect(noteHistory.locator('[data-note-version]')).toHaveCount(3);
+    axe = await new AxeBuilder({ page }).include('[data-note-history]').analyze();
+    expect(axe.violations).toEqual([]);
+    await noteHistory.locator('[data-note-version]').first().click();
+    await expect(noteHistory.locator('[data-note-version-content]').first()).toContainText('Local conflict resolution');
+
+    await page.locator('[data-note-body]').fill(`# Link source ${browserName}\n\nPoints to the saved target: `);
+    await page.getByText('Insert evidence link').click();
+    await page.locator('[data-note-link-type]').selectOption('note');
+    await page.locator('[data-note-link-target]').fill(targetNoteID);
+    await page.locator('[data-note-link-display]').fill(noteTitle);
+    await page.getByRole('button', { name: 'Insert link' }).click();
+    await expect(page.locator('[data-note-body]')).toHaveValue(new RegExp(`\\[\\[note:${targetNoteID}\\|${noteTitle}`));
+    await expect(page.locator('[data-draft-status]')).toContainText('Browser draft saved');
+    await page.getByRole('button', { name: 'Save note' }).click();
+    const sourceRow = page.locator('[data-note-id]').filter({ hasText: `Link source ${browserName}` }).first();
+    await expect(sourceRow).toBeVisible();
+    const sourceNoteID = await sourceRow.getAttribute('data-note-id');
+    expect(sourceNoteID).toMatch(/^\d+$/);
+
+    targetRow = page.locator(`[data-note-id="${targetNoteID}"]`);
+    await targetRow.getByRole('button', { name: 'Backlinks' }).click();
+    await expect(targetRow.locator('[data-note-backlink-list]')).toContainText(`Link source ${browserName}`);
+    await targetRow.locator('[data-note-backlink-list] a').click();
+    await expect(page).toHaveURL(new RegExp(`(?:\\?|&)note_id=${sourceNoteID}(?:&|$)`));
+
+    targetRow = page.locator(`[data-note-id="${targetNoteID}"]`);
+    page.once('dialog', (dialog) => dialog.accept());
+    await targetRow.getByRole('button', { name: 'Remove' }).click();
+    await expect(page.locator('[data-note-history]')).toContainText(`Note ${targetNoteID} history`);
+    await page.locator('[data-note-history]').getByRole('button', { name: 'Restore previous content' }).click();
+    await expect(page.locator(`[data-note-id="${targetNoteID}"]`)).toContainText('Long review evidence');
+
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
+    var anchorRow = page.locator('[data-anchor-id]').filter({ hasText: anchorLabel });
+    await anchorRow.getByRole('button', { name: 'History' }).click();
+    await expect(page.locator('.rw-anchor-history')).toContainText(`${anchorLabel} history`);
+    page.once('dialog', (dialog) => dialog.accept());
+    await anchorRow.getByRole('button', { name: 'Remove' }).click();
+    await expect(page.locator('.rw-anchor-history')).toContainText('deleted');
+    const anchorHistoryItems = page.locator('.rw-anchor-history li');
+    const newestAnchorBox = await anchorHistoryItems.nth(0).boundingBox();
+    const previousAnchorBox = await anchorHistoryItems.nth(1).boundingBox();
+    expect(newestAnchorBox).not.toBeNull();
+    expect(previousAnchorBox).not.toBeNull();
+    expect(previousAnchorBox.y - newestAnchorBox.y - newestAnchorBox.height).toBeGreaterThanOrEqual(8);
+    await page.locator('.rw-anchor-history').getByRole('button', { name: 'Restore anchor' }).click();
+    anchorRow = page.locator('[data-anchor-id]').filter({ hasText: anchorLabel });
+    await expect(anchorRow).toBeVisible();
+
+    axe = await new AxeBuilder({ page }).include('[data-review-host]').analyze();
+    expect(axe.violations).toEqual([]);
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    const reloadedTarget = page.locator(`[data-note-id="${targetNoteID}"]`);
+    await expect(reloadedTarget).toContainText('Long review evidence');
+    await reloadedTarget.getByRole('button', { name: 'History' }).click();
+    await page.locator('[data-note-history] [data-note-version]').first().click();
+    await expect(page.locator('[data-note-history] [data-note-version-content]').first()).toContainText('Local conflict resolution');
+    await expect(page.locator('.rw-article-audit-panel')).toContainText(/Note Version Created|Anchor Version Created/i);
+  });
+
+  test('restores and trashes a run through Home with persisted audit evidence', async ({ page, request }) => {
+    await page.goto('/?view=home&home_visibility=trashed');
+    await page.waitForLoadState('networkidle');
+    const run3 = page.locator('[data-home-run="3"]');
+    await run3.getByRole('button', { name: 'Restore' }).click();
+    const restoreDialog = page.getByRole('dialog', { name: 'Restore run 3?' });
+    await expect(restoreDialog.getByRole('button', { name: 'Restore run' })).toBeFocused();
+    await restoreDialog.getByRole('button', { name: 'Restore run' }).click();
+    await expect(page.locator('[data-home-lifecycle-status]')).toContainText('Restored run 3');
+    var contextResponse = await request.get('/api/runs/3/context');
+    expect((await contextResponse.json()).run.visibility_state).toBe('active');
+
+    await page.locator('[data-home-filters] select[name="visibility"]').selectOption('active');
+    await page.locator('[data-home-filters] input[name="q"]').fill('');
+    await page.locator('[data-home-filters]').getByRole('button', { name: 'Apply filters' }).click();
+    const activeRun3 = page.locator('[data-home-run="3"]');
+    await expect(activeRun3).toBeVisible();
+    await activeRun3.getByRole('button', { name: 'Move to trash' }).click();
+    const trashDialog = page.getByRole('dialog', { name: 'Move run 3 to trash?' });
+    await trashDialog.getByLabel('Reason').fill('Browser lifecycle verification');
+    await trashDialog.getByRole('button', { name: 'Move to trash' }).click();
+    await expect(page.locator('[data-home-lifecycle-status]')).toContainText('Moved run 3');
+    contextResponse = await request.get('/api/runs/3/context');
+    expect((await contextResponse.json()).run.visibility_state).toBe('trashed');
+    const audit = await request.get('/api/audit?run_id=3&action=run_trashed&limit=25');
+    expect(audit.ok()).toBeTruthy();
+    expect((await audit.json()).events.some((event) => event.action === 'run_trashed')).toBeTruthy();
+  });
+
+  test('traverses 101-record review collection boundaries through UI continuations', async ({ page, request, browserName }) => {
+    test.skip(browserName !== 'chromium', 'The API boundary is browser-independent; the complete UI traversal runs once in Chromium.');
+    test.setTimeout(180000);
+
+    var reviewResponse = await request.get('/api/runs/1/articles/1/review');
+    var review = await reviewResponse.json();
+    var expectedReviewVersion = review.review?.version?.id ?? null;
+    for (let index = 0; index < 101; index += 1) {
+      reviewResponse = await request.put('/api/runs/1/articles/1/review', { data: {
+        expected_version_id: expectedReviewVersion,
+        status: index % 2 === 0 ? 'approved' : 'in_progress',
+        sub_statuses: [],
+        reason: `Boundary decision ${index.toString().padStart(3, '0')}`,
+      } });
+      expect(reviewResponse.ok()).toBeTruthy();
+      review = await reviewResponse.json();
+      expectedReviewVersion = review.review.version.id;
+    }
+
+    var response = await request.post('/api/runs/1/articles/1/notes', { data: { body: '# Boundary target\n\nInitial body.' } });
+    expect(response.status()).toBe(201);
+    var targetNote = (await response.json()).note;
+    for (let index = 0; index < 101; index += 1) {
+      response = await request.post(`/api/runs/1/notes/${targetNote.id}/versions`, { data: {
+        expected_version_id: targetNote.version.id,
+        state: 'active',
+        body: `# Boundary target\n\nVersion ${index.toString().padStart(3, '0')}.`,
+      } });
+      expect(response.status()).toBe(201);
+      targetNote = (await response.json()).note;
+    }
+    for (let index = 0; index < 101; index += 1) {
+      response = await request.post('/api/runs/1/articles/1/notes', { data: {
+        body: `# Boundary backlink ${index.toString().padStart(3, '0')}\n\n[[note:${targetNote.id}|Boundary target]]`,
+      } });
+      expect(response.status()).toBe(201);
+    }
+
+    response = await request.post('/api/runs/1/articles/1/anchors', { data: {
+      label: 'boundary-anchor-target', page: 1, selected_text: 'Boundary anchor initial', rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+    } });
+    expect(response.status()).toBe(201);
+    var targetAnchor = (await response.json()).anchor;
+    for (let index = 0; index < 101; index += 1) {
+      response = await request.post(`/api/runs/1/anchors/${targetAnchor.id}/versions`, { data: {
+        expected_version_id: targetAnchor.version.id,
+        state: 'active',
+        page: 1,
+        selected_text: `Boundary anchor version ${index.toString().padStart(3, '0')}`,
+        rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+      } });
+      expect(response.status()).toBe(201);
+      targetAnchor = (await response.json()).anchor;
+    }
+    for (let index = 0; index < 100; index += 1) {
+      response = await request.post('/api/runs/1/articles/1/anchors', { data: {
+        label: `boundary-anchor-${index.toString().padStart(3, '0')}`,
+        page: 1,
+        selected_text: `Boundary list anchor ${index}`,
+        rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+      } });
+      expect(response.status()).toBe(201);
+    }
+
+    await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Show version history' }).click();
+    await expect(page.locator('[data-review-history-list] li')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-review-history-more]');
+    const decisionVersions = await page.locator('[data-review-history-list] li').allTextContents();
+    expect(decisionVersions.length).toBeGreaterThanOrEqual(101);
+    expect(new Set(decisionVersions).size).toBe(decisionVersions.length);
+
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await expect(page.locator('[data-note-list] [data-note-id]')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-note-load-more]');
+    const noteIDs = await page.locator('[data-note-list] [data-note-id]').evaluateAll((items) => items.map((item) => item.dataset.noteId));
+    expect(noteIDs.length).toBeGreaterThanOrEqual(102);
+    expect(new Set(noteIDs).size).toBe(noteIDs.length);
+    const boundaryNoteRow = page.locator(`[data-note-id="${targetNote.id}"]`);
+    await boundaryNoteRow.getByRole('button', { name: 'History' }).click();
+    await expect(page.locator('[data-note-history] [data-note-version]')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-note-history-more]');
+    const noteVersions = await page.locator('[data-note-history] [data-note-version]').allTextContents();
+    expect(noteVersions.length).toBe(102);
+    expect(new Set(noteVersions).size).toBe(noteVersions.length);
+    await boundaryNoteRow.getByRole('button', { name: 'Backlinks' }).click();
+    await expect(boundaryNoteRow.locator('[data-note-backlink-list] li')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-note-backlink-list] [data-backlinks-more]');
+    const backlinks = await boundaryNoteRow.locator('[data-note-backlink-list] li').allTextContents();
+    expect(backlinks).toHaveLength(101);
+    expect(new Set(backlinks).size).toBe(101);
+
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
+    await expect(page.locator('[data-anchor-list] [data-anchor-id]')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-anchor-load-more]');
+    const anchorIDs = await page.locator('[data-anchor-list] [data-anchor-id]').evaluateAll((items) => items.map((item) => item.dataset.anchorId));
+    expect(anchorIDs.length).toBeGreaterThanOrEqual(101);
+    expect(new Set(anchorIDs).size).toBe(anchorIDs.length);
+    const boundaryAnchorRow = page.locator(`[data-anchor-id="${targetAnchor.id}"]`);
+    await boundaryAnchorRow.getByRole('button', { name: 'History' }).click();
+    await expect(page.locator('.rw-anchor-history li')).toHaveCount(25);
+    await exhaustContinuation(page, '[data-anchor-history-more]');
+    const anchorVersions = await page.locator('.rw-anchor-history li').allTextContents();
+    expect(anchorVersions.length).toBe(102);
+    expect(new Set(anchorVersions).size).toBe(anchorVersions.length);
   });
 });

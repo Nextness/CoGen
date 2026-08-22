@@ -29,21 +29,27 @@ describe('router.tsx — setURL', function() {
 describe('router.tsx — bindFocusContext', function() {
 
   it('binds click handler to focus-context button', function() {
+    document.querySelectorAll('[data-focus-context]').forEach(function(element) { element.remove(); });
     const button = document.createElement('button');
     button.dataset.focusContext = '';
     document.body.appendChild(button);
+    const trigger = document.querySelector('[data-context-dropdown="search"] .rw-search-dropdown__trigger') as HTMLButtonElement;
+    trigger.disabled = false;
 
     bindFocusContext();
 
     button.click();
-    assert.ok(true);
+    assert.equal(document.activeElement, trigger);
 
     button.remove();
   });
 
   it('does nothing when button is missing', function() {
+    document.querySelectorAll('[data-focus-context]').forEach(function(element) { element.remove(); });
+    (document.querySelector('[data-context-dropdown="search"] .rw-search-dropdown__trigger') as HTMLButtonElement).focus();
+    const focused = document.activeElement;
     bindFocusContext();
-    assert.ok(true);
+    assert.equal(document.activeElement, focused);
   });
 
 });
@@ -70,9 +76,9 @@ describe('router.tsx — render', function() {
     history.pushState({}, '', url.toString());
 
     await render();
-    assert.ok(app.innerHTML.length > 0 || app.innerHTML === '');
-    assert.equal((document.querySelector('.context-panel') as HTMLElement).hidden, false);
-    assert.equal((document.querySelector('.primary-nav') as HTMLElement).hidden, false);
+    assert.ok(app.querySelector('#page-title'));
+    assert.equal((document.querySelector('.rw-context-panel') as HTMLElement).hidden, false);
+    assert.equal((document.querySelector('.rw-primary-nav') as HTMLElement).hidden, false);
     assert.equal(document.querySelector('[data-view-link="overview"]')!.classList.contains('active'), true);
     assert.match(document.querySelector('#workspace-breadcrumb')!.textContent, /Home.*Deepdive.*Overview/);
 
@@ -89,8 +95,8 @@ describe('router.tsx — render', function() {
     await render();
 
     assert.equal(document.querySelector('.rw-page-header__kicker'), null);
-    assert.equal((document.querySelector('.context-panel') as HTMLElement).hidden, true);
-    assert.equal((document.querySelector('.primary-nav') as HTMLElement).hidden, true);
+    assert.equal((document.querySelector('.rw-context-panel') as HTMLElement).hidden, true);
+    assert.equal((document.querySelector('.rw-primary-nav') as HTMLElement).hidden, true);
     assert.equal(document.querySelector('#workspace-breadcrumb')!.textContent.trim(), 'Home');
 
     globalThis.fetch = originalFetch;

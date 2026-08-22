@@ -4,13 +4,181 @@ package server
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"modernc.org/sqlite"
 )
+
+// TestAPIResponseByteBudgets verifies route classification and hard serialized limits.
+func TestAPIResponseByteBudgets(t *testing.T) {
+	tests := []struct {
+		path string
+		want int
+	}{
+		{"/api/health", compactAPIResponseBytes},
+		{"/api/hierarchy", collectionAPIResponseBytes},
+		{"/api/runs/1/articles/1/notes", collectionAPIResponseBytes},
+		{"/api/audit/1/recorded-data", collectionAPIResponseBytes},
+		{"/api/graph", detailAPIResponseBytes},
+		{"/api/articles/1", detailAPIResponseBytes},
+		{"/api/tables/work_revisions", detailAPIResponseBytes},
+		{"/api/pdf/1", 0},
+		{"/api/artifacts/1/content", 0},
+		{"/styles/base.css", 0},
+	}
+	for _, test := range tests {
+		if got := apiResponseByteBudget(test.path); got != test.want {
+			t.Errorf("apiResponseByteBudget(%q)=%d, want %d", test.path, got, test.want)
+		}
+	}
+
+	handler := withAPIResponseBudgets(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"payload": strings.Repeat("x", compactAPIResponseBytes)})
+	}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), `"code":"response_budget_exceeded"`) {
+		t.Fatalf("oversized response code=%d body=%s", response.Code, response.Body.String())
+	}
+	if response.Body.Len() > compactAPIResponseBytes {
+		t.Fatalf("budget error response size=%d, limit=%d", response.Body.Len(), compactAPIResponseBytes)
+	}
+	if got := response.Header().Get("X-Response-Byte-Limit"); got != fmt.Sprint(compactAPIResponseBytes) {
+		t.Fatalf("response budget header=%q", got)
+	}
+
+	response = httptest.NewRecorder()
+	withAPIResponseBudgets(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusAccepted, map[string]bool{"bounded": true})
+	})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/audit", nil))
+	if response.Code != http.StatusAccepted || response.Body.String() != "{\"bounded\":true}\n" {
+		t.Fatalf("bounded response code=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+// TestAPIQueryBudgets verifies deterministic route ceilings, driver accounting, and hard rejection.
+func TestAPIQueryBudgets(t *testing.T) {
+	tests := []struct {
+		path string
+		want int
+	}{
+		{"/api/health", compactAPIQueries},
+		{"/api/pdf/1", compactAPIQueries},
+		{"/api/audit", collectionAPIQueries},
+		{"/api/runs/1/cache-uses", collectionAPIQueries},
+		{"/api/graph", detailAPIQueries},
+		{"/api/runs/1/articles/1/notes", detailAPIQueries},
+		{"/styles/base.css", 0},
+	}
+	for _, test := range tests {
+		if got := apiQueryBudget(test.path); got != test.want {
+			t.Errorf("apiQueryBudget(%q)=%d, want %d", test.path, got, test.want)
+		}
+	}
+
+	db, err := sql.Open(queryBudgetDriverName, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx, state := withQueryBudget(t.Context(), 2)
+	if _, err := db.ExecContext(ctx, "CREATE TABLE evidence (id INTEGER PRIMARY KEY)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, "INSERT INTO evidence DEFAULT VALUES"); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM evidence").Scan(&count); !errors.Is(err, errQueryBudgetExceeded) {
+		t.Fatalf("third query error=%v, want query budget error", err)
+	}
+	if used := state.used.Load(); used != 3 || !state.exceeded.Load() {
+		t.Fatalf("query budget used=%d exceeded=%v", used, state.exceeded.Load())
+	}
+
+	handler := withAPIResponseBudgets(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for index := 0; index <= compactAPIQueries; index++ {
+			_ = consumeQuery(r.Context())
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"unreachable": true})
+	}))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/health", nil))
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), `"code":"query_budget_exceeded"`) {
+		t.Fatalf("query budget response code=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(compactAPIQueries) {
+		t.Fatalf("query budget limit header=%q", got)
+	}
+	if got := response.Header().Get("X-Query-Count-Used"); got != fmt.Sprint(compactAPIQueries+1) {
+		t.Fatalf("query budget used header=%q", got)
+	}
+}
+
+// TestQueryBudgetDriverInterfaces verifies statement, transaction, and optional driver paths.
+func TestQueryBudgetDriverInterfaces(t *testing.T) {
+	wrapped := &queryBudgetDriver{inner: &sqlite.Driver{}}
+	connection, err := wrapped.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	budgeted := connection.(*queryBudgetConn)
+	ctx, state := withQueryBudget(t.Context(), 8)
+	if err := budgeted.Ping(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !budgeted.IsValid() {
+		t.Fatal("new SQLite connection is not valid")
+	}
+	if err := budgeted.ResetSession(ctx); err != nil {
+		t.Fatal(err)
+	}
+	value := &driver.NamedValue{Ordinal: 1, Value: int64(1)}
+	if err := budgeted.CheckNamedValue(value); err != nil && !errors.Is(err, driver.ErrSkip) {
+		t.Fatal(err)
+	}
+	if _, err := budgeted.ExecContext(ctx, "CREATE TABLE evidence (id INTEGER PRIMARY KEY, value TEXT)", nil); err != nil {
+		t.Fatal(err)
+	}
+	insert, err := budgeted.PrepareContext(ctx, "INSERT INTO evidence (value) VALUES (?)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer insert.Close()
+	if _, err := insert.(*queryBudgetStmt).ExecContext(ctx, []driver.NamedValue{{Ordinal: 1, Value: "prepared"}}); err != nil {
+		t.Fatal(err)
+	}
+	query, err := budgeted.Prepare("SELECT value FROM evidence ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer query.Close()
+	rows, err := query.(*queryBudgetStmt).QueryContext(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rows.Close(); err != nil {
+		t.Fatal(err)
+	}
+	transaction, err := budgeted.BeginTx(ctx, driver.TxOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := transaction.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	if used := state.used.Load(); used != 3 {
+		t.Fatalf("query budget used=%d, want 3", used)
+	}
+}
 
 // TestHelper_quoteIdentifier verifies helper quote identifier.
 func TestHelper_quoteIdentifier(t *testing.T) {

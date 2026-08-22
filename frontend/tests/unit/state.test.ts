@@ -371,6 +371,20 @@ describe('state.tsx — display helpers', function() {
     history.replaceState({}, '', originalURL);
   });
 
+  it('renders one independently removable chip for each selected facet value', function() {
+    const originalURL = location.href;
+    history.replaceState({}, '', '?view=provenance&section=audit&audit_category=pipeline%2Creview');
+    const html = filterChips({ audit_category: ['pipeline', 'review'] }, { audit_category: 'Category' });
+    const host = document.createElement('div');
+    host.innerHTML = html;
+    const chips = Array.from(host.querySelectorAll<HTMLAnchorElement>('.rw-filter-chip'));
+    assert.equal(chips.length, 2);
+    assert.match(chips[0].textContent || '', /pipeline/);
+    assert.equal(new URL(chips[0].href).searchParams.get('audit_category'), 'review');
+    assert.equal(new URL(chips[1].href).searchParams.get('audit_category'), 'pipeline');
+    history.replaceState({}, '', originalURL);
+  });
+
 });
 
 describe('state.tsx — statusClass', function() {
@@ -616,7 +630,7 @@ describe('state.tsx — breadcrumb', function() {
 
   it('renders an explicit ordered page hierarchy', function() {
     const result = breadcrumb([{ label: 'Home', href: '?view=home' }, { label: 'Deepdive', href: '?view=overview' }, { label: 'Corpus' }]);
-    assert.ok(result.includes('ui breadcrumb'));
+    assert.ok(result.includes('rw-breadcrumb'));
     assert.ok(result.includes('Home'));
     assert.ok(result.includes('Deepdive'));
     assert.ok(result.includes('Corpus'));

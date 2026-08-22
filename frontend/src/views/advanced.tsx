@@ -79,8 +79,8 @@ export async function advancedView(): Promise<void> {
   });
 
   const controls = (
-    <div className="rw-table-controls">
-      <label className="rw-table-controls__search">
+    <div className="rw-filter-bar">
+      <label className="rw-filter-bar__search">
         Discovered table
         <select id="table-select">{tableOptions}</select>
       </label>
