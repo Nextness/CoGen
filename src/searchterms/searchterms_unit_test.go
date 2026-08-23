@@ -171,16 +171,18 @@ func TestMatchWholeWord(t *testing.T) {
 	}
 }
 
-// TestMatchPrefixWildcard verifies trailing-star prefix matching.
+// TestMatchPrefixWildcard verifies trailing-star prefix matching. Terms and
+// text are stemmed before matching, so the wildcard prefix must be a stem
+// (for example "optim*" matches "optimization" because both stem to "optim").
 func TestMatchPrefixWildcard(t *testing.T) {
 	for _, tc := range []struct {
 		text, term string
 		want       bool
 	}{
-		{"optimization", "optimi*", true},
-		{"optimized", "optimi*", true},
-		{"optimi", "optimi*", true},
-		{"pessimistic", "optimi*", false},
+		{"optimization", "optim*", true},
+		{"optimized", "optim*", true},
+		{"optimi", "optim*", true},
+		{"pessimistic", "optim*", false},
 		{"Petri nets", "Petri net*", true},
 		{"Petri net", "Petri net*", true},
 		{"Petri network", "Petri net*", true},
@@ -200,12 +202,42 @@ func TestMatchLeadingAndBothWildcards(t *testing.T) {
 	}{
 		{"internet", "*net", true},
 		{"net", "*net", true},
-		{"netting", "*net", false},
+		{"nettles", "*net", false},
 		{"internet", "*net*", true},
 		{"net", "*net*", true},
 		{"network", "*net*", true},
 		{"netting", "*net*", true},
 		{"nettles", "*net*", true},
+	} {
+		if got := Match(tc.text, tc.term); got != tc.want {
+			t.Errorf("Match(%q, %q) = %v, want %v", tc.text, tc.term, got, tc.want)
+		}
+	}
+}
+
+// TestMatchStemming verifies inflected forms match their base term after
+// stemming, which is the deterministic contract that replaces the previous
+// exact-phrase approximation.
+func TestMatchStemming(t *testing.T) {
+	for _, tc := range []struct {
+		text, term string
+		want       bool
+	}{
+		{"Business Process Model and Notations", "Business Process Model and Notation", true},
+		{"formal user study", "formal", true},
+		{"Petri nets", "Petri", true},
+		{"formalization of BPMN", "formal", true},
+		{"semantics of processes", "semantic", true},
+		{"algebraic semantics", "algebra", true},
+		{"mathematical models", "mathematical", true},
+		{"workflow nets", "workflow net", true},
+		{"process algebras", "process algebra", true},
+		{"graph transformations", "graph transformation", true},
+		{"state machines", "state machine", true},
+		{"transition systems", "transition system", true},
+		{"grammars", "grammar", true},
+		{"optimization", "optimize", true},
+		{"unrelated topic", "BPMN", false},
 	} {
 		if got := Match(tc.text, tc.term); got != tc.want {
 			t.Errorf("Match(%q, %q) = %v, want %v", tc.text, tc.term, got, tc.want)

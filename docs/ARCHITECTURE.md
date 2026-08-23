@@ -45,7 +45,7 @@ Source exports + SOMETHING configuration
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
 | `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
-| `src/searchterms/` | Standard-library-only search-term extraction from source query strings and case-insensitive whole-word field matching with wildcard support. |
+| `src/searchterms/` | Search-term extraction from source query strings and deterministic case-insensitive field matching that stems every word with the English snowball stemmer before whole-word matching, with wildcard support. |
 | `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
 | `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/kljensen/snowball"
 )
 
 // Term is one distinct search term and the sources that declared it.
@@ -53,25 +55,28 @@ func ParseSources(queries map[string]string) []Term {
 }
 
 // Match reports whether term matches text with case-insensitive whole-word
-// semantics. A trailing * is a prefix wildcard matching zero or more word
-// characters; a leading * is a suffix wildcard; * at both ends is a substring
-// match. Terms without wildcards must match as a whole word or phrase.
+// semantics after stemming every word in both the term and the text. A
+// trailing * is a prefix wildcard matching zero or more word characters; a
+// leading * is a suffix wildcard; * at both ends is a substring match. Terms
+// without wildcards must match as a whole word or phrase.
 func Match(text, term string) bool {
 	if term == "" {
 		return false
 	}
-	re, err := compileTerm(term)
-	if err != nil {
-		return false
-	}
-	return re.MatchString(text)
+	return matchStemmed(stemText(text), stemTerm(term))
 }
 
 // MatchFields returns the terms that match each of the four article fields in
 // declaration order title, abstract, keywords, and keywords_plus. Keywords and
 // keywords plus are matched per element: a term matches the field when it
-// matches any single element, and phrases never span elements.
+// matches any single element, and phrases never span elements. Both the terms
+// and the field values are stemmed before matching so that inflected forms
+// (for example plural "Notations" against singular "Notation") match.
 func MatchFields(title, abstract string, keywords, keywordsPlus []string, terms []Term) map[string][]string {
+	stemmedTitle := stemText(title)
+	stemmedAbstract := stemText(abstract)
+	stemmedKeywords := stemEach(keywords)
+	stemmedKeywordsPlus := stemEach(keywordsPlus)
 	result := map[string][]string{
 		"title":         {},
 		"abstract":      {},
@@ -79,30 +84,82 @@ func MatchFields(title, abstract string, keywords, keywordsPlus []string, terms 
 		"keywords_plus": {},
 	}
 	for _, term := range terms {
-		if Match(title, term.Text) {
+		stemmedTerm := stemTerm(term.Text)
+		if matchStemmed(stemmedTitle, stemmedTerm) {
 			result["title"] = append(result["title"], term.Text)
 		}
-		if Match(abstract, term.Text) {
+		if matchStemmed(stemmedAbstract, stemmedTerm) {
 			result["abstract"] = append(result["abstract"], term.Text)
 		}
-		if matchesAny(keywords, term.Text) {
+		if matchesAnyStemmed(stemmedKeywords, stemmedTerm) {
 			result["keywords"] = append(result["keywords"], term.Text)
 		}
-		if matchesAny(keywordsPlus, term.Text) {
+		if matchesAnyStemmed(stemmedKeywordsPlus, stemmedTerm) {
 			result["keywords_plus"] = append(result["keywords_plus"], term.Text)
 		}
 	}
 	return result
 }
 
-// matchesAny reports whether term matches any single keyword element.
-func matchesAny(elements []string, term string) bool {
+// matchesAnyStemmed reports whether a stemmed term matches any single stemmed
+// keyword element.
+func matchesAnyStemmed(elements []string, stemmedTerm string) bool {
 	for _, element := range elements {
-		if Match(element, term) {
+		if matchStemmed(element, stemmedTerm) {
 			return true
 		}
 	}
 	return false
+}
+
+// wordRunRe matches a run of ASCII word characters for in-place stemming.
+var wordRunRe = regexp.MustCompile(`\w+`)
+
+// stemWord stems a single word with the English snowball stemmer, lowercasing
+// it. Words the stemmer cannot process are returned unchanged.
+func stemWord(word string) string {
+	stemmed, err := snowball.Stem(word, "english", true)
+	if err != nil {
+		return word
+	}
+	return stemmed
+}
+
+// stemText stems every word run in text in place, preserving all non-word
+// characters so that word boundaries and phrase structure are retained.
+func stemText(text string) string {
+	return wordRunRe.ReplaceAllStringFunc(text, stemWord)
+}
+
+// stemEach stems every element of a keyword list.
+func stemEach(elements []string) []string {
+	stemmed := make([]string, len(elements))
+	for i, element := range elements {
+		stemmed[i] = stemText(element)
+	}
+	return stemmed
+}
+
+// stemTerm stems every word in a term while preserving wildcard markers.
+func stemTerm(term string) string {
+	parts := strings.Split(term, "*")
+	for i, part := range parts {
+		parts[i] = stemText(part)
+	}
+	return strings.Join(parts, "*")
+}
+
+// matchStemmed reports whether a stemmed term matches stemmed text using the
+// same whole-word and wildcard semantics as compileTerm.
+func matchStemmed(stemmedText, stemmedTerm string) bool {
+	if stemmedTerm == "" {
+		return false
+	}
+	re, err := compileTerm(stemmedTerm)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(stemmedText)
 }
 
 // parseTerms scans one query string and returns terms in declaration order
