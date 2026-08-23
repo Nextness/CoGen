@@ -463,7 +463,7 @@ func (checker *TypeChecker) expressionType(expression Expression, expected TypeR
 		checker.requireAssignable(PrimString, valueType, value.Value.expressionLocation(), "#match value")
 		patternType := checker.expressionType(value.Pattern, PrimString)
 		checker.requireAssignable(PrimString, patternType, value.Pattern.expressionLocation(), "#match pattern")
-		return PrimBoolean
+		return checker.applyAccessesType(PrimBoolean, value.Accesses, value.Location)
 	case *LenExpression:
 		operandType := checker.resolveType(checker.expressionType(value.Value, nil), value.Value.expressionLocation())
 		switch operandType.(type) {
@@ -472,9 +472,37 @@ func (checker *TypeChecker) expressionType(expression Expression, expected TypeR
 		default:
 			checker.err("#len requires an array or mapping, got "+typeRefString(operandType), value.Value.expressionLocation(), "Use #len on an array or mapping value")
 		}
-		return PrimInteger
+		return checker.applyAccessesType(PrimInteger, value.Accesses, value.Location)
+	case *IntrinsicExpression:
+		return checker.applyAccessesType(checker.intrinsicExpressionType(value), value.Accesses, value.Location)
 	}
 	return nil
+}
+
+// applyAccessesType resolves the type reached by member accesses on a base type.
+func (checker *TypeChecker) applyAccessesType(base TypeRef, accesses []Access, location *SourceLocation) TypeRef {
+	result := base
+	for _, access := range accesses {
+		result = checker.accessType(result, access, location, false)
+	}
+	return result
+}
+
+// intrinsicExpressionType checks an intrinsic call's arguments and returns its
+// declared return type.
+func (checker *TypeChecker) intrinsicExpressionType(expression *IntrinsicExpression) TypeRef {
+	def, ok := lookupIntrinsic(expression.Name)
+	if !ok {
+		checker.err(unknownIntrinsicMessage(expression.Name), expression.Location, "Known intrinsics: "+strings.Join(sortedIntrinsicNames(), ", "))
+	}
+	if len(expression.Arguments) != len(def.params) {
+		checker.err(fmt.Sprintf("Intrinsic '@%s' expects %d arguments, got %d", expression.Name, len(def.params), len(expression.Arguments)), expression.Location, "Pass one argument for each declared parameter")
+	}
+	for index, argument := range expression.Arguments {
+		actual := checker.expressionType(argument, def.params[index].typeRef)
+		checker.requireAssignable(def.params[index].typeRef, actual, argument.expressionLocation(), "intrinsic '@"+expression.Name+"' argument '"+def.params[index].name+"'")
+	}
+	return def.returnType
 }
 
 // checkBinaryOpType checks binary op type against the current invariants.
@@ -1186,8 +1214,27 @@ func expressionDependencies(expression Expression) []string {
 		case *MatchExpression:
 			walk(value.Value)
 			walk(value.Pattern)
+			for _, access := range value.Accesses {
+				if index, ok := access.(*IndexAccess); ok {
+					walk(index.Index)
+				}
+			}
 		case *LenExpression:
 			walk(value.Value)
+			for _, access := range value.Accesses {
+				if index, ok := access.(*IndexAccess); ok {
+					walk(index.Index)
+				}
+			}
+		case *IntrinsicExpression:
+			for _, argument := range value.Arguments {
+				walk(argument)
+			}
+			for _, access := range value.Accesses {
+				if index, ok := access.(*IndexAccess); ok {
+					walk(index.Index)
+				}
+			}
 		}
 	}
 	walk(expression)

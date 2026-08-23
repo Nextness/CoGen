@@ -376,8 +376,14 @@ func TestTokenizeMultilineCommentOnlyLine(t *testing.T) {
 // TestTokenizeUnexpectedChar verifies tokenize unexpected char.
 func TestTokenizeUnexpectedChar(t *testing.T) {
 	assertPanic(t, func() {
-		tokenize(t, "@")
+		tokenize(t, "$")
 	}, "Unexpected character")
+}
+
+// TestTokenizeAt verifies the '@' intrinsic prefix tokenizes as TkAT.
+func TestTokenizeAt(t *testing.T) {
+	ts := tokenize(t, "@")
+	assertKind(t, ts[0], TkAT)
 }
 
 // TestParseFallbackChar verifies parse fallback char.
@@ -417,7 +423,6 @@ func TestLexerFallbackChar(t *testing.T) {
 		{']', TkRBRACKET},
 		{'|', TkPIPE},
 		{'?', TkOPTIONAL},
-		{'@', TkOPTIONAL}, // default case
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.ch), func(t *testing.T) {

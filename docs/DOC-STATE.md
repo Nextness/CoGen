@@ -40,9 +40,9 @@ The dependency table expresses review impact rather than link direction. When a 
 | [docs/FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md) | `fead9f9b4138651df40e76cf89504970d15217183ce087c956db56e20dbe91b0` | [docs/STANDARDS.md](STANDARDS.md), [docs/DESIGN.md](DESIGN.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | [docs/JSX-RUNTIME.md](JSX-RUNTIME.md) | `e9d717fe99e9494a3c7033aea5a52d04778bc81ec7278b70de3542590f341def` | [docs/DESIGN.md](DESIGN.md), [docs/STANDARDS.md](STANDARDS.md), [docs/ARCHITECTURE.md](ARCHITECTURE.md) |
 | [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) | `8d867de280f202fbd55ff1b006dc125c63c594d98884140e9f3411597bb6a92f` | None |
-| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `db6e2ec72935abcf3beed7f8a4aee6c7a33389a17dd672b798b9bb9b44567a54` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
+| [docs/PROJECT_CATALOG.md](PROJECT_CATALOG.md) | `7c0cafc599289b36f200f70ed27b366d76b2b9d688789e05fbe6820143523ad9` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md) |
 | [docs/STANDARDS.md](STANDARDS.md) | `029513a093a30e7477123885d3e4d2d7bb6137bf3a4305ae5be9cbfd2e05b3fc` | [docs/DESIGN.md](DESIGN.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md), [docs/FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md) |
-| [docs/something.spec.md](something.spec.md) | `9f59daa2a3a6fb4df9fb6ef6ecfb592027562aeff019ca702119c0dad4690afc` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
+| [docs/something.spec.md](something.spec.md) | `e8ec2bd767083db16af815e27c7b30e7a3c997b65adf38c028bd8de31b405d8d` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 
 <!-- END GENERATED DOCUMENT STATE -->
 

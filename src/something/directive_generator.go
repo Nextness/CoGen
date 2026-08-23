@@ -305,10 +305,18 @@ func (generator *DirectiveGenerator) expandExpression(expression Expression) Exp
 	case *MatchExpression:
 		value.Value = generator.expandExpression(value.Value)
 		value.Pattern = generator.expandExpression(value.Pattern)
+		value.Accesses = generator.expandAccesses(value.Accesses)
 		return value
 	case *LenExpression:
 		value.Value = generator.expandExpression(value.Value)
+		value.Accesses = generator.expandAccesses(value.Accesses)
 		return value
+	case *IntrinsicExpression:
+		arguments := make([]Expression, len(value.Arguments))
+		for index, argument := range value.Arguments {
+			arguments[index] = generator.expandExpression(argument)
+		}
+		return &IntrinsicExpression{Name: value.Name, Arguments: arguments, Accesses: generator.expandAccesses(value.Accesses), Location: value.Location}
 	default:
 		generator.err(fmt.Sprintf("Unknown expression node %T", expression), expression.expressionLocation(), "Report this as an implementation defect")
 	}

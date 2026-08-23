@@ -348,6 +348,7 @@ expr ::= "string literal"
        | <expr> #or <expr>     // boolean OR (short-circuit)
        | #match(<expr>, <expr>) // regex match; returns boolean
        | #len(<expr>)          // length of array or mapping; returns integer
+       | @<intrinsic_name>(<args>) // intrinsic call
        | (<expr>)              // grouping / precedence override
 ```
 
@@ -359,7 +360,7 @@ expr ::= "string literal"
   ==  !=                    (infix)
   <  <=  >  >=              (infix)
   #not                      (prefix)
-  #match()  #len()          (call-like)
+  #match()  #len()  @intrinsic()  (call-like)
   (expr)                    (grouping, highest)
 ```
 
@@ -743,6 +744,70 @@ Directive generation replaces an lvalue `#iteration` with the generated identifi
     count := #len(mapping_value); // 2
     ```
 
+# Intrinsics
+
+Intrinsics are built-in pure functions callable with the `@` prefix followed by the intrinsic name and a parenthesized, comma-separated argument list. They are usable in any expression position, are type checked against a fixed parameter list, and evaluate to a fixed return type. Intrinsics are evaluated at runtime like the call-like directives `#match` and `#len`; they do not create destinations and cannot be assigned to.
+
+```
+expr ::= @<intrinsic_name>(<arg> ("," <arg>)*)
+```
+
+Arguments are passed positionally and must match the declared parameter types. Passing the wrong number of arguments or a value whose type does not match a parameter is an error. Calling an unknown intrinsic is an error that lists the known intrinsics.
+
+Member access applies to the result of an intrinsic or a call-like directive (`#len`, `#match`) just as it does to a reference: an intrinsic or directive result may be followed by field access (`.member`) or index access (`[index]`). The type checker validates the access against the result type, so indexing a non-indexable result (for example an integer from `#len`) is an error. Arguments to intrinsics and directives may themselves use member access, including array indices and setup members.
+
+## Split By Intrinsic
+
+- Intrinsic name: `@split_by`;
+- Signature: `@split_by(input: string, delimiter: string) -> []string`;
+- Description: Splits the `input` string on every occurrence of `delimiter` and returns the resulting list of strings. Empty segments produced by consecutive delimiters are preserved, matching Go's `strings.Split`. An empty `delimiter` splits the input into its individual characters.
+- Requires arguments to work: YES;
+- Accepts arguments: YES;
+    - `input`: the string to split;
+    - `delimiter`: the string used as the split boundary;
+- Directive usage:
+    ```something
+    parts := @split_by("a,b,c", ",");   // []string{"a", "b", "c"}
+    parts := @split_by("a,,b", ",");    // []string{"a", "", "b"}
+    parts := @split_by("abc", "");      // []string{"a", "b", "c"}
+    first := @split_by("a,b,c", ",")[0]; // "a"
+
+    #for part: @split_by(input, ",") {
+        // iterate over each split segment
+    }
+    ```
+
+## Concat Intrinsic
+
+- Intrinsic name: `@concat`;
+- Signature: `@concat(list: []string, delimiter: string) -> string`;
+- Description: Joins the elements of `list` into a single string, inserting `delimiter` between each pair of adjacent elements. An empty `delimiter` concatenates the elements directly. An empty list produces an empty string. The current implementation accepts a list of strings; support for other element types is planned.
+- Requires arguments to work: YES;
+- Accepts arguments: YES;
+    - `list`: the list of strings to join;
+    - `delimiter`: the string inserted between adjacent elements;
+- Directive usage:
+    ```something
+    a := []string{"a", "b", "c"};
+    b := @concat(a, "");   // "abc"
+    c := @concat(a, ",");  // "a,b,c"
+    ```
+
+## Append Prefix For Each Intrinsic
+
+- Intrinsic name: `@append_prefix_for_each`;
+- Signature: `@append_prefix_for_each(list: []string, prefix: string) -> []string`;
+- Description: Returns a new list where each element of `list` has `prefix` prepended. The original list is unchanged. An empty `prefix` returns a copy of the list unchanged, and an empty list returns an empty list.
+- Requires arguments to work: YES;
+- Accepts arguments: YES;
+    - `list`: the list of strings to prefix;
+    - `prefix`: the string prepended to each element;
+- Directive usage:
+    ```something
+    a := []string{"a", "b", "c"};
+    b := @append_prefix_for_each(a, "something"); // []string{"somethinga", "somethingb", "somethingc"}
+    ```
+
 # Macro Definition and Call
 
 Macros are a way to define reusable expressions that expand inline at the call site. They are similar to parameterized constants: a macro defines a `#set` expression that is evaluated in the macro's own scope, and the result replaces the call.
@@ -901,6 +966,7 @@ The private/internal API fail with relevant information for the public API to pr
 - MULTILINE_STRING
 - IDENTIFIER
 - HASH
+- AT
 - EOF
 - ASSERT
 - IF

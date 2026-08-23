@@ -599,13 +599,24 @@ type UnaryOpExpression struct {
 type MatchExpression struct {
 	Value    Expression
 	Pattern  Expression
+	Accesses []Access
 	Location *SourceLocation
 }
 
 // LenExpression evaluates the length of an array or mapping.
 type LenExpression struct {
 	Value    Expression
+	Accesses []Access
 	Location *SourceLocation
+}
+
+// IntrinsicExpression is a call to a built-in intrinsic function such as
+// @split_by. Intrinsics are evaluated at runtime like #match and #len.
+type IntrinsicExpression struct {
+	Name      string
+	Arguments []Expression
+	Accesses  []Access
+	Location  *SourceLocation
 }
 
 // assignmentValueMarker marks BinaryOpExpression as an AssignmentValue implementation.
@@ -620,6 +631,9 @@ func (*MatchExpression) assignmentValueMarker() {}
 // assignmentValueMarker marks LenExpression as an AssignmentValue implementation.
 func (*LenExpression) assignmentValueMarker() {}
 
+// assignmentValueMarker marks IntrinsicExpression as an AssignmentValue implementation.
+func (*IntrinsicExpression) assignmentValueMarker() {}
+
 // expressionMarker marks BinaryOpExpression as an Expression implementation.
 func (*BinaryOpExpression) expressionMarker() {}
 
@@ -632,6 +646,9 @@ func (*MatchExpression) expressionMarker() {}
 // expressionMarker marks LenExpression as an Expression implementation.
 func (*LenExpression) expressionMarker() {}
 
+// expressionMarker marks IntrinsicExpression as an Expression implementation.
+func (*IntrinsicExpression) expressionMarker() {}
+
 // expressionLocation returns the receiver's source location.
 func (n *BinaryOpExpression) expressionLocation() *SourceLocation { return n.Location }
 
@@ -643,3 +660,6 @@ func (n *MatchExpression) expressionLocation() *SourceLocation { return n.Locati
 
 // expressionLocation returns the receiver's source location.
 func (n *LenExpression) expressionLocation() *SourceLocation { return n.Location }
+
+// expressionLocation returns the receiver's source location.
+func (n *IntrinsicExpression) expressionLocation() *SourceLocation { return n.Location }

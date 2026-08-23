@@ -57,6 +57,7 @@ const (
 	TkMULTILINE_STRING
 	TkIDENTIFIER
 	TkHASH
+	TkAT // "@" intrinsic prefix
 	TkEOF
 	TkASSERT // "assert"
 	TkIF     // "if"
@@ -118,6 +119,7 @@ var tokenKindNames = map[TokenKind]string{
 	TkMULTILINE_STRING: "MULTILINE_STRING",
 	TkIDENTIFIER:       "IDENTIFIER",
 	TkHASH:             "HASH",
+	TkAT:               "AT",
 	TkEOF:              "EOF",
 	TkASSERT:           "ASSERT",
 	TkIF:               "IF",
@@ -774,6 +776,10 @@ func (l *Lexer) Tokenize() []Token {
 		case '!':
 			l.advance()
 			tokens = append(tokens, Token{TkBANG, "!", sl, sc})
+			continue
+		case '@':
+			l.advance()
+			tokens = append(tokens, Token{TkAT, "@", sl, sc})
 			continue
 		case '<':
 			l.advance()

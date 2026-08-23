@@ -78,6 +78,7 @@ func TestOrderedASTInterfaceMarkers(t *testing.T) {
 		&UnaryOpExpression{},
 		&MatchExpression{},
 		&LenExpression{},
+		&IntrinsicExpression{},
 	}
 	for _, expression := range expressions {
 		expression.assignmentValueMarker()

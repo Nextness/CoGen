@@ -66,6 +66,13 @@
     };
 }
 
+#macro string_to_ieeexplore_search_term := (input: string, delimiter: string, enrich: string, second_delimiter: string) -> string {
+    split_result := @split_by(input, delimiter);
+    enrich_result := @append_prefix_for_each(split_result, enrich);
+    result := @concat(enrich_result, second_delimiter);
+    #set result;
+}
+
 // -- Scopes --
 #iteration("_workspace"): scope = {
     #priv component_1  := '"BPMN" OR "BPMN 2.0" OR "Business Process Model and Notation"';
@@ -174,10 +181,128 @@
 }
 
 #iteration("_workspace"): scope = {
-    #priv component_1 := '"BPMN" OR "BPMN 2.0" OR "Business Process Model and Notation" OR "Business Process Modeling Notation" OR "Business Process Modelling Notation"';
-    #priv component_2 := '"mathematical model*" OR "mathematical formulation*" OR "optimization model*" OR "formal model*" OR "analytical model*" OR "algebraic model*" OR "mathematical representation*" OR "operations research" OR "operational research" OR "task graph*" OR "Petri net*" OR "workflow net*" OR "timed Petri net*" OR "stochastic Petri net*" OR "queueing model*" OR "queueing network*" OR "Markov model*" OR "Markov chain*" OR "state space" OR "state-space model*"';
-    #priv component_3 := 'optimi* OR "mathematical optimization" OR "mathematical programming" OR "combinatorial optimization" OR "linear programming" OR "integer programming" OR ILP OR MILP OR MINLP OR "nonlinear programming" OR "quadratic programming" OR "constraint programming" OR "constraint optimization" OR "dynamic programming" OR "stochastic programming" OR "robust optimization" OR "multi-objective optimization" OR "multiobjective optimization" OR "goal programming" OR "Pareto optim*"';
-    #priv component_4 := 'heuristic* OR metaheuristic* OR matheuristic* OR "local search" OR "genetic algorithm*" OR "evolutionary algorithm*" OR "particle swarm" OR "ant colony" OR "simulated annealing" OR "tabu search"';
+    // I don't use any wildcards because one of the bases selected is IEEEXplore,
+    // which only allows 10 wildcards. This is annoying, therefore, for the research
+    // term, I've decided to use only words for the search term. No expressions and
+    // weird operators, because I'm searching in several databases and each database
+    // has their own way of doing things...
+
+    #priv component_1 := #multiline (no_indent|no_newline|strip_spaces) COMP1
+        // The acronym is the shortest portable identifier and already matches
+        // versioned forms such as "BPMN 2.0", so those forms are not repeated.
+        BPMN
+
+        // The current official expansion captures records that spell out the
+        // notation name without using the BPMN acronym.
+        OR "Business Process Model and Notation"
+
+        // The former American- and British-English names occur in literature
+        // about BPMN 1.x and remain distinct literal phrases across databases.
+        OR "Business Process Modeling Notation"
+        OR "Business Process Modelling Notation"
+    COMP1;
+
+    #priv component_2 := #multiline (no_indent|no_newline|strip_spaces) COMP2
+        // Captures the exact word shared by formal models, specifications,
+        // languages, representations, analyses, and methods without repeating
+        // every longer phrase that necessarily contains it.
+        formal
+
+        // Covers formal, operational, execution, process, behavioral, and
+        // other semantics without enumerating redundant qualified phrases.
+        OR semantics
+
+        // American- and British-English nouns for assigning a precise
+        // mathematical meaning to BPMN. They are different literal tokens.
+        OR formalization
+        OR formalisation
+
+        // Captures papers that call their target representation a formalism.
+        // Both number forms are explicit because IEEE Xplore may distinguish them.
+        OR formalism
+        OR formalisms
+
+        // Broad mathematical wording recovers previously unknown mathematical
+        // representations without predicting the target formalism in advance.
+        OR mathematical
+
+        // Captures algebraic semantics and representations beyond the named
+        // process-algebra and process-calculus families in component_3.
+        OR algebraic
+
+        // The noun and adjective cover logical formalisms and logical models.
+        // They are separate literal words and are not treated as interchangeable.
+        OR logic
+        OR logical
+    COMP2;
+
+    #priv component_3 := #multiline (no_indent|no_newline|strip_spaces) COMP3
+        // Petri is distinctive in this domain and covers Petri net/nets plus
+        // timed, stochastic, coloured, recursive, and other Petri-net variants.
+        Petri
+
+        // Workflow nets may be named without the word Petri. Singular and
+        // plural phrases are explicit for consistent IEEE Xplore retrieval.
+        OR "workflow net"
+        OR "workflow nets"
+
+        // Process algebras and calculi model concurrency, communication,
+        // choice, and synchronization. The irregular plural is also explicit.
+        OR "process algebra"
+        OR "process algebras"
+        OR "process calculus"
+        OR "process calculi"
+
+        // Graph transformations, rewriting, and grammars define BPMN
+        // structure or execution through mathematically specified graph rules.
+        OR "graph transformation"
+        OR "graph transformations"
+        OR "graph rewriting"
+        OR "graph grammar"
+        OR "graph grammars"
+
+        // Process and control-flow graphs capture direct graph-based
+        // representations without adding the optimization-oriented task graph.
+        OR "process graph"
+        OR "process graphs"
+        OR "control flow graph"
+        OR "control flow graphs"
+
+        // Transition systems, state machines, state spaces, and automata cover
+        // state-based semantics. Short forms also match qualified variants such
+        // as labelled transition systems and abstract state machines.
+        OR "transition system"
+        OR "transition systems"
+        OR "state machine"
+        OR "state machines"
+        OR "state space"
+        OR "state spaces"
+        OR automaton
+        OR automata
+
+        // Situation Calculus, Event-B, and Z are distinct logical or
+        // set-theoretic targets used to translate or specify BPMN models.
+        OR "Situation Calculus"
+        OR "Event-B"
+        OR "Z notation"
+
+        // Queueing has two established spellings and covers both models and
+        // networks without repeating those suffixes. Markov similarly covers
+        // models and chains, while probabilistic and stochastic retain unknown
+        // quantitative representations without introducing optimization terms.
+        OR queueing
+        OR queuing
+        OR Markov
+        OR probabilistic
+        OR stochastic
+    COMP3;
+
+    // Furthermore, IEEEXplore is a pain in the ass and needs a very specific type of search term.
+    // This is to allow the search to actually work. I don't know why they have such a pain in the
+    // ass search engine...
+    ieeexplore_bs_component_1 := string_to_ieeexplore_search_term!(component_1, " OR ", '"All Metadata":', " OR ");
+    ieeexplore_bs_component_2 := string_to_ieeexplore_search_term!(component_2, " OR ", '"All Metadata":', " OR ");
+    ieeexplore_bs_component_3 := string_to_ieeexplore_search_term!(component_3, " OR ", '"All Metadata":', " OR ");
 
     workspace: workspace_config = {
         format_version = 2,
@@ -190,20 +315,46 @@
         cache_policy = make_cache_policy!(),
         sources = [
             {
+                name = "scopus",
+                date = "2026-08-23 01:37:15",
+                expected_file = "../corpus/scopus.2026-08-23.raw.csv",
+                file_type = "csv",
+                query = #multiline (no_indent|no_newline) SCOPUS
+                    TITLE-ABS-KEY(({component_1}) AND ({component_2} OR {component_3})
+                SCOPUS,
+                filters = []raw_data_filters{
+                    { filters = [.NO_FILTER], count = 1657 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  836 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  225 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  214 },
+                },
+                expected_result_count = 214,
+                requested_fields = make_requested_fields!(),
+                patch_fields = mapping(string, string) {
+                    ["author keywords"] => "keywords",
+                    ["index keywords"] => "keywords_additional",
+                    ["source title"] => "journal",
+                    ["references"] => "cited_references",
+                    ["cited by"] => "citation_count",
+                    ["article_source"] => "source",
+                },
+                keep_fields = make_keep_fields!(),
+            },
+            {
                 name = "wos",
-                date = "2026-08-18 00:33:00",
-                expected_file = "../corpus/wos.2026-08-18.raw.bib",
+                date = "2026-08-23 01:39:27",
+                expected_file = "../corpus/wos.2026-08-23.raw.bib",
                 file_type = "bib",
                 query = #multiline (no_indent|no_newline|strip_spaces) WOS
-                    TS=(({component_1}) AND ({component_2} OR {component_3} OR {component_4}))
+                    TS=(({component_1}) AND ({component_2} OR {component_3}))
                 WOS,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 497 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  344 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  178 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  174 },
+                    { filters = [.NO_FILTER], count = 895 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  471 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  211 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  208 },
                 },
-                expected_result_count = 174,
+                expected_result_count = 208,
                 requested_fields = make_requested_fields!(),
                 patch_fields = mapping(string, string) {
                     ["cited-references"] => "cited_references",
@@ -212,6 +363,35 @@
                     ["article_source"] => "source",
                     ["keywords-plus"] => "keywords_additional",
                     ["times-cited"] => "citation_count",
+                },
+                keep_fields = make_keep_fields!(),
+            },
+            {
+                name = "ieeexplore",
+                date = "2026-08-23 02:52:38",
+                expected_file = "../corpus/ieeexplore.2026-08-23.raw.csv",
+                file_type = "csv",
+                query = #multiline (no_indent|no_newline|strip_spaces) IEEEXPLORE
+                    {ieeexplore_bs_component_1} AND ({ieeexplore_bs_component_2} OR {ieeexplore_bs_component_3})
+                IEEEXPLORE,
+                filters = []raw_data_filters{
+                    { filters = [.NO_FILTER], count = 958 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  483 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  52 },
+                    // IEEEXplore doesn't have a filter for english, since they only accept english papers.
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  52 },
+                },
+                expected_result_count = 52,
+                requested_fields = make_requested_fields!(),
+                patch_fields = mapping(string, string) {
+                    ["document title"] => "title",
+                    ["publication year"] => "year",
+                    ["author keywords"] => "keywords",
+                    ["ieee terms"] => "keywords_additional",
+                    ["publication title"] => "journal",
+                    ["author affiliations"] => "affiliations",
+                    ["article citation count"] => "citation_count",
+                    ["article_source"] => "source",
                 },
                 keep_fields = make_keep_fields!(),
             },

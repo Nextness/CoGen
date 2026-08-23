@@ -445,9 +445,12 @@ func (state *runtimeState) evaluateExpression(expression Expression, expected Ty
 	case *UnaryOpExpression:
 		return state.evaluateUnaryOp(value)
 	case *MatchExpression:
-		return state.evaluateMatch(value)
+		return state.applyAccesses(state.evaluateMatch(value), PrimBoolean, value.Accesses, value.Location)
 	case *LenExpression:
-		return state.evaluateLen(value)
+		return state.applyAccesses(state.evaluateLen(value), PrimInteger, value.Accesses, value.Location)
+	case *IntrinsicExpression:
+		def, _ := lookupIntrinsic(value.Name)
+		return state.applyAccesses(state.evaluateIntrinsic(value), def.returnType, value.Accesses, value.Location)
 	default:
 		state.err(fmt.Sprintf("Unknown expression node %T", expression), expression.expressionLocation(), "Report this as an implementation defect")
 	}
@@ -607,6 +610,22 @@ func (state *runtimeState) evaluateLen(expression *LenExpression) any {
 		state.err("#len requires an array or mapping, got "+runtimeTypeName(value), expression.Value.expressionLocation(), "Use #len on an array or mapping value")
 	}
 	return 0
+}
+
+// evaluateIntrinsic evaluates an intrinsic call against the current evaluator state.
+func (state *runtimeState) evaluateIntrinsic(expression *IntrinsicExpression) any {
+	def, ok := lookupIntrinsic(expression.Name)
+	if !ok {
+		state.err(unknownIntrinsicMessage(expression.Name), expression.Location, "Known intrinsics: "+strings.Join(sortedIntrinsicNames(), ", "))
+	}
+	if len(expression.Arguments) != len(def.params) {
+		state.err(fmt.Sprintf("Intrinsic '@%s' expects %d arguments, got %d", expression.Name, len(def.params), len(expression.Arguments)), expression.Location, "Pass one argument for each declared parameter")
+	}
+	arguments := make([]any, len(expression.Arguments))
+	for index, argument := range expression.Arguments {
+		arguments[index] = state.evaluateExpression(argument, def.params[index].typeRef)
+	}
+	return def.evaluate(state, arguments, expression.Location)
 }
 
 // runtimeValuesEqual compares two runtime values for equality.
@@ -772,6 +791,16 @@ func (state *runtimeState) expectedEnum(expected TypeRef) *EnumType {
 func (state *runtimeState) resolveAccess(current any, access Access, location *SourceLocation) any {
 	value, _ := state.resolveTypedAccess(current, nil, access, location)
 	return value
+}
+
+// applyAccesses resolves a sequence of member accesses on an evaluated value.
+func (state *runtimeState) applyAccesses(value any, typeRef TypeRef, accesses []Access, location *SourceLocation) any {
+	current := value
+	currentType := typeRef
+	for _, access := range accesses {
+		current, currentType = state.resolveTypedAccess(current, currentType, access, location)
+	}
+	return current
 }
 
 // resolveTypedAccess resolves typed access from the supplied context.

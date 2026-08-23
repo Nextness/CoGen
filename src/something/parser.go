@@ -652,7 +652,7 @@ func (p *Parser) parsePrefix() Expression {
 		p.expect(TkCOMMA, "Expected ',' between #match arguments")
 		pattern := p.parseExpression()
 		p.expect(TkRPAREN, "Expected ')' after #match arguments")
-		return &MatchExpression{Value: value, Pattern: pattern, Location: location}
+		return &MatchExpression{Value: value, Pattern: pattern, Accesses: p.parseAccesses(), Location: location}
 	}
 
 	// Handle #len (call-like)
@@ -662,7 +662,25 @@ func (p *Parser) parsePrefix() Expression {
 		p.expect(TkLPAREN, "Expected '(' after #len")
 		value := p.parseExpression()
 		p.expect(TkRPAREN, "Expected ')' after #len arguments")
-		return &LenExpression{Value: value, Location: location}
+		return &LenExpression{Value: value, Accesses: p.parseAccesses(), Location: location}
+	}
+
+	// Handle intrinsics (@name(args))
+	if token.Kind == TkAT {
+		p.advance() // consume @
+		name := p.expect(TkIDENTIFIER, "Expected intrinsic name after '@'").StrValue()
+		p.expect(TkLPAREN, "Expected '(' after intrinsic name")
+		arguments := []Expression{}
+		for p.peek(0).Kind != TkRPAREN {
+			arguments = append(arguments, p.parseExpression())
+			if p.peek(0).Kind == TkCOMMA {
+				p.advance()
+			} else if p.peek(0).Kind != TkRPAREN {
+				p.err("Expected ',' between intrinsic arguments", "Separate intrinsic arguments with commas", nil)
+			}
+		}
+		p.expect(TkRPAREN, "Expected ')' after intrinsic arguments")
+		return &IntrinsicExpression{Name: name, Arguments: arguments, Accesses: p.parseAccesses(), Location: location}
 	}
 
 	// Handle parenthesized grouping
