@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode"
 
+	"analysis/something"
 	"analysis/workspace"
 
 	_ "modernc.org/sqlite"
@@ -353,8 +354,20 @@ func sanitizeReviewerAssignments(source []byte) ([]byte, bool, error) {
 		if kind == tokenEnd {
 			break
 		}
+		if kind != tokenIdentifier {
+			// Strings and multiline blocks report one position past their end,
+			// while punctuation reports its own position. Advance to the start
+			// of the next token without consuming a following identifier's
+			// first byte.
+			if next > index {
+				index = next
+			} else {
+				index = next + 1
+			}
+			continue
+		}
 		index = next
-		if kind != tokenIdentifier || !hasWordAt(text, index, "reviewer") {
+		if !hasWordAt(text, index, "reviewer") {
 			index++
 			continue
 		}
@@ -442,8 +455,8 @@ func somethingMultilineEnd(text string, start int) (int, bool) {
 		} else {
 			lineEnd += lineStart
 		}
-		line := strings.TrimSpace(text[lineStart:lineEnd])
-		if line == delimiter || line == delimiter+"," {
+		line := strings.TrimSpace(something.StripMultilineComment(text[lineStart:lineEnd]))
+		if line == delimiter || line == delimiter+"," || line == delimiter+";" {
 			if lineEnd < len(text) {
 				return lineEnd + 1, true
 			}

@@ -45,7 +45,7 @@ Go tests use `testing` and one of the repository build tags `unit`, `functional`
 - Integration tests use real temporary SQLite files, production migrations, HTTP handlers, controlled processes, or boundaries whose behavior depends on integration.
 - Database integration tests use temporary directories and production migration configuration rather than manually approximated schema.
 - Provider tests use controlled mock HTTP servers and never call live Crossref, OpenAlex, ORCID, or credentialed services, except for the bounded public-provider target `make test-e2e-live E2E_LIVE=1`, which must remain explicitly enabled and structurally asserted.
-- Tagged E2E tests invoke the Makefile-built `build/analysis`, `build/pdf-store`, and `build/something-json`, write only beneath `build/e2e/`, keep deterministic and mocked variants offline, and verify persisted pipeline and A1/A2 review database evidence before comparing APIs and browser UI.
+- Tagged E2E tests invoke the Makefile-built `build/analysis`, `build/pdf-store`, and `build/something-printer`, write only beneath `build/e2e/`, keep deterministic and mocked variants offline, and verify persisted pipeline and A1/A2 review database evidence before comparing APIs and browser UI.
 - Regression tests assert observable behavior and reproduce the failure before the fix when practical.
 - Avoid nondeterministic sleeps, shared external state, implementation-detail assertions, and weakening assertions to accept a failure.
 - Use `make test-go PACKAGE=./package TEST='^TestName$'` for focused unit, functional, or integration work, `make test` for those three tag families, `make test-e2e` for offline cross-layer behavior, and `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle work.

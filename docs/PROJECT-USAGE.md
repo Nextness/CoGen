@@ -43,7 +43,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | Output | Build target | Purpose |
 |---|---|---|
 | `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, or serves the loopback-only local review viewer. |
-| `build/something-json` | `make something-json` or `make tools` | Evaluates one SOMETHING file and prints its value as JSON. |
+| `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
 | `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
 | `build/prepare-osf` | `make prepare-osf` or `make tools` | Creates one sanitized copy-only metadata, PDF, and optional configuration export. |
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
@@ -139,11 +139,13 @@ Configuration includes must remain inside the main configuration directory and m
 Build and inspect a configuration without running the pipeline:
 
 ```sh
-make something-json
-./build/something-json ./config/workspace.something
+make something-printer
+./build/something-printer ./config/workspace.something
+./build/something-printer --json ./config/workspace.something
+./build/something-printer --yaml ./config/workspace.something
 ```
 
-The tool executes the same public SOMETHING loading boundary as the application and prints evaluated values as JSON. Use [something.spec.md](something.spec.md) for syntax and semantics.
+The tool executes the same public SOMETHING loading boundary as the application and prints evaluated public values. The default and explicit `--something` format renders the evaluated result in SOMETHING setup syntax, while `--json` and `--yaml` select the other supported serializations. The format flags are mutually exclusive. Use [something.spec.md](something.spec.md) for syntax and semantics.
 
 ## 10. Focused and broad Go verification
 
@@ -172,7 +174,7 @@ Run the deterministic and mocked-provider pipeline through persisted SQLite, the
 make test-e2e
 ```
 
-The target builds `build/analysis`, `build/pdf-store`, and `build/something-json`, evaluates generated configurations, invokes the real pipeline executable, adds a deterministic valid PDF through the supported manual tool, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`, and runs a Go database verifier over inherited and divergent heads, immutable versions, links, anchors, and review audit rows. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
+The target builds `build/analysis`, `build/pdf-store`, and `build/something-printer`, evaluates generated configurations, invokes the real pipeline executable, adds a deterministic valid PDF through the supported manual tool, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`, and runs a Go database verifier over inherited and divergent heads, immutable versions, links, anchors, and review audit rows. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
 
 Run the bounded real-provider variant only when network access and live calls are explicitly acceptable:
 

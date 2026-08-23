@@ -137,6 +137,18 @@ func TestSanitizeReviewerAssignments(t *testing.T) {
 	}
 }
 
+// TestSanitizeReviewerAfterCommentedMultiline verifies redaction continues after a multiline block whose closing tag has a trailing comment.
+func TestSanitizeReviewerAfterCommentedMultiline(t *testing.T) {
+	source := []byte("workspace = { query = #multiline RAW\ncontent\nRAW; // done\nreviewer = reviewer_config { username = \"Researcher\", email = \"person@example.test\", }, };")
+	redacted, changed, err := sanitizeReviewerAssignments(source)
+	if err != nil || !changed {
+		t.Fatalf("sanitize: changed=%v err=%v", changed, err)
+	}
+	if strings.Contains(string(redacted), "Researcher") || strings.Contains(string(redacted), "person@example.test") {
+		t.Fatalf("reviewer after commented multiline was not redacted: %s", redacted)
+	}
+}
+
 // TestConfigurationCopyRejectsSymlinkEscape verifies that configuration includes cannot follow links outside the copied root.
 func TestConfigurationCopyRejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()

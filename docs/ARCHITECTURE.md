@@ -53,7 +53,7 @@ Source exports + SOMETHING configuration
 | `src/tools/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
 | `src/tools/pdf-store/` | Validated manual PDF insertion command. |
 | `src/tools/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
-| `src/tools/something-json/` | SOMETHING evaluation and JSON inspection command. |
+| `src/tools/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
@@ -65,7 +65,7 @@ Source exports + SOMETHING configuration
 | `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
 
-The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-json`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, and `build/coveragecheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
+The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, and `build/coveragecheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
 
 ## 4. Dependency direction and component boundaries
 
@@ -110,7 +110,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 
-`build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-json <path>` evaluates a SOMETHING file and writes JSON. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy.
+`build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-printer [--json|--yaml|--something] <path>` evaluates a SOMETHING file and writes the evaluated public values in SOMETHING setup syntax by default, or JSON or YAML when selected by a flag. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy.
 
 The process logger is installed as the standard `slog` default and package loggers come from `logging.Logger(component)`. The compile-time minimum is `slog.LevelInfo`; there is no runtime `--log-level` option.
 
@@ -440,7 +440,7 @@ The rendering and frontend extension rules live in [STANDARDS.md](STANDARDS.md),
 
 ## 16. Testing architecture
 
-Go tests use `testing` with `unit`, `functional`, `integration`, and isolated `e2e` build tags. `make test` and `make test-go` enable the first three tag families without cached results; `make test-e2e` alone selects the offline E2E tests, builds and invokes `build/analysis`, evaluates generated SOMETHING configuration through `build/something-json`, and writes deterministic and mocked database bundles beneath `build/e2e/`. Real-database integration and E2E tests use production migrations.
+Go tests use `testing` with `unit`, `functional`, `integration`, and isolated `e2e` build tags. `make test` and `make test-go` enable the first three tag families without cached results; `make test-e2e` alone selects the offline E2E tests, builds and invokes `build/analysis`, evaluates generated SOMETHING configuration through `build/something-printer`, and writes deterministic and mocked database bundles beneath `build/e2e/`. Real-database integration and E2E tests use production migrations.
 
 `make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` writes an atomic whole-module profile and enforces the SOMETHING coverage policy. `make format-check`, `make vet`, and `make check` cover formatting, static checks, and complete read-only documentation consistency.
 

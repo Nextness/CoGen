@@ -26,7 +26,7 @@ coverage_policy: coverage_policy_config = {
         "analysis/dev",
         "analysis/tools/coveragecheck",
         "analysis/tools/doccheck",
-        "analysis/tools/something-json",
+        "analysis/tools/something-printer",
     },
     package_minimums = mapping(string, minimums_coverage_config) {
         ["analysis"]                 => { minimum = 10.0 },

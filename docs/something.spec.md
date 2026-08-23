@@ -379,6 +379,8 @@ Comparison operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) require both operands to
 
 To include literal `{` or `}` characters inside a string literal (both double-quoted and single-quoted), use `{{` for `{` and `}}` for `}`. This escaping applies in all string expressions, including `#error("...")` messages. The lexer converts `{{` to `{` and `}}` to `}` before processing interpolation references.
 
+Inside multiline strings, `\/` is an escape for a literal `/`, so `\/\/` produces `//` without starting a comment. Regular string literals do not treat `\/` specially.
+
 # Statements
 
 Using the expressions defined previously, complete statements use a common assignment model. A destination can be a variable, an existing member or index, or a directive-generated lvalue. Enum and setup declarations are specialized typed assignments.
@@ -490,6 +492,7 @@ The parser stores directives in the syntax AST. Directive generation executes th
     - no_newline: if set, it will remove newlines automatically;
     - no_indent: if set, it will remove indentation automatically;
     - strip_spaces: if set, it will remove whitespaces between each line automatically;
+- Comments: A multiline body may contain `//` comments. An unescaped `//` starts a comment that runs to the end of its line, and the comment is removed from the resulting string value. This applies to every body line including the line that closes the literal, so a closing delimiter may carry a trailing comment. To include a literal `//` in the value, escape both slashes as `\/\/` (a single `\/` is an escape for a literal `/`).
 - Directive usage:
     ```something
     // Example no arguments

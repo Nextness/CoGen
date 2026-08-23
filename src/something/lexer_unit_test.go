@@ -337,6 +337,42 @@ func TestTokenizeMultilineStripSpaces(t *testing.T) {
 	assertKind(t, ts[0], TkMULTILINE_STRING)
 }
 
+// TestTokenizeMultilineComment verifies a // comment is removed from multiline content.
+func TestTokenizeMultilineComment(t *testing.T) {
+	ts := tokenize(t, "#multiline EOF\nhello // comment\nworld\nEOF")
+	pair := ts[0].Value.([2]string)
+	if pair[0] != "hello\nworld" {
+		t.Errorf("expected comment stripped, got %q", pair[0])
+	}
+}
+
+// TestTokenizeMultilineEscapedSlash verifies \/\/ produces a literal //.
+func TestTokenizeMultilineEscapedSlash(t *testing.T) {
+	ts := tokenize(t, "#multiline EOF\nhello \\/\\/ world\nEOF")
+	pair := ts[0].Value.([2]string)
+	if pair[0] != "hello // world" {
+		t.Errorf("expected escaped slash, got %q", pair[0])
+	}
+}
+
+// TestTokenizeMultilineClosingTagComment verifies a closing tag with a trailing comment closes.
+func TestTokenizeMultilineClosingTagComment(t *testing.T) {
+	ts := tokenize(t, "#multiline EOF\nhello\nEOF; // done")
+	if pair := ts[0].Value.([2]string); pair[0] != "hello" {
+		t.Errorf("expected 'hello', got %q", pair[0])
+	}
+	assertKind(t, ts[1], TkSEMICOLON)
+}
+
+// TestTokenizeMultilineCommentOnlyLine verifies a comment-only line becomes empty.
+func TestTokenizeMultilineCommentOnlyLine(t *testing.T) {
+	ts := tokenize(t, "#multiline EOF\n// only a comment\nhello\nEOF")
+	pair := ts[0].Value.([2]string)
+	if pair[0] != "\nhello" {
+		t.Errorf("expected empty first line, got %q", pair[0])
+	}
+}
+
 // TestTokenizeUnexpectedChar verifies tokenize unexpected char.
 func TestTokenizeUnexpectedChar(t *testing.T) {
 	assertPanic(t, func() {

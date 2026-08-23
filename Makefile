@@ -1,5 +1,5 @@
 BIN              ?= build/analysis
-SOMETHING_JSON   ?= build/something-json
+SOMETHING_PRINTER ?= build/something-printer
 PDF_STORE        ?= build/pdf-store
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
@@ -28,7 +28,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-json pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -59,11 +59,11 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "../$(BIN)" .
 
-tools: something-json pdf-store doccheck coveragecheck prepare-osf ## Build every maintained Go tool under build/.
+tools: something-printer pdf-store doccheck coveragecheck prepare-osf ## Build every maintained Go tool under build/.
 
-something-json: ## Build build/something-json, a tool to inspect .something configs.
-	@mkdir -p "$(dir $(SOMETHING_JSON))"
-	cd $(GOWD) && $(GO) build -o "../$(SOMETHING_JSON)" ./tools/something-json/
+something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
+	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
+	cd $(GOWD) && $(GO) build -o "../$(SOMETHING_PRINTER)" ./tools/something-printer/
 
 pdf-store: ## Build build/pdf-store, the validated manual PDF maintenance tool.
 	@mkdir -p "$(dir $(PDF_STORE))"
@@ -128,12 +128,12 @@ test-race: ## Run all Go tests with the race detector.
 test-docs: ## Run documentation tool unit tests.
 	cd $(GOWD) && $(GO) test -tags=unit ./tools/doccheck -count=1
 
-test-e2e: build frontend-build something-json pdf-store ## Run offline pipeline-to-viewer E2E tests with generated databases.
+test-e2e: build frontend-build something-printer pdf-store ## Run offline pipeline-to-viewer E2E tests with generated databases.
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2E(Deterministic|Mocked)$$' -count=1
 	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.cjs
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EReviewEvidence$$' -count=1
 
-test-e2e-live: build something-json ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
+test-e2e-live: build something-printer ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
 	@test "$(E2E_LIVE)" = "1" || (printf '%s\n' 'Set E2E_LIVE=1 to permit real provider requests.' >&2; exit 2)
 	cd $(GOWD) && E2E_LIVE=1 $(GO) test -tags=e2e . -run '^TestE2ELive$$' -count=1
 

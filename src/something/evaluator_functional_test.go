@@ -89,6 +89,30 @@ func TestEvalMultiline(t *testing.T) {
 	}
 }
 
+// TestEvalMultilineComment verifies multiline comments are removed from the value.
+func TestEvalMultilineComment(t *testing.T) {
+	r := evalText(t, "x := #multiline EOF\nhello // comment\nworld\nEOF\n;")
+	if r["x"] != "hello\nworld" {
+		t.Errorf("expected 'hello\\nworld', got %q", r["x"])
+	}
+}
+
+// TestEvalMultilineEscapedSlash verifies \/\/ evaluates to a literal //.
+func TestEvalMultilineEscapedSlash(t *testing.T) {
+	r := evalText(t, "x := #multiline EOF\nhello \\/\\/ world\nEOF\n;")
+	if r["x"] != "hello // world" {
+		t.Errorf("expected 'hello // world', got %q", r["x"])
+	}
+}
+
+// TestEvalMultilineCommentStripSpaces verifies comments are removed before strip_spaces.
+func TestEvalMultilineCommentStripSpaces(t *testing.T) {
+	r := evalText(t, "x := #multiline (strip_spaces) EOF\nhello // comment\nworld\nEOF\n;")
+	if r["x"] != "hello world" {
+		t.Errorf("expected 'hello world', got %q", r["x"])
+	}
+}
+
 // TestEvalMultilineNoNewline verifies eval multiline no newline.
 func TestEvalMultilineNoNewline(t *testing.T) {
 	r := evalText(t, "x := #multiline (no_newline) EOF\nhello\nworld\nEOF\n;")

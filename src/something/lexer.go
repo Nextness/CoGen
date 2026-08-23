@@ -601,7 +601,7 @@ func (l *Lexer) readMultiline() Token {
 		if eol == -1 {
 			eol = l.length - l.pos
 		}
-		line := strings.TrimRight(l.text[l.pos:l.pos+eol], " \t")
+		line := strings.TrimRight(StripMultilineComment(l.text[l.pos:l.pos+eol]), " \t")
 		withoutIndent := strings.TrimLeft(line, " \t")
 		if strings.HasPrefix(withoutIndent, tag) {
 			suffix := strings.TrimSpace(withoutIndent[len(tag):])
@@ -632,6 +632,26 @@ func (l *Lexer) readMultiline() Token {
 
 	raw := strings.Join(contentLines, "\n")
 	return Token{TkMULTILINE_STRING, [2]string{raw, params}, tokLine, tokCol}
+}
+
+// StripMultilineComment removes a trailing // comment from one multiline
+// string line and resolves the \/ escape to a literal slash. It is exported so
+// tools that scan raw SOMETHING source (for example prepare-osf) apply the
+// same comment and escape semantics as the lexer.
+func StripMultilineComment(line string) string {
+	var b strings.Builder
+	for i := 0; i < len(line); i++ {
+		if line[i] == '\\' && i+1 < len(line) && line[i+1] == '/' {
+			b.WriteByte('/')
+			i++
+			continue
+		}
+		if line[i] == '/' && i+1 < len(line) && line[i+1] == '/' {
+			break
+		}
+		b.WriteByte(line[i])
+	}
+	return b.String()
 }
 
 // Tokenize returns the token list for the lexer's text.

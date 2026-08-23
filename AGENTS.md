@@ -56,7 +56,7 @@ Run built tools from the repository root:
 ./build/analysis migrate --db ./corpus.metadata.db
 ./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080
 ./build/pdf-store add --db ./corpus.metadata.db --doi 10.1000/example --file ./paper.pdf
-./build/something-json ./config/workspace.something
+./build/something-printer --json ./config/workspace.something
 ./build/doccheck check
 ./build/prepare-osf --db ./corpus.metadata.db --config ./config/workspace.something --out ./build/osf-export
 ```

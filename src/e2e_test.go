@@ -212,7 +212,7 @@ func e2eRepositoryRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	root := filepath.Dir(directory)
-	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-json"), filepath.Join(root, "build", "pdf-store")} {
+	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-printer"), filepath.Join(root, "build", "pdf-store")} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("required E2E input %s is unavailable: %v", path, err)
 		}
@@ -415,7 +415,7 @@ func e2eProviderConfig(mode e2eMode) string {
 // validateE2EConfig evaluates the generated configuration through the maintained tool.
 func validateE2EConfig(t *testing.T, root, configPath string) {
 	t.Helper()
-	command := exec.Command(filepath.Join(root, "build", "something-json"), configPath)
+	command := exec.Command(filepath.Join(root, "build", "something-printer"), "--json", configPath)
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("validate generated E2E config: %v\n%s", err, output)
