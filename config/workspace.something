@@ -368,20 +368,20 @@
             },
             {
                 name = "ieeexplore",
-                date = "2026-08-23 02:52:38",
+                date = "2026-08-23 03:13:00",
                 expected_file = "../corpus/ieeexplore.2026-08-23.raw.csv",
                 file_type = "csv",
                 query = #multiline (no_indent|no_newline|strip_spaces) IEEEXPLORE
-                    {ieeexplore_bs_component_1} AND ({ieeexplore_bs_component_2} OR {ieeexplore_bs_component_3})
+                    ({ieeexplore_bs_component_1}) AND ({ieeexplore_bs_component_2} OR {ieeexplore_bs_component_3})
                 IEEEXPLORE,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 958 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  483 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  52 },
+                    { filters = [.NO_FILTER], count = 504 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  229 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  39 },
                     // IEEEXplore doesn't have a filter for english, since they only accept english papers.
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  52 },
+                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  39 },
                 },
-                expected_result_count = 52,
+                expected_result_count = 39,
                 requested_fields = make_requested_fields!(),
                 patch_fields = mapping(string, string) {
                     ["document title"] => "title",
