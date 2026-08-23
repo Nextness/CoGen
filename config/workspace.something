@@ -1,41 +1,43 @@
-// Each _workspace iteration is one declared search revision.
-// Running without --workspace executes every iteration in declaration order;
-// Running with --workspace search_id@search_revision selects one or more exact iterations.
+/************************************************************************************************
+ * Each _workspace iteration is one declared search revision.
+ * Running without --workspace executes every iteration in declaration order;
+ * Running with --workspace search_id@search_revision selects one or more exact iterations.
+ ***********************************************************************************************/
 
 #include("baseline.something");
 
 // -- Private Default values --
 #priv default_contact_email := "natan.menegasse@uni9.edu.br";
-#priv default_user_agent := "AcademicEnrichmentTool/1.0";
+#priv default_user_agent    := "cogen/0.0-dev";
 
 // -- Macros --
 #macro make_enrichment_providers := () -> []enrichment_provider_config {
     #set [
         enrichment_provider_config {
-            name = "crossref",
-            base_url = "https://api.crossref.org/works/",
-            user_agent = default_user_agent,
+            name          = "crossref",
+            base_url      = "https://api.crossref.org/works/",
+            user_agent    = default_user_agent,
             contact_email = default_contact_email,
-            fields = []string { "title", "authors", "publisher", "references" },
+            fields        = []string { "title", "authors", "publisher", "references" },
         },
         enrichment_provider_config {
-            name = "openalex",
-            base_url = "https://api.openalex.org/works/",
-            user_agent = default_user_agent,
+            name          = "openalex",
+            base_url      = "https://api.openalex.org/works/",
+            user_agent    = default_user_agent,
             contact_email = default_contact_email,
-            fields = []string { "title", "abstract", "authors", "publisher", "references", "citation_count", "reference_count" },
-            extra_urls = mapping(string, string) {
+            fields        = []string { "title", "abstract", "authors", "publisher", "references", "citation_count", "reference_count" },
+            extra_urls    = mapping(string, string) {
                 ["author"] => "https://api.openalex.org/authors/"
             },
             fill_missing_only = false,
         },
         enrichment_provider_config {
-            name = "orcid",
-            base_url = "https://pub.orcid.org/v3.0/",
-            user_agent = default_user_agent,
+            name          = "orcid",
+            base_url      = "https://pub.orcid.org/v3.0/",
+            user_agent    = default_user_agent,
             contact_email = default_contact_email,
-            fields = []string { "orcid", "display_name", "institution", "works_count", "cited_by_count", "h_index", "i10_index" },
-            extra_urls = mapping(string, string) {
+            fields        = []string { "orcid", "display_name", "institution", "works_count", "cited_by_count", "h_index", "i10_index" },
+            extra_urls    = mapping(string, string) {
                 ["search"] => "https://pub.orcid.org/v3.0/search"
             },
         },
@@ -44,12 +46,8 @@
 
 #macro make_cache_policy := () -> cache_policy_config {
     #set cache_policy_config {
-        reads = []cache_policy_read_options {
-            .GLOBAL, .NETWORK
-        },
-        writes = []cache_policy_write_options {
-            .ACTIVE_RUN, .GLOBAL
-        },
+        reads  = []cache_policy_read_options { .GLOBAL, .NETWORK },
+        writes = []cache_policy_write_options { .ACTIVE_RUN, .GLOBAL },
         negative_ttl_days = 14,
     };
 }
@@ -66,10 +64,10 @@
     };
 }
 
-#macro string_to_ieeexplore_search_term := (input: string, delimiter: string, enrich: string, second_delimiter: string) -> string {
+#macro make_string_to_ieeexplore_search_term := (input: string, delimiter: string, prefix: string, separator: string) -> string {
     split_result := @split_by(input, delimiter);
-    enrich_result := @append_prefix_for_each(split_result, enrich);
-    result := @concat(enrich_result, second_delimiter);
+    enrich_result := @append_prefix_for_each(split_result, prefix);
+    result := @concat(enrich_result, separator);
     #set result;
 }
 
@@ -81,10 +79,15 @@
     #priv component_2C := '"optimization" OR "BPO" OR "business process optimization" OR "multi-objective" OR "QoS" OR "quality of service" OR "cost optimization" OR "throughput" OR "cycle time"';
     #priv component_2D := '"formal semantics" OR "formal model" OR "formalization" OR "Petri net" OR "workflow net" OR "soundness" OR "process algebra" OR "verification" OR "model checking" OR "state space" OR "mathematical model" OR "MILP" OR "constraint programming"';
 
+    #priv filter_zero:  []available_filters = [.NO_FILTER];
+    #priv filter_one:   []available_filters = [.NO_FILTER, .RANGE_10_YEARS];
+    #priv filter_two:   []available_filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY];
+    #priv filter_three: []available_filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY];
+
     workspace: workspace_config = {
         format_version = 2,
         search_id = "bpmn-optimisation",
-        search_revision = "2026-07-query-expansion",
+        search_revision = "search-0001",
         enrichment_enabled = true,
         reuse_policy = reuse_policy_config {
             policy = "reuse_completed",
@@ -94,16 +97,16 @@
             {
                 name = "scopus",
                 date = "2026-06-07 22:18:00",
-                expected_file = "../corpus/scopus.raw.csv",
+                expected_file = "../corpus/2026-06-07.scopus.raw.csv",
                 file_type = "csv",
                 query = #multiline (no_indent|no_newline) SCOPUS
                     TITLE-ABS-KEY(({component_1}) AND ({component_2A} OR {component_2B} OR {component_2C} OR {component_2D}))
                 SCOPUS,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 1260 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  627 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  187 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  185 },
+                    { filters = filter_zero,  count = 1260 },
+                    { filters = filter_one,   count =  627 },
+                    { filters = filter_two,   count =  187 },
+                    { filters = filter_three, count =  185 },
                 },
                 expected_result_count = 185,
                 requested_fields = make_requested_fields!(),
@@ -120,17 +123,17 @@
             {
                 name = "wos",
                 date = "2026-06-07 22:22:00",
-                expected_file = "../corpus/wos.raw.bib",
+                expected_file = "../corpus/2026-06-07.wos.raw.bib",
                 file_type = "bib",
                 query = #multiline (no_indent|no_newline|strip_spaces) WOS
                     TS=({component_1}) AND
                     TS=({component_2A} OR {component_2B} OR {component_2C} OR {component_2D})
                 WOS,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 579 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  360 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  176 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  172 },
+                    { filters = filter_zero,  count = 579 },
+                    { filters = filter_one,   count = 360 },
+                    { filters = filter_two,   count = 176 },
+                    { filters = filter_three, count = 172 },
                 },
                 expected_result_count = 172,
                 requested_fields = make_requested_fields!(),
@@ -147,7 +150,7 @@
             {
                 name = "ieeexplore",
                 date = "2026-06-07 22:26:00",
-                expected_file = "../corpus/ieeexplore.raw.csv",
+                expected_file = "../corpus/2026-06-07.ieeexplore.raw.csv",
                 file_type = "csv",
                 query = #multiline (no_indent|no_newline|strip_spaces) IEEEXPLORE
                     ("Document Title": ({component_1}) AND ({component_2A} OR {component_2B} OR {component_2C} OR {component_2D}))
@@ -155,11 +158,10 @@
                     OR ("authorTerms": ({component_1}) AND ({component_2A} OR {component_2B} OR {component_2C} OR {component_2D}))
                 IEEEXPLORE,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 921 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  462 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  45 },
-                    // IEEEXplore doesn't have a filter for english, since they only accept english papers.
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  45 },
+                    { filters = filter_zero,  count = 921 },
+                    { filters = filter_one,   count = 462 },
+                    { filters = filter_two,   count =  45 },
+                    { filters = filter_three, count =  45 }, // IEEEXplore doesn't have a filter for english, since they only accept english papers.
                 },
                 expected_result_count = 45,
                 requested_fields = make_requested_fields!(),
@@ -181,11 +183,13 @@
 }
 
 #iteration("_workspace"): scope = {
-    // I don't use any wildcards because one of the bases selected is IEEEXplore,
-    // which only allows 10 wildcards. This is annoying, therefore, for the research
-    // term, I've decided to use only words for the search term. No expressions and
-    // weird operators, because I'm searching in several databases and each database
-    // has their own way of doing things...
+    /**
+     * I don't use any wildcards because one of the bases selected is IEEEXplore,
+     * which only allows 10 wildcards. This is annoying, therefore, for the research
+     * term, I've decided to use only words for the search term. No expressions and
+     * weird operators, because I'm searching in several databases and each database
+     * has their own way of doing things...
+     **/
 
     #priv component_1 := #multiline (no_indent|no_newline|strip_spaces) COMP1
         // The acronym is the shortest portable identifier and already matches
@@ -297,17 +301,24 @@
         OR stochastic
     COMP3;
 
-    // Furthermore, IEEEXplore is a pain in the ass and needs a very specific type of search term.
-    // This is to allow the search to actually work. I don't know why they have such a pain in the
-    // ass search engine...
-    ieeexplore_bs_component_1 := string_to_ieeexplore_search_term!(component_1, " OR ", '"All Metadata":', " OR ");
-    ieeexplore_bs_component_2 := string_to_ieeexplore_search_term!(component_2, " OR ", '"All Metadata":', " OR ");
-    ieeexplore_bs_component_3 := string_to_ieeexplore_search_term!(component_3, " OR ", '"All Metadata":', " OR ");
+    /**
+     * Furthermore, IEEEXplore is a pain in the ass and needs a very specific type of search term.
+     * This is to allow the search to actually work. I don't know why they have such a pain in the
+     * ass search engine...
+     **/
+    ieeexplore_bs_component_1 := make_string_to_ieeexplore_search_term!(component_1, " OR ", '"All Metadata":', " OR ");
+    ieeexplore_bs_component_2 := make_string_to_ieeexplore_search_term!(component_2, " OR ", '"All Metadata":', " OR ");
+    ieeexplore_bs_component_3 := make_string_to_ieeexplore_search_term!(component_3, " OR ", '"All Metadata":', " OR ");
+
+    #priv filter_zero:  []available_filters = [.NO_FILTER];
+    #priv filter_one:   []available_filters = [.NO_FILTER, .RANGE_10_YEARS];
+    #priv filter_two:   []available_filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY];
+    #priv filter_three: []available_filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY];
 
     workspace: workspace_config = {
         format_version = 2,
-        search_id = "bpmn-optimization-improved",
-        search_revision = "2026-08",
+        search_id = "bpmn-mathematical-notation",
+        search_revision = "search-0001",
         enrichment_enabled = true,
         reuse_policy = reuse_policy_config {
             policy = "reuse_completed",
@@ -317,16 +328,16 @@
             {
                 name = "scopus",
                 date = "2026-08-23 01:37:15",
-                expected_file = "../corpus/scopus.2026-08-23.raw.csv",
+                expected_file = "../corpus/2026-08-23.scopus.raw.csv",
                 file_type = "csv",
                 query = #multiline (no_indent|no_newline) SCOPUS
                     TITLE-ABS-KEY(({component_1}) AND ({component_2} OR {component_3})
                 SCOPUS,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 1657 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  836 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  225 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  214 },
+                    { filters = filter_zero,  count = 1657 },
+                    { filters = filter_one,   count =  836 },
+                    { filters = filter_two,   count =  225 },
+                    { filters = filter_three, count =  214 },
                 },
                 expected_result_count = 214,
                 requested_fields = make_requested_fields!(),
@@ -343,16 +354,16 @@
             {
                 name = "wos",
                 date = "2026-08-23 01:39:27",
-                expected_file = "../corpus/wos.2026-08-23.raw.bib",
+                expected_file = "../corpus/2026-08-23.wos.raw.bib",
                 file_type = "bib",
                 query = #multiline (no_indent|no_newline|strip_spaces) WOS
                     TS=(({component_1}) AND ({component_2} OR {component_3}))
                 WOS,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 895 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  471 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  211 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  208 },
+                    { filters = filter_zero,  count = 895 },
+                    { filters = filter_one,   count = 471 },
+                    { filters = filter_two,   count = 211 },
+                    { filters = filter_three, count = 208 },
                 },
                 expected_result_count = 208,
                 requested_fields = make_requested_fields!(),
@@ -369,17 +380,16 @@
             {
                 name = "ieeexplore",
                 date = "2026-08-23 03:13:00",
-                expected_file = "../corpus/ieeexplore.2026-08-23.raw.csv",
+                expected_file = "../corpus/2026-08-23.ieeexplore.raw.csv",
                 file_type = "csv",
                 query = #multiline (no_indent|no_newline|strip_spaces) IEEEXPLORE
                     ({ieeexplore_bs_component_1}) AND ({ieeexplore_bs_component_2} OR {ieeexplore_bs_component_3})
                 IEEEXPLORE,
                 filters = []raw_data_filters{
-                    { filters = [.NO_FILTER], count = 504 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS], count =  229 },
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY], count =  39 },
-                    // IEEEXplore doesn't have a filter for english, since they only accept english papers.
-                    { filters = [.NO_FILTER, .RANGE_10_YEARS, .ARTICLE_ONLY, .ENGLISH_ONLY], count =  39 },
+                    { filters = filter_zero,  count = 504 },
+                    { filters = filter_one,   count = 229 },
+                    { filters = filter_two,   count =  39 },
+                    { filters = filter_three, count =  39 }, // IEEEXplore doesn't have a filter for english, since they only accept english papers.
                 },
                 expected_result_count = 39,
                 requested_fields = make_requested_fields!(),

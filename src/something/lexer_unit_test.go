@@ -286,6 +286,33 @@ func TestTokenizeNestedBlockComment(t *testing.T) {
 	assertKind(t, ts[0], TkINTEGER_LITERAL)
 }
 
+// TestTokenizeMultilineNestedBlockComment verifies a multiline /** **/ block
+// comment with nested comments is skipped and content after it still tokenizes.
+func TestTokenizeMultilineNestedBlockComment(t *testing.T) {
+	ts := tokenize(t, `/** This is a 
+multiline comment /** with nested comments also **/ that work anywhere in the configuration **/ 42`)
+	if len(ts) != 2 {
+		t.Fatalf("expected 2 tokens, got %d", len(ts))
+	}
+	assertKind(t, ts[0], TkINTEGER_LITERAL)
+	assertKind(t, ts[1], TkEOF)
+}
+
+// TestTokenizeBlockCommentBetweenTokens verifies a block comment is skipped
+// anywhere in the configuration, not only at the start of the source.
+func TestTokenizeBlockCommentBetweenTokens(t *testing.T) {
+	kinds := tokenKinds(t, "a /* comment */ := /* another */ 1;")
+	expected := []TokenKind{TkIDENTIFIER, TkCOLON, TkEQUALS, TkINTEGER_LITERAL, TkSEMICOLON, TkEOF}
+	if len(kinds) != len(expected) {
+		t.Fatalf("expected %d tokens, got %d: %v", len(expected), len(kinds), kinds)
+	}
+	for i, kind := range expected {
+		if kinds[i] != kind {
+			t.Errorf("expected token %d to be %v, got %v", i, kind, kinds[i])
+		}
+	}
+}
+
 // TestTokenizeCRLFWhitespace verifies tokenize crlf whitespace.
 func TestTokenizeCRLFWhitespace(t *testing.T) {
 	ts := tokenize(t, "x := 1;\r\ny := 2;\r\n")
