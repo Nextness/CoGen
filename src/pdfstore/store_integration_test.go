@@ -116,6 +116,53 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 	}
 }
 
+// TestFlushAuditOutboxDropsStalePipelineRun verifies a flush preserves an
+// outbox event whose pipeline run no longer exists in the bound metadata
+// database, matching the durable PDF store across metadata iterations.
+func TestFlushAuditOutboxDropsStalePipelineRun(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	workID, err := metadata.Works.CreateByDOI("10.1000/stale")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Register with a run ID that does not exist in this metadata database,
+	// simulating an outbox event carried over from an older metadata iteration.
+	registered, err := store.Register(ctx, "10.1000/stale", workID, 999)
+	if err != nil || !registered {
+		t.Fatalf("register stale inventory: registered=%v err=%v", registered, err)
+	}
+	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flushed != 1 {
+		t.Fatalf("flush count = %d, want 1", flushed)
+	}
+	var events, links int
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 {
+		t.Fatalf("metadata PDF audit events=%d links=%d, want one each", events, links)
+	}
+	var runID any
+	if err := metadata.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&runID); err != nil {
+		t.Fatal(err)
+	}
+	if runID != nil {
+		t.Fatalf("stale registration audit run ID = %v, want NULL", runID)
+	}
+}
+
 // TestAddRollsBackWhenAuditOutboxWriteFails verifies add rolls back when audit outbox write fails.
 func TestAddRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
 	ctx := context.Background()

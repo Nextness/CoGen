@@ -52,7 +52,9 @@ func insertOutbox(ctx context.Context, tx *sql.Tx, event OutboxEvent, occurredAt
 // FlushAuditOutbox mirrors undelivered PDF events into the metadata database.
 // The metadata audit row and delivery link commit together. Marking the PDF
 // event delivered is a separate idempotent step so crashes cannot duplicate an
-// append-only audit row.
+// append-only audit row. An event whose pipeline run no longer exists in the
+// bound metadata database is preserved with a NULL run link, because the PDF
+// store is durable across metadata database iterations.
 func (s *Store) FlushAuditOutbox(ctx context.Context, metadata *sql.DB) (int, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
 		entity_id, action, metadata_json, correlation_id
@@ -93,7 +95,20 @@ func (s *Store) FlushAuditOutbox(ctx context.Context, metadata *sql.DB) (int, er
 		if err == sql.ErrNoRows {
 			var pipelineRunID any
 			if event.PipelineRunID > 0 {
-				pipelineRunID = event.PipelineRunID
+				var runExists int64
+				runErr := tx.QueryRowContext(ctx, "SELECT 1 FROM pipeline_runs WHERE id=?", event.PipelineRunID).Scan(&runExists)
+				if runErr == sql.ErrNoRows {
+					// The referenced pipeline run belongs to an older metadata
+					// database. The PDF store is durable across metadata
+					// iterations, so preserve the audit event without a run
+					// link rather than failing the flush.
+					pipelineRunID = nil
+				} else if runErr != nil {
+					tx.Rollback()
+					return delivered, fmt.Errorf("read pipeline run for PDF metadata audit event: %w", runErr)
+				} else {
+					pipelineRunID = event.PipelineRunID
+				}
 			}
 			result, insertErr := tx.ExecContext(ctx, `INSERT INTO audit_events
 				(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
