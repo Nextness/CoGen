@@ -10,7 +10,7 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a TypeScript URL-state SPA assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a framework-free TypeScript multi-page application with URL-backed state, assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
 
 The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, esbuild, and TypeScript. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
@@ -27,7 +27,7 @@ Source exports + SOMETHING configuration
  loopback-only Go HTTP server
           |
           v
- filesystem-assembled TypeScript SPA
+ filesystem-assembled TypeScript multi-page viewer
 ```
 
 ## 3. Repository and build layout
@@ -348,17 +348,17 @@ browser POST/PUT -> transport and context validation -> optional anchor PDF chec
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module SPA authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `index.html` owns the accessible persistent header, breadcrumb, Deepdive navigation, searchable hierarchical selectors, status, loading, notice, and content regions. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering.
+The frontend is a framework-free native ES-module multi-page application authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `frontend/index.html` is the authoritative accessible shell template, and `frontend/scripts/build.mjs` generates `index.html` plus one identified HTML document for each Deepdive and detail view. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering in every document.
 
-The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. Every internal link uses `state.link`; hard-coded `?view=...` links lose research context.
+The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. The `view` query parameter remains the dispatch source of truth, while `state.link` prefixes the owning page file and preserves only canonical context plus destination-owned keys. Cross-view links and `router.setURL` transitions perform native document navigation; same-view filters, pagination, cursors, graph controls, and section changes keep `pushState` or `replaceState` plus an in-document render. Existing root URLs such as `/?view=overview` remain supported through `index.html`.
 
 `router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, build a JSX tree, and call `render(<View .../>, app)` (the project-owned runtime in `jsx/jsx-runtime.ts`, documented in [JSX-RUNTIME.md](JSX-RUNTIME.md)), then bind interactions that require the new DOM.
 
 ```text
-URL/history event
+page load or same-view history event
       |
       v
-router.render -> abort prior request -> hydrate selectors -> dispatch view
+app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch view
       |                                                   |
       |                                                   v
       +---------------------------------------------- API fetch
@@ -374,13 +374,14 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 
 | Path | Responsibility |
 |---|---|
-| `index.html` | Persistent header, breadcrumb, Deepdive navigation, searchable context selectors, status, loading, notice, and app mount point. |
-| `app.tsx` | Global event binding, history interception, shell initialization, and first render. |
+| `index.html` | Authoritative shell template for the generated home, Deepdive, and detail HTML documents. |
+| `scripts/build.mjs` | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
+| `app.tsx` | Global event binding, same-view history interception, cross-view native-navigation protection, shell initialization, and first render. |
 | `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. |
 | `jsx/jsx.d.ts` | Ambient global `JSX` namespace. |
-| `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels, tables, flows, links, statuses, and global UI behavior. |
+| `state.tsx` | URL values, view-to-page ownership, DOM state, escaping, formatting, shared JSX panels, tables, flows, links, statuses, and global UI behavior. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
-| `router.tsx` | Request sequence, abort lifecycle, selector hydration, view dispatch, navigation state, and document title. |
+| `router.tsx` | Request sequence, abort lifecycle, selector hydration, view dispatch, native cross-view navigation, same-view history state, document title, and page-title focus. |
 | `components/context-selector.tsx` | Dependent bounded searchable single-select hydration, skeletons, keyboard listbox interaction, exact selected options, and sole-child auto-selection. |
 | `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.tsx` | First, Previous, numbered, Next, and Last controls plus result ranges. |
@@ -405,7 +406,7 @@ router.render -> abort prior request -> hydrate selectors -> dispatch view
 ### 15.2 Frontend module graph
 
 ```text
-app.tsx
+generated *.html -> app.tsx
   +-- state.tsx                    no project imports
   +-- router.tsx
   |     +-- state.tsx
@@ -430,7 +431,7 @@ review-panel.tsx -> api.tsx, state.tsx, note-editor.tsx, pdf-viewer.tsx
 note-editor.tsx -> api.tsx, state.tsx, note-parser.tsx
 ```
 
-`state.tsx` is the shared leaf and imports only the project-owned JSX runtime. Components do not import views. `router.tsx` and `context-selector.tsx` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. CSS files load independently through `index.html` in tokens, base, elements, collections, views, and graph order.
+`state.tsx` is the shared leaf and imports only the project-owned JSX runtime. Components do not import views. `router.tsx` and `context-selector.tsx` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. Every generated HTML document loads CSS in tokens, base, elements, collections, views, and graph order inherited from the authoritative `index.html` template.
 
 Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs; article rows expand to show the stored search-term coverage for the run. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, content-hash-bound anchors, and a search term coverage panel; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 
@@ -467,7 +468,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - SOMETHING preserves ordered evaluation and panic-based internal phase failures so compiler behavior remains consistent across phases.
 - The viewer is local and review-writable, with bounded mutation endpoints and no authentication layer; exact loopback binding and Host authority are mandatory privacy boundaries.
 - Review contexts freeze selected parent heads by stable work identity, and later child versions move only the selected context so historical runs remain stable.
-- The frontend uses URL state and native modules so research context is shareable, reload-safe, and independent from a framework runtime; sources under `frontend/src` are assembled into `frontend/dist` by `make frontend-build` before serving.
+- The frontend uses page-file navigation, URL state, and native modules so research context is shareable, reload-safe, and independent from a framework runtime; cross-view transitions load a document, same-view state changes re-render in place, and sources plus generated pages are assembled into `frontend/dist` by `make frontend-build` before serving.
 - D3-force is pinned and generated as one checked-in browser asset so the assembled frontend requires no CDN; Node is needed only to build assets and run frontend tests, not while the viewer serves them.
 - PDF.js 4.2.67 is pinned and generated with its matching worker, CMaps, fonts, and license so PDF rendering requires neither a CDN nor the default PDF.js viewer UI.
 - Documentation generation and validation use one Go tool so maintained project tooling does not introduce another runtime language.
@@ -491,6 +492,8 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - Large graph responses are truncated at fixed bounds and are not streamed beyond those limits.
 - Frontend rendering uses the project-owned JSX runtime documented in [JSX-RUNTIME.md](JSX-RUNTIME.md); text and attributes are escaped automatically, and the controlled `raw` escape hatch accepts only trusted, already-escaped markup.
 - The router and context selector have one intentional module cycle that must not expand.
+- Canonical application links include both a page file and `view` query parameter, while legacy root `/?view=...` URLs remain valid; this intentionally exposes two URLs for the same rendered view.
+- Each cross-view document load repeats health, hierarchy hydration, and view requests, and `http.FileServer` relies on `Last-Modified` revalidation without a project cache policy.
 - Research context and filters in copied URLs or browser history may reveal search and run identifiers.
 - Fixture databases and visual snapshots prove behavior only for controlled data and the tested browser and platform.
 - The process-wide logging threshold is compile-time and cannot be changed by a command-line option.
@@ -500,7 +503,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
 - Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow repository transaction, required state checks, and identifier-only audit metadata; review-decision mutations additionally record the bounded complete previous and new decision in audit before/after fields while preserving the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
-- Add a frontend view by preserving URL context, registering router dispatch and primary navigation, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
+- Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in `scripts/build.mjs`, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.
 

@@ -124,6 +124,56 @@ test.describe('Health and page load', () => {
     expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
   });
 
+  test('primary navigation loads view pages and browser history returns to the prior document', async ({ page }) => {
+    await goto(page, contextURL({ view: 'overview' }));
+    const priorURL = page.url();
+
+    await page.getByRole('link', { name: 'Corpus', exact: true }).click();
+    await page.waitForLoadState('networkidle');
+
+    const corpusURL = new URL(page.url());
+    expect(corpusURL.pathname).toBe('/corpus.html');
+    expect(corpusURL.searchParams.get('view')).toBe('corpus');
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'corpus');
+    await expect(page.getByRole('heading', { name: 'Corpus', exact: true })).toBeFocused();
+
+    await page.goBack();
+    await page.waitForLoadState('networkidle');
+    expect(page.url()).toBe(priorURL);
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  });
+
+  test('cancelable draft protection blocks a native view-page transition', async ({ page }) => {
+    await goto(page, contextURL({ view: 'overview' }));
+    const priorURL = page.url();
+    await page.evaluate(() => {
+      document.addEventListener('rw-before-navigate', (event) => {
+        event.preventDefault();
+      }, { once: true });
+    });
+
+    await page.getByRole('link', { name: 'Corpus', exact: true }).click();
+
+    await expect(page).toHaveURL(priorURL);
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'home');
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  });
+
+  test('a view page URL loads its identified document directly', async ({ page }) => {
+    const query = new URLSearchParams({
+      view: 'overview',
+      search_id: SEARCH_DL,
+      search_revision_id: REV_DL_R1,
+      plan_id: PLAN_DL_R1,
+      run_id: RUN_1_COMPLETED,
+    });
+    await goto(page, `/overview.html?${query.toString()}`);
+
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page).toHaveTitle('Overview · Research workspace');
+  });
+
   test('research context is displayed after selecting a run', async ({ page }) => {
     await goto(page, contextURL());
     await page.waitForLoadState('networkidle');

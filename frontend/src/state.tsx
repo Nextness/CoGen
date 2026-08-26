@@ -105,6 +105,21 @@ export const routeOwnedKeys: Record<string, string[]> = {
   reference: ["reference_id", "origin"],
 };
 
+/** Maps every supported view to the HTML document that owns its navigation entry. */
+export const viewPage: Record<string, string> = {
+  home: "index.html",
+  trash: "index.html",
+  overview: "overview.html",
+  corpus: "corpus.html",
+  relationships: "relationships.html",
+  provenance: "provenance.html",
+  evaluation: "evaluation.html",
+  advanced: "advanced.html",
+  article: "article.html",
+  author: "author.html",
+  reference: "reference.html",
+};
+
 const detailOriginViews = new Set(["evaluation", "corpus", "relationships", "provenance"]);
 const detailOriginLabels: Record<string, string> = {
   evaluation: "Evaluation queue",
@@ -173,7 +188,7 @@ export function detailOrigin(): DetailOrigin | null {
   return {
     view: originView,
     label: detailOriginLabels[originView],
-    href: `?${origin.toString()}`,
+    href: `${viewPage[originView]}?${origin.toString()}`,
     params: origin,
   };
 }
@@ -435,7 +450,8 @@ export function link(updates?: Record<string, any>): string {
   keys.forEach((key) => {
     if (!allowed.has(key)) next.delete(key);
   });
-  return `?${next.toString()}`;
+  const page = viewPage[destination] || viewPage.home;
+  return `${page}?${next.toString()}`;
 }
 
 /** Adds route and focus cleanup required when a parent research context changes. */

@@ -4,7 +4,7 @@ This document is the authoritative contract for the project-owned JSX runtime at
 
 ## 1. Design decisions and rationale
 
-The viewer is a framework-free native ES-module SPA compiled per file by esbuild into `frontend/dist`. Rendering was originally string-template based: views assigned `app.innerHTML`, reusable components returned HTML strings, and every dynamic value was escaped manually through `esc()`. This runtime replaces that model with actual JSX components while preserving the framework-free property and the existing "render then bind" lifecycle.
+The viewer is a framework-free native ES-module multi-page application compiled per file by esbuild into `frontend/dist`, where generated HTML documents share the same runtime and shell. Rendering was originally string-template based: views assigned `app.innerHTML`, reusable components returned HTML strings, and every dynamic value was escaped manually through `esc()`. This runtime replaces that model with actual JSX components while preserving the framework-free property and the existing "render then bind" lifecycle.
 
 - **DOM-building runtime, not a virtual DOM.** `h` returns a real `Node`. A view renders a fresh tree and then binds listeners, matching the existing lifecycle. There is no reconciler, no diffing, and no framework.
 - **No dependency.** The runtime is project-owned and tiny. It keeps the documented no-framework-dependency property and avoids the vendoring, build, test-loader, and documentation costs of adopting React.

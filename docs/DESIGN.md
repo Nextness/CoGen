@@ -97,13 +97,13 @@ The shell begins with a skip link, then a site header containing Local research 
 
 The compact context surface contains only dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls. It has no separate title or Clear context action. Each control presents a bounded server-searchable page eligible under its current parent, supports keyboard listbox navigation, preserves an exact selected option outside the current page, selects a sole available child automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
 
-The main region contains an alert notice, a polite live loading indicator, and the view container. View titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
+The main region contains an alert notice, a polite live loading indicator, and the view container. One authoritative shell template generates the Home, six Deepdive, and three detail HTML documents with a static `rw-page` marker and initial title. Rendered view titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
 
 ## 6. URL and navigation behavior
 
 The default view is Home when `view` is absent. Explore links establish the complete research context and open Overview; Deepdive links retain that context. Changing search clears revision, plan, and run; changing revision clears plan and run; changing plan clears run; changing run preserves its ancestors. Every view supplies an explicit breadcrumb beginning at Home, with detail routes extending through Deepdive and Corpus.
 
-The SPA intercepts same-page query links without modifier keys, pushes browser history, and renders without a full reload. Back and forward navigation re-renders from the URL. External links, downloads, modified clicks, and non-query links retain normal browser behavior.
+Every application-generated URL contains the owning page file and the `view` query parameter. Cross-view links perform a native full-page load, so browser back, forward, reload, and bookmarks use document navigation. Same-view links and programmatic state changes without modifier keys push or replace browser history and render without reloading the document. External links, downloads, modified clicks, and non-application paths retain normal browser behavior. Direct legacy root URLs such as `/?view=overview` remain supported through `index.html`; application links canonicalize the same view to `overview.html?view=overview`.
 
 Each render aborts the previous request controller and receives a monotonically increasing sequence number. Only the newest sequence may display errors, change the title, or clear the loading state. Aborted requests are silent.
 
@@ -231,7 +231,7 @@ Responsive changes must preserve context labels, status meaning, pagination, dis
 
 ## 17. Accessibility
 
-The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus.
+The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. A generated page-file load focuses the rendered page title after the busy region becomes interactive, while a direct legacy root load retains normal top-of-document focus and the Skip to content entry path.
 
 All actions must be operable by keyboard and have discernible text or an accessible name. Interactive rows cannot be the only way to expand a record. Focus order follows visual order, and disabled selectors or buttons communicate why through nearby text.
 
@@ -243,7 +243,7 @@ Reduced-motion preferences must avoid unnecessary smooth transitions or animated
 
 ## 18. Loading, errors, and resilience
 
-Global view fetches show the shared loading region and clear prior errors. The API helper requires JSON, extracts the standard error message when present, and reports invalid JSON or request failures in plain language. Aborted stale renders never overwrite a newer view.
+Global view fetches show the shared loading region and clear prior errors. Cross-view loads repeat shell health, hierarchy hydration, run-context reconciliation, and view requests; same-view history renders retain the abortable request lifecycle without reloading the shell. The API helper requires JSON, extracts the standard error message when present, and reports invalid JSON or request failures in plain language. Aborted stale renders never overwrite a newer view.
 
 Local progressive actions such as loading older audit events, inspecting artifacts, copying preview text, or running graph controls keep existing content visible and report failures near the action. A failed preview always leaves original download available when the server permits it.
 
@@ -261,13 +261,14 @@ The interface must not render credentials, tokens, private keys, raw environment
 
 | Path | Design responsibility |
 |---|---|
-| `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
-| `app.tsx` | Global event binding, history interception, shell initialization, and first render. |
+| `index.html` | Authoritative accessible shell template for every generated page document. |
+| `scripts/build.mjs` | Compiled-source assembly, per-view page generation and markers, and served-root validation. |
+| `app.tsx` | Global event binding, same-view history interception, protected native cross-view navigation, shell initialization, and first render. |
 | `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
 | `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, permissive `IntrinsicElements`). |
-| `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
+| `state.tsx` | URL values, view-to-page ownership, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
-| `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
+| `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, native cross-view navigation, same-view history state, primary-nav state, document title, and focus. |
 | `components/context-selector.tsx` | Dependent bounded searchable single-select hydration, loading skeletons, keyboard listbox interaction, exact selected options, and sole-child auto-selection. |
 | `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.tsx` | First/Previous/numbered/Next/Last controls and result ranges. |
@@ -295,7 +296,7 @@ Components may import shared state, API, router helpers, the JSX runtime, pagina
 
 Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API reads and mutations, routing and cleanup, selectors, tables, pagination, graph transformation and interactions, note parser conformance and safe rendering, draft and comparison helpers, PDF geometry projection and one-activation pagination, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
 
-The main Playwright suite runs against an isolated fixture copy and verifies context selection, navigation, URL preservation, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks and reviewed screenshots for core views.
+The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for both legacy root and generated page URLs plus reviewed screenshots for core views.
 
 Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.cjs`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
@@ -311,6 +312,11 @@ Acceptance requires no hard-coded context-dropping internal links, no unbounded 
 - The JSX runtime has no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`. Application views and components compose Nodes directly. `renderToString` remains a test serializer, and `raw` has no application caller.
 - Router and context-selector currently form one ES-module cycle to connect selector navigation with render-time hydration; it is initialized safely, but new modules should not add dependencies to that cycle.
 - The URL contains research context and filters, which is useful for reproducibility but can reveal search/run identifiers through copied links or browser history.
+- Canonical application links use page-file URLs with a duplicate `view` query parameter, while legacy `/?view=...` URLs remain supported, so one rendered view has two valid URL forms and Home links use `index.html?view=home`.
+- A page file without its matching `view` query parameter renders Home because the query parameter remains the dispatch source of truth.
+- A cross-view load repeats approximately seven to nine health, hierarchy, reconciliation, and view requests through the server's single read connection; same-view filters and pagination avoid this cost by rendering in place.
+- Cross-view navigation discards in-memory graph simulation positions, zoom and pan, and appended audit pages. The URL-backed graph selection, filters, and other route state remain restorable.
+- The filesystem server uses `Last-Modified` revalidation without an explicit project cache policy, so rebuilding page or module assets within one timestamp-resolution interval can leave a stale browser response until revalidation observes the new modification time.
 - The local fixture and screenshot baselines represent controlled test data and Chromium/Linux rendering; they do not prove visual identity across every platform font and browser.
 - Active CSS aliases remain part of current source behavior and can change only with a verified, scoped update to styles, markup, JavaScript, tests, and [CSS-REFERENCE.md](CSS-REFERENCE.md).
 

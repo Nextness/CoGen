@@ -22,13 +22,13 @@ The viewer requires an existing fully migrated metadata database. It does not cr
 
 Home does not require a selected run. Choose Explore on a run attempt to open Deepdive with its search, search revision, execution plan, and run already selected. The compact context surface then offers four dependent searchable single-select controls without a separate title or Clear action; a child becomes available after its parent is known, a sole valid child is selected automatically, and changing a parent clears invalid descendants.
 
-The URL stores `search_id`, `search_revision_id`, `plan_id`, and `run_id`. Navigation, reload, browser back and forward, and internal links preserve that context. Filters, sorting, pagination, sections, expanded rows, graph state, artifact inspection, focused `note_id`, focused `anchor_id`, and `pdf_page` are also URL-backed where sharing or reload continuity matters.
+The URL stores `search_id`, `search_revision_id`, `plan_id`, and `run_id`. Navigation, reload, browser back and forward, and internal links preserve that context. Each application-generated URL contains the destination page file and its `view` query parameter, while older root URLs such as `/?view=overview` remain valid. Filters, sorting, pagination, sections, expanded rows, graph state, artifact inspection, focused `note_id`, focused `anchor_id`, and `pdf_page` are also URL-backed where sharing or reload continuity matters.
 
 Copied URLs may expose research identifiers and selected filters through browser history or messages. Treat them as research context rather than secret-bearing links, and do not share them where the identifiers are sensitive.
 
 ## 4. Navigation and breadcrumbs
 
-The application opens on Home. Every route shows a breadcrumb beginning at Home. Deepdive has six tabular destinations in this order: Overview, Corpus, Relationships, Provenance, Evaluation, and Advanced. On narrow screens, the Menu button opens the same Deepdive navigation and reports its expanded state to assistive technology.
+The application opens on Home. Every route shows a breadcrumb beginning at Home. Deepdive has six tabular destinations in this order: Overview, Corpus, Relationships, Provenance, Evaluation, and Advanced. Moving between those destinations or a detail page performs a native full-page load, while filters, pagination, sections, and other changes within the current view update browser history without reloading the shell. On narrow screens, the Menu button opens the same Deepdive navigation and reports its expanded state to assistive technology.
 
 The header reports database health and always presents the viewer as Local review. Pipeline evidence remains immutable even though review heads can move to newly appended versions. A Skip to content link, navigation landmarks, headings, labels, live status regions, and visible keyboard focus support keyboard and assistive-technology use.
 
@@ -139,5 +139,7 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 - Author and reference collections can repeat conceptual values across revision snapshots.
 - Graph and collection endpoints are bounded and do not stream beyond their limits.
 - URLs preserve useful research context but can reveal its identifiers.
+- Canonical links include both a page filename and a `view` query parameter, and legacy root URLs remain valid, so the same view can have two supported URL forms.
+- Cross-view navigation repeats shell and view requests and discards in-memory graph layout, zoom, pan, and appended audit pages; URL-backed state remains restorable.
 - String-template rendering relies on deliberate escaping for each new dynamic value.
 - Visual snapshots and fixtures represent controlled data and tested browser environments, not every platform.

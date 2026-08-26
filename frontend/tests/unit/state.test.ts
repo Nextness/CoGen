@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import './setup.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
-  params, value, view, section, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
+  params, value, view, section, detailOrigin, viewPage, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
   percent, formatTime, formatDate, formatDuration, formatBytes, humanLabel, parseObject, statusClass, StatusChip, metricEntries, selectedRun, showError,
   clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
   FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary, Timeline,
@@ -31,6 +31,12 @@ const detailTable = (title: string, rows: any): string => renderToString(DetailT
 const cell = (item: any, column: string, tableName?: string): string => renderToString(Cell({ item: item, column: column, tableName: tableName }));
 
 describe('state.tsx — constants', function() {
+
+  it('maps supported views to their owning page files', function() {
+    assert.equal(viewPage.home, 'index.html');
+    assert.equal(viewPage.overview, 'overview.html');
+    assert.equal(viewPage.article, 'article.html');
+  });
 
   it('app is a DOM element', function() {
     assert.ok(app instanceof HTMLElement);
@@ -524,20 +530,26 @@ describe('state.tsx — showError / clearError / busy', function() {
 
 describe('state.tsx — link', function() {
 
+  beforeEach(function() {
+    history.replaceState({}, '', '/?view=overview');
+  });
+
   it('builds a query string from updates', function() {
     const result = link({ view: 'corpus', section: 'articles' });
-    assert.ok(result.startsWith('?'));
+    assert.ok(result.startsWith('corpus.html?'));
     assert.ok(result.includes('view=corpus'));
     assert.ok(result.includes('section=articles'));
   });
 
   it('removes keys with empty values but keeps the Home default', function() {
     const result = link({ view: '' });
+    assert.ok(result.startsWith('index.html?'));
     assert.ok(result.includes('view=home'));
   });
 
   it('removes keys with null values but keeps the Home default', function() {
     const result = link({ view: null });
+    assert.ok(result.startsWith('index.html?'));
     assert.ok(result.includes('view=home'));
   });
 
@@ -551,9 +563,15 @@ describe('state.tsx — link', function() {
     history.pushState({}, '', url.toString());
   });
 
-  it('returns empty query for no updates', function() {
+  it('uses the current view page when no updates are supplied', function() {
     const result = link();
-    assert.ok(result.startsWith('?'));
+    assert.ok(result.startsWith('overview.html?'));
+  });
+
+  it('uses the home page for an unsupported destination', function() {
+    const result = link({ view: 'unsupported' });
+    assert.ok(result.startsWith('index.html?'));
+    assert.ok(result.includes('view=unsupported'));
   });
 
   it("keeps only canonical context and destination-owned route state", () => {
@@ -592,6 +610,34 @@ describe('state.tsx — link', function() {
     assert.equal(target.has("note_id"), false);
     assert.equal(target.has("anchor_id"), false);
     assert.equal(target.has("pdf_page"), false);
+    history.replaceState({}, "", "?view=overview");
+  });
+
+  it("returns a detail origin through the origin view page", () => {
+    const origin = new URLSearchParams({
+      view: "corpus",
+      search_id: "1",
+      search_revision_id: "2",
+      plan_id: "3",
+      run_id: "4",
+      section: "articles",
+    });
+    const detail = new URLSearchParams({
+      view: "article",
+      search_id: "1",
+      search_revision_id: "2",
+      plan_id: "3",
+      run_id: "4",
+      article_id: "8",
+      origin: origin.toString(),
+    });
+    history.replaceState({}, "", `?${detail.toString()}`);
+
+    const result = detailOrigin();
+
+    assert.ok(result);
+    assert.ok(result.href.startsWith("corpus.html?"));
+    assert.equal(new URL(result.href, location.origin).searchParams.get("section"), "articles");
     history.replaceState({}, "", "?view=overview");
   });
 

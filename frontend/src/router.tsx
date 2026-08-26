@@ -16,6 +16,12 @@ import { destroyGraph } from "./components/graph.tsx";
 export function setURL(updates: Record<string, any>, replace: boolean): void {
   if (!navigationAllowed()) return;
   const href = link(updates);
+  const destination = new URL(href, location.href).searchParams.get("view") || "home";
+  if (destination !== view()) {
+    if (replace) location.replace(href);
+    else location.assign(href);
+    return;
+  }
   if (replace) history.replaceState({}, "", href);
   else history.pushState({}, "", href);
   render({ focusTitle: true, resetScroll: true });
@@ -121,6 +127,7 @@ async function renderView(): Promise<any> {
 /** Asynchronously renders the associated state. */
 export async function render(options?: { focusTitle?: boolean; resetScroll?: boolean }): Promise<void> {
   const sequence = ++state.request;
+  var titleToFocus: HTMLElement | null = null;
   if (state.controller) state.controller.abort();
   state.controller = new AbortController();
 
@@ -145,16 +152,19 @@ export async function render(options?: { focusTitle?: boolean; resetScroll?: boo
 
     document.title = `${pageTitle} · Research workspace`;
     if (options?.resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    if (options?.focusTitle && titleElement) {
-      titleElement.tabIndex = -1;
-      titleElement.focus({ preventScroll: true });
-    }
+    if (options?.focusTitle && titleElement) titleToFocus = titleElement;
   } catch (error) {
     if ((error as any)?.name !== "AbortError" && sequence === state.request) {
       renderTree(null, app);
       showError(error);
     }
   } finally {
-    if (sequence === state.request) busy(false);
+    if (sequence === state.request) {
+      busy(false);
+      if (titleToFocus) {
+        titleToFocus.tabIndex = -1;
+        titleToFocus.focus({ preventScroll: true });
+      }
+    }
   }
 }

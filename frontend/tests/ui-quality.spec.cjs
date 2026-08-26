@@ -181,6 +181,17 @@ test.describe('Research-context and responsive behavior', () => {
 });
 
 test.describe('Automated accessibility checks', () => {
+  test('the overview page document has no axe violations', async ({ page }) => {
+    const query = new URLSearchParams({ ...context, view: 'overview' });
+    await page.goto(`/overview.html?${query.toString()}`);
+    await page.waitForLoadState('networkidle');
+
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   for (const [name, overrides] of [
     ['home', { view: 'home' }],
     ['overview', { view: 'overview' }],
