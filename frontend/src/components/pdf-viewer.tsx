@@ -1,5 +1,15 @@
 // Custom PDF.js rendering with bounded page lifecycle and accessible anchor selection.
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwPdfStatusUiFadedText: cx("rw-pdf-status", "ui", "faded", "text"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiIconBasicButton: cx("ui", "icon", "basic", "button"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegmentRwPdfViewer: cx("ui", "segment", "rw-pdf-viewer"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+};
 
 const workerURL = "/vendor/pdfjs/pdf.worker.min.mjs";
 const cMapURL = "/vendor/pdfjs/cmaps/";
@@ -148,7 +158,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let pendingSelection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] } | null = null;
 
   const headerMarkup = (
-    <div className="ui top attached header">
+    <div className={classNames.uiTopAttachedHeader}>
       <div>
         <h3>Document reader</h3>
         <p>One page is shown at a time. Select text to create a review anchor.</p>
@@ -157,28 +167,28 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   );
   const pageToolbar = (
     <div className="rw-pdf-toolbar__group" aria-label="Page navigation">
-      <button type="button" className="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-previous aria-label="Previous PDF page">Previous</button>
       <label className="rw-pdf-page-control">
         <span>Page</span>
         <input type="number" min={1} value={pageNumber} data-pdf-page aria-label="Current PDF page" />
         <span data-pdf-count></span>
       </label>
-      <button type="button" className="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-next aria-label="Next PDF page">Next</button>
     </div>
   );
   const displayToolbar = (
     <div className="rw-pdf-toolbar__group" aria-label="Display controls">
-      <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
+      <button type="button" className={classNames.uiIconBasicButton} data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
       <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
-      <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
-      <button type="button" className="ui basic button" data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
-      <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
-      <button type="button" className="ui primary button rw-pdf-review-selection" data-pdf-review-selection hidden>Review selection</button>
+      <button type="button" className={classNames.uiIconBasicButton} data-pdf-zoom-in aria-label="Zoom in">+</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+      <button type="button" className={classNames.uiPrimaryButton} data-pdf-review-selection hidden>Review selection</button>
     </div>
   );
-  const statusText = <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>;
+  const statusText = <p className={classNames.rwPdfStatusUiFadedText} data-pdf-status role="status">Loading PDF.</p>;
   const viewerMarkup = (
-    <section className="ui segment rw-pdf-viewer" aria-label="PDF reader">
+    <section className={classNames.uiSegmentRwPdfViewer} aria-label="PDF reader">
       {headerMarkup}
       <div className="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls">
         {pageToolbar}
@@ -244,7 +254,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     if (destroyed || sequence !== renderSequence) return;
     const viewport = page.getViewport({ scale: requestedScale, rotation: requestedRotation });
     const section = window.document.createElement("section");
-    section.className = "rw-pdf-page rw-pdf-page--current";
+    section.className = "rw-pdf-page";
     section.dataset.pdfPageNumber = String(requestedPage);
     section.dataset.rotation = String(requestedRotation);
     section.setAttribute("aria-label", `PDF page ${requestedPage}`);
@@ -303,7 +313,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       const errorMarkup = (
         <Fragment>
           Page {pageNumber} could not be rendered: {error.message}
-          <button type="button" className="ui basic button" data-pdf-retry>Retry page</button>
+          <button type="button" className={classNames.uiBasicButton} data-pdf-retry>Retry page</button>
         </Fragment>
       );
       renderTree(errorMarkup, status);
@@ -386,7 +396,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       let effectiveAnchors: PDFAnchorHead[] = [];
       if (Array.isArray(nextAnchors)) effectiveAnchors = nextAnchors;
       anchors = effectiveAnchors;
-      const section = host.querySelector<HTMLElement>(".rw-pdf-page--current");
+      const section = host.querySelector<HTMLElement>(".rw-pdf-page");
       const anchorLayer = section?.querySelector<HTMLElement>(".rw-pdf-anchor-layer");
       if (anchorLayer && section) {
         anchorLayer.textContent = "";

@@ -1,10 +1,18 @@
 // Advanced: table browser, pagination, sort.
 import { app, value, link, PageHeader, EmptyState } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, tables } from "../api.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { setURL } from "../router.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiSegment: cx("ui", "segment"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+};
 
 const advancedPageSizes = [20, 50, 100];
 
@@ -106,23 +114,22 @@ export async function advancedView(): Promise<void> {
     columnsWhitelist: visibleColumns,
     expandableFields: expandableFields,
     expandLongCells: false,
-    tableClass: "rw-advanced-table",
   };
 
-  var tableBody: JSX.Element = <p className="ui error message" role="alert">{tableError}</p>;
+  var tableBody: JSX.Element = <p className={classNames.uiErrorMessage} role="alert">{tableError}</p>;
   if (data) {
     tableBody = <DataTable tableName={current} result={data} context={context} />;
   }
   var canonicalNotice: JSX.Element | null = null;
   if (requestedTable && requestedTable !== current) {
-    canonicalNotice = <p className="ui info message">The requested table was not found. The first available table is shown.</p>;
+    canonicalNotice = <p className={classNames.uiInfoMessage}>The requested table was not found. The first available table is shown.</p>;
   }
 
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="Implementation-level transparency" title="Advanced database inspection" description="Inspect discovered SQLite tables and stored values. This view is for transparency and debugging, not record editing." />
-      <section className="ui segment rw-data-section">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>{current}</h3>
             <p>Discovered SQLite values are bounded and paginated. No record can be changed from this view.</p>

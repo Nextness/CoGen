@@ -62,7 +62,7 @@ test.describe('isolated review mutation lifecycle', () => {
 
     const anchorLabel = `methods-${browserName}`;
     await page.evaluate(() => {
-      const layer = document.querySelector('.rw-pdf-page--current .textLayer');
+      const layer = document.querySelector(".rw-pdf-page .textLayer");
       const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent.includes('Selectable fixture methods'));
       const range = document.createRange();
       range.selectNodeContents(text);
@@ -79,9 +79,14 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
 
     await expect(page.locator('[data-review-host]')).toContainText('Approved');
-    const reviewAuditEvents = page.locator('.rw-article-audit-panel .rw-audit-event--review');
+    const auditHeading = page.getByRole("heading", {
+      name: "Audit events",
+      exact: true,
+    });
+    const articleAuditPanel = auditHeading.locator("xpath=../../..");
+    const reviewAuditEvents = articleAuditPanel.locator(".rw-audit-event--review");
     const reviewAuditCount = await reviewAuditEvents.count();
-    await expect(page.locator('.rw-article-audit-panel')).toContainText('Work Review Version Created');
+    await expect(articleAuditPanel).toContainText("Work Review Version Created");
     const updatedReason = `${reason} saved from the review form`;
     await page.getByRole('tab', { name: 'Decision' }).click();
     await page.locator('[data-review-status]').selectOption('not_approved');
@@ -138,13 +143,13 @@ test.describe('isolated review mutation lifecycle', () => {
       return backlinks.top - list.bottom;
     });
     expect(anchorBacklinkGap).toBeGreaterThanOrEqual(15);
-    await expect(page.locator('.rw-pdf-page--current canvas')).toBeVisible();
-    await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture methods');
+    await expect(page.locator(".rw-pdf-page canvas")).toBeVisible();
+    await expect(page.locator(".rw-pdf-page .textLayer")).toContainText("Selectable fixture methods");
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
     await page.getByRole('button', { name: 'Next PDF page' }).click();
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
-    await expect(page.locator('.rw-pdf-page--current')).toHaveAttribute('data-pdf-page-number', '2');
-    await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable fixture conclusions');
+    await expect(page.locator(".rw-pdf-page")).toHaveAttribute("data-pdf-page-number", "2");
+    await expect(page.locator(".rw-pdf-page .textLayer")).toContainText("Selectable fixture conclusions");
     await expect(page.locator('[data-pdf-status]')).toHaveText('PDF page 2 of 2.');
     const containment = await page.locator('.rw-pdf-viewer').evaluate((viewer) => {
       const viewport = viewer.querySelector('.rw-pdf-pages');
@@ -270,7 +275,12 @@ test.describe('isolated review mutation lifecycle', () => {
     await reloadedTarget.getByRole('button', { name: 'History' }).click();
     await page.locator('[data-note-history] [data-note-version]').first().click();
     await expect(page.locator('[data-note-history] [data-note-version-content]').first()).toContainText('Local conflict resolution');
-    await expect(page.locator('.rw-article-audit-panel')).toContainText(/Note Version Created|Anchor Version Created/i);
+    const auditHeading = page.getByRole("heading", {
+      name: "Audit events",
+      exact: true,
+    });
+    const articleAuditPanel = auditHeading.locator("xpath=../../..");
+    await expect(articleAuditPanel).toContainText(/Note Version Created|Anchor Version Created/i);
   });
 
   test('restores and trashes a run through Home with persisted audit evidence', async ({ page, request }) => {

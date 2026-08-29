@@ -1,7 +1,17 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
 import { api } from "../api.tsx";
 import { currentDetailOrigin, link } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiFormRwFilterBar: cx("ui", "form", "rw-filter-bar"),
+  uiNeutralLabel: cx("ui", "neutral", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+};
 
 /** Mounts a bounded run Notes index with state search and cursor continuation. */
 export async function mountRunNotesIndex(host: HTMLElement, runID: number): Promise<void> {
@@ -26,17 +36,17 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
         <li>
           <a href={href}>{title}</a>
           <p>{excerpt}</p>
-          <span className="ui neutral label">{note.version?.state || "unknown"}</span>
+          <span className={classNames.uiNeutralLabel}>{note.version?.state || "unknown"}</span>
         </li>
       );
     });
-    var noteList: JSX.Element = <p className="ui faded text">No Notes match this run-scoped search.</p>;
-    if (noteItems.length) noteList = <ol className="rw-run-note-list">{noteItems}</ol>;
+    var noteList: JSX.Element = <p className={classNames.uiFadedText}>No Notes match this run-scoped search.</p>;
+    if (noteItems.length) noteList = <ol className="rw-note-list">{noteItems}</ol>;
     var more: JSX.Element | null = null;
-    if (hasMore) more = <button type="button" className="ui basic button" data-run-notes-more>Load more Notes</button>;
+    if (hasMore) more = <button type="button" className={classNames.uiBasicButton} data-run-notes-more>Load more Notes</button>;
     const indexMarkup = (
       <Fragment>
-        <form className="ui form rw-filter-bar" data-run-notes-filter>
+        <form className={classNames.uiFormRwFilterBar} data-run-notes-filter>
           <label>
             <span>Search Notes</span>
             <input name="q" type="search" value={query} />
@@ -49,9 +59,9 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
               <option value="removed" selected={state === "removed"}>Removed</option>
             </select>
           </label>
-          <button type="submit" className="ui primary button">Search Notes</button>
+          <button type="submit" className={classNames.uiPrimaryButton}>Search Notes</button>
         </form>
-        <p className="ui error message" data-run-notes-error role="alert" hidden></p>
+        <p className={classNames.uiErrorMessage} data-run-notes-error role="alert" hidden></p>
         {noteList}
         {more}
       </Fragment>

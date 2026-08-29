@@ -1,8 +1,15 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { esc, asJSON, list, value, Cell, humanLabel } from "../state.tsx";
+import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
 import { setURL } from "../router.tsx";
-import { h, Fragment } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
+import type { ClassNames } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiFadedText: cx("ui", "faded", "text"),
+};
 
 /** Returns whether a row contains the case-insensitive filter text. */
 export function rowFilter(rows: any[], query: string): any[] {
@@ -36,9 +43,9 @@ export interface DataTableContext {
   sortFields?: string[];
   expandableFields?: Array<{ f: string; w: number | string; label?: string; render?: (row: any) => JSX.Element }>;
   rowKey?: string;
-  columnConfig?: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }>;
+  columnConfig?: Record<string, { label?: string; className?: ClassName; render?: (row: any, value: any) => JSX.Element }>;
   expandLongCells?: boolean;
-  tableClass?: string;
+  tableClasses?: readonly ClassName[];
   itemLabel?: string;
   perPageSelector?: string;
   querySelector?: string;
@@ -116,11 +123,8 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         if (config.render) content = config.render(row, row[column]);
         return <td className={config.className}>{content}</td>;
       });
-      var rowClasses = "";
-      if (hasExpand) {
-        rowClasses = "expandable-row";
-        if (initiallyExpanded) rowClasses += " expanded";
-      }
+      var rowClasses: ClassNames | undefined;
+      if (hasExpand) rowClasses = cx("expandable-row", initiallyExpanded && "expanded");
 
       var expandRowHtml: JSX.Element | null = null;
       if (hasExpand) {
@@ -130,7 +134,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           if (field.w === "full") style = "grid-column:1/-1";
           var display: JSX.Element = <>{asJSON(val)}</>;
           if (field.render) display = field.render(row);
-          else if (val === null || val === undefined) display = <span className="ui faded text">Not recorded</span>;
+          else if (val === null || val === undefined) display = <span className={classNames.uiFadedText}>Not recorded</span>;
           const labelText = field.label || humanLabel(field.f);
           return (
             <div style={style}>
@@ -200,10 +204,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     return <th scope="col" className={className}>{label}</th>;
   });
 
-  var tableClasses = "ui table data-table";
-  if (context.tableClass) {
-    tableClasses += ` ${esc(context.tableClass)}`;
-  }
+  const tableClasses = cx("ui", "table", ...(context.tableClasses || []));
 
   const currentSort = value(keys.sort);
   const currentOrder = value(keys.order);
@@ -215,7 +216,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   }
 
   return (
-    <section className="rw-table-region" data-table-owner={props.tableName}>
+    <section data-table-owner={props.tableName}>
       <div className="table-wrap" data-table-root {...expandAttr}>
         <table className={tableClasses} aria-label={`${props.tableName} results`}>
           <thead>
@@ -353,7 +354,7 @@ function handleExpandToggle(event: Event): void {
     if (selection && !selection.isCollapsed) return;
     if ((event.target as HTMLElement).closest("a, button, input, select, summary, details")) return;
     const row = (event.target as HTMLElement).closest<HTMLElement>("tr");
-    if (!row || row.classList.contains("expansion-row")) return;
+    if (!row || classHas(row, "expansion-row")) return;
     toggle = row.querySelector(".expand-toggle");
     if (!toggle) return;
   }
@@ -368,7 +369,7 @@ function handleExpandToggle(event: Event): void {
   toggle.setAttribute("aria-expanded", String(!expanded));
   const sourceRow = toggle.closest("tr");
   if (sourceRow) {
-    sourceRow.classList.toggle("expanded", !expanded);
+    classToggle(sourceRow, "expanded", !expanded);
   }
   if (expanded) {
     toggle.textContent = "\u25B6";

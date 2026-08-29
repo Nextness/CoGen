@@ -37,7 +37,7 @@ describe('note-parser.tsx', function() {
     const html = renderNote(parseNote('# Finding\n\n| Field | Value |\n| --- | --- |\n| Status | Valid |'));
     assert.ok(html.includes('class="rw-note-heading rw-note-heading--1"'));
     assert.ok(html.includes('role="heading" aria-level="5"'));
-    assert.ok(html.includes('class="ui compact table rw-note-table"'));
+    assert.ok(html.includes(`class="ui table rw-note-table"`));
     assert.ok(!html.includes('<h1>'));
   });
 

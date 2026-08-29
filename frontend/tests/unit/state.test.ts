@@ -22,7 +22,17 @@ const table = (title: string, description: string, columns: any[], rows: any[]):
 const subnav = (items: Array<[string, string]>, current: string, key: string): string => renderToString(Subnav({ items: items, current: current, key: key }));
 const filterChips = (filters: Record<string, any>, labels?: Record<string, string>, options?: any): string => renderToString(FilterChips({ filters: filters, labels: labels, options: options }));
 const metricCard = (name: string, metric: any, href?: string): string => renderToString(MetricCard({ name: name, metric: metric, href: href }));
-const flowStage = (label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: any): string => renderToString(FlowStage({ label: label, raw: raw, base: base, previous: previous, extraClass: extraClass, stageKey: stageKey, options: options }));
+const flowStage = (label: string, raw: any, base: any, previous: any, stageKey: string, options: any): string => {
+  const stageMarkup = FlowStage({
+    label: label,
+    raw: raw,
+    base: base,
+    previous: previous,
+    stageKey: stageKey,
+    options: options,
+  });
+  return renderToString(stageMarkup);
+};
 const retentionFlow = (overview: any): string => renderToString(RetentionFlow({ overview: overview }));
 const breakdown = (title: string, source: any, valueLabel?: string, useTotal?: boolean): string => renderToString(Breakdown({ title: title, source: source, valueLabel: valueLabel, useTotal: useTotal }));
 const sourceResultCountSummary = (items: any[]): string => renderToString(SourceResultCountSummary({ items: items }));
@@ -769,7 +779,7 @@ describe('state.tsx — metricCard', function() {
 describe('state.tsx — flowStage', function() {
 
   it('renders a flow stage with count', function() {
-    const result = flowStage('Parsed', 100, 200, null, '', '', {});
+    const result = flowStage("Parsed", 100, 200, null, "", {});
     assert.ok(result.includes('rw-flow__step'));
     assert.ok(result.includes('Parsed'));
     assert.ok(result.includes('100'));
@@ -777,22 +787,22 @@ describe('state.tsx — flowStage', function() {
   });
 
   it('shows input baseline for null previous', function() {
-    const result = flowStage('Input', 100, 100, null, '', '', {});
+    const result = flowStage("Input", 100, 100, null, "", {});
     assert.ok(result.includes('Input baseline'));
   });
 
   it('shows diff from prior', function() {
-    const result = flowStage('Parsed', 80, 100, 100, '', '', {});
+    const result = flowStage("Parsed", 80, 100, 100, "", {});
     assert.ok(result.includes('from prior'));
   });
 
   it('handles unavailable state', function() {
-    const result = flowStage('Test', { available: false }, 100, null, '', '', {});
+    const result = flowStage("Test", { available: false }, 100, null, "", {});
     assert.ok(result.includes('Not recorded'));
   });
 
   it('handles null raw', function() {
-    const result = flowStage('Test', null, 100, null, '', '', {});
+    const result = flowStage("Test", null, 100, null, "", {});
     assert.ok(result.includes('Not recorded'));
   });
 
@@ -857,9 +867,9 @@ describe('state.tsx — retentionFlow', function() {
       return label.textContent;
     }), ['Source selection', 'Pipeline processing', 'Corpus enrichment']);
     assert.equal(document.querySelectorAll('.rw-flow--source > .rw-flow__step').length, 4);
-    assert.equal(document.querySelectorAll('.rw-flow--pipeline > .rw-flow__step').length, 3);
-    assert.equal(document.querySelectorAll('.rw-flow--corpus > .rw-flow__step').length, 3);
-    assert.match((document.querySelector('.rw-retention__phase--source .ui.label') as HTMLElement).textContent, /300 initial raw results across 2 sources/);
+    assert.equal(document.querySelectorAll(`[data-retention-phase="pipeline"] > .rw-flow > .rw-flow__step`).length, 3);
+    assert.equal(document.querySelectorAll(`[data-retention-phase="corpus"] > .rw-flow > .rw-flow__step`).length, 3);
+    assert.match((document.querySelector(`[data-retention-phase="source"] .ui.label`) as HTMLElement).textContent, /300 initial raw results across 2 sources/);
     assert.equal((document.querySelector('[data-flow-stage="input_records"] .rw-flow__percentage') as HTMLElement).textContent, '22.67%');
     assert.equal((document.querySelector('[data-flow-stage="parsed_articles"] .rw-flow__percentage') as HTMLElement).textContent, '20.00%');
     assert.equal((document.querySelector('[data-flow-stage="deduplicated_articles"] .rw-flow__percentage') as HTMLElement).textContent, '16.67%');

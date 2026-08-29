@@ -15,19 +15,21 @@ The viewer is a framework-free native ES-module multi-page application compiled 
 
 ## 2. Runtime API semantics
 
-The runtime exports `h`, `Fragment`, `render`, `renderToString`, and `raw`. The exports `h`, `render`, `renderToString`, and `raw` are declared as `export function` so the doccheck catalog records them; `Fragment` is a function constant and is documented here only.
+The runtime exports `h`, `Fragment`, `render`, `renderToString`, `raw`, `cx`, `classAdd`, `classRemove`, `classToggle`, and `classHas`. The function exports are declared as `export function` so the doccheck catalog records them; `Fragment` is a function constant and is documented here only.
 
 - `h(type, props, ...children): Node` — the JSX factory. If `type === Fragment`, returns a `DocumentFragment` containing the children. If `type` is a function, calls it with `{ ...props, children }` and returns its result (function component). Otherwise creates `document.createElement(type)` and applies attributes and children.
 - `Fragment(props?): DocumentFragment` — a callable function returning a fragment containing its children. It must be callable (not a `Symbol`) because classic-mode `<>...</>` compiles to `Fragment(...)` and `tsc` requires a call signature.
 - `render(node, host): void` — replaces `host` children with the node via `host.replaceChildren(node)`. If `node` is `null`/`undefined`, clears the host.
 - `renderToString(node): string` — serializes a rendered node to an HTML string. For a single element, `node.outerHTML`. For a `DocumentFragment` or an array, concatenates each child's serialization. For `null`/`undefined`/empty, returns `""`. Application code does not use this test serializer.
 - `raw(html: string): Node` — builds a `Node` from a trusted, already-escaped HTML string via a detached container's `innerHTML`. Application code has no caller; compatibility tests must never pass raw user data.
+- `cx(...tokens): ClassNames` — joins registered `ClassName` tokens, omits `false`, `null`, and `undefined`, and returns the branded compound value accepted by JSX `className`.
+- `classAdd(element, tokens)`, `classRemove(element, token)`, `classToggle(element, token, force?)`, and `classHas(element, token)` — apply registered tokens to direct DOM class operations that cannot be expressed through JSX.
 
 ## 3. Attribute handling rules
 
 `h` applies attributes in the order they appear in the JSX props object.
 
-- `className` → `setAttribute("class", value)`.
+- `className` → `setAttribute("class", value)`. TypeScript accepts one generated `ClassName` token or a branded `ClassNames` value returned by `cx`; an ordinary computed string is rejected.
 - `htmlFor` → `setAttribute("for", value)`.
 - `style` object → `Object.assign(element.style, value)`. `style` string → `setAttribute("style", value)` (pass-through, preserves exact serialization).
 - `on<Event>` with a function value → `addEventListener(eventName, handler)`. The event-name mapping strips `on` and lowercases, with a `dblclick` special case for `onDoubleClick`.
@@ -69,7 +71,8 @@ The migration is complete for application source: container, status, cell, pagin
 - The `0` child is not skipped; use ternaries or `count > 0 && ...`.
 - `renderToString` test serialization differs from browser-authored source conventions for boolean attributes, style normalization, and attribute escaping, so tests assert semantics rather than hand-written template byte parity.
 - `createElement`/`createTextNode` is generally somewhat slower than `innerHTML` parsing for trees with many small nodes, but the difference is negligible for this viewer's bounded collections and avoids an application DOM-to-string-to-DOM round trip.
+- Class typing validates individual selector tokens, not selector combinations. For example, every token in `cx("ui", "search", "selection", "dropdown")` is defined, but the type cannot prove that their ordered combination matches an intended compound rule; design and visual review remain required.
 
 ## 10. How to add a new component
 
-Create a `.tsx` file under `frontend/src/components/` or `frontend/src/views/` that imports `h` and `Fragment` from the runtime and exports a function returning `JSX.Element`. Use JSX for markup, rely on automatic escaping for text and attributes, and bind behavior either through `on*` props or through a `bind*` function called after `render`. Add a unit test under `frontend/tests/unit/` that imports the component and asserts on the rendered DOM or `renderToString` output. Run `make check-frontend`, `make frontend-build`, and `make test-frontend-unit` after the change.
+Create a `.tsx` file under `frontend/src/components/` or `frontend/src/views/` that imports `h` and `Fragment` from the runtime and exports a function returning `JSX.Element`. Use JSX for markup, rely on automatic escaping for text and attributes, and bind behavior either through `on*` props or through a `bind*` function called after `render`. A single defined class stays a literal, while a compound or conditional class value uses `cx` and is assigned to a descriptive binding before JSX. To add a selector, edit the owning stylesheet first, run `make frontend-classes`, review the generated `frontend/src/jsx/classes.ts` diff, and run `make check-frontend`; never edit the generated registry directly. Add a unit test under `frontend/tests/unit/` that imports the component and asserts on the rendered DOM or `renderToString` output. Run `make check-frontend`, `make frontend-build`, and `make test-frontend-unit` after the change.

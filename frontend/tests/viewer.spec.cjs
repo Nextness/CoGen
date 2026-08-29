@@ -291,8 +291,8 @@ test.describe('Overview view', () => {
     await expect(page.locator('.rw-retention__phase')).toHaveCount(3);
     await expect(page.locator('.rw-retention__phase-header h4')).toHaveText(['Source selection', 'Pipeline processing', 'Corpus enrichment']);
     await expect(page.locator('.rw-flow--source > .rw-flow__step')).toHaveCount(4);
-    await expect(page.locator('.rw-flow--pipeline > .rw-flow__step')).toHaveCount(3);
-    await expect(page.locator('.rw-flow--corpus > .rw-flow__step')).toHaveCount(3);
+    await expect(page.locator(`[data-retention-phase="pipeline"] > .rw-flow > .rw-flow__step`)).toHaveCount(3);
+    await expect(page.locator(`[data-retention-phase="corpus"] > .rw-flow > .rw-flow__step`)).toHaveCount(3);
     await expect(page.locator('[data-flow-stage="input_records"] .rw-flow__percentage')).toHaveText('22.67%');
     await expect(page.locator('[data-flow-stage="enrichment_candidates"] .rw-flow__percentage')).toHaveText('16.67%');
     await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__percentage')).toHaveText('16.67%');
@@ -340,7 +340,7 @@ test.describe('Corpus view', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
     await expect(page.locator('#corpus-section-select')).toBeVisible();
-    await expect(page.locator('.rw-data-section .ui.tabular.menu')).toHaveCount(0);
+    await expect(page.locator(`[data-table-owner="work_revisions"] .ui.tabular.menu`)).toHaveCount(0);
     await expect(page.locator('.rw-corpus-table thead th').filter({ hasText: /DOI|Title|Year|Journal|Source/ })).toHaveCount(5);
     await expect(page.getByRole('columnheader', { name: 'ID', exact: true })).toHaveCount(0);
     await expect(page.getByRole('columnheader', { name: 'Work', exact: true })).toHaveCount(0);
@@ -357,8 +357,8 @@ test.describe('Corpus view', () => {
   test('articles expansion shows matched search terms', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
-    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
-    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await page.locator(".rw-corpus-table .expand-toggle").first().click();
+    const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
     await expect(expansion).toContainText('Matched search terms');
     await expect(expansion).toContainText('3 of 6 search terms matched');
     await expect(expansion).toContainText('transformer');
@@ -369,8 +369,8 @@ test.describe('Corpus view', () => {
   test('articles expansion shows no search terms recorded for a run without queries', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'articles', run_id: RUN_4_NO_ENRICH }));
     await page.waitForLoadState('networkidle');
-    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
-    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await page.locator(".rw-corpus-table .expand-toggle").first().click();
+    const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
     await expect(expansion).toContainText('Matched search terms');
     await expect(expansion).toContainText('No search terms recorded');
   });
@@ -652,7 +652,7 @@ test.describe('Provenance view', () => {
     await page.locator('#cache-query').fill('openalex');
     await page.locator('#cache-controls').getByRole('button', { name: 'Search' }).click();
     await expect(page).toHaveURL(/(?:\?|&)cache_q=openalex(?:&|$)/);
-    await expect(page.locator('.rw-cache-view')).toContainText('openalex');
+    await expect(page.locator(`[data-table-scope="Cache uses"]`)).toContainText("openalex");
     const cacheControlBottoms = await page.locator('#cache-controls').evaluate(function(form) {
       return Array.from(form.children).slice(0, 3).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
     });

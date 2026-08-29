@@ -1,6 +1,6 @@
 // View routing, URL state, and render orchestrator.
 import { state, app, view, link, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
-import { render as renderTree } from "./jsx/jsx-runtime.ts";
+import { render as renderTree, classToggle } from "./jsx/jsx-runtime.ts";
 import { focusContextSelector, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";
 import { overviewView } from "./views/overview.tsx";
@@ -54,7 +54,7 @@ function syncPrimaryNavigation(current: string): void {
     const active = item.dataset.viewLink === navigationView;
     var ariaCurrent = "false";
     if (active) ariaCurrent = "page";
-    item.classList.toggle("active", active);
+    classToggle(item, "active", active);
     item.setAttribute("aria-current", ariaCurrent);
   });
 }

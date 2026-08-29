@@ -1,7 +1,14 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api } from "../api.tsx";
 import { link } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+};
 
 /** One paged backlink target and presentation contract. */
 export interface BacklinkOptions {
@@ -32,10 +39,10 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       const title = source.version?.title || `Note ${source.id}`;
       return <li><a href={href}>{title}</a></li>;
     });
-    var content: JSX.Element = <p className="ui faded text">No current note links point here.</p>;
+    var content: JSX.Element = <p className={classNames.uiFadedText}>No current note links point here.</p>;
     if (items.length) {
       var more: JSX.Element | null = null;
-      if (hasMore) more = <button type="button" className="ui basic button" data-backlinks-more>Load more inbound links</button>;
+      if (hasMore) more = <button type="button" className={classNames.uiBasicButton} data-backlinks-more>Load more inbound links</button>;
       content = (
         <Fragment>
           <h6>{options.heading || "Inbound note links"}</h6>
@@ -57,7 +64,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
     const existingButton = host.querySelector<HTMLButtonElement>("[data-backlinks-more]");
     if (existingButton) {
       existingButton.disabled = true;
-      existingButton.classList.add("loading");
+      classAdd(existingButton, ["loading"]);
     }
     try {
       const data = await api(`/api/runs/${options.runID}/links/backlinks`, {
@@ -95,8 +102,8 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       const errorMarkup = (
         <Fragment>
           {prior}
-          <p className="ui error message">Inbound links could not be loaded: {error.message}</p>
-          <button type="button" className="ui basic button" data-backlinks-retry>Retry inbound links</button>
+          <p className={classNames.uiErrorMessage}>Inbound links could not be loaded: {error.message}</p>
+          <button type="button" className={classNames.uiBasicButton} data-backlinks-retry>Retry inbound links</button>
         </Fragment>
       );
       renderTree(errorMarkup, host);

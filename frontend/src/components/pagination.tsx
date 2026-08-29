@@ -1,5 +1,11 @@
 // Shared pagination rendering for server-backed and in-memory result sets.
-import { h } from "../jsx/jsx-runtime.ts";
+import { h, cx } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiPaginationMenu: cx("ui", "pagination", "menu"),
+};
 
 /** Returns the bounded sequence of page numbers surrounding the current page. */
 export function paginationPages(currentPage: any, totalPages: any, visibleCount: any): number[] {
@@ -24,7 +30,7 @@ export interface PaginationOptions {
   perPage?: any;
   itemLabel?: string;
   pageAttribute?: string;
-  pageClass?: string;
+  pageClass?: ClassName;
   visibleCount?: any;
   secondary?: string;
 }
@@ -44,13 +50,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
   if (totalRows !== 0) end = Math.min(totalRows, safeCurrent * perPage);
   const itemLabel = options.itemLabel || "records";
   const pageAttribute = options.pageAttribute || "data-page";
-  const pageClass = options.pageClass || "";
+  const pageClass = options.pageClass;
 
   const pageNumbers = paginationPages(safeCurrent, totalPages, options.visibleCount);
   const numbered = pageNumbers.map((page) => {
-    var active = "";
-    if (page === safeCurrent) active = " active";
-    const pageNumberClass = `item page-number${active}${pageClass}`;
+    const pageNumberClass = cx("item", page === safeCurrent && "active", pageClass);
     const attrs: Record<string, unknown> = {
       type: "button",
       className: pageNumberClass,
@@ -62,7 +66,7 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
 
   /** Returns one pagination navigation control. */
   function control(label: string, target: number, disabled: boolean, relation: string): JSX.Element {
-    const itemClass = `item${pageClass}`;
+    const itemClass = cx("item", pageClass);
     const attrs: Record<string, unknown> = {
       type: "button",
       className: itemClass,
@@ -84,7 +88,7 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
   const lastControl = control("Last", totalPages, safeCurrent === totalPages, "Last page");
 
   return (
-    <nav className="ui pagination menu" aria-label="Result pages">
+    <nav className={classNames.uiPaginationMenu} aria-label="Result pages">
       <div className="rw-pagination__summary">
         <strong>{start.toLocaleString()}{"\u2013"}{end.toLocaleString()}</strong> of {totalRows.toLocaleString()} {itemLabel}
         <span>Page {safeCurrent} of {totalPages}</span>

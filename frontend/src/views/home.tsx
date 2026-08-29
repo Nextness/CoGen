@@ -12,9 +12,29 @@ import {
   Panel,
   FilterChips,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { api, mutate } from "../api.tsx";
 import { setURL } from "../router.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  fieldRwHomeFiltersSearch: cx("field", "rw-home-filters__search"),
+  rwFilterDisclosureRwHomeFiltersAdvanced: cx("rw-filter-disclosure", "rw-home-filters__advanced"),
+  rwFilterPanelFieldsRwHomeFiltersAdvancedFields: cx("rw-filter-panel__fields", "rw-home-filters__advanced-fields"),
+  rwKpiGridRwHomeKpis: cx("rw-kpi-grid", "rw-home-kpis"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiDangerBasicButton: cx("ui", "danger", "basic", "button"),
+  uiDangerButton: cx("ui", "danger", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiFormRwFilterPanel: cx("ui", "form", "rw-filter-panel"),
+  uiFormRwReviewDialogForm: cx("ui", "form", "rw-review-dialog__form"),
+  uiIconBasicButtonRwReviewDialogClose: cx("ui", "icon", "basic", "button", "rw-review-dialog__close"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiPrimaryBasicButton: cx("ui", "primary", "basic", "button"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiTableRwHomeRuns: cx("ui", "table", "rw-home-runs"),
+};
 
 /** Returns a clean Deepdive URL for one complete research context. */
 function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any): string {
@@ -40,7 +60,7 @@ function ContinueAction(props: { searchID: any; revisionID: any; planID: any; ru
   if (!props.searchID || !props.revisionID || !props.planID || !props.runID) return null;
   return (
     <a
-      className="ui primary basic button"
+      className={classNames.uiPrimaryBasicButton}
       href={deepdiveLink(props.searchID, props.revisionID, props.planID, props.runID)}
     >
       Continue
@@ -86,7 +106,7 @@ function SearchCard(props: { search: any }): JSX.Element {
       <details data-home-search={search.id}>
         <summary>Browse revision history</summary>
         <div className="rw-home-revisions" data-home-revisions>
-          <p className="ui faded text">Open this disclosure to load a bounded revision page.</p>
+          <p className={classNames.uiFadedText}>Open this disclosure to load a bounded revision page.</p>
         </div>
       </details>
     </article>
@@ -98,7 +118,7 @@ function SectionError(props: { title: string; failure: any }): JSX.Element {
   var message = "The section could not be loaded.";
   if (props.failure?.message) message = props.failure.message;
   return (
-    <p className="ui error message" role="alert">
+    <p className={classNames.uiErrorMessage} role="alert">
       <span className="header">{props.title}</span>
       {message}
     </p>
@@ -113,7 +133,7 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
     var lifecycleAction: JSX.Element = (
       <button
         type="button"
-        className="ui danger basic button"
+        className={classNames.uiDangerBasicButton}
         data-run-visibility="trashed"
         data-run-id={run.id}
       >
@@ -121,12 +141,12 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
       </button>
     );
     if (run.status === "running") {
-      lifecycleAction = <button type="button" className="ui basic button" disabled>Running</button>;
+      lifecycleAction = <button type="button" className={classNames.uiBasicButton} disabled>Running</button>;
     } else if (visibility === "trashed") {
       lifecycleAction = (
         <button
           type="button"
-          className="ui basic button"
+          className={classNames.uiBasicButton}
           data-run-visibility="active"
           data-run-id={run.id}
         >
@@ -134,11 +154,11 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
         </button>
       );
     }
-    var explore: JSX.Element = <span className="ui faded text">Context unavailable</span>;
+    var explore: JSX.Element = <span className={classNames.uiFadedText}>Context unavailable</span>;
     if (canExplore) {
       explore = (
         <a
-          className="ui primary button"
+          className={classNames.uiPrimaryButton}
           href={deepdiveLink(run.search_id, run.search_revision_id, run.execution_plan_id, run.id)}
         >
           Explore
@@ -175,9 +195,9 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
   if (props.hasMore) resultLabel = `Showing ${formatNumber(rows.length)} run attempts. More results are available.`;
   return (
     <Fragment>
-      <p className="rw-result-summary" aria-live="polite">{resultLabel}</p>
+      <p aria-live="polite">{resultLabel}</p>
       <div className="table-wrap" aria-label="Run attempts table">
-        <table className="ui table rw-home-runs">
+        <table className={classNames.uiTableRwHomeRuns}>
           <thead>
             <tr>
               <th>Run attempt</th>
@@ -241,23 +261,23 @@ function HomeFilters(): JSX.Element {
     filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
   }
   return (
-    <form className="ui form rw-filter-panel rw-home-filters" data-home-filters>
+    <form className={classNames.uiFormRwFilterPanel} data-home-filters>
       <div className="rw-home-filters__primary">
-        <label className="field rw-home-filters__search">
+        <label className={classNames.fieldRwHomeFiltersSearch}>
           Search runs and history
           <input name="q" type="search" value={query} placeholder="Search term, revision, or run ID" />
         </label>
         <div className="rw-filter-panel__actions">
-          <button type="submit" className="ui primary button">Apply filters</button>
-          <button type="button" className="ui basic button" data-home-clear>Clear filters</button>
+          <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
+          <button type="button" className={classNames.uiBasicButton} data-home-clear>Clear filters</button>
         </div>
       </div>
-      <details className="rw-filter-disclosure rw-home-filters__advanced" open={advancedOpen}>
+      <details className={classNames.rwFilterDisclosureRwHomeFiltersAdvanced} open={advancedOpen}>
         <summary>
           <span>Visibility, outcome, and dates</span>
           <small>{advancedSummary}</small>
         </summary>
-        <div className="rw-filter-panel__fields rw-home-filters__advanced-fields">
+        <div className={classNames.rwFilterPanelFieldsRwHomeFiltersAdvancedFields}>
           <label className="field">
             Visibility
             <select name="visibility">
@@ -294,12 +314,12 @@ function HomeFilters(): JSX.Element {
 function RunDialog(): JSX.Element {
   return (
     <dialog
-      className="rw-review-dialog rw-home-run-dialog"
+      className="rw-review-dialog"
       data-run-dialog
       aria-labelledby="run-dialog-title"
       aria-describedby="run-dialog-description"
     >
-      <form className="ui form rw-review-dialog__form" data-run-dialog-form>
+      <form className={classNames.uiFormRwReviewDialogForm} data-run-dialog-form>
         <div className="rw-review-dialog__header">
           <div>
             <p className="rw-review-dialog__eyebrow">Run lifecycle</p>
@@ -308,7 +328,7 @@ function RunDialog(): JSX.Element {
           </div>
           <button
             type="button"
-            className="ui icon basic button rw-review-dialog__close"
+            className={classNames.uiIconBasicButtonRwReviewDialogClose}
             data-run-dialog-close
             aria-label="Close run lifecycle dialog"
           >
@@ -320,12 +340,12 @@ function RunDialog(): JSX.Element {
             Reason
             <textarea name="reason" maxlength={1000} rows={3} placeholder="Why should this run move out of the active workspace?"></textarea>
           </label>
-          <p className="ui info message" data-run-dialog-guidance></p>
-          <p className="ui error message" data-run-dialog-error role="alert" hidden></p>
+          <p className={classNames.uiInfoMessage} data-run-dialog-guidance></p>
+          <p className={classNames.uiErrorMessage} data-run-dialog-error role="alert" hidden></p>
         </div>
         <div className="rw-review-dialog__actions">
-          <button type="button" className="ui basic button" data-run-dialog-close>Cancel</button>
-          <button type="submit" className="ui danger button" data-run-dialog-submit>Confirm</button>
+          <button type="button" className={classNames.uiBasicButton} data-run-dialog-close>Cancel</button>
+          <button type="submit" className={classNames.uiDangerButton} data-run-dialog-submit>Confirm</button>
         </div>
       </form>
     </dialog>
@@ -334,7 +354,7 @@ function RunDialog(): JSX.Element {
 
 /** Loads and renders one bounded revision page inside an open search disclosure. */
 async function loadRevisions(searchID: string, cursor: string, host: HTMLElement): Promise<void> {
-  const loadingMarkup = <p className="ui info message">Loading revision history.</p>;
+  const loadingMarkup = <p className={classNames.uiInfoMessage}>Loading revision history.</p>;
   renderTree(loadingMarkup, host);
   try {
     const result = await api("/api/hierarchy", {
@@ -356,11 +376,11 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
       );
     });
     var empty: JSX.Element | null = null;
-    if (!rows.length) empty = <p className="ui faded text">No search revisions are recorded.</p>;
+    if (!rows.length) empty = <p className={classNames.uiFadedText}>No search revisions are recorded.</p>;
     var more: JSX.Element | null = null;
     if (result.has_more) {
       more = (
-        <button type="button" className="ui basic button" data-more-revisions={result.next_cursor}>
+        <button type="button" className={classNames.uiBasicButton} data-more-revisions={result.next_cursor}>
           Next revision page
         </button>
       );
@@ -471,8 +491,8 @@ function bindRunLifecycle(): void {
     var submitText = "Restore run";
     if (trashing) submitText = "Move to trash";
     submit.textContent = submitText;
-    submit.classList.toggle("danger", trashing);
-    submit.classList.toggle("primary", !trashing);
+    classToggle(submit, "danger", trashing);
+    classToggle(submit, "primary", !trashing);
     dialog!.showModal?.();
     if (!dialog!.open) dialog!.setAttribute("open", "");
     if (trashing) reason.focus();
@@ -498,7 +518,7 @@ function bindRunLifecycle(): void {
     error.hidden = true;
     mutating = true;
     submit.disabled = true;
-    submit.classList.add("loading");
+    classAdd(submit, ["loading"]);
     closeButtons.forEach((button) => {
       button.disabled = true;
     });
@@ -516,7 +536,7 @@ function bindRunLifecycle(): void {
       error.hidden = false;
       mutating = false;
       submit.disabled = false;
-      submit.classList.remove("loading");
+      classRemove(submit, "loading");
       closeButtons.forEach((button) => {
         button.disabled = false;
       });
@@ -524,7 +544,7 @@ function bindRunLifecycle(): void {
     }
     mutating = false;
     submit.disabled = false;
-    submit.classList.remove("loading");
+    classRemove(submit, "loading");
     closeButtons.forEach((button) => {
       button.disabled = false;
     });
@@ -565,7 +585,7 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
   if (summaryResult.status === "fulfilled") {
     const totals = summaryResult.value.totals;
     metrics = (
-      <div className="rw-kpi-grid rw-home-kpis">
+      <div className={classNames.rwKpiGridRwHomeKpis}>
         <div className="rw-kpi">
           <span className="label">Search terms</span>
           <span className="value">{formatNumber(totals.searches)}</span>
@@ -596,11 +616,11 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
       return <SearchCard search={search} />;
     });
     var searchEmpty: JSX.Element | null = null;
-    if (!cards.length) searchEmpty = <p className="ui faded text">No search terms match this search.</p>;
+    if (!cards.length) searchEmpty = <p className={classNames.uiFadedText}>No search terms match this search.</p>;
     var nextSearchPage: JSX.Element | null = null;
     if (searchesResult.value.has_more) {
       nextSearchPage = (
-        <button type="button" className="ui basic button" data-more-searches={searchesResult.value.next_cursor}>
+        <button type="button" className={classNames.uiBasicButton} data-more-searches={searchesResult.value.next_cursor}>
           Next search page
         </button>
       );
@@ -619,7 +639,7 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
     var nextRunPage: JSX.Element | null = null;
     if (runsResult.value.has_more) {
       nextRunPage = (
-        <button type="button" className="ui basic button" data-more-runs={runsResult.value.next_cursor}>
+        <button type="button" className={classNames.uiBasicButton} data-more-runs={runsResult.value.next_cursor}>
           Next run page
         </button>
       );
@@ -639,19 +659,17 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
         title="Home"
         description="Choose a captured run for Deepdive analysis or manage which completed attempts remain active."
       />
-      <p className="rw-sr-status" data-home-lifecycle-status role="status" aria-live="polite">{lifecycleMessage}</p>
+      <p data-home-lifecycle-status role="status" aria-live="polite">{lifecycleMessage}</p>
       {metrics}
       <Panel
         title="Research history"
         description="Search terms organize immutable revisions, execution plans, and recorded run attempts."
         body={searchHistory}
-        classes="rw-home-history"
       />
       <Panel
         title="Run attempts"
         description="Filter a bounded result page, explore a complete context, or change a terminal run's reversible visibility."
         body={<div className="rw-content-stack"><HomeFilters />{runTableMarkup}</div>}
-        classes="rw-home-run-panel"
       />
       <RunDialog />
     </Fragment>

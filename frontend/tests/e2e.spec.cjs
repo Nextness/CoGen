@@ -51,7 +51,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
 
   await page.goto(generatedURL(context, { view: 'corpus', section: 'articles' }));
   await page.waitForLoadState('networkidle');
-  const corpus = page.locator('.rw-corpus-table--articles');
+  const corpus = page.locator(`[data-table-owner="work_revisions"]`);
   await expect(corpus).toBeVisible();
   await expect(corpus).toContainText('Offline Complete One');
   await expect(corpus).toContainText('Offline Complete Two');
@@ -134,5 +134,5 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   await expect(page.locator('[data-review-host]')).toContainText('A2 changed evidence');
   await page.getByRole('tab', { name: 'PDF anchors' }).click();
   await expect(page.locator('[data-anchor-list]')).toContainText('e2e-methods');
-  await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable E2E methods');
+  await expect(page.locator(".rw-pdf-page .textLayer")).toContainText("Selectable E2E methods");
 });

@@ -4,13 +4,48 @@
 // described in docs/JSX-RUNTIME.md. It is framework-free: it provides the
 // classic-mode JSX factory (h), the fragment factory (Fragment), a render
 // function that mounts a node tree into a host, a renderToString bridge used
-// during migration, and a controlled raw-HTML escape hatch (raw) for trusted,
-// already-escaped markup.
+// during migration, typed class composition and DOM class helpers, and a
+// controlled raw-HTML escape hatch (raw) for trusted, already-escaped markup.
 //
 // Escaping is automatic: text children are inserted through
 // document.createTextNode and attribute values through setAttribute, so raw
 // HTML in data is inert. The raw() helper is the only path that inserts markup
 // and must only ever be fed already-escaped or trusted content.
+
+import type { ClassName } from "./classes.ts";
+
+/** Prevents ordinary strings from satisfying the ClassNames type. */
+declare const classNamesBrand: unique symbol;
+
+/** A space-separated class string assembled exclusively from registered tokens. */
+export type ClassNames = string & { readonly [classNamesBrand]: true };
+
+/** Joins registered class tokens while omitting false, null, and undefined values. */
+export function cx(...tokens: Array<ClassName | false | null | undefined>): ClassNames {
+  const presentTokens = tokens.filter(Boolean);
+  return presentTokens.join(" ") as ClassNames;
+}
+
+/** Adds registered class tokens to an element. */
+export function classAdd(element: Element, tokens: readonly ClassName[]): void {
+  element.classList.add(...tokens);
+}
+
+/** Removes one registered class token from an element. */
+export function classRemove(element: Element, token: ClassName): void {
+  element.classList.remove(token);
+}
+
+/** Toggles one registered class token on an element. */
+export function classToggle(element: Element, token: ClassName, force?: boolean): boolean {
+  if (force === undefined) return element.classList.toggle(token);
+  return element.classList.toggle(token, force);
+}
+
+/** Returns whether an element has one registered class token. */
+export function classHas(element: Element, token: ClassName): boolean {
+  return element.classList.contains(token);
+}
 
 /** Returns a document fragment containing the supplied children. */
 export const Fragment = function(props?: { children?: unknown }): DocumentFragment {
@@ -89,7 +124,7 @@ function setAttribute(element: Element, name: string, value: unknown): void {
 }
 
 /** Creates a DOM node from a JSX type, props, and children. */
-export function h(type: any, props: Record<string, unknown> | null, ...children: any[]): Node {
+export function h(type: any, props: ({ [attr: string]: unknown; className?: ClassName | ClassNames }) | null, ...children: any[]): Node {
   if (type === Fragment) {
     const fragment = document.createDocumentFragment();
     for (const child of children) {

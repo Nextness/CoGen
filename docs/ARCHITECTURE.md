@@ -348,11 +348,11 @@ browser POST/PUT -> transport and context validation -> optional anchor PDF chec
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module multi-page application authored in TypeScript. Sources under `frontend/src` are type-checked with `tsc --noEmit` (`make check-frontend`) and compiled per file by `make frontend-build` (esbuild) into the `frontend/dist` served root; compiled output rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and the assembled root is asserted to contain no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `frontend/index.html` is the authoritative accessible shell template, and `frontend/scripts/build.mjs` generates `index.html` plus one identified HTML document for each Deepdive and detail view. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering in every document.
+The frontend is a framework-free native ES-module multi-page application authored in TypeScript. `make check-frontend` first verifies the generated CSS token registry and statically visible class uses, then type-checks sources under `frontend/src` with `tsc --noEmit`; `make frontend-build` compiles each file with esbuild into the `frontend/dist` served root, rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and asserts that the assembled root contains no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `frontend/index.html` is the authoritative accessible shell template, and `frontend/scripts/build.mjs` generates `index.html` plus one identified HTML document for each Deepdive and detail view. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering in every document.
 
 The URL is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. The `view` query parameter remains the dispatch source of truth, while `state.link` prefixes the owning page file and preserves only canonical context plus destination-owned keys. Cross-view links and `router.setURL` transitions perform native document navigation; same-view filters, pagination, cursors, graph controls, and section changes keep `pushState` or `replaceState` plus an in-document render. Existing root URLs such as `/?view=overview` remain supported through `index.html`.
 
-`router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, build a JSX tree, and call `render(<View .../>, app)` (the project-owned runtime in `jsx/jsx-runtime.ts`, documented in [JSX-RUNTIME.md](JSX-RUNTIME.md)), then bind interactions that require the new DOM.
+`router.render` increments a request sequence, aborts the prior controller, refreshes context selectors, dispatches the selected view, updates the document title, ignores stale or aborted responses, and clears loading state only for the current request. Views fetch JSON, assign a built JSX tree to a descriptive binding, pass that binding to the project-owned `render` runtime documented in [JSX-RUNTIME.md](JSX-RUNTIME.md), and then bind interactions that require the new DOM.
 
 ```text
 page load or same-view history event
@@ -364,7 +364,7 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
       +---------------------------------------------- API fetch
                                                           |
                                                           v
-                                    render(<View/>, app) into #app
+                                    render(viewMarkup, app) into #app
                                                           |
                                                           v
                                               bind view interactions
@@ -376,9 +376,11 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 |---|---|
 | `index.html` | Authoritative shell template for the generated home, Deepdive, and detail HTML documents. |
 | `scripts/build.mjs` | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
+| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, freshness verification, statically visible use validation, and unused-token reporting. |
 | `app.tsx` | Global event binding, same-view history interception, cross-view native-navigation protection, shell initialization, and first render. |
-| `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. |
-| `jsx/jsx.d.ts` | Ambient global `JSX` namespace. |
+| `jsx/classes.ts` | Committed generated `ClassName` union derived from the six authoritative stylesheets. |
+| `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. |
+| `jsx/jsx.d.ts` | Ambient global `JSX` namespace with class names narrowed to generated tokens or branded combinations. |
 | `state.tsx` | URL values, view-to-page ownership, DOM state, escaping, formatting, shared JSX panels, tables, flows, links, statuses, and global UI behavior. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured API errors, and table discovery cache. |
 | `router.tsx` | Request sequence, abort lifecycle, selector hydration, view dispatch, native cross-view navigation, same-view history state, document title, and page-title focus. |

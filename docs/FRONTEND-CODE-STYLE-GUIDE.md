@@ -26,6 +26,8 @@ Prefer double quotes for JavaScript string literals in frontend source: write `"
 
 Use a template literal whenever a string interpolates a value: write `` `[data-detail-collection-host="${key}"]` `` instead of `'[data-detail-collection-host="' + key + '"]'`. Do not build interpolated strings with the plus operator; concatenation is harder to read than a backtick literal with `${...}` placeholders, so new and edited code uses template literals.
 
+Use a template literal when a string contains nested double quotes, such as `` `[data-table-owner="work_revisions"]` `` or `` `class="ui table"``, instead of escaping those quotes inside a double-quoted string.
+
 The existing codebase mixes single- and double-quoted literals, so the convention applies to new and edited code: use double quotes in lines you add or touch and do not convert quoting in unrelated lines of the same file.
 
 ## 4. Object and array literals
@@ -90,7 +92,7 @@ Write callback functions that are passed as parameters with arrow syntax: `(butt
 
 Inside an element, JSX expressions may reference variables only; do not inline complete statements such as `{reasons.map((reason) => {...})}` into the markup. Compute the mapped or filtered values into a named variable before the element: `const reasonsMap = reasons.map((reason) => ...); return <ul className="rw-mapping-values">{reasonsMap}</ul>;`. Mapped arrays used in both matched and unmatched sections are derived once, before the markup, exactly like `matchedTermTags` and `unmatchedTermTags`.
 
-Computed class strings and markup-producing calls are extracted the same way: `const gridClass = `rw-property-grid ${classes || ""}`;` feeds `className={gridClass}`, and `const mappingResult = mappingValue(item);` feeds `{mappingResult}`.
+The generated `ClassName` type permits a single defined token as a literal. Compound or conditional classes use `cx`, and every computed class is extracted before markup: `const gridClass = cx("rw-property-grid", ...(classes || []));` feeds `className={gridClass}`. Repeated fixed combinations may use one documented module-local `classNames` object whose properties call `cx`; JSX references the named property and never calls `cx` inline. Markup-producing calls follow the same rule: `const mappingResult = mappingValue(item);` feeds `{mappingResult}`.
 
 Keep `map` and `filter` callbacks small: destructure the incoming entry, use the resulting names, and return one element or one boolean.
 
@@ -108,7 +110,7 @@ Every maintained declaration requires the adjacent JSDoc description that the ca
 
 Annotate the `JSX.Element` return type on every component and helper that returns markup, and type the props object explicitly, as `SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Element` does.
 
-Do not widen or overload types during a readability refactor; rename and restructure only, and leave every payload shape and rendered node the same.
+Do not widen or overload types during a readability refactor; rename and restructure only, and leave every payload shape and rendered node the same. Class-producing props and local mappings use `ClassName`, arrays use `readonly ClassName[]` where mutation is unnecessary, and compound results use the branded `ClassNames` type returned by `cx`.
 
 Use `const` for bindings that are never reassigned and `let` for bindings that are, matching the surrounding declaration style of the file being changed; the views currently declare mutable markup slots with `var` and immutable bindings with `const`.
 
@@ -165,6 +167,6 @@ The two versions render identical markup; readability comes from the names, the 
 
 ## 11. Verification after frontend changes
 
-Naming and structure refactors must not change observable behavior, so verify with the existing suites: run [unit tests](../frontend/tests/unit/views/detail.test.ts) with `make test-frontend-unit`, type check with `make check-frontend`, run `make test-go PACKAGE=./server` for integration, and run the focused Playwright viewer suite as section 15 of [STANDARDS.md](STANDARDS.md) requires.
+Naming and structure refactors must not change observable behavior, so verify with the existing suites: run [unit tests](../frontend/tests/unit/views/detail.test.ts) with `make test-frontend-unit`, run `make check-frontend` for registry freshness, static class validation, and type checking, run `make test-go PACKAGE=./server` for integration, and run the focused Playwright viewer suite as section 15 of [STANDARDS.md](STANDARDS.md) requires.
 
 Run `make check-docs` after this guide or any referenced documentation changes, and run `make docs-state-update` after reviewing the dependents listed in [DOC-STATE.md](DOC-STATE.md).

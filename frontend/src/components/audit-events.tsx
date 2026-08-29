@@ -1,7 +1,19 @@
 // Shared audit-event presentation for Provenance and immutable record details.
 import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, list, parseObject, StatusChip, value } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwFilterBarRwRecordAuditControls: cx("rw-filter-bar", "rw-record-audit__controls"),
+  uiButton: cx("ui", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiLabel: cx("ui", "label"),
+  uiNeutralLabel: cx("ui", "neutral", "label"),
+  uiWarningMessage: cx("ui", "warning", "message"),
+};
 
 const recordAuditBatchSize = 25;
 
@@ -23,7 +35,19 @@ export interface AuditEventRecord {
 }
 
 /** Classifies an audit event into its presentation category. */
-export function auditCategory(event: AuditEventRecord): string {
+export type AuditCategory = "review" | "pdf" | "enrichment" | "validation" | "pipeline";
+
+/** Defined audit-event modifier for each presentation category. */
+const auditCategoryClasses: Record<AuditCategory, ClassName> = {
+  review: "rw-audit-event--review",
+  pdf: "rw-audit-event--pdf",
+  enrichment: "rw-audit-event--enrichment",
+  validation: "rw-audit-event--validation",
+  pipeline: "rw-audit-event--pipeline",
+};
+
+/** Classifies an audit event into its presentation category. */
+export function auditCategory(event: AuditEventRecord): AuditCategory {
   const action = String(event.action || "");
   if (action.startsWith("review_") || action.startsWith("work_review_") || action.startsWith("note_") || action.startsWith("anchor_")) {
     return "review";
@@ -132,14 +156,14 @@ function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, be
 function ReviewDecisionState(props: { label: string; state: Record<string, any> }): JSX.Element {
   var substatuses: any[] = [];
   if (Array.isArray(props.state.sub_statuses)) substatuses = props.state.sub_statuses;
-  var substatusMarkup: JSX.Element = <span className="ui faded text">None</span>;
+  var substatusMarkup: JSX.Element = <span className={classNames.uiFadedText}>None</span>;
   if (substatuses.length) {
     const substatusLabels = substatuses.map((substatus) => {
-      return <span className="ui neutral label">{humanLabel(substatus)}</span>;
+      return <span className={classNames.uiNeutralLabel}>{humanLabel(substatus)}</span>;
     });
     substatusMarkup = <div className="rw-review-audit-substatuses">{substatusLabels}</div>;
   }
-  var reasonMarkup: JSX.Element = <span className="ui faded text">Not recorded</span>;
+  var reasonMarkup: JSX.Element = <span className={classNames.uiFadedText}>Not recorded</span>;
   if (props.state.reason) reasonMarkup = <>{props.state.reason}</>;
   return (
     <section className="rw-review-audit-state">
@@ -210,7 +234,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: Record<string,
       <summary>Recorded data</summary>
       <div className="rw-event-details__body">
         {factsMarkup}
-        <div data-audit-recorded-host><p className="ui faded text">Open this disclosure to load privacy-scrubbed recorded JSON.</p></div>
+        <div data-audit-recorded-host><p className={classNames.uiFadedText}>Open this disclosure to load privacy-scrubbed recorded JSON.</p></div>
       </div>
     </details>
   );
@@ -225,9 +249,9 @@ function RecordedData(props: { data: any }): JSX.Element {
   });
   var truncation: JSX.Element | null = null;
   if (props.data.truncated_fields?.length) {
-    truncation = <p className="ui warning message">The {props.data.truncated_fields.join(", ")} payload exceeded the {props.data.byte_limit.toLocaleString()} byte inspection budget and was not loaded.</p>;
+    truncation = <p className={classNames.uiWarningMessage}>The {props.data.truncated_fields.join(", ")} payload exceeded the {props.data.byte_limit.toLocaleString()} byte inspection budget and was not loaded.</p>;
   }
-  if (!sections.length && !truncation) return <p className="ui faded text">No recorded JSON fields are available for this event.</p>;
+  if (!sections.length && !truncation) return <p className={classNames.uiFadedText}>No recorded JSON fields are available for this event.</p>;
   return <Fragment>{truncation}{sections}</Fragment>;
 }
 
@@ -246,10 +270,12 @@ export function bindAuditRecordedData(root: ParentNode = document): void {
           method: "GET",
           headers: { Accept: "application/json" },
         });
-        renderTree(<RecordedData data={data} />, host);
+        const recordedDataMarkup = <RecordedData data={data} />;
+        renderTree(recordedDataMarkup, host);
         details.dataset.auditRecordedLoaded = "true";
       } catch (error: any) {
-        renderTree(<p className="ui error message">{error.message || "Unable to load recorded data."}</p>, host);
+        const errorMarkup = <p className={classNames.uiErrorMessage}>{error.message || "Unable to load recorded data."}</p>;
+        renderTree(errorMarkup, host);
       }
     });
   });
@@ -272,7 +298,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   } else if (category === "pdf") {
     runContext = "Global PDF evidence";
   }
-  const eventClass = `rw-audit-event rw-audit-event--${category}`;
+  const eventClass = cx("rw-audit-event", auditCategoryClasses[category]);
   var stageMarkup: JSX.Element | null = null;
   if (stage) {
     stageMarkup = <span>Stage: <strong>{stage}</strong></span>;
@@ -283,7 +309,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
       <div className="rw-audit-event__main">
         <div className="rw-audit-event__heading">
           <h5>{humanLabel(props.event.action || "event")}</h5>
-          <span className="ui label">{humanLabel(category)}</span>
+          <span className={classNames.uiLabel}>{humanLabel(category)}</span>
           <StatusChip raw={outcome} />
         </div>
         <p>{eventSummary(props.event, metadata, before, after)}</p>
@@ -360,8 +386,8 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; co
     ...actionOptionElements,
   ];
   return (
-    <div className="rw-record-audit" data-record-audit data-record-audit-endpoint={props.endpoint || ""} data-record-audit-cursor-key={props.cursorKey || ""} data-record-audit-next-cursor={nextCursor}>
-      <div className="rw-filter-bar rw-record-audit__controls">
+    <div data-record-audit data-record-audit-endpoint={props.endpoint || ""} data-record-audit-cursor-key={props.cursorKey || ""} data-record-audit-next-cursor={nextCursor}>
+      <div className={classNames.rwFilterBarRwRecordAuditControls}>
         <label>
           Search events
           <input type="search" data-record-audit-search placeholder="Action, source, identifier, or metadata" />
@@ -388,8 +414,8 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; co
       </div>
       <div data-record-audit-stream><AuditStream events={initialEvents} emptyMessage="No recorded events match the local detail filters." /></div>
       <div className="rw-record-audit__actions">
-        <button type="button" className="ui button" data-record-audit-more hidden={initialEvents.length >= props.events.length && !hasMore}>Load {recordAuditBatchSize} more events</button>
-        <span className="ui faded text" data-record-audit-page-status role="status"></span>
+        <button type="button" className={classNames.uiButton} data-record-audit-more hidden={initialEvents.length >= props.events.length && !hasMore}>Load {recordAuditBatchSize} more events</button>
+        <span className={classNames.uiFadedText} data-record-audit-page-status role="status"></span>
       </div>
     </div>
   );

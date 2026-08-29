@@ -3,6 +3,7 @@ import { bindDismissibleMessages, bindLoadingButtons, contextChange, view, viewP
 import { navigationAllowed, render, setURL } from "./router.tsx";
 import { selects } from "./components/context-selector.tsx";
 import { initHealthCheck, initMobileNavToggle } from "./components/shell.tsx";
+import { classAdd } from "./jsx/jsx-runtime.ts";
 
 const internalPageFiles = new Set(Object.values(viewPage));
 
@@ -67,7 +68,7 @@ document.addEventListener("click", (event) => {
   }
   const loadingButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-loading]");
   if (loadingButton) {
-    loadingButton.classList.add("loading");
+    classAdd(loadingButton, ["loading"]);
     loadingButton.disabled = true;
   }
 });

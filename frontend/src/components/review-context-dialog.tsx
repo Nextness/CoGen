@@ -1,6 +1,21 @@
 // Shared review-context initialization dialog and controller.
 import { api, mutate, APIError } from "../api.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiErrorMessageRwReviewCandidateStatus: cx("ui", "error", "message", "rw-review-candidate-status"),
+  uiField: cx("ui", "field"),
+  uiFormRwReviewDialogForm: cx("ui", "form", "rw-review-dialog__form"),
+  uiIconBasicButtonRwReviewDialogClose: cx("ui", "icon", "basic", "button", "rw-review-dialog__close"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiInfoMessageRwReviewCandidateStatus: cx("ui", "info", "message", "rw-review-candidate-status"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSelectionDropdown: cx("ui", "selection", "dropdown"),
+  uiSuccessMessageRwReviewCandidateStatus: cx("ui", "success", "message", "rw-review-candidate-status"),
+  uiWarningMessageRwReviewCandidateStatus: cx("ui", "warning", "message", "rw-review-candidate-status"),
+};
 
 /** One proposed parent review context returned by the server. */
 export interface ProposedParent {
@@ -41,23 +56,23 @@ export function ReviewContextDialog(props: { proposed: ProposedParent | null }):
   }
   return (
     <dialog className="rw-review-dialog" data-review-dialog aria-labelledby="review-dialog-title" aria-describedby="review-dialog-description">
-      <form className="ui form rw-review-dialog__form" data-review-context-form>
+      <form className={classNames.uiFormRwReviewDialogForm} data-review-context-form>
         <div className="rw-review-dialog__header">
           <div>
             <p className="rw-review-dialog__eyebrow">Review lineage</p>
             <h3 id="review-dialog-title">Start article review</h3>
             <p id="review-dialog-description">Choose which earlier review context to inherit, or start empty. This choice cannot be changed after initialization.</p>
           </div>
-          <button type="button" className="ui icon basic button rw-review-dialog__close" data-review-close aria-label="Close review setup">{"\u00D7"}</button>
+          <button type="button" className={classNames.uiIconBasicButtonRwReviewDialogClose} data-review-close aria-label="Close review setup">{"\u00D7"}</button>
         </div>
         <div className="rw-review-dialog__body">
-          <div className="ui info message">
+          <div className={classNames.uiInfoMessage}>
             <span className="header">Recommended starting point</span>
             {`${proposedSummary} Inheritance is frozen when review starts.`}
           </div>
-          <div className="ui field">
+          <div className={classNames.uiField}>
             <label htmlFor="review-parent-context">Parent review context</label>
-            <div className="ui selection dropdown">
+            <div className={classNames.uiSelectionDropdown}>
               <select id="review-parent-context" data-review-parent>
                 <option value="">Start empty with no inherited review evidence</option>
                 {recommendedOption}
@@ -70,17 +85,17 @@ export function ReviewContextDialog(props: { proposed: ProposedParent | null }):
               <h4 id="review-candidate-heading">Available context scope</h4>
               <p>Same-search contexts load automatically. Expand only when you intentionally need lineage from another search.</p>
             </div>
-            <button type="button" className="ui basic button" data-all-review-candidates>Include all earlier searches</button>
+            <button type="button" className={classNames.uiBasicButton} data-all-review-candidates>Include all earlier searches</button>
           </section>
-          <div className="ui info message rw-review-candidate-status" data-review-candidates aria-live="polite">
+          <div className={classNames.uiInfoMessageRwReviewCandidateStatus} data-review-candidates aria-live="polite">
             <span className="header">Same-search contexts</span>
             Open this dialog to load eligible alternatives.
           </div>
-          <button type="button" className="ui basic button" data-more-review-candidates hidden>Load more eligible contexts</button>
+          <button type="button" className={classNames.uiBasicButton} data-more-review-candidates hidden>Load more eligible contexts</button>
         </div>
         <div className="rw-review-dialog__actions">
-          <button type="button" className="ui basic button" data-review-cancel>Cancel</button>
-          <button type="submit" className="ui primary button" data-confirm-review>Initialize review</button>
+          <button type="button" className={classNames.uiBasicButton} data-review-cancel>Cancel</button>
+          <button type="submit" className={classNames.uiPrimaryButton} data-confirm-review>Initialize review</button>
         </div>
       </form>
     </dialog>
@@ -111,7 +126,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     const expandButton = host.querySelector<HTMLButtonElement>("[data-all-review-candidates]")!;
     const moreButton = host.querySelector<HTMLButtonElement>("[data-more-review-candidates]")!;
     candidateScope = scope;
-    status.className = "ui info message rw-review-candidate-status";
+    status.className = classNames.uiInfoMessageRwReviewCandidateStatus;
     var scopeLabel = "same-search";
     if (scope === "all") scopeLabel = "cross-search";
     const loadingMarkup = (
@@ -123,7 +138,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     renderTree(loadingMarkup, status);
     if (scope === "all") {
       expandButton.disabled = true;
-      expandButton.classList.add("loading");
+      classAdd(expandButton, ["loading"]);
     }
     try {
       const candidates = await api(`/api/runs/${options.runID}/review-context-candidates`, {
@@ -185,7 +200,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
         renderTree(sameMarkup, status);
       }
     } catch (error: any) {
-      status.className = "ui error message rw-review-candidate-status";
+      status.className = classNames.uiErrorMessageRwReviewCandidateStatus;
       const errorMarkup = (
         <Fragment>
           <span className="header">Context search failed</span>
@@ -195,7 +210,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
       renderTree(errorMarkup, status);
       if (scope === "all") expandButton.disabled = false;
     } finally {
-      expandButton.classList.remove("loading");
+      classRemove(expandButton, "loading");
     }
   }
 
@@ -235,14 +250,14 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     if (raw) parentContextID = Number(raw);
     initializingContext = true;
     button.disabled = true;
-    button.classList.add("loading");
+    classAdd(button, ["loading"]);
     cancelButton.disabled = true;
     closeButton.disabled = true;
     try {
       await mutate(`/api/runs/${options.runID}/review-context`, "POST", { parent_context_id: parentContextID });
     } catch (error: any) {
       initializingContext = false;
-      status.className = "ui error message rw-review-candidate-status";
+      status.className = classNames.uiErrorMessageRwReviewCandidateStatus;
       var title = "Review could not be initialized";
       if (error instanceof APIError && error.code === "context_parent_conflict") title = "Review was initialized elsewhere";
       const errorMarkup = (
@@ -253,14 +268,14 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
       );
       renderTree(errorMarkup, status);
       button.disabled = false;
-      button.classList.remove("loading");
+      classRemove(button, "loading");
       cancelButton.disabled = false;
       closeButton.disabled = false;
       return;
     }
     initializingContext = false;
     closeDialog();
-    status.className = "ui success message rw-review-candidate-status";
+    status.className = classNames.uiSuccessMessageRwReviewCandidateStatus;
     const savedMarkup = (
       <Fragment>
         <span className="header">Review context initialized</span>
@@ -271,12 +286,12 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     try {
       await options.onInitialized();
     } catch (error: any) {
-      status.className = "ui warning message rw-review-candidate-status";
+      status.className = classNames.uiWarningMessageRwReviewCandidateStatus;
       const refreshMarkup = (
         <Fragment>
           <span className="header">Review context saved, refresh failed</span>
           {error.message}
-          <button type="button" className="ui basic button" data-review-refresh>Retry review tools</button>
+          <button type="button" className={classNames.uiBasicButton} data-review-refresh>Retry review tools</button>
         </Fragment>
       );
       renderTree(refreshMarkup, status);

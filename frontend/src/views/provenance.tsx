@@ -4,7 +4,8 @@ import {
   Cell, list, selectedRun, pickID, formatTime, formatBytes,
   formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
 import { setURL, bindFocusContext } from "../router.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
@@ -12,6 +13,36 @@ import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
 import { AuditStream, bindAuditRecordedData } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwFilterPanelFieldsRwFilterFieldGrid: cx("rw-filter-panel__fields", "rw-filter-field-grid"),
+  rwFilterPanelFieldsRwFilterFieldGridRwFilterFieldGridAdvanced: cx("rw-filter-panel__fields", "rw-filter-field-grid", "rw-filter-field-grid--advanced"),
+  rwPropertyGridRwPropertyGridCompact: cx("rw-property-grid", "rw-property-grid--compact"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiButton: cx("ui", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiFormRwFilterBar: cx("ui", "form", "rw-filter-bar"),
+  uiFormRwFilterPanel: cx("ui", "form", "rw-filter-panel"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiLabel: cx("ui", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegment: cx("ui", "segment"),
+  uiSegmentRwAuditFilters: cx("ui", "segment", "rw-audit-filters"),
+  uiSuccessMessage: cx("ui", "success", "message"),
+  uiTableRwArtifactTable: cx("ui", "table", "rw-artifact-table"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+  uiWarningMessage: cx("ui", "warning", "message"),
+};
+
+/** Defined stage modifiers keyed by the displayed execution status. */
+const stageStatusClasses: Record<string, ClassName | undefined> = {
+  failed: "rw-stage-step--failed",
+  warning: "rw-stage-step--warning",
+  skipped: "rw-stage-step--skipped",
+  "not-recorded": "rw-stage-step--not-recorded",
+};
 
 const auditFilterKeys: Record<string, string> = {
   audit_q: "Search",
@@ -63,7 +94,7 @@ function AuditMultiSelect(props: { name: string; label: string; options: any[]; 
       </label>
     );
   });
-  var empty: JSX.Element = <p className="ui faded text">No recorded values are available for this run.</p>;
+  var empty: JSX.Element = <p className={classNames.uiFadedText}>No recorded values are available for this run.</p>;
   if (choices.length) empty = <Fragment>{choices}</Fragment>;
   return (
     <details className="rw-multi-select" data-multi-select>
@@ -73,8 +104,8 @@ function AuditMultiSelect(props: { name: string; label: string; options: any[]; 
       </summary>
       <div className="rw-multi-select__menu">
         <div className="rw-multi-select__actions">
-          <button type="button" className="ui basic button" data-multi-select-all>Select all</button>
-          <button type="button" className="ui basic button" data-multi-select-clear>Clear</button>
+          <button type="button" className={classNames.uiBasicButton} data-multi-select-all>Select all</button>
+          <button type="button" className={classNames.uiBasicButton} data-multi-select-clear>Clear</button>
         </div>
         {empty}
       </div>
@@ -130,20 +161,20 @@ function AuditFilters(props: { facets: any }): JSX.Element {
   }));
   const resetLink = link(resetUpdates);
   return (
-    <aside className="ui segment rw-audit-filters">
-      <div className="ui top attached header">
+    <aside className={classNames.uiSegmentRwAuditFilters}>
+      <div className={classNames.uiTopAttachedHeader}>
         <div>
           <h3>Filter audit evidence</h3>
           <p>Filters are applied by the server and remain visible in the URL.</p>
         </div>
       </div>
       <div className="content">
-        <form id="audit-filter-form" className="ui form rw-filter-panel">
-          <label className="rw-filter-search">
+        <form id="audit-filter-form" className={classNames.uiFormRwFilterPanel}>
+          <label>
             Search events
             <input name="audit_q" type="search" value={value("audit_q")} placeholder="Action, entity, source, or metadata" />
           </label>
-          <div className="rw-filter-panel__fields rw-filter-field-grid">
+          <div className={classNames.rwFilterPanelFieldsRwFilterFieldGrid}>
             <AuditMultiSelect name="audit_category" label="Category" options={["pipeline", "enrichment", "validation", "review", "pdf"]} selectedRaw={value("audit_category")} />
             <AuditMultiSelect name="audit_action" label="Event type" options={actions} selectedRaw={value("audit_action")} />
             <AuditMultiSelect name="audit_actor" label="Source system" options={actors} selectedRaw={value("audit_actor")} />
@@ -151,7 +182,7 @@ function AuditFilters(props: { facets: any }): JSX.Element {
           </div>
           <details className="rw-filter-disclosure">
             <summary>Stage and outcome filters</summary>
-            <div className="rw-filter-panel__fields rw-filter-field-grid rw-filter-field-grid--advanced">
+            <div className={classNames.rwFilterPanelFieldsRwFilterFieldGridRwFilterFieldGridAdvanced}>
               <label>
                 Pipeline stage
                 <input name="audit_stage" value={value("audit_stage")} placeholder="For example, normalize" />
@@ -176,8 +207,8 @@ function AuditFilters(props: { facets: any }): JSX.Element {
           </details>
           <AuditFilterSummary />
           <div className="rw-filter-panel__actions">
-            <button type="submit" className="ui primary button">Apply filters</button>
-            <a className="ui basic button" href={resetLink}>Reset</a>
+            <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
+            <a className={classNames.uiBasicButton} href={resetLink}>Reset</a>
           </div>
         </form>
       </div>
@@ -227,8 +258,8 @@ function AuditView(props: { data: any }): JSX.Element {
   return (
     <div className="rw-audit-layout">
       <AuditFilters facets={props.data.facets || {}} />
-      <section className="ui segment rw-audit-results">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>Audit timeline</h3>
             <p>Newest evidence appears first. Open Recorded data only when identifiers or payload changes are needed.</p>
@@ -237,13 +268,13 @@ function AuditView(props: { data: any }): JSX.Element {
         <div className="content">
           <AuditSummary data={props.data} />
           <div id="audit-event-stream" aria-busy="false"><AuditStream events={auditEvents} /></div>
-          <p className="ui info message" data-audit-window-status role="status" hidden></p>
+          <p className={classNames.uiInfoMessage} data-audit-window-status role="status" hidden></p>
           <div className="rw-load-more" hidden={!auditHasMore}>
-            <p className="ui faded text" role="status" aria-live="polite" data-audit-page-status>{formatNumber(auditEvents.length)} events loaded.</p>
-            <button type="button" className="ui button" data-audit-load-more>Load 25 older events</button>
+            <p className={classNames.uiFadedText} role="status" aria-live="polite" data-audit-page-status>{formatNumber(auditEvents.length)} events loaded.</p>
+            <button type="button" className={classNames.uiButton} data-audit-load-more>Load 25 older events</button>
           </div>
-          <p className="rw-audit-end ui success message" data-audit-end hidden={auditHasMore}>The beginning of the recorded history has been reached.</p>
-          <div className="ui error message" data-audit-page-error role="alert" hidden></div>
+          <p className={classNames.uiSuccessMessage} data-audit-end hidden={auditHasMore}>The beginning of the recorded history has been reached.</p>
+          <div className={classNames.uiErrorMessage} data-audit-page-error role="alert" hidden></div>
         </div>
       </section>
     </div>
@@ -254,7 +285,8 @@ function AuditView(props: { data: any }): JSX.Element {
 export function appendAuditEvents(stream: HTMLElement, events: AuditEventRecord[]): number {
   if (!events.length) return 0;
   const staging = document.createElement("div");
-  renderTree(<AuditStream events={events} />, staging);
+  const auditStreamMarkup = <AuditStream events={events} />;
+  renderTree(auditStreamMarkup, staging);
   const incomingDays = Array.from(staging.querySelectorAll<HTMLElement>(".rw-audit-day"));
   incomingDays.forEach((incomingDay) => {
     const date = incomingDay.dataset.auditDate || "";
@@ -316,16 +348,16 @@ function ArtifactContext(props: { context: any }): JSX.Element {
 /** Renders safe inspect and download actions for an artifact. */
 function ArtifactActions(props: { row: any }): JSX.Element {
   if (!props.row.has_blob) {
-    return <span className="ui faded text">Payload not stored</span>;
+    return <span className={classNames.uiFadedText}>Payload not stored</span>;
   }
-  var inspect: JSX.Element = <span className="ui label">Download only</span>;
+  var inspect: JSX.Element = <span className={classNames.uiLabel}>Download only</span>;
   if (props.row.preview_available) {
-    inspect = <button type="button" className="ui button" data-inspect-artifact={props.row.id}>Inspect preview</button>;
+    inspect = <button type="button" className={classNames.uiButton} data-inspect-artifact={props.row.id}>Inspect preview</button>;
   }
   return (
     <div className="artifact-actions">
       {inspect}
-      <a className="ui basic button" href={`/api/artifacts/${encodeURIComponent(props.row.id)}/content`} download>Download</a>
+      <a className={classNames.uiBasicButton} href={`/api/artifacts/${encodeURIComponent(props.row.id)}/content`} download>Download</a>
     </div>
   );
 }
@@ -353,10 +385,10 @@ function ArtifactsView(props: { data: any }): JSX.Element {
       if (row.consumed_by_steps) consumedPart = `Consumed: ${row.consumed_by_steps}`;
       const stageParts = [producedPart, consumedPart];
       const stages = stageParts.filter(Boolean).join(" / ");
-      var stageCell: JSX.Element = <span className="ui faded text">Not linked to a recorded step</span>;
+      var stageCell: JSX.Element = <span className={classNames.uiFadedText}>Not linked to a recorded step</span>;
       if (stages) stageCell = <>{stages}</>;
       const focused = String(row.id) === value("artifact_id");
-      var rowClass = "";
+      var rowClass: ClassName | undefined;
       var rowTabIndex: number | null = null;
       if (focused) {
         rowClass = "selected";
@@ -392,7 +424,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
     filterSummary = <FilterChips filters={activeFilters} labels={filterLabels} options={filterOptions} />;
   }
   const controls = (
-    <form className="ui form rw-filter-bar" data-artifact-filters>
+    <form className={classNames.uiFormRwFilterBar} data-artifact-filters>
       <label className="rw-filter-bar__search">
         Search artifacts
         <input name="artifact_q" type="search" value={value("artifact_q")} placeholder="Hash, format, stage, provider, or role" />
@@ -412,7 +444,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
         Rows per page
         <select name="artifact_per_page"><PageSizeOptions current={perPage} /></select>
       </label>
-      <button type="submit" className="ui primary button">Apply filters</button>
+      <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
       {filterSummary}
     </form>
   );
@@ -427,19 +459,19 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   return (
     <Fragment>
       <ArtifactContext context={props.data.context || {}} />
-      <p className="ui info message">Artifact inspection is read-only. Text previews are bounded before they reach the browser; download the original file for complete inspection.</p>
-      <section className="ui segment rw-artifact-list">
-        <div className="ui top attached header">
+      <p className={classNames.uiInfoMessage}>Artifact inspection is read-only. Text previews are bounded before they reach the browser; download the original file for complete inspection.</p>
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>Recorded artifacts</h3>
             <p>Content-addressed files linked to this run through configuration roles or execution steps.</p>
           </div>
-          <span className="ui label">{artifactCount} artifacts</span>
+          <span className={classNames.uiLabel}>{artifactCount} artifacts</span>
         </div>
         <div className="content">
           {controls}
           <div className="table-wrap">
-            <table className="ui table rw-artifact-table">
+            <table className={classNames.uiTableRwArtifactTable}>
               <thead>
                 <tr>
                   <th>Role</th>
@@ -456,8 +488,8 @@ function ArtifactsView(props: { data: any }): JSX.Element {
           {paginationMarkup}
         </div>
       </section>
-      <section className="ui segment rw-artifact-inspector" id="artifact-inspector">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment} id="artifact-inspector">
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3 tabindex={-1} data-artifact-inspector-title>Artifact preview</h3>
             <p>Inspect a safe prefix of a text-based artifact without loading the full file into the document.</p>
@@ -503,7 +535,7 @@ function CacheView(props: { data: any }): JSX.Element {
     }} />;
   }
   const controls = (
-    <form className="ui form rw-filter-bar" id="cache-controls">
+    <form className={classNames.uiFormRwFilterBar} id="cache-controls">
       <label className="rw-filter-bar__search">
           Search cache evidence
           <input id="cache-query" type="search" value={value("cache_q")} placeholder="Provider, namespace, outcome, or fingerprint" />
@@ -512,11 +544,11 @@ function CacheView(props: { data: any }): JSX.Element {
         Rows per page
         <select id="cache-per-page"><PageSizeOptions current={perPage} /></select>
       </label>
-      <button type="submit" className="ui primary button" data-cache-search>Search</button>
+      <button type="submit" className={classNames.uiPrimaryButton} data-cache-search>Search</button>
       {filterSummary}
     </form>
   );
-  const columnConfig: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }> = {
+  const columnConfig: NonNullable<DataTableContext["columnConfig"]> = {
     provider: { label: "Provider" },
     namespace: { label: "Namespace" },
     outcome: {
@@ -541,10 +573,10 @@ function CacheView(props: { data: any }): JSX.Element {
         if (raw) {
           return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })}>Artifact {raw}</a>;
         }
-        return <span className="ui faded text">None</span>;
+        return <span className={classNames.uiFadedText}>None</span>;
       },
     },
-    request_fingerprint: { label: "Request fingerprint", className: "rw-column-fingerprint" },
+    request_fingerprint: { label: "Request fingerprint" },
   };
   const context: DataTableContext = {
     page: page,
@@ -567,7 +599,7 @@ function CacheView(props: { data: any }): JSX.Element {
       {tableMarkup}
     </div>
   );
-  return <Panel title="Cache use records" description="Recorded provider-response reuse and negative or stale outcomes for this run." body={body} classes="rw-cache-view" />;
+  return <Panel title="Cache use records" description="Recorded provider-response reuse and negative or stale outcomes for this run." body={body} />;
 }
 
 /** Returns the effective display status for a work-stage record. */
@@ -649,7 +681,7 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
         duration = `${seconds.toLocaleString(undefined, { maximumFractionDigits: 3 })}${unit}`;
       }
     }
-    var records: JSX.Element = <span className="ui faded text">Not applicable</span>;
+    var records: JSX.Element = <span className={classNames.uiFadedText}>Not applicable</span>;
     if (summary) {
       records = <>{formatNumber(summary.total_records)}</>;
     }
@@ -657,11 +689,11 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
     if (artifacts.length) {
       artifactMarkup = <div className="rw-stage-step__artifacts">{artifacts}</div>;
     }
-    const stepClass = `rw-stage-step rw-stage-step--${status}`;
+    const stepClass = cx("rw-stage-step", stageStatusClasses[status]);
     return (
       <li className={stepClass}>
         <div className="rw-stage-step__marker"><span>{index + 1}</span></div>
-        <div className="rw-stage-step__body">
+        <div>
           <div className="rw-stage-step__heading">
             <h4>{humanLabel(name)}</h4>
             <StatusChip raw={humanLabel(status)} />
@@ -711,7 +743,7 @@ function StagesView(props: { data: any }): JSX.Element {
     }} />;
   }
   const controls = (
-    <form className="ui form rw-filter-bar" id="stage-controls">
+    <form className={classNames.uiFormRwFilterBar} id="stage-controls">
       <label className="rw-filter-bar__search">
         Search detailed outcomes
         <input id="stage-query" type="search" value={value("stage_q")} placeholder="Stage, outcome, reason, or work ID" />
@@ -720,11 +752,11 @@ function StagesView(props: { data: any }): JSX.Element {
         Rows per page
         <select id="stage-per-page"><PageSizeOptions current={perPage} /></select>
       </label>
-      <button type="submit" className="ui primary button" data-stage-search>Search</button>
+      <button type="submit" className={classNames.uiPrimaryButton} data-stage-search>Search</button>
       {stageFilterSummary}
     </form>
   );
-  const columnConfig: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }> = {
+  const columnConfig: NonNullable<DataTableContext["columnConfig"]> = {
     work_id: { label: "Work" },
     stage_name: { label: "Stage" },
     outcome: {
@@ -766,17 +798,17 @@ function StagesView(props: { data: any }): JSX.Element {
   );
   return (
     <Fragment>
-      <section className="ui segment rw-stage-overview">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>Stage outcomes and progression</h3>
             <p>This view explains what happened during the run. It does not provide pipeline controls.</p>
           </div>
         </div>
-        <p className="ui info message">Counts describe stored per-work outcome rows, not raw input records or field updates. A stage without per-work evidence is marked not applicable. Durations use recorded step timestamps; steps inside one timestamp tick are shown as less than one second.</p>
+        <p className={classNames.uiInfoMessage}>Counts describe stored per-work outcome rows, not raw input records or field updates. A stage without per-work evidence is marked not applicable. Durations use recorded step timestamps; steps inside one timestamp tick are shown as less than one second.</p>
         <div className="content"><StageFlow summaries={summaries} steps={steps} /></div>
       </section>
-      <Panel title="Detailed stage outcomes" description="Per-work evidence remains available below the run-level progression." body={body} classes="rw-stage-details" />
+      <Panel title="Detailed stage outcomes" description="Per-work evidence remains available below the run-level progression." body={body} />
     </Fragment>
   );
 }
@@ -842,14 +874,14 @@ function RunView(props: { artifactData: any }): JSX.Element {
     );
   });
   const properties = (
-    <dl className="rw-property-grid rw-property-grid--compact">{propertyItems}</dl>
+    <dl className={classNames.rwPropertyGridRwPropertyGridCompact}>{propertyItems}</dl>
   );
-  var snapshotRows: JSX.Element = <p className="ui faded text">No configuration snapshots were recorded for this legacy run.</p>;
+  var snapshotRows: JSX.Element = <p className={classNames.uiFadedText}>No configuration snapshots were recorded for this legacy run.</p>;
   if (snapshotArtifacts.length) {
     const snapshotItems = snapshotArtifacts.map((artifact) => {
-      var action: JSX.Element = <span className="ui label">Payload unavailable</span>;
+      var action: JSX.Element = <span className={classNames.uiLabel}>Payload unavailable</span>;
       if (artifact.has_blob) {
-        action = <a className="ui basic button" href={`/api/artifacts/${encodeURIComponent(artifact.id)}/content`} download>Download</a>;
+        action = <a className={classNames.uiBasicButton} href={`/api/artifacts/${encodeURIComponent(artifact.id)}/content`} download>Download</a>;
       }
       return (
         <li>
@@ -866,8 +898,8 @@ function RunView(props: { artifactData: any }): JSX.Element {
   return (
     <Fragment>
       {summary}
-      <Panel title="Stored run attempt" description="Immutable execution identity, lifecycle, and plan fingerprints." body={properties} classes="rw-run-record" />
-      <Panel title="Configuration snapshots" description="Exact workspace configuration, resolved manifest, and input manifest captured for this attempt." body={snapshotRows} classes="rw-run-snapshots" />
+      <Panel title="Stored run attempt" description="Immutable execution identity, lifecycle, and plan fingerprints." body={properties} />
+      <Panel title="Configuration snapshots" description="Exact workspace configuration, resolved manifest, and input manifest captured for this attempt." body={snapshotRows} />
     </Fragment>
   );
 }
@@ -882,11 +914,12 @@ export async function provenanceView(): Promise<void> {
     return [id, label];
   });
   if (!value("run_id") && current !== "audit") {
+    const focusContextAction = <button type="button" className={classNames.uiButton} data-focus-context>Focus context selector</button>;
     const emptyStateMarkup = (
       <Fragment>
         <PageHeader kicker="Execution evidence" title="Provenance" description="Inspect append-only evidence without changing the workspace." />
         <Subnav items={navItems} current={current} key="section" />
-        <EmptyPanel title={title} detail="Select a run attempt to inspect this provenance view." action={<button type="button" className="ui button" data-focus-context>Focus context selector</button>} />
+        <EmptyPanel title={title} detail="Select a run attempt to inspect this provenance view." action={focusContextAction} />
       </Fragment>
     );
     renderTree(emptyStateMarkup, app);
@@ -1029,7 +1062,7 @@ function bindAuditControls(): void {
       pageError.textContent = "";
       stream.setAttribute("aria-busy", "true");
       button.disabled = true;
-      button.classList.add("loading");
+      classAdd(button, ["loading"]);
       try {
         const data = await api("/api/audit", auditQuery(auditCursor), {
           method: "GET",
@@ -1062,7 +1095,7 @@ function bindAuditControls(): void {
       } finally {
         stream.setAttribute("aria-busy", "false");
         button.disabled = false;
-        button.classList.remove("loading");
+        classRemove(button, "loading");
       }
     });
   }
@@ -1099,11 +1132,11 @@ function bindArtifactInspection(): void {
       activeArtifactRow = button.closest("tr");
       const artifactRows = document.querySelectorAll<HTMLElement>("[data-artifact-row]");
       artifactRows.forEach((row) => {
-        row.classList.toggle("selected", row === activeArtifactRow);
+        classToggle(row, "selected", row === activeArtifactRow);
       });
       const previous = button.textContent;
       button.disabled = true;
-      button.classList.add("loading");
+      classAdd(button, ["loading"]);
       try {
         const payload = await api(`/api/artifacts/${encodeURIComponent(id)}/inspect`, { preview_bytes: 65536 }, {
           method: "GET",
@@ -1141,17 +1174,17 @@ function bindArtifactInspection(): void {
         if (sequence !== artifactInspectionSequence) return;
         const errorMarkup = (
           <Fragment>
-            <div className="ui error message">
+            <div className={classNames.uiErrorMessage}>
               <div className="header">Preview unavailable</div>
               <p>{error.message || "Unable to inspect this artifact."}</p>
             </div>
-            <a className="ui button" href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
+            <a className={classNames.uiButton} href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
           </Fragment>
         );
         renderTree(errorMarkup, document.querySelector("#artifact-inspector .content") as HTMLElement);
       } finally {
         button.disabled = false;
-        button.classList.remove("loading");
+        classRemove(button, "loading");
         button.textContent = previous;
       }
     });
@@ -1182,10 +1215,10 @@ function renderArtifactInspector(): void {
   if (preview.mode === "formatted") shown = preview.formatted;
   const canFormat = preview.format === "json" && preview.formatted !== preview.raw;
   const id = preview.artifact_id;
-  var truncation: JSX.Element = <p className="ui success message">The complete stored text fits within the safe preview limit.</p>;
+  var truncation: JSX.Element = <p className={classNames.uiSuccessMessage}>The complete stored text fits within the safe preview limit.</p>;
   if (preview.truncated) {
     truncation = (
-      <div className="ui warning message">
+      <div className={classNames.uiWarningMessage}>
         <div className="header">Preview truncated</div>
         <p>This page shows the first {formatBytes(preview.preview_byte_size)} of {formatBytes(preview.stored_byte_size || preview.byte_size)}. Download the original file to inspect its complete contents.</p>
       </div>
@@ -1195,21 +1228,20 @@ function renderArtifactInspector(): void {
   if (canFormat) {
     modeButtons = (
       <Fragment>
-        <button type="button" className="ui basic button" data-artifact-preview-mode="formatted" disabled={preview.mode === "formatted"}>Formatted JSON</button>
-        <button type="button" className="ui basic button" data-artifact-preview-mode="raw" disabled={preview.mode === "raw"}>Raw text</button>
+        <button type="button" className={classNames.uiBasicButton} data-artifact-preview-mode="formatted" disabled={preview.mode === "formatted"}>Formatted JSON</button>
+        <button type="button" className={classNames.uiBasicButton} data-artifact-preview-mode="raw" disabled={preview.mode === "raw"}>Raw text</button>
       </Fragment>
     );
   }
   var formatNotice: JSX.Element | null = null;
   if (preview.formatError && preview.truncated) {
-    formatNotice = <p className="ui info message">Formatted JSON is unavailable because this bounded prefix does not contain the complete document. Raw text is shown.</p>;
+    formatNotice = <p className={classNames.uiInfoMessage}>Formatted JSON is unavailable because this bounded prefix does not contain the complete document. Raw text is shown.</p>;
   } else if (preview.formatError) {
-    formatNotice = <p className="ui warning message">The stored content is not valid JSON. Raw text is shown; download the original file for independent inspection.</p>;
+    formatNotice = <p className={classNames.uiWarningMessage}>The stored content is not valid JSON. Raw text is shown; download the original file for independent inspection.</p>;
   }
   var wrapLabel = "Wrap long lines";
   if (preview.wrap) wrapLabel = "Disable line wrapping";
-  var previewClass = "rw-artifact-preview";
-  if (preview.wrap) previewClass = "rw-artifact-preview rw-artifact-preview--wrap";
+  const previewClass = cx("rw-artifact-preview", preview.wrap && "rw-artifact-preview--wrap");
   const inspectorMarkup = (
     <Fragment>
       {truncation}
@@ -1234,12 +1266,12 @@ function renderArtifactInspector(): void {
       </dl>
       <div className="artifact-inspector-toolbar">
         {modeButtons}
-        <button type="button" className="ui basic button" data-toggle-artifact-wrap>{wrapLabel}</button>
-        <button type="button" className="ui basic button" data-copy-artifact-preview>Copy displayed text</button>
-        <a className="ui primary button" href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
+        <button type="button" className={classNames.uiBasicButton} data-toggle-artifact-wrap>{wrapLabel}</button>
+        <button type="button" className={classNames.uiBasicButton} data-copy-artifact-preview>Copy displayed text</button>
+        <a className={classNames.uiPrimaryButton} href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
       </div>
       <pre className={previewClass}>{shown}</pre>
-      <p className="ui faded text" data-artifact-copy-status></p>
+      <p className={classNames.uiFadedText} data-artifact-copy-status></p>
     </Fragment>
   );
   renderTree(inspectorMarkup, document.querySelector("#artifact-inspector .content") as HTMLElement);

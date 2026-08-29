@@ -4,11 +4,27 @@ import {
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
   PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
 import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 import { mountArticleReview } from "../components/review-panel.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiBasicLabel: cx("ui", "basic", "label"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiLabel: cx("ui", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegment: cx("ui", "segment"),
+  uiTable: cx("ui", "table"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+  uiWarningMessage: cx("ui", "warning", "message"),
+};
 
 /** One mounted related-record collection. */
 interface CollectionState {
@@ -72,7 +88,7 @@ function backToCorpus(kind: string): string {
 /** Renders a recorded value or its unavailable presentation. */
 function recorded(raw: any, fallback?: JSX.Element): JSX.Element {
   if (raw === null || raw === undefined || raw === "") {
-    return fallback || <span className="ui faded text">Not recorded</span>;
+    return fallback || <span className={classNames.uiFadedText}>Not recorded</span>;
   }
   return <>{raw}</>;
 }
@@ -84,7 +100,7 @@ interface DetailEntry {
 }
 
 /** Renders definition-list markup for labeled record properties. */
-function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
+function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[]): JSX.Element {
   const rowItems = entries.map((entry) => {
     const content = recorded(entry.value);
     return (
@@ -95,7 +111,7 @@ function propertyGrid(entries: DetailEntry[], classes?: string): JSX.Element {
     );
   });
 
-  const gridClass = `rw-property-grid ${classes || ""}`;
+  const gridClass = cx("rw-property-grid", ...(classes || []));
   return (
     <dl className={gridClass}>
       {rowItems}
@@ -185,12 +201,12 @@ function keywordValues(raw: any): string[] {
 /** Renders label markup for normalized keyword values. */
 function keywordMarkup(raw: any): JSX.Element {
   const keywords = keywordValues(raw);
-  if (!keywords.length) return <span className="ui faded text">Not recorded</span>;
+  if (!keywords.length) return <span className={classNames.uiFadedText}>Not recorded</span>;
 
   var rawText = JSON.stringify(raw);
   if (typeof raw === "string") rawText = raw;
   const keywordTags = keywords.map((keyword) => {
-    return <span className="ui label">{keyword}</span>;
+    return <span className={classNames.uiLabel}>{keyword}</span>;
   });
 
   return (
@@ -200,7 +216,7 @@ function keywordMarkup(raw: any): JSX.Element {
         <summary>Show stored keyword value</summary>
         <div>
           <code>{rawText}</code>
-          <button type="button" className="ui basic button" data-copy-text={rawText}>Copy</button>
+          <button type="button" className={classNames.uiBasicButton} data-copy-text={rawText}>Copy</button>
         </div>
       </details>
     </div>
@@ -228,7 +244,7 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
     };
   });
 
-  const grid = propertyGrid(gridEntries, "rw-property-grid--compact");
+  const grid = propertyGrid(gridEntries, ["rw-property-grid--compact"]);
   return (
     <details className="rw-disclosure">
       <summary>Advanced raw record data</summary>
@@ -260,7 +276,7 @@ function CollectionMarkup(props: { collectionKey: string; state: CollectionState
   });
   const table = (
     <div className="table-wrap" aria-label={`${collection.title} table`}>
-      <table className="ui table">
+      <table className={classNames.uiTable}>
         <thead>
           <tr>{headerCells}</tr>
         </thead>
@@ -271,26 +287,26 @@ function CollectionMarkup(props: { collectionKey: string; state: CollectionState
 
   var previous: JSX.Element | null = null;
   if (collection.previousCursors.length) {
-    previous = <button type="button" className="ui basic button" data-detail-previous disabled={collection.loading}>Previous page</button>;
+    previous = <button type="button" className={classNames.uiBasicButton} data-detail-previous disabled={collection.loading}>Previous page</button>;
   }
   var next: JSX.Element | null = null;
   if (collection.hasMore) {
-    next = <button type="button" className="ui basic button" data-detail-next disabled={collection.loading}>Next page</button>;
+    next = <button type="button" className={classNames.uiBasicButton} data-detail-next disabled={collection.loading}>Next page</button>;
   }
   var paging: JSX.Element | null = null;
-  if (previous || next) paging = <nav className="rw-detail-collection__paging" aria-label={`${collection.title} pages`}>{previous}{next}</nav>;
+  if (previous || next) paging = <nav aria-label={`${collection.title} pages`}>{previous}{next}</nav>;
   var error: JSX.Element | null = null;
-  if (collection.error) error = <p className="ui error message" role="alert">{collection.error}</p>;
+  if (collection.error) error = <p className={classNames.uiErrorMessage} role="alert">{collection.error}</p>;
 
   const rowCount = collection.total.toLocaleString();
   return (
-    <section className="ui segment rw-detail-collection" data-detail-collection={props.collectionKey}>
-      <div className="ui top attached header">
+    <section className={classNames.uiSegment} data-detail-collection={props.collectionKey}>
+      <div className={classNames.uiTopAttachedHeader}>
         <div>
           <h3>{collection.title}</h3>
           <p>{collection.description}</p>
         </div>
-        <span className="ui label">{rowCount}</span>
+        <span className={classNames.uiLabel}>{rowCount}</span>
       </div>
       <div className="content">
         {table}
@@ -397,13 +413,12 @@ function stageReasonMarkup(raw: any): JSX.Element {
 /** Renders the search term coverage panel for an article revision. */
 function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Element {
   if (props.matches === null || props.matches === undefined) {
-    const body = <p className="ui faded text">No search terms recorded for this run.</p>;
+    const body = <p className={classNames.uiFadedText}>No search terms recorded for this run.</p>;
     return (
       <Panel
         title="Search term coverage"
         description="Derived from the search queries recorded for this run."
         body={body}
-        classes="rw-detail-section"
       />
     );
   }
@@ -451,13 +466,13 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
 
   const fieldElements: JSX.Element[] = fields.map((field) => {
     const fieldMatches = props.matches[field.key] || [];
-    var content: JSX.Element = <span className="ui faded text">No matched terms</span>;
+    var content: JSX.Element = <span className={classNames.uiFadedText}>No matched terms</span>;
 
     if (!field.recorded) {
-      content = <span className="ui faded text">Not recorded</span>;
+      content = <span className={classNames.uiFadedText}>Not recorded</span>;
     } else if (fieldMatches.length) {
       const termTags: JSX.Element[] = fieldMatches.map((term: string) => {
-        return <span className="ui label">{term}</span>;
+        return <span className={classNames.uiLabel}>{term}</span>;
       });
       content = <span className="rw-keyword-tags">{termTags}</span>;
     }
@@ -470,11 +485,11 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     );
   });
 
-  var disclosureContent: JSX.Element = <p className="ui faded text">No search terms recorded.</p>;
+  var disclosureContent: JSX.Element = <p className={classNames.uiFadedText}>No search terms recorded.</p>;
   if (termEntries.length) {
     const matchedTermTags = matchedTerms.map(([term, sources]) => {
       return (
-        <span className="ui label">
+        <span className={classNames.uiLabel}>
           {term}
           <span className="rw-term-sources">({sources.join(", ")})</span>
         </span>
@@ -482,7 +497,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     });
     const unmatchedTermTags = unmatchedTerms.map(([term, sources]) => {
       return (
-        <span className="ui label">
+        <span className={classNames.uiLabel}>
           {term}
           <span className="rw-term-sources">({sources.join(", ")})</span>
         </span>
@@ -492,7 +507,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     if (matchedTerms.length) {
       sections.push(
         <Fragment>
-          <p className="ui faded text">Matched terms</p>
+          <p className={classNames.uiFadedText}>Matched terms</p>
           <div className="rw-keyword-tags">{matchedTermTags}</div>
         </Fragment>
       );
@@ -500,7 +515,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     if (unmatchedTerms.length) {
       sections.push(
         <Fragment>
-          <p className="ui faded text">Unmatched terms</p>
+          <p className={classNames.uiFadedText}>Unmatched terms</p>
           <div className="rw-keyword-tags">{unmatchedTermTags}</div>
         </Fragment>
       );
@@ -512,7 +527,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
   const termTotal = props.matches.term_total;
   const panelBody: JSX.Element = (
     <Fragment>
-      <p className="ui faded text">{matchedTotal} of {termTotal} search terms matched this article.</p>
+      <p className={classNames.uiFadedText}>{matchedTotal} of {termTotal} search terms matched this article.</p>
       <div className="rw-term-fields">{fieldElements}</div>
       <details className="rw-disclosure">
         <summary>All search terms</summary>
@@ -602,7 +617,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
     },
   ]);
 
-  var abstract: JSX.Element = <p className="ui faded text">No abstract was recorded for this revision.</p>;
+  var abstract: JSX.Element = <p className={classNames.uiFadedText}>No abstract was recorded for this revision.</p>;
   if (props.record.abstract) {
     const abstractText = String(props.record.abstract);
     const normalized = abstractText.replace(/\s+/g, " ");
@@ -626,7 +641,7 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
       label: "Reference count",
       value: props.record.reference_count,
     },
-  ], "rw-property-grid--compact");
+  ], ["rw-property-grid--compact"]);
 
   const bibliographyBody = (
     <Fragment>
@@ -637,7 +652,6 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
   const bibliography = (
     <Panel title="Bibliographic metadata" description="Human-readable metadata for this immutable revision."
       body={bibliographyBody}
-      classes="rw-detail-section"
     />
   );
 
@@ -659,12 +673,12 @@ function ArticleView(props: { record: any; data: any }): JSX.Element {
         <div data-review-host></div>
       </div>
       <SearchTermCoveragePanel matches={props.data.term_matches} record={props.record} />
-      <Panel title="Provenance summary" description="Where this revision came from and how it was captured." body={provenance} classes="rw-detail-section" />
+      <Panel title="Provenance summary" description="Where this revision came from and how it was captured." body={provenance} />
       {bibliography}
       <div data-detail-collection-host="article-authors"></div>
       <div data-detail-collection-host="article-references"></div>
       <div data-detail-collection-host="article-stage-outcomes"></div>
-      <Panel title="Audit events" description="Append-only persisted audit records for this work in the selected run." body={auditEventsBody} classes="rw-detail-section rw-article-audit-panel" />
+      <Panel title="Audit events" description="Append-only persisted audit records for this work in the selected run." body={auditEventsBody} />
       {rawRecordMarkup}
       <span data-mount-detail-collections hidden></span>
     </Fragment>
@@ -678,9 +692,9 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
     unavailable: "Unavailable without a DOI",
     not_available: "Not Available",
   };
-  var pdfAction: JSX.Element = <span className="ui faded text">No stored PDF is available.</span>;
+  var pdfAction: JSX.Element = <span className={classNames.uiFadedText}>No stored PDF is available.</span>;
   if (props.pdf.status === "available") {
-    pdfAction = <a className="ui primary button" href={`/api/pdf/${encodeURIComponent(props.record.work_id)}`} download>Download PDF</a>;
+    pdfAction = <a className={classNames.uiPrimaryButton} href={`/api/pdf/${encodeURIComponent(props.record.work_id)}`} download>Download PDF</a>;
   }
 
   var sizeValue: string | null = null;
@@ -705,7 +719,7 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
       label: "Content hash",
       value: props.pdf.content_hash,
     },
-  ], "rw-property-grid--compact");
+  ], ["rw-property-grid--compact"]);
 
   const pdfStatusBody = (
     <div className="rw-pdf-status-strip">
@@ -716,14 +730,13 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
   return (
     <Panel title="Full-text PDF" description="Read-only state from the companion PDF store."
       body={pdfStatusBody}
-      classes="rw-detail-section rw-full-text-panel"
     />
   );
 }
 
 /** Renders one ranked ORCID candidate list without implying confirmed identity. */
 function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
-  if (!props.candidates.length) return <p className="ui faded text">No provider candidate was returned.</p>;
+  if (!props.candidates.length) return <p className={classNames.uiFadedText}>No provider candidate was returned.</p>;
   const candidateItems = props.candidates.map((candidate) => {
     var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
     if (candidate.payload_artifact_id) {
@@ -741,7 +754,7 @@ function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
           <strong>{candidate.candidate_orcid}</strong>
           <span>{candidate.provider_display_name || "Provider name not recorded"}</span>
         </div>
-        <span className="ui basic label">Rank {candidate.provider_rank}</span>
+        <span className={classNames.uiBasicLabel}>Rank {candidate.provider_rank}</span>
         <div className="rw-inline-group">{links}</div>
       </li>
     );
@@ -753,8 +766,8 @@ function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
 function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
   const evidence = props.evidence;
   if (!evidence.length) {
-    const emptyEvidenceBody = <p className="ui faded text">No ORCID name-search evidence was recorded for this author occurrence.</p>;
-    return <Panel title="ORCID candidate evidence" description="Name-search candidates remain uncertain evidence and are never assigned automatically." body={emptyEvidenceBody} classes="rw-detail-section" />;
+    const emptyEvidenceBody = <p className={classNames.uiFadedText}>No ORCID name-search evidence was recorded for this author occurrence.</p>;
+    return <Panel title="ORCID candidate evidence" description="Name-search candidates remain uncertain evidence and are never assigned automatically." body={emptyEvidenceBody} />;
   }
 
   const body = evidence.map((resolution) => {
@@ -763,7 +776,7 @@ function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
     var moreCandidates: JSX.Element | null = null;
     if (resolution.candidates_truncated) {
       moreCandidates = (
-        <button type="button" className="ui basic button" data-load-identity-candidates>
+        <button type="button" className={classNames.uiBasicButton} data-load-identity-candidates>
           Browse {resolution.candidate_count} candidates
         </button>
       );
@@ -771,7 +784,7 @@ function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
     var providerError: JSX.Element | null = null;
     if (resolution.error_message) {
       providerError = (
-        <p className="ui warning message">
+        <p className={classNames.uiWarningMessage}>
           <span className="header">Provider response</span>
           {resolution.error_message}
         </p>
@@ -794,20 +807,20 @@ function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
   });
 
   const evidenceBody = <Fragment>{body}</Fragment>;
-  return <Panel title="ORCID candidate evidence" description="Review provider candidates here without treating a name-search match as confirmed identity." body={evidenceBody} classes="rw-detail-section" />;
+  return <Panel title="ORCID candidate evidence" description="Review provider candidates here without treating a name-search match as confirmed identity." body={evidenceBody} />;
 }
 
 /** Renders one cursor page of author identity resolutions with local continuation status. */
 function IdentityCollectionMarkup(props: { state: CollectionState }): JSX.Element {
   const evidence = <AuthorIdentityEvidence evidence={props.state.rows} />;
   var previous: JSX.Element | null = null;
-  if (props.state.previousCursors.length) previous = <button type="button" className="ui basic button" data-detail-previous disabled={props.state.loading}>Previous identity page</button>;
+  if (props.state.previousCursors.length) previous = <button type="button" className={classNames.uiBasicButton} data-detail-previous disabled={props.state.loading}>Previous identity page</button>;
   var next: JSX.Element | null = null;
-  if (props.state.hasMore) next = <button type="button" className="ui basic button" data-detail-next disabled={props.state.loading}>Next identity page</button>;
+  if (props.state.hasMore) next = <button type="button" className={classNames.uiBasicButton} data-detail-next disabled={props.state.loading}>Next identity page</button>;
   var controls: JSX.Element | null = null;
-  if (previous || next) controls = <nav className="rw-detail-collection__paging" aria-label="Identity resolution pages">{previous}{next}</nav>;
+  if (previous || next) controls = <nav aria-label="Identity resolution pages">{previous}{next}</nav>;
   var error: JSX.Element | null = null;
-  if (props.state.error) error = <p className="ui error message" role="alert">{props.state.error}</p>;
+  if (props.state.error) error = <p className={classNames.uiErrorMessage} role="alert">{props.state.error}</p>;
   return <section className="rw-content-stack" data-detail-collection="author-identity">{evidence}{controls}{error}</section>;
 }
 
@@ -821,7 +834,7 @@ function bindIdentityCandidatePages(runID: string): void {
       const resolutionID = section.dataset.identityResolution || "";
       const host = section.querySelector<HTMLElement>("[data-identity-candidate-list]")!;
       button.disabled = true;
-      button.classList.add("loading");
+      classAdd(button, ["loading"]);
       try {
         const page = await api(`/api/identity-resolutions/${encodeURIComponent(resolutionID)}/candidates`, {
           run_id: runID,
@@ -837,14 +850,14 @@ function bindIdentityCandidatePages(runID: string): void {
         if (cursor) {
           button.textContent = "Next candidate page";
           button.disabled = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
         } else {
           button.remove();
         }
       } catch (failure: any) {
         button.textContent = `Retry candidates: ${failure.message}`;
         button.disabled = false;
-        button.classList.remove("loading");
+        classRemove(button, "loading");
       }
     });
   });
@@ -909,15 +922,15 @@ function AuthorView(props: { record: any; data: any }): JSX.Element {
 
   return (
     <Fragment>
-      <div className="ui info message">
+      <div className={classNames.uiInfoMessage}>
         <span className="header">Observed author occurrence</span>
         This historical record does not establish a global person identity. Matching names remain separate unless explicit identity evidence links them.
       </div>
       {summary}
-      <Panel title="Observed identity data" description="The exact name and identity values stored for this occurrence." body={identityGrid} classes="rw-detail-section" />
+      <Panel title="Observed identity data" description="The exact name and identity values stored for this occurrence." body={identityGrid} />
       <div data-detail-collection-host="author-identity"></div>
       <div data-detail-collection-host="author-articles"></div>
-      <Panel title="Audit events" description="Filter and inspect append-only events directly associated with this author occurrence." body={authorAuditBody} classes="rw-detail-section" />
+      <Panel title="Audit events" description="Filter and inspect append-only events directly associated with this author occurrence." body={authorAuditBody} />
       {rawRecordMarkup}
       <span data-mount-author-articles hidden></span>
     </Fragment>
@@ -968,7 +981,7 @@ function ReferenceView(props: { record: any }): JSX.Element {
     },
   ]);
 
-  var resolvedBody: JSX.Element = <p className="ui faded text">This reference mention was not resolved to a work revision in the selected run.</p>;
+  var resolvedBody: JSX.Element = <p className={classNames.uiFadedText}>This reference mention was not resolved to a work revision in the selected run.</p>;
   if (resolved) {
     resolvedBody = propertyGrid([
       {
@@ -1011,10 +1024,10 @@ function ReferenceView(props: { record: any }): JSX.Element {
     <Fragment>
       {summary}
       <div className="rw-record-comparison">
-        <Panel title="Citing article" description="The immutable article revision that contains this reference mention." body={citingGrid} classes="rw-detail-section" />
-        <Panel title="Resolved target" description="A target is shown only when the stored relationship resolved inside this run." body={resolvedBody} classes="rw-detail-section" />
+        <Panel title="Citing article" description="The immutable article revision that contains this reference mention." body={citingGrid} />
+        <Panel title="Resolved target" description="A target is shown only when the stored relationship resolved inside this run." body={resolvedBody} />
       </div>
-      <Panel title="Cited-reference metadata" description="Raw bibliographic values captured for this mention." body={citedGrid} classes="rw-detail-section" />
+      <Panel title="Cited-reference metadata" description="Raw bibliographic values captured for this mention." body={citedGrid} />
       {rawRecordMarkup}
     </Fragment>
   );
@@ -1131,16 +1144,16 @@ export async function detailView(kind: string): Promise<void> {
     var previousAction: JSX.Element | null = null;
     var nextAction: JSX.Element | null = null;
     if (evaluationNavigation?.previous_work_revision_id) {
-      previousAction = <a className="ui basic button" href={link({ view: "article", article_id: evaluationNavigation.previous_work_revision_id })}>Previous unreviewed</a>;
+      previousAction = <a className={classNames.uiBasicButton} href={link({ view: "article", article_id: evaluationNavigation.previous_work_revision_id })}>Previous unreviewed</a>;
     }
     if (evaluationNavigation?.next_work_revision_id) {
-      nextAction = <a className="ui primary button" href={link({ view: "article", article_id: evaluationNavigation.next_work_revision_id })}>Next unreviewed</a>;
+      nextAction = <a className={classNames.uiPrimaryButton} href={link({ view: "article", article_id: evaluationNavigation.next_work_revision_id })}>Next unreviewed</a>;
     }
     var navigationError: JSX.Element | null = null;
-    if (evaluationNavigationError) navigationError = <span className="ui warning message">Queue navigation is unavailable: {evaluationNavigationError}</span>;
+    if (evaluationNavigationError) navigationError = <span className={classNames.uiWarningMessage}>Queue navigation is unavailable: {evaluationNavigationError}</span>;
     originActions = (
-      <nav className="rw-detail-navigation" aria-label="Detail record navigation">
-        <a className="ui basic button" href={origin.href}>Return to {origin.label}</a>
+      <nav aria-label="Detail record navigation">
+        <a className={classNames.uiBasicButton} href={origin.href}>Return to {origin.label}</a>
         {previousAction}
         {nextAction}
         {navigationError}

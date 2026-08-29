@@ -103,7 +103,17 @@ make serve DB=corpus.metadata.db ASSETS_DIR=frontend/dist
 make dev
 ```
 
-`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `frontend/dist`, and serves that directory; `make check-frontend` type-checks the sources, and unit tests import them directly without a build step.
+`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
+
+When a frontend change adds or removes a CSS selector, update the owning stylesheet and use the supported registry targets:
+
+```sh
+make frontend-classes
+make frontend-classes-check
+make check-frontend
+```
+
+`make frontend-classes` rewrites the committed `frontend/src/jsx/classes.ts` registry from the six authoritative stylesheets. `make frontend-classes-check` is the non-mutating proof that the registry is fresh, validates non-JSX class operations, and reports defined tokens without a statically visible authored use. Review the generated diff and do not edit the registry directly.
 
 Use [APP-USAGE.md](APP-USAGE.md) for review-context initialization, status and note history, note syntax, embedded PDF anchors, navigation, data interpretation, privacy, graph limits, and operational expectations.
 

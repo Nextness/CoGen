@@ -5,13 +5,27 @@ import {
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
   humanLabel, StatusChip
 } from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from '../api.tsx';
 import { bindFocusContext } from '../router.tsx';
 
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwDisclosureRwOverviewEvidenceRwGridSpanAll: cx("rw-disclosure", "rw-overview-evidence", "rw-grid-span-all"),
+  rwRunIdentityStripRwGridSpanAll: cx("rw-run-identity-strip", "rw-grid-span-all"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiGridRwDashboardGrid: cx("ui", "grid", "rw-dashboard-grid"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiLabel: cx("ui", "label"),
+  uiNegativeMessageRwGridSpanAll: cx("ui", "negative", "message", "rw-grid-span-all"),
+  uiStatistics: cx("ui", "statistics"),
+  uiTable: cx("ui", "table"),
+};
+
 /** Renders the unavailable-value presentation shared by metric helpers. */
 function unavailableMarkup(): JSX.Element {
-  return <span className="ui faded text">Not recorded</span>;
+  return <span className={classNames.uiFadedText}>Not recorded</span>;
 }
 
 /** Renders a normalization metric value or its unavailable presentation. */
@@ -131,7 +145,7 @@ function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
   const stageGroups = capturedMetricsByStage(props.metrics);
   const stageSections = stageGroups.map((group) => {
     const rows = group.metrics.map((metric) => {
-      var source: JSX.Element = <span className="ui faded text">Run total</span>;
+      var source: JSX.Element = <span className={classNames.uiFadedText}>Run total</span>;
       if (metric.source) source = <>{humanLabel(metric.source)}</>;
       return (
         <tr>
@@ -148,10 +162,10 @@ function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
             <h4>{group.label}</h4>
             <p>{group.description}</p>
           </div>
-          <span className="ui label">{formatNumber(group.metrics.length)} metrics</span>
+          <span className={classNames.uiLabel}>{formatNumber(group.metrics.length)} metrics</span>
         </div>
         <div className="table-wrap">
-          <table className="ui table">
+          <table className={classNames.uiTable}>
             <thead>
               <tr>
                 <th>Metric</th>
@@ -187,8 +201,9 @@ function fixedPercentageMetric(metric: any): any {
 /** Asynchronously implements overview view for the viewer. */
 export async function overviewView(): Promise<void> {
   if (!value("run_id")) {
+    const focusContextAction = <button type="button" className={classNames.uiBasicButton} data-focus-context>Focus context selector</button>;
     const emptyStateMarkup = (
-      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" className="ui basic button" data-focus-context>Focus context selector</button>} />
+      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={focusContextAction} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -301,7 +316,7 @@ export async function overviewView(): Promise<void> {
   }
 
   const capturedMetrics = (
-    <details className="rw-disclosure rw-overview-evidence rw-grid-span-all">
+    <details className={classNames.rwDisclosureRwOverviewEvidenceRwGridSpanAll}>
       <summary>
         <span>All recorded execution metrics</span>
         <small>{formatNumber(captured.length)} metric rows grouped by stage</small>
@@ -319,7 +334,7 @@ export async function overviewView(): Promise<void> {
   const corpusSummaryCards = corpusCards.map(([name, metric, href]) => {
     return <MetricCard name={name} metric={metric} href={href} />;
   });
-  var coverageCards: JSX.Element[] = [<p className="ui faded text">Not recorded for this run.</p>];
+  var coverageCards: JSX.Element[] = [<p className={classNames.uiFadedText}>Not recorded for this run.</p>];
   if (coverage.length) {
     coverageCards = coverage.map(([name, metric]) => {
       return <MetricCard name={name} metric={metric} />;
@@ -361,18 +376,18 @@ export async function overviewView(): Promise<void> {
     },
   ];
 
-  const corpusSummaryBody = <div className="ui statistics">{corpusSummaryCards}</div>;
-  const coverageBody = <div className="ui statistics">{coverageCards}</div>;
+  const corpusSummaryBody = <div className={classNames.uiStatistics}>{corpusSummaryCards}</div>;
+  const coverageBody = <div className={classNames.uiStatistics}>{coverageCards}</div>;
   const normalizationBody = (
     <Fragment>
-      <div className="ui statistics">{normalizationCardsMarkup}</div>
-      <Table title="Normalization field outcomes" description={"Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator."} columns={normalizationColumns} rows={normalizationRows} classes="rw-normalization-outcomes" />
+      <div className={classNames.uiStatistics}>{normalizationCardsMarkup}</div>
+      <Table title="Normalization field outcomes" description={"Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator."} columns={normalizationColumns} rows={normalizationRows} classes={["rw-normalization-outcomes"]} />
     </Fragment>
   );
   const cacheBody = (
     <Fragment>
       <div className="rw-metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
-      <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
+      <p className={classNames.uiInfoMessage}>Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
     </Fragment>
   );
 
@@ -382,7 +397,7 @@ export async function overviewView(): Promise<void> {
       return <li><strong>{diagnostic.source || "Unknown source"}:</strong> {diagnostic.message || "Stored source-filter evidence is invalid."}</li>;
     });
     sourceFilterDiagnostics = (
-      <div className="ui negative message rw-grid-span-all" role="alert">
+      <div className={classNames.uiNegativeMessageRwGridSpanAll} role="alert">
         <h3>Source-filter evidence needs attention</h3>
         <p>The retention flow excludes malformed stored counts instead of treating them as zero.</p>
         <ul>{diagnosticItems}</ul>
@@ -393,12 +408,12 @@ export async function overviewView(): Promise<void> {
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="" title="Overview" description="Recorded execution evidence and current coverage are shown separately to preserve their meaning." />
-      <div className="ui grid rw-dashboard-grid">
-        <section className="rw-run-identity-strip rw-grid-span-all">{runIdentity}</section>
+      <div className={classNames.uiGridRwDashboardGrid}>
+        <section className={classNames.rwRunIdentityStripRwGridSpanAll}>{runIdentity}</section>
         <RetentionFlow overview={overview} />
         {sourceFilterDiagnostics}
-        <SourceResultCountSummary items={overview.source_result_counts} classes="rw-grid-span-all" />
-        <SourceSearchQueries items={overview.source_result_counts} classes="rw-grid-span-all" />
+        <SourceResultCountSummary items={overview.source_result_counts} classes={["rw-grid-span-all"]} />
+        <SourceSearchQueries items={overview.source_result_counts} classes={["rw-grid-span-all"]} />
         <Panel title="Corpus summary" description="Immutable records available for this selected run." body={corpusSummaryBody} />
         <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed." body={coverageBody} />
         <Breakdown title="Enrichment activity" source={overview.enrichment_breakdown} />

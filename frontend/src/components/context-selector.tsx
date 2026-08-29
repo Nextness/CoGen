@@ -1,7 +1,12 @@
 // Searchable, paged, hierarchical research-context selectors.
 import { state, pickID, text, value, link } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, APIError, endpoint } from "../api.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiErrorMessage: cx("ui", "error", "message"),
+};
 
 /** The four native context selects. */
 export interface ContextSelects {
@@ -74,8 +79,7 @@ function renderDropdownOptions(key: string): void {
   });
   const optionButtons = nativeOptions.map((option) => {
     const selected = option.value === select.value;
-    var optionClass = "rw-search-dropdown__option";
-    if (selected) optionClass += " selected";
+    const optionClass = cx("rw-search-dropdown__option", selected && "selected");
     return (
       <button
         type="button"
@@ -212,7 +216,7 @@ async function loadDropdownPage(key: string, query: string, cursor = ""): Promis
   } catch (failure: any) {
     if (sequence !== dropdown.sequence) return;
     dropdown.nextCursor = "";
-    const errorMarkup = <p className="ui error message" role="alert">{failure.message}</p>;
+    const errorMarkup = <p className={classNames.uiErrorMessage} role="alert">{failure.message}</p>;
     renderTree(errorMarkup, dropdown.options);
   }
 }
@@ -370,7 +374,7 @@ function showDropdownError(key: string, message: string): void {
   if (!field) return;
   field.querySelector(".ui.error.message")?.remove();
   const error = document.createElement("p");
-  error.className = "ui error message";
+  error.className = classNames.uiErrorMessage;
   error.setAttribute("role", "alert");
   error.textContent = message;
   field.append(error);

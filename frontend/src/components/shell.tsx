@@ -1,5 +1,6 @@
 // Shell: header health status and mobile navigation toggle.
 import { api } from "../api.tsx";
+import { classAdd, classHas, classRemove, classToggle } from "../jsx/jsx-runtime.ts";
 
 /** Health status dot element updated by the health check. */
 export const healthStatus = document.querySelector<HTMLElement>("#health-status")!;
@@ -9,7 +10,7 @@ function setCapability(id: string, available: boolean, availableLabel: string, u
   const element = document.querySelector<HTMLElement>(id);
   if (!element) return;
   element.textContent = available ? availableLabel : unavailableLabel;
-  element.classList.toggle("rw-capability-unavailable", !available);
+  classToggle(element, "rw-capability-unavailable", !available);
 }
 
 /** Initializes health check. */
@@ -24,8 +25,8 @@ export function initHealthCheck(): void {
     } else {
       healthStatus.textContent = "Database healthy";
     }
-    healthStatus.classList.toggle("rw-status-dot--unavailable", unavailable);
-    healthStatus.classList.toggle("unavailable", unavailable);
+    classToggle(healthStatus, "rw-status-dot--unavailable", unavailable);
+    classToggle(healthStatus, "unavailable", unavailable);
     const metadataReadable = health?.metadata_readable ?? health?.readable;
     setCapability("#metadata-capability", metadataReadable === true, "Readable", "Unavailable");
     setCapability("#review-capability", health?.review_writable === true, "Writable", "Read-only or unavailable");
@@ -34,8 +35,8 @@ export function initHealthCheck(): void {
     setCapability("#pdf-capability", health?.pdf_store_bound === true && health?.pdf_store_readable === true, "Readable, read-only", unavailablePDFLabel);
   }).catch(() => {
     healthStatus.textContent = "Database unavailable";
-    healthStatus.classList.add("rw-status-dot--unavailable");
-    healthStatus.classList.add("unavailable");
+    classAdd(healthStatus, ["rw-status-dot--unavailable"]);
+    classAdd(healthStatus, ["unavailable"]);
     setCapability("#metadata-capability", false, "Readable", "Unavailable");
     setCapability("#review-capability", false, "Writable", "Unavailable");
     setCapability("#pdf-capability", false, "Readable, read-only", "Unknown");
@@ -55,18 +56,18 @@ export function initMobileNavToggle(): void {
 
   /** Closes the mobile navigation and optionally restores its opener focus. */
   function closeNavigation(restoreFocus: boolean): void {
-    const wasOpen = nav!.classList.contains("rw-mobile-nav-open");
-    nav!.classList.remove("rw-mobile-nav-open");
-    document.body.classList.remove("rw-mobile-nav-open");
+    const wasOpen = classHas(nav!, "rw-mobile-nav-open");
+    classRemove(nav!, "rw-mobile-nav-open");
+    classRemove(document.body, "rw-mobile-nav-open");
     toggle!.setAttribute("aria-expanded", "false");
     if (restoreFocus && wasOpen) toggle!.focus();
   }
 
   /** Toggles the mobile navigation disclosure. */
   function handleToggle(): void {
-    const isOpen = !nav!.classList.contains("rw-mobile-nav-open");
-    nav!.classList.toggle("rw-mobile-nav-open", isOpen);
-    document.body.classList.toggle("rw-mobile-nav-open", isOpen);
+    const isOpen = !classHas(nav!, "rw-mobile-nav-open");
+    classToggle(nav!, "rw-mobile-nav-open", isOpen);
+    classToggle(document.body, "rw-mobile-nav-open", isOpen);
     toggle!.setAttribute("aria-expanded", String(isOpen));
   }
 
@@ -81,13 +82,13 @@ export function initMobileNavToggle(): void {
   });
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && nav.classList.contains("rw-mobile-nav-open")) {
+    if (event.key === "Escape" && classHas(nav, "rw-mobile-nav-open")) {
       event.preventDefault();
       closeNavigation(true);
     }
   });
   document.addEventListener("click", (event) => {
-    if (!nav.classList.contains("rw-mobile-nav-open")) return;
+    if (!classHas(nav, "rw-mobile-nav-open")) return;
     const target = event.target as Node;
     if (nav.contains(target) || toggle.contains(target)) return;
     closeNavigation(false);

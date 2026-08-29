@@ -263,9 +263,11 @@ The interface must not render credentials, tokens, private keys, raw environment
 |---|---|
 | `index.html` | Authoritative accessible shell template for every generated page document. |
 | `scripts/build.mjs` | Compiled-source assembly, per-view page generation and markers, and served-root validation. |
+| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, non-mutating freshness verification, non-JSX class validation, and defined-without-static-use reporting. |
 | `app.tsx` | Global event binding, same-view history interception, protected native cross-view navigation, shell initialization, and first render. |
-| `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
-| `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, permissive `IntrinsicElements`). |
+| `jsx/classes.ts` | Committed generated union of class tokens defined by the six authoritative stylesheets; never edit it directly. |
+| `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
+| `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, class names narrowed to generated tokens or branded combinations, and otherwise permissive intrinsic attributes). |
 | `state.tsx` | URL values, view-to-page ownership, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
 | `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, native cross-view navigation, same-view history state, primary-nav state, document title, and focus. |
@@ -290,7 +292,7 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; never edit it manually. |
 | `vendor/pdfjs/` | Generated pinned PDF.js core, exact worker, CMaps, standard fonts, and license assets; never edit them manually. |
 
-Components may import shared state, API, router helpers, the JSX runtime, pagination, and the pinned D3 module as required, but they must not import view modules. Views build a JSX tree and call `render(<View .../>, app)`; reusable components return JSX elements, and behavior helpers bind to caller-owned DOM after render.
+Components may import shared state, API, router helpers, the JSX runtime, pagination, and the pinned D3 module as required, but they must not import view modules. Views assign a built JSX tree to a descriptive binding and pass that binding to `render`; reusable components return JSX elements, and behavior helpers bind to caller-owned DOM after render.
 
 ## 21. Testing and acceptance
 

@@ -56,7 +56,7 @@ describe('corpus.tsx — corpusView', function() {
     await corpusView();
     assert.ok(app.innerHTML.includes('Corpus'));
     assert.ok(document.querySelector('#corpus-section-select'));
-    assert.equal(document.querySelector('.rw-data-section .ui.tabular.menu'), null);
+    assert.equal(document.querySelector(`[data-table-owner="work_revisions"] .ui.tabular.menu`), null);
     assert.deepEqual(Array.from(document.querySelectorAll('.rw-corpus-table thead th'), function(cell) { return cell.textContent.trim(); }).filter(Boolean), [
       'DOI', 'Title', 'Year', 'Journal', 'Source'
     ]);
@@ -174,7 +174,9 @@ describe('corpus.tsx — corpusView', function() {
 
     await corpusView();
 
-    assert.deepEqual(Array.from(document.querySelectorAll('.rw-data-section table thead th'), function(cell) { return cell.textContent.trim(); }), [
+    const identityHeaders = document.querySelectorAll(`[aria-label="Author identity evidence table"] table thead th`);
+    const identityHeaderLabels = Array.from(identityHeaders, (cell) => cell.textContent.trim());
+    assert.deepEqual(identityHeaderLabels, [
       'Status', 'Observed author', 'Paper', 'DOI'
     ]);
     assert.equal((document.querySelector('.ui.grey.label') as HTMLElement).textContent, 'no_orcid_candidate');
