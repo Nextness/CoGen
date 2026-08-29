@@ -2,6 +2,7 @@
 import { app, value, graphFilters, PageHeader, EmptyState, FilterChips, list, formatNumber, humanLabel } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
+import type { APIQuery, GraphResponse } from "../api/types.ts";
 import { graphClusters, GraphField, graphQuery, GraphResult, mountGraph } from "../components/graph.tsx";
 import { setURL, bindFocusContext } from "../router.tsx";
 
@@ -140,11 +141,11 @@ export async function relationshipsView(): Promise<void> {
   const requestedMode = value("mode");
   var mode = "research_network";
   if (graphModes[requestedMode]) mode = requestedMode;
-  const queryParams: Record<string, any> = graphQuery();
+  const queryParams: APIQuery = graphQuery();
   queryParams.run_id = value("run_id");
   queryParams.mode = mode;
   if (!queryParams.article_limit) queryParams.article_limit = 2000;
-  const data = await api("/api/graph", queryParams, {
+  const data = await api<GraphResponse>("/api/graph", queryParams, {
     method: "GET",
     headers: { Accept: "application/json" },
   });

@@ -1,5 +1,21 @@
 // Run-scoped review context, complete status versions, notes, and PDF anchors.
 import { api, mutate, APIError } from "../api.tsx";
+import type {
+  AnchorRectangle,
+  ArticleDetailResponse,
+  ArticleRecord,
+  ArticleReviewResponse,
+  HealthResponse,
+  ReviewAnchor,
+  ReviewAnchorCreateResponse,
+  ReviewAnchorMutationResponse,
+  ReviewAnchorsResponse,
+  ReviewAnchorVersionsResponse,
+  ReviewContextResponse,
+  WorkReviewMutationResponse,
+  WorkReviewVersionResponse,
+  WorkReviewVersionsResponse,
+} from "../api/types.ts";
 import { formatTime, humanLabel, link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { mountNoteEditor } from "./note-editor.tsx";
@@ -43,12 +59,12 @@ const classNames = {
 
 const statuses = ["not_evaluated", "in_progress", "approved", "not_approved", "removed"];
 const substatuses = ["redacted", "unrelated", "out_of_scope", "duplicate", "retracted", "withdrawn", "superseded", "predatory_low_quality", "copyright_licensing", "not_peer_reviewed"];
-let reviewHealthPromise: Promise<any> | null = null;
+let reviewHealthPromise: Promise<HealthResponse> | null = null;
 
 /** Loads immutable viewer capability data once per page and retries after a failed request. */
-async function reviewHealth(): Promise<any> {
+async function reviewHealth(): Promise<HealthResponse> {
   if (!reviewHealthPromise) {
-    reviewHealthPromise = api("/api/health", {}, {
+    reviewHealthPromise = api<HealthResponse>("/api/health", {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -65,24 +81,11 @@ async function reviewHealth(): Promise<any> {
 export interface PDFSelection {
   page: number;
   selectedText: string;
-  rectangles: any[];
+  rectangles: AnchorRectangle[];
 }
 
 /** One anchor head returned by the review anchors API. */
-export interface AnchorHead {
-  id: string;
-  label: string;
-  version: {
-    id: any;
-    page: number;
-    selected_text?: string;
-    pdf_content_hash?: string;
-    state?: string;
-    reviewer_display?: string;
-    created_at?: any;
-  };
-  inherited_from_context_id?: any;
-}
+export type AnchorHead = ReviewAnchor;
 
 /** Mounts all editable review controls for one immutable run article revision. */
 export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: any, detailData: any, onAuditChange?: () => Promise<void>): Promise<{ destroy: () => any }> {
@@ -126,9 +129,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     });
   }
 
-  var context: any;
+  var context: ReviewContextResponse;
   try {
-    context = await api(`/api/runs/${runID}/review-context`, {}, {
+    context = await api<ReviewContextResponse>(`/api/runs/${runID}/review-context`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -149,7 +152,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   }
 
   if (!context.context_initialized) {
-    renderStartReview(context.proposed_parent);
+    renderStartReview(context.proposed_parent ?? null);
     return { destroy: () => { return pdfController?.destroy(); } };
   }
   await renderReview();
@@ -201,19 +204,19 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Loads and binds complete status state, history, notes, PDF, and anchors. */
   async function renderReview(): Promise<void> {
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
+    const data = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
     reviewEditable = data.editability?.decision ?? data.editable;
     notesEditable = data.editability?.notes ?? data.editable;
     anchorsEditable = data.editability?.anchors ?? (data.editable && detailData.pdf_status?.status === "available");
-    const state = data.review || { version: null };
-    const version = state.version;
+    const state = data.review;
+    const version = state?.version;
     const selectedStatus = version?.status || "not_evaluated";
     const selectedSubstatuses = new Set(version?.sub_statuses || []);
     var contextLabel: JSX.Element = <span className={classNames.uiNeutralLabel}>This context</span>;
-    if (state.inherited_from_context_id) {
+    if (state?.inherited_from_context_id) {
       contextLabel = <span className={classNames.uiVioletLabel}>Inherited from context {state.inherited_from_context_id}</span>;
     }
     const statusOptions = statuses.map((status) => {
@@ -254,9 +257,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         </div>
         <div className="content">
           <nav className={classNames.uiTabularMenuRwReviewNav} aria-label="Article review sections" role="tablist">
-            <button id="review-tab-decision" type="button" className={classNames.itemActive} role="tab" data-review-section="decision" aria-selected="true" aria-controls="review-panel-decision" tabindex={0}>Decision</button>
-            <button id="review-tab-notes" type="button" className="item" role="tab" data-review-section="notes" aria-selected="false" aria-controls="review-panel-notes" tabindex={-1}>Notes</button>
-            <button id="review-tab-anchors" type="button" className="item" role="tab" data-review-section="anchors" aria-selected="false" aria-controls="review-panel-anchors" tabindex={-1}>PDF anchors</button>
+            <button id="review-tab-decision" type="button" className={classNames.itemActive} role="tab" data-review-section="decision" aria-selected="true" aria-controls="review-panel-decision" tabIndex={0}>Decision</button>
+            <button id="review-tab-notes" type="button" className="item" role="tab" data-review-section="notes" aria-selected="false" aria-controls="review-panel-notes" tabIndex={-1}>Notes</button>
+            <button id="review-tab-anchors" type="button" className="item" role="tab" data-review-section="anchors" aria-selected="false" aria-controls="review-panel-anchors" tabIndex={-1}>PDF anchors</button>
           </nav>
           <section id="review-panel-decision" className="rw-review-section" role="tabpanel" data-review-section-panel="decision" aria-labelledby="review-tab-decision">
             <div className="rw-review-section__heading">
@@ -275,7 +278,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
                 </div>
                 <div className={classNames.uiField}>
                   <label htmlFor="article-review-reason">Reason or review summary <span className="rw-optional">Optional</span></label>
-                  <textarea id="article-review-reason" rows={4} data-review-reason maxlength={32768} disabled={!reviewEditable}>{version?.reason || ""}</textarea>
+                  <textarea id="article-review-reason" rows={4} data-review-reason maxLength={32768} disabled={!reviewEditable}>{version?.reason || ""}</textarea>
                   <p className="rw-field-help">The saved reason is included in the append-only audit change for this decision.</p>
                 </div>
               </div>
@@ -485,7 +488,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       if (compatible) checkedInputs = Array.from(substatusField.querySelectorAll<HTMLInputElement>("input:checked"));
       var saved: any;
       try {
-        saved = await mutate(`/api/runs/${runID}/articles/${revisionID}/review`, "PUT", {
+        saved = await mutate<WorkReviewMutationResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, "PUT", {
           expected_version_id: expectedVersionID,
           status: statusSelect.value,
           sub_statuses: checkedInputs.map((input) => {
@@ -512,7 +515,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         saveButton.disabled = false;
         classRemove(saveButton, "loading");
         host.querySelector<HTMLButtonElement>("[data-review-load-latest]")?.addEventListener("click", async () => {
-          const latest = await api(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
+          const latest = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
             method: "GET",
             headers: { Accept: "application/json" },
           });
@@ -622,7 +625,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       for (const button of Array.from(target.querySelectorAll<HTMLButtonElement>("[data-review-full-version]"))) {
         button.addEventListener("click", async () => {
           const versionID = button.dataset.reviewFullVersion as string;
-          const data = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions/${versionID}`, {}, {
+          const data = await api<WorkReviewVersionResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions/${versionID}`, {}, {
             method: "GET",
             headers: { Accept: "application/json" },
           });
@@ -634,7 +637,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     }
     /** Appends one opaque decision-history page without replacing prior rows. */
     async function loadDecisionHistoryPage(): Promise<void> {
-      const historyData = await api(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 25, cursor: decisionCursor }, {
+      const historyData = await api<WorkReviewVersionsResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 25, cursor: decisionCursor }, {
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -720,7 +723,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        await mutate(`/api/runs/${runID}/articles/${revisionID}/anchors`, "POST", {
+        await mutate<ReviewAnchorCreateResponse>(`/api/runs/${runID}/articles/${revisionID}/anchors`, "POST", {
           label: (targetElement.querySelector("[data-anchor-label]") as HTMLInputElement).value,
           page: selection.page,
           selected_text: selection.selectedText,
@@ -763,7 +766,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       anchorCursor = "";
       anchorHasMore = false;
     }
-    const data = await api(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 25, cursor: anchorCursor }, {
+    const data = await api<ReviewAnchorsResponse>(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 25, cursor: anchorCursor }, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -848,7 +851,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         deleteButton.disabled = true;
         classAdd(deleteButton, ["loading"]);
         try {
-          await mutate(`/api/runs/${runID}/anchors/${encodeURIComponent(anchor.id)}/versions`, "POST", {
+          await mutate<ReviewAnchorMutationResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchor.id)}/versions`, "POST", {
             expected_version_id: anchor.version.id,
             state: "deleted",
             page: 0,
@@ -964,7 +967,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         restoreButton.disabled = true;
         classAdd(restoreButton, ["loading"]);
         try {
-          await mutate(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, "POST", {
+          await mutate<ReviewAnchorMutationResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, "POST", {
             expected_version_id: newest.id,
             state: "active",
             restore_from_version_id: restorable.id,
@@ -995,7 +998,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     }
     /** Appends one anchor-version cursor page without duplicating existing history. */
     async function loadHistoryPage(): Promise<void> {
-      const data = await api(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 25, cursor: cursor }, {
+      const data = await api<ReviewAnchorVersionsResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 25, cursor: cursor }, {
         method: "GET",
         headers: { Accept: "application/json" },
       });

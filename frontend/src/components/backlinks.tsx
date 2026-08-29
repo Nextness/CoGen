@@ -1,5 +1,6 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api } from "../api.tsx";
+import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
 import { link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
@@ -24,7 +25,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
   let cursor = "";
   let hasMore = false;
   let loading = false;
-  const loaded: any[] = [];
+  const loaded: ReviewNote[] = [];
 
   /** Renders loaded source-note summaries and an explicit continuation control. */
   function render(): void {
@@ -67,7 +68,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       classAdd(existingButton, ["loading"]);
     }
     try {
-      const data = await api(`/api/runs/${options.runID}/links/backlinks`, {
+      const data = await api<ReviewBacklinksResponse>(`/api/runs/${options.runID}/links/backlinks`, {
         target_type: options.targetType,
         target_id: options.targetID,
         work_revision_id: options.workRevisionID,

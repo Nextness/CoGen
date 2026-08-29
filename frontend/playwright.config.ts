@@ -7,9 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  testMatch: process.env.PLAYWRIGHT_SUITE === 'mutation' ? /(?:review|e2e)\.spec\.ts$/ : undefined,
+  testMatch: process.env.PLAYWRIGHT_SUITE === 'mutation' ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : undefined,
   testIgnore: [
-    process.env.PLAYWRIGHT_SUITE === 'read' ? /(?:review|e2e)\.spec\.ts$/ : undefined,
+    process.env.PLAYWRIGHT_SUITE === 'read' ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : undefined,
     /tests\/unit\//,
   ].filter((entry): entry is RegExp => entry !== undefined),
   fullyParallel: process.env.PLAYWRIGHT_SUITE !== 'mutation',

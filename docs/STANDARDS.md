@@ -146,6 +146,7 @@ Frontend production source is TypeScript with native ES modules and no applicati
 - Bind DOM listeners after rendering a tree into the app or a sub-container, abort stale requests, and prevent older renders from overwriting current state.
 - Components do not import views; new code does not expand the intentional router and context-selector cycle.
 - Rely on the JSX runtime's automatic escaping for text and attributes, compose application markup as JSX Nodes, format machine data through shared helpers, and provide explicit empty, loading, error, unavailable, and truncation states. Application views and components do not use the `raw` or `renderToString` compatibility helpers.
+- API response contracts live in `frontend/src/api/types.ts` and are enforced at the fetch boundary through `api<T>` and `mutate<T>`; every nullable field is `| null` and every conditionally-present field is `?`. The serial `api-shapes.spec.ts` fetches every consumed endpoint from the fixture server and validates the payloads against those interfaces, so server drift in nullability or field names fails the browser suite.
 - Keep server-backed collections bounded and URL-addressable where reload or sharing matters.
 - The Go binary contains no frontend assets. `serve` requires `--assets-dir` (normally the assembled `frontend/dist` produced by `make frontend-build`), and serving makes no CDN request.
 - Change `vendor/d3-force.js` only through its dependency and `make frontend-vendor`, then review the generated diff.
@@ -160,7 +161,7 @@ Frontend unit tests live under `frontend/tests/unit/`, are authored in TypeScrip
 - Unit tests cover state, rendering helpers, URL behavior, API behavior, components, routing, and views without a browser or server.
 - Browser tests use `*.spec.ts` under `frontend/tests/` and follow navigate, assert, interact, assert URL, assert content.
 - Playwright targets split each invocation into a read-only suite and a serial mutation suite, copy the ignored generated fixture metadata and PDF pair separately for each suite, start an isolated viewer on an operating-system-assigned loopback port, and isolate output under `build/playwright/`. No browser test writes the base fixture.
-- `viewer.spec.ts` covers evidence browsing; serial `review.spec.ts` covers mutations and PDF rendering; `ui-quality.spec.ts` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.ts` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
+- `viewer.spec.ts` covers evidence browsing; serial `review.spec.ts` covers mutations and PDF rendering; serial `api-shapes.spec.ts` validates every consumed endpoint payload against the typed contracts; `ui-quality.spec.ts` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.ts` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
 - Run `make test-frontend-unit` for frontend logic, `make test-go PACKAGE=./server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
 - Run `make test-frontend-visual` for visual or accessibility changes and review snapshots rather than replacing them blindly.
 

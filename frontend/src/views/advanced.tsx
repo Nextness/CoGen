@@ -2,6 +2,7 @@
 import { app, value, link, PageHeader, EmptyState } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, tables } from "../api.tsx";
+import type { TableRowsResponse } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { setURL } from "../router.tsx";
@@ -61,7 +62,7 @@ export async function advancedView(): Promise<void> {
   var data: any = null;
   var tableError = "";
   try {
-    data = await api(`/api/tables/${encodeURIComponent(current)}`, {
+    data = await api<TableRowsResponse>(`/api/tables/${encodeURIComponent(current)}`, {
       page: page,
       per_page: perPage,
       sort: sort,

@@ -1,5 +1,9 @@
 // Shared review-context initialization dialog and controller.
 import { api, mutate, APIError } from "../api.tsx";
+import type {
+  ReviewContextCandidatesResponse,
+  ReviewContextMutationResponse,
+} from "../api/types.ts";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -141,7 +145,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
       classAdd(expandButton, ["loading"]);
     }
     try {
-      const candidates = await api(`/api/runs/${options.runID}/review-context-candidates`, {
+      const candidates = await api<ReviewContextCandidatesResponse>(`/api/runs/${options.runID}/review-context-candidates`, {
         scope: scope,
         limit: 25,
         cursor: candidateCursors[scope],
@@ -159,7 +163,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
         });
         if (exists) continue;
         const option = document.createElement("option");
-        option.value = candidate.context_id;
+        option.value = String(candidate.context_id);
         option.textContent = `${candidate.search_id} / ${candidate.search_revision} / run ${candidate.pipeline_run_id} · ${candidate.inherited_work_count} matching`;
         select.append(option);
         added += 1;
@@ -254,7 +258,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     cancelButton.disabled = true;
     closeButton.disabled = true;
     try {
-      await mutate(`/api/runs/${options.runID}/review-context`, "POST", { parent_context_id: parentContextID });
+      await mutate<ReviewContextMutationResponse>(`/api/runs/${options.runID}/review-context`, "POST", { parent_context_id: parentContextID });
     } catch (error: any) {
       initializingContext = false;
       status.className = classNames.uiErrorMessageRwReviewCandidateStatus;

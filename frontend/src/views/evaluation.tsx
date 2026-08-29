@@ -15,6 +15,7 @@ import {
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
+import type { EvaluationFacet, EvaluationResponse, EvaluationRow, WireRecord } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import {
@@ -44,40 +45,43 @@ const evaluationSortFields = ["title", "doi"];
 const evaluationFilterKeys = ["q", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"];
 
 /** Renders a queue-preserving article link for an evaluation row. */
-function titleLink(row: any): JSX.Element {
+function titleLink(row: WireRecord): JSX.Element {
+  const record = row as EvaluationRow;
   const recordHref = link({
     view: "article",
-    article_id: row.work_revision_id,
+    article_id: record.work_revision_id,
     origin: currentDetailOrigin(),
   });
   return (
-    <a className="rw-table-title" href={recordHref} title={row.title || "Not recorded"}>
-      <span>{row.title || "Not recorded"}</span>
+    <a className="rw-table-title" href={recordHref} title={record.title || "Not recorded"}>
+      <span>{record.title || "Not recorded"}</span>
     </a>
   );
 }
 
 /** Renders the recorded PDF inventory date or an unavailable label. */
-function inventoriedDate(row: any): JSX.Element {
-  if (!row.inventoried_at) {
+function inventoriedDate(row: WireRecord): JSX.Element {
+  const record = row as EvaluationRow;
+  if (!record.inventoried_at) {
     return <span className={classNames.uiFadedText}>{"\u2014"}</span>;
   }
-  return <time datetime={row.inventoried_at}>{formatDate(row.inventoried_at)}</time>;
+  return <time dateTime={record.inventoried_at}>{formatDate(record.inventoried_at)}</time>;
 }
 
 /** Renders explicit review-lineage state from the invariant server response. */
-function reviewSource(row: any, initialized: boolean): JSX.Element {
-  if (!initialized || !row.review_version_id) {
+function reviewSource(row: WireRecord, initialized: boolean): JSX.Element {
+  const record = row as EvaluationRow;
+  if (!initialized || !record.review_version_id) {
     return <span className={classNames.uiOrangeLabel}>Not started</span>;
   }
-  if (row.review_inherited) {
+  if (record.review_inherited) {
     return <span className={classNames.uiVioletLabel}>Inherited</span>;
   }
   return <span className={classNames.uiNeutralLabel}>This context</span>;
 }
 
 /** Renders one select option from an aggregate facet value. */
-function facetOptions(items: any[], selected: string): JSX.Element[] {
+function facetOptions(items: EvaluationFacet[], selected: string): JSX.Element[] {
   return (items || []).map((item) => {
     const label = `${humanLabel(item.value)} (${formatNumber(item.count)})`;
     return <option value={item.value} selected={String(item.value) === selected}>{label}</option>;
@@ -115,7 +119,7 @@ export async function evaluationView(): Promise<void> {
   evaluationFilterKeys.forEach((key) => {
     filters[key] = value(key);
   });
-  const data = await api(`/api/runs/${encodeURIComponent(runID)}/evaluation`, {
+  const data = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(runID)}/evaluation`, {
     page: page,
     per_page: perPage,
     sort: sort,

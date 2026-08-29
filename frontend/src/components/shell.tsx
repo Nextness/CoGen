@@ -1,5 +1,6 @@
 // Shell: header health status and mobile navigation toggle.
 import { api } from "../api.tsx";
+import type { HealthResponse } from "../api/types.ts";
 import { classAdd, classHas, classRemove, classToggle } from "../jsx/jsx-runtime.ts";
 
 /** Health status dot element updated by the health check. */
@@ -15,7 +16,7 @@ function setCapability(id: string, available: boolean, availableLabel: string, u
 
 /** Initializes health check. */
 export function initHealthCheck(): void {
-  api("/api/health", {}, {
+  api<HealthResponse>("/api/health", {}, {
     method: "GET",
     headers: { Accept: "application/json" },
   }).then((health) => {

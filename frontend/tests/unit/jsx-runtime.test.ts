@@ -70,6 +70,14 @@ describe('jsx-runtime — h and Fragment', function() {
     const node = h('span', { style: 'width:50%' }, 'x') as HTMLSpanElement;
     assert.equal(node.getAttribute('style'), 'width:50%');
   });
+
+  it("creates SVG elements in the SVG namespace", function() {
+    const path = h("path", { d: "M0 0h16v16z" });
+    const node = h("svg", { viewBox: "0 0 16 16" }, path);
+    assert.equal(node.namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal((node.firstChild as SVGElement | null)?.namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal((node.firstChild as SVGPathElement).getAttribute("d"), "M0 0h16v16z");
+  });
 });
 
 describe('jsx-runtime — render and renderToString', function() {

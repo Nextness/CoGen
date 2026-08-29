@@ -6,6 +6,7 @@ import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas 
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
+import type { PaginationOptions } from "./pagination.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -91,7 +92,7 @@ interface GraphState {
 var activeGraph: GraphState | undefined;
 
 /** Renders an escaped graph-filter input with its current URL value. */
-export function GraphField(props: { name: string; label: string; type?: string }): JSX.Element {
+export function GraphField(props: { name: string; label: string; type?: JSX.RWInputType }): JSX.Element {
   const type = props.type || "text";
   return (
     <label>
@@ -309,7 +310,7 @@ export function GraphResult(props: { data: any }): JSX.Element {
           <canvas className="rw-graph__canvas"></canvas>
         </div>
       </div>
-      <section className="rw-graph__selection" id="graph-selection" tabindex={-1} aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
+      <section className="rw-graph__selection" id="graph-selection" tabIndex={-1} aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
       <section className="rw-graph__edges">
         <h3>Relationship table</h3>
         <p>The exact, paginated relationship records behind the graph.</p>
@@ -1520,7 +1521,7 @@ function renderEdgePage(graph: GraphState): void {
   if (graph.edgePage > pages) graph.edgePage = pages;
   const rows = visibleEdges.slice((graph.edgePage - 1) * pageSize, graph.edgePage * pageSize);
 
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={4} className="rw-table-empty">No relationships.</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colSpan={4} className="rw-table-empty">No relationships.</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((edge) => {
       return (
@@ -1536,7 +1537,7 @@ function renderEdgePage(graph: GraphState): void {
 
   var itemLabel = "relationships";
   if (graph.selection) itemLabel = "relationships in this neighbourhood";
-  const paginationOptions = {
+  const paginationOptions: PaginationOptions = {
     itemLabel: itemLabel,
     pageAttribute: "data-graph-page",
   };

@@ -1,12 +1,13 @@
 // API fetch helpers and endpoint builder.
 import { state, list } from "./state.tsx";
+import type { APIQuery, TableInfo, TablesResponse, WireRecord } from "./api/types.ts";
 
 /** Builds an API path and query string from supplied values. */
-export function endpoint(path: string, query: Record<string, any> = {}): string {
+export function endpoint(path: string, query: APIQuery = {}): string {
   const url = new URL(path, location.origin);
   const queryEntries = Object.entries(query);
   queryEntries.forEach(([key, raw]) => {
-    if (raw !== "" && raw !== null && raw !== undefined) url.searchParams.set(key, raw);
+    if (raw !== "" && raw !== null && raw !== undefined) url.searchParams.set(key, String(raw));
   });
   return url.pathname + url.search;
 }
@@ -16,7 +17,7 @@ export interface APIErrorEnvelope {
   error?: {
     message?: string;
     code?: string;
-    details?: any;
+    details?: unknown;
   };
 }
 
@@ -32,10 +33,10 @@ export interface APIRequestOptions {
 export class APIError extends Error {
   status: number;
   code: string;
-  details: any;
+  details: unknown;
 
   /** Initializes one structured API error returned by a non-successful response. */
-  constructor(message: string, status: number, code?: string, details?: any) {
+  constructor(message: string, status: number, code?: string, details?: unknown) {
     super(message);
     this.name = "APIError";
     this.status = status;
@@ -46,7 +47,7 @@ export class APIError extends Error {
 }
 
 /** Fetches and decodes one JSON API response. */
-export async function api(path: string, query: Record<string, any> = {}, options: APIRequestOptions): Promise<any> {
+export async function api<T>(path: string, query: APIQuery = {}, options: APIRequestOptions): Promise<T> {
   var signal = options.signal;
   if (signal === undefined) signal = state.controller?.signal;
   const response = await fetch(endpoint(path, query), {
@@ -56,7 +57,7 @@ export async function api(path: string, query: Record<string, any> = {}, options
     signal: signal ?? undefined,
   });
 
-  var body: any;
+  var body: unknown;
   try {
     body = await response.json();
   } catch (_) {
@@ -65,17 +66,22 @@ export async function api(path: string, query: Record<string, any> = {}, options
 
   if (!response.ok) {
     var message = `Request failed (${response.status}).`;
-    if (body?.error?.message) message = body.error.message;
-    throw new APIError(message, response.status, body?.error?.code, body?.error?.details);
+    const envelope = body as APIErrorEnvelope;
+    if (envelope?.error?.message) message = envelope.error.message;
+    throw new APIError(message, response.status, envelope?.error?.code, envelope?.error?.details);
   }
 
-  if (body?.data !== undefined) return body.data;
-  return body;
+  // JSON decoding cannot prove an endpoint-specific contract at runtime. Every
+  // call site supplies T from the matching server handler contract, and the
+  // fixture shape test guards that boundary against server drift.
+  const envelope = body as WireRecord;
+  if (envelope?.data !== undefined) return envelope.data as T;
+  return body as T;
 }
 
 /** Sends a same-origin JSON mutation and returns its decoded response. */
-export function mutate(path: string, method: string, body: any): Promise<any> {
-  return api(path, {}, {
+export function mutate<T>(path: string, method: string, body: unknown): Promise<T> {
+  return api<T>(path, {}, {
     method: method,
     headers: {
       Accept: "application/json",
@@ -87,9 +93,9 @@ export function mutate(path: string, method: string, body: any): Promise<any> {
 }
 
 /** Loads and caches the discovered database table list. */
-export async function tables(): Promise<any[]> {
+export async function tables(): Promise<TableInfo[]> {
   if (!state.tables.length) {
-    const data = await api("/api/tables", {}, {
+    const data = await api<TablesResponse>("/api/tables", {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });

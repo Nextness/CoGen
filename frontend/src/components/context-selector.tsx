@@ -2,6 +2,7 @@
 import { state, pickID, text, value, link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, APIError, endpoint } from "../api.tsx";
+import type { HierarchyItem, HierarchyPage, RunContextResponse } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -141,7 +142,7 @@ function syncDropdown(key: string): void {
 function selectOptions(key: string, items: any[], selected: string, config: DropdownConfig): void {
   const select = selects[key as keyof ContextSelects];
   const optionElements = items.map((item) => {
-    return <option value={pickID(item)}>{config.label(item)}</option>;
+    return <option value={String(pickID(item) || "")}>{config.label(item)}</option>;
   });
   const optionsMarkup = (
     <Fragment>
@@ -185,7 +186,7 @@ async function fetchOptionPage(config: DropdownConfig, query: string, cursor: st
   const cacheKey = endpoint("/api/hierarchy", requestQuery);
   const cached = hierarchyCache.get(cacheKey);
   if (cached) return cached;
-  const page = await api("/api/hierarchy", requestQuery, {
+  const page = await api<HierarchyPage<HierarchyItem>>("/api/hierarchy", requestQuery, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -396,7 +397,7 @@ async function reconcileSelectedRun(): Promise<any | null> {
   const selectedRunID = value("run_id");
   if (!selectedRunID) return null;
   try {
-    const context = await api(`/api/runs/${encodeURIComponent(selectedRunID)}/context`, {}, {
+    const context = await api<RunContextResponse>(`/api/runs/${encodeURIComponent(selectedRunID)}/context`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });

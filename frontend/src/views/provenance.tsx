@@ -7,10 +7,18 @@ import {
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
+import type {
+  ArtifactInspectionResponse,
+  ArtifactsResponse,
+  AuditResponse,
+  CacheUsesResponse,
+  StagesResponse,
+} from "../api/types.ts";
 import { setURL, bindFocusContext } from "../router.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
+import type { PaginationOptions } from "../components/pagination.tsx";
 import { AuditStream, bindAuditRecordedData } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 
@@ -375,7 +383,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   };
   activeArtifactPreview = null;
   activeArtifactRow = null;
-  var rows: JSX.Element[] = [<tr><td colspan={6} className="rw-table-empty">No artifacts were recorded for this run.</td></tr>];
+  var rows: JSX.Element[] = [<tr><td colSpan={6} className="rw-table-empty">No artifacts were recorded for this run.</td></tr>];
   if (artifacts.length) {
     rows = artifacts.map((row) => {
       const role = row.artifact_roles || row.relationship_roles || "Stage artifact";
@@ -389,17 +397,17 @@ function ArtifactsView(props: { data: any }): JSX.Element {
       if (stages) stageCell = <>{stages}</>;
       const focused = String(row.id) === value("artifact_id");
       var rowClass: ClassName | undefined;
-      var rowTabIndex: number | null = null;
+      var rowTabIndex: number | undefined;
       if (focused) {
         rowClass = "selected";
         rowTabIndex = -1;
       }
       return (
-        <tr data-artifact-row={row.id} className={rowClass} tabindex={rowTabIndex}>
-          <td><strong>{humanLabel(role)}</strong><small className="rw-cell-note">Artifact {row.id}</small></td>
+        <tr data-artifact-row={row.id} className={rowClass} tabIndex={rowTabIndex}>
+          <td><strong>{humanLabel(role)}</strong><small className="rw-cell-note">Artifact {String(row.id)}</small></td>
           <td>{stageCell}</td>
-          <td><span className="rw-mono">{row.content_type}</span><small className="rw-cell-note">{formatBytes(row.byte_size)}</small></td>
-          <td><span className="rw-cell" title={row.content_hash}>{row.content_hash}</span></td>
+          <td><span className="rw-mono">{String(row.content_type)}</span><small className="rw-cell-note">{formatBytes(row.byte_size)}</small></td>
+          <td><span className="rw-cell" title={String(row.content_hash)}>{String(row.content_hash)}</span></td>
           <td>{formatTime(row.created_at)}</td>
           <td><ArtifactActions row={row} /></td>
         </tr>
@@ -448,7 +456,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
       {filterSummary}
     </form>
   );
-  const paginationOptions = {
+  const paginationOptions: PaginationOptions = {
     page: page,
     perPage: perPage,
     itemLabel: "artifacts",
@@ -491,7 +499,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
       <section className={classNames.uiSegment} id="artifact-inspector">
         <div className={classNames.uiTopAttachedHeader}>
           <div>
-            <h3 tabindex={-1} data-artifact-inspector-title>Artifact preview</h3>
+            <h3 tabIndex={-1} data-artifact-inspector-title>Artifact preview</h3>
             <p>Inspect a safe prefix of a text-based artifact without loading the full file into the document.</p>
           </div>
         </div>
@@ -512,7 +520,7 @@ function PageSizeOptions(props: { current: any }): JSX.Element {
 /** Renders cache-use evidence and pagination markup. */
 function CacheView(props: { data: any }): JSX.Element {
   const rows = list(props.data, ["rows", "cache_uses"]);
-  const columns = list(props.data, ["columns"]);
+  const columns = list<string>(props.data, ["columns"]);
   const page = Math.max(1, Number(value("cache_page") || props.data.pagination?.page || 1));
   const perPage = Number(value("cache_per_page") || props.data.pagination?.per_page || 50);
   const pagination = props.data.pagination || {
@@ -571,7 +579,7 @@ function CacheView(props: { data: any }): JSX.Element {
       label: "Payload artifact",
       render: (row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })}>Artifact {raw}</a>;
+          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })}>Artifact {String(raw)}</a>;
         }
         return <span className={classNames.uiFadedText}>None</span>;
       },
@@ -881,13 +889,13 @@ function RunView(props: { artifactData: any }): JSX.Element {
     const snapshotItems = snapshotArtifacts.map((artifact) => {
       var action: JSX.Element = <span className={classNames.uiLabel}>Payload unavailable</span>;
       if (artifact.has_blob) {
-        action = <a className={classNames.uiBasicButton} href={`/api/artifacts/${encodeURIComponent(artifact.id)}/content`} download>Download</a>;
+        action = <a className={classNames.uiBasicButton} href={`/api/artifacts/${encodeURIComponent(String(artifact.id))}/content`} download>Download</a>;
       }
       return (
         <li>
           <div>
             <strong>{humanLabel(artifact.artifact_roles)}</strong>
-            <span>{formatBytes(artifact.byte_size)} / {artifact.content_type}</span>
+            <span>{formatBytes(artifact.byte_size)} / {String(artifact.content_type)}</span>
           </div>
           {action}
         </li>
@@ -929,9 +937,9 @@ export async function provenanceView(): Promise<void> {
 
   var content: JSX.Element;
   if (current === "audit") {
-    content = <AuditView data={await api("/api/audit", auditQuery(""), { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <AuditView data={await api<AuditResponse>("/api/audit", auditQuery(""), { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "artifacts") {
-    content = <ArtifactsView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {
+    content = <ArtifactsView data={await api<ArtifactsResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {
       q: value("artifact_q"),
       role: value("artifact_role"),
       page: value("artifact_page") || 1,
@@ -939,7 +947,7 @@ export async function provenanceView(): Promise<void> {
       artifact_id: value("artifact_id"),
     }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "cache") {
-    content = <CacheView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/cache-uses`, {
+    content = <CacheView data={await api<CacheUsesResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/cache-uses`, {
       page: value("cache_page") || 1,
       per_page: value("cache_per_page") || 50,
       sort: value("cache_sort") || "id",
@@ -947,7 +955,7 @@ export async function provenanceView(): Promise<void> {
       q: value("cache_q"),
     }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else if (current === "stages") {
-    content = <StagesView data={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/stages`, {
+    content = <StagesView data={await api<StagesResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/stages`, {
       page: value("stage_page") || 1,
       per_page: value("stage_per_page") || 50,
       sort: value("stage_sort") || "id",
@@ -955,7 +963,7 @@ export async function provenanceView(): Promise<void> {
       q: value("stage_q"),
     }, { method: "GET", headers: { Accept: "application/json" } })} />;
   } else {
-    content = <RunView artifactData={await api(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, { role: "run_role", limit: 100 }, { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <RunView artifactData={await api<ArtifactsResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, { role: "run_role", limit: 100 }, { method: "GET", headers: { Accept: "application/json" } })} />;
   }
 
   const pageMarkup = (
@@ -1064,7 +1072,7 @@ function bindAuditControls(): void {
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        const data = await api("/api/audit", auditQuery(auditCursor), {
+        const data = await api<AuditResponse>("/api/audit", auditQuery(auditCursor), {
           method: "GET",
           headers: { Accept: "application/json" },
         });
@@ -1075,7 +1083,7 @@ function bindAuditControls(): void {
           return true;
         });
         auditLoadedCount += newEvents.length;
-        auditCursor = data.next_cursor || "";
+        auditCursor = String(data.next_cursor || "");
         auditHasMore = Boolean(data.has_more);
         appendAuditEvents(stream, newEvents as AuditEventRecord[]);
         bindAuditRecordedData(stream);
@@ -1138,7 +1146,7 @@ function bindArtifactInspection(): void {
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        const payload = await api(`/api/artifacts/${encodeURIComponent(id)}/inspect`, { preview_bytes: 65536 }, {
+        const payload = await api<ArtifactInspectionResponse>(`/api/artifacts/${encodeURIComponent(id)}/inspect`, { preview_bytes: 65536 }, {
           method: "GET",
           headers: { Accept: "application/json" },
         });

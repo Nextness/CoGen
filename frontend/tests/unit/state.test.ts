@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 
 // Setup DOM before importing the module under test
 import './setup.ts';
+import type { HierarchyRun } from '../../src/api/types.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
   params, value, view, section, detailOrigin, viewPage, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
@@ -491,7 +492,7 @@ describe('state.tsx — selectedRun', function() {
   });
 
   it('finds a run by run_id', function() {
-    state.runs = [{ id: 'run-1', status: 'complete' }];
+    state.runs = [{ id: 'run-1', status: 'complete' } as unknown as HierarchyRun];
     // Set run_id in URL
     const url = new URL(location.href);
     url.searchParams.set('run_id', 'run-1');

@@ -14,6 +14,14 @@ import {
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { api, mutate } from "../api.tsx";
+import type {
+  HierarchyPage,
+  HierarchyRevision,
+  HierarchyRun,
+  HierarchySearch,
+  HierarchySummaryResponse,
+  RunVisibilityResponse,
+} from "../api/types.ts";
 import { setURL } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
@@ -189,7 +197,7 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
       </tr>
     );
   });
-  var body: JSX.Element[] = [<tr><td colspan={9} className="rw-table-empty">No run attempts match these filters.</td></tr>];
+  var body: JSX.Element[] = [<tr><td colSpan={9} className="rw-table-empty">No run attempts match these filters.</td></tr>];
   if (rows.length) body = rows;
   var resultLabel = `Showing ${formatNumber(rows.length)} run attempts.`;
   if (props.hasMore) resultLabel = `Showing ${formatNumber(rows.length)} run attempts. More results are available.`;
@@ -338,7 +346,7 @@ function RunDialog(): JSX.Element {
         <div className="rw-review-dialog__body">
           <label className="field" data-run-reason-field>
             Reason
-            <textarea name="reason" maxlength={1000} rows={3} placeholder="Why should this run move out of the active workspace?"></textarea>
+            <textarea name="reason" maxLength={1000} rows={3} placeholder="Why should this run move out of the active workspace?"></textarea>
           </label>
           <p className={classNames.uiInfoMessage} data-run-dialog-guidance></p>
           <p className={classNames.uiErrorMessage} data-run-dialog-error role="alert" hidden></p>
@@ -357,7 +365,7 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
   const loadingMarkup = <p className={classNames.uiInfoMessage}>Loading revision history.</p>;
   renderTree(loadingMarkup, host);
   try {
-    const result = await api("/api/hierarchy", {
+    const result = await api<HierarchyPage<HierarchyRevision>>("/api/hierarchy", {
       section: "revisions",
       search_id: searchID,
       cursor: cursor,
@@ -527,7 +535,7 @@ function bindRunLifecycle(): void {
     try {
       var reasonValue = "";
       if (visibilityState === "trashed") reasonValue = reason.value;
-      await mutate(`/api/runs/${encodeURIComponent(runID)}/visibility`, "PUT", {
+      await mutate<RunVisibilityResponse>(`/api/runs/${encodeURIComponent(runID)}/visibility`, "PUT", {
         visibility_state: visibilityState,
         reason: reasonValue,
       });
@@ -573,9 +581,9 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
     started_before: value("home_started_before"),
   };
   const results = await Promise.allSettled([
-    api("/api/hierarchy", { section: "summary" }, { method: "GET", headers: { Accept: "application/json" } }),
-    api("/api/hierarchy", { section: "searches", q: query, cursor: value("home_search_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
-    api("/api/hierarchy", { section: "runs", ...dateQuery, cursor: value("home_run_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
+    api<HierarchySummaryResponse>("/api/hierarchy", { section: "summary" }, { method: "GET", headers: { Accept: "application/json" } }),
+    api<HierarchyPage<HierarchySearch>>("/api/hierarchy", { section: "searches", q: query, cursor: value("home_search_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
+    api<HierarchyPage<HierarchyRun>>("/api/hierarchy", { section: "runs", ...dateQuery, cursor: value("home_run_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
   ]);
   const summaryResult = results[0];
   const searchesResult = results[1];

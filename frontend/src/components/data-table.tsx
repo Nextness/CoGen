@@ -3,8 +3,8 @@ import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
 import { setURL } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
-import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
+import type { ColumnInfo, DataTableContext, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -12,7 +12,7 @@ const classNames = {
 };
 
 /** Returns whether a row contains the case-insensitive filter text. */
-export function rowFilter(rows: any[], query: string): any[] {
+export function rowFilter(rows: WireRecord[], query: string): WireRecord[] {
   if (!query) return rows;
   const needle = query.toLocaleLowerCase();
   return rows.filter((row) => {
@@ -29,43 +29,22 @@ function scrollTableIntoView(root: HTMLElement): void {
 }
 
 /** One data table option set. */
-export interface DataTableContext {
-  columnsWhitelist?: string[];
-  pageKey?: string;
-  perPageKey?: string;
-  sortKey?: string;
-  orderKey?: string;
-  queryKey?: string;
-  expandedKey?: string;
-  query?: string;
-  page?: number;
-  perPage?: number;
-  sortFields?: string[];
-  expandableFields?: Array<{ f: string; w: number | string; label?: string; render?: (row: any) => JSX.Element }>;
-  rowKey?: string;
-  columnConfig?: Record<string, { label?: string; className?: ClassName; render?: (row: any, value: any) => JSX.Element }>;
-  expandLongCells?: boolean;
-  tableClasses?: readonly ClassName[];
-  itemLabel?: string;
-  perPageSelector?: string;
-  querySelector?: string;
-  searchButtonSelector?: string;
-  clearButtonSelector?: string;
-}
+export type { DataTableContext } from "../api/types.ts";
 
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
-export function DataTable(props: { tableName: string; result: any; context?: DataTableContext }): JSX.Element {
+export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
+  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: WireRecord };
 
-  var columns = list(props.result, ["columns", "schema"]);
-  if (!columns.length) {
-    columns = list(props.result.table, ["columns", "schema"]);
+  var rawColumns = list<string | ColumnInfo>(response, ["columns", "schema"]);
+  if (!rawColumns.length) {
+    rawColumns = list<string | ColumnInfo>(response.table, ["columns", "schema"]);
   }
-  const columnNames = columns.map((column) => {
+  const columnNames = rawColumns.map((column) => {
     if (typeof column === "string") return column;
     return column.name;
   });
-  columns = columnNames.filter(Boolean);
+  var columns = columnNames.filter(Boolean);
 
   if (context.columnsWhitelist && context.columnsWhitelist.length) {
     const availableColumns = new Set(columns);
@@ -82,7 +61,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     query: context.queryKey || "q",
     expanded: context.expandedKey || "expanded",
   };
-  const rows = rowFilter(list(props.result, ["rows", "items"]), context.query || "");
+  const rows = rowFilter(list<WireRecord>(response, ["rows", "items"]), context.query || "");
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
   const hasExpand = expandFields.length > 0;
@@ -95,7 +74,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   var emptyMessage = "No records on this page.";
   if (context.query) emptyMessage = "No displayed records match this search.";
   const emptyColspan = Math.max(1, colCount);
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={emptyColspan} className="rw-table-empty">{emptyMessage}</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colSpan={emptyColspan} className="rw-table-empty">{emptyMessage}</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((row, idx) => {
       const key = String(row[rowKey] ?? idx);
@@ -145,7 +124,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         });
         expandRowHtml = (
           <tr id={detailID} className="expansion-row" data-expand-row={idx} data-row-key={key} hidden={!initiallyExpanded}>
-            <td colspan={colCount}>
+            <td colSpan={colCount}>
               <dl className="rw-property-grid">{fieldsHtml}</dl>
             </td>
           </tr>
@@ -228,7 +207,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           <tbody>{rowsHtml}</tbody>
         </table>
       </div>
-      <Pagination result={props.result.pagination || { page: context.page }} options={{
+      <Pagination result={response.pagination || { page: context.page }} options={{
         page: context.page,
         perPage: context.perPage,
         itemLabel: context.itemLabel || "records",

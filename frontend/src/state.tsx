@@ -3,6 +3,18 @@
 // by importing only the leaf JSX runtime.
 import { h, Fragment, render as renderTree, cx, classAdd } from "./jsx/jsx-runtime.ts";
 import type { ClassName } from "./jsx/classes.ts";
+import type {
+  HierarchyPlan,
+  HierarchyRun,
+  HierarchySearch,
+  MetricEvidence,
+  MetricValue,
+  OverviewResponse,
+  SourceFilterCount,
+  SourceResultCount,
+  TableInfo,
+  WireRecord,
+} from "./api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -32,10 +44,10 @@ export const breadcrumbHost = document.querySelector<HTMLElement>("#workspace-br
 
 /** The shared viewer state: discovered context options, tables, and request lifecycle. */
 export interface ViewerState {
-  searches: any[];
-  plans: any[];
-  runs: any[];
-  tables: any[];
+  searches: HierarchySearch[];
+  plans: HierarchyPlan[];
+  runs: HierarchyRun[];
+  tables: TableInfo[];
   request: number;
   controller: AbortController | null;
 }
@@ -214,40 +226,42 @@ export function detailOrigin(): DetailOrigin | null {
 }
 
 /** Escapes a value for safe HTML text insertion. */
-export function esc(raw: any): string {
+export function esc(raw: unknown): string {
   const element = document.createElement("span");
   element.textContent = raw == null ? "" : String(raw);
   return element.innerHTML;
 }
 
 /** Formats a value for JSON-oriented display. */
-export function asJSON(item: any): string {
+export function asJSON(item: unknown): string {
   if (typeof item === "string") return item;
   return JSON.stringify(item, null, 2);
 }
 
 /** Returns the first matching array in an API response. */
-export function list(data: any, keys?: string[]): any[] {
+export function list<T = WireRecord>(data: unknown, keys?: string[]): T[] {
+  const record = data as WireRecord | null;
   if (keys) {
     for (const key of keys) {
-      if (Array.isArray(data?.[key])) return data[key];
+      if (Array.isArray(record?.[key])) return record[key] as T[];
     }
   }
-  if (Array.isArray(data)) return data;
+  if (Array.isArray(data)) return data as T[];
   return [];
 }
 
 /** Returns the first supported identifier present on an item. */
-export function pickID(item: any): any {
-  if (item?.id)        return item.id;
-  if (item?.search_id) return item.search_id;
-  if (item?.run_id)    return item.run_id;
-  if (item?.plan_id)   return item.plan_id;
+export function pickID(item: WireRecord | HierarchySearch | HierarchyPlan | HierarchyRun | null | undefined): unknown {
+  const record = item as WireRecord | null | undefined;
+  if (record?.id)        return record.id;
+  if (record?.search_id) return record.search_id;
+  if (record?.run_id)    return record.run_id;
+  if (record?.plan_id)   return record.plan_id;
   return "";
 }
 
 /** Returns the first non-empty display field on an item. */
-export function text(item: any, fields: string[]): string {
+export function text(item: WireRecord | null | undefined, fields: string[]): string {
   for (const field of fields) {
     if (item?.[field] !== undefined && item?.[field] !== null && item[field] !== "") {
       return String(item[field]);
@@ -257,22 +271,23 @@ export function text(item: any, fields: string[]): string {
 }
 
 /** Classifies numeric evidence without conflating missing or malformed values with recorded zero. */
-export function numericEvidence(raw: any): { state: "recorded" | "derived" | "unavailable" | "invalid"; value: number | null } {
-  if (raw?.state === "invalid") return { state: "invalid", value: null };
-  if (raw?.available === false || raw == null || raw === "") return { state: "unavailable", value: null };
-  const parsed = Number(raw?.value ?? raw);
+export function numericEvidence(raw: unknown): { state: "recorded" | "derived" | "unavailable" | "invalid"; value: number | null } {
+  const evidence = raw as Partial<MetricEvidence> | null;
+  if (evidence?.state === "invalid") return { state: "invalid", value: null };
+  if (evidence?.available === false || raw == null || raw === "") return { state: "unavailable", value: null };
+  const parsed = Number(evidence?.value ?? raw);
   if (!Number.isFinite(parsed)) return { state: "invalid", value: null };
-  if (raw?.state === "derived") return { state: "derived", value: parsed };
+  if (evidence?.state === "derived") return { state: "derived", value: parsed };
   return { state: "recorded", value: parsed };
 }
 
 /** Converts numeric evidence to a number, returning NaN when it is unavailable or invalid. */
-export function number(raw: any): number {
+export function number(raw: unknown): number {
   return numericEvidence(raw).value ?? Number.NaN;
 }
 
 /** Formats number. */
-export function formatNumber(raw: any): string {
+export function formatNumber(raw: unknown): string {
   const evidence = numericEvidence(raw);
   if (evidence.state === "unavailable") return "Not recorded";
   if (evidence.state === "invalid") return "Invalid value";
@@ -280,7 +295,7 @@ export function formatNumber(raw: any): string {
 }
 
 /** Formats a count as a percentage of its denominator. */
-export function percent(raw: any, denominator: any): string {
+export function percent(raw: unknown, denominator: unknown): string {
   const count = number(raw);
   const base = number(denominator);
   if (base > 0) {
@@ -290,26 +305,26 @@ export function percent(raw: any, denominator: any): string {
 }
 
 /** Formats time. */
-export function formatTime(raw: any): string {
+export function formatTime(raw: unknown): string {
   if (!raw) return "—";
-  const date = new Date(raw);
+  const date = new Date(String(raw));
   if (Number.isNaN(date.getTime())) return String(raw);
   return dateTimeFormatter.format(date);
 }
 
 /** Formats a timestamp as one UTC calendar date for grouping and display. */
-export function formatDate(raw: any): string {
+export function formatDate(raw: unknown): string {
   if (!raw) return "Not recorded";
-  const date = new Date(raw);
+  const date = new Date(String(raw));
   if (Number.isNaN(date.getTime())) return String(raw);
   return dateFormatter.format(date);
 }
 
 /** Formats the elapsed time between two recorded timestamps. */
-export function formatDuration(startedAt: any, finishedAt: any): string {
+export function formatDuration(startedAt: unknown, finishedAt: unknown): string {
   if (!startedAt || !finishedAt) return "—";
-  const started = new Date(startedAt).getTime();
-  const finished = new Date(finishedAt).getTime();
+  const started = new Date(String(startedAt)).getTime();
+  const finished = new Date(String(finishedAt)).getTime();
   if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started) return "—";
   var seconds = Math.round((finished - started) / 1000);
   const hours = Math.floor(seconds / 3600);
@@ -324,7 +339,7 @@ export function formatDuration(startedAt: any, finishedAt: any): string {
 }
 
 /** Formats bytes. */
-export function formatBytes(raw: any): string {
+export function formatBytes(raw: unknown): string {
   const rawBytes = number(raw);
   if (!Number.isFinite(rawBytes)) return formatNumber(raw);
   const bytes = Math.max(0, rawBytes);
@@ -340,7 +355,7 @@ export function formatBytes(raw: any): string {
 }
 
 /** Converts a machine-oriented identifier to a title-cased display label. */
-export function humanLabel(raw: any): string {
+export function humanLabel(raw: unknown): string {
   const spaced = String(raw || "").replace(/_/g, " ");
   return spaced.replace(/\b\w/g, (character) => {
     return character.toUpperCase();
@@ -348,9 +363,9 @@ export function humanLabel(raw: any): string {
 }
 
 /** Parses object. */
-export function parseObject(raw: any): Record<string, any> {
+export function parseObject(raw: unknown): WireRecord {
   if (raw && typeof raw === "object") {
-    return raw;
+    return raw as WireRecord;
   }
   if (!raw || typeof raw !== "string") {
     return {};
@@ -358,7 +373,7 @@ export function parseObject(raw: any): Record<string, any> {
   try {
     const parsed = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
-      return parsed;
+      return parsed as WireRecord;
     }
   } catch (_) {
     return {};
@@ -367,7 +382,7 @@ export function parseObject(raw: any): Record<string, any> {
 }
 
 /** Maps a recorded status to its semantic color class. */
-export function statusClass(raw: any): ClassName {
+export function statusClass(raw: unknown): ClassName {
   const normalized = String(raw || "").trim().toLowerCase();
   const status = normalized.replace(/[ -]+/g, "_");
   const danger = new Set(["fail", "failed", "parse_failed", "provider_failed", "network_failed", "discard", "discarded", "error", "errored", "trash", "trashed", "purge", "purged", "reject", "rejected", "invalid", "removed"]);
@@ -387,25 +402,26 @@ export function statusClass(raw: any): ClassName {
 }
 
 /** Renders one status chip with its semantic color class. */
-export function StatusChip(props: { raw: any }): JSX.Element {
+export function StatusChip(props: { raw: unknown }): JSX.Element {
   const chipClass = cx("ui", statusClass(props.raw), "label");
-  return <span className={chipClass}>{props.raw || "Not recorded"}</span>;
+  return <span className={chipClass}>{props.raw == null || props.raw === "" ? "Not recorded" : String(props.raw)}</span>;
 }
 
 /** Normalizes array- or object-backed metrics to display-name and value pairs. */
-export function metricEntries(group: any): Array<[string, any]> {
+export function metricEntries(group: MetricValue[] | Record<string, MetricValue> | null | undefined): Array<[string, MetricValue]> {
   if (Array.isArray(group)) {
     return group.map((item) => {
       var suffix = "";
-      if (item.source) suffix = ` (${item.source})`;
-      return [`${item.metric || "Metric"}${suffix}`, item];
+      if (typeof item === "object" && item !== null && item.source) suffix = ` (${item.source})`;
+      const metric = typeof item === "object" && item !== null ? item.metric : "";
+      return [`${metric || "Metric"}${suffix}`, item];
     });
   }
   return Object.entries(group || {});
 }
 
 /** Returns the pipeline run selected by the current URL context. */
-export function selectedRun(): any {
+export function selectedRun(): HierarchyRun | undefined {
   const runId = value("run_id");
   return state.runs.find((run) => {
     return String(pickID(run)) === runId;
@@ -413,8 +429,8 @@ export function selectedRun(): any {
 }
 
 /** Shows error. */
-export function showError(error: any): void {
-  notice.textContent = error?.message || String(error);
+export function showError(error: unknown): void {
+  notice.textContent = error instanceof Error ? error.message : String(error);
   notice.hidden = false;
 }
 
@@ -432,7 +448,7 @@ export function busy(isBusy: boolean): void {
 }
 
 /** Builds an internal URL from canonical context and destination-owned state only. */
-export function link(updates?: Record<string, any>): string {
+export function link(updates?: Record<string, unknown>): string {
   if (!updates) {
     updates = {};
   }
@@ -475,8 +491,8 @@ export function link(updates?: Record<string, any>): string {
 }
 
 /** Adds route and focus cleanup required when a parent research context changes. */
-export function contextChange(updates: Record<string, any>): Record<string, any> {
-  const cleaned: Record<string, any> = {
+export function contextChange(updates: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {
     ...updates,
     article_id: "",
     author_id: "",
@@ -579,10 +595,10 @@ export function Panel(props: { title: string; description: string; body: JSX.Ele
 }
 
 /** One table column definition: a field name or a labeled renderer. */
-export type TableColumn = string | { label: string; render: (row: any) => JSX.Element };
+export type TableColumn = string | { label: string; render: (row: WireRecord) => JSX.Element };
 
 /** Renders an escaped data table inside the standard panel wrapper. */
-export function Table(props: { title: string; description: string; columns: TableColumn[]; rows: any[]; classes?: readonly ClassName[] }): JSX.Element {
+export function Table(props: { title: string; description: string; columns: TableColumn[]; rows: WireRecord[]; classes?: readonly ClassName[] }): JSX.Element {
   const header = props.columns.map((column) => {
     var label = "";
     if (typeof column === "string") {
@@ -592,7 +608,7 @@ export function Table(props: { title: string; description: string; columns: Tabl
     }
     return <th scope="col">{label}</th>;
   });
-  var body: JSX.Element[] = [<tr><td colspan={Math.max(props.columns.length, 1)} className="rw-table-empty">No records.</td></tr>];
+  var body: JSX.Element[] = [<tr><td colSpan={Math.max(props.columns.length, 1)} className="rw-table-empty">No records.</td></tr>];
   if (props.rows.length) {
     body = props.rows.map((row) => {
       const cells = props.columns.map((column) => {
@@ -633,12 +649,12 @@ export function Subnav(props: { items: Array<[string, string]>; current: string;
 
 /** One filter summary rendering option set. */
 export interface FilterChipOptions {
-  removeUpdates?: Record<string, any>;
-  clearUpdates?: Record<string, any>;
+  removeUpdates?: Record<string, unknown>;
+  clearUpdates?: Record<string, unknown>;
 }
 
 /** Renders removable filter chips with a clear-all action. */
-export function FilterChips(props: { filters: Record<string, any> | null; labels?: Record<string, string>; options?: FilterChipOptions }): JSX.Element {
+export function FilterChips(props: { filters: Record<string, unknown> | null; labels?: Record<string, string>; options?: FilterChipOptions }): JSX.Element {
   const options = props.options || {};
   const filterEntries = Object.entries(props.filters || {});
   const entries = filterEntries.filter(([, raw]) => {
@@ -651,7 +667,7 @@ export function FilterChips(props: { filters: Record<string, any> | null; labels
     var values = [raw];
     if (Array.isArray(raw)) values = raw;
     return values.map((item) => {
-      var remaining: any = "";
+      var remaining = "";
       if (Array.isArray(raw)) {
         remaining = raw.filter((candidate) => {
           return candidate !== item;
@@ -663,7 +679,7 @@ export function FilterChips(props: { filters: Record<string, any> | null; labels
         <a className="rw-filter-chip" href={href} title="Remove filter">
           <span>{props.labels?.[key] || humanLabel(key)}:</span>
           {" "}
-          {item}
+          {String(item)}
           {" "}
           <b aria-hidden="true">{"\u00D7"}</b>
         </a>
@@ -687,8 +703,9 @@ export function FilterChips(props: { filters: Record<string, any> | null; labels
 }
 
 /** Renders a metric card with availability, denominator, and optional navigation. */
-export function MetricCard(props: { name: string; metric: any; href?: string }): JSX.Element {
+export function MetricCard(props: { name: string; metric: MetricValue | null | undefined; href?: string }): JSX.Element {
   const evidence = numericEvidence(props.metric);
+  const metric = typeof props.metric === "object" && props.metric !== null ? props.metric : null;
   const unavailable = evidence.state === "unavailable";
   var content: JSX.Element = (
     <>
@@ -706,13 +723,13 @@ export function MetricCard(props: { name: string; metric: any; href?: string }):
       </>
     );
   } else if (!unavailable) {
-    const value = formatNumber(props.metric?.value ?? props.metric);
+    const value = formatNumber(metric?.value ?? props.metric);
     var detail: JSX.Element | null = null;
-    if (props.metric?.denominator != null) {
-      const pct = props.metric.percentage ?? percent(props.metric.value, props.metric.denominator);
-      detail = <small>{formatNumber(props.metric.value)} of {formatNumber(props.metric.denominator)} ({pct})</small>;
-    } else if (props.metric?.basis || props.metric?.unit) {
-      detail = <small>{props.metric.basis || props.metric.unit}</small>;
+    if (metric?.denominator != null) {
+      const pct = metric.percentage ?? percent(metric.value, metric.denominator);
+      detail = <small>{formatNumber(metric.value)} of {formatNumber(metric.denominator)} ({pct})</small>;
+    } else if (metric?.basis || metric?.unit) {
+      detail = <small>{metric.basis || metric.unit}</small>;
     }
     content = (
       <>
@@ -734,11 +751,11 @@ export interface FlowStageOptions {
   denominatorLabel?: string;
   baselineLabel?: string;
   href?: string;
-  outcomes?: Array<{ label: string; value: any }>;
+  outcomes?: Array<{ label: string; value: unknown }>;
 }
 
 /** Renders one retention-flow stage with counts, percentages, and optional links. */
-export function FlowStage(props: { label: string; raw: any; base: any; previous: any; modifier?: ClassName; stageKey: string; options: FlowStageOptions }): JSX.Element {
+export function FlowStage(props: { label: string; raw: unknown; base: unknown; previous: unknown; modifier?: ClassName; stageKey: string; options: FlowStageOptions }): JSX.Element {
   const options = props.options || {};
   const stageClass = cx("ui", "step", "rw-flow__step", props.modifier);
   var info: JSX.Element | null = null;
@@ -784,7 +801,7 @@ export function FlowStage(props: { label: string; raw: any; base: any; previous:
   if (props.previous == null) {
     change = options.baselineLabel || "Input baseline";
   } else {
-    const diff = props.previous - count;
+    const diff = number(props.previous) - count;
     if (diff === 0) {
       change = "No change from prior";
     } else {
@@ -862,7 +879,7 @@ const filterPresentations: Record<string, { groupLabel: string; label: string; d
 };
 
 /** Combines cumulative source filter counts into ordered cross-source stages. */
-function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: any; groupLabel: string; label: string; description: string }>; sourceCount: number } {
+function sourceFilterStageSummary(items: SourceFilterCount[]): { stages: Array<{ count: number | MetricEvidence; groupLabel: string; label: string; description: string }>; sourceCount: number } {
   var bySource = new Map<string, Map<string, { count: number; filters: string[] }>>();
   (items || []).forEach((item) => {
     if (!Array.isArray(item?.filters) || item.filters.length === 0) {
@@ -888,12 +905,12 @@ function sourceFilterStageSummary(items: any[]): { stages: Array<{ count: any; g
   const orderedIdentities = Array.from(identities.entries()).sort((left, right) => {
     return left[1].length - right[1].length || left[0].localeCompare(right[0]);
   });
-  var stages: Array<{ count: any; groupLabel: string; label: string; description: string }> = [];
+  var stages: Array<{ count: number | MetricEvidence; groupLabel: string; label: string; description: string }> = [];
   orderedIdentities.forEach(([identity, filters], index) => {
     const matching = sources.map((sourceStages) => {
       return sourceStages.get(identity);
     });
-    var count: any = { available: false, state: "unavailable" };
+    var count: number | MetricEvidence = { available: false, state: "unavailable" };
     if (matching.every(Boolean)) {
       count = matching.reduce((sum, stage) => {
         return sum + stage!.count;
@@ -939,7 +956,7 @@ function RetentionPhase(props: { title: string; description: string; summary: st
 }
 
 /** Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. */
-export function RetentionFlow(props: { overview: any }): JSX.Element {
+export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Element {
   const source = props.overview.retention_funnel || {};
   const input = source.input_records;
   const filterSummary = sourceFilterStageSummary(props.overview.source_filter_counts);
@@ -956,7 +973,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
     ["Document type", "Results retained after applying the declared document-type filter."],
     ["Language", "Results retained after applying the declared language filter."]
   ];
-  var previousFilterCount: any = null;
+  var previousFilterCount: number | null = null;
   const sourceSteps = sourceDefinitions.map(([label, description], index) => {
     const recordedStage = filterStages[index];
     const stageOptions = {
@@ -1013,7 +1030,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   if (enrichmentCandidates != null && enrichmentCandidates?.available !== false) {
     enrichmentCount = number(enrichmentCandidates);
   }
-  var pipelinePrevious: any = null;
+  var pipelinePrevious: number | null = null;
   if (hasFilterStages && Number.isFinite(number(filterStages[filterStages.length - 1].count))) pipelinePrevious = number(filterStages[filterStages.length - 1].count);
   const stageHref = (stage: string) => {
     if (stage === "input") return link({ view: "corpus", section: "sources", q: "", page: 1 });
@@ -1039,7 +1056,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
   );
 
   const discardedCount = number(source.discarded_articles);
-  var validationTotal: any = { available: false, state: "unavailable" };
+  var validationTotal: MetricEvidence | number = { available: false, state: "unavailable" };
   if (Number.isFinite(validCount) && Number.isFinite(discardedCount)) validationTotal = validCount + discardedCount;
   const corpusSteps = [
     <FlowStage label="Candidate articles" raw={enrichmentCandidates} base={initialCount} previous={dedupedCount} stageKey="enrichment_candidates" options={stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich"))} />,
@@ -1060,7 +1077,7 @@ export function RetentionFlow(props: { overview: any }): JSX.Element {
 }
 
 /** Renders a metric breakdown table with relative bars and optional total percentages. */
-export function Breakdown(props: { title: string; source: any; valueLabel?: string; useTotal?: boolean }): JSX.Element {
+export function Breakdown(props: { title: string; source: Record<string, MetricEvidence>; valueLabel?: string; useTotal?: boolean }): JSX.Element {
   const valueLabel = props.valueLabel || "Count";
   const entries = metricEntries(props.source);
   if (!entries.length) {
@@ -1087,7 +1104,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   const max = total || Math.max.apply(null, finiteEntryValues.concat([1]));
 
   /** Renders one breakdown value with availability and optional percentage. */
-  function valueRender(row: any): JSX.Element {
+  function valueRender(row: WireRecord): JSX.Element {
     const evidence = numericEvidence(row.raw);
     if (evidence.state === "unavailable") {
       return <span className={classNames.uiFadedText}>Not recorded</span>;
@@ -1109,7 +1126,7 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
   }
 
   /** Renders an accessible relative-volume bar for one breakdown row. */
-  function barRender(row: any): JSX.Element {
+  function barRender(row: WireRecord): JSX.Element {
     const value = number(row.raw);
     if (!Number.isFinite(value)) {
       return <span className={classNames.uiFadedText}>—</span>;
@@ -1149,10 +1166,10 @@ export function Breakdown(props: { title: string; source: any; valueLabel?: stri
 }
 
 /** Renders the expected-versus-observed source export count table. */
-export function SourceResultCountSummary(props: { items: any[] | null; classes?: readonly ClassName[] }): JSX.Element {
+export function SourceResultCountSummary(props: { items: SourceResultCount[] | null; classes?: readonly ClassName[] }): JSX.Element {
 
   /** Formats a source count or its unavailable state. */
-  function count(raw: any): JSX.Element {
+  function count(raw: unknown): JSX.Element {
     if (raw == null) {
       return <span className={classNames.uiFadedText}>Not recorded</span>;
     }
@@ -1160,7 +1177,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
   }
 
   /** Renders a status chip for a source-count comparison. */
-  function comparison(raw: any): JSX.Element {
+  function comparison(raw: unknown): JSX.Element {
     if (raw) {
       return <StatusChip raw={raw} />;
     }
@@ -1168,9 +1185,9 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
   }
 
   /** Renders an export date or its unavailable state. */
-  function date(raw: any): JSX.Element {
+  function date(raw: unknown): JSX.Element {
     if (raw) {
-      return <>{raw}</>;
+      return <>{String(raw)}</>;
     }
     return <span className={classNames.uiFadedText}>Not recorded</span>;
   }
@@ -1189,7 +1206,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
     {
       label: "Source",
       render: (row) => {
-        return <>{row.source}</>;
+        return <>{String(row.source)}</>;
       },
     },
     {
@@ -1223,7 +1240,7 @@ export function SourceResultCountSummary(props: { items: any[] | null; classes?:
 }
 
 /** Renders expandable exact-query markup for source exports. */
-export function SourceSearchQueries(props: { items: any[] | null; classes?: readonly ClassName[] }): JSX.Element | null {
+export function SourceSearchQueries(props: { items: SourceResultCount[] | null; classes?: readonly ClassName[] }): JSX.Element | null {
   if (!props.items || !props.items.length) {
     return null;
   }
@@ -1250,7 +1267,7 @@ export function SourceSearchQueries(props: { items: any[] | null; classes?: read
 }
 
 /** Renders chronological audit feed markup for generic event rows. */
-export function Timeline(props: { rows: any[] }): JSX.Element {
+export function Timeline(props: { rows: WireRecord[] }): JSX.Element {
   if (!props.rows.length) {
     return <p className={classNames.uiFadedText}>No records.</p>;
   }
@@ -1260,26 +1277,26 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
     const entityType = text(event, ["entity_type", "entity", "source"]);
     const actor = event.actor;
     const entityId = event.entity_id;
-    const meta = event.metadata_json;
+    const meta = parseObject(event.metadata_json);
 
     var detail: JSX.Element | null = null;
-    if (meta && typeof meta === "object") {
+    if (Object.keys(meta).length) {
       if (meta.field && meta.provider) {
-        detail = <>Field <strong>{meta.field}</strong> enriched by <strong>{meta.provider}</strong></>;
+        detail = <>Field <strong>{String(meta.field)}</strong> enriched by <strong>{String(meta.provider)}</strong></>;
       } else if (meta.reasons) {
         var reasonsText = String(meta.reasons);
         if (Array.isArray(meta.reasons)) reasonsText = meta.reasons.join("; ");
         detail = <>{reasonsText}</>;
       } else if (meta.error) {
-        detail = <>Error: {meta.error}</>;
+        detail = <>Error: {String(meta.error)}</>;
       } else if (meta.status) {
-        detail = <>Status: {meta.status}</>;
+        detail = <>Status: {String(meta.status)}</>;
       } else if (meta.identity) {
-        detail = <>{meta.identity}</>;
+        detail = <>{String(meta.identity)}</>;
       } else if (meta.reason) {
-        detail = <>{meta.reason}</>;
+        detail = <>{String(meta.reason)}</>;
       } else if (meta.search_id) {
-        detail = <>Search: {meta.search_id}{meta.revision ? <> / revision {meta.revision}</> : null}</>;
+        detail = <>Search: {String(meta.search_id)}{meta.revision ? <> / revision {String(meta.revision)}</> : null}</>;
       }
     }
 
@@ -1297,8 +1314,8 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
 
     return (
       <li className={eventClass}>
-        {actor ? <span className="user">{actor}</span> : null}
-        {entityId ? <span className="extra">{entityType} #{entityId}</span> : null}
+        {actor ? <span className="user">{String(actor)}</span> : null}
+        {entityId ? <span className="extra">{entityType} #{String(entityId)}</span> : null}
         <strong>{action}</strong>
         <br />
         {detail ? <span className="summary">{detail}</span> : null}
@@ -1312,7 +1329,7 @@ export function Timeline(props: { rows: any[] }): JSX.Element {
 }
 
 /** Renders a table whose columns are derived from the supplied detail records. */
-export function DetailTable(props: { title: string; rows: any }): JSX.Element {
+export function DetailTable(props: { title: string; rows: unknown }): JSX.Element {
   const records = list(props.rows, ["items", "rows"]);
   const recordKeys = records.flatMap((record) => {
     return Object.keys(record);
@@ -1321,7 +1338,7 @@ export function DetailTable(props: { title: string; rows: any }): JSX.Element {
   const colDefs = columns.map((key) => {
     return {
       label: key,
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return <Cell item={row[key]} column={key} />;
       },
     };
@@ -1335,7 +1352,7 @@ export interface CellOptions {
 }
 
 /** Renders and links a table cell according to its column and table context. */
-export function Cell(props: { item: any; column: string; tableName?: string; options?: CellOptions }): JSX.Element {
+export function Cell(props: { item: unknown; column: string; tableName?: string; options?: CellOptions }): JSX.Element {
   const tableName = props.tableName || "";
   const options = props.options || {};
   if (props.item === null || props.item === undefined) {

@@ -194,7 +194,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
         {pageToolbar}
         {displayToolbar}
       </div>
-      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" tabindex={0}></div>
+      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" tabIndex={0}></div>
       {statusText}
     </section>
   );

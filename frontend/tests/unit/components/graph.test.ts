@@ -7,7 +7,7 @@ import { GraphField, graphQuery, graphLink, GraphResult, graphClusters, zoomView
 import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
 
-const graphField = (name: string, label: string, type?: string): string => renderToString(GraphField({ name: name, label: label, type: type }));
+const graphField = (name: string, label: string, type?: JSX.RWInputType): string => renderToString(GraphField({ name: name, label: label, type: type }));
 const graphResult = (data: any): string => renderToString(GraphResult({ data: data }));
 
 describe('graph.tsx — graphField', function() {

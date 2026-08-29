@@ -3,6 +3,7 @@ import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, list, pa
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
+import type { AuditRecordedData, AuditResponse, DetailCollectionPage } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -266,7 +267,7 @@ export function bindAuditRecordedData(root: ParentNode = document): void {
       const eventID = details.dataset.auditRecordedDetails || "";
       host.textContent = "Loading recorded data…";
       try {
-        const data = await api(`/api/audit/${encodeURIComponent(eventID)}/recorded-data`, { run_id: value("run_id") }, {
+        const data = await api<AuditRecordedData>(`/api/audit/${encodeURIComponent(eventID)}/recorded-data`, { run_id: value("run_id") }, {
           method: "GET",
           headers: { Accept: "application/json" },
         });
@@ -305,7 +306,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   }
   return (
     <article className={eventClass} data-audit-event-id={eventID}>
-      <time datetime={timestamp || ""}><span>{formatTime(timestamp)}</span></time>
+      <time dateTime={timestamp || ""}><span>{formatTime(timestamp)}</span></time>
       <div className="rw-audit-event__main">
         <div className="rw-audit-event__heading">
           <h5>{humanLabel(props.event.action || "event")}</h5>
@@ -483,7 +484,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
       pageStatus.textContent = "Loading older audit events…";
       try {
         const cursor = nextCursor;
-        const data = await api(endpoint, { run_id: value("run_id"), limit: recordAuditBatchSize, cursor: cursor }, {
+        const data = await api<AuditResponse | DetailCollectionPage<AuditEventRecord>>(endpoint, { run_id: value("run_id"), limit: recordAuditBatchSize, cursor: cursor }, {
           method: "GET",
           headers: { Accept: "application/json" },
         });
@@ -494,7 +495,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
             events.push(event);
           }
         });
-        nextCursor = data.next_cursor || "";
+        nextCursor = String(data.next_cursor || "");
         const cursorKey = (root as HTMLElement).dataset.recordAuditCursorKey || "";
         if (cursorKey) history.replaceState({}, "", link({ [cursorKey]: cursor }));
         visibleLimit += recordAuditBatchSize;

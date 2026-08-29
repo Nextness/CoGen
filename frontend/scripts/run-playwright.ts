@@ -16,7 +16,7 @@ const fixturePDF = process.env.FIXTURE_PDF_DB || inferredFixturePDF;
 const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, 'frontend', 'dist');
 const runDir = path.join(rootDir, 'build', 'playwright', `run-${Date.now()}-${process.pid}`);
 const timeoutMS = 30_000;
-const mutationSpecs = ['review.spec.ts', 'e2e.spec.ts'];
+const mutationSpecs = ['review.spec.ts', 'e2e.spec.ts', 'api-shapes.spec.ts'];
 
 /** One isolated Playwright execution class. */
 type Suite = 'read' | 'mutation';

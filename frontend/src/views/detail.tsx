@@ -7,6 +7,21 @@ import {
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api } from "../api.tsx";
+import type {
+  ArticleDetailResponse,
+  ArticleRecord,
+  APIQuery,
+  AuthorRecord,
+  AuthorDetailResponse,
+  DetailCollectionPage,
+  EvaluationNavigation,
+  EvaluationResponse,
+  IdentityCandidate,
+  IdentityCandidatesResponse,
+  ReferenceDetailResponse,
+  ReferenceRecord,
+  WireRecord,
+} from "../api/types.ts";
 import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 import { mountArticleReview } from "../components/review-panel.tsx";
@@ -98,6 +113,9 @@ interface DetailEntry {
   label: string;
   value: any;
 }
+
+/** The fields shared by the three detail presentations after endpoint dispatch. */
+type RenderableDetailRecord = WireRecord & Partial<ArticleRecord & AuthorRecord & ReferenceRecord> & { id: number };
 
 /** Renders definition-list markup for labeled record properties. */
 function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[]): JSX.Element {
@@ -259,7 +277,7 @@ function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element
 function CollectionMarkup(props: { collectionKey: string; state: CollectionState }): JSX.Element {
   const collection = props.state;
   const emptyColumnSpan = Math.max(1, collection.columns.length);
-  const emptyCell = <td colspan={emptyColumnSpan} className="rw-table-empty">No records.</td>;
+  const emptyCell = <td colSpan={emptyColumnSpan} className="rw-table-empty">No records.</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (collection.rows.length) {
     body = collection.rows.map((row) => {
@@ -351,7 +369,7 @@ async function loadCollectionPage(key: string, cursor: string, rememberCurrent: 
   state.error = "";
   renderCollection(key);
   try {
-    const data = await api(state.endpoint, { run_id: value("run_id"), limit: 25, cursor: cursor }, {
+    const data = await api<DetailCollectionPage<WireRecord>>(state.endpoint, { run_id: value("run_id"), limit: 25, cursor: cursor }, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -546,7 +564,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
 }
 
 /** Renders the article detail view from its immutable revision payload. */
-function ArticleView(props: { record: any; data: any }): JSX.Element {
+function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse }): JSX.Element {
   const extension = parseObject(props.record.extension_data);
   const validation = extension.validation_status || props.record.validation_status || "Not recorded";
   const audits: AuditEventRecord[] = list(props.data.audit_events, ["events", "items"]);
@@ -836,7 +854,7 @@ function bindIdentityCandidatePages(runID: string): void {
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        const page = await api(`/api/identity-resolutions/${encodeURIComponent(resolutionID)}/candidates`, {
+        const page = await api<IdentityCandidatesResponse>(`/api/identity-resolutions/${encodeURIComponent(resolutionID)}/candidates`, {
           run_id: runID,
           limit: 25,
           cursor: cursor,
@@ -864,7 +882,7 @@ function bindIdentityCandidatePages(runID: string): void {
 }
 
 /** Renders the author occurrence detail view with related articles and audit evidence. */
-function AuthorView(props: { record: any; data: any }): JSX.Element {
+function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse }): JSX.Element {
   const articles = list(props.data.articles, ["rows", "items"]);
   const audits: AuditEventRecord[] = list(props.data.audit_events, ["events", "items"]);
   var identity = "Observed occurrence only";
@@ -938,7 +956,7 @@ function AuthorView(props: { record: any; data: any }): JSX.Element {
 }
 
 /** Renders the reference mention detail view with citation context. */
-function ReferenceView(props: { record: any }): JSX.Element {
+function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
   const resolved = Boolean(props.record.resolved_revision_id);
   var resolutionLabel = "Unresolved";
   if (resolved) resolutionLabel = "Resolved internally";
@@ -1050,27 +1068,34 @@ export async function detailView(kind: string): Promise<void> {
   }
 
   collectionState.clear();
-  const apiOptions: Record<string, any> = { run_id: value("run_id") };
-
-  const data = await api(`/api/${kind}s/${encodeURIComponent(id)}`, apiOptions, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
-  });
-  const record = data.article || data.author || data.reference || data;
+  const apiOptions: APIQuery = { run_id: value("run_id") };
+  let data: ArticleDetailResponse | AuthorDetailResponse | ReferenceDetailResponse;
+  let record: RenderableDetailRecord;
+  if (kind === "article") {
+    const articleData = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    data = articleData;
+    record = articleData.article;
+  } else if (kind === "author") {
+    const authorData = await api<AuthorDetailResponse>(`/api/authors/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    data = authorData;
+    record = authorData.author;
+  } else {
+    const referenceData = await api<ReferenceDetailResponse>(`/api/references/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    data = referenceData;
+    record = referenceData.reference;
+  }
   const origin = detailOrigin();
-  var evaluationNavigation: any = null;
+  var evaluationNavigation: EvaluationNavigation | null = null;
   var evaluationNavigationError = "";
   if (kind === "article" && origin?.view === "evaluation") {
-    const navigationQuery: Record<string, any> = { current_revision_id: id };
+    const navigationQuery: APIQuery = { current_revision_id: id };
     routeOwnedKeys.evaluation.forEach((key) => {
       if (key !== "page" && key !== "per_page") navigationQuery[key] = origin.params.get(key) || "";
     });
     navigationQuery.page = 1;
     navigationQuery.per_page = 20;
     try {
-      const queue = await api(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery, {
+      const queue = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery, {
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -1085,11 +1110,11 @@ export async function detailView(kind: string): Promise<void> {
   else if (kind === "author") title = record.citation_name || labels[kind];
   else title = record.title || record.doi || labels[kind];
 
-  var body: JSX.Element = <ReferenceView record={record} />;
+  var body: JSX.Element = <ReferenceView record={record as ReferenceRecord} />;
   if (kind === "article") {
-    body = <ArticleView record={record} data={data} />;
+    body = <ArticleView record={record as ArticleRecord} data={data as ArticleDetailResponse} />;
   } else if (kind === "author") {
-    body = <AuthorView record={record} data={data} />;
+    body = <AuthorView record={record as AuthorRecord} data={data as AuthorDetailResponse} />;
   }
 
   const homeHref = link({
@@ -1171,6 +1196,7 @@ export async function detailView(kind: string): Promise<void> {
   renderTree(page, app);
 
   if (kind === "article") {
+    const articleData = data as ArticleDetailResponse;
     mountCollection("article-authors", "Ordered authors", "Observed author occurrences in bibliographic order.", [
       {
         label: "Order",
@@ -1195,7 +1221,7 @@ export async function detailView(kind: string): Promise<void> {
           return <StatusChip raw="Observed occurrence only" />;
         },
       },
-    ], data.authors, `/api/articles/${encodeURIComponent(record.id)}/collections/authors`, "detail_authors_cursor");
+    ], articleData.authors, `/api/articles/${encodeURIComponent(record.id)}/collections/authors`, "detail_authors_cursor");
     mountCollection("article-references", "Reference mentions", "Ordered references captured for this article revision.", [
       {
         label: "Order",
@@ -1222,7 +1248,7 @@ export async function detailView(kind: string): Promise<void> {
           return <StatusChip raw="Unresolved" />;
         },
       },
-    ], data.references, `/api/articles/${encodeURIComponent(record.id)}/collections/references`, "detail_references_cursor");
+    ], articleData.references, `/api/articles/${encodeURIComponent(record.id)}/collections/references`, "detail_references_cursor");
     mountCollection("article-stage-outcomes", "Pipeline stage history", "Recorded per-work outcomes for the selected run. Audit events below are persisted append-only records.", [
       {
         label: "Stage",
@@ -1244,15 +1270,15 @@ export async function detailView(kind: string): Promise<void> {
         label: "Last updated",
         render: (row) => recorded(formatTime(row.updated_at)),
       },
-    ], data.stage_outcomes, `/api/articles/${encodeURIComponent(record.id)}/collections/stages`, "detail_stages_cursor");
+    ], articleData.stage_outcomes, `/api/articles/${encodeURIComponent(record.id)}/collections/stages`, "detail_stages_cursor");
     if (Number(record.id) > 0 && Number(record.work_id) > 0 && Number(record.pipeline_run_id) > 0) {
       activeArticleReview = await mountArticleReview(
         document.querySelector("[data-review-host]") as HTMLElement,
         document.querySelector<HTMLElement>("[data-pdf-viewer-host]"),
         record,
-        data,
+        articleData,
         async () => {
-          const refreshed = await api(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") }, {
+          const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") }, {
             method: "GET",
             headers: {
               Accept: "application/json",
@@ -1269,6 +1295,7 @@ export async function detailView(kind: string): Promise<void> {
     }
   }
   if (kind === "author") {
+    const authorData = data as AuthorDetailResponse;
     mountCollection("author-articles", "Linked article revisions", "Articles that contain this observed author occurrence.", [
       {
         label: "Article revision",
@@ -1290,9 +1317,9 @@ export async function detailView(kind: string): Promise<void> {
         label: "Affiliation",
         render: (row) => recorded(row.affiliation),
       },
-    ], data.articles, `/api/authors/${encodeURIComponent(record.id)}/collections/articles`, "detail_articles_cursor");
-    mountCollection("author-identity", "ORCID candidate evidence", "Name-search candidates remain uncertain evidence and are never assigned automatically.", [], data.identity_evidence, `/api/authors/${encodeURIComponent(record.id)}/collections/identity`, "detail_identity_cursor");
+    ], authorData.articles, `/api/authors/${encodeURIComponent(record.id)}/collections/articles`, "detail_articles_cursor");
+    mountCollection("author-identity", "ORCID candidate evidence", "Name-search candidates remain uncertain evidence and are never assigned automatically.", [], authorData.identity_evidence, `/api/authors/${encodeURIComponent(record.id)}/collections/identity`, "detail_identity_cursor");
   }
-  bindRecordAuditInvestigation(list(data.audit_events, ["events", "items"]));
+  if ("audit_events" in data) bindRecordAuditInvestigation(list(data.audit_events, ["events", "items"]));
   bindCopyButtons();
 }

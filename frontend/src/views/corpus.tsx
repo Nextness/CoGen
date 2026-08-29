@@ -7,6 +7,7 @@ import {
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, tables } from "../api.tsx";
+import type { CorpusResponse, IdentityEvidenceResponse, TableRowsResponse } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
@@ -211,7 +212,7 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
 
   var emptyMessage = "No name-search evidence was recorded for this run.";
   if (value("q")) emptyMessage = "No evidence matches this search.";
-  const emptyCell = <td colspan={4} className="rw-table-empty">{emptyMessage}</td>;
+  const emptyCell = <td colSpan={4} className="rw-table-empty">{emptyMessage}</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (rows.length) {
     body = rows.map((row: any) => {
@@ -478,7 +479,7 @@ export async function corpusView(): Promise<void> {
   var data: any = null;
   if (scoped) {
     if (current === "identity_evidence") {
-      data = await api(`/api/runs/${runID}/identity-evidence`, {
+      data = await api<IdentityEvidenceResponse>(`/api/runs/${runID}/identity-evidence`, {
         page: page,
         per_page: perPage,
         sort: sort,
@@ -489,7 +490,7 @@ export async function corpusView(): Promise<void> {
         headers: { Accept: "application/json" },
       });
     } else {
-      data = await api(`/api/runs/${runID}/corpus/${current}`, {
+      data = await api<CorpusResponse>(`/api/runs/${runID}/corpus/${current}`, {
         page: page,
         per_page: perPage,
         sort: sort,
@@ -501,7 +502,7 @@ export async function corpusView(): Promise<void> {
       });
     }
   } else if (knownTable) {
-    data = await api(`/api/tables/${encodeURIComponent(definition.table)}`, {
+    data = await api<TableRowsResponse>(`/api/tables/${encodeURIComponent(definition.table)}`, {
       page: page,
       per_page: perPage,
       sort: sort,

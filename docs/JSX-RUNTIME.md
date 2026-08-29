@@ -38,6 +38,18 @@ The runtime exports `h`, `Fragment`, `render`, `renderToString`, `raw`, `cx`, `c
 - `null`/`undefined` → attribute omitted.
 - Any other value → `setAttribute(name, String(value))`.
 
+## 3.5 Typed attribute surface
+
+`jsx.d.ts` maps every intrinsic tag to a dedicated attribute interface instead of the former permissive `{ [attr: string]: unknown }`. The type surface is compile-time only; the runtime attribute rules in section 3 are unchanged.
+
+- Shared members live on `RWGlobalAttributes`: `className` (the generated `ClassName` registry or a branded `ClassNames`), `id`, `title`, `lang`, `role`, `tabIndex`, `hidden`, `style` (`Partial<CSSStyleDeclaration>` or string), and the typed event props `onClick`, `onDoubleClick`, `onChange`, `onInput`, `onKeyDown`, `onKeyUp`, and `onSubmit`.
+- Tag-specific interfaces add the browser vocabulary: `a` (`href`, `target`, `rel`, `download`), `button` (`type` union, `disabled`), `input` (input-type union, `value`, `placeholder`, `checked`, `readOnly`, `min`, `max`, `step`), `select`/`option`, `label` (`htmlFor`), `form`, table cells (`colSpan`, `rowSpan`, `scope`), `img` (required `src` and `alt`), `details`, `textarea`, `canvas`, `time`, `dialog`, `fieldset`, `ol`, and `li`.
+- HTML boolean attributes are typed as `boolean`, so `disabled="false"` is a compile error while the runtime's `value === true` serialization is untouched.
+- `aria-*` and `data-*` use template-literal index signatures so valid accessibility and dataset attributes type-check without an exhaustive list.
+- SVG elements are typed from `SVGElementTagNameMap` with the shared drawing attributes (`viewBox`, `d`, `fill`, `stroke`, `strokeWidth`, `cx`, `cy`, `r`, `x`, `y`, `width`, `height`, `transform`). The runtime creates SVG elements through `document.createElementNS("http://www.w3.org/2000/svg", name)`.
+- `ElementChildrenAttribute` is `{ children: JSX.Node }` where `JSX.Node = Node | string | number | boolean | null | undefined | JSX.Node[]`, so children are the rendered union rather than `{}`.
+- The runtime exports `ComponentType<P>`, `ElementType`, and `ComponentProps<T>` so components can declare and infer props without importing React types. `h` is overloaded for components, intrinsics, and `Fragment`; the implementation stays permissive internally because the JSX transform emits calls TypeScript has already checked.
+
 ## 4. Children handling rules
 
 - `null`, `undefined`, `false`, `true` → skipped. Note: `0` is NOT skipped (renders the text `"0"`); use ternaries or `count > 0 && ...`.
@@ -65,13 +77,14 @@ The migration is complete for application source: container, status, cell, pagin
 
 ## 9. Known limitations
 
-- Attribute types are permissive (`[attr: string]: unknown`); attribute names and event-handler shapes are not validated. Tightening is an optional follow-up.
 - There is no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`.
-- SVG and namespaced elements are not supported (no current usage); SVG would require `createElementNS`.
+- There are no `key` or `ref` props by design. A `key` prop without a reconciler is dead weight, and `ref` callbacks duplicate the established `querySelector` plus bind-after-render pattern, which is reliable because every render builds a fresh tree. Do not add them.
 - The `0` child is not skipped; use ternaries or `count > 0 && ...`.
 - `renderToString` test serialization differs from browser-authored source conventions for boolean attributes, style normalization, and attribute escaping, so tests assert semantics rather than hand-written template byte parity.
 - `createElement`/`createTextNode` is generally somewhat slower than `innerHTML` parsing for trees with many small nodes, but the difference is negligible for this viewer's bounded collections and avoids an application DOM-to-string-to-DOM round trip.
 - Class typing validates individual selector tokens, not selector combinations. For example, every token in `cx("ui", "search", "selection", "dropdown")` is defined, but the type cannot prove that their ordered combination matches an intended compound rule; design and visual review remain required.
+- The typed attribute surface cannot enumerate every conceivable attribute. `aria-*` and `data-*` use template-literal index signatures (`aria-${string}` and `data-${string}`) so valid accessibility and dataset attributes type-check without an exhaustive list; anything outside that surface needs an explicit widening in `jsx.d.ts`.
+- Void elements (`img`, `input`, `br`, `hr`) declare no `children` property, so accidental children are rejected at compile time; the runtime still ignores children passed through the permissive `h` implementation.
 
 ## 10. How to add a new component
 

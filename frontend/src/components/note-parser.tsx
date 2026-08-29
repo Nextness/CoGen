@@ -452,7 +452,7 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
         const itemText = inline(item);
         return <li>{itemText}</li>;
       });
-      let listTag = "ul";
+      let listTag: "ol" | "ul" = "ul";
       if (block.ordered) listTag = "ol";
       return h(listTag, null, items);
     }

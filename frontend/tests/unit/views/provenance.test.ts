@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import '../setup.ts';
 import { appendAuditEvents, auditVisibleEventLimit, boundAuditWindow, provenanceView } from '../../../src/views/provenance.tsx';
 import { app, state } from '../../../src/state.tsx';
+import type { HierarchyRun } from '../../../src/api/types.ts';
 
 /** Sets location. */
 function setLocation(values: Record<string, string>) {
@@ -212,7 +213,7 @@ describe('provenance.tsx — provenanceView', function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() { return response({ artifacts: [] }); } as typeof fetch;
     setLocation({ section: 'run', run_id: '1' });
-    state.runs = [{ id: '1', attempt_number: 1, status: 'completed' }];
+    state.runs = [{ id: '1', attempt_number: 1, status: 'completed' } as unknown as HierarchyRun];
 
     await provenanceView();
     assert.ok(app.innerHTML.includes('Stored run attempt'));

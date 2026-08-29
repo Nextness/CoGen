@@ -1,6 +1,6 @@
 // Shared pagination rendering for server-backed and in-memory result sets.
 import { h, cx } from "../jsx/jsx-runtime.ts";
-import type { ClassName } from "../jsx/classes.ts";
+import type { PaginationOptions, ScopedPagination } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -8,7 +8,7 @@ const classNames = {
 };
 
 /** Returns the bounded sequence of page numbers surrounding the current page. */
-export function paginationPages(currentPage: any, totalPages: any, visibleCount: any): number[] {
+export function paginationPages(currentPage: unknown, totalPages: unknown, visibleCount: unknown): number[] {
   const current = Math.max(1, Number(currentPage) || 1);
   const total = Math.max(1, Number(totalPages) || 1);
   const count = Math.max(3, Number(visibleCount) || 5);
@@ -25,18 +25,10 @@ export function paginationPages(currentPage: any, totalPages: any, visibleCount:
 }
 
 /** One pagination option set. */
-export interface PaginationOptions {
-  page?: any;
-  perPage?: any;
-  itemLabel?: string;
-  pageAttribute?: string;
-  pageClass?: ClassName;
-  visibleCount?: any;
-  secondary?: string;
-}
+export type { PaginationOptions } from "../api/types.ts";
 
 /** Renders accessible pagination markup for server-backed or in-memory results. */
-export function Pagination(props: { result: any; options?: PaginationOptions }): JSX.Element {
+export function Pagination(props: { result: Partial<ScopedPagination>; options?: PaginationOptions }): JSX.Element {
   const options = props.options || {};
 
   const current = Math.max(1, Number(props.result?.page || options.page) || 1);
@@ -55,11 +47,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
   const pageNumbers = paginationPages(safeCurrent, totalPages, options.visibleCount);
   const numbered = pageNumbers.map((page) => {
     const pageNumberClass = cx("item", page === safeCurrent && "active", pageClass);
-    const attrs: Record<string, unknown> = {
+    const attrs: JSX.RWButtonAttributes = {
       type: "button",
       className: pageNumberClass,
-      [pageAttribute]: page,
     };
+    attrs[pageAttribute] = page;
     if (page === safeCurrent) attrs["aria-current"] = "page";
     return h("button", attrs, String(page));
   });
@@ -67,11 +59,11 @@ export function Pagination(props: { result: any; options?: PaginationOptions }):
   /** Returns one pagination navigation control. */
   function control(label: string, target: number, disabled: boolean, relation: string): JSX.Element {
     const itemClass = cx("item", pageClass);
-    const attrs: Record<string, unknown> = {
+    const attrs: JSX.RWButtonAttributes = {
       type: "button",
       className: itemClass,
-      [pageAttribute]: target,
     };
+    attrs[pageAttribute] = target;
     if (relation) attrs["aria-label"] = relation;
     if (disabled) attrs.disabled = true;
     return h("button", attrs, label);

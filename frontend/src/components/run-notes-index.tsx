@@ -1,5 +1,6 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
 import { api } from "../api.tsx";
+import type { ReviewNote, ReviewNotesResponse } from "../api/types.ts";
 import { currentDetailOrigin, link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 
@@ -17,7 +18,7 @@ const classNames = {
 export async function mountRunNotesIndex(host: HTMLElement, runID: number): Promise<void> {
   let cursor = "";
   let hasMore = false;
-  let notes: any[] = [];
+  let notes: ReviewNote[] = [];
   let query = "";
   let state = "all";
 
@@ -87,7 +88,7 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
       notes = [];
     }
     try {
-      const data = await api(`/api/runs/${runID}/notes`, {
+      const data = await api<ReviewNotesResponse>(`/api/runs/${runID}/notes`, {
         cursor: cursor,
         limit: 25,
         state: state,

@@ -7,6 +7,7 @@ import {
 } from '../state.tsx';
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from '../api.tsx';
+import type { CacheUsesResponse, HierarchyRun, MetricEvidence, OverviewResponse } from "../api/types.ts";
 import { bindFocusContext } from '../router.tsx';
 
 /** Typed compound class names used by this module. */
@@ -212,23 +213,23 @@ export async function overviewView(): Promise<void> {
 
   const runID = value("run_id");
   const [overview, cache] = await Promise.all([
-    api("/api/overview", { run_id: runID }, {
+    api<OverviewResponse>("/api/overview", { run_id: runID }, {
       method: "GET",
       headers: { Accept: "application/json" },
     }),
-    api(`/api/runs/${encodeURIComponent(runID)}/cache-uses`, {}, {
+    api<CacheUsesResponse>(`/api/runs/${encodeURIComponent(runID)}/cache-uses`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     }),
   ]);
 
-  const run = selectedRun() || {};
+  const run = selectedRun() || ({} as HierarchyRun);
   const captured = overview.captured_metrics || [];
   const relationship = overview.relationship_totals || {};
   const normalization = overview.normalization_breakdown || {};
   const normalizationFields = overview.normalization_field_breakdown || {};
 
-  const corpusCards = [
+  const corpusCards: Array<[string, MetricEvidence, string]> = [
     ["Analysis-ready articles", relationship.analysis_ready_articles, link({
       view: "corpus",
       section: "articles",
@@ -287,7 +288,7 @@ export async function overviewView(): Promise<void> {
 
   const coverage = metricEntries(overview.current_coverage || {});
 
-  const normalizationCards = [
+  const normalizationCards: Array<[string, MetricEvidence]> = [
     ["Valid articles processed", normalization.normalized_articles_processed],
     ["Fields assessed", normalization.normalization_fields_processed],
     ["Canonical form changed", normalization.normalization_fields_changed],
