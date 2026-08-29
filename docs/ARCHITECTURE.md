@@ -392,8 +392,9 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 | `components/shell.tsx` | Health state and responsive navigation toggle. |
 | `components/note-parser.tsx` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
 | `components/note-editor.tsx` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
-| `components/pdf-viewer.tsx` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, and anchor highlights. |
-| `components/review-panel.tsx` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, and PDF integration. |
+| `components/pdf-viewer.tsx` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, anchor highlights, and the fullscreen toolbar toggle. |
+| `components/pdf-fullscreen.tsx` | Browser-fullscreen reading mode with a CSS fallback class, the collapsible review drawer, the drawer edge control, and selection-driven auto-expand. |
+| `components/review-panel.tsx` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, PDF integration, and the fullscreen selection handoff event. |
 | `views/home.tsx` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |
 | `views/*.tsx` | Page-level fetching, rendering, and post-render binding for Deepdive and detail routes. |
 | `styles/tokens.css` | Theme, spacing, type, status, graph colors, focus, radius, and elevation tokens. |
@@ -422,7 +423,7 @@ generated *.html -> app.tsx
   |     +-- provenance.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
   |     +-- evaluation.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
   |     +-- advanced.tsx ----------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
-  |     +-- detail.tsx ------------+-- state.tsx, api.tsx, pagination.tsx, review-panel.tsx
+  |     +-- detail.tsx ------------+-- state.tsx, api.tsx, pagination.tsx, review-panel.tsx, pdf-fullscreen.tsx
   +-- api.tsx
   +-- context-selector.tsx
   +-- shell.tsx -> api.tsx
@@ -430,6 +431,7 @@ generated *.html -> app.tsx
 graph.tsx -> state.tsx, router.tsx, pagination.tsx, vendor/d3-force.js
 data-table.tsx -> state.tsx, router.tsx, pagination.tsx
 review-panel.tsx -> api.tsx, state.tsx, note-editor.tsx, pdf-viewer.tsx
+pdf-fullscreen.tsx -> jsx-runtime.ts
 note-editor.tsx -> api.tsx, state.tsx, note-parser.tsx
 ```
 

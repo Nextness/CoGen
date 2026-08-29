@@ -106,4 +106,52 @@ describe("pdf-viewer.tsx", function() {
     await controller.destroy();
     host.remove();
   });
+
+  it("renders the fullscreen toggle and calls onFullscreenToggle", async function() {
+    const documentMock = {
+      numPages: 1,
+      getPage: async () => {
+        return {
+          getViewport: () => {
+            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+          },
+          render: () => {
+            return { cancel: () => {}, promise: Promise.resolve() };
+          },
+          getTextContent: async () => {
+            return { items: [], styles: {} };
+          },
+        };
+      },
+      destroy: async () => {},
+    };
+    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const pdfjsMock = {
+      GlobalWorkerOptions: {},
+      Util: { transform: (_viewport: unknown, item: unknown) => item },
+      getDocument: () => loadingTask,
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    var toggleCount = 0;
+    const controller = await mountPDFViewer(host, {
+      url: "/fixture.pdf",
+      page: 1,
+      onFullscreenToggle: () => {
+        toggleCount += 1;
+      },
+    }, async () => {
+      return pdfjsMock;
+    });
+
+    const button = host.querySelector<HTMLButtonElement>("[data-pdf-fullscreen]");
+    assert.ok(button);
+    assert.equal(button.textContent, "Fullscreen");
+    assert.equal(button.getAttribute("aria-pressed"), "false");
+    button.click();
+    assert.equal(toggleCount, 1);
+
+    await controller.destroy();
+    host.remove();
+  });
 });

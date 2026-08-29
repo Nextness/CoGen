@@ -877,6 +877,95 @@ test.describe('Detail views', () => {
   });
 });
 
+// ── 8b. Fullscreen PDF reader ─────────────────────────────────────────
+
+test.describe('Fullscreen PDF reader', () => {
+
+  /** Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. */
+  async function workspaceExpanded(page: Page): Promise<boolean> {
+    return page.locator('.rw-reading-workspace').evaluate((workspace) => {
+      return document.fullscreenElement === workspace || workspace.classList.contains('rw-reading-workspace--expanded');
+    });
+  }
+
+  /** Selects the fixture methods text and hands it to the review selection flow. */
+  async function selectFixtureText(page: Page): Promise<void> {
+    await page.evaluate(() => {
+      const layer = document.querySelector('.rw-pdf-page .textLayer');
+      if (!layer) throw new Error('PDF text layer is unavailable');
+      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
+      if (!text) throw new Error('Selectable fixture methods text is unavailable');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const selection = window.getSelection();
+      if (!selection) throw new Error('Document selection is unavailable');
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const viewer = document.querySelector('.rw-pdf-viewer');
+      if (!viewer) throw new Error('PDF viewer is unavailable');
+      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+  }
+
+  test('enters fullscreen from the toolbar with the drawer expanded by default', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    const fullscreenButton = page.getByRole('button', { name: 'Fullscreen' });
+    await expect(fullscreenButton).toBeVisible();
+    await expect(fullscreenButton).toHaveAttribute('aria-pressed', 'false');
+
+    await fullscreenButton.click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await workspaceExpanded(page)).toBe(true);
+    await expect(page.locator('[data-drawer-edge]')).toBeVisible();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+  });
+
+  test('collapses and expands the review drawer through the edge control', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.locator('[data-drawer-edge]')).toBeVisible();
+
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeHidden();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'false');
+
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('selecting PDF text expands a collapsed drawer', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeHidden();
+
+    await selectFixtureText(page);
+    await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
+    await page.getByRole('button', { name: 'Review selection' }).click();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('exits fullscreen and restores the embedded article layout', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toHaveAttribute('aria-pressed', 'false');
+    expect(await workspaceExpanded(page)).toBe(false);
+    await expect(page.locator('[data-drawer-edge]')).toHaveCount(0);
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+  });
+});
+
 // ── 9. Error states ───────────────────────────────────────────────────
 
 test.describe('Error states', () => {

@@ -127,6 +127,7 @@ export interface PDFViewerOptions {
   page?: any;
   onPageChange?: (page: number) => void;
   onSelection?: (selection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] }) => void;
+  onFullscreenToggle?: () => void;
 }
 
 /** One anchor head used by the viewer highlight layer. */
@@ -183,6 +184,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       <button type="button" className={classNames.uiIconBasicButton} data-pdf-zoom-in aria-label="Zoom in">+</button>
       <button type="button" className={classNames.uiBasicButton} data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
       <button type="button" className={classNames.uiBasicButton} data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-fullscreen aria-pressed="false">Fullscreen</button>
       <button type="button" className={classNames.uiPrimaryButton} data-pdf-review-selection hidden>Review selection</button>
     </div>
   );
@@ -334,6 +336,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   host.querySelector("[data-pdf-zoom-out]")!.addEventListener("click", () => { scale = Math.max(0.6, scale - 0.15); void requestRender(); });
   host.querySelector("[data-pdf-zoom-in]")!.addEventListener("click", () => { scale = Math.min(3, scale + 0.15); void requestRender(); });
   host.querySelector("[data-pdf-rotate]")!.addEventListener("click", () => { rotation = (rotation + 90) % 360; void requestRender(); });
+  host.querySelector("[data-pdf-fullscreen]")!.addEventListener("click", () => { options.onFullscreenToggle?.(); });
   host.querySelector("[data-pdf-fit-width]")!.addEventListener("click", async () => {
     const page = await cachedPage(pageNumber);
     const viewport = page.getViewport({ scale: 1, rotation: rotation });

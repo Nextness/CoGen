@@ -3882,6 +3882,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Pagination`](../frontend/src/components/pagination.tsx#L31) | function | 31 | `function Pagination(props: { result: Partial<ScopedPagination>; options?: PaginationOptions })` | Renders accessible pagination markup for server-backed or in-memory results. |
 | [`control`](../frontend/src/components/pagination.tsx#L60) | function | 60 | `function control(label: string, target: number, disabled: boolean, relation: string)` | Returns one pagination navigation control. |
 
+### [`frontend/src/components/pdf-fullscreen.tsx`](../frontend/src/components/pdf-fullscreen.tsx)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`mountPDFFullscreen`](../frontend/src/components/pdf-fullscreen.tsx#L15) | function | 15 | `function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost: HTMLElement })` | Mounts the fullscreen toggle, CSS fallback, and review drawer for one reading workspace. |
+| [`isExpanded`](../frontend/src/components/pdf-fullscreen.tsx#L26) | function | 26 | `function isExpanded()` | Returns whether the workspace is expanded by either the Fullscreen API or the fallback class. |
+| [`updateLabel`](../frontend/src/components/pdf-fullscreen.tsx#L31) | function | 31 | `function updateLabel()` | Updates the fullscreen button label and pressed state, returning focus on exit. |
+| [`syncState`](../frontend/src/components/pdf-fullscreen.tsx#L41) | function | 41 | `function syncState()` | Synchronizes the drawer state, edge control, and button label with the current expansion. |
+| [`renderEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L58) | function | 58 | `function renderEdgeControl()` | Renders the drawer edge control as a direct workspace child so it survives drawer collapse. |
+| [`removeEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L74) | function | 74 | `function removeEdgeControl()` | Removes the drawer edge control from the workspace. |
+| [`toggleDrawer`](../frontend/src/components/pdf-fullscreen.tsx#L80) | function | 80 | `function toggleDrawer()` | Toggles the review drawer between expanded and collapsed. |
+| [`toggleFallback`](../frontend/src/components/pdf-fullscreen.tsx#L96) | function | 96 | `function toggleFallback()` | Enters or leaves the CSS fallback expansion, mirroring the graph's fallback path. |
+
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3889,16 +3902,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`unrotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L27) | function | 27 | `function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Converts displayed normalized rectangles back to unrotated page coordinates. |
 | [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L63) | function | 63 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
 | [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L99) | function | 99 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
-| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L142) | function | 142 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`cachedPage`](../frontend/src/components/pdf-viewer.tsx#L213) | function | 213 | `function cachedPage(requestedPage: number)` | Returns one cached PDF.js page object without repeating document parsing. |
-| [`cachedText`](../frontend/src/components/pdf-viewer.tsx#L222) | function | 222 | `function cachedText(requestedPage: number, page: any)` | Returns one cached text-content projection for a loaded page. |
-| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L231) | function | 231 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
-| [`render`](../frontend/src/components/pdf-viewer.tsx#L241) | function | 241 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
-| [`requestRender`](../frontend/src/components/pdf-viewer.tsx#L304) | function | 304 | `async function requestRender()` | Runs one render with a local retry state while preserving the previous completed frame. |
-| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L327) | function | 327 | `function changePage(next: any)` | Clamps and renders a requested current page. |
-| [`captureSelection`](../frontend/src/components/pdf-viewer.tsx#L347) | function | 347 | `function captureSelection()` | Hands one mouse- or keyboard-originated same-page text selection to review controls. |
-| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L422) | function | 422 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L439) | function | 439 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+| [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L143) | function | 143 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
+| [`cachedPage`](../frontend/src/components/pdf-viewer.tsx#L215) | function | 215 | `function cachedPage(requestedPage: number)` | Returns one cached PDF.js page object without repeating document parsing. |
+| [`cachedText`](../frontend/src/components/pdf-viewer.tsx#L224) | function | 224 | `function cachedText(requestedPage: number, page: any)` | Returns one cached text-content projection for a loaded page. |
+| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L233) | function | 233 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../frontend/src/components/pdf-viewer.tsx#L243) | function | 243 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`requestRender`](../frontend/src/components/pdf-viewer.tsx#L306) | function | 306 | `async function requestRender()` | Runs one render with a local retry state while preserving the previous completed frame. |
+| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L329) | function | 329 | `function changePage(next: any)` | Clamps and renders a requested current page. |
+| [`captureSelection`](../frontend/src/components/pdf-viewer.tsx#L350) | function | 350 | `function captureSelection()` | Hands one mouse- or keyboard-originated same-page text selection to review controls. |
+| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L425) | function | 425 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L442) | function | 442 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
 
 ### [`frontend/src/components/review-context-dialog.tsx`](../frontend/src/components/review-context-dialog.tsx)
 
@@ -3917,18 +3930,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`reviewHealth`](../frontend/src/components/review-panel.tsx#L65) | function | 65 | `async function reviewHealth()` | Loads immutable viewer capability data once per page and retries after a failed request. |
 | [`mountArticleReview`](../frontend/src/components/review-panel.tsx#L91) | function | 91 | `async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement \| null, record: any, detailData: any, onAuditChange?: () => Promise<void>)` | Mounts all editable review controls for one immutable run article revision. |
-| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L162) | function | 162 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
-| [`renderReview`](../frontend/src/components/review-panel.tsx#L206) | function | 206 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`decisionDraft`](../frontend/src/components/review-panel.tsx#L450) | function | 450 | `function decisionDraft()` | Serializes only user-editable decision input for dirty-state comparison. |
-| [`protectDecision`](../frontend/src/components/review-panel.tsx#L456) | function | 456 | `function protectDecision(event: Event)` | Prevents route changes from silently discarding a local decision draft. |
-| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L473) | function | 473 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderDecisionHistory`](../frontend/src/components/review-panel.tsx#L586) | function | 586 | `function renderDecisionHistory()` | Renders every loaded decision-summary page and lazy full-reason controls. |
-| [`loadDecisionHistoryPage`](../frontend/src/components/review-panel.tsx#L639) | function | 639 | `async function loadDecisionHistoryPage()` | Appends one opaque decision-history page without replacing prior rows. |
-| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L689) | function | 689 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L761) | function | 761 | `async function loadAnchors(reset = true)` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L891) | function | 891 | `async function showAnchorHistory(anchorID: string, anchorLabel?: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
-| [`renderHistory`](../frontend/src/components/review-panel.tsx#L897) | function | 897 | `function renderHistory()` | Renders all loaded immutable anchor summaries and their continuation controls. |
-| [`loadHistoryPage`](../frontend/src/components/review-panel.tsx#L1000) | function | 1000 | `async function loadHistoryPage()` | Appends one anchor-version cursor page without duplicating existing history. |
+| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L163) | function | 163 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
+| [`renderReview`](../frontend/src/components/review-panel.tsx#L207) | function | 207 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`decisionDraft`](../frontend/src/components/review-panel.tsx#L451) | function | 451 | `function decisionDraft()` | Serializes only user-editable decision input for dirty-state comparison. |
+| [`protectDecision`](../frontend/src/components/review-panel.tsx#L457) | function | 457 | `function protectDecision(event: Event)` | Prevents route changes from silently discarding a local decision draft. |
+| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L474) | function | 474 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderDecisionHistory`](../frontend/src/components/review-panel.tsx#L587) | function | 587 | `function renderDecisionHistory()` | Renders every loaded decision-summary page and lazy full-reason controls. |
+| [`loadDecisionHistoryPage`](../frontend/src/components/review-panel.tsx#L640) | function | 640 | `async function loadDecisionHistoryPage()` | Appends one opaque decision-history page without replacing prior rows. |
+| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L690) | function | 690 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L762) | function | 762 | `async function loadAnchors(reset = true)` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L892) | function | 892 | `async function showAnchorHistory(anchorID: string, anchorLabel?: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderHistory`](../frontend/src/components/review-panel.tsx#L898) | function | 898 | `function renderHistory()` | Renders all loaded immutable anchor summaries and their continuation controls. |
+| [`loadHistoryPage`](../frontend/src/components/review-panel.tsx#L1001) | function | 1001 | `async function loadHistoryPage()` | Appends one anchor-version cursor page without duplicating existing history. |
 
 ### [`frontend/src/components/run-notes-index.tsx`](../frontend/src/components/run-notes-index.tsx)
 
@@ -4065,32 +4078,32 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`destroyActiveArticleReview`](../frontend/src/views/detail.tsx#L66) | function | 66 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
-| [`detailLink`](../frontend/src/views/detail.tsx#L75) | function | 75 | `function detailLink(kind: string, id: any)` | Returns a context-preserving link to a related detail record. |
-| [`backToCorpus`](../frontend/src/views/detail.tsx#L88) | function | 88 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return URL for a detail view. |
-| [`recorded`](../frontend/src/views/detail.tsx#L104) | function | 104 | `function recorded(raw: any, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
-| [`propertyGrid`](../frontend/src/views/detail.tsx#L121) | function | 121 | `function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[])` | Renders definition-list markup for labeled record properties. |
-| [`summaryStrip`](../frontend/src/views/detail.tsx#L141) | function | 141 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
-| [`mappingValue`](../frontend/src/views/detail.tsx#L160) | function | 160 | `function mappingValue(raw: any)` | Converts a stored mapping representation to a displayable object. |
-| [`extensionMapping`](../frontend/src/views/detail.tsx#L186) | function | 186 | `function extensionMapping(raw: any)` | Renders the parsed extension mapping stored on a work revision. |
-| [`keywordValues`](../frontend/src/views/detail.tsx#L193) | function | 193 | `function keywordValues(raw: any)` | Returns normalized keyword values from stored array or delimited input. |
-| [`keywordMarkup`](../frontend/src/views/detail.tsx#L220) | function | 220 | `function keywordMarkup(raw: any)` | Renders label markup for normalized keyword values. |
-| [`rawRecord`](../frontend/src/views/detail.tsx#L245) | function | 245 | `function rawRecord(record: Record<string, any>, excluded: string[])` | Renders expandable JSON markup for a raw record. |
-| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L277) | function | 277 | `function CollectionMarkup(props: { collectionKey: string; state: CollectionState })` | Renders expandable markup for a related-record collection. |
-| [`mountCollection`](../frontend/src/views/detail.tsx#L339) | function | 339 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, source: any, endpoint: string, cursorKey: string)` | Mounts collection. |
-| [`loadCollectionPage`](../frontend/src/views/detail.tsx#L364) | function | 364 | `async function loadCollectionPage(key: string, cursor: string, rememberCurrent: boolean)` | Loads one cursor page while preserving the prior visible page after a local failure. |
-| [`renderCollection`](../frontend/src/views/detail.tsx#L396) | function | 396 | `function renderCollection(key: string)` | Renders collection. |
-| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L414) | function | 414 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
-| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L432) | function | 432 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
-| [`ArticleView`](../frontend/src/views/detail.tsx#L567) | function | 567 | `function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse })` | Renders the article detail view from its immutable revision payload. |
-| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L707) | function | 707 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
-| [`IdentityCandidateList`](../frontend/src/views/detail.tsx#L756) | function | 756 | `function IdentityCandidateList(props: { candidates: any[] })` | Renders one ranked ORCID candidate list without implying confirmed identity. |
-| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L784) | function | 784 | `function AuthorIdentityEvidence(props: { evidence: any[] })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
-| [`IdentityCollectionMarkup`](../frontend/src/views/detail.tsx#L832) | function | 832 | `function IdentityCollectionMarkup(props: { state: CollectionState })` | Renders one cursor page of author identity resolutions with local continuation status. |
-| [`bindIdentityCandidatePages`](../frontend/src/views/detail.tsx#L846) | function | 846 | `function bindIdentityCandidatePages(runID: string)` | Binds on-demand traversal for paged author identity candidates. |
-| [`AuthorView`](../frontend/src/views/detail.tsx#L885) | function | 885 | `function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })` | Renders the author occurrence detail view with related articles and audit evidence. |
-| [`ReferenceView`](../frontend/src/views/detail.tsx#L959) | function | 959 | `function ReferenceView(props: { record: ReferenceRecord })` | Renders the reference mention detail view with citation context. |
-| [`detailView`](../frontend/src/views/detail.tsx#L1055) | function | 1055 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`destroyActiveArticleReview`](../frontend/src/views/detail.tsx#L69) | function | 69 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
+| [`detailLink`](../frontend/src/views/detail.tsx#L83) | function | 83 | `function detailLink(kind: string, id: any)` | Returns a context-preserving link to a related detail record. |
+| [`backToCorpus`](../frontend/src/views/detail.tsx#L96) | function | 96 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return URL for a detail view. |
+| [`recorded`](../frontend/src/views/detail.tsx#L112) | function | 112 | `function recorded(raw: any, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
+| [`propertyGrid`](../frontend/src/views/detail.tsx#L129) | function | 129 | `function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[])` | Renders definition-list markup for labeled record properties. |
+| [`summaryStrip`](../frontend/src/views/detail.tsx#L149) | function | 149 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
+| [`mappingValue`](../frontend/src/views/detail.tsx#L168) | function | 168 | `function mappingValue(raw: any)` | Converts a stored mapping representation to a displayable object. |
+| [`extensionMapping`](../frontend/src/views/detail.tsx#L194) | function | 194 | `function extensionMapping(raw: any)` | Renders the parsed extension mapping stored on a work revision. |
+| [`keywordValues`](../frontend/src/views/detail.tsx#L201) | function | 201 | `function keywordValues(raw: any)` | Returns normalized keyword values from stored array or delimited input. |
+| [`keywordMarkup`](../frontend/src/views/detail.tsx#L228) | function | 228 | `function keywordMarkup(raw: any)` | Renders label markup for normalized keyword values. |
+| [`rawRecord`](../frontend/src/views/detail.tsx#L253) | function | 253 | `function rawRecord(record: Record<string, any>, excluded: string[])` | Renders expandable JSON markup for a raw record. |
+| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L285) | function | 285 | `function CollectionMarkup(props: { collectionKey: string; state: CollectionState })` | Renders expandable markup for a related-record collection. |
+| [`mountCollection`](../frontend/src/views/detail.tsx#L347) | function | 347 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, source: any, endpoint: string, cursorKey: string)` | Mounts collection. |
+| [`loadCollectionPage`](../frontend/src/views/detail.tsx#L372) | function | 372 | `async function loadCollectionPage(key: string, cursor: string, rememberCurrent: boolean)` | Loads one cursor page while preserving the prior visible page after a local failure. |
+| [`renderCollection`](../frontend/src/views/detail.tsx#L404) | function | 404 | `function renderCollection(key: string)` | Renders collection. |
+| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L422) | function | 422 | `function stageReasonMarkup(raw: any)` | Renders escaped validation or failure reason markup for a stage outcome. |
+| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L440) | function | 440 | `function SearchTermCoveragePanel(props: { matches: any; record: any })` | Renders the search term coverage panel for an article revision. |
+| [`ArticleView`](../frontend/src/views/detail.tsx#L575) | function | 575 | `function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse })` | Renders the article detail view from its immutable revision payload. |
+| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L715) | function | 715 | `function PDFStatusPanel(props: { record: any; pdf: any })` | Renders PDF inventory and download-status markup for an article. |
+| [`IdentityCandidateList`](../frontend/src/views/detail.tsx#L764) | function | 764 | `function IdentityCandidateList(props: { candidates: any[] })` | Renders one ranked ORCID candidate list without implying confirmed identity. |
+| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L792) | function | 792 | `function AuthorIdentityEvidence(props: { evidence: any[] })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
+| [`IdentityCollectionMarkup`](../frontend/src/views/detail.tsx#L840) | function | 840 | `function IdentityCollectionMarkup(props: { state: CollectionState })` | Renders one cursor page of author identity resolutions with local continuation status. |
+| [`bindIdentityCandidatePages`](../frontend/src/views/detail.tsx#L854) | function | 854 | `function bindIdentityCandidatePages(runID: string)` | Binds on-demand traversal for paged author identity candidates. |
+| [`AuthorView`](../frontend/src/views/detail.tsx#L893) | function | 893 | `function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })` | Renders the author occurrence detail view with related articles and audit evidence. |
+| [`ReferenceView`](../frontend/src/views/detail.tsx#L967) | function | 967 | `function ReferenceView(props: { record: ReferenceRecord })` | Renders the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.tsx#L1063) | function | 1063 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
@@ -4260,6 +4273,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`response`](../frontend/tests/unit/components/context-selector.test.ts#L17) | function | 17 | `function response(data: any, ok = true, status = 200)` | Returns one API-compatible JSON response. |
 | [`hierarchyFixture`](../frontend/tests/unit/components/context-selector.test.ts#L28) | function | 28 | `function hierarchyFixture(rawURL: string, sole = false)` | Returns a complete bounded hierarchy fixture for the requested level. |
 
+### [`frontend/tests/unit/components/pdf-fullscreen.test.ts`](../frontend/tests/unit/components/pdf-fullscreen.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`buildWorkspace`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L9) | function | 9 | `function buildWorkspace()` | Builds one reading workspace with a fullscreen button and review host. |
+| [`buttonClick`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L143) | function | 143 | `function buttonClick(button: HTMLButtonElement)` | Clicks one button synchronously. |
+
 ### [`frontend/tests/unit/components/pdf-viewer.test.ts`](../frontend/tests/unit/components/pdf-viewer.test.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -4319,6 +4339,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`goto`](../frontend/tests/viewer.spec.ts#L48) | function | 48 | `async function goto(page: Page, url: string)` | Navigate to a URL and wait for network idle. |
 | [`contextURL`](../frontend/tests/viewer.spec.ts#L56) | function | 56 | `function contextURL(overrides: Record<string, string> = {})` | Build a context URL with search, revision, plan, and run IDs. |
 | [`selectRun`](../frontend/tests/viewer.spec.ts#L71) | function | 71 | `async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string)` | Navigate to a fully selected context URL. |
+| [`workspaceExpanded`](../frontend/tests/viewer.spec.ts#L885) | function | 885 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
+| [`selectFixtureText`](../frontend/tests/viewer.spec.ts#L892) | function | 892 | `async function selectFixtureText(page: Page)` | Selects the fixture methods text and hands it to the review selection flow. |
 
 ## JavaScript test cases
 
@@ -4347,9 +4369,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI`](../frontend/tests/review.spec.ts#L21) | test | 21 | `test('creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI', callback)` | creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI |
-| [`edits, links, conflicts, removes, restores, and audits review evidence through visible controls`](../frontend/tests/review.spec.ts#L191) | test | 191 | `test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', callback)` | edits, links, conflicts, removes, restores, and audits review evidence through visible controls |
-| [`restores and trashes a run through Home with persisted audit evidence`](../frontend/tests/review.spec.ts#L310) | test | 310 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
-| [`traverses 101-record review collection boundaries through UI continuations`](../frontend/tests/review.spec.ts#L339) | test | 339 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
+| [`creates an anchor through the fullscreen reader drawer`](../frontend/tests/review.spec.ts#L191) | test | 191 | `test('creates an anchor through the fullscreen reader drawer', callback)` | creates an anchor through the fullscreen reader drawer |
+| [`edits, links, conflicts, removes, restores, and audits review evidence through visible controls`](../frontend/tests/review.spec.ts#L235) | test | 235 | `test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', callback)` | edits, links, conflicts, removes, restores, and audits review evidence through visible controls |
+| [`restores and trashes a run through Home with persisted audit evidence`](../frontend/tests/review.spec.ts#L354) | test | 354 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
+| [`traverses 101-record review collection boundaries through UI continuations`](../frontend/tests/review.spec.ts#L383) | test | 383 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
 
 ### [`frontend/tests/ui-quality.spec.ts`](../frontend/tests/ui-quality.spec.ts)
 
@@ -4501,6 +4524,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`renders range, page count, numbered pages, and boundary controls`](../frontend/tests/unit/components/pagination.test.ts#L17) | test | 17 | `it('renders range, page count, numbered pages, and boundary controls', callback)` | renders range, page count, numbered pages, and boundary controls |
 | [`handles an empty result without inventing a visible row`](../frontend/tests/unit/components/pagination.test.ts#L27) | test | 27 | `it('handles an empty result without inventing a visible row', callback)` | handles an empty result without inventing a visible row |
 
+### [`frontend/tests/unit/components/pdf-fullscreen.test.ts`](../frontend/tests/unit/components/pdf-fullscreen.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`falls back to the expanded class when the Fullscreen API is absent and exits on toggle`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L26) | test | 26 | `it("falls back to the expanded class when the Fullscreen API is absent and exits on toggle", callback)` | falls back to the expanded class when the Fullscreen API is absent and exits on toggle |
+| [`starts the drawer expanded and toggles it through the edge control`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L48) | test | 48 | `it("starts the drawer expanded and toggles it through the edge control", callback)` | starts the drawer expanded and toggles it through the edge control |
+| [`expands a collapsed drawer on the rw-pdf-selection event`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L72) | test | 72 | `it("expands a collapsed drawer on the rw-pdf-selection event", callback)` | expands a collapsed drawer on the rw-pdf-selection event |
+| [`removes the drawer-collapsed class and edge control when exiting fullscreen`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L89) | test | 89 | `it("removes the drawer-collapsed class and edge control when exiting fullscreen", callback)` | removes the drawer-collapsed class and edge control when exiting fullscreen |
+| [`closes the fallback expansion on Escape`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L107) | test | 107 | `it("closes the fallback expansion on Escape", callback)` | closes the fallback expansion on Escape |
+| [`destroy removes listeners, the fallback class, and the edge control`](../frontend/tests/unit/components/pdf-fullscreen.test.ts#L121) | test | 121 | `it("destroy removes listeners, the fallback class, and the edge control", callback)` | destroy removes listeners, the fallback class, and the edge control |
+
 ### [`frontend/tests/unit/components/pdf-viewer.test.ts`](../frontend/tests/unit/components/pdf-viewer.test.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -4508,6 +4542,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`projects displayed rectangles back through all supported rotations`](../frontend/tests/unit/components/pdf-viewer.test.ts#L19) | test | 19 | `it("projects displayed rectangles back through all supported rotations", callback)` | projects displayed rectangles back through all supported rotations |
 | [`round-trips stored rectangles into each displayed rotation`](../frontend/tests/unit/components/pdf-viewer.test.ts#L27) | test | 27 | `it("round-trips stored rectangles into each displayed rotation", callback)` | round-trips stored rectangles into each displayed rotation |
 | [`caches pages and text, redraws anchors without rerendering, and supports keyboard paging`](../frontend/tests/unit/components/pdf-viewer.test.ts#L34) | test | 34 | `it("caches pages and text, redraws anchors without rerendering, and supports keyboard paging", callback)` | caches pages and text, redraws anchors without rerendering, and supports keyboard paging |
+| [`renders the fullscreen toggle and calls onFullscreenToggle`](../frontend/tests/unit/components/pdf-viewer.test.ts#L110) | test | 110 | `it("renders the fullscreen toggle and calls onFullscreenToggle", callback)` | renders the fullscreen toggle and calls onFullscreenToggle |
 
 ### [`frontend/tests/unit/components/shell.test.ts`](../frontend/tests/unit/components/shell.test.ts)
 
@@ -4840,32 +4875,36 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`article detail shows authors and references`](../frontend/tests/viewer.spec.ts#L852) | test | 852 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
 | [`author detail shows author information`](../frontend/tests/viewer.spec.ts#L860) | test | 860 | `test('author detail shows author information', callback)` | author detail shows author information |
 | [`reference detail shows reference information`](../frontend/tests/viewer.spec.ts#L872) | test | 872 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
-| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L883) | test | 883 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
-| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L891) | test | 891 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
-| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L898) | test | 898 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
-| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L905) | test | 905 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
-| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L912) | test | 912 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
-| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L919) | test | 919 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
-| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L926) | test | 926 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
-| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.ts#L931) | test | 931 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
-| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L941) | test | 941 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
-| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L950) | test | 950 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
-| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L956) | test | 956 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
-| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L966) | test | 966 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
-| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L977) | test | 977 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
-| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L987) | test | 987 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
-| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L993) | test | 993 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
-| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L999) | test | 999 | `test('navigation is a landmark', callback)` | navigation is a landmark |
-| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1005) | test | 1005 | `test('images have alt text', callback)` | images have alt text |
-| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1019) | test | 1019 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
-| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1026) | test | 1026 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
-| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1037) | test | 1037 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
-| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1045) | test | 1045 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
-| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1056) | test | 1056 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
-| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1065) | test | 1065 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
-| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1075) | test | 1075 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
-| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1089) | test | 1089 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
-| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1103) | test | 1103 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
-| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1124) | test | 1124 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
+| [`enters fullscreen from the toolbar with the drawer expanded by default`](../frontend/tests/viewer.spec.ts#L910) | test | 910 | `test('enters fullscreen from the toolbar with the drawer expanded by default', callback)` | enters fullscreen from the toolbar with the drawer expanded by default |
+| [`collapses and expands the review drawer through the edge control`](../frontend/tests/viewer.spec.ts#L925) | test | 925 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
+| [`selecting PDF text expands a collapsed drawer`](../frontend/tests/viewer.spec.ts#L940) | test | 940 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
+| [`exits fullscreen and restores the embedded article layout`](../frontend/tests/viewer.spec.ts#L954) | test | 954 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
+| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L972) | test | 972 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
+| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L980) | test | 980 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
+| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L987) | test | 987 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
+| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L994) | test | 994 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
+| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L1001) | test | 1001 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
+| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L1008) | test | 1008 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
+| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L1015) | test | 1015 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
+| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.ts#L1020) | test | 1020 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
+| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L1030) | test | 1030 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
+| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L1039) | test | 1039 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
+| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L1045) | test | 1045 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
+| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L1055) | test | 1055 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
+| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L1066) | test | 1066 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
+| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L1076) | test | 1076 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
+| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L1082) | test | 1082 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
+| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L1088) | test | 1088 | `test('navigation is a landmark', callback)` | navigation is a landmark |
+| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1094) | test | 1094 | `test('images have alt text', callback)` | images have alt text |
+| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1108) | test | 1108 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
+| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1115) | test | 1115 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
+| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1126) | test | 1126 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
+| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1134) | test | 1134 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
+| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1145) | test | 1145 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
+| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1154) | test | 1154 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
+| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1164) | test | 1164 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
+| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1178) | test | 1178 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
+| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1192) | test | 1192 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
+| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1213) | test | 1213 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
 
 <!-- END GENERATED PROJECT CATALOG -->

@@ -900,6 +900,101 @@
   margin: 0;
 }
 
+/* Fullscreen reading mode: the workspace becomes a PDF-main-plus-drawer layout. */
+.rw-reading-workspace:fullscreen,
+.rw-reading-workspace--expanded {
+  --rw-drawer-width: min(28rem, 40vw);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rw-drawer-width);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-3);
+  background: var(--color-bg-canvas);
+}
+
+.rw-reading-workspace--expanded {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+}
+
+.rw-reading-workspace:fullscreen [data-pdf-viewer-host],
+.rw-reading-workspace--expanded [data-pdf-viewer-host] {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rw-reading-workspace:fullscreen .rw-pdf-viewer,
+.rw-reading-workspace--expanded .rw-pdf-viewer {
+  height: 100%;
+  min-height: 0;
+  position: static;
+  top: auto;
+  contain: none;
+}
+
+.rw-reading-workspace:fullscreen [data-review-host],
+.rw-reading-workspace--expanded [data-review-host] {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border-default);
+  padding-left: var(--space-3);
+}
+
+.rw-reading-workspace:fullscreen [data-review-host] .rw-review-panel,
+.rw-reading-workspace--expanded [data-review-host] .rw-review-panel {
+  overflow: visible;
+}
+
+.rw-reading-workspace:fullscreen [data-review-host] .rw-note-workspace,
+.rw-reading-workspace:fullscreen [data-review-host] .rw-review-form__primary,
+.rw-reading-workspace--expanded [data-review-host] .rw-note-workspace,
+.rw-reading-workspace--expanded [data-review-host] .rw-review-form__primary {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rw-reading-workspace:fullscreen.rw-reading-workspace--drawer-collapsed,
+.rw-reading-workspace--expanded.rw-reading-workspace--drawer-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rw-reading-workspace:fullscreen.rw-reading-workspace--drawer-collapsed [data-review-host],
+.rw-reading-workspace--expanded.rw-reading-workspace--drawer-collapsed [data-review-host] {
+  display: none;
+}
+
+.rw-reading-workspace__drawer-edge {
+  display: none;
+}
+
+.rw-reading-workspace:fullscreen .rw-reading-workspace__drawer-edge,
+.rw-reading-workspace--expanded .rw-reading-workspace__drawer-edge {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--rw-drawer-width, 28rem) + var(--space-3));
+  transform: translateY(-50%);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-default);
+  background: var(--color-bg-surface-raised);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.rw-reading-workspace:fullscreen.rw-reading-workspace--drawer-collapsed .rw-reading-workspace__drawer-edge,
+.rw-reading-workspace--expanded.rw-reading-workspace--drawer-collapsed .rw-reading-workspace__drawer-edge {
+  right: var(--space-3);
+}
+
 .rw-identity-resolution {
   padding: var(--space-4);
   border: 1px solid var(--color-border-default);

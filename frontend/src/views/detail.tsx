@@ -25,6 +25,8 @@ import type {
 import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 import { mountArticleReview } from "../components/review-panel.tsx";
+import { mountPDFFullscreen } from "../components/pdf-fullscreen.tsx";
+import type { PDFFullscreenController } from "../components/pdf-fullscreen.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -61,9 +63,15 @@ interface CollectionState {
 
 const collectionState = new Map<string, CollectionState>();
 let activeArticleReview: any = null;
+let activePDFFullscreen: PDFFullscreenController | null = null;
 
 /** Releases the article review and PDF lifecycle before another SPA view renders. */
 export async function destroyActiveArticleReview(): Promise<void> {
+  if (activePDFFullscreen) {
+    const fullscreen = activePDFFullscreen;
+    activePDFFullscreen = null;
+    fullscreen.destroy();
+  }
   if (activeArticleReview) {
     const review = activeArticleReview;
     activeArticleReview = null;
@@ -1292,6 +1300,10 @@ export async function detailView(kind: string): Promise<void> {
           bindRecordAuditInvestigation(events);
         }
       );
+      activePDFFullscreen = mountPDFFullscreen({
+        workspace: document.querySelector(".rw-reading-workspace") as HTMLElement,
+        reviewHost: document.querySelector("[data-review-host]") as HTMLElement,
+      });
     }
   }
   if (kind === "author") {

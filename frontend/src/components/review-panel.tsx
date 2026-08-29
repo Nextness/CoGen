@@ -114,6 +114,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       },
       onSelection: (selection: PDFSelection) => {
         pendingSelection = selection;
+        host.closest(".rw-reading-workspace")?.dispatchEvent(new CustomEvent("rw-pdf-selection"));
         void activateReviewSection("anchors").then(() => {
           renderAnchorCandidate();
           const anchorLabel = host.querySelector<HTMLInputElement>("[data-anchor-label]");

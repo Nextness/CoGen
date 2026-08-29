@@ -188,6 +188,50 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
   });
 
+  test('creates an anchor through the fullscreen reader drawer', async ({ page, browserName }) => {
+    test.setTimeout(60_000);
+    const fullscreenAnchorLabel = `fullscreen-${browserName}`;
+    await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
+    await page.waitForLoadState('networkidle');
+
+    await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toBeVisible();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeHidden();
+
+    await page.evaluate(() => {
+      const layer = document.querySelector('.rw-pdf-page .textLayer');
+      if (!layer) throw new Error('PDF text layer is unavailable');
+      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
+      if (!text) throw new Error('Selectable fixture methods text is unavailable');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const selection = window.getSelection();
+      if (!selection) throw new Error('Document selection is unavailable');
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const viewer = document.querySelector('.rw-pdf-viewer');
+      if (!viewer) throw new Error('PDF viewer is unavailable');
+      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+    await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
+    await page.getByRole('button', { name: 'Review selection' }).click();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'PDF anchors' })).toHaveAttribute('aria-selected', 'true');
+    await page.locator('[data-anchor-label]').fill(fullscreenAnchorLabel);
+    await page.getByRole('button', { name: 'Save anchor' }).click();
+    await expect(page.locator('[data-anchor-list]')).toContainText(fullscreenAnchorLabel);
+
+    await page.getByRole('button', { name: 'Exit fullscreen', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Fullscreen', exact: true })).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toHaveCount(0);
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.locator('[data-anchor-list]')).toContainText(fullscreenAnchorLabel);
+  });
+
   test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', async ({ page, request, browserName }) => {
     test.setTimeout(60_000);
     const articleURL = '/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1';
