@@ -1,4 +1,4 @@
-// build.mjs assembles the served frontend root into frontend/dist from
+// build.ts assembles the served frontend root into frontend/dist from
 // frontend/index.html, styles/, vendor/, and the TypeScript sources under
 // src/. The HTML template produces one identified document per view. Every
 // file under src/ is compiled per-file through esbuild, and .ts
@@ -27,12 +27,12 @@ const pages = [
 ];
 
 /** Reports whether a file name must not be served (dotfiles and underscore-prefixed files). */
-function isHidden(name) {
+function isHidden(name: string): boolean {
   return name.startsWith('.') || name.startsWith('_');
 }
 
 /** Copies one path into the output root, skipping hidden entries. */
-async function copyTree(from, to) {
+async function copyTree(from: string, to: string): Promise<void> {
   await cp(from, to, {
     recursive: true,
     filter: (source) => !isHidden(path.basename(source)),
@@ -40,9 +40,9 @@ async function copyTree(from, to) {
 }
 
 /** Lists every source file under src/ (excluding hidden entries). */
-async function listSources() {
-  const files = [];
-  const walk = async (dir) => {
+async function listSources(): Promise<string[]> {
+  const files: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (isHidden(entry.name)) {
         continue;
@@ -60,7 +60,7 @@ async function listSources() {
 }
 
 /** Compiles src/** with esbuild per-file and rewrites .ts/.tsx specifiers to .js. */
-async function compileSources() {
+async function compileSources(): Promise<void> {
   const { build } = await import('esbuild');
   const files = await listSources();
   for (const file of files) {
@@ -88,7 +88,7 @@ async function compileSources() {
 }
 
 /** Generates one identified HTML document per supported view from the authoritative shell template. */
-async function generatePages() {
+async function generatePages(): Promise<void> {
   const template = await readFile(path.join(frontendDir, 'index.html'), 'utf8');
   const titlePattern = /<title>[^<]*<\/title>/;
   const markerPattern = /<meta name="rw-page" content="[a-z]+">/;
@@ -106,7 +106,7 @@ async function generatePages() {
 }
 
 /** Verifies every supported view document exists in the assembled root. */
-async function assertPages(root) {
+async function assertPages(root: string): Promise<void> {
   const rootEntries = new Set(await readdir(root));
   const missing = pages.filter((page) => !rootEntries.has(page.file));
   if (missing.length > 0) {
@@ -115,9 +115,9 @@ async function assertPages(root) {
 }
 
 /** Verifies the assembled root contains no TypeScript, declaration, or map files. */
-async function assertClean(root) {
-  const found = [];
-  const walk = async (dir) => {
+async function assertClean(root: string): Promise<void> {
+  const found: string[] = [];
+  const walk = async (dir: string): Promise<void> => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const [binary, fixtureDB, assetsDir, address] = process.argv.slice(2);
 if (!binary || !fixtureDB || !assetsDir || !address) {
-  throw new Error('usage: node run-dev.mjs <analysis-binary> <fixture-db> <assets-dir> <loopback-address>');
+  throw new Error('usage: node run-dev.ts <analysis-binary> <fixture-db> <assets-dir> <loopback-address>');
 }
 const rootDir = path.resolve(process.cwd(), '..');
 const absoluteFixture = path.resolve(rootDir, fixtureDB);
@@ -18,6 +18,7 @@ await Promise.all([
 ]);
 console.log(`Development review data: ${path.relative(rootDir, destination)}`);
 const server = spawn(path.resolve(rootDir, binary), ['serve', '--db', metadataCopy, '--addr', address, '--assets-dir', path.resolve(rootDir, assetsDir)], { cwd: rootDir, stdio: 'inherit' });
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, function() { server.kill(signal); });
+const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+for (const signal of signals) process.on(signal, function() { server.kill(signal); });
 server.once('error', function(error) { throw error; });
-process.exitCode = await new Promise(function(resolve) { server.once('exit', function(code) { resolve(code || 0); }); });
+process.exitCode = await new Promise<number>(function(resolve) { server.once('exit', function(code) { resolve(code || 0); }); });

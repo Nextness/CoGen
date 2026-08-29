@@ -10,7 +10,7 @@
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
-    "test:unit": "node --import ./scripts/tsx-loader.mjs --test \"tests/unit/**/*.test.ts\"",
+    "test:unit": "node --import ./scripts/tsx-loader.ts --test \"tests/unit/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "generate:classes": "node scripts/generate-classes.ts",
     "check:classes": "node scripts/generate-classes.ts --check && node scripts/check-classes.ts",
@@ -18,9 +18,9 @@
     "report": "playwright show-report",
     "install:browsers": "playwright install --with-deps chromium firefox webkit",
     "codegen": "playwright codegen http://localhost:8080",
-    "build": "node scripts/build.mjs",
-    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.mjs --bundle --format=esm --target=es2022 --minify --outfile=./vendor/d3-force.js",
-    "build:pdfjs-vendor": "node scripts/pdfjs-vendor.mjs"
+    "build": "node scripts/build.ts",
+    "build:graph-vendor": "esbuild scripts/graph-vendor.entry.ts --bundle --format=esm --target=es2022 --minify --outfile=./vendor/d3-force.js",
+    "build:pdfjs-vendor": "node scripts/pdfjs-vendor.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

@@ -1,8 +1,14 @@
-// @ts-check
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
+import AxeBuilder from '@axe-core/playwright';
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
-const context = {
+/** URL-owned state used to open one viewer presentation. */
+type ViewState = Record<string, string>;
+
+/** One named viewer state used by a parameterized browser check. */
+type NamedViewState = readonly [string, ViewState];
+
+const context: Record<string, string> = {
   search_id: '1',
   search_revision_id: '1',
   plan_id: '1',
@@ -10,18 +16,18 @@ const context = {
 };
 
 /** Builds a fixture viewer URL. */
-function url(overrides = {}) {
+function url(overrides: Record<string, string> = {}): string {
   return `/?${new URLSearchParams({ ...context, ...overrides })}`;
 }
 
 /** Navigates to a UI-quality fixture state. */
-async function visit(page, overrides = {}) {
+async function visit(page: Page, overrides: Record<string, string> = {}): Promise<void> {
   await page.goto(url(overrides));
   await page.waitForLoadState('networkidle');
 }
 
 /** Asynchronously implements expect no page overflow for the viewer. */
-async function expectNoPageOverflow(page) {
+async function expectNoPageOverflow(page: Page): Promise<void> {
   const dimensions = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,
@@ -110,12 +116,13 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('320px and short-landscape layouts keep controls and evidence reachable', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
-    for (const overrides of [
+    const responsiveStates: ViewState[] = [
       { view: 'home' },
       { view: 'evaluation' },
       { view: 'provenance', section: 'audit' },
       { view: 'article', article_id: '1' },
-    ]) {
+    ];
+    for (const overrides of responsiveStates) {
       await visit(page, overrides);
       await expectNoPageOverflow(page);
     }
@@ -192,7 +199,7 @@ test.describe('Automated accessibility checks', () => {
     expect(results.violations).toEqual([]);
   });
 
-  for (const [name, overrides] of [
+  const accessibilityStates: NamedViewState[] = [
     ['home', { view: 'home' }],
     ['overview', { view: 'overview' }],
     ['corpus', { view: 'corpus', section: 'articles' }],
@@ -207,7 +214,8 @@ test.describe('Automated accessibility checks', () => {
     ['advanced', { view: 'advanced' }],
     ['author detail', { view: 'author', author_id: '1' }],
     ['reference detail', { view: 'reference', reference_id: '1' }],
-  ]) {
+  ];
+  for (const [name, overrides] of accessibilityStates) {
     test(`${name} has no axe violations`, async ({ page }) => {
       await visit(page, overrides);
       const results = await new AxeBuilder({ page }).analyze();
@@ -295,9 +303,9 @@ test.describe('Automated accessibility checks', () => {
 
 test.describe('Visual regression', () => {
   test.skip(({ browserName }) => browserName !== 'chromium', 'Visual baselines are maintained for Chromium only.');
-  test.use({ viewport: { width: 1280, height: 900 }, colorScheme: 'light', reducedMotion: 'reduce' });
+  test.use({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' });
 
-  for (const [name, overrides] of [
+  const visualStates: NamedViewState[] = [
     ['home', { view: 'home' }],
     ['overview', { view: 'overview' }],
     ['corpus', { view: 'corpus', section: 'articles' }],
@@ -306,7 +314,8 @@ test.describe('Visual regression', () => {
     ['provenance-audit', { view: 'provenance', section: 'audit' }],
     ['provenance-stages', { view: 'provenance', section: 'stages' }],
     ['evaluation', { view: 'evaluation' }],
-  ]) {
+  ];
+  for (const [name, overrides] of visualStates) {
     test(`${name} light`, async ({ page }) => {
       await visit(page, overrides);
       if (name === 'relationships') {

@@ -46,7 +46,7 @@ make frontend-classes
 make frontend-classes-check
 make check-frontend
 make test-frontend-unit
-make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.cjs
+make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.ts
 make test-frontend-visual
 make frontend-pdfjs-vendor-check
 ```

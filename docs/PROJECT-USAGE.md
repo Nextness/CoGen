@@ -217,10 +217,10 @@ The target runs every `frontend/tests/unit/**/*.test.ts` file through Node's bui
 ```sh
 make test-frontend
 make test-frontend-all
-make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.cjs
-make test-frontend-all WORKERS=1 TEST_FILE=tests/review.spec.cjs
+make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.ts
+make test-frontend-all WORKERS=1 TEST_FILE=tests/review.spec.ts
 make test-frontend-headed BROWSER=chromium
-make test-frontend-debug BROWSER=chromium TEST_FILE=tests/viewer.spec.cjs
+make test-frontend-debug BROWSER=chromium TEST_FILE=tests/viewer.spec.ts
 make test-frontend-visual
 ```
 
@@ -232,7 +232,7 @@ Each invocation writes unique output under `build/playwright/run-*/` and prints 
 make frontend-report REPORT_DIR=build/playwright/run-<id>/report
 ```
 
-`WORKERS` controls Playwright worker count. Read-oriented specs may run in parallel. `review.spec.cjs` is serial because it mutates only its invocation's isolated copy. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
+`WORKERS` controls Playwright worker count. Read-oriented specs may run in parallel. `review.spec.ts` is serial because it mutates only its invocation's isolated copy. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
 
 ## 15. Frontend dependency and vendor maintenance
 
@@ -251,7 +251,7 @@ make frontend-pdfjs-vendor
 make frontend-pdfjs-vendor-check
 ```
 
-Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.mjs`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
+Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.ts`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
 
 ## 16. Documentation workflow
 

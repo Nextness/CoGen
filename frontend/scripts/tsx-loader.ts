@@ -1,4 +1,4 @@
-// Self-registering loader hook that lets Node execute .tsx test files and
+// tsx-loader.ts self-registers a loader hook that lets Node execute .tsx test files and
 // .tsx source imports at runtime. Node's native type stripping supports only
 // .ts, so .tsx modules are transformed with esbuild before execution. The hook
 // is used only by unit tests; the production build compiles .tsx with esbuild

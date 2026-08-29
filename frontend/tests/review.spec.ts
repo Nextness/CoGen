@@ -1,15 +1,16 @@
-// @ts-check
-const { test, expect } = require('@playwright/test');
-const AxeBuilder = require('@axe-core/playwright').default;
+import AxeBuilder from '@axe-core/playwright';
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
 /** Activates a continuation control until the collection reports its terminal page. */
-async function exhaustContinuation(page, selector) {
+async function exhaustContinuation(page: Page, selector: string): Promise<void> {
   for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
     const button = page.locator(selector);
     if (await button.count() === 0) return;
     const priorButton = await button.elementHandle();
+    if (!priorButton) throw new Error(`Continuation control ${selector} disappeared before activation`);
     await button.click();
     await expect.poll(async () => priorButton.evaluate((element) => element.isConnected).catch(() => false)).toBe(false);
   }
@@ -62,14 +63,19 @@ test.describe('isolated review mutation lifecycle', () => {
 
     const anchorLabel = `methods-${browserName}`;
     await page.evaluate(() => {
-      const layer = document.querySelector(".rw-pdf-page .textLayer");
-      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent.includes('Selectable fixture methods'));
+      const layer = document.querySelector('.rw-pdf-page .textLayer');
+      if (!layer) throw new Error('PDF text layer is unavailable');
+      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
+      if (!text) throw new Error('Selectable fixture methods text is unavailable');
       const range = document.createRange();
       range.selectNodeContents(text);
       const selection = window.getSelection();
+      if (!selection) throw new Error('Document selection is unavailable');
       selection.removeAllRanges();
       selection.addRange(range);
-      document.querySelector('.rw-pdf-viewer').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      const viewer = document.querySelector('.rw-pdf-viewer');
+      if (!viewer) throw new Error('PDF viewer is unavailable');
+      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     });
     await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
     await page.getByRole('button', { name: 'Review selection' }).click();
@@ -107,7 +113,11 @@ test.describe('isolated review mutation lifecycle', () => {
     const decisionTab = page.getByRole('tab', { name: 'Decision' });
     await expect(page.getByRole('tab')).toHaveCount(3);
     await expect(decisionTab).toHaveAttribute('aria-selected', 'true');
-    const readingWorkspaceGap = await page.locator('.rw-reading-workspace').evaluate((workspace) => workspace.nextElementSibling.getBoundingClientRect().top - workspace.getBoundingClientRect().bottom);
+    const readingWorkspaceGap = await page.locator('.rw-reading-workspace').evaluate((workspace) => {
+      const sibling = workspace.nextElementSibling;
+      if (!sibling) throw new Error('Reading workspace sibling is unavailable');
+      return sibling.getBoundingClientRect().top - workspace.getBoundingClientRect().bottom;
+    });
     expect(readingWorkspaceGap).toBeGreaterThanOrEqual(15);
     await decisionTab.focus();
     await page.keyboard.press('ArrowRight');
@@ -115,9 +125,13 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.getByText('Note syntax and link examples').click();
     await expect(page.locator('.rw-note-syntax')).toContainText('[[article:10.1000/example|Article title]]');
     const noteFormGaps = await page.locator('[data-note-form]').evaluate((form) => {
-      const heading = form.querySelector('.rw-note-form__heading').getBoundingClientRect();
-      const field = form.querySelector('.ui.field').getBoundingClientRect();
-      const actions = form.querySelector('.rw-review-actions').getBoundingClientRect();
+      const headingElement = form.querySelector('.rw-note-form__heading');
+      const fieldElement = form.querySelector('.ui.field');
+      const actionsElement = form.querySelector('.rw-review-actions');
+      if (!headingElement || !fieldElement || !actionsElement) throw new Error('Note form layout elements are unavailable');
+      const heading = headingElement.getBoundingClientRect();
+      const field = fieldElement.getBoundingClientRect();
+      const actions = actionsElement.getBoundingClientRect();
       return { heading: field.top - heading.bottom, actions: actions.top - field.bottom };
     });
     expect(noteFormGaps.heading).toBeGreaterThanOrEqual(15);
@@ -130,16 +144,22 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.getByText('Insert evidence link')).toBeVisible();
     await expect(page.getByText('Note syntax and link examples')).toBeVisible();
     const noteSectionOrder = await page.locator('[data-note-host]').evaluate((notes) => {
-      const workspace = notes.querySelector('.rw-note-workspace').getBoundingClientRect();
-      const saved = notes.querySelector('.rw-note-saved').getBoundingClientRect();
+      const workspaceElement = notes.querySelector('.rw-note-workspace');
+      const savedElement = notes.querySelector('.rw-note-saved');
+      if (!workspaceElement || !savedElement) throw new Error('Note workspace sections are unavailable');
+      const workspace = workspaceElement.getBoundingClientRect();
+      const saved = savedElement.getBoundingClientRect();
       return saved.top - workspace.bottom;
     });
     expect(noteSectionOrder).toBeGreaterThanOrEqual(15);
     await page.getByRole('tab', { name: 'PDF anchors' }).click();
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
     const anchorBacklinkGap = await page.locator('.rw-anchor-panel').evaluate((panel) => {
-      const list = panel.querySelector('[data-anchor-list]').getBoundingClientRect();
-      const backlinks = panel.querySelector('.rw-review-history').getBoundingClientRect();
+      const listElement = panel.querySelector('[data-anchor-list]');
+      const backlinksElement = panel.querySelector('.rw-review-history');
+      if (!listElement || !backlinksElement) throw new Error('Anchor evidence sections are unavailable');
+      const list = listElement.getBoundingClientRect();
+      const backlinks = backlinksElement.getBoundingClientRect();
       return backlinks.top - list.bottom;
     });
     expect(anchorBacklinkGap).toBeGreaterThanOrEqual(15);
@@ -153,6 +173,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.locator('[data-pdf-status]')).toHaveText('PDF page 2 of 2.');
     const containment = await page.locator('.rw-pdf-viewer').evaluate((viewer) => {
       const viewport = viewer.querySelector('.rw-pdf-pages');
+      if (!viewport) throw new Error('PDF page viewport is unavailable');
       return { viewerOverflow: getComputedStyle(viewer).overflow, viewportOverflow: getComputedStyle(viewport).overflow, viewerBottom: viewer.getBoundingClientRect().bottom, viewportBottom: viewport.getBoundingClientRect().bottom };
     });
     expect(containment.viewerOverflow).toBe('hidden');
@@ -187,6 +208,7 @@ test.describe('isolated review mutation lifecycle', () => {
     var targetRow = page.locator('[data-note-id]').filter({ hasText: noteTitle }).first();
     const targetNoteID = await targetRow.getAttribute('data-note-id');
     expect(targetNoteID).toMatch(/^\d+$/);
+    if (!targetNoteID) throw new Error('Target note ID is unavailable');
     await targetRow.getByRole('button', { name: 'Edit' }).click();
     await expect(page.locator('[data-note-editor-title]')).toContainText('Editing');
     await expect(page.locator('[data-note-body]')).toHaveValue(/unresolved note/);
@@ -234,6 +256,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(sourceRow).toBeVisible();
     const sourceNoteID = await sourceRow.getAttribute('data-note-id');
     expect(sourceNoteID).toMatch(/^\d+$/);
+    if (!sourceNoteID) throw new Error('Source note ID is unavailable');
 
     targetRow = page.locator(`[data-note-id="${targetNoteID}"]`);
     await targetRow.getByRole('button', { name: 'Backlinks' }).click();
@@ -260,6 +283,7 @@ test.describe('isolated review mutation lifecycle', () => {
     const previousAnchorBox = await anchorHistoryItems.nth(1).boundingBox();
     expect(newestAnchorBox).not.toBeNull();
     expect(previousAnchorBox).not.toBeNull();
+    if (!newestAnchorBox || !previousAnchorBox) throw new Error('Anchor history bounds are unavailable');
     expect(previousAnchorBox.y - newestAnchorBox.y - newestAnchorBox.height).toBeGreaterThanOrEqual(8);
     await page.locator('.rw-anchor-history').getByRole('button', { name: 'Restore anchor' }).click();
     anchorRow = page.locator('[data-anchor-id]').filter({ hasText: anchorLabel });
@@ -309,7 +333,7 @@ test.describe('isolated review mutation lifecycle', () => {
     expect((await contextResponse.json()).run.visibility_state).toBe('trashed');
     const audit = await request.get('/api/audit?run_id=3&action=run_trashed&limit=25');
     expect(audit.ok()).toBeTruthy();
-    expect((await audit.json()).events.some((event) => event.action === 'run_trashed')).toBeTruthy();
+    expect((await audit.json()).events.some((event: { action: string }) => event.action === 'run_trashed')).toBeTruthy();
   });
 
   test('traverses 101-record review collection boundaries through UI continuations', async ({ page, request, browserName }) => {

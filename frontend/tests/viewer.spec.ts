@@ -1,6 +1,7 @@
-// @ts-check
-const { test, expect } = require('@playwright/test');
-const { readFile } = require('node:fs/promises');
+import { readFile } from 'node:fs/promises';
+
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 // ── Fixture identifiers ───────────────────────────────────────────────
 // URL parameters use row IDs (not search_id strings or execution fingerprints)
@@ -44,7 +45,7 @@ const REF_1_ID = '1';     // Points to 10.1000/2
 /**
  * Navigate to a URL and wait for network idle.
  */
-async function goto(page, url) {
+async function goto(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await page.waitForLoadState('networkidle');
 }
@@ -52,7 +53,7 @@ async function goto(page, url) {
 /**
  * Build a context URL with search, revision, plan, and run IDs.
  */
-function contextURL(overrides = {}) {
+function contextURL(overrides: Record<string, string> = {}): string {
   const params = new URLSearchParams({
     view: 'overview',
     search_id: SEARCH_DL,
@@ -67,7 +68,7 @@ function contextURL(overrides = {}) {
 /**
  * Navigate to a fully selected context URL.
  */
-async function selectRun(page, searchId, revisionId, planId, runId) {
+async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string): Promise<void> {
   await goto(page, contextURL({ search_id: searchId, search_revision_id: revisionId, plan_id: planId, run_id: runId }));
 }
 
@@ -116,6 +117,7 @@ test.describe('Health and page load', () => {
   test('primary navigation preserves the selected research context', async ({ page }) => {
     await goto(page, contextURL({ view: 'overview' }));
     const href = await page.getByRole('link', { name: 'Corpus', exact: true }).getAttribute('href');
+    if (!href) throw new Error('Corpus navigation link has no href');
     const target = new URL(href, page.url());
     expect(target.searchParams.get('view')).toBe('corpus');
     expect(target.searchParams.get('search_id')).toBe(SEARCH_DL);
@@ -184,6 +186,7 @@ test.describe('Health and page load', () => {
     await expect(context).not.toContainText(/Select a captured run|Inspecting run attempt/i);
     const contextGap = await context.evaluate((element) => {
       const tabs = document.querySelector('.rw-primary-nav');
+      if (!tabs) throw new Error('Deepdive navigation is unavailable');
       return tabs.getBoundingClientRect().top - element.getBoundingClientRect().bottom;
     });
     expect(contextGap).toBeGreaterThanOrEqual(20);
@@ -513,6 +516,7 @@ test.describe('Relationships (graph) view', () => {
     expect(download.suggestedFilename()).toBe('graph-export.png');
     const path = await download.path();
     expect(path).not.toBeNull();
+    if (!path) throw new Error('Downloaded graph path is unavailable');
     const bytes = await readFile(path);
     expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   });
@@ -525,6 +529,7 @@ test.describe('Relationships (graph) view', () => {
     const canvasBox = await canvas.boundingBox();
     expect(legendBox).not.toBeNull();
     expect(canvasBox).not.toBeNull();
+    if (!legendBox || !canvasBox) throw new Error('Graph legend or canvas bounds are unavailable');
     expect(Math.abs(legendBox.x - canvasBox.x)).toBeLessThan(24);
     expect(canvasBox.y + canvasBox.height - legendBox.y - legendBox.height).toBeLessThan(24);
   });
@@ -556,6 +561,7 @@ test.describe('Relationships (graph) view', () => {
     const canvas = page.locator('.rw-graph__canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
+    if (!box) throw new Error('Graph canvas bounds are unavailable');
     const position = { x: box.width / 2, y: box.height / 2 };
     await canvas.click({ position });
     await expect(page.locator('#graph-clear-selection')).toBeEnabled();
@@ -569,6 +575,7 @@ test.describe('Relationships (graph) view', () => {
     const canvas = page.locator('.rw-graph__canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
+    if (!box) throw new Error('Graph canvas bounds are unavailable');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down({ button: 'right' });
     await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 35, { steps: 4 });
@@ -602,6 +609,7 @@ test.describe('Provenance view', () => {
     await expect(categoryCheckbox).toHaveCSS('height', '16px');
     const summaryBox = await categoryFilter.locator('summary').boundingBox();
     const checkboxBox = await categoryCheckbox.boundingBox();
+    if (!summaryBox || !checkboxBox) throw new Error('Audit category control bounds are unavailable');
     expect(Math.abs(checkboxBox.x - summaryBox.x)).toBeLessThan(14);
     await categoryCheckbox.check();
     await page.getByRole('button', { name: 'Apply filters' }).click();
@@ -704,6 +712,7 @@ test.describe('Evaluation view', () => {
     await goto(page, contextURL({ view: 'provenance' }));
     const evaluation = page.getByRole('link', { name: 'Evaluation', exact: true });
     const href = await evaluation.getAttribute('href');
+    if (!href) throw new Error('Evaluation navigation link has no href');
     const target = new URL(href, page.url());
     expect(target.searchParams.get('view')).toBe('evaluation');
     expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
@@ -1098,7 +1107,9 @@ test.describe('Dismissible messages', () => {
       message.className = 'ui info message';
       message.dataset.testDismissible = '';
       message.innerHTML = '<button type="button" class="close" aria-label="Dismiss test message">×</button><p>Deterministic dismissible message.</p>';
-      document.querySelector('#main-content').prepend(message);
+      const main = document.querySelector('#main-content');
+      if (!main) throw new Error('Main content is unavailable');
+      main.prepend(message);
     });
     const message = page.locator('[data-test-dismissible]');
     await expect(message).toBeVisible();
