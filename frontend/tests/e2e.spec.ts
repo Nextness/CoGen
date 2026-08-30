@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 
 /** Persistent identifier shape returned by generated fixture APIs. */
 type Identifier = string | number;
@@ -74,22 +74,43 @@ async function generatedContext(request: APIRequestContext): Promise<GeneratedCo
   };
 }
 
-/** Builds a context-preserving application URL for one generated viewer route. */
-function generatedURL(context: GeneratedContext, updates: Record<string, Identifier>): string {
-  const params = new URLSearchParams({
+/** Builds a context-preserving viewer state for one generated route. */
+function generatedState(context: GeneratedContext, updates: Record<string, Identifier>): Record<string, string> {
+  const state: Record<string, string> = {
     search_id: String(context.search_id),
     search_revision_id: String(context.search_revision_id),
     plan_id: String(context.plan_id),
     run_id: String(context.run_id),
+  };
+  for (const [key, value] of Object.entries(updates)) state[key] = String(value);
+  return state;
+}
+
+/** Seeds viewer state through sessionStorage and navigates to the clean generated route. */
+async function visitGenerated(page: Page, context: GeneratedContext, updates: Record<string, Identifier>): Promise<void> {
+  const state = generatedState(context, updates);
+  const path = state.view === 'home' ? '/' : `/${state.view}`;
+  await page.evaluate(({ seed, seedPath }: { seed: Record<string, string>; seedPath: string }) => {
+    window.name = JSON.stringify(seed);
+    try {
+      sessionStorage.removeItem("rw-viewer-state");
+      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
+    } catch (_) {
+      // The initial about:blank document may deny sessionStorage access.
+    }
+  }, { seed: state, seedPath: path });
+  await page.addInitScript(() => {
+    const seed = window.name ? JSON.parse(window.name) : null;
+    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
   });
-  for (const [key, value] of Object.entries(updates)) params.set(key, String(value));
-  return `/?${params.toString()}`;
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
 }
 
 test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', async ({ page, request }) => {
   const context = await generatedContext(request);
 
-  await page.goto(generatedURL(context, { view: 'corpus', section: 'articles' }));
+  await visitGenerated(page, context, { view: 'corpus', section: 'articles' });
   await page.waitForLoadState('networkidle');
   const corpus = page.locator(`[data-table-owner="work_revisions"]`);
   await expect(corpus).toBeVisible();
@@ -98,7 +119,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
   await expect(corpus).not.toContainText('Provider Enrichment Candidate');
   await expect(corpus).not.toContainText('Validation Discarded Invalid DOI');
 
-  await page.goto(generatedURL(context, { view: 'provenance', section: 'audit' }));
+  await visitGenerated(page, context, { view: 'provenance', section: 'audit' });
   await page.waitForLoadState('networkidle');
   const audit = page.locator('#audit-event-stream');
   await expect(audit).toBeVisible();
@@ -107,7 +128,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
   await expect(audit).toContainText('Pdf Inventory Registered');
   await expect(audit).toContainText('Run Completed');
 
-  await page.goto(generatedURL(context, { view: 'evaluation' }));
+  await visitGenerated(page, context, { view: 'evaluation' });
   await page.waitForLoadState('networkidle');
   const evaluation = page.locator('.rw-evaluation-table');
   await expect(evaluation).toBeVisible();
@@ -172,7 +193,7 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   const stableA1Note = await (await request.get(`/api/runs/${a1Run.id}/notes/${a1Note.id}`)).json();
   expect(stableA1Note.note.version.id).toBe(a1Note.version.id);
 
-  await page.goto(generatedURL({ ...context, run_id: a2Run.id }, { view: 'article', article_id: a2Revision }));
+  await visitGenerated(page, { ...context, run_id: a2Run.id }, { view: 'article', article_id: a2Revision });
   await page.waitForLoadState('networkidle');
   await expect(page.locator('[data-review-host]')).toContainText('A2 changed evidence');
   await page.getByRole('tab', { name: 'PDF anchors' }).click();

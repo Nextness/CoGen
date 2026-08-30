@@ -3,13 +3,14 @@ import { describe, it, before, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
-import { setURL, bindFocusContext, render } from '../../src/router.tsx';
-import { state, app } from '../../src/state.tsx';
+import { seedViewerState } from './seed.ts';
+import { setURL, bindFocusContext, render, replaceState } from '../../src/router.tsx';
+import { state, app, viewerState, initViewerState } from '../../src/state.tsx';
 
 describe('router.tsx — setURL', function() {
 
   beforeEach(function() {
-    history.replaceState({}, '', '/?view=overview');
+    seedViewerState({ view: 'overview' });
   });
 
   it('assigns the destination page for a cross-view push', function() {
@@ -18,6 +19,7 @@ describe('router.tsx — setURL', function() {
     globalThis.location = {
       href: originalLocation.href,
       origin: originalLocation.origin,
+      pathname: originalLocation.pathname,
       search: originalLocation.search,
       assign: function(href: string) { assigned = href; },
       replace: function() {},
@@ -25,7 +27,9 @@ describe('router.tsx — setURL', function() {
 
     try {
       setURL({ view: 'corpus' }, false);
-      assert.equal(assigned, 'corpus.html?view=corpus');
+      assert.equal(assigned, '/corpus');
+      assert.equal(viewerState.view, 'corpus');
+      assert.equal(sessionStorage.getItem('rw-viewer-state'), JSON.stringify({ view: 'corpus' }));
     } finally {
       globalThis.location = originalLocation;
     }
@@ -37,6 +41,7 @@ describe('router.tsx — setURL', function() {
     globalThis.location = {
       href: originalLocation.href,
       origin: originalLocation.origin,
+      pathname: originalLocation.pathname,
       search: originalLocation.search,
       assign: function() {},
       replace: function(href: string) { replaced = href; },
@@ -44,7 +49,7 @@ describe('router.tsx — setURL', function() {
 
     try {
       setURL({ view: 'provenance' }, true);
-      assert.equal(replaced, 'provenance.html?view=provenance');
+      assert.equal(replaced, '/provenance');
     } finally {
       globalThis.location = originalLocation;
     }
@@ -55,9 +60,29 @@ describe('router.tsx — setURL', function() {
 
     setURL({ view: 'overview', run_id: '1' }, false);
 
-    assert.equal(location.pathname, '/overview.html');
-    assert.equal(new URL(location.href).searchParams.get('run_id'), '1');
+    assert.equal(location.pathname, '/overview');
+    assert.equal(viewerState.run_id, '1');
+    assert.equal(history.state.run_id, '1');
+    assert.equal(sessionStorage.getItem('rw-viewer-state'), JSON.stringify({ view: 'overview', run_id: '1' }));
     assert.ok(state.request > previousRequest);
+  });
+
+});
+
+describe('router.tsx — replaceState', function() {
+
+  beforeEach(function() {
+    seedViewerState({ view: 'corpus', section: 'articles' });
+  });
+
+  it('updates viewerState, history.state, and sessionStorage without rendering', function() {
+    const previousRequest = state.request;
+    replaceState({ page: 3 });
+    assert.equal(viewerState.page, '3');
+    assert.equal(history.state.page, '3');
+    assert.equal(location.pathname, '/corpus');
+    assert.equal(sessionStorage.getItem('rw-viewer-state'), JSON.stringify({ view: 'corpus', section: 'articles', page: '3' }));
+    assert.equal(state.request, previousRequest);
   });
 
 });
@@ -107,9 +132,7 @@ describe('router.tsx — render', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'overview' });
 
     await render({ focusTitle: true });
     assert.ok(app.querySelector('#page-title'));
@@ -127,7 +150,7 @@ describe('router.tsx — render', function() {
     globalThis.fetch = function() {
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
     } as typeof fetch;
-    history.pushState({}, '', '?view=home');
+    seedViewerState({ view: 'home' });
 
     await render();
 
@@ -148,7 +171,7 @@ describe('router.tsx — render', function() {
         json: () => Promise.resolve({ data: [] }),
       } as Response);
     }) as typeof fetch;
-    history.replaceState({}, "", "?view=home");
+    seedViewerState({ view: 'home' });
     const previous = new AbortController();
     state.controller = previous;
 

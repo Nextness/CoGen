@@ -1,7 +1,7 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
-import { link } from "../state.tsx";
+import { link, linkState } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -30,15 +30,17 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
   /** Renders loaded source-note summaries and an explicit continuation control. */
   function render(): void {
     const items = loaded.map((source) => {
-      const href = link({
+      const updates = {
         view: "article",
         article_id: source.work_revision_id,
         note_id: source.id,
         anchor_id: "",
         pdf_page: "",
-      });
+      };
+      const href = link(updates);
+      const state = linkState(updates);
       const title = source.version?.title || `Note ${source.id}`;
-      return <li><a href={href}>{title}</a></li>;
+      return <li><a href={href} data-state={JSON.stringify(state)}>{title}</a></li>;
     });
     var content: JSX.Element = <p className={classNames.uiFadedText}>No current note links point here.</p>;
     if (items.length) {
@@ -89,14 +91,16 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       var prior: JSX.Element | null = null;
       if (loaded.length) {
         const retained = loaded.map((source) => {
-          const href = link({
+          const updates = {
             view: "article",
             article_id: source.work_revision_id,
             note_id: source.id,
             anchor_id: "",
             pdf_page: "",
-          });
-          return <li><a href={href}>{source.version?.title || `Note ${source.id}`}</a></li>;
+          };
+          const href = link(updates);
+          const state = linkState(updates);
+          return <li><a href={href} data-state={JSON.stringify(state)}>{source.version?.title || `Note ${source.id}`}</a></li>;
         });
         prior = <ul>{retained}</ul>;
       }

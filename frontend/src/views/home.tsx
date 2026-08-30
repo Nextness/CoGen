@@ -7,6 +7,7 @@ import {
   formatDuration,
   StatusChip,
   link,
+  linkState,
   params,
   PageHeader,
   Panel,
@@ -45,18 +46,19 @@ const classNames = {
   uiTableRwHomeRuns: cx("ui", "table", "rw-home-runs"),
 };
 
-/** Returns a clean Deepdive URL for one complete research context. */
-function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Identifier, runID: Identifier): string {
+/** Returns a clean Deepdive link target for one complete research context. */
+function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Identifier, runID: Identifier): { href: string; state: Record<string, string> } {
   const updates: Record<string, unknown> = {};
   for (const key of params().keys()) updates[key] = "";
-  return link({
+  const destination = {
     ...updates,
     view: "overview",
     search_id: searchID,
     search_revision_id: revisionID,
     plan_id: planID,
     run_id: runID,
-  });
+  };
+  return { href: link(destination), state: linkState(destination) };
 }
 
 /** Returns whether one hierarchy item contains a complete planned-run context. */
@@ -67,10 +69,12 @@ function hasContext(item: HierarchyRun): boolean {
 /** Renders one direct action for a search's latest complete run. */
 function ContinueAction(props: { searchID: Identifier | null; revisionID: Identifier | null; planID: Identifier | null; runID: Identifier | null }): JSX.Element | null {
   if (!props.searchID || !props.revisionID || !props.planID || !props.runID) return null;
+  const target = deepdiveLink(props.searchID, props.revisionID, props.planID, props.runID);
   return (
     <a
       className={classNames.uiPrimaryBasicButton}
-      href={deepdiveLink(props.searchID, props.revisionID, props.planID, props.runID)}
+      href={target.href}
+      data-state={JSON.stringify(target.state)}
     >
       Continue
     </a>
@@ -164,10 +168,12 @@ function RunTable(props: { runs: HierarchyRun[]; hasMore: boolean }): JSX.Elemen
     }
     var explore: JSX.Element = <span className={classNames.uiFadedText}>Context unavailable</span>;
     if (canExplore) {
+      const target = deepdiveLink(run.search_id!, run.search_revision_id!, run.execution_plan_id!, run.id);
       explore = (
         <a
           className={classNames.uiPrimaryButton}
-          href={deepdiveLink(run.search_id!, run.search_revision_id!, run.execution_plan_id!, run.id)}
+          href={target.href}
+          data-state={JSON.stringify(target.state)}
         >
           Explore
         </a>

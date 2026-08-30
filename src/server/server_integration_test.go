@@ -161,8 +161,11 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte(index), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(assetDir, "overview.html"), []byte(strings.Replace(index, "<title>Research workspace</title>", "<title>Overview · Research workspace</title>", 1)), 0644); err != nil {
-		t.Fatal(err)
+	for _, viewFile := range []string{"overview", "corpus", "relationships", "provenance", "evaluation", "advanced", "article", "author", "reference"} {
+		viewDocument := strings.Replace(index, "<title>Research workspace</title>", "<title>"+strings.Title(viewFile)+" · Research workspace</title>", 1)
+		if err := os.WriteFile(filepath.Join(assetDir, viewFile+".html"), []byte(viewDocument), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := os.WriteFile(filepath.Join(assetDir, "app.js"), []byte("export const marker = 'forceSimulation';\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -203,7 +206,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 		}
 		defer viewer.Close()
 		viewer.AssetsFS = os.DirFS(assetDir)
-		page := viewerRequest(t, viewer.Handler(), "/overview.html?view=overview")
+		page := viewerRequest(t, viewer.Handler(), "/overview")
 		if page.Code != http.StatusOK {
 			t.Fatalf("overview page status=%d body=%s", page.Code, page.Body.String())
 		}
@@ -212,6 +215,41 @@ func TestDiskServedFrontendContract(t *testing.T) {
 		}
 		if !strings.Contains(page.Body.String(), "Overview · Research workspace") {
 			t.Error("served overview page is missing its page title")
+		}
+	})
+
+	t.Run("serves every extensionless view path with its owning document", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		handler := viewer.Handler()
+		for _, viewPath := range []string{"/overview", "/corpus", "/relationships", "/provenance", "/evaluation", "/advanced", "/article", "/author", "/reference", "/trash"} {
+			page := viewerRequest(t, handler, viewPath)
+			if page.Code != http.StatusOK {
+				t.Errorf("GET %s: status=%d body=%s", viewPath, page.Code, page.Body.String())
+			}
+			if contentType := page.Header().Get("Content-Type"); !strings.Contains(contentType, "text/html") {
+				t.Errorf("GET %s: content type = %q, want text/html", viewPath, contentType)
+			}
+		}
+	})
+
+	t.Run("serves the physical view documents through the filesystem fallback", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		page := viewerRequest(t, viewer.Handler(), "/overview.html")
+		if page.Code != http.StatusOK {
+			t.Fatalf("overview.html status=%d body=%s", page.Code, page.Body.String())
+		}
+		if !strings.Contains(page.Body.String(), "Overview · Research workspace") {
+			t.Error("served overview.html is missing its page title")
 		}
 	})
 

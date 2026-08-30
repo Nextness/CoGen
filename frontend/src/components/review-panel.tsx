@@ -18,7 +18,7 @@ import type {
   WorkReviewVersionResponse,
   WorkReviewVersionsResponse,
 } from "../api/types.ts";
-import { formatTime, humanLabel, link } from "../state.tsx";
+import { formatTime, humanLabel, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { mountNoteEditor } from "./note-editor.tsx";
 import { mountPDFViewer } from "./pdf-viewer.tsx";
@@ -26,6 +26,7 @@ import type { PDFViewerController } from "./pdf-viewer.tsx";
 import { bindReviewContextInitializer, ReviewContextDialog, reviewContextSummary } from "./review-context-dialog.tsx";
 import type { ProposedParent } from "./review-context-dialog.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
+import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -111,9 +112,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   if (detailData.pdf_status?.status === "available" && pdfHost) {
     pdfController = await mountPDFViewer(pdfHost, {
       url: `/api/pdf/${workID}`,
-      page: Number(new URLSearchParams(location.search).get("pdf_page") || 1),
+      page: Number(value("pdf_page") || 1),
       onPageChange: (page: number) => {
-        history.replaceState({}, "", link({ pdf_page: page }));
+        replaceState({ pdf_page: page });
       },
       onSelection: (selection: PDFSelection) => {
         pendingSelection = selection;
@@ -422,7 +423,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     host.querySelector<HTMLButtonElement>("[data-page-backlinks]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget as HTMLButtonElement;
       const target = host.querySelector<HTMLElement>("[data-page-backlink-list]")!;
-      const currentPage = new URLSearchParams(location.search).get("pdf_page") || "1";
+      const currentPage = value("pdf_page") || "1";
       button.disabled = true;
       await mountBacklinks(target, {
         runID: runID,
@@ -684,8 +685,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       }
     });
     var initialSection = "decision";
-    if (pendingSelection || new URLSearchParams(location.search).get("anchor_id")) initialSection = "anchors";
-    else if (new URLSearchParams(location.search).get("note_id")) initialSection = "notes";
+    if (pendingSelection || value("anchor_id")) initialSection = "anchors";
+    else if (value("note_id")) initialSection = "notes";
     await activateReviewSection(initialSection);
   }
 
@@ -841,10 +842,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       const row = target.querySelector(`[data-anchor-id="${CSS.escape(anchor.id)}"]`) as HTMLElement;
       const pageButton = row.querySelector("[data-anchor-page]") as HTMLButtonElement;
       pageButton.addEventListener("click", () => {
-        history.replaceState({}, "", link({
+        replaceState({
           anchor_id: anchor.id,
           pdf_page: anchor.version.page,
-        }));
+        });
         pdfController?.goToPage(Number(anchor.version.page));
       });
       const historyButton = row.querySelector("[data-anchor-history]") as HTMLButtonElement;
@@ -862,7 +863,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             selected_text: "",
             rectangles: [],
           });
-          history.replaceState({}, "", link({ anchor_id: anchor.id }));
+          replaceState({ anchor_id: anchor.id });
           const message = target.querySelector("[data-anchor-list-message]") as HTMLElement;
           message.className = classNames.uiSuccessMessage;
           message.textContent = "Anchor removed. Its immutable history remains available.";
@@ -885,7 +886,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         }
       });
     }
-    const focused = new URLSearchParams(location.search).get("anchor_id");
+    const focused = value("anchor_id");
     if (focused && !activeAnchors.some((anchor) => {
       return anchor.id === focused;
     })) await showAnchorHistory(focused);

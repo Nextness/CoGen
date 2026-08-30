@@ -15,14 +15,24 @@ const context: Record<string, string> = {
   run_id: '1',
 };
 
-/** Builds a fixture viewer URL. */
-function url(overrides: Record<string, string> = {}): string {
-  return `/?${new URLSearchParams({ ...context, ...overrides })}`;
-}
-
-/** Navigates to a UI-quality fixture state. */
+/** Navigates to a UI-quality fixture state through sessionStorage seeding. */
 async function visit(page: Page, overrides: Record<string, string> = {}): Promise<void> {
-  await page.goto(url(overrides));
+  const state = { ...context, ...overrides };
+  const path = state.view === 'home' ? '/' : `/${state.view}`;
+  await page.evaluate(({ seed, seedPath }) => {
+    window.name = JSON.stringify(seed);
+    try {
+      sessionStorage.removeItem("rw-viewer-state");
+      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
+    } catch (_) {
+      // The initial about:blank document may deny sessionStorage access.
+    }
+  }, { seed: state, seedPath: path });
+  await page.addInitScript(() => {
+    const seed = window.name ? JSON.parse(window.name) : null;
+    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
+  });
+  await page.goto(path);
   await page.waitForLoadState('networkidle');
 }
 
@@ -164,8 +174,8 @@ test.describe('Research-context and responsive behavior', () => {
   });
 
   test('skip link, errors, and reduced motion are announced', async ({ page }) => {
-    await visit(page, { view: 'overview' });
-    // Skip link is first focusable element
+    // Home boots without programmatic title focus, so the first Tab stop is the skip link.
+    await visit(page, { view: 'home' });
     await page.keyboard.press('Tab');
     await expect(page.locator('.skip-link')).toBeFocused();
 
@@ -189,9 +199,7 @@ test.describe('Research-context and responsive behavior', () => {
 
 test.describe('Automated accessibility checks', () => {
   test('the overview page document has no axe violations', async ({ page }) => {
-    const query = new URLSearchParams({ ...context, view: 'overview' });
-    await page.goto(`/overview.html?${query.toString()}`);
-    await page.waitForLoadState('networkidle');
+    await visit(page, { view: 'overview' });
 
     await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();

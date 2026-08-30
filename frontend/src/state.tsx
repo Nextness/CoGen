@@ -138,19 +138,19 @@ export const routeOwnedKeys: Record<string, string[]> = {
   reference: ["reference_id", "origin"],
 };
 
-/** Maps every supported view to the HTML document that owns its navigation entry. */
+/** Maps every supported view to its clean extensionless application path. */
 export const viewPage: Record<string, string> = {
-  home: "index.html",
-  trash: "index.html",
-  overview: "overview.html",
-  corpus: "corpus.html",
-  relationships: "relationships.html",
-  provenance: "provenance.html",
-  evaluation: "evaluation.html",
-  advanced: "advanced.html",
-  article: "article.html",
-  author: "author.html",
-  reference: "reference.html",
+  home: "/",
+  trash: "/trash",
+  overview: "/overview",
+  corpus: "/corpus",
+  relationships: "/relationships",
+  provenance: "/provenance",
+  evaluation: "/evaluation",
+  advanced: "/advanced",
+  article: "/article",
+  author: "/author",
+  reference: "/reference",
 };
 
 const detailOriginViews = new Set(["evaluation", "corpus", "relationships", "provenance"]);
@@ -167,11 +167,66 @@ export interface DetailOrigin {
   label: string;
   href: string;
   params: URLSearchParams;
+  state: Record<string, string>;
 }
 
-/** Returns the current URL search parameters. */
+/** The single source of truth for viewer route state, mirrored to sessionStorage and history.state. */
+export let viewerState: Record<string, string> = {};
+
+/** The sessionStorage key that mirrors viewerState across full page loads. */
+const viewerStateKey = "rw-viewer-state";
+
+/** Derives the view from a pathname: strips slashes and a trailing .html suffix. */
+export function pathView(pathname?: string): string {
+  const raw = pathname === undefined ? location.pathname : pathname;
+  var viewName = raw.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (viewName.endsWith(".html")) viewName = viewName.slice(0, -5);
+  if (!viewName) return "home";
+  return viewName;
+}
+
+/** Validates an unknown value as a plain string-valued state object. */
+export function isStateObject(raw: unknown): raw is Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  return Object.values(raw).every((item) => typeof item === "string");
+}
+
+/** Persists the current viewerState to sessionStorage when storage is available. */
+export function saveState(): void {
+  try {
+    sessionStorage.setItem(viewerStateKey, JSON.stringify(viewerState));
+  } catch (_) {
+    // Storage may be unavailable; history.state still carries the state.
+  }
+}
+
+/** Reads and validates the persisted viewerState, returning null when absent or invalid. */
+export function loadState(): Record<string, string> | null {
+  try {
+    const raw = sessionStorage.getItem(viewerStateKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!isStateObject(parsed)) return null;
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Assigns the viewerState and mirrors it to sessionStorage. */
+export function restoreState(state: Record<string, string>): void {
+  viewerState = state;
+  saveState();
+}
+
+/** Returns the clean application path for one state object's view. */
+export function pathFor(state: Record<string, string>): string {
+  return viewPage[state.view || "home"] || viewPage.home;
+}
+
+/** Returns the current URL search parameters backed by the viewerState. */
 export function params(): URLSearchParams {
-  return new URLSearchParams(location.search);
+  return new URLSearchParams(viewerState);
 }
 
 /** Returns a named URL parameter or an empty string. */
@@ -181,12 +236,69 @@ export function value(name: string): string {
 
 /** Returns the selected viewer view. */
 export function view(): string {
-  return value("view") || "home";
+  return viewerState.view || pathView();
 }
 
 /** Returns a named section parameter or its fallback. */
 export function section(name: string, fallback: string): string {
   return value(name) || fallback;
+}
+
+/** Builds the filtered destination state from updates applied to the current viewerState. */
+export function stateFor(updates?: Record<string, unknown>): Record<string, string> {
+  if (!updates) updates = {};
+  const next: Record<string, string> = { ...viewerState };
+  const previousArticleID = next.article_id || "";
+  Object.entries(updates).forEach(([key, raw]) => {
+    if (raw === "" || raw === null || raw === undefined) {
+      delete next[key];
+    } else {
+      next[key] = String(raw);
+    }
+  });
+  if (!next.view) {
+    next.view = "home";
+  }
+
+  const destination = next.view;
+  if (destination === "article" && Object.hasOwn(updates, "article_id") && next.article_id !== previousArticleID) {
+    delete next.note_id;
+    delete next.anchor_id;
+    delete next.pdf_page;
+    delete next.detail_authors_cursor;
+    delete next.detail_references_cursor;
+    delete next.detail_stages_cursor;
+    delete next.detail_audit_cursor;
+  }
+  const allowed = new Set<string>(["view", ...(routeOwnedKeys[destination] || [])]);
+  if (destination !== "home" && destination !== "trash") {
+    canonicalContextKeys.forEach((key) => {
+      allowed.add(key);
+    });
+  }
+  for (const key of Object.keys(next)) {
+    if (!allowed.has(key)) delete next[key];
+  }
+  return next;
+}
+
+/** Builds an internal path-only URL from canonical context and destination-owned state only. */
+export function link(updates?: Record<string, unknown>): string {
+  return pathFor(stateFor(updates));
+}
+
+/** Returns the filtered destination state object for anchor state carrying. */
+export function linkState(updates?: Record<string, unknown>): Record<string, string> {
+  return stateFor(updates);
+}
+
+/** Adopts persisted state at boot, corrects the view from the pathname, and attaches it to the initial entry. */
+export function initViewerState(): void {
+  const adopted = isStateObject(history.state) ? history.state : loadState() || {};
+  viewerState = adopted;
+  viewerState = stateFor({ view: pathView() });
+  saveState();
+  history.replaceState(viewerState, "", pathFor(viewerState));
 }
 
 /** Serializes the current supported collection route for use by a detail link. */
@@ -218,11 +330,13 @@ export function detailOrigin(): DetailOrigin | null {
   Array.from(origin.keys()).forEach((key) => {
     if (!allowed.has(key)) origin.delete(key);
   });
+  const state = Object.fromEntries(origin);
   return {
     view: originView,
     label: detailOriginLabels[originView],
-    href: `${viewPage[originView]}?${origin.toString()}`,
+    href: pathFor(state),
     params: origin,
+    state: state,
   };
 }
 
@@ -449,49 +563,6 @@ export function busy(isBusy: boolean): void {
   app.inert = isBusy;
 }
 
-/** Builds an internal URL from canonical context and destination-owned state only. */
-export function link(updates?: Record<string, unknown>): string {
-  if (!updates) {
-    updates = {};
-  }
-  const next = params();
-  const previousArticleID = next.get("article_id");
-  const updateEntries = Object.entries(updates);
-  updateEntries.forEach(([key, raw]) => {
-    if (raw === "" || raw === null || raw === undefined) {
-      next.delete(key);
-    } else {
-      next.set(key, String(raw));
-    }
-  });
-  if (!next.get("view")) {
-    next.set("view", "home");
-  }
-
-  const destination = next.get("view") as string;
-  if (destination === "article" && Object.hasOwn(updates, "article_id") && next.get("article_id") !== previousArticleID) {
-    next.delete("note_id");
-    next.delete("anchor_id");
-    next.delete("pdf_page");
-    next.delete("detail_authors_cursor");
-    next.delete("detail_references_cursor");
-    next.delete("detail_stages_cursor");
-    next.delete("detail_audit_cursor");
-  }
-  const allowed = new Set<string>(["view", ...(routeOwnedKeys[destination] || [])]);
-  if (destination !== "home" && destination !== "trash") {
-    canonicalContextKeys.forEach((key) => {
-      allowed.add(key);
-    });
-  }
-  const keys = Array.from(next.keys());
-  keys.forEach((key) => {
-    if (!allowed.has(key)) next.delete(key);
-  });
-  const page = viewPage[destination] || viewPage.home;
-  return `${page}?${next.toString()}`;
-}
-
 /** Adds route and focus cleanup required when a parent research context changes. */
 export function contextChange(updates: Record<string, unknown>): Record<string, unknown> {
   const cleaned: Record<string, unknown> = {
@@ -527,9 +598,16 @@ export function PageHeader(props: { kicker: string; title: string; description: 
   );
 }
 
+/** One breadcrumb item with an optional state-carrying destination. */
+export interface BreadcrumbItem {
+  href?: string;
+  label: string;
+  state?: Record<string, string>;
+}
+
 /** Renders escaped breadcrumb markup for an ordered page hierarchy. */
-export function Breadcrumb(props: { items: Array<{ href?: string; label: string }> }): JSX.Element | null {
-  var parts: Array<{ href?: string; label: string }> = [];
+export function Breadcrumb(props: { items: BreadcrumbItem[] }): JSX.Element | null {
+  var parts: BreadcrumbItem[] = [];
   if (Array.isArray(props.items)) parts = props.items;
   if (!parts.length) {
     return null;
@@ -540,7 +618,7 @@ export function Breadcrumb(props: { items: Array<{ href?: string; label: string 
       children.push(<span className="divider" aria-hidden="true">/</span>);
     }
     if (item.href && index < parts.length - 1) {
-      children.push(<a className="section" href={item.href}>{item.label}</a>);
+      children.push(<a className="section" href={item.href} data-state={item.state ? JSON.stringify(item.state) : undefined}>{item.label}</a>);
     } else {
       var ariaCurrent: string | undefined;
       if (index === parts.length - 1) ariaCurrent = "page";
@@ -551,7 +629,7 @@ export function Breadcrumb(props: { items: Array<{ href?: string; label: string 
 }
 
 /** Replaces the shell breadcrumb with the supplied ordered page hierarchy. */
-export function setBreadcrumb(items: Array<{ href?: string; label: string }>): void {
+export function setBreadcrumb(items: BreadcrumbItem[]): void {
   const breadcrumbMarkup = <Breadcrumb items={items} />;
   if (breadcrumbHost) renderTree(breadcrumbMarkup, breadcrumbHost);
 }
@@ -639,12 +717,14 @@ export function Table(props: { title: string; description: string; columns: Tabl
 /** Renders context-preserving tab navigation for a keyed section. */
 export function Subnav(props: { items: Array<[string, string]>; current: string; key: string }): JSX.Element {
   const links = props.items.map(([id, label]) => {
-    const href = link({ [props.key]: id });
+    const updates = { [props.key]: id };
+    const href = link(updates);
+    const state = linkState(updates);
     const active = id === props.current;
     var ariaCurrent: string | undefined;
     if (id === props.current) ariaCurrent = "page";
     const itemClass = cx("item", active && "active");
-    return <a href={href} className={itemClass} aria-current={ariaCurrent}>{label}</a>;
+    return <a href={href} className={itemClass} aria-current={ariaCurrent} data-state={JSON.stringify(state)}>{label}</a>;
   });
   return <nav className={classNames.uiTabularMenu} aria-label="Section navigation">{links}</nav>;
 }
@@ -677,8 +757,9 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
       }
       const updates = { ...(options.removeUpdates || { page: 1 }), [key]: remaining };
       const href = link(updates);
+      const state = linkState(updates);
       return (
-        <a className="rw-filter-chip" href={href} title="Remove filter">
+        <a className="rw-filter-chip" href={href} title="Remove filter" data-state={JSON.stringify(state)}>
           <span>{props.labels?.[key] || humanLabel(key)}:</span>
           {" "}
           {String(item)}
@@ -691,7 +772,8 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
   var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
     const clearHref = link(options.clearUpdates);
-    clear = <a className="rw-filter-clear" href={clearHref}>Clear all</a>;
+    const clearState = linkState(options.clearUpdates);
+    clear = <a className="rw-filter-clear" href={clearHref} data-state={JSON.stringify(clearState)}>Clear all</a>;
   }
   return (
     <div className="rw-filter-summary">
@@ -705,7 +787,7 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
 }
 
 /** Renders a metric card with availability, denominator, and optional navigation. */
-export function MetricCard(props: { name: string; metric: MetricValue | null | undefined; href?: string }): JSX.Element {
+export function MetricCard(props: { name: string; metric: MetricValue | null | undefined; href?: string; state?: Record<string, string> }): JSX.Element {
   const evidence = numericEvidence(props.metric);
   const metric = typeof props.metric === "object" && props.metric !== null ? props.metric : null;
   const unavailable = evidence.state === "unavailable";
@@ -742,7 +824,7 @@ export function MetricCard(props: { name: string; metric: MetricValue | null | u
     );
   }
   if (props.href) {
-    return <div className={classNames.uiStatisticRwKpi}><a href={props.href}>{content}</a></div>;
+    return <div className={classNames.uiStatisticRwKpi}><a href={props.href} data-state={props.state ? JSON.stringify(props.state) : undefined}>{content}</a></div>;
   }
   return <div className={classNames.uiStatisticRwKpi}>{content}</div>;
 }
@@ -753,6 +835,7 @@ export interface FlowStageOptions {
   denominatorLabel?: string;
   baselineLabel?: string;
   href?: string;
+  state?: Record<string, string>;
   outcomes?: Array<{ label: string; value: unknown }>;
 }
 
@@ -844,7 +927,7 @@ export function FlowStage(props: { label: string; raw: unknown; base: unknown; p
 
   var linkedContent: JSX.Element = content;
   if (options.href) {
-    linkedContent = <a className="rw-flow__link" href={options.href}>{content}</a>;
+    linkedContent = <a className="rw-flow__link" href={options.href} data-state={options.state ? JSON.stringify(options.state) : undefined}>{content}</a>;
   }
   var linkedModifier: ClassName | undefined;
   if (options.href) linkedModifier = "linked";
@@ -1034,14 +1117,19 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   }
   var pipelinePrevious: number | null = null;
   if (hasFilterStages && Number.isFinite(number(filterStages[filterStages.length - 1].count))) pipelinePrevious = number(filterStages[filterStages.length - 1].count);
-  const stageHref = (stage: string) => {
-    if (stage === "input") return link({ view: "corpus", section: "sources", q: "", page: 1 });
-    return link({ view: "provenance", section: "stages", stage_q: stage, stage_page: 1 });
+  const stageHref = (stage: string): { href: string; state: Record<string, string> } => {
+    if (stage === "input") {
+      const updates = { view: "corpus", section: "sources", q: "", page: 1 };
+      return { href: link(updates), state: linkState(updates) };
+    }
+    const updates = { view: "provenance", section: "stages", stage_q: stage, stage_page: 1 };
+    return { href: link(updates), state: linkState(updates) };
   };
-  const stageOptions = (description: string, href: string): FlowStageOptions => {
+  const stageOptions = (description: string, target: { href: string; state: Record<string, string> }): FlowStageOptions => {
     return {
       description: description,
-      href: href,
+      href: target.href,
+      state: target.state,
       denominatorLabel: denominatorLabel,
       baselineLabel: "Input baseline",
     };
@@ -1366,19 +1454,26 @@ export function Cell(props: { item: unknown; column: string; tableName?: string;
   if (full.length > 140) display = `${full.slice(0, 137)}…`;
 
   var href = "";
+  var state: Record<string, string> | null = null;
   if (props.column === "article_id" || props.column === "work_revision_id" || (tableName === "work_revisions" && props.column === "id")) {
-    href = link({ view: "article", article_id: props.item });
+    const updates = { view: "article", article_id: props.item };
+    href = link(updates);
+    state = linkState(updates);
   }
   if (props.column === "author_id" || props.column === "author_occurrence_id" || (tableName === "author_occurrences" && props.column === "id")) {
-    href = link({ view: "author", author_id: props.item });
+    const updates = { view: "author", author_id: props.item };
+    href = link(updates);
+    state = linkState(updates);
   }
   if (props.column === "reference_id" || (tableName === "reference_mentions" && props.column === "id")) {
-    href = link({ view: "reference", reference_id: props.item });
+    const updates = { view: "reference", reference_id: props.item };
+    href = link(updates);
+    state = linkState(updates);
   }
 
   const shown = <span className="rw-cell" title={full}>{display}</span>;
   if (href) {
-    return <a href={href}>{shown}</a>;
+    return <a href={href} data-state={JSON.stringify(state)}>{shown}</a>;
   }
   if (full.length > 140 && options.expandLong !== false) {
     return <details><summary>{shown}</summary><pre>{full}</pre></details>;

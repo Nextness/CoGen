@@ -1,5 +1,5 @@
 // View routing, URL state, and render orchestrator.
-import { state, app, view, link, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
+import { state, app, view, link, stateFor, pathFor, restoreState, viewerState, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
 import { render as renderTree, classToggle } from "./jsx/jsx-runtime.ts";
 import { focusContextSelector, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";
@@ -15,16 +15,26 @@ import { destroyGraph } from "./components/graph.tsx";
 /** Pushes or replaces URL state and immediately renders the resulting route. */
 export function setURL(updates: Record<string, unknown>, replace: boolean): void {
   if (!navigationAllowed()) return;
-  const href = link(updates);
-  const destination = new URL(href, location.href).searchParams.get("view") || "home";
+  const next = stateFor(updates);
+  const href = pathFor(next);
+  const destination = next.view || "home";
   if (destination !== view()) {
+    restoreState(next);
     if (replace) location.replace(href);
     else location.assign(href);
     return;
   }
-  if (replace) history.replaceState({}, "", href);
-  else history.pushState({}, "", href);
+  restoreState(next);
+  if (replace) history.replaceState(next, "", href);
+  else history.pushState(next, "", href);
   render({ focusTitle: true, resetScroll: true });
+}
+
+/** Replaces URL state without rendering, for in-page state that does not change the route. */
+export function replaceState(updates: Record<string, unknown>): void {
+  const next = stateFor(updates);
+  restoreState(next);
+  history.replaceState(next, "", pathFor(next));
 }
 
 /** Gives mounted editors one cancelable opportunity to protect unsaved local input. */

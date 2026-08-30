@@ -1,6 +1,6 @@
 // Corpus: articles, authors, references, sources lists.
 import {
-  app, value, link, pageSizes, corpusSections, section, PageHeader,
+  app, value, link, linkState, pageSizes, corpusSections, section, PageHeader,
   formatNumber, percent,
   humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, currentDetailOrigin,
 } from "../state.tsx";
@@ -217,11 +217,13 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
     body = rows.map((row: IdentityEvidenceRow) => {
       var errorHtml: JSX.Element | null = null;
       if (row.error_message) errorHtml = <p className={classNames.uiFadedText}>{row.error_message}</p>;
-      const authorHref = link({
+      const authorUpdates = {
         view: "author",
         author_id: row.author_occurrence_id,
         origin: currentDetailOrigin(),
-      });
+      };
+      const authorHref = link(authorUpdates);
+      const authorState = linkState(authorUpdates);
       return (
         <tr>
           <td>
@@ -229,7 +231,7 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
             {errorHtml}
           </td>
           <td>
-            <a href={authorHref}>{row.queried_citation_name}</a>
+            <a href={authorHref} data-state={JSON.stringify(authorState)}>{row.queried_citation_name}</a>
           </td>
           <td>{row.article_title || "Not recorded"}</td>
           <td>{row.doi || "Not recorded"}</td>
@@ -283,7 +285,8 @@ function clippedRecordLink(kind: string, idKey: string, id: unknown, title: unkn
   };
   updates[idKey] = id;
   const recordHref = link(updates);
-  return <a className="rw-table-title" href={recordHref} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
+  const recordState = linkState(updates);
+  return <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
 }
 
 /** Renders escaped record text clipped to the requested length. */

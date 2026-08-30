@@ -1,6 +1,6 @@
 // Overview: retention funnel, metrics, coverage, breakdowns.
 import {
-  app, value, link, formatNumber, formatTime, formatDuration, metricEntries,
+  app, value, link, linkState, formatNumber, formatTime, formatDuration, metricEntries,
   MetricCard, Table, selectedRun, PageHeader, EmptyState, Panel, RetentionFlow,
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
   humanLabel, StatusChip
@@ -229,8 +229,11 @@ export async function overviewView(): Promise<void> {
   const normalization = overview.normalization_breakdown || {};
   const normalizationFields = overview.normalization_field_breakdown || {};
 
-  const corpusCards: Array<[string, MetricEvidence, string]> = [
+  const corpusCards: Array<[string, MetricEvidence, string, Record<string, string>]> = [
     ["Analysis-ready articles", relationship.analysis_ready_articles, link({
+      view: "corpus",
+      section: "articles",
+    }), linkState({
       view: "corpus",
       section: "articles",
     })],
@@ -238,16 +241,29 @@ export async function overviewView(): Promise<void> {
       view: "advanced",
       table: "work_revisions",
       page: 1,
+    }), linkState({
+      view: "advanced",
+      table: "work_revisions",
+      page: 1,
     })],
     ["Analysis-ready authorships", relationship.authorships, link({
+      view: "corpus",
+      section: "authors",
+    }), linkState({
       view: "corpus",
       section: "authors",
     })],
     ["Analysis-ready reference mentions", relationship.reference_mentions, link({
       view: "corpus",
       section: "references",
+    }), linkState({
+      view: "corpus",
+      section: "references",
     })],
     ["Internal citations", relationship.internal_citations, link({
+      view: "relationships",
+      mode: "citation",
+    }), linkState({
       view: "relationships",
       mode: "citation",
     })],
@@ -332,8 +348,8 @@ export async function overviewView(): Promise<void> {
     </details>
   );
 
-  const corpusSummaryCards = corpusCards.map(([name, metric, href]) => {
-    return <MetricCard name={name} metric={metric} href={href} />;
+  const corpusSummaryCards = corpusCards.map(([name, metric, href, state]) => {
+    return <MetricCard name={name} metric={metric} href={href} state={state} />;
   });
   var coverageCards: JSX.Element[] = [<p className={classNames.uiFadedText}>Not recorded for this run.</p>];
   if (coverage.length) {

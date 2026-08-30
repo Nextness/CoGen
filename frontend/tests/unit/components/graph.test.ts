@@ -50,21 +50,24 @@ describe('graph.tsx — graphLink', function() {
 
   it('links to article view for article nodes', function() {
     const result = graphLink({ type: 'article', revision_id: 'r1' } as unknown as import('../../../src/components/graph.tsx').GraphNode);
-    assert.ok(result.includes('article_id=r1'));
+    assert.equal(result.href, '/article');
+    assert.equal(result.state.article_id, 'r1');
   });
 
   it('links to author view for author nodes', function() {
     const result = graphLink({ type: 'author', author_id: 'a1' } as unknown as import('../../../src/components/graph.tsx').GraphNode);
-    assert.ok(result.includes('author_id=a1'));
+    assert.equal(result.href, '/author');
+    assert.equal(result.state.author_id, 'a1');
   });
 
   it('links to reference view for other nodes', function() {
     const result = graphLink({ type: 'reference', reference_id: 'ref1' } as unknown as import('../../../src/components/graph.tsx').GraphNode);
-    assert.ok(result.includes('reference_id=ref1'));
+    assert.equal(result.href, '/reference');
+    assert.equal(result.state.reference_id, 'ref1');
   });
 
   it('does not fabricate a detail route for a raw referenced-author string', function() {
-    assert.equal(graphLink({ type: 'referenced_author', id: 'raw:1' } as unknown as import('../../../src/components/graph.tsx').GraphNode), '');
+    assert.deepEqual(graphLink({ type: 'referenced_author', id: 'raw:1' } as unknown as import('../../../src/components/graph.tsx').GraphNode), { href: '', state: {} });
   });
 
 });

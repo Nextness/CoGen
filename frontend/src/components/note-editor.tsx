@@ -12,12 +12,13 @@ import type {
   ReviewNoteVersionsResponse,
   ReviewNotesResponse,
 } from "../api/types.ts";
-import { formatTime, link } from "../state.tsx";
+import { formatTime, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { parseNote, NoteDocument } from "./note-parser.tsx";
 import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
+import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -657,7 +658,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             state: "active",
             body: data.version.body,
           });
-          history.replaceState({}, "", link({ note_id: note.id }));
+          replaceState({ note_id: note.id });
           noteState = "active";
           (host.querySelector("[data-note-state]") as HTMLSelectElement).value = noteState;
           const message = historyHost.querySelector("[data-note-history-error]") as HTMLElement;
@@ -884,6 +885,6 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   });
   resetEditor();
   await loadNotes(true);
-  const focused = new URLSearchParams(location.search).get("note_id");
+  const focused = value("note_id");
   if (focused && /^[1-9]\d*$/.test(focused)) await focusNote(focused);
 }

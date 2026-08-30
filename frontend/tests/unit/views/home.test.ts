@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { seedViewerState } from "../seed.ts";
 import { homeView } from "../../../src/views/home.tsx";
 import { app } from "../../../src/state.tsx";
 
@@ -88,7 +89,7 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
 
 describe("home.tsx homeView", function() {
   beforeEach(function() {
-    history.replaceState({}, "", "?view=home");
+    seedViewerState({ view: "home" });
     globalThis.fetch = function(input) {
       return hierarchyResponse(String(input));
     } as typeof fetch;
@@ -135,11 +136,11 @@ describe("home.tsx homeView", function() {
     const explore = Array.from(app.querySelectorAll("a")).find(function(anchor) {
       return anchor.textContent?.trim() === "Explore";
     }) as HTMLAnchorElement;
-    assert.match(explore.href, /view=overview/);
-    assert.match(explore.href, /search_id=1/);
-    assert.match(explore.href, /search_revision_id=11/);
-    assert.match(explore.href, /plan_id=21/);
-    assert.match(explore.href, /run_id=31/);
+    assert.equal(explore.href, "http://127.0.0.1:8080/overview");
+    assert.match(explore.dataset.state || "", /"search_id":"1"/);
+    assert.match(explore.dataset.state || "", /"search_revision_id":"11"/);
+    assert.match(explore.dataset.state || "", /"plan_id":"21"/);
+    assert.match(explore.dataset.state || "", /"run_id":"31"/);
   });
 
   it("uses a native dialog and restores focus to the lifecycle opener after cancellation", async function() {

@@ -1,12 +1,13 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
-import { currentDetailOrigin, graphFilters, humanLabel, link, list, value } from "../state.tsx";
+import { currentDetailOrigin, graphFilters, humanLabel, link, linkState, list, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
 import type { PaginationOptions } from "./pagination.tsx";
+import { replaceState } from "../router.tsx";
 import type {
   ClusterSummary,
   GraphEdge,
@@ -112,30 +113,33 @@ export function graphQuery(): Record<string, string> {
   return result;
 }
 
-/** Returns a context-preserving detail link for a graph node when one exists. */
-export function graphLink(node: GraphNode): string {
+/** Returns a context-preserving detail link target for a graph node when one exists. */
+export function graphLink(node: GraphNode): { href: string; state: Record<string, string> } {
   if (node.type === "article") {
-    return link({
+    const updates = {
       view: "article",
       article_id: node.revision_id,
       origin: currentDetailOrigin(),
-    });
+    };
+    return { href: link(updates), state: linkState(updates) };
   }
   if (node.type === "author") {
-    return link({
+    const updates = {
       view: "author",
       author_id: node.author_id,
       origin: currentDetailOrigin(),
-    });
+    };
+    return { href: link(updates), state: linkState(updates) };
   }
   if (node.type === "reference") {
-    return link({
+    const updates = {
       view: "reference",
       reference_id: node.reference_id,
       origin: currentDetailOrigin(),
-    });
+    };
+    return { href: link(updates), state: linkState(updates) };
   }
-  return "";
+  return { href: "", state: {} };
 }
 
 /** Returns an edge endpoint identifier from either an identifier or resolved node object. */
@@ -1100,13 +1104,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       const emptySelectionMarkup = <p>Select a node to inspect its direct relationships.</p>;
       renderTree(emptySelectionMarkup, selectionPanel);
     }
-    const url = new URL(location.href);
-    if (id) {
-      url.searchParams.set("node", String(id));
-    } else {
-      url.searchParams.delete("node");
-    }
-    history.replaceState({}, "", url.toString());
+    replaceState({ node: id ? String(id) : "" });
     draw(graph);
     renderEdgePage(graph);
   }
@@ -1476,10 +1474,10 @@ function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: numbe
   } else if (props.node.orcid) {
     identifier = props.node.orcid;
   }
-  const href = graphLink(props.node);
+  const target = graphLink(props.node);
   const clusterLabel = (props.node.cluster || 0) + 1;
   var recordMarkup: JSX.Element = <span className={classNames.uiFadedText}>No separate domain record exists for this raw referenced-author string.</span>;
-  if (href) recordMarkup = <a href={href}>Open full record</a>;
+  if (target.href) recordMarkup = <a href={target.href} data-state={JSON.stringify(target.state)}>Open full record</a>;
   const summaryLine = (
     <p>
       {identifier}
@@ -1503,9 +1501,9 @@ function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: numbe
 
 /** Renders a linked or plain label for a graph node. */
 function NodeMarkup(props: { node: GraphNode }): JSX.Element {
-  const href = graphLink(props.node);
+  const target = graphLink(props.node);
   const label = props.node.label || props.node.id;
-  if (href) return <a href={href}>{label}</a>;
+  if (target.href) return <a href={target.href} data-state={JSON.stringify(target.state)}>{label}</a>;
   return <Fragment>{label}</Fragment>;
 }
 

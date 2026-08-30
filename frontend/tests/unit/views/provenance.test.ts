@@ -2,17 +2,14 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { appendAuditEvents, auditVisibleEventLimit, boundAuditWindow, provenanceView } from '../../../src/views/provenance.tsx';
-import { app, state } from '../../../src/state.tsx';
+import { app, state, value } from '../../../src/state.tsx';
 import type { HierarchyRun } from '../../../src/api/types.ts';
 
-/** Sets location. */
+/** Sets viewer state. */
 function setLocation(values: Record<string, string>) {
-  const url = new URL(location.href);
-  ["section", "run_id", "audit_q", "audit_category", "audit_action", "audit_actor", "audit_entity", "audit_stage", "audit_outcome", "artifact_page", "artifact_per_page", "cache_page", "stage_page"].forEach(function(key) { url.searchParams.delete(key); });
-  Object.entries(values).forEach(function(entry) { url.searchParams.set(entry[0], entry[1]); });
-  url.searchParams.set('view', 'provenance');
-  history.pushState({}, '', url.toString());
+  seedViewerState({ view: 'provenance', ...values });
 }
 
 /** Builds a mock fetch response. */
@@ -72,7 +69,7 @@ describe('provenance.tsx — provenanceView', function() {
     }) as HTMLInputElement;
     category.checked = true;
     document.querySelector('#audit-filter-form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
-    assert.equal(new URL(location.href).searchParams.get('audit_category'), 'validation');
+    assert.equal(value('audit_category'), 'validation');
     await new Promise(function(resolve) { setTimeout(resolve, 0); });
 
     globalThis.fetch = originalFetch;

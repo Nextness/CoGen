@@ -1,6 +1,6 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, list,
+  app, value, link, linkState, list,
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
   PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
 } from "../state.tsx";
@@ -31,6 +31,7 @@ import type { AuditEventRecord } from "../components/audit-events.tsx";
 import { mountArticleReview } from "../components/review-panel.tsx";
 import { mountPDFFullscreen } from "../components/pdf-fullscreen.tsx";
 import type { PDFFullscreenController } from "../components/pdf-fullscreen.tsx";
+import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -83,8 +84,14 @@ export async function destroyActiveArticleReview(): Promise<void> {
   }
 }
 
+/** One context-preserving detail link target with its carried state. */
+interface LinkTarget {
+  href: string;
+  state: Record<string, string>;
+}
+
 /** Returns a context-preserving link to a related detail record. */
-function detailLink(kind: string, id: unknown): string {
+function detailLink(kind: string, id: unknown): LinkTarget {
   const updates: Record<string, unknown> = {
     view: kind,
     article_id: "",
@@ -93,23 +100,24 @@ function detailLink(kind: string, id: unknown): string {
     origin: currentDetailOrigin(),
   };
   updates[`${kind}_id`] = String(id ?? "");
-  return link(updates);
+  return { href: link(updates), state: linkState(updates) };
 }
 
-/** Returns the context-preserving corpus return URL for a detail view. */
-function backToCorpus(kind: string): string {
+/** Returns the context-preserving corpus return target for a detail view. */
+function backToCorpus(kind: string): LinkTarget {
   var section = "articles";
   if (kind === "author") section = "authors";
   else if (kind === "reference") section = "references";
 
-  return link({
+  const updates = {
     view: "corpus",
     section: section,
     article_id: "",
     author_id: "",
     reference_id: "",
     table: "",
-  });
+  };
+  return { href: link(updates), state: linkState(updates) };
 }
 
 /** Renders a recorded value or its unavailable presentation. */
@@ -393,7 +401,7 @@ async function loadCollectionPage(key: string, cursor: string, rememberCurrent: 
     state.hasMore = Boolean(data.has_more);
     state.nextCursor = data.next_cursor || "";
     state.currentCursor = cursor;
-    history.replaceState({}, "", link({ [state.cursorKey]: cursor }));
+    replaceState({ [state.cursorKey]: cursor });
   } catch (error) {
     if (sequence !== state.request) return;
     state.error = errorMessage(error, `Unable to load ${state.title.toLocaleLowerCase()}.`);
@@ -776,7 +784,7 @@ function IdentityCandidateList(props: { candidates: IdentityCandidate[] }): JSX.
         <Fragment>
           {links}
           <span aria-hidden="true">·</span>
-          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })}>Raw payload artifact</a>
+          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(linkState({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
         </Fragment>
       );
     }
@@ -1001,7 +1009,7 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
     },
     {
       label: "Article revision",
-      value: <a href={detailLink("article", props.record.work_revision_id)}>{props.record.work_revision_id}</a>,
+      value: <a href={detailLink("article", props.record.work_revision_id).href} data-state={JSON.stringify(detailLink("article", props.record.work_revision_id).state)}>{props.record.work_revision_id}</a>,
     },
     {
       label: "Work",
@@ -1022,7 +1030,7 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
       },
       {
         label: "Target revision",
-        value: <a href={detailLink("article", props.record.resolved_revision_id)}>{props.record.resolved_revision_id}</a>,
+        value: <a href={detailLink("article", props.record.resolved_revision_id).href} data-state={JSON.stringify(detailLink("article", props.record.resolved_revision_id).state)}>{props.record.resolved_revision_id}</a>,
       },
       {
         label: "Resolution",
@@ -1145,7 +1153,10 @@ export async function detailView(kind: string): Promise<void> {
     reference_id: "",
     origin: "",
   });
-  const crumbs: Array<{ label: string; href?: string }> = [
+  const corpusTarget = backToCorpus(kind);
+  const articlesTarget = backToCorpus("article");
+  const referencesTarget = backToCorpus("reference");
+  const crumbs: Array<{ label: string; href?: string; state?: Record<string, string> }> = [
     {
       label: "Home",
       href: homeHref,
@@ -1156,23 +1167,25 @@ export async function detailView(kind: string): Promise<void> {
     },
   ];
   if (origin) {
-    crumbs.push({ label: origin.label, href: origin.href });
+    crumbs.push({ label: origin.label, href: origin.href, state: origin.state });
     crumbs.push({ label: record.doi || title });
   } else if (kind === "article") {
-    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
+    crumbs.push({ label: "Corpus", href: corpusTarget.href, state: corpusTarget.state });
     crumbs.push({
       label: "Analysis-ready articles",
-      href: backToCorpus("article"),
+      href: articlesTarget.href,
+      state: articlesTarget.state,
     });
     crumbs.push({ label: record.doi || title });
   } else if (kind === "author") {
-    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
+    crumbs.push({ label: "Corpus", href: corpusTarget.href, state: corpusTarget.state });
     crumbs.push({ label: "Author" });
   } else {
-    crumbs.push({ label: "Corpus", href: backToCorpus(kind) });
+    crumbs.push({ label: "Corpus", href: corpusTarget.href, state: corpusTarget.state });
     crumbs.push({
       label: "Reference mentions",
-      href: backToCorpus("reference"),
+      href: referencesTarget.href,
+      state: referencesTarget.state,
     });
     crumbs.push({ label: record.doi || title });
   }
@@ -1183,16 +1196,18 @@ export async function detailView(kind: string): Promise<void> {
     var previousAction: JSX.Element | null = null;
     var nextAction: JSX.Element | null = null;
     if (evaluationNavigation?.previous_work_revision_id) {
-      previousAction = <a className={classNames.uiBasicButton} href={link({ view: "article", article_id: evaluationNavigation.previous_work_revision_id })}>Previous unreviewed</a>;
+      const updates = { view: "article", article_id: evaluationNavigation.previous_work_revision_id };
+      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Previous unreviewed</a>;
     }
     if (evaluationNavigation?.next_work_revision_id) {
-      nextAction = <a className={classNames.uiPrimaryButton} href={link({ view: "article", article_id: evaluationNavigation.next_work_revision_id })}>Next unreviewed</a>;
+      const updates = { view: "article", article_id: evaluationNavigation.next_work_revision_id };
+      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Next unreviewed</a>;
     }
     var navigationError: JSX.Element | null = null;
     if (evaluationNavigationError) navigationError = <span className={classNames.uiWarningMessage}>Queue navigation is unavailable: {evaluationNavigationError}</span>;
     originActions = (
       <nav aria-label="Detail record navigation">
-        <a className={classNames.uiBasicButton} href={origin.href}>Return to {origin.label}</a>
+        <a className={classNames.uiBasicButton} href={origin.href} data-state={JSON.stringify(origin.state)}>Return to {origin.label}</a>
         {previousAction}
         {nextAction}
         {navigationError}
@@ -1218,7 +1233,7 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Author occurrence",
-        render: (row) => <a href={detailLink("author", row.id)}>{String(row.citation_name || "Not recorded")}</a>,
+        render: (row) => <a href={detailLink("author", row.id).href} data-state={JSON.stringify(detailLink("author", row.id).state)}>{String(row.citation_name || "Not recorded")}</a>,
       },
       {
         label: "ORCID",
@@ -1243,7 +1258,7 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Reference mention",
-        render: (row) => <a href={detailLink("reference", row.id)}>{String(row.title || row.doi || `Reference ${row.id}`)}</a>,
+        render: (row) => <a href={detailLink("reference", row.id).href} data-state={JSON.stringify(detailLink("reference", row.id).state)}>{String(row.title || row.doi || `Reference ${row.id}`)}</a>,
       },
       {
         label: "Author",
@@ -1257,7 +1272,7 @@ export async function detailView(kind: string): Promise<void> {
         label: "Resolution",
         render: (row) => {
           if (row.resolved_revision_id) {
-            return <a href={detailLink("article", row.resolved_revision_id)}><StatusChip raw="Resolved internally" /></a>;
+            return <a href={detailLink("article", row.resolved_revision_id).href} data-state={JSON.stringify(detailLink("article", row.resolved_revision_id).state)}><StatusChip raw="Resolved internally" /></a>;
           }
           return <StatusChip raw="Unresolved" />;
         },
@@ -1317,7 +1332,7 @@ export async function detailView(kind: string): Promise<void> {
     mountCollection("author-articles", "Linked article revisions", "Articles that contain this observed author occurrence.", [
       {
         label: "Article revision",
-        render: (row) => <a href={detailLink("article", row.work_revision_id)}>{String(row.title || "Not recorded")}</a>,
+        render: (row) => <a href={detailLink("article", row.work_revision_id).href} data-state={JSON.stringify(detailLink("article", row.work_revision_id).state)}>{String(row.title || "Not recorded")}</a>,
       },
       {
         label: "Year",

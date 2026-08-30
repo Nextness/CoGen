@@ -3,8 +3,9 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { seedViewerState } from "../seed.ts";
 import { advancedView } from "../../../src/views/advanced.tsx";
-import { app, state } from "../../../src/state.tsx";
+import { app, state, value } from "../../../src/state.tsx";
 
 const originalFetch = globalThis.fetch;
 
@@ -58,9 +59,7 @@ describe("advanced.tsx advancedView", function() {
   });
 
   it("replaces an invalid table key with a valid table and explains the correction", async function() {
-    const url = new URL(location.href);
-    url.searchParams.set("table", "missing_table");
-    history.replaceState({}, "", url.toString());
+    seedViewerState({'table': 'missing_table', 'view': 'advanced'});
     globalThis.fetch = function(url) {
       if (String(url).endsWith("/api/tables")) {
         return response({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
@@ -75,7 +74,7 @@ describe("advanced.tsx advancedView", function() {
 
     await advancedView();
 
-    assert.equal(new URL(location.href).searchParams.get("table"), "works");
+    assert.equal(value("table"), "works");
     assert.match(app.textContent || "", /requested table was not found/i);
   });
 

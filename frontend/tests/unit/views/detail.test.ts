@@ -3,6 +3,7 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { detailView } from '../../../src/views/detail.tsx';
 import { app, state } from '../../../src/state.tsx';
 
@@ -15,9 +16,7 @@ describe('detail.tsx — detailView', function() {
   });
 
   it('shows empty state when no id is set', async function() {
-    const url = new URL(location.href);
-    url.searchParams.delete('article_id');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'view': 'overview'});
 
     await detailView('article');
     assert.ok(app.innerHTML.includes('Open a record'));
@@ -61,11 +60,7 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('article_id', 'a1');
-    url.searchParams.set('view', 'article');
-    url.searchParams.set('origin', 'view=corpus&section=articles&q=preserved+query&page=3&expanded=a1');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'article_id': 'a1', 'view': 'article', 'origin': 'view=corpus&section=articles&q=preserved+query&page=3&expanded=a1'});
 
     await detailView('article');
     assert.ok(app.innerHTML.includes('Article revision'));
@@ -95,18 +90,14 @@ describe('detail.tsx — detailView', function() {
     const breadcrumb = document.querySelector('#workspace-breadcrumb') as HTMLElement;
     assert.match(breadcrumb.textContent, /Home.*Deepdive.*Corpus.*10.1000\/test/);
     const corpusCrumb = Array.from(breadcrumb.querySelectorAll('a')).find(function(anchor) { return anchor.textContent === 'Corpus'; }) as HTMLAnchorElement;
-    assert.ok(corpusCrumb.href.includes('q=preserved+query'));
-    assert.ok(corpusCrumb.href.includes('page=3'));
-    assert.ok(corpusCrumb.href.includes('expanded=a1'));
+    assert.ok(corpusCrumb.dataset.state!.includes('"q":"preserved query"'));
+    assert.ok(corpusCrumb.dataset.state!.includes('"page":"3"'));
+    assert.ok(corpusCrumb.dataset.state!.includes('"expanded":"a1"'));
     const authorLink = Array.from(document.querySelectorAll('a')).find(function(anchor) { return anchor.textContent.includes('Smith, J'); }) as HTMLAnchorElement;
-    assert.ok(authorLink.href.includes('origin='));
-    assert.ok(decodeURIComponent(authorLink.href).includes('view=corpus'));
+    assert.ok(authorLink.dataset.state!.includes('"origin"'));
+    assert.ok(decodeURIComponent(authorLink.dataset.state!).includes('view=corpus'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('article_id');
-    url.searchParams.delete('origin');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders discarded validation reasons as individual entries', async function() {
@@ -134,10 +125,7 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('article_id', 'a2');
-    url.searchParams.set('view', 'article');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'article_id': 'a2', 'view': 'article'});
 
     await detailView('article');
     assert.ok(app.innerHTML.includes('Pipeline stage history'));
@@ -146,9 +134,6 @@ describe('detail.tsx — detailView', function() {
     assert.ok(!app.innerHTML.includes('[&quot;DOI is missing&quot;'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('article_id');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders author detail when author_id is set', async function() {
@@ -173,10 +158,7 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('author_id', 'auth1');
-    url.searchParams.set('view', 'author');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'author_id': 'auth1', 'view': 'author'});
 
     await detailView('author');
     assert.ok(app.innerHTML.includes('Author occurrence'));
@@ -188,9 +170,6 @@ describe('detail.tsx — detailView', function() {
     assert.ok(!app.innerHTML.includes('Back to Article revision'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('author_id');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders the search term coverage panel', async function() {
@@ -220,10 +199,7 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('article_id', 'a3');
-    url.searchParams.set('view', 'article');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'article_id': 'a3', 'view': 'article'});
 
     await detailView('article');
     assert.ok(app.innerHTML.includes('Search term coverage'));
@@ -236,9 +212,6 @@ describe('detail.tsx — detailView', function() {
     assert.ok(app.innerHTML.includes('(scopus)'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('article_id');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders no search terms recorded when term_matches is null', async function() {
@@ -263,19 +236,13 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('article_id', 'a4');
-    url.searchParams.set('view', 'article');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'article_id': 'a4', 'view': 'article'});
 
     await detailView('article');
     assert.ok(app.innerHTML.includes('Search term coverage'));
     assert.ok(app.innerHTML.includes('No search terms recorded for this run.'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('article_id');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders reference detail when reference_id is set', async function() {
@@ -294,19 +261,13 @@ describe('detail.tsx — detailView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('reference_id', 'ref1');
-    url.searchParams.set('view', 'reference');
-    history.pushState({}, '', url.toString());
+    seedViewerState({'reference_id': 'ref1', 'view': 'reference'});
 
     await detailView('reference');
     assert.ok(app.innerHTML.includes('Reference mention'));
     assert.ok(app.innerHTML.includes('10.1234/test'));
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('reference_id');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
   });
 
 });
