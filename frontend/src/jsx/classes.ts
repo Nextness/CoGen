@@ -323,6 +323,7 @@ export const classTokens = [
   "rw-pdf-toolbar",
   "rw-pdf-toolbar__group",
   "rw-pdf-viewer",
+  "rw-pdf-viewer--dark",
   "rw-pdf-zoom",
   "rw-primary-nav",
   "rw-progress__bar",

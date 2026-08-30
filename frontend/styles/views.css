@@ -2685,6 +2685,12 @@
   background: rgb(0 100 255 / 30%);
 }
 
+/* Inverted reading theme: the rendered page is color-inverted with hue preserved. */
+.rw-pdf-viewer--dark .rw-pdf-page {
+  filter: invert(1) hue-rotate(180deg);
+  box-shadow: none;
+}
+
 .rw-pdf-anchor-layer {
   position: absolute;
   z-index: 2;

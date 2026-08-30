@@ -3903,15 +3903,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`rotateRectangles`](../frontend/src/components/pdf-viewer.tsx#L63) | function | 63 | `function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any)` | Projects stored unrotated rectangles into the currently displayed page rotation. |
 | [`selectionRectangles`](../frontend/src/components/pdf-viewer.tsx#L99) | function | 99 | `function selectionRectangles(selection: any, pageElement: HTMLElement \| null, rotation: any)` | Extracts bounded normalized rectangles from a same-page browser selection. |
 | [`mountPDFViewer`](../frontend/src/components/pdf-viewer.tsx#L143) | function | 143 | `async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>)` | Mounts a project-styled PDF.js viewer and returns a lifecycle controller. |
-| [`cachedPage`](../frontend/src/components/pdf-viewer.tsx#L215) | function | 215 | `function cachedPage(requestedPage: number)` | Returns one cached PDF.js page object without repeating document parsing. |
-| [`cachedText`](../frontend/src/components/pdf-viewer.tsx#L224) | function | 224 | `function cachedText(requestedPage: number, page: any)` | Returns one cached text-content projection for a loaded page. |
-| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L233) | function | 233 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
-| [`render`](../frontend/src/components/pdf-viewer.tsx#L243) | function | 243 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
-| [`requestRender`](../frontend/src/components/pdf-viewer.tsx#L306) | function | 306 | `async function requestRender()` | Runs one render with a local retry state while preserving the previous completed frame. |
-| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L329) | function | 329 | `function changePage(next: any)` | Clamps and renders a requested current page. |
-| [`captureSelection`](../frontend/src/components/pdf-viewer.tsx#L350) | function | 350 | `function captureSelection()` | Hands one mouse- or keyboard-originated same-page text selection to review controls. |
-| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L425) | function | 425 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
-| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L442) | function | 442 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
+| [`cachedPage`](../frontend/src/components/pdf-viewer.tsx#L217) | function | 217 | `function cachedPage(requestedPage: number)` | Returns one cached PDF.js page object without repeating document parsing. |
+| [`cachedText`](../frontend/src/components/pdf-viewer.tsx#L226) | function | 226 | `function cachedText(requestedPage: number, page: any)` | Returns one cached text-content projection for a loaded page. |
+| [`updateControls`](../frontend/src/components/pdf-viewer.tsx#L235) | function | 235 | `function updateControls()` | Synchronizes page boundaries, input bounds, and current zoom feedback. |
+| [`render`](../frontend/src/components/pdf-viewer.tsx#L245) | function | 245 | `async function render()` | Replaces the single visible page and its selectable text and anchor layers. |
+| [`requestRender`](../frontend/src/components/pdf-viewer.tsx#L308) | function | 308 | `async function requestRender()` | Runs one render with a local retry state while preserving the previous completed frame. |
+| [`changePage`](../frontend/src/components/pdf-viewer.tsx#L331) | function | 331 | `function changePage(next: any)` | Clamps and renders a requested current page. |
+| [`captureSelection`](../frontend/src/components/pdf-viewer.tsx#L364) | function | 364 | `function captureSelection()` | Hands one mouse- or keyboard-originated same-page text selection to review controls. |
+| [`renderAnchors`](../frontend/src/components/pdf-viewer.tsx#L439) | function | 439 | `function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any)` | Projects active content-matched anchor rectangles into one displayed page layer. |
+| [`renderSelectableText`](../frontend/src/components/pdf-viewer.tsx#L456) | function | 456 | `function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any)` | Creates transparent positioned text spans from PDF.js text content and viewport transforms. |
 
 ### [`frontend/src/components/review-context-dialog.tsx`](../frontend/src/components/review-context-dialog.tsx)
 
@@ -4341,6 +4341,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`selectRun`](../frontend/tests/viewer.spec.ts#L71) | function | 71 | `async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string)` | Navigate to a fully selected context URL. |
 | [`workspaceExpanded`](../frontend/tests/viewer.spec.ts#L885) | function | 885 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
 | [`selectFixtureText`](../frontend/tests/viewer.spec.ts#L892) | function | 892 | `async function selectFixtureText(page: Page)` | Selects the fixture methods text and hands it to the review selection flow. |
+| [`pageFilter`](../frontend/tests/viewer.spec.ts#L974) | function | 974 | `async function pageFilter(page: Page)` | Returns the computed filter of the rendered PDF page. |
 
 ## JavaScript test cases
 
@@ -4543,6 +4544,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`round-trips stored rectangles into each displayed rotation`](../frontend/tests/unit/components/pdf-viewer.test.ts#L27) | test | 27 | `it("round-trips stored rectangles into each displayed rotation", callback)` | round-trips stored rectangles into each displayed rotation |
 | [`caches pages and text, redraws anchors without rerendering, and supports keyboard paging`](../frontend/tests/unit/components/pdf-viewer.test.ts#L34) | test | 34 | `it("caches pages and text, redraws anchors without rerendering, and supports keyboard paging", callback)` | caches pages and text, redraws anchors without rerendering, and supports keyboard paging |
 | [`renders the fullscreen toggle and calls onFullscreenToggle`](../frontend/tests/unit/components/pdf-viewer.test.ts#L110) | test | 110 | `it("renders the fullscreen toggle and calls onFullscreenToggle", callback)` | renders the fullscreen toggle and calls onFullscreenToggle |
+| [`toggles the inverted theme class and button state`](../frontend/tests/unit/components/pdf-viewer.test.ts#L158) | test | 158 | `it("toggles the inverted theme class and button state", callback)` | toggles the inverted theme class and button state |
 
 ### [`frontend/tests/unit/components/shell.test.ts`](../frontend/tests/unit/components/shell.test.ts)
 
@@ -4879,32 +4881,34 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`collapses and expands the review drawer through the edge control`](../frontend/tests/viewer.spec.ts#L925) | test | 925 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
 | [`selecting PDF text expands a collapsed drawer`](../frontend/tests/viewer.spec.ts#L940) | test | 940 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
 | [`exits fullscreen and restores the embedded article layout`](../frontend/tests/viewer.spec.ts#L954) | test | 954 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
-| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L972) | test | 972 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
-| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L980) | test | 980 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
-| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L987) | test | 987 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
-| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L994) | test | 994 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
-| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L1001) | test | 1001 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
-| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L1008) | test | 1008 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
-| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L1015) | test | 1015 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
-| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.ts#L1020) | test | 1020 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
-| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L1030) | test | 1030 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
-| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L1039) | test | 1039 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
-| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L1045) | test | 1045 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
-| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L1055) | test | 1055 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
-| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L1066) | test | 1066 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
-| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L1076) | test | 1076 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
-| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L1082) | test | 1082 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
-| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L1088) | test | 1088 | `test('navigation is a landmark', callback)` | navigation is a landmark |
-| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1094) | test | 1094 | `test('images have alt text', callback)` | images have alt text |
-| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1108) | test | 1108 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
-| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1115) | test | 1115 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
-| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1126) | test | 1126 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
-| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1134) | test | 1134 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
-| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1145) | test | 1145 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
-| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1154) | test | 1154 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
-| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1164) | test | 1164 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
-| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1178) | test | 1178 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
-| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1192) | test | 1192 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
-| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1213) | test | 1213 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
+| [`inverts the rendered page through the Dark toggle and restores it`](../frontend/tests/viewer.spec.ts#L980) | test | 980 | `test('inverts the rendered page through the Dark toggle and restores it', callback)` | inverts the rendered page through the Dark toggle and restores it |
+| [`keeps the inverted theme while entering and leaving fullscreen`](../frontend/tests/viewer.spec.ts#L1000) | test | 1000 | `test('keeps the inverted theme while entering and leaving fullscreen', callback)` | keeps the inverted theme while entering and leaving fullscreen |
+| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L1021) | test | 1021 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
+| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L1029) | test | 1029 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
+| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L1036) | test | 1036 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
+| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L1043) | test | 1043 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
+| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L1050) | test | 1050 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
+| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L1057) | test | 1057 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
+| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L1064) | test | 1064 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
+| [`frontend renders error state for invalid view`](../frontend/tests/viewer.spec.ts#L1069) | test | 1069 | `test('frontend renders error state for invalid view', callback)` | frontend renders error state for invalid view |
+| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L1079) | test | 1079 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
+| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L1088) | test | 1088 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
+| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L1094) | test | 1094 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
+| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L1104) | test | 1104 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
+| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L1115) | test | 1115 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
+| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L1125) | test | 1125 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
+| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L1131) | test | 1131 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
+| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L1137) | test | 1137 | `test('navigation is a landmark', callback)` | navigation is a landmark |
+| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1143) | test | 1143 | `test('images have alt text', callback)` | images have alt text |
+| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1157) | test | 1157 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
+| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1164) | test | 1164 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
+| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1175) | test | 1175 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
+| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1183) | test | 1183 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
+| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1194) | test | 1194 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
+| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1203) | test | 1203 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
+| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1213) | test | 1213 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
+| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1227) | test | 1227 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
+| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1241) | test | 1241 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
+| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1262) | test | 1262 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
 
 <!-- END GENERATED PROJECT CATALOG -->

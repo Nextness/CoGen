@@ -154,4 +154,58 @@ describe("pdf-viewer.tsx", function() {
     await controller.destroy();
     host.remove();
   });
+
+  it("toggles the inverted theme class and button state", async function() {
+    const documentMock = {
+      numPages: 1,
+      getPage: async () => {
+        return {
+          getViewport: () => {
+            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+          },
+          render: () => {
+            return { cancel: () => {}, promise: Promise.resolve() };
+          },
+          getTextContent: async () => {
+            return { items: [], styles: {} };
+          },
+        };
+      },
+      destroy: async () => {},
+    };
+    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const pdfjsMock = {
+      GlobalWorkerOptions: {},
+      Util: { transform: (_viewport: unknown, item: unknown) => item },
+      getDocument: () => loadingTask,
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const controller = await mountPDFViewer(host, {
+      url: "/fixture.pdf",
+      page: 1,
+    }, async () => {
+      return pdfjsMock;
+    });
+
+    const button = host.querySelector<HTMLButtonElement>("[data-pdf-theme]");
+    const viewer = host.querySelector(".rw-pdf-viewer") as HTMLElement;
+    assert.ok(button);
+    assert.equal(button.textContent, "Dark");
+    assert.equal(button.getAttribute("aria-pressed"), "false");
+    assert.equal(viewer.classList.contains("rw-pdf-viewer--dark"), false);
+
+    button.click();
+    assert.equal(viewer.classList.contains("rw-pdf-viewer--dark"), true);
+    assert.equal(button.textContent, "Light");
+    assert.equal(button.getAttribute("aria-pressed"), "true");
+
+    button.click();
+    assert.equal(viewer.classList.contains("rw-pdf-viewer--dark"), false);
+    assert.equal(button.textContent, "Dark");
+    assert.equal(button.getAttribute("aria-pressed"), "false");
+
+    await controller.destroy();
+    host.remove();
+  });
 });

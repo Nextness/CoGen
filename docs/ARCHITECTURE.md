@@ -392,7 +392,7 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 | `components/shell.tsx` | Health state and responsive navigation toggle. |
 | `components/note-parser.tsx` | Safe bounded note preview, link diagnostics, unresolved states, and context-preserving link rendering. |
 | `components/note-editor.tsx` | Immutable note edits, tombstones, restoration, history comparison, and corpus-scoped browser drafts. |
-| `components/pdf-viewer.tsx` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, anchor highlights, and the fullscreen toolbar toggle. |
+| `components/pdf-viewer.tsx` | Custom vendored PDF.js lifecycle, single-page canvas and selectable text rendering, boundary-aware navigation, rotation, zoom, selection geometry, anchor highlights, the inverted theme toggle, and the fullscreen toolbar toggle. |
 | `components/pdf-fullscreen.tsx` | Browser-fullscreen reading mode with a CSS fallback class, the collapsible review drawer, the drawer edge control, and selection-driven auto-expand. |
 | `components/review-panel.tsx` | Explicit context initialization, lineage selection, complete status saves, history, notes, anchors, PDF integration, and the fullscreen selection handoff event. |
 | `views/home.tsx` | Context-independent hierarchy metrics, Explore links, and reversible run-visibility dialog behavior. |

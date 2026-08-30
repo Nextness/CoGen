@@ -966,6 +966,55 @@ test.describe('Fullscreen PDF reader', () => {
   });
 });
 
+// ── 8c. PDF theme toggle ──────────────────────────────────────────────
+
+test.describe('PDF theme toggle', () => {
+
+  /** Returns the computed filter of the rendered PDF page. */
+  async function pageFilter(page: Page): Promise<string> {
+    return page.locator('.rw-pdf-page').evaluate((element) => {
+      return getComputedStyle(element).filter;
+    });
+  }
+
+  test('inverts the rendered page through the Dark toggle and restores it', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    const themeButton = page.getByRole('button', { name: 'Dark' });
+    await expect(themeButton).toBeVisible();
+    await expect(themeButton).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.rw-pdf-viewer')).not.toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toBe('none');
+
+    await themeButton.click();
+    await expect(page.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
+
+    await page.getByRole('button', { name: 'Light' }).click();
+    await expect(page.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.rw-pdf-viewer')).not.toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toBe('none');
+  });
+
+  test('keeps the inverted theme while entering and leaving fullscreen', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Dark' }).click();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
+
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
+  });
+});
+
 // ── 9. Error states ───────────────────────────────────────────────────
 
 test.describe('Error states', () => {
