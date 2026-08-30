@@ -12,119 +12,6 @@
   gap: var(--space-4);
 }
 
-.ui.grid > .column,
-.ui.grid > [class*="wide"].column {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-/* Individual column widths (Semantic UI pattern) */
-.ui.grid > .sixteen.wide.column {
-  flex: 0 0 100%;
-  width: 100%;
-}
-
-.ui.grid > .fifteen.wide.column {
-  flex: 0 0 93.75%;
-  width: 93.75%;
-}
-
-.ui.grid > .fourteen.wide.column {
-  flex: 0 0 87.5%;
-  width: 87.5%;
-}
-
-.ui.grid > .thirteen.wide.column {
-  flex: 0 0 81.25%;
-  width: 81.25%;
-}
-
-.ui.grid > .twelve.wide.column {
-  flex: 0 0 75%;
-  width: 75%;
-}
-
-.ui.grid > .eleven.wide.column {
-  flex: 0 0 68.75%;
-  width: 68.75%;
-}
-
-.ui.grid > .ten.wide.column {
-  flex: 0 0 62.5%;
-  width: 62.5%;
-}
-
-.ui.grid > .nine.wide.column {
-  flex: 0 0 56.25%;
-  width: 56.25%;
-}
-
-.ui.grid > .eight.wide.column {
-  flex: 0 0 50%;
-  width: 50%;
-}
-
-.ui.grid > .seven.wide.column {
-  flex: 0 0 43.75%;
-  width: 43.75%;
-}
-
-.ui.grid > .six.wide.column {
-  flex: 0 0 37.5%;
-  width: 37.5%;
-}
-
-.ui.grid > .five.wide.column {
-  flex: 0 0 31.25%;
-  width: 31.25%;
-}
-
-.ui.grid > .four.wide.column {
-  flex: 0 0 25%;
-  width: 25%;
-}
-
-.ui.grid > .three.wide.column {
-  flex: 0 0 18.75%;
-  width: 18.75%;
-}
-
-.ui.grid > .two.wide.column {
-  flex: 0 0 12.5%;
-  width: 12.5%;
-}
-
-.ui.grid > .one.wide.column {
-  flex: 0 0 6.25%;
-  width: 6.25%;
-}
-
-/* Relaxed (wider gap) */
-.ui.relaxed.grid {
-  gap: var(--space-6);
-}
-
-.ui.very.relaxed.grid {
-  gap: var(--space-8);
-}
-
-/* Doubling — responsive column count */
-.ui.doubling.grid > .column {
-  flex: 1 1 100%;
-}
-
-@media (min-width: 721px) {
-  .ui.doubling.grid > .column {
-    flex: 1 1 50%;
-  }
-}
-
-@media (min-width: 1100px) {
-  .ui.doubling.grid > .column {
-    flex: 1 1 0;
-  }
-}
-
 /* ── Menu (primary nav, section nav) ── */
 
 .ui.menu {
@@ -160,34 +47,6 @@
 .ui.menu .item.active {
   color: var(--color-accent-contrast);
   background: var(--color-accent-default);
-}
-
-/* Secondary pointing menu (primary nav style) */
-.ui.secondary.pointing.menu {
-  gap: 3px;
-  overflow-x: auto;
-  border-bottom: 1px solid var(--color-border-default);
-  padding: 0 0 0;
-  margin-bottom: var(--space-4);
-  scrollbar-width: thin;
-}
-
-.ui.secondary.pointing.menu .item {
-  padding: 6px 11px;
-  border-radius: var(--radius-small);
-  margin-bottom: 0;
-  border-bottom: 3px solid transparent;
-}
-
-.ui.secondary.pointing.menu .item:hover {
-  color: var(--color-text-primary);
-  background: var(--color-bg-surface-muted);
-}
-
-.ui.secondary.pointing.menu .item.active {
-  color: var(--color-accent-contrast);
-  background: var(--color-accent-default);
-  border-bottom-color: transparent;
 }
 
 /* Tabular menu (section nav style) */
@@ -434,7 +293,6 @@
   text-align: center;
 }
 
-.ui.table.selectable tbody tr:hover,
 .ui.table tbody tr.expandable-row:hover {
   background: color-mix(in srgb, var(--color-accent-default) 5%, transparent);
 }
@@ -442,17 +300,6 @@
 .ui.table tbody tr[aria-disabled="true"] {
   color: var(--color-text-muted);
   background: var(--color-bg-surface-muted);
-}
-
-.ui.table .number,
-.ui.table .numeric {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.ui.table time,
-.ui.table .time {
-  white-space: nowrap;
 }
 
 /* Table wrappers scroll horizontally only. Vertical pagination remains page-level. */
@@ -538,37 +385,6 @@
 }
 
 /* ── Form controls ── */
-
-.ui.form .inline.fields {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.ui.form .inline.fields label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  min-width: min(100%, 180px);
-  flex: 1 1 180px;
-}
-
-.ui.form .inline.fields select,
-.ui.form .inline.fields input {
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-small);
-  color: var(--color-text-primary);
-  background: var(--color-bg-surface);
-  font-size: var(--text-sm);
-}
 
 .ui.form :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea),
 .rw-filter-bar :is(input, select) {
@@ -776,40 +592,6 @@
   padding-right: 48px;
 }
 
-/* ── Placeholder (skeleton loading) ── */
-
-.ui.placeholder {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
-  animation: rw-shimmer 1.5s ease-in-out infinite;
-}
-
-.ui.placeholder .line {
-  height: 10px;
-  border-radius: var(--radius-pill);
-  background: var(--color-bg-surface-muted);
-}
-
-.ui.placeholder .line:first-child {
-  width: 70%;
-}
-
-.ui.placeholder .line:nth-child(2) {
-  width: 90%;
-}
-
-.ui.placeholder .line:nth-child(3) {
-  width: 50%;
-}
-
-@keyframes rw-shimmer {
-  0% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-  100% { opacity: 0.4; }
-}
-
 /* ── Expand/collapse ── */
 
 .ui.attached.segment {
@@ -901,12 +683,6 @@ tr.expansion-row[hidden] {
   border-radius: var(--radius-default);
   background: var(--color-bg-surface-raised);
   box-shadow: var(--shadow-low);
-}
-
-.context-summary {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-secondary);
-  font-size: var(--text-sm);
 }
 
 .rw-shell-breadcrumb {
@@ -1136,38 +912,6 @@ tr.expansion-row[hidden] {
 .pagination-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
-}
-
-/* Controls */
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.controls label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-bold);
-  min-width: min(100%, 180px);
-  flex: 1 1 180px;
-}
-
-.controls select,
-.controls input {
-  width: 100%;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-small);
-  color: var(--color-text-primary);
-  background: var(--color-bg-surface);
-  font-size: var(--text-sm);
 }
 
 /* Expand toggle */

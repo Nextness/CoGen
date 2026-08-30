@@ -202,18 +202,10 @@ button.ui.label:hover:not(:disabled) {
   background: var(--color-status-neutral-soft);
 }
 
-.ui.violet.label,
-.ui.review.label {
+.ui.violet.label {
   border-color: color-mix(in srgb, var(--color-status-review) 50%, var(--color-border-default));
   color: var(--color-status-review);
   background: var(--color-status-review-soft);
-}
-
-.ui.pink.label,
-.ui.note.label {
-  border-color: color-mix(in srgb, var(--color-status-note) 50%, var(--color-border-default));
-  color: var(--color-status-note);
-  background: var(--color-status-note-soft);
 }
 
 /* ── Message (notice / callout) ── */
@@ -339,17 +331,6 @@ button.ui.label:hover:not(:disabled) {
   background: var(--color-status-danger-soft);
 }
 
-.ui.review.message {
-  border-left-color: var(--color-status-review);
-  color: var(--color-text-secondary);
-  background: var(--color-status-review-soft);
-}
-
-.ui.review.message::before {
-  color: var(--color-status-review);
-  content: "\21BA";
-}
-
 /* ── Header ── */
 
 .ui.header {
@@ -417,16 +398,6 @@ button.ui.label:hover:not(:disabled) {
   gap: var(--space-2);
 }
 
-.ui.header .sub.header,
-.ui.sub.header {
-  display: block;
-  font-weight: var(--weight-normal);
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  letter-spacing: 0;
-  margin-bottom: var(--space-1);
-}
-
 .rw-eyebrow,
 .rw-page-header__kicker {
   color: var(--color-text-muted);
@@ -434,27 +405,6 @@ button.ui.label:hover:not(:disabled) {
   font-weight: var(--weight-bold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
-}
-
-/* Size variations */
-.ui.huge.header {
-  font-size: var(--text-3xl);
-}
-
-.ui.large.header {
-  font-size: var(--text-2xl);
-}
-
-.ui.medium.header {
-  font-size: var(--text-xl);
-}
-
-.ui.small.header {
-  font-size: var(--text-base);
-}
-
-.ui.tiny.header {
-  font-size: var(--text-xs);
 }
 
 /* ── Loader ── */
@@ -497,10 +447,6 @@ button.ui.label:hover:not(:disabled) {
   margin: 0;
 }
 
-.ui.raised.segment {
-  box-shadow: var(--shadow-medium);
-}
-
 .ui.basic.segment {
   border: none;
   box-shadow: none;
@@ -540,17 +486,10 @@ button.ui.label:hover:not(:disabled) {
   min-width: 0;
 }
 
-.rw-page-stack,
-.rw-panel-stack {
+.rw-page-stack {
   display: grid;
   min-width: 0;
   gap: var(--space-6);
-}
-
-.rw-section-stack {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-4);
 }
 
 .rw-content-stack {

@@ -252,70 +252,6 @@
   font-size: var(--text-xxs);
 }
 
-.rw-modal-open {
-  overflow: hidden;
-}
-
-.rw-modal-backdrop {
-  position: fixed;
-  z-index: 1000;
-  inset: 0;
-  display: grid;
-  padding: var(--space-4);
-  place-items: center;
-  background: rgb(4 12 18 / 68%);
-}
-
-.rw-modal-backdrop[hidden] {
-  display: none;
-}
-
-.rw-modal {
-  width: min(34rem, 100%);
-  max-height: calc(100vh - var(--space-8));
-  overflow: auto;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-large);
-  color: var(--color-text-primary);
-  background: var(--color-bg-surface);
-  box-shadow: var(--shadow-high);
-}
-
-.rw-modal__header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.rw-modal__header h3 {
-  margin: 0;
-}
-
-.rw-modal__body {
-  display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-}
-
-.rw-modal__body > p {
-  margin: 0;
-}
-
-.rw-modal__body textarea {
-  margin-top: var(--space-1);
-  resize: vertical;
-}
-
-.rw-modal__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
 .rw-metric-table .ui.table td:first-child {
   width: 45%;
 }
@@ -363,41 +299,6 @@
   border-radius: inherit;
   background: var(--color-accent-default);
   transition: width 0.2s ease;
-}
-
-/* ── Definition table (property grid) ── */
-
-.ui.definition.table {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0;
-  overflow: hidden;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-small);
-}
-
-.ui.definition.table > div {
-  min-height: 56px;
-  padding: var(--space-2) var(--space-3);
-  border-right: 1px solid var(--color-border-default);
-  border-bottom: 1px solid var(--color-border-default);
-}
-
-.ui.definition.table dt {
-  color: var(--color-text-secondary);
-  font-size: var(--text-xxs);
-  font-weight: var(--weight-bold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.ui.definition.table dd {
-  margin: var(--space-1) 0 0;
-  overflow-wrap: anywhere;
-}
-
-.ui.definition.table > div:nth-child(even) {
-  border-right: none;
 }
 
 /* Retention flow */
@@ -1050,14 +951,6 @@
   margin-top: 2px;
   color: var(--color-text-secondary);
   font-size: var(--text-xs);
-}
-
-.rw-long-text {
-  max-width: 88ch;
-  margin-bottom: var(--space-3);
-  color: var(--color-text-primary);
-  line-height: 1.65;
-  white-space: pre-wrap;
 }
 
 .rw-abstract-text {
@@ -2885,10 +2778,6 @@
 
   .rw-pdf-status-strip__action {
     min-width: 0;
-  }
-
-  .rw-modal__actions .ui.button {
-    flex: 1 1 auto;
   }
 
   .rw-review-onboarding,

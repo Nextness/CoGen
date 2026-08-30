@@ -3637,9 +3637,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`addQuotedArguments`](../frontend/scripts/check-classes.ts#L43) | function | 43 | `function addQuotedArguments(uses: ClassUse[], file: string, value: string)` | Adds quoted class arguments from a statically inspectable expression. |
 | [`addTypedClassUses`](../frontend/scripts/check-classes.ts#L50) | function | 50 | `function addTypedClassUses(uses: ClassUse[], source: string, file: string)` | Adds tokens from values whose ClassName annotations make them compile-time checked. |
 | [`collectClassUses`](../frontend/scripts/check-classes.ts#L79) | function | 79 | `function collectClassUses(source: string, file: string)` | Collects statically visible class-token uses outside JSX's type coverage. |
-| [`unknownClassUses`](../frontend/scripts/check-classes.ts#L111) | function | 111 | `function unknownClassUses(uses: readonly ClassUse[], knownTokens: ReadonlySet<string>)` | Returns class-token uses that are absent from the generated registry. |
-| [`untypedDOMClassUses`](../frontend/scripts/check-classes.ts#L116) | function | 116 | `function untypedDOMClassUses(source: string)` | Returns direct DOM class operations that cannot be statically validated. |
-| [`main`](../frontend/scripts/check-classes.ts#L131) | function | 131 | `function main()` | Checks non-JSX class uses and reports defined tokens that no authored source uses. |
+| [`unknownClassUses`](../frontend/scripts/check-classes.ts#L127) | function | 127 | `function unknownClassUses(uses: readonly ClassUse[], knownTokens: ReadonlySet<string>)` | Returns class-token uses that are absent from the generated registry. |
+| [`untypedDOMClassUses`](../frontend/scripts/check-classes.ts#L132) | function | 132 | `function untypedDOMClassUses(source: string)` | Returns direct DOM class operations that cannot be statically validated. |
+| [`main`](../frontend/scripts/check-classes.ts#L147) | function | 147 | `function main()` | Checks non-JSX class uses and reports defined tokens that no authored source uses. |
 
 ### [`frontend/scripts/fixture-contract.ts`](../frontend/scripts/fixture-contract.ts)
 
