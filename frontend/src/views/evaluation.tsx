@@ -3,6 +3,7 @@ import {
   app,
   value,
   link,
+  linkState,
   pageSizes,
   PageHeader,
   EmptyState,
@@ -47,13 +48,15 @@ const evaluationFilterKeys = ["q", "pdf_status", "review_status", "review_source
 /** Renders a queue-preserving article link for an evaluation row. */
 function titleLink(row: WireRecord): JSX.Element {
   const record = row as EvaluationRow;
-  const recordHref = link({
+  const updates = {
     view: "article",
     article_id: record.work_revision_id,
     origin: currentDetailOrigin(),
-  });
+  };
+  const recordHref = link(updates);
+  const recordState = linkState(updates);
   return (
-    <a className="rw-table-title" href={recordHref} title={record.title || "Not recorded"}>
+    <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={record.title || "Not recorded"}>
       <span>{record.title || "Not recorded"}</span>
     </a>
   );
@@ -166,6 +169,7 @@ export async function evaluationView(): Promise<void> {
   var advancedSummary = "Any PDF, review, source, or progress state";
   if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
   const clearFilterHref = link(clearUpdates);
+  const clearFilterState = linkState(clearUpdates);
   const controls = (
     <form className={classNames.uiFormRwFilterPanel} data-evaluation-filters>
       <div className="rw-evaluation-filters__primary">
@@ -181,7 +185,7 @@ export async function evaluationView(): Promise<void> {
         </label>
         <div className="rw-filter-panel__actions">
           <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
-          <a className={classNames.uiBasicButton} href={clearFilterHref}>Clear filters</a>
+          <a className={classNames.uiBasicButton} href={clearFilterHref} data-state={JSON.stringify(clearFilterState)}>Clear filters</a>
         </div>
       </div>
       <details className={classNames.rwFilterDisclosureRwEvaluationFiltersAdvanced} open={advancedOpen}>
@@ -304,15 +308,17 @@ export async function evaluationView(): Promise<void> {
   var previousUnreviewed: JSX.Element | null = null;
   var nextUnreviewed: JSX.Element | null = null;
   if (navigation.previous_work_revision_id) {
+    const updates = { view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() };
     previousUnreviewed = (
-      <a className={classNames.uiBasicButton} href={link({ view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() })}>
+      <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>
         Previous unreviewed
       </a>
     );
   }
   if (navigation.next_work_revision_id) {
+    const updates = { view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() };
     nextUnreviewed = (
-      <a className={classNames.uiPrimaryButton} href={link({ view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() })}>
+      <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>
         Next unreviewed
       </a>
     );

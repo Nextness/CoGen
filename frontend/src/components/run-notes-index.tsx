@@ -1,7 +1,7 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewNote, ReviewNotesResponse } from "../api/types.ts";
-import { currentDetailOrigin, link } from "../state.tsx";
+import { currentDetailOrigin, link, linkState } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -25,17 +25,19 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
   /** Renders the current filters, note summaries, and continuation state. */
   function render(): void {
     const noteItems = notes.map((note) => {
-      const href = link({
+      const updates = {
         view: "article",
         article_id: note.work_revision_id,
         note_id: note.id,
         origin: currentDetailOrigin(),
-      });
+      };
+      const href = link(updates);
+      const state = linkState(updates);
       const title = note.version?.title || `Note ${note.id}`;
       const excerpt = note.version?.excerpt || "No excerpt recorded.";
       return (
         <li>
-          <a href={href}>{title}</a>
+          <a href={href} data-state={JSON.stringify(state)}>{title}</a>
           <p>{excerpt}</p>
           <span className={classNames.uiNeutralLabel}>{note.version?.state || "unknown"}</span>
         </li>

@@ -1,9 +1,10 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, list, parseObject, StatusChip, value } from "../state.tsx";
+import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, linkState, list, parseObject, StatusChip, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, errorMessage } from "../api.tsx";
 import type { AuditEventRecord, AuditRecordedData, AuditResponse, DetailCollectionPage, WireRecord } from "../api/types.ts";
+import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -68,34 +69,43 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
   const type = String(props.event.entity_type || "record");
   const id = props.event.entity_id;
   var href = "";
+  var state: Record<string, string> | null = null;
   if (id && type === "work_revision") {
-    href = link({
+    const updates = {
       view: "article",
       article_id: id,
       origin: currentDetailOrigin(),
-    });
+    };
+    href = link(updates);
+    state = linkState(updates);
   } else if (id && type === "author_occurrence") {
-    href = link({
+    const updates = {
       view: "author",
       author_id: id,
       origin: currentDetailOrigin(),
-    });
+    };
+    href = link(updates);
+    state = linkState(updates);
   } else if (id && type === "reference_mention") {
-    href = link({
+    const updates = {
       view: "reference",
       reference_id: id,
       origin: currentDetailOrigin(),
-    });
+    };
+    href = link(updates);
+    state = linkState(updates);
   } else if (type === "pipeline_run") {
-    href = link({
+    const updates = {
       view: "provenance",
       section: "run",
-    });
+    };
+    href = link(updates);
+    state = linkState(updates);
   }
   var label = humanLabel(type);
   if (id) label += ` #${id}`;
   if (href) {
-    return <a href={href}>{label}</a>;
+    return <a href={href} data-state={JSON.stringify(state)}>{label}</a>;
   }
   return <span>{label}</span>;
 }
@@ -205,7 +215,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; be
     const factRows = facts.map(([label, value]) => {
       var shown: JSX.Element = <>{String(value)}</>;
       if ((label === "Input artifact" || label === "Output artifact") && value) {
-        shown = <a href={link({ section: "artifacts" })}>Artifact {String(value)}</a>;
+        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(linkState({ section: "artifacts" }))}>Artifact {String(value)}</a>;
       }
       return (
         <div>
@@ -484,7 +494,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
         });
         nextCursor = String(data.next_cursor || "");
         const cursorKey = (root as HTMLElement).dataset.recordAuditCursorKey || "";
-        if (cursorKey) history.replaceState({}, "", link({ [cursorKey]: cursor }));
+        if (cursorKey) replaceState({ [cursorKey]: cursor });
         visibleLimit += recordAuditBatchSize;
         pageStatus.textContent = `${events.length.toLocaleString()} audit events loaded.`;
         apply();

@@ -2,20 +2,13 @@ import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { seedViewerState } from "../seed.ts";
 import { evaluationView } from "../../../src/views/evaluation.tsx";
-import { app, state } from "../../../src/state.tsx";
+import { app, state, value } from "../../../src/state.tsx";
 
-/** Sets the Evaluation URL state used by one unit test. */
+/** Sets the Evaluation viewer state used by one unit test. */
 function setLocation(values: Record<string, string>): void {
-  const url = new URL(location.href);
-  const keys = ["view", "run_id", "page", "per_page", "sort", "order", "q", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"];
-  keys.forEach((key) => {
-    url.searchParams.delete(key);
-  });
-  Object.entries(values).forEach(([key, raw]) => {
-    url.searchParams.set(key, raw);
-  });
-  history.pushState({}, "", url.toString());
+  seedViewerState({ view: "evaluation", ...values });
 }
 
 /** Builds a successful mock API response. */
@@ -112,7 +105,7 @@ describe("evaluation.tsx - evaluationView", function() {
     const nextUnreviewed = Array.from(app.querySelectorAll<HTMLAnchorElement>("a")).find((anchor) => {
       return anchor.textContent?.includes("Next unreviewed");
     });
-    assert.match(decodeURIComponent(nextUnreviewed?.href || ""), /origin=.*view=evaluation/);
+    assert.match(nextUnreviewed?.dataset.state || "", /origin.*view=evaluation/);
     globalThis.fetch = originalFetch;
   });
 
@@ -149,10 +142,9 @@ describe("evaluation.tsx - evaluationView", function() {
     form.querySelector<HTMLSelectElement>("[name=reviewed]")!.value = "unreviewed";
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
-    const current = new URL(location.href);
-    assert.equal(current.searchParams.get("q"), "methods");
-    assert.equal(current.searchParams.get("pdf_status"), "available");
-    assert.equal(current.searchParams.get("reviewed"), "unreviewed");
+    assert.equal(value("q"), "methods");
+    assert.equal(value("pdf_status"), "available");
+    assert.equal(value("reviewed"), "unreviewed");
     globalThis.fetch = originalFetch;
   });
 });

@@ -1,5 +1,5 @@
 // Bounded note parsing and safe preview rendering for the review editor.
-import { esc, link } from "../state.tsx";
+import { esc, link, linkState } from "../state.tsx";
 import { h, Fragment, cx } from "../jsx/jsx-runtime.ts";
 import type { ResolvedNoteLink } from "../api/types.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
@@ -498,7 +498,7 @@ function renderLink(label: string, source: NoteLink, resolved?: ResolvedNoteLink
   if (resolved.note_id) updates.note_id = resolved.note_id;
   if (resolved.anchor_id) updates.anchor_id = resolved.anchor_id;
   if (resolved.page) updates.pdf_page = resolved.page;
-  return <a href={link(updates)}>{label}</a>;
+  return <a href={link(updates)} data-state={JSON.stringify(linkState(updates))}>{label}</a>;
 }
 
 /** Confirms that a persisted ordinal resolution still describes the exact parsed draft link identity. */

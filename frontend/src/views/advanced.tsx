@@ -1,11 +1,11 @@
 // Advanced: table browser, pagination, sort.
-import { app, value, link, PageHeader, EmptyState } from "../state.tsx";
+import { app, value, PageHeader, EmptyState } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, tables, errorMessage } from "../api.tsx";
 import type { TableRowsResponse } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
-import { setURL } from "../router.tsx";
+import { setURL, replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -27,7 +27,7 @@ export async function advancedView(): Promise<void> {
   });
   if (!selectedTable && allTables[0]) {
     current = allTables[0].name;
-    history.replaceState({}, "", link({ table: current, page: 1, sort: "", order: "" }));
+    replaceState({ table: current, page: 1, sort: "", order: "" });
   }
 
   const page = Math.max(1, Number(value("page") || 1));
@@ -75,7 +75,7 @@ export async function advancedView(): Promise<void> {
   }
 
   if (data && Number(data.pagination?.page) !== page) {
-    history.replaceState({}, "", link({ page: data.pagination.page }));
+    replaceState({ page: data.pagination.page });
   }
 
   const tableOptions = allTables.map((item) => {

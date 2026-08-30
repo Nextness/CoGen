@@ -43,6 +43,36 @@ const REF_1_ID = '1';     // Points to 10.1000/2
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /**
+ * Seeds viewer state through sessionStorage before load, then navigates to
+ * the clean path for the requested view. The seed travels in window.name
+ * (which survives navigation) and is applied only when sessionStorage has no
+ * viewer state, so in-app cross-view navigation state written by the app is
+ * never clobbered, while every visit applies its explicit state. history.state
+ * is cleared only for same-path navigation, because a same-URL navigation
+ * reuses the prior entry and the app prefers history.state over sessionStorage
+ * at boot; cross-path navigation keeps the current entry's state so browser
+ * back and forward restore each visit's adopted state.
+ */
+async function visit(page: Page, state: Record<string, string>): Promise<void> {
+  const path = state.view === "home" ? "/" : `/${state.view}`;
+  await page.evaluate(({ seed, seedPath }) => {
+    window.name = JSON.stringify(seed);
+    try {
+      sessionStorage.removeItem("rw-viewer-state");
+      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
+    } catch (_) {
+      // The initial about:blank document may deny sessionStorage access.
+    }
+  }, { seed: state, seedPath: path });
+  await page.addInitScript(() => {
+    const seed = window.name ? JSON.parse(window.name) : null;
+    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
+  });
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
+/**
  * Navigate to a URL and wait for network idle.
  */
 async function goto(page: Page, url: string): Promise<void> {
@@ -51,33 +81,38 @@ async function goto(page: Page, url: string): Promise<void> {
 }
 
 /**
- * Build a context URL with search, revision, plan, and run IDs.
+ * Build a context state with search, revision, plan, and run IDs.
  */
-function contextURL(overrides: Record<string, string> = {}): string {
-  const params = new URLSearchParams({
+function contextState(overrides: Record<string, string> = {}): Record<string, string> {
+  const state = {
     view: 'overview',
     search_id: SEARCH_DL,
     search_revision_id: REV_DL_R1,
     plan_id: PLAN_DL_R1,
     run_id: RUN_1_COMPLETED,
     ...overrides,
-  });
-  return `/?${params.toString()}`;
+  };
+  return state;
 }
 
 /**
- * Navigate to a fully selected context URL.
+ * Reads the current viewer state from sessionStorage.
+ */
+async function viewerState(page: Page): Promise<Record<string, string>> {
+  return page.evaluate(() => JSON.parse(sessionStorage.getItem("rw-viewer-state") || "{}"));
+}
+
+/**
+ * Navigate to a fully selected context state.
  */
 async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string): Promise<void> {
-  await goto(page, contextURL({ search_id: searchId, search_revision_id: revisionId, plan_id: planId, run_id: runId }));
+  await visit(page, contextState({ search_id: searchId, search_revision_id: revisionId, plan_id: planId, run_id: runId }));
 }
 
 // ── Setup ─────────────────────────────────────────────────────────────
-
-test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
-});
+// Each test navigates explicitly through visit() or goto(); no shared
+// beforeEach navigation exists because a booted page writes viewer state to
+// sessionStorage and would defeat state seeding.
 
 // ── 1. Health check and basic page load ───────────────────────────────
 
@@ -105,7 +140,7 @@ test.describe('Health and page load', () => {
   });
 
   test('primary navigation links are present', async ({ page }) => {
-    await goto(page, contextURL());
+    await visit(page, contextState());
     const nav = page.getByRole('navigation', { name: 'Deepdive navigation' });
     const links = ['Overview', 'Corpus', 'Relationships', 'Provenance', 'Evaluation', 'Advanced'];
     for (const text of links) {
@@ -115,27 +150,29 @@ test.describe('Health and page load', () => {
   });
 
   test('primary navigation preserves the selected research context', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     const href = await page.getByRole('link', { name: 'Corpus', exact: true }).getAttribute('href');
     if (!href) throw new Error('Corpus navigation link has no href');
     const target = new URL(href, page.url());
-    expect(target.searchParams.get('view')).toBe('corpus');
-    expect(target.searchParams.get('search_id')).toBe(SEARCH_DL);
-    expect(target.searchParams.get('search_revision_id')).toBe(REV_DL_R1);
-    expect(target.searchParams.get('plan_id')).toBe(PLAN_DL_R1);
-    expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
+    expect(target.pathname).toBe('/corpus');
+    expect(target.search).toBe('');
+    const state = await viewerState(page);
+    expect(state.search_id).toBe(SEARCH_DL);
+    expect(state.search_revision_id).toBe(REV_DL_R1);
+    expect(state.plan_id).toBe(PLAN_DL_R1);
+    expect(state.run_id).toBe(RUN_1_COMPLETED);
   });
 
   test('primary navigation loads view pages and browser history returns to the prior document', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     const priorURL = page.url();
 
     await page.getByRole('link', { name: 'Corpus', exact: true }).click();
     await page.waitForLoadState('networkidle');
 
     const corpusURL = new URL(page.url());
-    expect(corpusURL.pathname).toBe('/corpus.html');
-    expect(corpusURL.searchParams.get('view')).toBe('corpus');
+    expect(corpusURL.pathname).toBe('/corpus');
+    expect(corpusURL.search).toBe('');
     await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'corpus');
     await expect(page.getByRole('heading', { name: 'Corpus', exact: true })).toBeFocused();
 
@@ -146,7 +183,7 @@ test.describe('Health and page load', () => {
   });
 
   test('cancelable draft protection blocks a native view-page transition', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     const priorURL = page.url();
     await page.evaluate(() => {
       document.addEventListener('rw-before-navigate', (event) => {
@@ -157,19 +194,12 @@ test.describe('Health and page load', () => {
     await page.getByRole('link', { name: 'Corpus', exact: true }).click();
 
     await expect(page).toHaveURL(priorURL);
-    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'home');
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
   });
 
   test('a view page URL loads its identified document directly', async ({ page }) => {
-    const query = new URLSearchParams({
-      view: 'overview',
-      search_id: SEARCH_DL,
-      search_revision_id: REV_DL_R1,
-      plan_id: PLAN_DL_R1,
-      run_id: RUN_1_COMPLETED,
-    });
-    await goto(page, `/overview.html?${query.toString()}`);
+    await visit(page, contextState({ view: 'overview' }));
 
     await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
@@ -177,7 +207,7 @@ test.describe('Health and page load', () => {
   });
 
   test('research context is displayed after selecting a run', async ({ page }) => {
-    await goto(page, contextURL());
+    await visit(page, contextState());
     await page.waitForLoadState('networkidle');
     const context = page.locator('.rw-context-panel');
     await expect(context).toContainText(/Search revision|Execution plan|Run attempt/i);
@@ -197,13 +227,13 @@ test.describe('Health and page load', () => {
 test.describe('Research-context canonicalization', () => {
   test('a selected run owns the complete displayed ancestry across crossed URLs and reload', async ({ page }) => {
     const contextRequest = page.waitForRequest((request) => request.url().includes('/api/runs/5/context'));
-    await goto(page, contextURL({ search_id: SEARCH_DL, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1, run_id: RUN_5_QC }));
+    await visit(page, contextState({ search_id: SEARCH_DL, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1, run_id: RUN_5_QC }));
     await contextRequest;
-    await expect.poll(() => new URL(page.url()).searchParams.get('search_id')).toBe(SEARCH_QC);
-    const current = new URL(page.url());
-    expect(current.searchParams.get('search_revision_id')).toBe(REV_QC_R1);
-    expect(current.searchParams.get('plan_id')).toBe(PLAN_QC_R1);
-    expect(current.searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect.poll(async () => (await viewerState(page)).search_id).toBe(SEARCH_QC);
+    const current = await viewerState(page);
+    expect(current.search_revision_id).toBe(REV_QC_R1);
+    expect(current.plan_id).toBe(PLAN_QC_R1);
+    expect(current.run_id).toBe(RUN_5_QC);
     await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
     await expect(page.locator('#revision-select-trigger')).toContainText('r1');
     await expect(page.locator('#plan-select-trigger')).toContainText('Plan 4');
@@ -211,38 +241,40 @@ test.describe('Research-context canonicalization', () => {
 
     await page.reload();
     await page.waitForLoadState('networkidle');
-    expect(new URL(page.url()).searchParams.get('run_id')).toBe(RUN_5_QC);
+    expect((await viewerState(page)).run_id).toBe(RUN_5_QC);
     await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
   });
 
   test('run-only, stale descendant, trashed, and history states remain deterministic and visibly focused', async ({ page }) => {
-    await goto(page, `/?view=overview&run_id=${RUN_5_QC}`);
-    await expect.poll(() => new URL(page.url()).searchParams.get('plan_id')).toBe(PLAN_QC_R1);
-    expect(new URL(page.url()).searchParams.get('search_id')).toBe(SEARCH_QC);
+    await visit(page, contextState({ view: 'overview', run_id: RUN_5_QC }));
+    await expect.poll(async () => (await viewerState(page)).plan_id).toBe(PLAN_QC_R1);
+    expect((await viewerState(page)).search_id).toBe(SEARCH_QC);
 
-    await goto(page, `/?view=overview&search_id=${SEARCH_QC}&search_revision_id=${REV_DL_R1}&plan_id=${PLAN_DL_R1}`);
-    await expect.poll(() => new URL(page.url()).searchParams.get('search_revision_id')).toBe(REV_QC_R1);
-    const stale = new URL(page.url());
-    expect(stale.searchParams.get('search_id')).toBe(SEARCH_QC);
-    expect(stale.searchParams.get('plan_id')).toBe(PLAN_QC_R1);
-    expect(stale.searchParams.get('run_id')).toBe(RUN_5_QC);
+    await visit(page, { view: 'overview', search_id: SEARCH_QC, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1 });
+    await expect.poll(async () => (await viewerState(page)).search_revision_id).toBe(REV_QC_R1);
+    const stale = await viewerState(page);
+    expect(stale.search_id).toBe(SEARCH_QC);
+    expect(stale.plan_id).toBe(PLAN_QC_R1);
+    expect(stale.run_id).toBe(RUN_5_QC);
     await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
     await expect(page.locator('#revision-select-trigger')).toContainText('r1');
 
-    await goto(page, `/?view=overview&run_id=${RUN_3_TRASHED}`);
-    await expect.poll(() => new URL(page.url()).searchParams.get('plan_id')).toBe(PLAN_DL_R2);
-    expect(new URL(page.url()).searchParams.get('search_revision_id')).toBe(REV_DL_R2);
+    await visit(page, contextState({ view: 'overview', run_id: RUN_3_TRASHED }));
+    await expect.poll(async () => (await viewerState(page)).plan_id).toBe(PLAN_DL_R2);
+    expect((await viewerState(page)).search_revision_id).toBe(REV_DL_R2);
     await expect(page.locator('#run-select-trigger')).toContainText('Run 3');
 
-    await goto(page, contextURL({ run_id: RUN_1_COMPLETED }));
-    await goto(page, contextURL({ search_id: SEARCH_QC, search_revision_id: REV_QC_R1, plan_id: PLAN_QC_R1, run_id: RUN_5_QC }));
+    await visit(page, contextState({ run_id: RUN_1_COMPLETED }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', search_id: SEARCH_QC, search_revision_id: REV_QC_R1, plan_id: PLAN_QC_R1, run_id: RUN_5_QC }));
+    await expect.poll(async () => (await viewerState(page)).run_id).toBe(RUN_5_QC);
+    await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
     await page.goBack();
     await page.waitForLoadState('networkidle');
-    await expect.poll(() => new URL(page.url()).searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
+    await expect.poll(async () => (await viewerState(page)).run_id).toBe(RUN_1_COMPLETED);
     await expect(page.locator('#run-select-trigger')).toContainText('Run 1');
     await page.goForward();
     await page.waitForLoadState('networkidle');
-    await expect.poll(() => new URL(page.url()).searchParams.get('run_id')).toBe(RUN_5_QC);
+    await expect.poll(async () => (await viewerState(page)).run_id).toBe(RUN_5_QC);
     await expect(page.locator('#search-select-trigger')).toContainText('quantum-computing');
   });
 });
@@ -251,14 +283,14 @@ test.describe('Research-context canonicalization', () => {
 
 test.describe('Overview view', () => {
   test('displays run metrics for a completed run', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Input Records|Parsed Articles|Deduplicated Articles|Valid Articles/);
   });
 
   test('displays retention funnel for completed run', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Input records|Parsed articles|Deduplicated|Valid articles|Retention flow/i);
@@ -290,7 +322,7 @@ test.describe('Overview view', () => {
       await route.fulfill({ response, json: body });
     });
 
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('.rw-retention__phase')).toHaveCount(3);
     await expect(page.locator('.rw-retention__phase-header h4')).toHaveText(['Source selection', 'Pipeline processing', 'Corpus enrichment']);
     await expect(page.locator('.rw-flow--source > .rw-flow__step')).toHaveCount(4);
@@ -302,7 +334,7 @@ test.describe('Overview view', () => {
     await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__outcome-values')).toContainText('45 accepted');
     await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__outcome-values')).toContainText('5 discarded');
     await expect(page.locator('[data-flow-stage="normalized_articles_processed"] .rw-flow__percentage')).toHaveText('15.00%');
-    await expect(page.locator('[data-flow-stage="parsed_articles"] a')).toHaveAttribute('href', /stage_q=parse/);
+    await expect(page.locator('[data-flow-stage="parsed_articles"] a')).toHaveAttribute('data-state', /"stage_q":"parse"/);
     const sourceStageTops = await page.locator('.rw-flow--source .rw-flow__step').evaluateAll((stages) => (
       stages.map((stage) => stage.getBoundingClientRect().top)
     ));
@@ -310,7 +342,7 @@ test.describe('Overview view', () => {
   });
 
   test('displays informational source export-count comparisons', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Source export counts|Expected initial count|Observed raw records/i);
@@ -318,14 +350,14 @@ test.describe('Overview view', () => {
   });
 
   test('shows no enrichment badge for enrichment-disabled run', async ({ page }) => {
-    await goto(page, contextURL({ search_id: SEARCH_DL, search_revision_id: REV_DL_R3, plan_id: PLAN_DL_R3, run_id: RUN_4_NO_ENRICH, view: 'overview' }));
+    await visit(page, contextState({ search_id: SEARCH_DL, search_revision_id: REV_DL_R3, plan_id: PLAN_DL_R3, run_id: RUN_4_NO_ENRICH, view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/enrichment|skipped|disabled|Not recorded/i);
   });
 
   test('displays enrichment field and provider breakdowns', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Enriched fields|Enrichment by provider/i);
@@ -338,7 +370,7 @@ test.describe('Overview view', () => {
 
 test.describe('Corpus view', () => {
   test('articles section loads and shows article rows', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
@@ -350,7 +382,7 @@ test.describe('Corpus view', () => {
   });
 
   test('articles section supports search filtering', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', q: 'Attention' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', q: 'Attention' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText('Attention Mechanisms');
@@ -358,7 +390,7 @@ test.describe('Corpus view', () => {
   });
 
   test('articles expansion shows matched search terms', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     await page.locator(".rw-corpus-table .expand-toggle").first().click();
     const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
@@ -370,7 +402,7 @@ test.describe('Corpus view', () => {
   });
 
   test('articles expansion shows no search terms recorded for a run without queries', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', run_id: RUN_4_NO_ENRICH }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', run_id: RUN_4_NO_ENRICH }));
     await page.waitForLoadState('networkidle');
     await page.locator(".rw-corpus-table .expand-toggle").first().click();
     const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
@@ -379,14 +411,14 @@ test.describe('Corpus view', () => {
   });
 
   test('authors section loads and shows author rows', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'authors' }));
+    await visit(page, contextState({ view: 'corpus', section: 'authors' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Ada Lovelace|Charles Babbage|Alan Turing/i);
   });
 
   test('references section loads and shows reference rows', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'references' }));
+    await visit(page, contextState({ view: 'corpus', section: 'references' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/10\.1000|10\.external/);
@@ -400,7 +432,7 @@ test.describe('Corpus view', () => {
   });
 
   test('sources section loads and shows source records', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'sources' }));
+    await visit(page, contextState({ view: 'corpus', section: 'sources' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/scopus|ieee|wos/i);
@@ -416,7 +448,7 @@ test.describe('Corpus view', () => {
   });
 
   test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'identity_evidence' }));
+    await visit(page, contextState({ view: 'corpus', section: 'identity_evidence' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Author identity.*ORCID evidence|Unclear ORCID matches/i);
@@ -425,12 +457,12 @@ test.describe('Corpus view', () => {
     await expect(body).not.toContainText('0000-0001-2345-6789');
     await expect(page.getByRole('columnheader', { name: /Candidate evidence/i })).toHaveCount(0);
     await page.getByRole('link', { name: 'Charles Babbage' }).click();
-    await expect(page).toHaveURL(/view=author/);
+    await expect(page).toHaveURL(/\/author/);
     await expect(page.locator('body')).toContainText(/ORCID candidate evidence|0000-0001-2345-6789|Provider query/i);
   });
 
   test('corpus supports pagination', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', per_page: '20', search_id: SEARCH_CR, search_revision_id: REV_CR_R1, plan_id: PLAN_CR_R1, run_id: RUN_6_CR }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', per_page: '20', search_id: SEARCH_CR, search_revision_id: REV_CR_R1, plan_id: PLAN_CR_R1, run_id: RUN_6_CR }));
     await page.waitForLoadState('networkidle');
     const pagination = page.getByRole('navigation', { name: 'Result pages' });
     await expect(pagination).toContainText(/Page 1 of \d+/i);
@@ -440,7 +472,7 @@ test.describe('Corpus view', () => {
     await expect(pagination.getByRole('button', { name: 'Last page' })).toBeVisible();
     const firstPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
     await pagination.getByRole('button', { name: 'Next page' }).click();
-    await expect(page).toHaveURL(/(?:\?|&)page=2(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).page).toBe('2');
     const secondPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
     expect(secondPageIDs.length).toBeGreaterThan(0);
     expect(secondPageIDs).not.toEqual(firstPageIDs);
@@ -448,7 +480,7 @@ test.describe('Corpus view', () => {
   });
 
   test('corpus ignores a sort field that is unsupported by its selected section', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', sort: 'work_id', order: 'asc' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', sort: 'work_id', order: 'asc' }));
     await expect(page.locator('#notice')).toBeHidden();
     await expect(page.locator('body')).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
     await expect(page.getByRole('columnheader', { name: 'Work' }).locator('button')).toHaveCount(0);
@@ -459,7 +491,7 @@ test.describe('Corpus view', () => {
 
 test.describe('Relationships (graph) view', () => {
   test('graph loads and renders for a completed run', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Research network|Relationship table|Article revision|Author occurrence|Reference mention/i);
@@ -468,29 +500,29 @@ test.describe('Relationships (graph) view', () => {
   });
 
   test('graph supports mode switching to citation', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships', mode: 'citation' }));
+    await visit(page, contextState({ view: 'relationships', mode: 'citation' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Internal citations|Relationship table|Internal citation/i);
   });
 
   test('graph supports text search filter', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships', q: 'Attention' }));
+    await visit(page, contextState({ view: 'relationships', q: 'Attention' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Relationship table|Title or DOI: Attention/i);
   });
 
   test('graph filters are applied explicitly and remain visible in the URL', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     await page.getByLabel('Title or DOI').fill('Attention');
     await page.getByRole('button', { name: 'Apply filters' }).click();
-    await expect(page).toHaveURL(/(?:\?|&)q=Attention(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).q).toBe('Attention');
     await expect(page.locator('body')).toContainText('Title or DOI: Attention');
   });
 
   test('graph node search input is present and functional', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     const searchInput = page.locator('#graph-node-search');
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toHaveAttribute('placeholder', /Search nodes/i);
@@ -506,7 +538,7 @@ test.describe('Relationships (graph) view', () => {
   });
 
   test('graph export downloads a valid PNG', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     const exportBtn = page.locator('#graph-export-png');
     await expect(exportBtn).toBeVisible();
     await expect(exportBtn).toContainText(/Export|PNG/i);
@@ -522,7 +554,7 @@ test.describe('Relationships (graph) view', () => {
   });
 
   test('graph legend is anchored at the bottom left of the canvas', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     const legend = page.getByLabel('Visible graph encodings');
     const canvas = page.locator('.rw-graph__canvas');
     const legendBox = await legend.boundingBox();
@@ -535,12 +567,12 @@ test.describe('Relationships (graph) view', () => {
   });
 
   test('background click clears a selected graph node', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships', node: 'article:1' }));
+    await visit(page, contextState({ view: 'relationships', node: 'article:1' }));
     const clear = page.locator('#graph-clear-selection');
     await expect(clear).toBeEnabled();
     await page.locator('.rw-graph__canvas').click({ position: { x: 3, y: 3 } });
     await expect(clear).toBeDisabled();
-    await expect(page).not.toHaveURL(/(?:\?|&)node=/);
+    await expect.poll(async () => (await viewerState(page)).node).toBeUndefined();
   });
 
   test('clicking the selected graph node again clears it', async ({ page }) => {
@@ -555,7 +587,7 @@ test.describe('Relationships (graph) view', () => {
         } })
       });
     });
-    await goto(page, contextURL({ view: 'relationships' }));
+    await visit(page, contextState({ view: 'relationships' }));
     await expect(page.locator('#graph-layout-status')).toContainText(/settled|placed/i);
     await page.locator('#graph-fit').click();
     const canvas = page.locator('.rw-graph__canvas');
@@ -567,11 +599,11 @@ test.describe('Relationships (graph) view', () => {
     await expect(page.locator('#graph-clear-selection')).toBeEnabled();
     await canvas.click({ position });
     await expect(page.locator('#graph-clear-selection')).toBeDisabled();
-    await expect(page).not.toHaveURL(/(?:\?|&)node=/);
+    await expect.poll(async () => (await viewerState(page)).node).toBeUndefined();
   });
 
   test('secondary-button drag pans without changing graph selection', async ({ page }) => {
-    await goto(page, contextURL({ view: 'relationships', node: 'article:1' }));
+    await visit(page, contextState({ view: 'relationships', node: 'article:1' }));
     const canvas = page.locator('.rw-graph__canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
@@ -580,7 +612,7 @@ test.describe('Relationships (graph) view', () => {
     await page.mouse.down({ button: 'right' });
     await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 35, { steps: 4 });
     await page.mouse.up({ button: 'right' });
-    await expect(page).toHaveURL(/(?:\?|&)node=article%3A1(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).node).toBe('article:1');
     await expect(page.locator('#graph-clear-selection')).toBeEnabled();
   });
 });
@@ -589,7 +621,7 @@ test.describe('Relationships (graph) view', () => {
 
 test.describe('Provenance view', () => {
   test('audit section loads and shows events', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'audit' }));
+    await visit(page, contextState({ view: 'provenance', section: 'audit' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Audit|timeline|events|recorded actions/i);
@@ -601,7 +633,7 @@ test.describe('Provenance view', () => {
   });
 
   test('audit stream filters events by category on the server', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'audit' }));
+    await visit(page, contextState({ view: 'provenance', section: 'audit' }));
     const categoryFilter = page.locator('details.rw-multi-select').filter({ hasText: 'Category' });
     await categoryFilter.locator('summary').click();
     const categoryCheckbox = page.locator('input[name="audit_category"][value="enrichment"]');
@@ -613,7 +645,7 @@ test.describe('Provenance view', () => {
     expect(Math.abs(checkboxBox.x - summaryBox.x)).toBeLessThan(14);
     await categoryCheckbox.check();
     await page.getByRole('button', { name: 'Apply filters' }).click();
-    await expect(page).toHaveURL(/(?:\?|&)audit_category=enrichment(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).audit_category).toBe('enrichment');
     const stream = page.locator('#audit-event-stream');
     await expect(stream.locator('.rw-audit-event--enrichment').first()).toBeVisible();
     await expect(stream.locator('.rw-audit-event--pipeline')).toHaveCount(0);
@@ -621,7 +653,7 @@ test.describe('Provenance view', () => {
   });
 
   test('audit stream exposes mirrored PDF events', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'audit', audit_category: 'pdf' }));
+    await visit(page, contextState({ view: 'provenance', section: 'audit', audit_category: 'pdf' }));
     const stream = page.locator('#audit-event-stream');
     await expect(stream.locator('.rw-audit-event--pdf').first()).toBeVisible();
     await expect(stream).toContainText(/Pdf (Inventory Registered|Document Inventoried)/i);
@@ -629,7 +661,7 @@ test.describe('Provenance view', () => {
   });
 
   test('artifacts section identifies configuration snapshots and offers downloads', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'artifacts' }));
+    await visit(page, contextState({ view: 'provenance', section: 'artifacts' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Artifacts|artifact/i);
@@ -651,7 +683,7 @@ test.describe('Provenance view', () => {
   });
 
   test('cache uses section supports shared filtering and pagination controls', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'cache' }));
+    await visit(page, contextState({ view: 'provenance', section: 'cache' }));
     await page.waitForLoadState('networkidle');
     await expect(page.locator('body')).toContainText(/Cache use records|hit|negative|stale/i);
     const pagination = page.getByRole('navigation', { name: 'Result pages' });
@@ -659,7 +691,7 @@ test.describe('Provenance view', () => {
     await expect(pagination.getByRole('button', { name: 'Last page' })).toBeVisible();
     await page.locator('#cache-query').fill('openalex');
     await page.locator('#cache-controls').getByRole('button', { name: 'Search' }).click();
-    await expect(page).toHaveURL(/(?:\?|&)cache_q=openalex(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).cache_q).toBe('openalex');
     await expect(page.locator(`[data-table-scope="Cache uses"]`)).toContainText("openalex");
     const cacheControlBottoms = await page.locator('#cache-controls').evaluate(function(form) {
       return Array.from(form.children).slice(0, 3).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
@@ -668,7 +700,7 @@ test.describe('Provenance view', () => {
   });
 
   test('stages section loads', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'stages' }));
+    await visit(page, contextState({ view: 'provenance', section: 'stages' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Stage outcomes and progression|Preflight|Parse|Enrich|Detailed stage outcomes/i);
@@ -680,7 +712,7 @@ test.describe('Provenance view', () => {
   });
 
   test('run details section loads', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance', section: 'run' }));
+    await visit(page, contextState({ view: 'provenance', section: 'run' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Run details|Plan|attempt|status|Execution plan/i);
@@ -692,7 +724,7 @@ test.describe('Provenance view', () => {
 
 test.describe('Evaluation view', () => {
   test('lists only normalized articles with manual inventory status', async ({ page }) => {
-    await goto(page, contextURL({ view: 'evaluation' }));
+    await visit(page, contextState({ view: 'evaluation' }));
     const table = page.locator('.rw-evaluation-table');
     await expect(table).toBeVisible();
     await expect(table.locator('thead')).toContainText('Title');
@@ -709,13 +741,15 @@ test.describe('Evaluation view', () => {
   });
 
   test('preserves research context in the Evaluation navigation link', async ({ page }) => {
-    await goto(page, contextURL({ view: 'provenance' }));
+    await visit(page, contextState({ view: 'provenance' }));
     const evaluation = page.getByRole('link', { name: 'Evaluation', exact: true });
     const href = await evaluation.getAttribute('href');
     if (!href) throw new Error('Evaluation navigation link has no href');
     const target = new URL(href, page.url());
-    expect(target.searchParams.get('view')).toBe('evaluation');
-    expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
+    expect(target.pathname).toBe('/evaluation');
+    expect(target.search).toBe('');
+    const state = await viewerState(page);
+    expect(state.run_id).toBe(RUN_1_COMPLETED);
   });
 });
 
@@ -723,21 +757,21 @@ test.describe('Evaluation view', () => {
 
 test.describe('Advanced (table browser) view', () => {
   test('lists available tables', async ({ page }) => {
-    await goto(page, '/?view=advanced');
+    await visit(page, { view: 'advanced' });
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/work_revisions|pipeline_runs|authorships|searches/i);
   });
 
   test('displays rows from a selected table', async ({ page }) => {
-    await goto(page, '/?view=advanced&table=work_revisions');
+    await visit(page, { view: 'advanced', table: 'work_revisions' });
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
   });
 
   test('table browser supports pagination', async ({ page }) => {
-    await goto(page, '/?view=advanced&table=work_revisions&per_page=20');
+    await visit(page, { view: 'advanced', table: 'work_revisions', per_page: '20' });
     await page.waitForLoadState('networkidle');
     const pagination = page.getByRole('navigation', { name: 'Result pages' });
     await expect(pagination).toContainText(/Page 1 of \d+/i);
@@ -746,7 +780,7 @@ test.describe('Advanced (table browser) view', () => {
   });
 
   test('ignores a sort field that does not belong to the selected table', async ({ page }) => {
-    await goto(page, '/?view=advanced&table=work_revisions&sort=citation_name&order=asc');
+    await visit(page, { view: 'advanced', table: 'work_revisions', sort: 'citation_name', order: 'asc' });
     await expect(page.locator('#notice')).toBeHidden();
     await expect(page.locator('body')).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
   });
@@ -760,11 +794,12 @@ test.describe('Home lifecycle management', () => {
     await expect(page.locator('.rw-home-kpis')).toContainText(/Search terms|Search revisions|Execution plans|Run attempts/i);
     await expect(page.locator('.rw-home-runs')).toContainText(/Run 1|Move to trash/i);
     const explore = page.locator('.rw-home-runs').getByRole('link', { name: 'Explore' }).first();
-    await expect(explore).toHaveAttribute('href', /view=overview/);
+    await expect(explore).toHaveAttribute('href', '/overview');
     await page.locator('[data-home-filters] summary').click();
     await page.locator('[data-home-filters] select[name="visibility"]').selectOption('trashed');
     await page.locator('[data-home-filters]').getByRole('button', { name: 'Apply filters' }).click();
-    await expect(page).toHaveURL(/(?:\?|&)home_visibility=trashed(?:&|$)/);
+    await expect.poll(async () => (await viewerState(page)).home_visibility).toBe('trashed');
+    await expect(page.locator('.rw-home-runs')).toContainText(/Run 3|Restore/i);
     await expect(page.locator('.rw-home-runs')).toContainText(/Run 3|Restore/i);
     await page.getByRole('button', { name: 'Restore' }).first().click();
     const dialog = page.getByRole('dialog', { name: /Restore run/ });
@@ -779,7 +814,7 @@ test.describe('Home lifecycle management', () => {
 
 test.describe('Detail views', () => {
   test('article detail shows revision metadata', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms in Transformer Models/i);
@@ -792,7 +827,7 @@ test.describe('Detail views', () => {
   });
 
   test('article detail shows the search term coverage panel', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     await expect(page.getByRole('heading', { name: 'Search term coverage' })).toBeVisible();
     const body = page.locator('body');
@@ -804,7 +839,7 @@ test.describe('Detail views', () => {
   });
 
   test('article detail shows no search terms recorded for a run without queries', async ({ page }) => {
-    await goto(page, contextURL({
+    await visit(page, contextState({
       view: 'article',
       search_revision_id: REV_DL_R3,
       plan_id: PLAN_DL_R3,
@@ -817,13 +852,14 @@ test.describe('Detail views', () => {
   });
 
   test('article detail opens the bound PDF without discarding research context', async ({ page, request }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Available|Inventoried/i);
     const pdfLink = page.getByRole('link', { name: 'Download PDF' });
     await expect(pdfLink).toHaveAttribute('href', '/api/pdf/1');
     await expect(pdfLink).toHaveAttribute('download', '');
-    await expect(page).toHaveURL(/(?:\?|&)search_id=1(?:&|$)/);
-    await expect(page).toHaveURL(/(?:\?|&)run_id=1(?:&|$)/);
+    const state = await viewerState(page);
+    expect(state.search_id).toBe(SEARCH_DL);
+    expect(state.run_id).toBe(RUN_1_COMPLETED);
     const response = await request.get('/api/pdf/1', { headers: { Range: 'bytes=0-4' } });
     expect(response.status()).toBe(206);
     expect(response.headers()['content-type']).toContain('application/pdf');
@@ -831,26 +867,28 @@ test.describe('Detail views', () => {
   });
 
   test('article detail shows an absent PDF without an open action', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_2_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_2_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Not stored|No stored PDF/i);
     await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
   });
 
   test('article detail preserves the originating corpus state', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles', q: 'Attention', page: '1', sort: 'title', order: 'asc', expanded: '1' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles', q: 'Attention', page: '1', sort: 'title', order: 'asc', expanded: '1' }));
     await page.getByRole('link', { name: /Attention Mechanisms/i }).first().click();
-    await expect(page).toHaveURL(/view=article/);
-    const origin = new URL(page.url()).searchParams.get('origin');
+    await expect(page).toHaveURL(/\/article/);
+    const state = await viewerState(page);
+    const origin = state.origin || '';
     expect(origin).toContain('q=Attention');
     expect(origin).toContain('expanded=1');
     await page.getByRole('navigation', { name: 'Detail record navigation' }).getByRole('link', { name: 'Return to Corpus' }).click();
-    await expect(page).toHaveURL(/view=corpus/);
-    await expect(page).toHaveURL(/q=Attention/);
-    await expect(page).toHaveURL(/expanded=1/);
+    await expect(page).toHaveURL(/\/corpus/);
+    const returned = await viewerState(page);
+    expect(returned.q).toBe('Attention');
+    expect(returned.expanded).toBe('1');
   });
 
   test('article detail shows authors and references', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Ada Lovelace|Charles Babbage/i);
@@ -858,7 +896,7 @@ test.describe('Detail views', () => {
   });
 
   test('author detail shows author information', async ({ page }) => {
-    await goto(page, contextURL({ view: 'author', author_id: AUTHOR_1_ID }));
+    await visit(page, contextState({ view: 'author', author_id: AUTHOR_1_ID }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/Ada Lovelace/i);
@@ -870,7 +908,7 @@ test.describe('Detail views', () => {
   });
 
   test('reference detail shows reference information', async ({ page }) => {
-    await goto(page, contextURL({ view: 'reference', reference_id: REF_1_ID }));
+    await visit(page, contextState({ view: 'reference', reference_id: REF_1_ID }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/10\.1000|Deep Reinforcement Learning/i);
@@ -908,7 +946,7 @@ test.describe('Fullscreen PDF reader', () => {
   }
 
   test('enters fullscreen from the toolbar with the drawer expanded by default', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     const fullscreenButton = page.getByRole('button', { name: 'Fullscreen' });
     await expect(fullscreenButton).toBeVisible();
@@ -923,7 +961,7 @@ test.describe('Fullscreen PDF reader', () => {
   });
 
   test('collapses and expands the review drawer through the edge control', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Fullscreen' }).click();
     await expect(page.locator('[data-drawer-edge]')).toBeVisible();
@@ -938,7 +976,7 @@ test.describe('Fullscreen PDF reader', () => {
   });
 
   test('selecting PDF text expands a collapsed drawer', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Fullscreen' }).click();
     await page.locator('[data-drawer-edge]').click();
@@ -952,7 +990,7 @@ test.describe('Fullscreen PDF reader', () => {
   });
 
   test('exits fullscreen and restores the embedded article layout', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Fullscreen' }).click();
     await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
@@ -978,7 +1016,7 @@ test.describe('PDF theme toggle', () => {
   }
 
   test('inverts the rendered page through the Dark toggle and restores it', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     const themeButton = page.getByRole('button', { name: 'Dark' });
     await expect(themeButton).toBeVisible();
@@ -998,7 +1036,7 @@ test.describe('PDF theme toggle', () => {
   });
 
   test('keeps the inverted theme while entering and leaving fullscreen', async ({ page }) => {
-    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await page.waitForLoadState('networkidle');
     await page.getByRole('button', { name: 'Dark' }).click();
     await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
@@ -1066,10 +1104,14 @@ test.describe('Error states', () => {
     expect(resp.status()).toBe(404);
   });
 
-  test('frontend renders error state for invalid view', async ({ page }) => {
-    await goto(page, '/?view=nonexistent');
+  test('legacy view query parameters are rejected and the root renders Home', async ({ page }) => {
+    await goto(page, '/?view=overview&search_id=1&run_id=1');
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toBeAttached();
+    await expect(page.getByRole('heading', { name: 'Home', exact: true })).toBeVisible();
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'home');
+    const state = await viewerState(page);
+    expect(state.view).toBe('home');
+    expect(state.search_id).toBeUndefined();
   });
 });
 
@@ -1078,7 +1120,7 @@ test.describe('Error states', () => {
 test.describe('Responsive layout', () => {
   test('renders on mobile viewport (375px)', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
     const body = page.locator('body');
     await expect(body).toContainText(/Overview|Corpus|Relationships|Provenance|Evaluation|Advanced/i);
@@ -1087,13 +1129,13 @@ test.describe('Responsive layout', () => {
 
   test('renders on tablet viewport (768px)', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
   });
 
   test('renders on desktop viewport (1280px)', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
   });
 });
@@ -1103,7 +1145,7 @@ test.describe('Responsive layout', () => {
 test.describe('Dark mode', () => {
   test('respects prefers-color-scheme: dark', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
     const bg = await page.evaluate(() => {
       const style = getComputedStyle(document.body);
@@ -1114,7 +1156,7 @@ test.describe('Dark mode', () => {
 
   test('respects prefers-color-scheme: light', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await expect(page.locator('body')).toBeAttached();
   });
 });
@@ -1155,14 +1197,14 @@ test.describe('Accessibility', () => {
 
 test.describe('Search context', () => {
   test('selecting a search revision shows its plans', async ({ page }) => {
-    await goto(page, contextURL({ search_id: SEARCH_DL }));
+    await visit(page, contextState({ search_id: SEARCH_DL }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/r1|r2|r3|execution plan|revision/i);
   });
 
   test('viewing a failed run shows failure indicators', async ({ page }) => {
-    await goto(page, contextURL({ search_id: SEARCH_DL, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1, run_id: RUN_2_FAILED, view: 'overview' }));
+    await visit(page, contextState({ search_id: SEARCH_DL, search_revision_id: REV_DL_R1, plan_id: PLAN_DL_R1, run_id: RUN_2_FAILED, view: 'overview' }));
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/fail|error|incomplete/i);
@@ -1173,7 +1215,7 @@ test.describe('Search context', () => {
 
 test.describe('Expandable article rows', () => {
   test('uses an unlabeled, plain disclosure column', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     const disclosureHeader = page.locator('.rw-corpus-table thead th').first();
     await expect(disclosureHeader).toHaveText('');
     const toggle = page.locator('.expand-toggle').first();
@@ -1181,7 +1223,7 @@ test.describe('Expandable article rows', () => {
   });
 
   test('toggle arrow expands a row showing property grid', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     const toggle = page.locator('.expand-toggle').first();
     await toggle.click();
@@ -1192,7 +1234,7 @@ test.describe('Expandable article rows', () => {
   });
 
   test('clicking anywhere on the row expands it', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     const dataCell = page.locator('table tbody tr').first().locator('td').nth(1);
     await dataCell.click();
@@ -1201,7 +1243,7 @@ test.describe('Expandable article rows', () => {
   });
 
   test('clicking toggle again collapses the row', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     const toggle = page.locator('.expand-toggle').first();
     await toggle.click();
@@ -1211,7 +1253,7 @@ test.describe('Expandable article rows', () => {
   });
 
   test('toggle arrow and aria-expanded update on click', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     const toggle = page.locator('.expand-toggle').first();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -1225,7 +1267,7 @@ test.describe('Expandable article rows', () => {
   });
 
   test('multiple rows can be expanded simultaneously', async ({ page }) => {
-    await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
     await page.locator('.expand-toggle').nth(0).click();
     await page.locator('.expand-toggle').nth(1).click();
@@ -1239,7 +1281,7 @@ test.describe('Expandable article rows', () => {
 
 test.describe('Dismissible messages', () => {
   test('clicking close button hides the message', async ({ page }) => {
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     await page.evaluate(() => {
       const message = document.createElement('div');
       message.className = 'ui info message';
@@ -1261,7 +1303,7 @@ test.describe('Dismissible messages', () => {
 test.describe('Mobile navigation toggle', () => {
   test('mobile nav toggle shows and hides navigation links', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await goto(page, contextURL({ view: 'overview' }));
+    await visit(page, contextState({ view: 'overview' }));
     const toggle = page.locator('#mobile-nav-toggle');
     await expect(toggle).toBeVisible();
     const nav = page.locator('.rw-primary-nav');

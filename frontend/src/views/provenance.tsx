@@ -1,6 +1,6 @@
 // Read-only execution evidence: audit events, artifacts, cache uses, stages, and run details.
 import {
-  app, value, link, state, provenanceSections, section,
+  app, value, link, linkState, state, provenanceSections, section,
   Cell, list, selectedRun, pickID, formatTime, formatBytes,
   formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips,
 } from "../state.tsx";
@@ -21,7 +21,7 @@ import type {
   StagesResponse,
   WireRecord,
 } from "../api/types.ts";
-import { setURL, bindFocusContext } from "../router.tsx";
+import { setURL, bindFocusContext, replaceState } from "../router.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
@@ -185,6 +185,7 @@ function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
     return [key, ""];
   }));
   const resetLink = link(resetUpdates);
+  const resetState = linkState(resetUpdates);
   return (
     <aside className={classNames.uiSegmentRwAuditFilters}>
       <div className={classNames.uiTopAttachedHeader}>
@@ -233,7 +234,7 @@ function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
           <AuditFilterSummary />
           <div className="rw-filter-panel__actions">
             <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
-            <a className={classNames.uiBasicButton} href={resetLink}>Reset</a>
+            <a className={classNames.uiBasicButton} href={resetLink} data-state={JSON.stringify(resetState)}>Reset</a>
           </div>
         </form>
       </div>
@@ -596,7 +597,7 @@ function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
       label: "Payload artifact",
       render: (row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })}>Artifact {String(raw)}</a>;
+          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: raw, artifact_page: 1 }))}>Artifact {String(raw)}</a>;
         }
         return <span className={classNames.uiFadedText}>None</span>;
       },
@@ -690,10 +691,10 @@ function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] }): JSX.
     const outcomeDisplay = outcomeText || outcomeFallback;
     const artifacts: JSX.Element[] = [];
     if (step?.input_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })}>Input artifact {step.input_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 }))}>Input artifact {step.input_artifact_id}</a>);
     }
     if (step?.output_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })}>Output artifact {step.output_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 }))}>Output artifact {step.output_artifact_id}</a>);
     }
     var duration = "Not recorded";
     if (step?.duration_seconds != null) {
@@ -1153,7 +1154,7 @@ function bindArtifactInspection(): void {
       const sequence = ++artifactInspectionSequence;
       const explicitSelection = event.isTrusted;
       const id = button.dataset.inspectArtifact as string;
-      history.replaceState({}, "", link({ artifact_id: id }));
+      replaceState({ artifact_id: id });
       activeArtifactRow = button.closest("tr");
       const artifactRows = document.querySelectorAll<HTMLElement>("[data-artifact-row]");
       artifactRows.forEach((row) => {

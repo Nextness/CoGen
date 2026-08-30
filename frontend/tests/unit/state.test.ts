@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 
 // Setup DOM before importing the module under test
 import './setup.ts';
+import { seedViewerState } from './seed.ts';
 import type { HierarchyRun } from '../../src/api/types.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
@@ -12,6 +13,7 @@ import {
   clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
   FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary, Timeline,
   DetailTable, Cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
+  initViewerState, pathView, pathFor, stateFor, linkState,
 } from '../../src/state.tsx';
 import { h, renderToString } from "../../src/jsx/jsx-runtime.ts";
 
@@ -43,10 +45,10 @@ const cell = (item: any, column: string, tableName?: string): string => renderTo
 
 describe('state.tsx — constants', function() {
 
-  it('maps supported views to their owning page files', function() {
-    assert.equal(viewPage.home, 'index.html');
-    assert.equal(viewPage.overview, 'overview.html');
-    assert.equal(viewPage.article, 'article.html');
+  it('maps supported views to their clean application paths', function() {
+    assert.equal(viewPage.home, '/');
+    assert.equal(viewPage.overview, '/overview');
+    assert.equal(viewPage.article, '/article');
   });
 
   it('app is a DOM element', function() {
@@ -106,30 +108,80 @@ describe('state.tsx — constants', function() {
 
 describe('state.tsx — params / value / view / section', function() {
 
-  it('params returns URLSearchParams from location.search', function() {
+  it('params returns URLSearchParams from viewerState', function() {
+    seedViewerState({ view: 'overview' });
     const p = params();
     assert.ok(p instanceof URLSearchParams);
     assert.equal(p.get('view'), 'overview');
   });
 
-  it('value reads a query parameter', function() {
+  it('value reads a viewerState key', function() {
+    seedViewerState({ view: 'overview' });
     assert.equal(value('view'), 'overview');
     assert.equal(value('nonexistent'), '');
   });
 
-  it('view returns the current view or Home default', function() {
+  it('view returns the current view or the pathname-derived default', function() {
+    seedViewerState({ view: 'overview' });
     assert.equal(view(), 'overview');
-    const url = new URL(location.href);
-    url.searchParams.delete('view');
-    history.pushState({}, '', url.toString());
+    history.replaceState({}, '', '/');
+    initViewerState();
     assert.equal(view(), 'home');
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'overview' });
   });
 
   it('section returns the named parameter or fallback', function() {
+    seedViewerState({ view: 'overview' });
     assert.equal(section('section', 'default'), 'default');
     assert.equal(section('view', 'fallback'), 'overview');
+  });
+
+});
+
+describe('state.tsx — pathView / pathFor / initViewerState', function() {
+
+  it('pathView derives the view from a pathname', function() {
+    assert.equal(pathView('/overview'), 'overview');
+    assert.equal(pathView('/overview.html'), 'overview');
+    assert.equal(pathView('/trash'), 'trash');
+    assert.equal(pathView('/'), 'home');
+    assert.equal(pathView(''), 'home');
+    assert.equal(pathView('/corpus/'), 'corpus');
+  });
+
+  it('pathFor returns the owning path for a state view', function() {
+    assert.equal(pathFor({ view: 'overview' }), '/overview');
+    assert.equal(pathFor({ view: 'trash' }), '/trash');
+    assert.equal(pathFor({}), '/');
+    assert.equal(pathFor({ view: 'unsupported' }), '/');
+  });
+
+  it('initViewerState adopts history.state over sessionStorage and forces the view from the pathname', function() {
+    history.replaceState({ view: 'corpus', section: 'articles', search_id: '1' }, '', '/corpus');
+    initViewerState();
+    assert.equal(view(), 'corpus');
+    assert.equal(value('section'), 'articles');
+    assert.equal(value('search_id'), '1');
+    assert.equal(sessionStorage.getItem('rw-viewer-state'), JSON.stringify({ view: 'corpus', section: 'articles', search_id: '1' }));
+    assert.equal(location.pathname, '/corpus');
+  });
+
+  it('initViewerState drops disallowed keys from the adopted state', function() {
+    history.replaceState({ view: 'corpus', section: 'articles', q: 'term', note_id: '9' }, '', '/corpus');
+    initViewerState();
+    assert.equal(value('section'), 'articles');
+    assert.equal(value('q'), 'term');
+    assert.equal(value('note_id'), '');
+    assert.equal(value('search_id'), '');
+  });
+
+  it('initViewerState corrects the view from the pathname and keeps only adopted canonical context', function() {
+    history.replaceState({ view: 'article', article_id: '8', note_id: '9', search_id: '1', run_id: '4' }, '', '/overview');
+    initViewerState();
+    assert.equal(view(), 'overview');
+    assert.equal(value('article_id'), '');
+    assert.equal(value('note_id'), '');
+    assert.equal(value('run_id'), '4');
   });
 
 });
@@ -375,31 +427,29 @@ describe('state.tsx — display helpers', function() {
   });
 
   it('uses namespaced pagination updates when a filter chip is removed', function() {
-    const originalURL = location.href;
-    history.replaceState({}, '', '?view=provenance&section=cache');
+    seedViewerState({ view: 'provenance', section: 'cache' });
     const html = filterChips({ cache_q: 'crossref' }, { cache_q: 'Search' }, {
       removeUpdates: { cache_page: 1 }, clearUpdates: { cache_q: '', cache_page: 1 }
     });
     const host = document.createElement('div');
     host.innerHTML = html;
-    const url = new URL((host.querySelector('.rw-filter-chip') as HTMLAnchorElement).href);
-    assert.equal(url.searchParams.get('cache_page'), '1');
-    assert.equal(url.searchParams.get('page'), null);
-    history.replaceState({}, '', originalURL);
+    const chip = host.querySelector('.rw-filter-chip') as HTMLAnchorElement;
+    const state = JSON.parse(chip.dataset.state || '{}');
+    assert.equal(state.cache_page, '1');
+    assert.equal(state.page, undefined);
+    assert.equal(chip.getAttribute('href'), '/provenance');
   });
 
   it('renders one independently removable chip for each selected facet value', function() {
-    const originalURL = location.href;
-    history.replaceState({}, '', '?view=provenance&section=audit&audit_category=pipeline%2Creview');
+    seedViewerState({ view: 'provenance', section: 'audit' });
     const html = filterChips({ audit_category: ['pipeline', 'review'] }, { audit_category: 'Category' });
     const host = document.createElement('div');
     host.innerHTML = html;
     const chips = Array.from(host.querySelectorAll<HTMLAnchorElement>('.rw-filter-chip'));
     assert.equal(chips.length, 2);
     assert.match(chips[0].textContent || '', /pipeline/);
-    assert.equal(new URL(chips[0].href).searchParams.get('audit_category'), 'review');
-    assert.equal(new URL(chips[1].href).searchParams.get('audit_category'), 'pipeline');
-    history.replaceState({}, '', originalURL);
+    assert.equal(JSON.parse(chips[0].dataset.state || '{}').audit_category, 'review');
+    assert.equal(JSON.parse(chips[1].dataset.state || '{}').audit_category, 'pipeline');
   });
 
 });
@@ -493,18 +543,11 @@ describe('state.tsx — selectedRun', function() {
 
   it('finds a run by run_id', function() {
     state.runs = [{ id: 'run-1', status: 'complete' } as unknown as HierarchyRun];
-    // Set run_id in URL
-    const url = new URL(location.href);
-    url.searchParams.set('run_id', 'run-1');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'overview', run_id: 'run-1' });
 
     const result = selectedRun();
     assert.ok(result);
     assert.equal(result.id, 'run-1');
-
-    // Cleanup
-    url.searchParams.delete('run_id');
-    history.pushState({}, '', url.toString());
     state.runs = [];
   });
 
@@ -541,115 +584,102 @@ describe('state.tsx — showError / clearError / busy', function() {
 
 describe('state.tsx — link', function() {
 
-  beforeEach(function() {
-    history.replaceState({}, '', '/?view=overview');
-  });
-
-  it('builds a query string from updates', function() {
+  it('builds a path from updates', function() {
+    seedViewerState({ view: 'overview' });
     const result = link({ view: 'corpus', section: 'articles' });
-    assert.ok(result.startsWith('corpus.html?'));
-    assert.ok(result.includes('view=corpus'));
-    assert.ok(result.includes('section=articles'));
+    assert.equal(result, '/corpus');
   });
 
   it('removes keys with empty values but keeps the Home default', function() {
+    seedViewerState({ view: 'overview' });
     const result = link({ view: '' });
-    assert.ok(result.startsWith('index.html?'));
-    assert.ok(result.includes('view=home'));
+    assert.equal(result, '/');
   });
 
   it('removes keys with null values but keeps the Home default', function() {
+    seedViewerState({ view: 'overview' });
     const result = link({ view: null });
-    assert.ok(result.startsWith('index.html?'));
-    assert.ok(result.includes('view=home'));
+    assert.equal(result, '/');
   });
 
   it('ensures view defaults to Home', function() {
-    const url = new URL(location.href);
-    url.searchParams.delete('view');
-    history.pushState({}, '', url.toString());
+    seedViewerState({});
     const result = link({ section: 'articles' });
-    assert.ok(result.includes('view=home'));
-    url.searchParams.set('view', 'overview');
-    history.pushState({}, '', url.toString());
+    assert.equal(result, '/');
   });
 
-  it('uses the current view page when no updates are supplied', function() {
+  it('uses the current view path when no updates are supplied', function() {
+    seedViewerState({ view: 'overview' });
     const result = link();
-    assert.ok(result.startsWith('overview.html?'));
+    assert.equal(result, '/overview');
   });
 
-  it('uses the home page for an unsupported destination', function() {
+  it('uses the home path for an unsupported destination', function() {
+    seedViewerState({ view: 'overview' });
     const result = link({ view: 'unsupported' });
-    assert.ok(result.startsWith('index.html?'));
-    assert.ok(result.includes('view=unsupported'));
+    assert.equal(result, '/');
   });
 
   it("keeps only canonical context and destination-owned route state", () => {
-    history.replaceState({}, "", "?view=corpus&search_id=1&search_revision_id=2&plan_id=3&run_id=4&section=articles&q=term&page=2&note_id=9&audit_q=stale");
+    seedViewerState({ view: 'corpus', search_id: '1', search_revision_id: '2', plan_id: '3', run_id: '4', section: 'articles', q: 'term', page: '2', note_id: '9', audit_q: 'stale' });
 
-    const provenance = new URL(link({ view: "provenance", section: "audit" }), location.origin).searchParams;
-    assert.equal(provenance.get("run_id"), "4");
-    assert.equal(provenance.get("section"), "audit");
-    assert.equal(provenance.has("q"), false);
-    assert.equal(provenance.has("page"), false);
-    assert.equal(provenance.has("note_id"), false);
+    const provenance = linkState({ view: 'provenance', section: 'audit' });
+    assert.equal(provenance.run_id, '4');
+    assert.equal(provenance.section, 'audit');
+    assert.equal(provenance.q, undefined);
+    assert.equal(provenance.page, undefined);
+    assert.equal(provenance.note_id, undefined);
 
-    const home = new URL(link({ view: "home" }), location.origin).searchParams;
-    assert.deepEqual(Array.from(home.keys()), ["view"]);
-    history.replaceState({}, "", "?view=overview");
+    const home = linkState({ view: 'home' });
+    assert.deepEqual(Object.keys(home), ['view']);
   });
 
   it("returns detail context changes to the corresponding collection without record focus", () => {
-    history.replaceState({}, "", "?view=article&search_id=1&search_revision_id=2&plan_id=3&run_id=4&article_id=8&note_id=9&anchor_id=a1&pdf_page=2");
-    const updates = contextChange({ run_id: "5" });
-    const target = new URL(link(updates), location.origin).searchParams;
-    assert.equal(target.get("view"), "corpus");
-    assert.equal(target.get("section"), "articles");
-    assert.equal(target.get("run_id"), "5");
-    assert.equal(target.has("article_id"), false);
-    assert.equal(target.has("note_id"), false);
-    assert.equal(target.has("anchor_id"), false);
-    assert.equal(target.has("pdf_page"), false);
-    history.replaceState({}, "", "?view=overview");
+    seedViewerState({ view: 'article', search_id: '1', search_revision_id: '2', plan_id: '3', run_id: '4', article_id: '8', note_id: '9', anchor_id: 'a1', pdf_page: '2' });
+    const updates = contextChange({ run_id: '5' });
+    const target = linkState(updates);
+    assert.equal(target.view, 'corpus');
+    assert.equal(target.section, 'articles');
+    assert.equal(target.run_id, '5');
+    assert.equal(target.article_id, undefined);
+    assert.equal(target.note_id, undefined);
+    assert.equal(target.anchor_id, undefined);
+    assert.equal(target.pdf_page, undefined);
   });
 
   it("clears article-local note, anchor, and page focus when the article changes", () => {
-    history.replaceState({}, "", "?view=article&run_id=4&article_id=8&note_id=9&anchor_id=a1&pdf_page=2");
-    const target = new URL(link({ view: "article", article_id: "10" }), location.origin).searchParams;
-    assert.equal(target.get("article_id"), "10");
-    assert.equal(target.has("note_id"), false);
-    assert.equal(target.has("anchor_id"), false);
-    assert.equal(target.has("pdf_page"), false);
-    history.replaceState({}, "", "?view=overview");
+    seedViewerState({ view: 'article', run_id: '4', article_id: '8', note_id: '9', anchor_id: 'a1', pdf_page: '2' });
+    const target = linkState({ view: 'article', article_id: '10' });
+    assert.equal(target.article_id, '10');
+    assert.equal(target.note_id, undefined);
+    assert.equal(target.anchor_id, undefined);
+    assert.equal(target.pdf_page, undefined);
   });
 
-  it("returns a detail origin through the origin view page", () => {
+  it("returns a detail origin through the origin view path", () => {
     const origin = new URLSearchParams({
-      view: "corpus",
-      search_id: "1",
-      search_revision_id: "2",
-      plan_id: "3",
-      run_id: "4",
-      section: "articles",
+      view: 'corpus',
+      search_id: '1',
+      search_revision_id: '2',
+      plan_id: '3',
+      run_id: '4',
+      section: 'articles',
     });
-    const detail = new URLSearchParams({
-      view: "article",
-      search_id: "1",
-      search_revision_id: "2",
-      plan_id: "3",
-      run_id: "4",
-      article_id: "8",
+    seedViewerState({
+      view: 'article',
+      search_id: '1',
+      search_revision_id: '2',
+      plan_id: '3',
+      run_id: '4',
+      article_id: '8',
       origin: origin.toString(),
     });
-    history.replaceState({}, "", `?${detail.toString()}`);
 
     const result = detailOrigin();
 
     assert.ok(result);
-    assert.ok(result.href.startsWith("corpus.html?"));
-    assert.equal(new URL(result.href, location.origin).searchParams.get("section"), "articles");
-    history.replaceState({}, "", "?view=overview");
+    assert.equal(result.href, '/corpus');
+    assert.equal(result.state.section, 'articles');
   });
 
 });
@@ -880,8 +910,8 @@ describe('state.tsx — retentionFlow', function() {
       return item.textContent;
     }), ['45 accepted', '5 discarded']);
     assert.equal((document.querySelector('[data-flow-stage="normalized_articles_processed"] .rw-flow__percentage') as HTMLElement).textContent, '15.00%');
-    assert.ok((document.querySelector('[data-flow-stage="parsed_articles"] a') as HTMLAnchorElement).href.includes('stage_q=parse'));
-    assert.ok((document.querySelector('[data-flow-stage="input_records"] a') as HTMLAnchorElement).href.includes('section=sources'));
+    assert.ok((document.querySelector('[data-flow-stage="parsed_articles"] a') as HTMLAnchorElement).dataset.state!.includes('"stage_q":"parse"'));
+    assert.ok((document.querySelector('[data-flow-stage="input_records"] a') as HTMLAnchorElement).dataset.state!.includes('"section":"sources"'));
     assert.equal(document.querySelectorAll('.rw-flow__info').length, 10);
   });
 
@@ -1086,35 +1116,35 @@ describe('state.tsx — cell', function() {
 
   it('creates article link for article_id column', function() {
     const result = cell('a1', 'article_id');
-    assert.ok(result.includes('href='));
-    assert.ok(result.includes('article_id=a1'));
+    assert.ok(result.includes('href="/article"'));
+    assert.ok(result.includes('&quot;article_id&quot;:&quot;a1&quot;'));
   });
 
   it('creates author link for author_id column', function() {
     const result = cell('auth1', 'author_id');
-    assert.ok(result.includes('href='));
-    assert.ok(result.includes('author_id=auth1'));
+    assert.ok(result.includes('href="/author"'));
+    assert.ok(result.includes('&quot;author_id&quot;:&quot;auth1&quot;'));
   });
 
   it('creates reference link for reference_id column', function() {
     const result = cell('ref1', 'reference_id');
-    assert.ok(result.includes('href='));
-    assert.ok(result.includes('reference_id=ref1'));
+    assert.ok(result.includes('href="/reference"'));
+    assert.ok(result.includes('&quot;reference_id&quot;:&quot;ref1&quot;'));
   });
 
   it('creates article link for work_revision id with tableName', function() {
     const result = cell('w1', 'id', 'work_revisions');
-    assert.ok(result.includes('article_id=w1'));
+    assert.ok(result.includes('&quot;article_id&quot;:&quot;w1&quot;'));
   });
 
   it('creates author link for author_occurrences id with tableName', function() {
     const result = cell('a1', 'id', 'author_occurrences');
-    assert.ok(result.includes('author_id=a1'));
+    assert.ok(result.includes('&quot;author_id&quot;:&quot;a1&quot;'));
   });
 
   it('creates reference link for reference_mentions id with tableName', function() {
     const result = cell('r1', 'id', 'reference_mentions');
-    assert.ok(result.includes('reference_id=r1'));
+    assert.ok(result.includes('&quot;reference_id&quot;:&quot;r1&quot;'));
   });
 
 });

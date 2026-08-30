@@ -40,6 +40,21 @@ const (
 
 var log = logging.Logger("viewer")
 
+// viewPages maps extensionless view paths to the HTML documents that own
+// their navigation entries. The trash view shares the Home document.
+var viewPages = map[string]string{
+	"/overview":      "overview.html",
+	"/corpus":        "corpus.html",
+	"/relationships": "relationships.html",
+	"/provenance":    "provenance.html",
+	"/evaluation":    "evaluation.html",
+	"/advanced":      "advanced.html",
+	"/article":       "article.html",
+	"/author":        "author.html",
+	"/reference":     "reference.html",
+	"/trash":         "index.html",
+}
+
 // Server serves one existing workspace database. db remains a query-only
 // connection while writeDB owns bounded local review and lifecycle mutations.
 // AssetsFS is the frontend asset file system served at the web root; it must
@@ -226,8 +241,18 @@ func (s *Server) Handler() http.Handler {
 		})
 		return withAPIResponseBudgets(withJSONErrors(mux))
 	}
+	for path, file := range viewPages {
+		mux.HandleFunc("GET "+path, s.serveViewPage(file))
+	}
 	mux.Handle("GET /", http.FileServer(http.FS(s.AssetsFS)))
 	return withAPIResponseBudgets(withJSONErrors(mux))
+}
+
+// serveViewPage serves one view HTML document from the assets filesystem.
+func (s *Server) serveViewPage(file string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFileFS(w, r, s.AssetsFS, file)
+	}
 }
 
 // apiResponseByteBudget returns the serialized JSON budget for one API route.

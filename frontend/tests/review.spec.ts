@@ -4,6 +4,41 @@ import type { Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+/** The article review fixture state used by every mutation test. */
+const articleState: Record<string, string> = {
+  view: 'article',
+  search_id: '1',
+  search_revision_id: '1',
+  plan_id: '1',
+  run_id: '1',
+  article_id: '1',
+};
+
+/** Seeds viewer state through sessionStorage and navigates to the clean article path. */
+async function visitArticle(page: Page): Promise<void> {
+  const path = '/article';
+  await page.evaluate(({ seed, seedPath }) => {
+    window.name = JSON.stringify(seed);
+    try {
+      sessionStorage.removeItem("rw-viewer-state");
+      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
+    } catch (_) {
+      // The initial about:blank document may deny sessionStorage access.
+    }
+  }, { seed: articleState, seedPath: path });
+  await page.addInitScript(() => {
+    const seed = window.name ? JSON.parse(window.name) : null;
+    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
+  });
+  await page.goto(path);
+  await page.waitForLoadState('networkidle');
+}
+
+/** Reads the current viewer state from sessionStorage. */
+async function viewerState(page: Page): Promise<Record<string, string>> {
+  return page.evaluate(() => JSON.parse(sessionStorage.getItem('rw-viewer-state') || '{}'));
+}
+
 /** Activates a continuation control until the collection reports its terminal page. */
 async function exhaustContinuation(page: Page, selector: string): Promise<void> {
   for (let pageNumber = 0; pageNumber < 20; pageNumber += 1) {
@@ -23,8 +58,7 @@ test.describe('isolated review mutation lifecycle', () => {
     const context = await request.get('/api/runs/1/review-context');
     expect(context.ok()).toBeTruthy();
     if (!(await context.json()).context_initialized) {
-      await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
-      await page.waitForLoadState('networkidle');
+      await visitArticle(page);
       await page.getByRole('button', { name: 'Start review' }).click();
       const setupDialog = page.getByRole('dialog', { name: 'Start article review' });
       await expect(setupDialog).toBeVisible();
@@ -38,8 +72,7 @@ test.describe('isolated review mutation lifecycle', () => {
       await setupDialog.getByRole('button', { name: 'Initialize review' }).click();
       await expect(page.getByRole('heading', { name: 'Review decision' })).toBeVisible();
     }
-    await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
-    await page.waitForLoadState('networkidle');
+    await visitArticle(page);
     const reason = `Browser ${browserName} review evidence`;
     await page.locator('[data-review-status]').selectOption('approved');
     await page.locator('[data-review-reason]').fill(reason);
@@ -191,8 +224,7 @@ test.describe('isolated review mutation lifecycle', () => {
   test('creates an anchor through the fullscreen reader drawer', async ({ page, browserName }) => {
     test.setTimeout(60_000);
     const fullscreenAnchorLabel = `fullscreen-${browserName}`;
-    await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
-    await page.waitForLoadState('networkidle');
+    await visitArticle(page);
 
     await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeVisible();
@@ -234,11 +266,9 @@ test.describe('isolated review mutation lifecycle', () => {
 
   test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', async ({ page, request, browserName }) => {
     test.setTimeout(60_000);
-    const articleURL = '/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1';
     const noteTitle = `${browserName} results page`;
     const anchorLabel = `methods-${browserName}`;
-    await page.goto(articleURL);
-    await page.waitForLoadState('networkidle');
+    await visitArticle(page);
 
     await page.getByRole('tab', { name: 'Decision' }).click();
     await page.getByRole('button', { name: 'Show version history' }).click();
@@ -306,7 +336,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await targetRow.getByRole('button', { name: 'Backlinks' }).click();
     await expect(targetRow.locator('[data-note-backlink-list]')).toContainText(`Link source ${browserName}`);
     await targetRow.locator('[data-note-backlink-list] a').click();
-    await expect(page).toHaveURL(new RegExp(`(?:\\?|&)note_id=${sourceNoteID}(?:&|$)`));
+    await expect.poll(async () => (await viewerState(page)).note_id).toBe(sourceNoteID);
 
     targetRow = page.locator(`[data-note-id="${targetNoteID}"]`);
     page.once('dialog', (dialog) => dialog.accept());
@@ -352,7 +382,10 @@ test.describe('isolated review mutation lifecycle', () => {
   });
 
   test('restores and trashes a run through Home with persisted audit evidence', async ({ page, request }) => {
-    await page.goto('/?view=home&home_visibility=trashed');
+    await page.addInitScript(() => {
+      sessionStorage.setItem('rw-viewer-state', JSON.stringify({ view: 'home', home_visibility: 'trashed' }));
+    });
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
     const run3 = page.locator('[data-home-run="3"]');
     await run3.getByRole('button', { name: 'Restore' }).click();
@@ -444,8 +477,7 @@ test.describe('isolated review mutation lifecycle', () => {
       expect(response.status()).toBe(201);
     }
 
-    await page.goto('/?view=article&search_id=1&search_revision_id=1&plan_id=1&run_id=1&article_id=1');
-    await page.waitForLoadState('networkidle');
+    await visitArticle(page);
     await page.getByRole('button', { name: 'Show version history' }).click();
     await expect(page.locator('[data-review-history-list] li')).toHaveCount(25);
     await exhaustContinuation(page, '[data-review-history-more]');

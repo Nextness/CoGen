@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { seedViewerState } from "../seed.ts";
 import {
   clearContextOptionCache,
   focusContextSelector,
   hydrateSelectors,
   selects,
 } from "../../../src/components/context-selector.tsx";
-import { state } from "../../../src/state.tsx";
+import { state, value } from "../../../src/state.tsx";
 
 const originalFetch = globalThis.fetch;
 
@@ -45,7 +46,7 @@ describe("context-selector.tsx hierarchy controls", function() {
     state.searches = [];
     state.plans = [];
     state.runs = [];
-    history.replaceState({}, "", "?view=overview");
+    seedViewerState({ view: "overview" });
     globalThis.fetch = function(url) {
       return hierarchyFixture(String(url));
     } as typeof fetch;
@@ -112,21 +113,21 @@ describe("context-selector.tsx hierarchy controls", function() {
   });
 
   it("auto-selects a sole eligible child through the complete hierarchy", async function() {
+    seedViewerState({ view: "overview" });
     globalThis.fetch = function(url) {
       return hierarchyFixture(String(url), true);
     } as typeof fetch;
 
     await hydrateSelectors();
 
-    const current = new URL(location.href).searchParams;
-    assert.equal(current.get("search_id"), "1");
-    assert.equal(current.get("search_revision_id"), "11");
-    assert.equal(current.get("plan_id"), "21");
-    assert.equal(current.get("run_id"), "31");
+    assert.equal(value("search_id"), "1");
+    assert.equal(value("search_revision_id"), "11");
+    assert.equal(value("plan_id"), "21");
+    assert.equal(value("run_id"), "31");
   });
 
   it("replaces crossed ancestry with the selected run's canonical hierarchy", async function() {
-    history.replaceState({}, "", "?view=overview&search_id=2&search_revision_id=22&plan_id=33&run_id=44");
+    seedViewerState({ view: "overview", search_id: "2", search_revision_id: "22", plan_id: "33", run_id: "44" });
     globalThis.fetch = function(rawURL) {
       const target = String(rawURL);
       if (target.includes("/api/runs/44/context")) {
@@ -149,16 +150,15 @@ describe("context-selector.tsx hierarchy controls", function() {
 
     await hydrateSelectors();
 
-    const current = new URL(location.href).searchParams;
-    assert.equal(current.get("search_id"), "1");
-    assert.equal(current.get("search_revision_id"), "11");
-    assert.equal(current.get("plan_id"), "12");
-    assert.equal(current.get("run_id"), "44");
+    assert.equal(value("search_id"), "1");
+    assert.equal(value("search_revision_id"), "11");
+    assert.equal(value("plan_id"), "12");
+    assert.equal(value("run_id"), "44");
     assert.equal(selects.run.value, "44");
   });
 
   it("keeps successful parents visible when one child level fails", async function() {
-    history.replaceState({}, "", "?view=overview&search_id=1&search_revision_id=11");
+    seedViewerState({ view: "overview", search_id: "1", search_revision_id: "11" });
     globalThis.fetch = function(rawURL) {
       const target = String(rawURL);
       if (target.includes("section=plans")) return response("Plan discovery failed.", false, 503);

@@ -3,6 +3,7 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { corpusView } from '../../../src/views/corpus.tsx';
 import { app, state, value } from '../../../src/state.tsx';
 
@@ -47,11 +48,7 @@ describe('corpus.tsx — corpusView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('view', 'corpus');
-    url.searchParams.set('section', 'articles');
-    url.searchParams.set('run_id', 'run-1');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'corpus', section: 'articles', run_id: 'run-1' });
 
     await corpusView();
     assert.ok(app.innerHTML.includes('Corpus'));
@@ -64,10 +61,6 @@ describe('corpus.tsx — corpusView', function() {
 
     globalThis.fetch = originalFetch;
     state.tables = [];
-    url.searchParams.delete('run_id');
-    url.searchParams.delete('section');
-    url.searchParams.delete('view');
-    history.pushState({}, '', url.toString());
   });
 
   it('renders matched search terms in the article row expansion', async function() {
@@ -97,7 +90,7 @@ describe('corpus.tsx — corpusView', function() {
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
     } as typeof fetch;
     state.tables = [];
-    history.pushState({}, '', '?view=corpus&section=articles&run_id=1');
+    seedViewerState({ view: 'corpus', section: 'articles', run_id: '1' });
 
     await corpusView();
     assert.ok(app.innerHTML.includes('Matched search terms'));
@@ -107,7 +100,7 @@ describe('corpus.tsx — corpusView', function() {
 
     globalThis.fetch = originalFetch;
     state.tables = [];
-    history.pushState({}, '', '?view=home');
+    seedViewerState({ view: 'home' });
   });
 
   it('renders no search terms recorded when term_matches is absent', async function() {
@@ -134,7 +127,7 @@ describe('corpus.tsx — corpusView', function() {
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
     } as typeof fetch;
     state.tables = [];
-    history.pushState({}, '', '?view=corpus&section=articles&run_id=1');
+    seedViewerState({ view: 'corpus', section: 'articles', run_id: '1' });
 
     await corpusView();
     assert.ok(app.innerHTML.includes('Matched search terms'));
@@ -142,7 +135,7 @@ describe('corpus.tsx — corpusView', function() {
 
     globalThis.fetch = originalFetch;
     state.tables = [];
-    history.pushState({}, '', '?view=home');
+    seedViewerState({ view: 'home' });
   });
 
   it('keeps identity candidate details out of the table and distinguishes no-candidate from unclear statuses', async function() {
@@ -170,7 +163,7 @@ describe('corpus.tsx — corpusView', function() {
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: [] }); } } as unknown as Response);
     } as typeof fetch;
     state.tables = [];
-    history.pushState({}, '', '?view=corpus&section=identity_evidence&run_id=1');
+    seedViewerState({ view: 'corpus', section: 'identity_evidence', run_id: '1' });
 
     await corpusView();
 
@@ -186,7 +179,7 @@ describe('corpus.tsx — corpusView', function() {
 
     globalThis.fetch = originalFetch;
     state.tables = [];
-    history.pushState({}, '', '?view=home');
+    seedViewerState({ view: 'home' });
   });
 
 });

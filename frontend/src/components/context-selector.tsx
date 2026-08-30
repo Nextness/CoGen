@@ -1,8 +1,9 @@
 // Searchable, paged, hierarchical research-context selectors.
-import { state, pickID, text, value, link } from "../state.tsx";
+import { state, pickID, text, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, APIError, endpoint, errorMessage } from "../api.tsx";
 import type { HierarchyAttempt, HierarchyItem, HierarchyPage, HierarchyPlan, HierarchySearch, RunContextResponse, WireRecord } from "../api/types.ts";
+import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -392,7 +393,7 @@ function hideDropdownError(key: string): void {
 
 /** Replaces invalid or crossed hierarchy identifiers without starting a second render. */
 function replaceContext(updates: Record<string, unknown>): void {
-  history.replaceState({}, "", link(updates));
+  replaceState(updates);
 }
 
 /** Reconciles a selected run to its server-owned complete ancestry. */

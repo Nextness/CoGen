@@ -3,6 +3,7 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { relationshipsView } from '../../../src/views/relationships.tsx';
 import { app, state } from '../../../src/state.tsx';
 
@@ -15,9 +16,7 @@ describe('relationships.tsx — relationshipsView', function() {
   });
 
   it('shows empty state when no run_id is set', async function() {
-    const url = new URL(location.href);
-    url.searchParams.delete('run_id');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'relationships' });
 
     await relationshipsView();
     assert.ok(app.innerHTML.includes('Select a run attempt'));
@@ -43,9 +42,7 @@ describe('relationships.tsx — relationshipsView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('run_id', 'run-1');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'relationships', run_id: 'run-1' });
 
     await relationshipsView();
     assert.ok(app.innerHTML.includes('Relationships'));
@@ -60,8 +57,6 @@ describe('relationships.tsx — relationshipsView', function() {
     assert.equal(app.querySelector('#graph-form [name="graph_mode"]'), null);
 
     globalThis.fetch = originalFetch;
-    url.searchParams.delete('run_id');
-    history.pushState({}, '', url.toString());
   });
 
 });

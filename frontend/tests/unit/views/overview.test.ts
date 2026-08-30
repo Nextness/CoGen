@@ -3,8 +3,9 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { overviewView } from '../../../src/views/overview.tsx';
-import { app, state, value } from '../../../src/state.tsx';
+import { app, state } from '../../../src/state.tsx';
 import type { HierarchyRun } from '../../../src/api/types.ts';
 
 describe('overview.tsx — overviewView', function() {
@@ -16,9 +17,7 @@ describe('overview.tsx — overviewView', function() {
   });
 
   it('shows empty state when no run_id is set', async function() {
-    const url = new URL(location.href);
-    url.searchParams.delete('run_id');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'overview' });
 
     await overviewView();
     assert.ok(app.innerHTML.includes('Select a search'));
@@ -80,9 +79,7 @@ describe('overview.tsx — overviewView', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const url = new URL(location.href);
-    url.searchParams.set('run_id', 'run-1');
-    history.pushState({}, '', url.toString());
+    seedViewerState({ view: 'overview', run_id: 'run-1' });
     state.runs = [{
       id: 'run-1', attempt_number: 3, execution_plan_id: 9, status: 'completed', visibility_state: 'active',
       started_at: '2024-01-01T00:00:00Z', finished_at: '2024-01-01T00:05:30Z'
@@ -102,14 +99,12 @@ describe('overview.tsx — overviewView', function() {
     assert.deepEqual(Array.from(document.querySelectorAll('.rw-retention__phase-header h4'), function(heading) { return heading.textContent; }), [
       'Source selection', 'Pipeline processing', 'Corpus enrichment'
     ]);
-    assert.ok((document.querySelector('[data-flow-stage="parsed_articles"] a') as HTMLAnchorElement).href.includes('stage_q=parse'));
+    assert.ok((document.querySelector('[data-flow-stage="parsed_articles"] a') as HTMLAnchorElement).dataset.state!.includes('"stage_q":"parse"'));
     assert.equal((document.querySelector('.rw-dashboard-grid') as HTMLElement).lastElementChild!.classList.contains('rw-overview-evidence'), true);
     assert.ok(fetchCount >= 2);
 
     globalThis.fetch = originalFetch;
     state.runs = [];
-    url.searchParams.delete('run_id');
-    history.pushState({}, '', url.toString());
   });
 
 });

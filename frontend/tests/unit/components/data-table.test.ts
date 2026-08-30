@@ -3,6 +3,7 @@ import { describe, it, before, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { seedViewerState } from '../seed.ts';
 import { rowFilter, DataTable, bindTableControls } from '../../../src/components/data-table.tsx';
 import { h, renderToString } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
@@ -208,7 +209,7 @@ describe("data-table.tsx - bindTableControls", function() {
     document.body.appendChild(host);
     host.innerHTML = dataTable("first", { columns: ["id", "name"], rows: [{ id: 1, name: "A" }], pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 } })
       + dataTable("second", { columns: ["id", "name"], rows: [{ id: 2, name: "B" }], pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 } });
-    history.replaceState({}, "", "?view=advanced&table=first");
+    seedViewerState({ view: "advanced", table: "first" });
 
     bindTableControls("second", 1);
 
@@ -227,7 +228,7 @@ describe("data-table.tsx - bindTableControls", function() {
     const host = document.createElement("div");
     document.body.appendChild(host);
     host.innerHTML = dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 2, total_pages: 2 } });
-    history.replaceState({}, "", "?view=advanced&table=test&page=1");
+    seedViewerState({ view: "advanced", table: "test", page: "1" });
 
     bindTableControls("test", 1);
 
@@ -241,7 +242,7 @@ describe("data-table.tsx - bindTableControls", function() {
     const host = document.createElement("div");
     document.body.appendChild(host);
     host.innerHTML = `<div data-table-scope="test"><form><input id="scoped-query" value="openalex"><button type="submit">Search</button></form>${dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 1, total_pages: 1 } })}</div>`;
-    history.replaceState({}, "", "?view=provenance&section=cache&run_id=1");
+    seedViewerState({ view: "provenance", section: "cache", run_id: "1" });
 
     bindTableControls("test", 1, {
       queryKey: "cache_q",

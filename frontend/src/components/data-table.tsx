@@ -1,6 +1,6 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
 import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
-import { setURL } from "../router.tsx";
+import { setURL, replaceState } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
@@ -366,12 +366,6 @@ function handleExpandToggle(event: Event): void {
     const expandedKeys = new Set(String(value(expandedParam) || "").split(",").filter(Boolean));
     if (expanded) expandedKeys.delete(rowKey);
     else expandedKeys.add(rowKey);
-    const url = new URL(location.href);
-    if (expandedKeys.size) {
-      url.searchParams.set(expandedParam, Array.from(expandedKeys).join(","));
-    } else {
-      url.searchParams.delete(expandedParam);
-    }
-    history.replaceState({}, "", url.toString());
+    replaceState({ [expandedParam]: expandedKeys.size ? Array.from(expandedKeys).join(",") : "" });
   }
 }
