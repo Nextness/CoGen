@@ -141,7 +141,7 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 - Author and reference collections can repeat conceptual values across revision snapshots.
 - Graph and collection endpoints are bounded and do not stream beyond their limits.
 - URLs preserve useful research context but can reveal its identifiers.
-- Canonical links include both a page filename and a `view` query parameter, and legacy root URLs remain valid, so the same view can have two supported URL forms.
+- Canonical links use one clean path per view with no query parameters; research context and route state remain local to `history.state` and the `rw-viewer-state` session mirror.
 - Cross-view navigation repeats shell and view requests and discards in-memory graph layout, zoom, pan, and appended audit pages; URL-backed state remains restorable.
 - String-template rendering relies on deliberate escaping for each new dynamic value.
 - Visual snapshots and fixtures represent controlled data and tested browser environments, not every platform.

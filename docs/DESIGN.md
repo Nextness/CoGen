@@ -233,7 +233,7 @@ Responsive changes must preserve context labels, status meaning, pagination, dis
 
 ## 17. Accessibility
 
-The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. A generated page-file load focuses the rendered page title after the busy region becomes interactive, while a direct legacy root load retains normal top-of-document focus and the Skip to content entry path.
+The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. A non-Home clean-path load focuses the rendered page title after the busy region becomes interactive, while the canonical Home root retains normal top-of-document focus and the Skip to content entry path.
 
 All actions must be operable by keyboard and have discernible text or an accessible name. Interactive rows cannot be the only way to expand a record. Focus order follows visual order, and disabled selectors or buttons communicate why through nearby text.
 
@@ -300,7 +300,7 @@ Components may import shared state, API, router helpers, the JSX runtime, pagina
 
 Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API reads and mutations, routing and cleanup, selectors, tables, pagination, graph transformation and interactions, note parser conformance and safe rendering, draft and comparison helpers, PDF geometry projection and one-activation pagination, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
 
-The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for both legacy root and generated page URLs plus reviewed screenshots for core views.
+The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for the canonical Home root and clean per-view paths plus reviewed screenshots for core views.
 
 Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 

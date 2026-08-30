@@ -473,6 +473,7 @@ test.describe('Corpus view', () => {
     const firstPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
     await pagination.getByRole('button', { name: 'Next page' }).click();
     await expect.poll(async () => (await viewerState(page)).page).toBe('2');
+    await expect(pagination).toContainText(/Page 2 of \d+/i);
     const secondPageIDs = await page.locator('.rw-corpus-table tbody tr[data-row-key]').evaluateAll((rows) => rows.map((row) => row.dataset.rowKey));
     expect(secondPageIDs.length).toBeGreaterThan(0);
     expect(secondPageIDs).not.toEqual(firstPageIDs);
