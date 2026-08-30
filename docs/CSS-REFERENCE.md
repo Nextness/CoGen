@@ -110,9 +110,9 @@ Interactive controls use the dedicated `--color-control-boundary`, `--color-cont
 | Reset and page | `*`, `html`, `body`, `a`, `::selection`, headings, paragraphs, `code`, `pre` | Box sizing, canvas, bounded body width, type hierarchy, link states, selection, paragraph rhythm, and monospace values. |
 | Forms | `button`, `input`, `select` | Inherited type and minimum touch target height. |
 | Focus | `:focus-visible` | Three-pixel orange focus outline with tokenized offset. |
-| Skip link | `.rw-skip-link`, `.skip-link` | Hidden-until-focused navigation to main content. |
-| Header | `.rw-header`, `.rw-header__brand`, `.rw-header__eyebrow`, `.rw-header__status` | Product identity, research framing, health, and local-review state. |
-| Status | `.rw-status-dot`, `.rw-status-dot--unavailable`, `.rw-label` | Health indicator and persistent textual status label. |
+| Skip link | `.skip-link` | Hidden-until-focused navigation to main content. |
+| Header | `.site-header`, `.brand`, `.eyebrow`, `.server-status` | Product identity, research framing, health, and local-review state. |
+| Status | `.rw-status-dot--unavailable`, `.rw-label` | Health indicator and persistent textual status label. |
 | Navigation | `.rw-nav`, `.rw-nav__item`, `.rw-nav__item--active` | Deepdive navigation and active destination. |
 
 The shell constrains the body to 1680px, prevents page-level horizontal overflow, and lets wide evidence collections manage their own scroll region.
@@ -122,9 +122,9 @@ The shell constrains the body to 1680px, prevents page-level horizontal overflow
 | Family | Principal selectors | Responsibility |
 |---|---|---|
 | Buttons | `.ui.button`, `.ui.basic.button`, `.ui.primary.button`, `.ui.danger.button`, `.ui.icon.button`, `.ui.loading.button` | Default, quiet, primary, destructive, icon, selected, disabled, and loading actions. |
-| Labels | `.ui.label`, `.ui.green.label`, `.ui.orange.label`, `.ui.red.label`, `.ui.blue.label`, `.ui.grey.label`, `.ui.violet.label`, `.ui.pink.label` | Neutral, status, review, and note classification with selected, link, and disabled states. |
-| Messages | `.ui.message`, `.ui.negative.message`, `.ui.error.message`, `.ui.warning.message`, `.ui.info.message`, `.ui.success.message`, `.ui.review.message` | Global and local feedback with a symbol, text, semantic boundary, and soft color. |
-| Headers | `.ui.header`, `.ui.header .sub.header`, `.ui.top.attached.header`, `.rw-page-header`, `.rw-eyebrow` | Product, page, panel, section, eyebrow, and supporting-heading hierarchy. |
+| Labels | `.ui.label`, `.ui.green.label`, `.ui.orange.label`, `.ui.red.label`, `.ui.blue.label`, `.ui.grey.label`, `.ui.violet.label` | Neutral, status, review, and note classification with selected, link, and disabled states. |
+| Messages | `.ui.message`, `.ui.negative.message`, `.ui.error.message`, `.ui.warning.message`, `.ui.info.message`, `.ui.success.message` | Global and local feedback with a symbol, text, semantic boundary, and soft color. |
+| Headers | `.ui.header`, `.ui.top.attached.header`, `.rw-page-header`, `.rw-eyebrow` | Product, page, panel, section, eyebrow, and supporting-heading hierarchy. |
 | Loading | `.ui.loader`, `.ui.active.loader` | Progress state with accessible surrounding status text. |
 | Segments | `.ui.segment`, `.ui.attached.segment` | Bordered parent surfaces with internal structure and no component-owned external spacing. |
 | Supporting text | `.ui.faded.text` | Secondary content that retains readable contrast. |
@@ -135,18 +135,18 @@ Native `button` states provide the fallback for specialized controls that intent
 
 | Family | Principal selectors | Responsibility |
 |---|---|---|
-| Grid | `.ui.grid`, width classes, `.rw-context-grid`, `.rw-dashboard-grid`, `.rw-grid-span-all` | Flexible and fixed-column layouts with full-width spans. |
-| Menus | `.ui.menu`, `.ui.secondary.pointing.menu`, `.ui.tabular.menu`, `.ui.pagination.menu`, `.rw-section-tabs` | Deepdive, URL-backed section, local tab, and pagination navigation. |
+| Grid | `.ui.grid`, `.rw-context-grid`, `.rw-dashboard-grid`, `.rw-grid-span-all` | Flexible and fixed-column layouts with full-width spans. |
+| Menus | `.ui.menu`, `.ui.tabular.menu`, `.ui.pagination.menu`, `.rw-section-tabs` | Deepdive, URL-backed section, local tab, and pagination navigation. |
 | Context | `.rw-context-panel`, `.context-heading`, `.ui.search.selection.dropdown`, `.rw-search-dropdown__trigger`, `.rw-search-dropdown__menu`, `.rw-search-dropdown__query`, `.rw-search-dropdown__options`, `.rw-search-dropdown__option` | Hierarchical searchable single selection for search, revision, plan, and run, including keyboard and unavailable states. |
 | Breadcrumb | `.rw-shell-breadcrumb`, `.rw-breadcrumb` | Persistent Home-first route hierarchy and context-preserving detail navigation. |
 | Corpus collection | `.rw-corpus-collection` | One labeled collection selector below the Deepdive tabs without introducing nested tab navigation. |
 | Tables | `.ui.table`, `.table-wrap`, `.rw-table-empty`, `.rw-filter-bar`, `.toggle-cell`, `.expansion-row`, `.rw-table-number`, `.rw-table-time` | Bounded records, sortable headers, explicit empty rows, selectable or expandable row states, stable disclosure, data alignment, and horizontal overflow. |
 | Pagination | `.ui.pagination.menu`, `.rw-pagination__summary`, `.pagination`, `.pagination-pages`, `.pagination-actions` | Result summary and boundary-aware page controls. |
-| Forms and controls | `.ui.form`, `.controls`, `.rw-filter-bar`, `.rw-filter-bar__search`, `.rw-filter-panel`, `.rw-filter-panel__fields`, `.rw-filter-panel__actions`, `.rw-filter-disclosure`, `.rw-filter-field-grid--advanced`, `.rw-filter-summary`, `.rw-filter-chips`, `.rw-filter-chip`, `.rw-filter-clear` | Shared control states, simple and complex filter surfaces, compact advanced filter grids, one removable chip per value, sorting, search, and page-size inputs. |
-| Panels and stacks | `.rw-page-stack`, `.rw-section-stack`, `.rw-content-stack`, `.rw-inline-group` | Parent surfaces and layout-owned separation. |
+| Forms and controls | `.ui.form`, `.rw-filter-bar`, `.rw-filter-bar__search`, `.rw-filter-panel`, `.rw-filter-panel__fields`, `.rw-filter-panel__actions`, `.rw-filter-disclosure`, `.rw-filter-field-grid--advanced`, `.rw-filter-summary`, `.rw-filter-chips`, `.rw-filter-chip`, `.rw-filter-clear` | Shared control states, simple and complex filter surfaces, compact advanced filter grids, one removable chip per value, sorting, search, and page-size inputs. |
+| Panels and stacks | `.rw-page-stack`, `.rw-content-stack`, `.rw-inline-group` | Parent surfaces and layout-owned separation. |
 | Query evidence | `.rw-query-row`, `.rw-query-row__source`, `.rw-query-row__content`, `.rw-query-row__code` | Source query and captured input presentation. |
 
-Tables use a scroll wrapper rather than shrinking evidence beyond readability. Only selectable or expandable rows use hover treatment. Sortable headers expose `aria-sort`; expansion buttons expose stable `aria-expanded` and `aria-controls` relationships; selected, expanded, focus, and disabled states use borders, text, icons, attributes, and surface treatment in addition to color.
+Tables use a scroll wrapper rather than shrinking evidence beyond readability. Only expandable rows use hover treatment. Sortable headers expose `aria-sort`; expansion buttons expose stable `aria-expanded` and `aria-controls` relationships; selected, expanded, focus, and disabled states use borders, text, icons, attributes, and surface treatment in addition to color.
 
 ## 10. View selectors
 
@@ -158,7 +158,7 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. O
 | Summaries | `.rw-summary-strip`, `.rw-record-summary`, `.rw-record-comparison` | Definition-list summaries and comparisons. |
 | Empty state | `.rw-empty-state` | Explicit absence, unavailable state, and recovery actions. |
 | Details | `.rw-record-detail`, `.rw-pdf-status-strip`, `.rw-pdf-status-strip__action`, `.rw-reading-workspace`, `.rw-identity-resolution`, `.rw-identity-candidate-list`, `.rw-keywords`, `.rw-term-fields`, `.rw-term-field`, `.rw-term-field__label`, `.rw-term-sources`, `.rw-property-grid`, collection mounts | Article summary and PDF state, equal-width reader/review workspace, author candidate evidence, reference detail, search-term coverage chips and source badges, and related-record content. |
-| Lifecycle modal | `.rw-modal-open`, `.rw-modal-backdrop`, `.rw-modal`, `.rw-modal__header`, `.rw-modal__body`, `.rw-modal__actions` | Dimmed confirmation hierarchy and reversible Home run-visibility action. |
+| Lifecycle modal | `.rw-review-dialog`, `.rw-review-dialog__header`, `.rw-review-dialog__body`, `.rw-review-dialog__actions` | Dimmed confirmation hierarchy and reversible Home run-visibility action. |
 | Review layout | `.rw-article-split`, `.rw-article-split__pdf`, `.rw-article-split__review`, `.rw-review-panel`, `.rw-review-onboarding`, `.rw-review-dialog*`, `.rw-review-nav`, `.rw-review-section*`, `.rw-review-form*`, `.rw-review-history*` | Responsive PDF and review columns, contained modal lineage setup, local section navigation, complete decision state, inherited labels, feedback, and immutable history. |
 | Notes | `.rw-note-list`, `.rw-note-card*`, `.rw-note-workspace`, `.rw-note-form*`, `.rw-note-editor-tools`, `.rw-note-link-insert`, `.rw-note-content`, `.rw-note-heading*`, `.rw-note-table`, `.rw-note-syntax`, `.rw-note-preview*`, `.rw-note-saved*`, `.rw-note-history`, `.rw-note-link--unresolved`, `.rw-note-comparison`, `.rw-note-diff*` | Side-by-side editing and preview before saved-note search and cards, scoped heading hierarchy, compact tables, optional evidence-link and syntax tools, unresolved text treatment, drafts and history, bounded comparison, and added or removed lines. |
 | Anchors | `.rw-anchor-panel`, `.rw-anchor-candidate`, `.rw-anchor-list`, `.rw-anchor-card*`, `.rw-anchor-history`, `.rw-pdf-anchor-layer`, `.rw-pdf-anchor-highlight` | Contextual anchor creation, keyboard-operable evidence cards, immutable history, and supplemental page highlights. |
@@ -176,7 +176,7 @@ Status classes reuse the semantic token families. New statuses must include read
 
 | Family | Principal selectors | Responsibility |
 |---|---|---|
-| Filters | `.rw-graph__controls`, `.rw-graph__filter-fields`, `.rw-graph__filter-actions`, `.rw-graph__common-filters` | Mode-specific and shared bounded query controls. |
+| Filters | `.rw-graph__controls`, `.rw-graph__filter-actions`, `.rw-graph__common-filters` | Mode-specific and shared bounded query controls. |
 | Toolbar | `.rw-graph__toolbar`, `.rw-segmented-control` | Fit, export, expand, mode, and status actions. |
 | Viewport | `.rw-graph__viewport`, `.rw-graph__wrap`, `.rw-graph__canvas` | Canvas sizing, focus, touch behavior, and fullscreen layout. |
 | Model and cluster | `.rw-graph-model*`, `.rw-graph-cluster-summary` | Current model explanation and connected-component overview. |

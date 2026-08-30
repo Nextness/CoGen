@@ -97,10 +97,26 @@ export function collectClassUses(source: string, file: string): ClassUse[] {
     /\.classList\.(?:add|remove|toggle|contains)\s*\(([^)]*)\)/g,
     /\b(?:cx|classAdd|classRemove|classToggle|classHas)\s*\(([^)]*)\)/g,
     /\b(?:classes|tableClasses)=\{\[([^\]]*)\]\}/g,
+    /\b(?:classes|tableClasses):\s*\[([^\]]*)\]/g,
   ];
   for (const pattern of callPatterns) {
     for (const match of source.matchAll(pattern)) {
       addQuotedArguments(uses, file, match[1]);
+    }
+  }
+
+  const selectorPatterns = [
+    /\b(?:querySelector|querySelectorAll|closest|matches)(?:<[^>]+>)?\s*\(\s*"([^"]*)"/g,
+    /\b(?:querySelector|querySelectorAll|closest|matches)(?:<[^>]+>)?\s*\(\s*'([^']*)'/g,
+  ];
+  for (const pattern of selectorPatterns) {
+    for (const match of source.matchAll(pattern)) {
+      for (const tokenMatch of match[1].matchAll(/\.([-_A-Za-z][-_A-Za-z0-9]*)/g)) {
+        uses.push({
+          file: file,
+          token: tokenMatch[1],
+        });
+      }
     }
   }
   addTypedClassUses(uses, source, file);
