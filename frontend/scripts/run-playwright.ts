@@ -1,6 +1,7 @@
 import { access, copyFile, mkdir } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -15,7 +16,17 @@ const fixturePDF = process.env.FIXTURE_PDF_DB || inferredFixturePDF;
 const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, 'frontend', 'dist');
 const runDir = path.join(rootDir, 'build', 'playwright', `run-${Date.now()}-${process.pid}`);
 const timeoutMS = 30_000;
-const mutationSpecs = ['review.spec.cjs', 'e2e.spec.cjs'];
+const mutationSpecs = ['review.spec.ts', 'e2e.spec.ts', 'api-shapes.spec.ts'];
+
+/** One isolated Playwright execution class. */
+type Suite = 'read' | 'mutation';
+
+/** Running isolated viewer state owned by one Playwright suite. */
+type ViewerServer = {
+  child: ChildProcess;
+  exited: boolean;
+  baseURL: string;
+};
 
 await mustExist(binary, 'analysis binary', 'Run make build first.');
 await mustExist(fixtureDB, 'viewer fixture database', 'Run make fixture first.');
@@ -43,7 +54,7 @@ try {
 }
 
 /** Runs one Playwright suite against its own fixture copy and viewer process. */
-async function runSuite(suite, args) {
+async function runSuite(suite: Suite, args: readonly string[]): Promise<number> {
   const reportDir = path.join(runDir, 'report', suite);
   const resultDir = path.join(runDir, 'results', suite);
   const isolatedDB = await copyFixturePair(path.join(runDir, 'fixture', suite));
@@ -71,7 +82,7 @@ async function runSuite(suite, args) {
 }
 
 /** Asynchronously implements must exist for the viewer. */
-async function mustExist(target, name, hint) {
+async function mustExist(target: string, name: string, hint: string): Promise<void> {
   try {
     await access(target, constants.R_OK);
   } catch {
@@ -80,8 +91,8 @@ async function mustExist(target, name, hint) {
 }
 
 /** Starts the fixture-backed viewer on an operating-system-assigned loopback port. */
-function startServer(db) {
-  return new Promise((resolve, reject) => {
+function startServer(db: string): Promise<ViewerServer> {
+  return new Promise<ViewerServer>((resolve, reject) => {
     let output = '';
     let settled = false;
     const timer = setTimeout(() => fail(new Error(`timed out starting isolated viewer server after ${timeoutMS}ms`)), timeoutMS);
@@ -90,7 +101,7 @@ function startServer(db) {
       cwd: rootDir,
       stdio: ['ignore', 'ignore', 'pipe'],
     });
-    const server = { child: child, exited: false, baseURL: '' };
+    const server: ViewerServer = { child: child, exited: false, baseURL: '' };
     child.stderr.on('data', (chunk) => {
       const text = chunk.toString();
       process.stderr.write(text);
@@ -112,7 +123,7 @@ function startServer(db) {
     });
 
     /** Stops startup and rejects with the server process failure. */
-    function fail(error) {
+    function fail(error: Error): void {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -122,7 +133,7 @@ function startServer(db) {
 }
 
 /** Copies the generated fixture pair so browser mutations never alter their authoritative base. */
-async function copyFixturePair(destination) {
+async function copyFixturePair(destination: string): Promise<string> {
   const explicitMetadata = process.env.PLAYWRIGHT_MUTATION_DB ? path.resolve(process.env.PLAYWRIGHT_MUTATION_DB) : '';
   if (explicitMetadata) {
     const relative = path.relative(rootDir, explicitMetadata);
@@ -139,9 +150,9 @@ async function copyFixturePair(destination) {
 }
 
 /** Asynchronously implements wait for health for the viewer. */
-async function waitForHealth(baseURL) {
+async function waitForHealth(baseURL: string): Promise<void> {
   const deadline = Date.now() + timeoutMS;
-  let lastError;
+  let lastError: unknown;
   while (Date.now() < deadline) {
     try {
       const response = await fetch(`${baseURL}/api/health`);
@@ -156,11 +167,11 @@ async function waitForHealth(baseURL) {
 }
 
 /** Asynchronously implements stop server for the viewer. */
-async function stopServer(server) {
+async function stopServer(server: ViewerServer): Promise<void> {
   if (!server || server.exited) return;
   server.child.kill('SIGTERM');
   await Promise.race([
-    new Promise((resolve) => server.child.once('exit', resolve)),
+    new Promise<void>((resolve) => server.child.once('exit', () => resolve())),
     delay(5_000).then(() => {
       if (!server.exited) server.child.kill('SIGKILL');
     }),
@@ -168,8 +179,8 @@ async function stopServer(server) {
 }
 
 /** Selects read-only, mutation, or both suites from explicit test-file arguments. */
-function suitesForArguments(args) {
-  const selectors = args.filter((argument) => argument.includes('.spec.cjs'));
+function suitesForArguments(args: readonly string[]): Suite[] {
+  const selectors = args.filter((argument) => argument.includes('.spec.ts'));
   if (selectors.length === 0) return ['read', 'mutation'];
   const hasMutation = selectors.some((argument) => mutationSpecs.some((spec) => argument.includes(spec)));
   const hasRead = selectors.some((argument) => !mutationSpecs.some((spec) => argument.includes(spec)));
@@ -179,8 +190,8 @@ function suitesForArguments(args) {
 }
 
 /** Removes named CLI options in both --name=value and --name value forms. */
-function withoutOptions(args, names) {
-  const result = [];
+function withoutOptions(args: readonly string[], names: readonly string[]): string[] {
+  const result: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     const name = names.find((candidate) => argument === `--${candidate}` || argument.startsWith(`--${candidate}=`));
@@ -194,19 +205,19 @@ function withoutOptions(args, names) {
 }
 
 /** Normalizes a child-process exit result. */
-function exitCode(child, name) {
-  return new Promise((resolve, reject) => {
+function exitCode(child: ChildProcess, name: string): Promise<number> {
+  return new Promise<number>((resolve, reject) => {
     child.once('error', (error) => reject(new Error(`start ${name}: ${error.message}`)));
     child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0)));
   });
 }
 
 /** Returns a promise that resolves after the requested interval. */
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function delay(milliseconds: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 }
 
 /** Returns the platform-appropriate npm command. */
-function npmCommand() {
+function npmCommand(): string {
   return process.platform === 'win32' ? 'npm.cmd' : 'npm';
 }

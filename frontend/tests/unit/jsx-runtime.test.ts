@@ -6,13 +6,28 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
-import { h, Fragment, render, renderToString, raw } from '../../src/jsx/jsx-runtime.ts';
+import { h, Fragment, classAdd, classHas, classRemove, classToggle, cx, render, renderToString, raw } from "../../src/jsx/jsx-runtime.ts";
+
+describe("jsx-runtime - class helpers", () => {
+  it("joins registered tokens and omits conditional gaps", () => {
+    assert.equal(cx("ui", false, null, "button", undefined), "ui button");
+  });
+
+  it("applies typed DOM class operations", () => {
+    const node = document.createElement("div");
+    classAdd(node, ["ui", "button"]);
+    assert.equal(classHas(node, "button"), true);
+    assert.equal(classToggle(node, "active", true), true);
+    classRemove(node, "ui");
+    assert.equal(node.className, "button active");
+  });
+});
 
 describe('jsx-runtime — h and Fragment', function() {
   it('builds an intrinsic element with attributes and text children', function() {
-    const node = h('a', { className: 'link', href: '/x' }, 'Hello');
+    const node = h("a", { className: "brand", href: "/x" }, "Hello");
     assert.ok(node instanceof HTMLAnchorElement);
-    assert.equal(node.getAttribute('class'), 'link');
+    assert.equal(node.getAttribute("class"), "brand");
     assert.equal(node.getAttribute('href'), '/x');
     assert.equal(node.textContent, 'Hello');
   });
@@ -25,8 +40,8 @@ describe('jsx-runtime — h and Fragment', function() {
 
   it('calls function components with props and children', function() {
     /** A function component used to verify the function-component path. */
-function Greeting(props: { name: string }): Node {
-      return h('span', { className: 'greeting' }, 'Hello ', props.name);
+    function Greeting(props: { name: string }): Node {
+      return h("span", { className: "rw-page-header" }, "Hello ", props.name);
     }
     const node = h(Greeting, { name: 'world' });
     assert.ok(node instanceof HTMLSpanElement);
@@ -54,6 +69,14 @@ function Greeting(props: { name: string }): Node {
   it('passes string style values through', function() {
     const node = h('span', { style: 'width:50%' }, 'x') as HTMLSpanElement;
     assert.equal(node.getAttribute('style'), 'width:50%');
+  });
+
+  it("creates SVG elements in the SVG namespace", function() {
+    const path = h("path", { d: "M0 0h16v16z" });
+    const node = h("svg", { viewBox: "0 0 16 16" }, path);
+    assert.equal(node.namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal((node.firstChild as SVGElement | null)?.namespaceURI, "http://www.w3.org/2000/svg");
+    assert.equal((node.firstChild as SVGPathElement).getAttribute("d"), "M0 0h16v16z");
   });
 });
 

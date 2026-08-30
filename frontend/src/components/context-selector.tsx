@@ -1,7 +1,13 @@
 // Searchable, paged, hierarchical research-context selectors.
 import { state, pickID, text, value, link } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
-import { api, APIError, endpoint } from "../api.tsx";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+import { api, APIError, endpoint, errorMessage } from "../api.tsx";
+import type { HierarchyAttempt, HierarchyItem, HierarchyPage, HierarchyPlan, HierarchySearch, RunContextResponse, WireRecord } from "../api/types.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiErrorMessage: cx("ui", "error", "message"),
+};
 
 /** The four native context selects. */
 export interface ContextSelects {
@@ -19,13 +25,16 @@ export const selects = {
   run: document.querySelector("#run-select") as HTMLSelectElement,
 };
 
+/** One hierarchy item or exact selected run-context item shown in a selector. */
+type SelectorItem = HierarchyItem | RunContextResponse["search"] | RunContextResponse["revision"];
+
 /** One server-backed option query for a level in the context hierarchy. */
 interface DropdownConfig {
   section: string;
   parent: Record<string, string>;
   placeholder: string;
   selectedID: string;
-  label: (item: any) => string;
+  label: (item: SelectorItem) => string;
 }
 
 /** One searchable dropdown presentation derived from its bounded native select. */
@@ -42,7 +51,7 @@ interface DropdownState {
 
 const dropdowns: Record<string, DropdownState> = {};
 const dropdownConfigs: Record<string, DropdownConfig> = {};
-const hierarchyCache = new Map<string, any>();
+const hierarchyCache = new Map<string, HierarchyPage<HierarchyItem>>();
 
 /** Clears validated option-page cache entries after tests or known hierarchy mutations. */
 export function clearContextOptionCache(): void {
@@ -74,8 +83,7 @@ function renderDropdownOptions(key: string): void {
   });
   const optionButtons = nativeOptions.map((option) => {
     const selected = option.value === select.value;
-    var optionClass = "rw-search-dropdown__option";
-    if (selected) optionClass += " selected";
+    const optionClass = cx("rw-search-dropdown__option", selected && "selected");
     return (
       <button
         type="button"
@@ -134,10 +142,10 @@ function syncDropdown(key: string): void {
 }
 
 /** Populates one native select from a bounded server page and synchronizes its presentation. */
-function selectOptions(key: string, items: any[], selected: string, config: DropdownConfig): void {
+function selectOptions(key: string, items: SelectorItem[], selected: string, config: DropdownConfig): void {
   const select = selects[key as keyof ContextSelects];
   const optionElements = items.map((item) => {
-    return <option value={pickID(item)}>{config.label(item)}</option>;
+    return <option value={String(pickID(item) || "")}>{config.label(item)}</option>;
   });
   const optionsMarkup = (
     <Fragment>
@@ -153,7 +161,7 @@ function selectOptions(key: string, items: any[], selected: string, config: Drop
 }
 
 /** Appends a bounded continuation page without duplicating option identifiers. */
-function appendOptions(key: string, items: any[], config: DropdownConfig): void {
+function appendOptions(key: string, items: SelectorItem[], config: DropdownConfig): void {
   const select = selects[key as keyof ContextSelects];
   const existing = new Set(Array.from(select.options).map((option) => {
     return option.value;
@@ -170,7 +178,7 @@ function appendOptions(key: string, items: any[], config: DropdownConfig): void 
 }
 
 /** Fetches one validated hierarchy page and retains successful pages for later route renders. */
-async function fetchOptionPage(config: DropdownConfig, query: string, cursor: string): Promise<any> {
+async function fetchOptionPage(config: DropdownConfig, query: string, cursor: string): Promise<HierarchyPage<HierarchyItem>> {
   const requestQuery = {
     section: config.section,
     ...config.parent,
@@ -181,7 +189,7 @@ async function fetchOptionPage(config: DropdownConfig, query: string, cursor: st
   const cacheKey = endpoint("/api/hierarchy", requestQuery);
   const cached = hierarchyCache.get(cacheKey);
   if (cached) return cached;
-  const page = await api("/api/hierarchy", requestQuery, {
+  const page = await api<HierarchyPage<HierarchyItem>>("/api/hierarchy", requestQuery, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -200,7 +208,7 @@ async function loadDropdownPage(key: string, query: string, cursor = ""): Promis
     const page = await fetchOptionPage(config, query, cursor);
     if (sequence !== dropdown.sequence) return;
     const items = page.items.slice();
-    if (page.selected_item && !items.some((item: any) => {
+    if (page.selected_item && !items.some((item) => {
       return String(pickID(item)) === String(pickID(page.selected_item));
     })) {
       items.unshift(page.selected_item);
@@ -209,10 +217,10 @@ async function loadDropdownPage(key: string, query: string, cursor = ""): Promis
     if (cursor) appendOptions(key, items, config);
     else selectOptions(key, items, selects[key as keyof ContextSelects].value, config);
     hideDropdownError(key);
-  } catch (failure: any) {
+  } catch (failure) {
     if (sequence !== dropdown.sequence) return;
     dropdown.nextCursor = "";
-    const errorMarkup = <p className="ui error message" role="alert">{failure.message}</p>;
+    const errorMarkup = <p className={classNames.uiErrorMessage} role="alert">{errorMessage(failure, "Unable to load context options.")}</p>;
     renderTree(errorMarkup, dropdown.options);
   }
 }
@@ -370,7 +378,7 @@ function showDropdownError(key: string, message: string): void {
   if (!field) return;
   field.querySelector(".ui.error.message")?.remove();
   const error = document.createElement("p");
-  error.className = "ui error message";
+  error.className = classNames.uiErrorMessage;
   error.setAttribute("role", "alert");
   error.textContent = message;
   field.append(error);
@@ -383,16 +391,16 @@ function hideDropdownError(key: string): void {
 }
 
 /** Replaces invalid or crossed hierarchy identifiers without starting a second render. */
-function replaceContext(updates: Record<string, any>): void {
+function replaceContext(updates: Record<string, unknown>): void {
   history.replaceState({}, "", link(updates));
 }
 
 /** Reconciles a selected run to its server-owned complete ancestry. */
-async function reconcileSelectedRun(): Promise<any | null> {
+async function reconcileSelectedRun(): Promise<RunContextResponse | null> {
   const selectedRunID = value("run_id");
   if (!selectedRunID) return null;
   try {
-    const context = await api(`/api/runs/${encodeURIComponent(selectedRunID)}/context`, {}, {
+    const context = await api<RunContextResponse>(`/api/runs/${encodeURIComponent(selectedRunID)}/context`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -417,10 +425,10 @@ async function reconcileSelectedRun(): Promise<any | null> {
 }
 
 /** Adds one exact selected item to a page when it falls outside the first result window. */
-function withSelectedItem(page: any, canonicalItem: any): any[] {
-  const items = page.items.slice();
+function withSelectedItem(page: HierarchyPage<HierarchyItem>, canonicalItem: SelectorItem | null | undefined): SelectorItem[] {
+  const items: SelectorItem[] = page.items.slice();
   const selectedItem = canonicalItem || page.selected_item;
-  if (selectedItem && !items.some((item: any) => {
+  if (selectedItem && !items.some((item) => {
     return String(pickID(item)) === String(pickID(selectedItem));
   })) {
     items.unshift(selectedItem);
@@ -438,7 +446,7 @@ function selectorParam(key: string): string {
 }
 
 /** Loads and validates one hierarchy level, including sole-child selection. */
-async function hydrateLevel(key: string, config: DropdownConfig, canonicalItem: any, clearInvalid: Record<string, any>): Promise<{ items: any[]; page: any }> {
+async function hydrateLevel(key: string, config: DropdownConfig, canonicalItem: SelectorItem | null | undefined, clearInvalid: Record<string, unknown>): Promise<{ items: SelectorItem[]; page: HierarchyPage<HierarchyItem> }> {
   dropdownConfigs[key] = config;
   showLoading(key);
   const page = await fetchOptionPage(config, "", "");
@@ -465,12 +473,12 @@ async function hydrateLevel(key: string, config: DropdownConfig, canonicalItem: 
 export async function hydrateSelectors(): Promise<void> {
   ["search", "revision", "plan", "run"].forEach(showLoading);
   Object.keys(selects).forEach(hideDropdownError);
-  var selectedRunContext: any = null;
+  var selectedRunContext: RunContextResponse | null = null;
   try {
     selectedRunContext = await reconcileSelectedRun();
-  } catch (error: any) {
+  } catch (error) {
     replaceContext({ run_id: "" });
-    showDropdownError("run", `Failed to validate run context: ${error.message || error}`);
+    showDropdownError("run", `Failed to validate run context: ${errorMessage(error, "Unknown error")}`);
   }
 
   const searchConfig: DropdownConfig = {
@@ -486,10 +494,10 @@ export async function hydrateSelectors(): Promise<void> {
     const searchPage = await hydrateLevel("search", searchConfig, selectedRunContext?.search, {
       search_id: "", search_revision_id: "", plan_id: "", run_id: "",
     });
-    state.searches = searchPage.items;
-  } catch (error: any) {
+    state.searches = searchPage.items as HierarchySearch[];
+  } catch (error) {
     selectOptions("search", [], "", searchConfig);
-    showDropdownError("search", `Failed to load searches: ${error.message || error}`);
+    showDropdownError("search", `Failed to load searches: ${errorMessage(error, "Unknown error")}`);
     return;
   }
 
@@ -517,9 +525,9 @@ export async function hydrateSelectors(): Promise<void> {
       search_revision_id: "", plan_id: "", run_id: "",
     });
     if (!revisionPage.items.length && value("search_revision_id")) replaceContext({ search_revision_id: "", plan_id: "", run_id: "" });
-  } catch (error: any) {
+  } catch (error) {
     selectOptions("revision", [], "", revisionConfig);
-    showDropdownError("revision", `Failed to load revisions: ${error.message || error}`);
+    showDropdownError("revision", `Failed to load revisions: ${errorMessage(error, "Unknown error")}`);
     return;
   }
   if (!value("search_revision_id")) {
@@ -536,15 +544,16 @@ export async function hydrateSelectors(): Promise<void> {
     placeholder: "Select an execution plan",
     selectedID: value("plan_id"),
     label: (item) => {
-      return `Plan ${pickID(item)} · ${String(item.execution_fingerprint || "No fingerprint").slice(0, 12)}`;
+      const record = item as unknown as WireRecord;
+      return `Plan ${pickID(item)} · ${String(record.execution_fingerprint || "No fingerprint").slice(0, 12)}`;
     },
   };
   try {
     const planPage = await hydrateLevel("plan", planConfig, selectedRunContext?.plan, { plan_id: "", run_id: "" });
-    state.plans = planPage.items;
-  } catch (error: any) {
+    state.plans = planPage.items as HierarchyPlan[];
+  } catch (error) {
     selectOptions("plan", [], "", planConfig);
-    showDropdownError("plan", `Failed to load plans: ${error.message || error}`);
+    showDropdownError("plan", `Failed to load plans: ${errorMessage(error, "Unknown error")}`);
     return;
   }
   if (!value("plan_id")) {
@@ -559,17 +568,18 @@ export async function hydrateSelectors(): Promise<void> {
     placeholder: "Select a run attempt",
     selectedID: value("run_id"),
     label: (item) => {
+      const record = item as unknown as WireRecord;
       var date = "";
-      if (item.started_at) date = ` · ${String(item.started_at).slice(0, 10)}`;
-      return `Run ${pickID(item)} · ${item.status || "recorded"}${date}`;
+      if (record.started_at) date = ` · ${String(record.started_at).slice(0, 10)}`;
+      return `Run ${pickID(item)} · ${record.status || "recorded"}${date}`;
     },
   };
   try {
     const runPage = await hydrateLevel("run", runConfig, selectedRunContext?.run, { run_id: "" });
-    state.runs = runPage.items;
-  } catch (error: any) {
+    state.runs = runPage.items as HierarchyAttempt[];
+  } catch (error) {
     selectOptions("run", [], "", runConfig);
-    showDropdownError("run", `Failed to load runs: ${error.message || error}`);
+    showDropdownError("run", `Failed to load runs: ${errorMessage(error, "Unknown error")}`);
   }
 }
 

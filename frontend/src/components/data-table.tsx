@@ -1,11 +1,18 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { esc, asJSON, list, value, Cell, humanLabel } from "../state.tsx";
+import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
 import { setURL } from "../router.tsx";
-import { h, Fragment } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
+import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
+import type { ColumnInfo, DataTableContext, ScopedPagination, WireRecord } from "../api/types.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiFadedText: cx("ui", "faded", "text"),
+};
 
 /** Returns whether a row contains the case-insensitive filter text. */
-export function rowFilter(rows: any[], query: string): any[] {
+export function rowFilter(rows: WireRecord[], query: string): WireRecord[] {
   if (!query) return rows;
   const needle = query.toLocaleLowerCase();
   return rows.filter((row) => {
@@ -22,43 +29,22 @@ function scrollTableIntoView(root: HTMLElement): void {
 }
 
 /** One data table option set. */
-export interface DataTableContext {
-  columnsWhitelist?: string[];
-  pageKey?: string;
-  perPageKey?: string;
-  sortKey?: string;
-  orderKey?: string;
-  queryKey?: string;
-  expandedKey?: string;
-  query?: string;
-  page?: number;
-  perPage?: number;
-  sortFields?: string[];
-  expandableFields?: Array<{ f: string; w: number | string; label?: string; render?: (row: any) => JSX.Element }>;
-  rowKey?: string;
-  columnConfig?: Record<string, { label?: string; className?: string; render?: (row: any, value: any) => JSX.Element }>;
-  expandLongCells?: boolean;
-  tableClass?: string;
-  itemLabel?: string;
-  perPageSelector?: string;
-  querySelector?: string;
-  searchButtonSelector?: string;
-  clearButtonSelector?: string;
-}
+export type { DataTableContext } from "../api/types.ts";
 
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
-export function DataTable(props: { tableName: string; result: any; context?: DataTableContext }): JSX.Element {
+export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
+  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: Partial<ScopedPagination> };
 
-  var columns = list(props.result, ["columns", "schema"]);
-  if (!columns.length) {
-    columns = list(props.result.table, ["columns", "schema"]);
+  var rawColumns = list<string | ColumnInfo>(response, ["columns", "schema"]);
+  if (!rawColumns.length) {
+    rawColumns = list<string | ColumnInfo>(response.table, ["columns", "schema"]);
   }
-  const columnNames = columns.map((column) => {
+  const columnNames = rawColumns.map((column) => {
     if (typeof column === "string") return column;
     return column.name;
   });
-  columns = columnNames.filter(Boolean);
+  var columns = columnNames.filter(Boolean);
 
   if (context.columnsWhitelist && context.columnsWhitelist.length) {
     const availableColumns = new Set(columns);
@@ -75,7 +61,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     query: context.queryKey || "q",
     expanded: context.expandedKey || "expanded",
   };
-  const rows = rowFilter(list(props.result, ["rows", "items"]), context.query || "");
+  const rows = rowFilter(list<WireRecord>(response, ["rows", "items"]), context.query || "");
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
   const hasExpand = expandFields.length > 0;
@@ -88,7 +74,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   var emptyMessage = "No records on this page.";
   if (context.query) emptyMessage = "No displayed records match this search.";
   const emptyColspan = Math.max(1, colCount);
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={emptyColspan} className="rw-table-empty">{emptyMessage}</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colSpan={emptyColspan} className="rw-table-empty">{emptyMessage}</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((row, idx) => {
       const key = String(row[rowKey] ?? idx);
@@ -116,11 +102,8 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         if (config.render) content = config.render(row, row[column]);
         return <td className={config.className}>{content}</td>;
       });
-      var rowClasses = "";
-      if (hasExpand) {
-        rowClasses = "expandable-row";
-        if (initiallyExpanded) rowClasses += " expanded";
-      }
+      var rowClasses: ClassNames | undefined;
+      if (hasExpand) rowClasses = cx("expandable-row", initiallyExpanded && "expanded");
 
       var expandRowHtml: JSX.Element | null = null;
       if (hasExpand) {
@@ -130,7 +113,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           if (field.w === "full") style = "grid-column:1/-1";
           var display: JSX.Element = <>{asJSON(val)}</>;
           if (field.render) display = field.render(row);
-          else if (val === null || val === undefined) display = <span className="ui faded text">Not recorded</span>;
+          else if (val === null || val === undefined) display = <span className={classNames.uiFadedText}>Not recorded</span>;
           const labelText = field.label || humanLabel(field.f);
           return (
             <div style={style}>
@@ -141,7 +124,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
         });
         expandRowHtml = (
           <tr id={detailID} className="expansion-row" data-expand-row={idx} data-row-key={key} hidden={!initiallyExpanded}>
-            <td colspan={colCount}>
+            <td colSpan={colCount}>
               <dl className="rw-property-grid">{fieldsHtml}</dl>
             </td>
           </tr>
@@ -200,10 +183,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
     return <th scope="col" className={className}>{label}</th>;
   });
 
-  var tableClasses = "ui table data-table";
-  if (context.tableClass) {
-    tableClasses += ` ${esc(context.tableClass)}`;
-  }
+  const tableClasses = cx("ui", "table", ...(context.tableClasses || []));
 
   const currentSort = value(keys.sort);
   const currentOrder = value(keys.order);
@@ -215,7 +195,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
   }
 
   return (
-    <section className="rw-table-region" data-table-owner={props.tableName}>
+    <section data-table-owner={props.tableName}>
       <div className="table-wrap" data-table-root {...expandAttr}>
         <table className={tableClasses} aria-label={`${props.tableName} results`}>
           <thead>
@@ -227,7 +207,7 @@ export function DataTable(props: { tableName: string; result: any; context?: Dat
           <tbody>{rowsHtml}</tbody>
         </table>
       </div>
-      <Pagination result={props.result.pagination || { page: context.page }} options={{
+      <Pagination result={response.pagination || { page: context.page }} options={{
         page: context.page,
         perPage: context.perPage,
         itemLabel: context.itemLabel || "records",
@@ -254,8 +234,8 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     expanded: context.expandedKey || "expanded",
   };
   /** Maps context key names to their URL query parameter names. */
-  function updates(values: Record<string, any>): Record<string, any> {
-    const result: Record<string, any> = {};
+  function updates(values: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
     Object.entries(values).forEach(([key, raw]) => {
       result[(keys as Record<string, string>)[key] || key] = raw;
     });
@@ -353,7 +333,7 @@ function handleExpandToggle(event: Event): void {
     if (selection && !selection.isCollapsed) return;
     if ((event.target as HTMLElement).closest("a, button, input, select, summary, details")) return;
     const row = (event.target as HTMLElement).closest<HTMLElement>("tr");
-    if (!row || row.classList.contains("expansion-row")) return;
+    if (!row || classHas(row, "expansion-row")) return;
     toggle = row.querySelector(".expand-toggle");
     if (!toggle) return;
   }
@@ -368,7 +348,7 @@ function handleExpandToggle(event: Event): void {
   toggle.setAttribute("aria-expanded", String(!expanded));
   const sourceRow = toggle.closest("tr");
   if (sourceRow) {
-    sourceRow.classList.toggle("expanded", !expanded);
+    classToggle(sourceRow, "expanded", !expanded);
   }
   if (expanded) {
     toggle.textContent = "\u25B6";

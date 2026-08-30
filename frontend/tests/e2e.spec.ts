@@ -1,16 +1,54 @@
-// @ts-check
-const { test, expect } = require('@playwright/test');
+import { test, expect } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
+
+/** Persistent identifier shape returned by generated fixture APIs. */
+type Identifier = string | number;
+
+/** Complete URL context for one generated pipeline run. */
+type GeneratedContext = {
+  search_id: Identifier;
+  search_revision_id: Identifier;
+  plan_id: Identifier;
+  run_id: Identifier;
+};
+
+/** Search fields used to locate the deterministic generated fixture. */
+type SearchRecord = {
+  id: Identifier;
+  search_id: string;
+  revisions: Array<{ id: Identifier }>;
+};
+
+/** Plan fields used to locate the deterministic generated fixture. */
+type PlanRecord = {
+  id: Identifier;
+};
+
+/** Run fields used by generated-context and lineage checks. */
+type RunRecord = {
+  id: Identifier;
+  status: string;
+  attempt_number: number;
+};
+
+/** Evaluation fields used to resolve one generated work revision. */
+type EvaluationRecord = {
+  title: string;
+  work_revision_id: Identifier;
+};
 
 test.skip(process.env.E2E_SPEC !== '1', 'Run through make test-e2e with a generated pipeline database.');
 test.describe.configure({ mode: 'serial' });
 
 /** Resolves the generated database's persistent URL-state identifiers through public APIs. */
-async function generatedContext(request) {
+async function generatedContext(request: APIRequestContext): Promise<GeneratedContext> {
   const searchResponse = await request.get('/api/searches');
   expect(searchResponse.ok()).toBeTruthy();
   const searchBody = await searchResponse.json();
-  const search = searchBody.searches.find((item) => item.search_id === 'e2e-deterministic');
+  const searches = searchBody.searches as SearchRecord[];
+  const search = searches.find((item) => item.search_id === 'e2e-deterministic');
   expect(search).toBeTruthy();
+  if (!search) throw new Error('Generated E2E search is unavailable');
   expect(search.revisions).toHaveLength(1);
   const revision = search.revisions[0];
 
@@ -18,13 +56,15 @@ async function generatedContext(request) {
   expect(planResponse.ok()).toBeTruthy();
   const planBody = await planResponse.json();
   expect(planBody.plans).toHaveLength(1);
-  const plan = planBody.plans[0];
+  const plan = (planBody.plans as PlanRecord[])[0];
 
   const runResponse = await request.get('/api/runs', { params: { plan_id: plan.id } });
   expect(runResponse.ok()).toBeTruthy();
   const runBody = await runResponse.json();
-  const run = runBody.runs.find((item) => item.status === 'completed' && item.attempt_number === 1);
+  const runs = runBody.runs as RunRecord[];
+  const run = runs.find((item) => item.status === 'completed' && item.attempt_number === 1);
   expect(run).toBeTruthy();
+  if (!run) throw new Error('Generated E2E run is unavailable');
 
   return {
     search_id: search.id,
@@ -35,14 +75,14 @@ async function generatedContext(request) {
 }
 
 /** Builds a context-preserving application URL for one generated viewer route. */
-function generatedURL(context, updates) {
+function generatedURL(context: GeneratedContext, updates: Record<string, Identifier>): string {
   const params = new URLSearchParams({
     search_id: String(context.search_id),
     search_revision_id: String(context.search_revision_id),
     plan_id: String(context.plan_id),
     run_id: String(context.run_id),
-    ...updates,
   });
+  for (const [key, value] of Object.entries(updates)) params.set(key, String(value));
   return `/?${params.toString()}`;
 }
 
@@ -51,7 +91,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
 
   await page.goto(generatedURL(context, { view: 'corpus', section: 'articles' }));
   await page.waitForLoadState('networkidle');
-  const corpus = page.locator('.rw-corpus-table--articles');
+  const corpus = page.locator(`[data-table-owner="work_revisions"]`);
   await expect(corpus).toBeVisible();
   await expect(corpus).toContainText('Offline Complete One');
   await expect(corpus).toContainText('Offline Complete Two');
@@ -80,14 +120,17 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
 test('A2 inherits immutable A1 review heads and diverges without changing A1', async ({ page, request }) => {
   const context = await generatedContext(request);
   const runsResponse = await request.get('/api/runs', { params: { plan_id: context.plan_id } });
-  const completed = (await runsResponse.json()).runs.filter((item) => item.status === 'completed').sort((left, right) => left.attempt_number - right.attempt_number);
+  const runRecords = (await runsResponse.json()).runs as RunRecord[];
+  const completed = runRecords.filter((item) => item.status === 'completed').sort((left, right) => left.attempt_number - right.attempt_number);
   expect(completed).toHaveLength(2);
   const [a1Run, a2Run] = completed;
-  const revisions = {};
+  const revisions: Record<string, Identifier> = {};
   for (const run of completed) {
     const response = await request.get(`/api/runs/${run.id}/evaluation`, { params: { per_page: 100, sort: 'title', order: 'asc' } });
-    const row = (await response.json()).rows.find((item) => item.title === 'Offline Complete One');
+    const rows = (await response.json()).rows as EvaluationRecord[];
+    const row = rows.find((item) => item.title === 'Offline Complete One');
     expect(row).toBeTruthy();
+    if (!row) throw new Error('Generated E2E work revision is unavailable');
     revisions[run.id] = row.work_revision_id;
   }
   const a1Revision = revisions[a1Run.id];
@@ -134,5 +177,5 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   await expect(page.locator('[data-review-host]')).toContainText('A2 changed evidence');
   await page.getByRole('tab', { name: 'PDF anchors' }).click();
   await expect(page.locator('[data-anchor-list]')).toContainText('e2e-methods');
-  await expect(page.locator('.rw-pdf-page--current .textLayer')).toContainText('Selectable E2E methods');
+  await expect(page.locator(".rw-pdf-page .textLayer")).toContainText("Selectable E2E methods");
 });

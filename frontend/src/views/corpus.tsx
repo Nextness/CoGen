@@ -4,12 +4,29 @@ import {
   formatNumber, percent,
   humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, currentDetailOrigin,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { api, tables } from "../api.tsx";
+import type { CorpusResponse, IdentityEvidenceResponse, IdentityEvidenceRow, TableInfo, TableRowsResponse, TermMatchSummary, WireRecord } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
 import { setURL } from "../router.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiFadedText: cx("ui", "faded", "text"),
+  uiFormRwFilterBar: cx("ui", "form", "rw-filter-bar"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiInput: cx("ui", "input"),
+  uiLabel: cx("ui", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegment: cx("ui", "segment"),
+  uiStatistic: cx("ui", "statistic"),
+  uiStatisticsRwIdentitySummary: cx("ui", "statistics", "rw-identity-summary"),
+  uiTable: cx("ui", "table"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+};
 
 // Core columns shown in the articles table; extra fields appear in expandable rows.
 const articlesColumns = ["doi", "title", "year", "journal", "source"];
@@ -151,41 +168,40 @@ const scopedSortFields: Record<string, string[]> = {
 };
 
 /** Returns the ordered union of column names present in result rows. */
-function columnNames(table: any): string[] {
+function columnNames(table: TableInfo | undefined): string[] {
   if (!table) return [];
-  const names = (table.columns || []).map((column: any) => {
-    if (typeof column === "string") return column;
+  const names = table.columns.map((column) => {
     return column.name;
   });
   return names.filter(Boolean);
 }
 
 /** Renders the column definition used for identity evidence rows. */
-function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } }): JSX.Element {
-  const stats = props.data.stats || {};
-  const rows = props.data.rows || [];
+function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context: DataTableContext & { perPage: number } }): JSX.Element {
+  const stats = props.data.stats;
+  const rows = props.data.rows;
 
   var pct = "—";
   if (stats.resolutions > 0) pct = percent(stats.unclear, stats.resolutions);
 
   const metrics = (
-    <div className="ui statistics rw-identity-summary">
-      <div className="ui statistic">
+    <div className={classNames.uiStatisticsRwIdentitySummary}>
+      <div className={classNames.uiStatistic}>
         <span className="label">Authors searched by name</span>
         <span className="value">{formatNumber(stats.resolutions)}</span>
         <small>Observed author occurrences</small>
       </div>
-      <div className="ui statistic">
+      <div className={classNames.uiStatistic}>
         <span className="label">Unclear ORCID matches</span>
         <span className="value">{formatNumber(stats.unclear)}</span>
         <small>{pct} of searches</small>
       </div>
-      <div className="ui statistic">
+      <div className={classNames.uiStatistic}>
         <span className="label">Provider failures</span>
         <span className="value">{formatNumber(stats.provider_failed)}</span>
         <small>Searches with incomplete evidence</small>
       </div>
-      <div className="ui statistic">
+      <div className={classNames.uiStatistic}>
         <span className="label">Candidate ORCIDs</span>
         <span className="value">{formatNumber(stats.candidates)}</span>
         <small>Never assigned automatically</small>
@@ -195,12 +211,12 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
 
   var emptyMessage = "No name-search evidence was recorded for this run.";
   if (value("q")) emptyMessage = "No evidence matches this search.";
-  const emptyCell = <td colspan={4} className="rw-table-empty">{emptyMessage}</td>;
+  const emptyCell = <td colSpan={4} className="rw-table-empty">{emptyMessage}</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (rows.length) {
-    body = rows.map((row: any) => {
+    body = rows.map((row: IdentityEvidenceRow) => {
       var errorHtml: JSX.Element | null = null;
-      if (row.error_message) errorHtml = <p className="ui faded text">{row.error_message}</p>;
+      if (row.error_message) errorHtml = <p className={classNames.uiFadedText}>{row.error_message}</p>;
       const authorHref = link({
         view: "author",
         author_id: row.author_occurrence_id,
@@ -234,7 +250,7 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
     <Fragment>
       {metrics}
       <div className="table-wrap" aria-label="Author identity evidence table">
-        <table className="ui table">
+        <table className={classNames.uiTable}>
           <thead>
             <tr>
               <th><button type="button" data-sort="status">Status</button></th>
@@ -252,13 +268,13 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
 }
 
 /** Renders the clipped label text for a record title. */
-function clippedLabel(title: any): JSX.Element {
-  return <span>{title || "Not recorded"}</span>;
+function clippedLabel(title: unknown): JSX.Element {
+  return <span>{String(title || "Not recorded")}</span>;
 }
 
 /** Renders a context-preserving record link with a clipped label. */
-function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JSX.Element {
-  const updates: Record<string, any> = {
+function clippedRecordLink(kind: string, idKey: string, id: unknown, title: unknown): JSX.Element {
+  const updates: Record<string, unknown> = {
     view: kind,
     article_id: "",
     author_id: "",
@@ -267,19 +283,20 @@ function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JS
   };
   updates[idKey] = id;
   const recordHref = link(updates);
-  return <a className="rw-table-title" href={recordHref} title={title || "Not recorded"}>{clippedLabel(title)}</a>;
+  return <a className="rw-table-title" href={recordHref} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
 }
 
 /** Renders escaped record text clipped to the requested length. */
-function clippedRecordText(title: any): JSX.Element {
-  return <span className="rw-table-title" title={title || "Not recorded"}>{clippedLabel(title)}</span>;
+function clippedRecordText(title: unknown): JSX.Element {
+  return <span className="rw-table-title" title={String(title || "Not recorded")}>{clippedLabel(title)}</span>;
 }
 
 /** Renders the stored search-term coverage for one article row. */
-function termMatchMarkup(row: any): JSX.Element {
+function termMatchMarkup(row: WireRecord): JSX.Element {
   if (row.term_matches === null || row.term_matches === undefined) {
-    return <span className="ui faded text">No search terms recorded</span>;
+    return <span className={classNames.uiFadedText}>No search terms recorded</span>;
   }
+  const termMatches = row.term_matches as TermMatchSummary;
   const fields = [
     {
       key: "title",
@@ -299,11 +316,11 @@ function termMatchMarkup(row: any): JSX.Element {
     },
   ];
   const fieldElements: JSX.Element[] = fields.map(({ key, label }) => {
-    const terms = row.term_matches[key] || [];
-    var content: JSX.Element = <span className="ui faded text">No matched terms</span>;
+    const terms = termMatches[key] as string[] | undefined || [];
+    var content: JSX.Element = <span className={classNames.uiFadedText}>No matched terms</span>;
     if (terms.length) {
       const termTags: JSX.Element[] = terms.map((term: string) => {
-        return <span className="ui label">{term}</span>;
+        return <span className={classNames.uiLabel}>{term}</span>;
       });
       content = <span className="rw-keyword-tags">{termTags}</span>;
     }
@@ -314,19 +331,19 @@ function termMatchMarkup(row: any): JSX.Element {
       </div>
     );
   });
-  const matchedTotal = row.term_matches.matched_total;
-  const termTotal = row.term_matches.term_total;
+  const matchedTotal = termMatches.matched_total;
+  const termTotal = termMatches.term_total;
   return (
     <Fragment>
-      <p className="ui faded text">{matchedTotal} of {termTotal} search terms matched</p>
+      <p className={classNames.uiFadedText}>{matchedTotal} of {termTotal} search terms matched</p>
       <div className="rw-term-fields">{fieldElements}</div>
     </Fragment>
   );
 }
 
 /** Returns section-specific labels and renderers for corpus columns. */
-function corpusColumnConfig(current: string): Record<string, any> {
-  const config: Record<string, any> = {};
+function corpusColumnConfig(current: string): NonNullable<DataTableContext["columnConfig"]> {
+  const config: NonNullable<DataTableContext["columnConfig"]> = {};
   Object.entries(columnLabels).forEach(([key, label]) => {
     config[key] = { label: label };
   });
@@ -359,7 +376,7 @@ function corpusColumnConfig(current: string): Record<string, any> {
     config.title = {
       label: "Title",
       className: "col-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("article", "article_id", row.id, row.title);
       },
     };
@@ -372,21 +389,21 @@ function corpusColumnConfig(current: string): Record<string, any> {
     config.title = {
       label: "Referenced title",
       className: "col-reference-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("reference", "reference_id", row.id, row.title);
       },
     };
     config.author = {
       label: "Referenced author",
       className: "col-reference-author",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordText(row.author);
       },
     };
     config.citing_title = {
       label: "Citing article",
       className: "col-citing-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         if (row.work_revision_id) {
           return clippedRecordLink("article", "article_id", row.work_revision_id, row.citing_title);
         }
@@ -397,8 +414,7 @@ function corpusColumnConfig(current: string): Record<string, any> {
   if (current === "authors") {
     config.citation_name = {
       label: "Observed author",
-      className: "col-person",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("author", "author_id", row.id, row.citation_name);
       },
     };
@@ -460,10 +476,10 @@ export async function corpusView(): Promise<void> {
   var order = "asc";
   if (value("order").toLowerCase() === "desc") order = "desc";
 
-  var data: any = null;
+  var data: CorpusResponse | IdentityEvidenceResponse | TableRowsResponse | null = null;
   if (scoped) {
     if (current === "identity_evidence") {
-      data = await api(`/api/runs/${runID}/identity-evidence`, {
+      data = await api<IdentityEvidenceResponse>(`/api/runs/${runID}/identity-evidence`, {
         page: page,
         per_page: perPage,
         sort: sort,
@@ -474,7 +490,7 @@ export async function corpusView(): Promise<void> {
         headers: { Accept: "application/json" },
       });
     } else {
-      data = await api(`/api/runs/${runID}/corpus/${current}`, {
+      data = await api<CorpusResponse>(`/api/runs/${runID}/corpus/${current}`, {
         page: page,
         per_page: perPage,
         sort: sort,
@@ -486,7 +502,7 @@ export async function corpusView(): Promise<void> {
       });
     }
   } else if (knownTable) {
-    data = await api(`/api/tables/${encodeURIComponent(definition.table)}`, {
+    data = await api<TableRowsResponse>(`/api/tables/${encodeURIComponent(definition.table)}`, {
       page: page,
       per_page: perPage,
       sort: sort,
@@ -505,19 +521,19 @@ export async function corpusView(): Promise<void> {
     return <option value={size} selected={size === perPage}>{size}</option>;
   });
   const controls = (
-    <form className="ui form rw-filter-bar" data-table-search>
+    <form className={classNames.uiFormRwFilterBar} data-table-search>
       <label className="rw-filter-bar__search">
         <span>{searchLabel}</span>
-        <span className="ui input">
+        <span className={classNames.uiInput}>
           <input id="corpus-query" type="search" value={query} placeholder="Title, DOI, person, source\u2026" />
           <button type="button" className="clear" data-clear-query disabled={clearDisabled} aria-label="Clear search">{"\u00D7"}</button>
         </span>
       </label>
-      <label className="rw-filter-bar__size">
+      <label>
         Rows per page
         <select id="per-page">{pageSizeOptions}</select>
       </label>
-      <button type="button" data-search-query className="ui primary button">Search</button>
+      <button type="button" data-search-query className={classNames.uiPrimaryButton}>Search</button>
     </form>
   );
 
@@ -536,14 +552,14 @@ export async function corpusView(): Promise<void> {
     </div>
   );
 
-  var explanation: JSX.Element = <p className="ui info message">Select a run to make this list run-scoped. Without one, Advanced-style workspace records remain bounded and paginated.</p>;
+  var explanation: JSX.Element = <p className={classNames.uiInfoMessage}>Select a run to make this list run-scoped. Without one, Advanced-style workspace records remain bounded and paginated.</p>;
   if (scoped) {
     if (current === "articles") {
-      explanation = <p className="ui info message">This analysis-ready corpus contains only valid normalized work revisions. Discarded works remain available through validation stage outcomes and provenance.</p>;
+      explanation = <p className={classNames.uiInfoMessage}>This analysis-ready corpus contains only valid normalized work revisions. Discarded works remain available through validation stage outcomes and provenance.</p>;
     } else if (current === "identity_evidence") {
-      explanation = <p className="ui info message">An ORCID returned by a name search is not assigned to this author or a person record. Review candidates and raw provider payloads before any future confirmation. A provider failure means the name search stopped before all configured queries completed.</p>;
+      explanation = <p className={classNames.uiInfoMessage}>An ORCID returned by a name search is not assigned to this author or a person record. Review candidates and raw provider payloads before any future confirmation. A provider failure means the name search stopped before all configured queries completed.</p>;
     } else {
-      explanation = <p className="ui info message">This bounded, paginated list contains only records attached to the selected historical run.</p>;
+      explanation = <p className={classNames.uiInfoMessage}>This bounded, paginated list contains only records attached to the selected historical run.</p>;
     }
   }
 
@@ -551,6 +567,9 @@ export async function corpusView(): Promise<void> {
   if (scoped) sortFields = allowedSortFields;
   var itemLabel = humanLabelState(current).toLocaleLowerCase();
   if (current === "articles") itemLabel = "articles";
+  const tableClasses: ClassName[] = ["rw-corpus-table"];
+  if (current === "references") tableClasses.push("rw-corpus-table--references");
+  if (current === "sources") tableClasses.push("rw-corpus-table--sources");
   const context: DataTableContext & { perPage: number } = {
     page: page,
     perPage: perPage,
@@ -558,7 +577,7 @@ export async function corpusView(): Promise<void> {
     sortFields: sortFields,
     columnConfig: corpusColumnConfig(current),
     itemLabel: itemLabel,
-    tableClass: `rw-corpus-table rw-corpus-table--${current}`,
+    tableClasses: tableClasses,
   };
 
   if (current === "articles") {
@@ -576,12 +595,12 @@ export async function corpusView(): Promise<void> {
 
   var sourceCounts: JSX.Element | null = null;
   if (current === "sources" && scoped && data) {
-    sourceCounts = <SourceResultCountSummary items={data.source_result_counts} classes="rw-grid-span-all" />;
+    sourceCounts = <SourceResultCountSummary items={(data as CorpusResponse).source_result_counts || []} classes={["rw-grid-span-all"]} />;
   }
 
-  var body: JSX.Element = <p className="ui faded text">This database does not contain the expected table.</p>;
+  var body: JSX.Element = <p className={classNames.uiFadedText}>This database does not contain the expected table.</p>;
   if (current === "identity_evidence" && data) {
-    body = <IdentityEvidenceTable data={data} context={context} />;
+    body = <IdentityEvidenceTable data={data as IdentityEvidenceResponse} context={context} />;
   } else if (data) {
     body = <DataTable tableName={definition.table} result={data} context={context} />;
   }
@@ -600,8 +619,8 @@ export async function corpusView(): Promise<void> {
       <PageHeader kicker="Immutable research corpus" title="Corpus" description="Browse immutable revisions, observed authors, reference mentions, and captured source records." />
       {collectionChooser}
       {sourceCounts}
-      <section className="ui segment rw-data-section">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>{definition.title}</h3>
             <p>{definition.description}</p>

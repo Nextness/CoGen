@@ -28,7 +28,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -39,7 +39,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=frontend/dist'
 	@printf '%s\n' '  CONFIG=config/workspace.something WORKSPACE=search_id@revision FRESH=1'
 	@printf '%s\n' '  PACKAGE=./server TEST=^TestName$$ COVERAGE_OUT=build/coverage/coverage.out COVERAGE_POLICY=config/coverage_policy.something'
-	@printf '%s\n' '  BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.cjs'
+	@printf '%s\n' '  BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.ts'
 	@printf '%s\n' '  E2E_LIVE=1 explicitly enables real Crossref, OpenAlex, and ORCID requests'
 	@printf '%s\n' '  OUT=build/osf-export is required by prepare-to-osf'
 	@printf '%s\n' ''
@@ -49,7 +49,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make migrate DB=corpus.metadata.db'
 	@printf '%s\n' '  make prepare-to-osf DB=corpus.metadata.db CONFIG=config/workspace.something OUT=build/osf-export'
 	@printf '%s\n' '  make test-go PACKAGE=./server TEST=^TestGraph$$'
-	@printf '%s\n' '  make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.cjs'
+	@printf '%s\n' '  make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.ts'
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'
 
@@ -130,7 +130,7 @@ test-docs: ## Run documentation tool unit tests.
 
 test-e2e: build frontend-build something-printer pdf-store ## Run offline pipeline-to-viewer E2E tests with generated databases.
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2E(Deterministic|Mocked)$$' -count=1
-	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.cjs
+	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.ts --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.ts
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EReviewEvidence$$' -count=1
 
 test-e2e-live: build something-printer ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
@@ -159,7 +159,7 @@ database-backup: $(DB_METADATA) $(DB_PDF) ## This creates a copy of current data
 	cp $(DB_PDF) ./../backup_databases/
 
 dev: build frontend-build ## Serve a disposable fixture pair with assembled assets for local review development.
-	cd frontend && node scripts/run-dev.mjs "$(BIN)" "$(FIXTURE_DB)" "$(ASSETS_DIR)" "$(ADDR)"
+	cd frontend && node scripts/run-dev.ts "$(BIN)" "$(FIXTURE_DB)" "$(ASSETS_DIR)" "$(ADDR)"
 
 prepare-to-osf: prepare-osf ## Create a sanitized corpus copy. DB and OUT are required; CONFIG is optional.
 	@test -n "$(DB)" || (printf '%s\n' 'DB is required.' >&2; exit 2)
@@ -172,8 +172,14 @@ frontend-install: ## Install locked frontend dependencies with npm ci.
 frontend-build: ## Assemble frontend/dist from frontend sources with npm run build.
 	cd frontend && npm run build
 
-check-frontend: ## Type-check frontend TypeScript sources with tsc --noEmit.
+check-frontend: frontend-classes-check ## Verify CSS classes and type-check frontend TypeScript sources with tsc --noEmit.
 	cd frontend && npm run typecheck
+
+frontend-classes: ## Regenerate the committed TypeScript registry from authoritative stylesheets.
+	cd frontend && npm run generate:classes
+
+frontend-classes-check: ## Verify class registry freshness and statically visible class-token uses.
+	cd frontend && npm run check:classes
 
 frontend-browsers: ## Install Playwright browsers. Override BROWSERS as needed.
 	cd frontend && npm exec -- playwright install $(BROWSERS)
@@ -192,19 +198,19 @@ frontend-pdfjs-vendor-check: ## Verify checked-in PDF.js assets exactly match th
 	diff -qr frontend/node_modules/pdfjs-dist/standard_fonts frontend/vendor/pdfjs/standard_fonts
 
 test-frontend: build frontend-build ## Run Chromium Playwright on an isolated fixture server. Override BROWSER, WORKERS, TEST_FILE.
-	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.ts --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
 test-frontend-all: build frontend-build ## Run all Playwright browser projects on an isolated fixture server.
-	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.ts $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
 test-frontend-headed: build frontend-build ## Run headed Chromium Playwright on an isolated fixture server.
-	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" --headed $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.ts --project="$(BROWSER)" --headed $(if $(WORKERS),--workers=$(WORKERS)) $(TEST_FILE)
 
 test-frontend-debug: build frontend-build ## Run Chromium Playwright debug mode on an isolated fixture server.
-	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project="$(BROWSER)" --debug $(TEST_FILE)
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.ts --project="$(BROWSER)" --debug $(TEST_FILE)
 
 test-frontend-visual: build frontend-build ## Run Chromium visual and accessibility browser checks on an isolated fixture server.
-	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.mjs --project=chromium tests/ui-quality.spec.cjs
+	cd frontend && ASSETS_DIR="$(abspath $(ASSETS_DIR))" node scripts/run-playwright.ts --project=chromium tests/ui-quality.spec.ts
 
 test-frontend-unit: ## Run frontend TS unit tests with Node built-in test runner.
 	cd frontend && npm run test:unit

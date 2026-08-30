@@ -1,9 +1,24 @@
 // Bounded relationship exploration with common and advanced graph filters.
 import { app, value, graphFilters, PageHeader, EmptyState, FilterChips, list, formatNumber, humanLabel } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
+import type { APIQuery, GraphResponse } from "../api/types.ts";
 import { graphClusters, GraphField, graphQuery, GraphResult, mountGraph } from "../components/graph.tsx";
 import { setURL, bindFocusContext } from "../router.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwFilterPanelActionsRwGraphFilterActions: cx("rw-filter-panel__actions", "rw-graph__filter-actions"),
+  rwFilterPanelFieldsRwGraphAdvancedFilters: cx("rw-filter-panel__fields", "rw-graph__advanced-filters"),
+  rwFilterPanelFieldsRwGraphCommonFilters: cx("rw-filter-panel__fields", "rw-graph__common-filters"),
+  rwFilterPanelRwGraphControls: cx("rw-filter-panel", "rw-graph__controls"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiLabel: cx("ui", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegment: cx("ui", "segment"),
+  uiSegmentRwRelationshipFilters: cx("ui", "segment", "rw-relationship-filters"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+};
 
 const graphModes: Record<string, { label: string; description: string }> = {
   research_network: {
@@ -43,9 +58,7 @@ const filterLabels: Record<string, string> = {
 function ModeControl(props: { current: string }): JSX.Element {
   const modeItems = Object.entries(graphModes).map(([id, mode]) => {
     const checked = id === props.current;
-    var active = "";
-    if (id === props.current) active = " active";
-    const itemClass = `item${active}`;
+    const itemClass = cx("item", id === props.current && "active");
     return (
       <label className={itemClass}>
         <input type="radio" name="graph_mode" value={id} checked={checked} />
@@ -73,7 +86,7 @@ function AppliedFilters(): JSX.Element {
   filterKeys.forEach((key) => {
     if (value(key)) filters[key] = value(key);
   });
-  const clear: Record<string, any> = {
+  const clear: Record<string, unknown> = {
     view: "relationships",
     mode: value("mode") || "research_network",
     node: "",
@@ -86,7 +99,7 @@ function AppliedFilters(): JSX.Element {
 }
 
 /** Renders markup summarizing connected graph clusters. */
-function ClusterSummary(props: { data: any }): JSX.Element {
+function ClusterSummary(props: { data: GraphResponse }): JSX.Element {
   const counts = props.data.counts || {};
   const clusters = graphClusters(list(props.data, ["nodes"]), list(props.data, ["edges"])).components;
   const largest = clusters.reduce((size, cluster) => {
@@ -116,8 +129,9 @@ function ClusterSummary(props: { data: any }): JSX.Element {
 /** Asynchronously implements relationships view for the viewer. */
 export async function relationshipsView(): Promise<void> {
   if (!value("run_id")) {
+    const focusContextAction = <button type="button" className={classNames.uiBasicButton} data-focus-context>Focus context selector</button>;
     const emptyStateMarkup = (
-      <EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={<button type="button" className="ui basic button" data-focus-context>Focus context selector</button>} />
+      <EmptyState title="Relationships" detail="Select a run attempt to explore its bounded authorship, citation, and reference-mention relationships." action={focusContextAction} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -127,11 +141,11 @@ export async function relationshipsView(): Promise<void> {
   const requestedMode = value("mode");
   var mode = "research_network";
   if (graphModes[requestedMode]) mode = requestedMode;
-  const queryParams: Record<string, any> = graphQuery();
+  const queryParams: APIQuery = graphQuery();
   queryParams.run_id = value("run_id");
   queryParams.mode = mode;
   if (!queryParams.article_limit) queryParams.article_limit = 2000;
-  const data = await api("/api/graph", queryParams, {
+  const data = await api<GraphResponse>("/api/graph", queryParams, {
     method: "GET",
     headers: { Accept: "application/json" },
   });
@@ -140,8 +154,8 @@ export async function relationshipsView(): Promise<void> {
   const edgeCount = formatNumber(list(data, ["edges"]).length);
 
   const filterPanel = (
-    <aside className="ui segment rw-relationship-filters">
-      <div className="ui top attached header">
+    <aside className={classNames.uiSegmentRwRelationshipFilters}>
+      <div className={classNames.uiTopAttachedHeader}>
         <div>
           <h3>Explore a bounded network</h3>
           <p>Choose a graph model, then refine the matching article set independently.</p>
@@ -149,12 +163,12 @@ export async function relationshipsView(): Promise<void> {
       </div>
       <div className="content">
         <ModeControl current={mode} />
-        <form id="graph-form" className="rw-filter-panel rw-graph__controls">
+        <form id="graph-form" className={classNames.rwFilterPanelRwGraphControls}>
           <div className="rw-graph-filter-heading">
             <h4>Article filters</h4>
             <p>Filters apply to the selected run without changing the graph model.</p>
           </div>
-          <div className="rw-filter-panel__fields rw-graph__common-filters">
+          <div className={classNames.rwFilterPanelFieldsRwGraphCommonFilters}>
             <GraphField name="q" label="Title or DOI" />
             <GraphField name="year_min" label="Year from" type="number" />
             <GraphField name="year_max" label="Year to" type="number" />
@@ -162,7 +176,7 @@ export async function relationshipsView(): Promise<void> {
           </div>
           <details className="rw-filter-disclosure">
             <summary>Advanced filters</summary>
-            <div className="rw-filter-panel__fields rw-graph__advanced-filters">
+            <div className={classNames.rwFilterPanelFieldsRwGraphAdvancedFilters}>
               <GraphField name="author" label="Author" />
               <GraphField name="orcid" label="ORCID" />
               <GraphField name="reference" label="Reference" />
@@ -178,9 +192,9 @@ export async function relationshipsView(): Promise<void> {
             </div>
           </details>
           {appliedFilterMarkup}
-          <div className="rw-filter-panel__actions rw-graph__filter-actions">
-            <button type="submit" className="ui primary button">Apply filters</button>
-            <button type="button" id="graph-reset" className="ui basic button">Reset filters</button>
+          <div className={classNames.rwFilterPanelActionsRwGraphFilterActions}>
+            <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
+            <button type="button" id="graph-reset" className={classNames.uiBasicButton}>Reset filters</button>
           </div>
         </form>
       </div>
@@ -188,13 +202,13 @@ export async function relationshipsView(): Promise<void> {
   );
 
   const networkPanel = (
-    <section className="ui segment rw-relationship-network">
-      <div className="ui top attached header">
+    <section className={classNames.uiSegment}>
+      <div className={classNames.uiTopAttachedHeader}>
         <div>
           <h3>{modeDefinition.label}</h3>
           <p>{modeDefinition.description}</p>
         </div>
-        <span className="ui label">{edgeCount} relationships</span>
+        <span className={classNames.uiLabel}>{edgeCount} relationships</span>
       </div>
       <div className="content">
         <ClusterSummary data={data} />
@@ -218,7 +232,7 @@ export async function relationshipsView(): Promise<void> {
   graphForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       view: "relationships",
       node: "",
     };
@@ -250,7 +264,7 @@ export async function relationshipsView(): Promise<void> {
 
   const resetButton = document.querySelector("#graph-reset")!;
   resetButton.addEventListener("click", () => {
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       view: "relationships",
       mode: "research_network",
       node: "",

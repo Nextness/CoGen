@@ -1,10 +1,32 @@
 // Bounded note parsing and safe preview rendering for the review editor.
 import { esc, link } from "../state.tsx";
-import { h, Fragment } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, cx } from "../jsx/jsx-runtime.ts";
+import type { ResolvedNoteLink } from "../api/types.ts";
+import type { ClassNames } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  uiTableRwNoteTable: cx("ui", "table", "rw-note-table"),
+};
+
+/** Defined heading modifiers indexed by the supported note heading level. */
+const noteHeadingModifiers: Record<number, ClassName> = {
+  1: "rw-note-heading--1",
+  2: "rw-note-heading--2",
+  3: "rw-note-heading--3",
+  4: "rw-note-heading--4",
+};
 
 export const noteBodyLimit = 262144;
 const supportedSchemes = new Set(["note", "article", "pdf", "anchor", "ext"]);
 const anchorPattern = /^[A-Za-z][A-Za-z0-9._-]{0,63}$/;
+
+/** Returns the bounded class combination for one note heading level. */
+function noteHeadingClass(level: number): ClassNames {
+  const modifier = noteHeadingModifiers[level] || "rw-note-heading--4";
+  return cx("rw-note-heading", modifier);
+}
 
 /** One parsed note block in the bounded block taxonomy. */
 export interface NoteBlock {
@@ -35,19 +57,19 @@ export interface NoteDiagnostic {
 }
 
 /** Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. */
-export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; errors: NoteDiagnostic[] } {
-  body = String(body || "");
+export function parseNote(body: unknown): { blocks: NoteBlock[]; links: NoteLink[]; errors: NoteDiagnostic[] } {
+  const source = String(body || "");
   const errors: NoteDiagnostic[] = [];
-  if (new TextEncoder().encode(body).length > noteBodyLimit) {
+  if (new TextEncoder().encode(source).length > noteBodyLimit) {
     errors.push({
       position: 0,
-      length: body.length,
+      length: source.length,
       message: `note body exceeds ${noteBodyLimit} bytes`,
     });
     return { blocks: [], links: [], errors: errors };
   }
 
-  const rawLines: string[] = body.split("\n");
+  const rawLines: string[] = source.split("\n");
   const lines: Array<{ text: string; start: number }> = [];
   let sourceOffset = 0;
   rawLines.forEach((rawLine) => {
@@ -359,18 +381,7 @@ function normalizeDOI(value: string): string {
 }
 
 /** One resolved note link used by the preview renderer. */
-export interface ResolvedNoteLink {
-  ordinal: number;
-  resolved: boolean;
-  target_type?: string;
-  raw_target?: string;
-  display_text?: string | null;
-  url?: string;
-  work_revision_id?: any;
-  note_id?: any;
-  anchor_id?: any;
-  page?: any;
-}
+export type { ResolvedNoteLink } from "../api/types.ts";
 
 /** Renders a parsed note as escaped HTML with context-preserving resolved links. */
 export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] | null }): JSX.Element {
@@ -414,7 +425,7 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
 
   const blockElements = props.document.blocks.map((block) => {
     if (block.type === "heading") {
-      const headingClass = `rw-note-heading rw-note-heading--${block.level}`;
+      const headingClass = noteHeadingClass(Number(block.level));
       const headingText = inline(block.text as string);
       const headingLevel = (block.level as number) + 4;
       return <div className={headingClass} role="heading" aria-level={headingLevel}>{headingText}</div>;
@@ -431,7 +442,7 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
         const itemText = inline(item);
         return <li>{itemText}</li>;
       });
-      let listTag = "ul";
+      let listTag: "ol" | "ul" = "ul";
       if (block.ordered) listTag = "ol";
       return h(listTag, null, items);
     }
@@ -449,7 +460,7 @@ export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolve
       });
       return (
         <div className="table-wrap">
-          <table className="ui compact table rw-note-table">
+          <table className={classNames.uiTableRwNoteTable}>
             <thead><tr>{headerCells}</tr></thead>
             <tbody>{bodyRows}</tbody>
           </table>
@@ -468,16 +479,16 @@ function renderLink(label: string, source: NoteLink, resolved?: ResolvedNoteLink
   if (!resolved?.resolved) {
     const diagnostic = `Unresolved ${source.target_type} target: ${source.raw_target}. Save the note to resolve links against the selected review context.`;
     return (
-      <span className="rw-note-link rw-note-link--unresolved" aria-label={diagnostic} title={diagnostic}>
+      <span className="rw-note-link--unresolved" aria-label={diagnostic} title={diagnostic}>
         {label}
         <span aria-hidden="true"> ?</span>
       </span>
     );
   }
   if (resolved.target_type === "ext") {
-    return <a className="rw-note-link" href={resolved.url} target="_blank" rel="noopener noreferrer">{label}</a>;
+    return <a href={resolved.url} target="_blank" rel="noopener noreferrer">{label}</a>;
   }
-  const updates: Record<string, any> = {
+  const updates: Record<string, unknown> = {
     view: "article",
     article_id: resolved.work_revision_id,
     note_id: "",
@@ -487,7 +498,7 @@ function renderLink(label: string, source: NoteLink, resolved?: ResolvedNoteLink
   if (resolved.note_id) updates.note_id = resolved.note_id;
   if (resolved.anchor_id) updates.anchor_id = resolved.anchor_id;
   if (resolved.page) updates.pdf_page = resolved.page;
-  return <a className="rw-note-link" href={link(updates)}>{label}</a>;
+  return <a href={link(updates)}>{label}</a>;
 }
 
 /** Confirms that a persisted ordinal resolution still describes the exact parsed draft link identity. */

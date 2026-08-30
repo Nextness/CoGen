@@ -1,15 +1,50 @@
 // Immutable review-note editor, draft persistence, history, and bounded comparison.
-import { api, mutate, APIError } from "../api.tsx";
+import { api, mutate, APIError, errorMessage as apiErrorMessage } from "../api.tsx";
+import type {
+  Identifier,
+  ReviewAnchorsResponse,
+  ReviewNote,
+  ReviewNoteCreateResponse,
+  ReviewNoteMutationResponse,
+  ReviewNoteResponse,
+  ReviewNoteVersion,
+  ReviewNoteVersionResponse,
+  ReviewNoteVersionsResponse,
+  ReviewNotesResponse,
+} from "../api/types.ts";
 import { formatTime, link } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { parseNote, NoteDocument } from "./note-parser.tsx";
 import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
 
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwDisclosureRwNoteSyntax: cx("rw-disclosure", "rw-note-syntax"),
+  rwDraftStatusUiErrorMessage: cx("rw-draft-status", "ui", "error", "message"),
+  rwDraftStatusUiFadedText: cx("rw-draft-status", "ui", "faded", "text"),
+  rwDraftStatusUiSuccessMessage: cx("rw-draft-status", "ui", "success", "message"),
+  rwDraftStatusUiWarningMessage: cx("rw-draft-status", "ui", "warning", "message"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiDangerButton: cx("ui", "danger", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
+  uiErrorText: cx("ui", "error", "text"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiField: cx("ui", "field"),
+  uiFormRwFilterBarRwNoteFilters: cx("ui", "form", "rw-filter-bar", "rw-note-filters"),
+  uiFormRwNoteForm: cx("ui", "form", "rw-note-form"),
+  uiLabel: cx("ui", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSuccessMessage: cx("ui", "success", "message"),
+  uiVioletLabel: cx("ui", "violet", "label"),
+  uiWarningMessage: cx("ui", "warning", "message"),
+};
+
 const diffLineLimit = 200;
 
 /** Builds a browser-local draft key scoped to the opaque corpus and immutable head. */
-export function draftKey(corpusID: string, runID: string | number, workRevisionID: string | number, noteID?: any, expectedVersionID?: any): string {
+export function draftKey(corpusID: string, runID: Identifier, workRevisionID: Identifier, noteID?: Identifier | null, expectedVersionID?: Identifier | null): string {
   return ["review-draft", corpusID, runID, workRevisionID, noteID || "new", expectedVersionID || "none"].join(":");
 }
 
@@ -51,7 +86,7 @@ export interface LineDiffResult {
 }
 
 /** Produces a bounded line comparison or complete side-by-side fallback. */
-export function lineDiff(previous: any, current: any, limit?: number): LineDiffResult {
+export function lineDiff(previous: unknown, current: unknown, limit?: number): LineDiffResult {
   const before = String(previous || "").split("\n");
   const after = String(current || "").split("\n");
   const bound = limit || diffLineLimit;
@@ -102,24 +137,7 @@ export function lineDiff(previous: any, current: any, limit?: number): LineDiffR
 }
 
 /** One note record exposed by the review notes API. */
-export interface ReviewNoteRecord {
-  id: any;
-  work_revision_id?: any;
-  version: {
-    id: any;
-    body: string;
-    state: string;
-    created_at: any;
-    reviewer_display: string;
-    links?: ResolvedNoteLink[];
-    title?: string;
-    excerpt?: string;
-    body_bytes?: number;
-    body_truncated?: boolean;
-    link_count?: number;
-  };
-  inherited_from_context_id?: any;
-}
+export type ReviewNoteRecord = ReviewNote;
 
 /** One note editor option set. */
 export interface NoteEditorOptions {
@@ -135,7 +153,7 @@ export interface NoteEditorOptions {
 function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element {
   const noteBody = note.version.body || "";
   var inheritedMarkup: JSX.Element | null = null;
-  if (note.inherited_from_context_id) inheritedMarkup = <span className="ui violet label">Inherited</span>;
+  if (note.inherited_from_context_id) inheritedMarkup = <span className={classNames.uiVioletLabel}>Inherited</span>;
   const parsedNote = parseNote(noteBody);
   const noteTime = formatTime(note.version.created_at);
   const title = note.version.title || `Note ${note.id}`;
@@ -147,9 +165,9 @@ function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element 
   if (note.version.state === "active") {
     activeActions = (
       <Fragment>
-        <button type="button" className="ui basic button" data-note-open>Open note</button>
-        <button type="button" className="ui basic button" data-note-edit disabled={!editable}>Edit</button>
-        <button type="button" className="ui danger button" data-note-delete disabled={!editable}>Remove</button>
+        <button type="button" className={classNames.uiBasicButton} data-note-open>Open note</button>
+        <button type="button" className={classNames.uiBasicButton} data-note-edit disabled={!editable}>Edit</button>
+        <button type="button" className={classNames.uiDangerButton} data-note-delete disabled={!editable}>Remove</button>
       </Fragment>
     );
   }
@@ -159,17 +177,17 @@ function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element 
         <div className="rw-note-card__identity">
           <h5>{title}</h5>
           <div className="rw-note-card__badges">
-            <span className="ui label">Version {note.version.id}</span>
+            <span className={classNames.uiLabel}>Version {note.version.id}</span>
             {inheritedMarkup}
           </div>
         </div>
-        <p>{note.version.reviewer_display} <span aria-hidden="true">·</span> <time datetime={note.version.created_at}>{noteTime}</time></p>
+        <p>{note.version.reviewer_display} <span aria-hidden="true">·</span> <time dateTime={note.version.created_at}>{noteTime}</time></p>
       </div>
       <div className="rw-note-content" data-note-content>{contentMarkup}</div>
       <div className="rw-note-card__actions">
         {activeActions}
-        <button type="button" className="ui basic button" data-note-history-open>History</button>
-        <button type="button" className="ui basic button" data-note-backlinks>Backlinks</button>
+        <button type="button" className={classNames.uiBasicButton} data-note-history-open>History</button>
+        <button type="button" className={classNames.uiBasicButton} data-note-backlinks>Backlinks</button>
       </div>
       <div data-note-backlink-list></div>
     </li>
@@ -177,7 +195,7 @@ function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element 
 }
 
 /** Renders one immutable version comparison row for the note history. */
-function versionComparisonMarkup(previous: string, version: any): JSX.Element {
+function versionComparisonMarkup(previous: string, version: ReviewNoteVersion): JSX.Element {
   const comparison = lineDiff(previous, version.body || "");
   var comparisonHTML: JSX.Element;
   if (comparison.fallback) {
@@ -192,7 +210,9 @@ function versionComparisonMarkup(previous: string, version: any): JSX.Element {
       var prefix = "  ";
       if (type === "added") prefix = "+ ";
       else if (type === "removed") prefix = "- ";
-      const rowClass = `rw-note-diff--${type}`;
+      var rowClass: ClassName | undefined;
+      if (type === "added") rowClass = "rw-note-diff--added";
+      else if (type === "removed") rowClass = "rw-note-diff--removed";
       return <Fragment><span className={rowClass}>{prefix}{text}</span>{"\n"}</Fragment>;
     });
     comparisonHTML = <pre className="rw-note-diff">{diffRows}</pre>;
@@ -219,7 +239,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
         </div>
       </div>
       <div className="rw-note-workspace">
-        <form className="ui form rw-note-form" data-note-form>
+        <form className={classNames.uiFormRwNoteForm} data-note-form>
           <div className="rw-note-form__heading">
             <div>
               <h5 data-note-editor-title>New note</h5>
@@ -227,7 +247,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             </div>
           </div>
           <div className="rw-note-editor-tools">
-            <details className="rw-disclosure rw-note-link-tools">
+            <details className="rw-disclosure">
               <summary>Insert evidence link</summary>
               <div className="rw-disclosure__content">
                 <div className="rw-note-link-insert">
@@ -252,13 +272,13 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
                     <input data-note-link-display />
                   </label>
                   <div className="rw-inline-group">
-                    <button type="button" className="ui basic button" data-note-link-insert>Insert link</button>
-                    <button type="button" className="ui basic button" data-note-link-anchors-more hidden>Load more saved anchors</button>
+                    <button type="button" className={classNames.uiBasicButton} data-note-link-insert>Insert link</button>
+                    <button type="button" className={classNames.uiBasicButton} data-note-link-anchors-more hidden>Load more saved anchors</button>
                   </div>
                 </div>
               </div>
             </details>
-            <details className="rw-disclosure rw-note-syntax">
+            <details className={classNames.rwDisclosureRwNoteSyntax}>
               <summary>Note syntax and link examples</summary>
               <div className="rw-disclosure__content">
                 <p>Use <code>#</code> through <code>####</code> for headings, <code>-</code> for bullets, <code>{">"}</code> for quotes, fenced code blocks, and simple Markdown-style tables.</p>
@@ -287,22 +307,22 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
               </div>
             </details>
           </div>
-          <div className="ui field">
+          <div className={classNames.uiField}>
             <label htmlFor="review-note-body">Note body</label>
             <textarea id="review-note-body" rows={10} data-note-body disabled={!editable}></textarea>
           </div>
-          <p className="ui faded text" data-note-byte-count>0 of 262144 bytes</p>
-          <p className="rw-draft-status ui faded text" data-draft-status aria-live="polite"></p>
+          <p className={classNames.uiFadedText} data-note-byte-count>0 of 262144 bytes</p>
+          <p className={classNames.rwDraftStatusUiFadedText} data-draft-status aria-live="polite"></p>
           <div className="rw-note-diagnostics" data-note-diagnostics role="alert"></div>
           <div className="rw-review-actions">
-            <button type="submit" className="ui primary button" data-note-save disabled={!editable}>Save note</button>
-            <button type="button" className="ui basic button" data-note-cancel disabled={!editable}>Discard draft</button>
+            <button type="submit" className={classNames.uiPrimaryButton} data-note-save disabled={!editable}>Save note</button>
+            <button type="button" className={classNames.uiBasicButton} data-note-cancel disabled={!editable}>Discard draft</button>
           </div>
         </form>
         <aside className="rw-note-preview" aria-labelledby="note-preview-heading">
           <div className="rw-note-preview__heading">
             <h5 id="note-preview-heading">Preview</h5>
-            <span className="ui label">Safe rendering</span>
+            <span className={classNames.uiLabel}>Safe rendering</span>
           </div>
           <div data-note-preview></div>
         </aside>
@@ -314,7 +334,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             <p>Search current note heads or inspect removed-note history.</p>
           </div>
         </div>
-        <form className="ui form rw-filter-bar rw-note-filters" data-note-filter-form>
+        <form className={classNames.uiFormRwFilterBarRwNoteFilters} data-note-filter-form>
           <label className="rw-filter-bar__search">
             <span>Search Notes</span>
             <input type="search" data-note-query placeholder="Title or note text" />
@@ -327,7 +347,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
               <option value="all">All notes</option>
             </select>
           </label>
-          <button type="submit" className="ui primary button">Apply note filters</button>
+          <button type="submit" className={classNames.uiPrimaryButton}>Apply note filters</button>
         </form>
         <div data-note-list></div>
       </section>
@@ -388,8 +408,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   function updateByteCount(): void {
     const count = new TextEncoder().encode(body.value).length;
     byteCount.textContent = `${count} of 262144 bytes`;
-    byteCount.className = "ui faded text";
-    if (count > 262144) byteCount.className = "ui error text";
+    byteCount.className = classNames.uiFadedText;
+    if (count > 262144) byteCount.className = classNames.uiErrorText;
   }
   /** Persists and renders the in-memory draft after the typing debounce or a forced flush. */
   function flushDraft(): void {
@@ -397,10 +417,10 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     draftTimer = 0;
     renderPreview();
     const persisted = writeDraft(key(), body.value);
-    draftStatus.className = "rw-draft-status ui warning message";
+    draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
     draftStatus.textContent = "Browser storage failed. The draft remains in this tab but is not database evidence.";
     if (persisted) {
-      draftStatus.className = "rw-draft-status ui success message";
+      draftStatus.className = classNames.rwDraftStatusUiSuccessMessage;
       draftStatus.textContent = "Browser draft saved. This is not database evidence until Save note succeeds.";
     }
   }
@@ -412,14 +432,14 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     savedEditorBody = "";
     renderPreview();
     updateByteCount();
-    draftStatus.className = "rw-draft-status ui faded text";
+    draftStatus.className = classNames.rwDraftStatusUiFadedText;
     draftStatus.textContent = "";
     (host.querySelector("[data-note-cancel]") as HTMLButtonElement).textContent = "Discard draft";
   }
   /** Loads one complete current note head only when an action needs its body and resolved links. */
   async function loadFullNote(note: ReviewNoteRecord): Promise<ReviewNoteRecord> {
     if (!note.version.body_truncated && note.version.links?.length === note.version.link_count) return note;
-    const data = await api(`/api/runs/${options.runID}/notes/${note.id}`, {}, {
+    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${note.id}`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -427,7 +447,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Renders loaded note pages and binds body, edit, history, removal, and backlink controls. */
   function renderNoteList(): void {
-    var notesMarkup: JSX.Element = <p className="ui faded text">No notes match the selected state and search.</p>;
+    var notesMarkup: JSX.Element = <p className={classNames.uiFadedText}>No notes match the selected state and search.</p>;
     if (loadedNotes.length) {
       const noteItems = loadedNotes.map((note) => {
         return noteCardMarkup(note, editable);
@@ -435,13 +455,13 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       notesMarkup = <ul className="rw-note-list">{noteItems}</ul>;
     }
     var loadMoreMarkup: JSX.Element | null = null;
-    if (noteHasMore) loadMoreMarkup = <button type="button" className="ui basic button" data-note-load-more>Load older notes</button>;
-    const listMarkup = <Fragment><p className="ui error message" data-note-list-message role="alert" hidden></p>{notesMarkup}{loadMoreMarkup}</Fragment>;
+    if (noteHasMore) loadMoreMarkup = <button type="button" className={classNames.uiBasicButton} data-note-load-more>Load older notes</button>;
+    const listMarkup = <Fragment><p className={classNames.uiErrorMessage} data-note-list-message role="alert" hidden></p>{notesMarkup}{loadMoreMarkup}</Fragment>;
     renderTree(listMarkup, host.querySelector("[data-note-list]")!);
     host.querySelector<HTMLButtonElement>("[data-note-load-more]")?.addEventListener("click", async (event) => {
       const button = event.currentTarget as HTMLButtonElement;
       button.disabled = true;
-      button.classList.add("loading");
+      classAdd(button, ["loading"]);
       await loadNotes(false);
     });
     for (const note of loadedNotes) {
@@ -449,7 +469,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       row.querySelector<HTMLButtonElement>("[data-note-open]")?.addEventListener("click", async (event) => {
         const button = event.currentTarget as HTMLButtonElement;
         button.disabled = true;
-        button.classList.add("loading");
+        classAdd(button, ["loading"]);
         try {
           const full = await loadFullNote(note);
           const content = row.querySelector("[data-note-content]") as HTMLElement;
@@ -457,10 +477,10 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           const fullMarkup = <NoteDocument document={fullDocument} resolvedLinks={full.version.links} />;
           renderTree(fullMarkup, content);
           button.remove();
-        } catch (error: any) {
-          showNoteListError(error.message || "The complete note could not be loaded.");
+        } catch (error) {
+          showNoteListError(apiErrorMessage(error, "The complete note could not be loaded."));
           button.disabled = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
         }
       });
       row.querySelector<HTMLButtonElement>("[data-note-edit]")?.addEventListener("click", async () => {
@@ -480,30 +500,30 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
         const button = event.currentTarget as HTMLButtonElement;
         if (!window.confirm(`Remove ${note.version.title || `note ${note.id}`}? Its immutable history will remain available.`)) return;
         button.disabled = true;
-        button.classList.add("loading");
+        classAdd(button, ["loading"]);
         try {
-          const result = await mutate(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", {
+          const result = await mutate<ReviewNoteMutationResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", {
             expected_version_id: note.version.id,
             state: "deleted",
             body: "",
           });
           const message = host.querySelector("[data-note-list-message]") as HTMLElement;
-          message.className = "ui success message";
+          message.className = classNames.uiSuccessMessage;
           message.textContent = "Note removed. Its immutable history remains available below.";
           message.hidden = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
           try {
             await loadNotes(true);
             await showHistory(result.note);
             await options.onChanged?.();
-          } catch (refreshError: any) {
-            message.className = "ui warning message";
-            message.textContent = `Note removed, refresh failed: ${refreshError.message}`;
+          } catch (refreshError) {
+            message.className = classNames.uiWarningMessage;
+            message.textContent = `Note removed, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
-          showNoteListError(error.message || "The note could not be removed.");
+        } catch (error) {
+          showNoteListError(apiErrorMessage(error, "The note could not be removed."));
           button.disabled = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
         }
       });
     }
@@ -521,7 +541,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       noteHasMore = false;
       loadedNotes = [];
     }
-    const data = await api(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, {
+    const data = await api<ReviewNotesResponse>(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, {
       limit: 25,
       cursor: noteCursor,
       state: noteState,
@@ -549,7 +569,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Displays one selected head's paged immutable ancestry and optional restoration control. */
   async function showHistory(note: ReviewNoteRecord): Promise<void> {
-    let versions: any[] = [];
+    let versions: ReviewNoteVersion[] = [];
     let cursor = "";
     let hasMore = false;
     const historyHost = host.querySelector("[data-note-history]") as HTMLElement;
@@ -560,19 +580,19 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       });
       var restoreMarkup: JSX.Element | null = null;
       if (note.version.state === "deleted") {
-        restoreMarkup = <button type="button" className="ui primary button" data-note-restore disabled={!editable || !latestActive}>Restore previous content</button>;
+        restoreMarkup = <button type="button" className={classNames.uiPrimaryButton} data-note-restore disabled={!editable || !latestActive}>Restore previous content</button>;
       }
       const versionItems = versions.map((version) => {
         const versionTime = formatTime(version.created_at);
         return (
           <details data-note-version={version.id}>
             <summary>Version {version.id} · {version.state} · {versionTime}</summary>
-            <div data-note-version-content><p className="ui faded text">Open to load the complete immutable body.</p></div>
+            <div data-note-version-content><p className={classNames.uiFadedText}>Open to load the complete immutable body.</p></div>
           </details>
         );
       });
       var olderMarkup: JSX.Element | null = null;
-      if (hasMore) olderMarkup = <button type="button" className="ui basic button" data-note-history-more>Load older versions</button>;
+      if (hasMore) olderMarkup = <button type="button" className={classNames.uiBasicButton} data-note-history-more>Load older versions</button>;
       const historyMarkup = (
         <section className="rw-note-history">
           <div className="rw-review-section__heading">
@@ -584,7 +604,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           </div>
           {versionItems}
           {olderMarkup}
-          <p className="ui error message" data-note-history-error role="alert" hidden></p>
+          <p className={classNames.uiErrorMessage} data-note-history-error role="alert" hidden></p>
         </section>
       );
       renderTree(historyMarkup, historyHost);
@@ -594,7 +614,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           const versionID = disclosure.dataset.noteVersion as string;
           const content = disclosure.querySelector("[data-note-version-content]") as HTMLElement;
           try {
-            const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions/${versionID}`, {}, {
+            const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${versionID}`, {}, {
               method: "GET",
               headers: { Accept: "application/json" },
             });
@@ -602,7 +622,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             var previousBody = "";
             const previous = versions[position + 1];
             if (previous) {
-              const previousData = await api(`/api/runs/${options.runID}/notes/${note.id}/versions/${previous.id}`, {}, {
+              const previousData = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${previous.id}`, {}, {
                 method: "GET",
                 headers: { Accept: "application/json" },
               });
@@ -610,8 +630,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             }
             renderTree(versionComparisonMarkup(previousBody, data.version), content);
             disclosure.dataset.loaded = "true";
-          } catch (error: any) {
-            const errorMarkup = <p className="ui error message">{error.message}</p>;
+          } catch (error) {
+            const errorMarkup = <p className={classNames.uiErrorMessage}>{apiErrorMessage(error, "The note version could not be loaded.")}</p>;
             renderTree(errorMarkup, content);
           }
         });
@@ -619,20 +639,20 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       historyHost.querySelector<HTMLButtonElement>("[data-note-history-more]")?.addEventListener("click", async (event) => {
         const button = event.currentTarget as HTMLButtonElement;
         button.disabled = true;
-        button.classList.add("loading");
+        classAdd(button, ["loading"]);
         await loadHistoryPage();
       });
       historyHost.querySelector<HTMLButtonElement>("[data-note-restore]")?.addEventListener("click", async (event) => {
         if (!latestActive) return;
         const button = event.currentTarget as HTMLButtonElement;
         button.disabled = true;
-        button.classList.add("loading");
+        classAdd(button, ["loading"]);
         try {
-          const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions/${latestActive.id}`, {}, {
+          const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${latestActive.id}`, {}, {
             method: "GET",
             headers: { Accept: "application/json" },
           });
-          await mutate(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", {
+          await mutate<ReviewNoteMutationResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", {
             expected_version_id: note.version.id,
             state: "active",
             body: data.version.body,
@@ -641,30 +661,30 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           noteState = "active";
           (host.querySelector("[data-note-state]") as HTMLSelectElement).value = noteState;
           const message = historyHost.querySelector("[data-note-history-error]") as HTMLElement;
-          message.className = "ui success message";
+          message.className = classNames.uiSuccessMessage;
           message.textContent = "Note restored as a new immutable version.";
           message.hidden = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
           try {
             await loadNotes(true);
             await focusNote(note.id);
             await options.onChanged?.();
-          } catch (refreshError: any) {
-            message.className = "ui warning message";
-            message.textContent = `Note restored, refresh failed: ${refreshError.message}`;
+          } catch (refreshError) {
+            message.className = classNames.uiWarningMessage;
+            message.textContent = `Note restored, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
+        } catch (error) {
           const message = historyHost.querySelector("[data-note-history-error]") as HTMLElement;
-          message.textContent = error.message || "The note could not be restored.";
+          message.textContent = apiErrorMessage(error, "The note could not be restored.");
           message.hidden = false;
           button.disabled = false;
-          button.classList.remove("loading");
+          classRemove(button, "loading");
         }
       });
     }
     /** Appends one version-summary page while preserving already loaded ancestry. */
     async function loadHistoryPage(): Promise<void> {
-      const data = await api(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 25, cursor: cursor }, {
+      const data = await api<ReviewNoteVersionsResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 25, cursor: cursor }, {
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -679,8 +699,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     await loadHistoryPage();
   }
   /** Resolves a URL-focused active or deleted note and exposes its history. */
-  async function focusNote(noteID: any): Promise<void> {
-    const data = await api(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`, {}, {
+  async function focusNote(noteID: Identifier): Promise<void> {
+    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -693,7 +713,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   body.addEventListener("input", () => {
     updateByteCount();
-    draftStatus.className = "rw-draft-status ui warning message";
+    draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
     draftStatus.textContent = "Browser draft pending. This is not database evidence.";
     if (draftTimer) window.clearTimeout(draftTimer);
     draftTimer = window.setTimeout(flushDraft, 250);
@@ -734,7 +754,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       anchorChoices.clear();
       anchorOptions.textContent = "";
     }
-    const data = await api(`/api/runs/${options.runID}/articles/${options.workRevisionID}/anchors`, {
+    const data = await api<ReviewAnchorsResponse>(`/api/runs/${options.runID}/articles/${options.workRevisionID}/anchors`, {
       cursor: anchorChoiceCursor,
       limit: 25,
     }, {
@@ -757,9 +777,9 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   async function loadAnchorChoicesSafely(reset: boolean): Promise<void> {
     try {
       await loadAnchorChoices(reset);
-    } catch (error: any) {
-      draftStatus.className = "rw-draft-status ui warning message";
-      draftStatus.textContent = `Saved anchors could not be loaded: ${error.message}`;
+    } catch (error) {
+      draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
+      draftStatus.textContent = `Saved anchors could not be loaded: ${apiErrorMessage(error, "Unknown error")}`;
     }
   }
   linkType.addEventListener("change", () => {
@@ -799,40 +819,40 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     const savedKey = key();
     const saveButton = host.querySelector("[data-note-save]") as HTMLButtonElement;
     saveButton.disabled = true;
-    saveButton.classList.add("loading");
+    classAdd(saveButton, ["loading"]);
     try {
-      let saved: any;
+      let saved: ReviewNoteCreateResponse | ReviewNoteMutationResponse;
       if (currentNote) {
-        saved = await mutate(`/api/runs/${options.runID}/notes/${currentNote.id}/versions`, "POST", {
+        saved = await mutate<ReviewNoteMutationResponse>(`/api/runs/${options.runID}/notes/${currentNote.id}/versions`, "POST", {
           expected_version_id: currentNote.version.id,
           state: "active",
           body: body.value,
         });
       } else {
-        saved = await mutate(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, "POST", {
+        saved = await mutate<ReviewNoteCreateResponse>(`/api/runs/${options.runID}/articles/${options.workRevisionID}/notes`, "POST", {
           body: body.value,
         });
       }
       clearDraft(savedKey);
       resetEditor();
-      draftStatus.className = "rw-draft-status ui success message";
+      draftStatus.className = classNames.rwDraftStatusUiSuccessMessage;
       draftStatus.textContent = "Note saved as immutable database evidence.";
       try {
         await loadNotes(true);
         await options.onChanged?.();
-      } catch (refreshError: any) {
-        draftStatus.className = "rw-draft-status ui warning message";
-        draftStatus.textContent = `Note saved, but the local display refresh failed: ${refreshError.message}. Reload to see version ${saved.note?.version?.id || "the new version"}.`;
+      } catch (refreshError) {
+        draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
+        draftStatus.textContent = `Note saved, but the local display refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}. Reload to see version ${saved.note?.version?.id || "the new version"}.`;
       }
-    } catch (error: any) {
-      var errorMessage = `Save failed. Your draft was kept: ${error.message}`;
+    } catch (error) {
+      var errorMessage = `Save failed. Your draft was kept: ${apiErrorMessage(error, "Unknown error")}`;
       if (error instanceof APIError && error.status === 409) {
         errorMessage = "This note changed elsewhere. Your draft was kept.";
       }
-      draftStatus.className = "rw-draft-status ui error message";
+      draftStatus.className = classNames.rwDraftStatusUiErrorMessage;
       var conflictAction: JSX.Element | null = null;
       if (error instanceof APIError && error.status === 409) {
-        conflictAction = <button type="button" className="ui basic button" data-note-load-latest>Load latest while keeping my input</button>;
+        conflictAction = <button type="button" className={classNames.uiBasicButton} data-note-load-latest>Load latest while keeping my input</button>;
       }
       const errorMarkup = (
         <Fragment>
@@ -844,26 +864,26 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       host.querySelector<HTMLButtonElement>("[data-note-load-latest]")?.addEventListener("click", async () => {
         if (!currentNote) return;
         const localDraft = body.value;
-        const latest = await api(`/api/runs/${options.runID}/notes/${currentNote.id}`, {}, {
+        const latest = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${currentNote.id}`, {}, {
           method: "GET",
           headers: { Accept: "application/json" },
         });
         currentNote = latest.note;
         savedEditorBody = currentNote?.version.body || "";
         body.value = localDraft;
-        draftStatus.className = "rw-draft-status ui warning message";
+        draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
         draftStatus.textContent = `Latest saved version ${currentNote?.version.id} loaded for comparison. Your local input remains in the editor; save again to reapply it.`;
         await showHistory(currentNote!);
       });
     } finally {
       if (saveButton.isConnected) {
         saveButton.disabled = false;
-        saveButton.classList.remove("loading");
+        classRemove(saveButton, "loading");
       }
     }
   });
   resetEditor();
   await loadNotes(true);
   const focused = new URLSearchParams(location.search).get("note_id");
-  if (/^[1-9]\d*$/.test(focused || "")) await focusNote(focused);
+  if (focused && /^[1-9]\d*$/.test(focused)) await focusNote(focused);
 }

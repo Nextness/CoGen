@@ -1,6 +1,6 @@
 // View routing, URL state, and render orchestrator.
 import { state, app, view, link, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
-import { render as renderTree } from "./jsx/jsx-runtime.ts";
+import { render as renderTree, classToggle } from "./jsx/jsx-runtime.ts";
 import { focusContextSelector, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";
 import { overviewView } from "./views/overview.tsx";
@@ -13,9 +13,15 @@ import { detailView, destroyActiveArticleReview } from "./views/detail.tsx";
 import { destroyGraph } from "./components/graph.tsx";
 
 /** Pushes or replaces URL state and immediately renders the resulting route. */
-export function setURL(updates: Record<string, any>, replace: boolean): void {
+export function setURL(updates: Record<string, unknown>, replace: boolean): void {
   if (!navigationAllowed()) return;
   const href = link(updates);
+  const destination = new URL(href, location.href).searchParams.get("view") || "home";
+  if (destination !== view()) {
+    if (replace) location.replace(href);
+    else location.assign(href);
+    return;
+  }
   if (replace) history.replaceState({}, "", href);
   else history.pushState({}, "", href);
   render({ focusTitle: true, resetScroll: true });
@@ -48,7 +54,7 @@ function syncPrimaryNavigation(current: string): void {
     const active = item.dataset.viewLink === navigationView;
     var ariaCurrent = "false";
     if (active) ariaCurrent = "page";
-    item.classList.toggle("active", active);
+    classToggle(item, "active", active);
     item.setAttribute("aria-current", ariaCurrent);
   });
 }
@@ -104,7 +110,7 @@ function syncShell(current: string): void {
 }
 
 /** Asynchronously renders view. */
-async function renderView(): Promise<any> {
+async function renderView(): Promise<void> {
   const current = view();
 
   if (current === "home" || current === "trash") return homeView();
@@ -121,6 +127,7 @@ async function renderView(): Promise<any> {
 /** Asynchronously renders the associated state. */
 export async function render(options?: { focusTitle?: boolean; resetScroll?: boolean }): Promise<void> {
   const sequence = ++state.request;
+  var titleToFocus: HTMLElement | null = null;
   if (state.controller) state.controller.abort();
   state.controller = new AbortController();
 
@@ -145,16 +152,20 @@ export async function render(options?: { focusTitle?: boolean; resetScroll?: boo
 
     document.title = `${pageTitle} · Research workspace`;
     if (options?.resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    if (options?.focusTitle && titleElement) {
-      titleElement.tabIndex = -1;
-      titleElement.focus({ preventScroll: true });
-    }
+    if (options?.focusTitle && titleElement) titleToFocus = titleElement;
   } catch (error) {
-    if ((error as any)?.name !== "AbortError" && sequence === state.request) {
+    const isAbort = typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+    if (!isAbort && sequence === state.request) {
       renderTree(null, app);
       showError(error);
     }
   } finally {
-    if (sequence === state.request) busy(false);
+    if (sequence === state.request) {
+      busy(false);
+      if (titleToFocus) {
+        titleToFocus.tabIndex = -1;
+        titleToFocus.focus({ preventScroll: true });
+      }
+    }
   }
 }

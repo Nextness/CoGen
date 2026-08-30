@@ -42,9 +42,11 @@ make docs-state-update
 make test-e2e
 make test-e2e-live E2E_LIVE=1
 make frontend-build
+make frontend-classes
+make frontend-classes-check
 make check-frontend
 make test-frontend-unit
-make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.cjs
+make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.ts
 make test-frontend-visual
 make frontend-pdfjs-vendor-check
 ```

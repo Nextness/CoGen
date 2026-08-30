@@ -1,5 +1,5 @@
 // Unit tests for router.tsx — URL state, view routing, render orchestrator.
-import { describe, it, before, mock } from 'node:test';
+import { describe, it, before, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
@@ -8,20 +8,56 @@ import { state, app } from '../../src/state.tsx';
 
 describe('router.tsx — setURL', function() {
 
-  it('updates URL and triggers render', function() {
-    const originalHref = location.href;
-    setURL({ view: 'corpus' }, false);
-    assert.ok(location.href.includes('view=corpus'));
-
-    history.pushState({}, '', originalHref);
+  beforeEach(function() {
+    history.replaceState({}, '', '/?view=overview');
   });
 
-  it('replaces state when replace is true', function() {
-    const originalHref = location.href;
-    setURL({ view: 'provenance' }, true);
-    assert.ok(location.href.includes('view=provenance'));
+  it('assigns the destination page for a cross-view push', function() {
+    const originalLocation = globalThis.location;
+    var assigned = '';
+    globalThis.location = {
+      href: originalLocation.href,
+      origin: originalLocation.origin,
+      search: originalLocation.search,
+      assign: function(href: string) { assigned = href; },
+      replace: function() {},
+    } as unknown as Location;
 
-    history.pushState({}, '', originalHref);
+    try {
+      setURL({ view: 'corpus' }, false);
+      assert.equal(assigned, 'corpus.html?view=corpus');
+    } finally {
+      globalThis.location = originalLocation;
+    }
+  });
+
+  it('replaces the destination page for a cross-view replacement', function() {
+    const originalLocation = globalThis.location;
+    var replaced = '';
+    globalThis.location = {
+      href: originalLocation.href,
+      origin: originalLocation.origin,
+      search: originalLocation.search,
+      assign: function() {},
+      replace: function(href: string) { replaced = href; },
+    } as unknown as Location;
+
+    try {
+      setURL({ view: 'provenance' }, true);
+      assert.equal(replaced, 'provenance.html?view=provenance');
+    } finally {
+      globalThis.location = originalLocation;
+    }
+  });
+
+  it('pushes history and renders for a same-view update', function() {
+    const previousRequest = state.request;
+
+    setURL({ view: 'overview', run_id: '1' }, false);
+
+    assert.equal(location.pathname, '/overview.html');
+    assert.equal(new URL(location.href).searchParams.get('run_id'), '1');
+    assert.ok(state.request > previousRequest);
   });
 
 });
@@ -75,8 +111,9 @@ describe('router.tsx — render', function() {
     url.searchParams.set('view', 'overview');
     history.pushState({}, '', url.toString());
 
-    await render();
+    await render({ focusTitle: true });
     assert.ok(app.querySelector('#page-title'));
+    assert.equal(document.activeElement, app.querySelector('#page-title'));
     assert.equal((document.querySelector('.rw-context-panel') as HTMLElement).hidden, false);
     assert.equal((document.querySelector('.rw-primary-nav') as HTMLElement).hidden, false);
     assert.equal(document.querySelector('[data-view-link="overview"]')!.classList.contains('active'), true);

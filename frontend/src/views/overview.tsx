@@ -4,23 +4,38 @@ import {
   MetricCard, Table, selectedRun, PageHeader, EmptyState, Panel, RetentionFlow,
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
   humanLabel, StatusChip
-} from '../state.tsx';
-import { h, Fragment, render as renderTree } from '../jsx/jsx-runtime.ts';
-import { api } from '../api.tsx';
-import { bindFocusContext } from '../router.tsx';
+} from "../state.tsx";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
+import { api } from "../api.tsx";
+import type { CacheUsesResponse, MetricEvidence, OverviewResponse, WireRecord } from "../api/types.ts";
+import { bindFocusContext } from "../router.tsx";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwDisclosureRwOverviewEvidenceRwGridSpanAll: cx("rw-disclosure", "rw-overview-evidence", "rw-grid-span-all"),
+  rwRunIdentityStripRwGridSpanAll: cx("rw-run-identity-strip", "rw-grid-span-all"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiGridRwDashboardGrid: cx("ui", "grid", "rw-dashboard-grid"),
+  uiInfoMessage: cx("ui", "info", "message"),
+  uiLabel: cx("ui", "label"),
+  uiNegativeMessageRwGridSpanAll: cx("ui", "negative", "message", "rw-grid-span-all"),
+  uiStatistics: cx("ui", "statistics"),
+  uiTable: cx("ui", "table"),
+};
 
 /** Renders the unavailable-value presentation shared by metric helpers. */
 function unavailableMarkup(): JSX.Element {
-  return <span className="ui faded text">Not recorded</span>;
+  return <span className={classNames.uiFadedText}>Not recorded</span>;
 }
 
 /** Renders a normalization metric value or its unavailable presentation. */
-function normalizationValue(metric: any): JSX.Element {
+function normalizationValue(metric: MetricEvidence | undefined): JSX.Element {
   if (metric?.available === false) {
     return unavailableMarkup();
   }
   if (metric?.denominator != null) {
-    const pct = (metric.percentage ?? 0).toFixed(2);
+    const pct = Number(metric.percentage ?? 0).toFixed(2);
     return <small>{formatNumber(metric.value)} of {formatNumber(metric.denominator)} ({pct}%)</small>;
   }
   return <>{formatNumber(metric?.value)}</>;
@@ -86,7 +101,7 @@ const executionMetricStages = [
 ];
 
 /** Renders the numeric value of a captured metric or its unavailable presentation. */
-function capturedMetricValue(item: any): JSX.Element {
+function capturedMetricValue(item: MetricEvidence): JSX.Element {
   if (item.available === false) {
     return unavailableMarkup();
   }
@@ -94,14 +109,14 @@ function capturedMetricValue(item: any): JSX.Element {
 }
 
 /** Groups captured metrics by pipeline stage. */
-function capturedMetricsByStage(metrics: any[]) {
+function capturedMetricsByStage(metrics: MetricEvidence[]): Array<{ id: string; label: string; description: string; matches: (name: string) => boolean; metrics: MetricEvidence[] }> {
   const groups = executionMetricStages.map((stage) => {
     return {
       id: stage.id,
       label: stage.label,
       description: stage.description,
       matches: stage.matches,
-      metrics: [] as any[],
+      metrics: [] as MetricEvidence[],
     };
   });
   const other = {
@@ -111,7 +126,7 @@ function capturedMetricsByStage(metrics: any[]) {
     matches: () => {
       return true;
     },
-    metrics: [] as any[],
+    metrics: [] as MetricEvidence[],
   };
   metrics.forEach((metric) => {
     const name = String(metric.metric || "");
@@ -127,11 +142,11 @@ function capturedMetricsByStage(metrics: any[]) {
 }
 
 /** Renders table markup for captured pipeline metrics. */
-function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
+function CapturedMetricsMarkup(props: { metrics: MetricEvidence[] }): JSX.Element {
   const stageGroups = capturedMetricsByStage(props.metrics);
   const stageSections = stageGroups.map((group) => {
     const rows = group.metrics.map((metric) => {
-      var source: JSX.Element = <span className="ui faded text">Run total</span>;
+      var source: JSX.Element = <span className={classNames.uiFadedText}>Run total</span>;
       if (metric.source) source = <>{humanLabel(metric.source)}</>;
       return (
         <tr>
@@ -148,10 +163,10 @@ function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
             <h4>{group.label}</h4>
             <p>{group.description}</p>
           </div>
-          <span className="ui label">{formatNumber(group.metrics.length)} metrics</span>
+          <span className={classNames.uiLabel}>{formatNumber(group.metrics.length)} metrics</span>
         </div>
         <div className="table-wrap">
-          <table className="ui table">
+          <table className={classNames.uiTable}>
             <thead>
               <tr>
                 <th>Metric</th>
@@ -173,7 +188,7 @@ function CapturedMetricsMarkup(props: { metrics: any[] }): JSX.Element {
 }
 
 /** Returns a metric copy with a percentage derived from its value and denominator. */
-function fixedPercentageMetric(metric: any): any {
+function fixedPercentageMetric(metric: MetricEvidence): MetricEvidence {
   if (!metric || metric.available === false || metric.denominator == null) {
     return metric;
   }
@@ -187,8 +202,9 @@ function fixedPercentageMetric(metric: any): any {
 /** Asynchronously implements overview view for the viewer. */
 export async function overviewView(): Promise<void> {
   if (!value("run_id")) {
+    const focusContextAction = <button type="button" className={classNames.uiBasicButton} data-focus-context>Focus context selector</button>;
     const emptyStateMarkup = (
-      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={<button type="button" className="ui basic button" data-focus-context>Focus context selector</button>} />
+      <EmptyState title="Overview" detail="Select a search, revision, plan, and run attempt to inspect what the pipeline captured." action={focusContextAction} />
     );
     renderTree(emptyStateMarkup, app);
     bindFocusContext();
@@ -197,23 +213,23 @@ export async function overviewView(): Promise<void> {
 
   const runID = value("run_id");
   const [overview, cache] = await Promise.all([
-    api("/api/overview", { run_id: runID }, {
+    api<OverviewResponse>("/api/overview", { run_id: runID }, {
       method: "GET",
       headers: { Accept: "application/json" },
     }),
-    api(`/api/runs/${encodeURIComponent(runID)}/cache-uses`, {}, {
+    api<CacheUsesResponse>(`/api/runs/${encodeURIComponent(runID)}/cache-uses`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
     }),
   ]);
 
-  const run = selectedRun() || {};
+  const run = selectedRun();
   const captured = overview.captured_metrics || [];
   const relationship = overview.relationship_totals || {};
   const normalization = overview.normalization_breakdown || {};
   const normalizationFields = overview.normalization_field_breakdown || {};
 
-  const corpusCards = [
+  const corpusCards: Array<[string, MetricEvidence, string]> = [
     ["Analysis-ready articles", relationship.analysis_ready_articles, link({
       view: "corpus",
       section: "articles",
@@ -241,38 +257,38 @@ export async function overviewView(): Promise<void> {
     <dl className="rw-run-identity" aria-label="Run identity">
       <div>
         <dt>Run attempt</dt>
-        <dd>{run.attempt_number || run.id || runID}</dd>
+        <dd>{run?.attempt_number || run?.id || runID}</dd>
       </div>
       <div>
         <dt>Started</dt>
-        <dd>{formatTime(run.started_at)}</dd>
+        <dd>{formatTime(run?.started_at)}</dd>
       </div>
       <div>
         <dt>Finished</dt>
-        <dd>{formatTime(run.finished_at)}</dd>
+        <dd>{formatTime(run?.finished_at)}</dd>
       </div>
       <div>
         <dt>Duration</dt>
-        <dd>{formatDuration(run.started_at, run.finished_at)}</dd>
+        <dd>{formatDuration(run?.started_at, run?.finished_at)}</dd>
       </div>
       <div>
         <dt>Execution plan</dt>
-        <dd>{run.execution_plan_id || value("plan_id") || "—"}</dd>
+        <dd>{run?.execution_plan_id || value("plan_id") || "—"}</dd>
       </div>
       <div>
         <dt>Outcome</dt>
-        <dd><StatusChip raw={run.status} /></dd>
+        <dd><StatusChip raw={run?.status} /></dd>
       </div>
       <div>
         <dt>Visibility</dt>
-        <dd><StatusChip raw={run.visibility_state || "active"} /></dd>
+        <dd><StatusChip raw={run?.visibility_state || "active"} /></dd>
       </div>
     </dl>
   );
 
   const coverage = metricEntries(overview.current_coverage || {});
 
-  const normalizationCards = [
+  const normalizationCards: Array<[string, MetricEvidence]> = [
     ["Valid articles processed", normalization.normalized_articles_processed],
     ["Fields assessed", normalization.normalization_fields_processed],
     ["Canonical form changed", normalization.normalization_fields_changed],
@@ -288,7 +304,7 @@ export async function overviewView(): Promise<void> {
   };
 
   const fieldEntries = Object.entries(normalizationFieldLabels);
-  const normalizationRows = fieldEntries.map(([field, label]) => {
+  const normalizationRows: WireRecord[] = fieldEntries.map(([field, label]) => {
     return {
       field: label,
       ...(normalizationFields[field] || {}),
@@ -301,7 +317,7 @@ export async function overviewView(): Promise<void> {
   }
 
   const capturedMetrics = (
-    <details className="rw-disclosure rw-overview-evidence rw-grid-span-all">
+    <details className={classNames.rwDisclosureRwOverviewEvidenceRwGridSpanAll}>
       <summary>
         <span>All recorded execution metrics</span>
         <small>{formatNumber(captured.length)} metric rows grouped by stage</small>
@@ -319,7 +335,7 @@ export async function overviewView(): Promise<void> {
   const corpusSummaryCards = corpusCards.map(([name, metric, href]) => {
     return <MetricCard name={name} metric={metric} href={href} />;
   });
-  var coverageCards: JSX.Element[] = [<p className="ui faded text">Not recorded for this run.</p>];
+  var coverageCards: JSX.Element[] = [<p className={classNames.uiFadedText}>Not recorded for this run.</p>];
   if (coverage.length) {
     coverageCards = coverage.map(([name, metric]) => {
       return <MetricCard name={name} metric={metric} />;
@@ -331,58 +347,58 @@ export async function overviewView(): Promise<void> {
   const normalizationColumns = [
     {
       label: "Field",
-      render: (row: any) => {
-        return <>{row.field}</>;
+      render: (row: WireRecord) => {
+        return <>{String(row.field)}</>;
       },
     },
     {
       label: "Assessed",
-      render: (row: any) => {
-        return normalizationValue(row.processed);
+      render: (row: WireRecord) => {
+        return normalizationValue(row.processed as MetricEvidence | undefined);
       },
     },
     {
       label: "Changed",
-      render: (row: any) => {
-        return normalizationValue(row.changed);
+      render: (row: WireRecord) => {
+        return normalizationValue(row.changed as MetricEvidence | undefined);
       },
     },
     {
       label: "Already canonical",
-      render: (row: any) => {
-        return normalizationValue(row.already_canonical);
+      render: (row: WireRecord) => {
+        return normalizationValue(row.already_canonical as MetricEvidence | undefined);
       },
     },
     {
       label: "Unavailable",
-      render: (row: any) => {
-        return normalizationValue(row.unavailable);
+      render: (row: WireRecord) => {
+        return normalizationValue(row.unavailable as MetricEvidence | undefined);
       },
     },
   ];
 
-  const corpusSummaryBody = <div className="ui statistics">{corpusSummaryCards}</div>;
-  const coverageBody = <div className="ui statistics">{coverageCards}</div>;
+  const corpusSummaryBody = <div className={classNames.uiStatistics}>{corpusSummaryCards}</div>;
+  const coverageBody = <div className={classNames.uiStatistics}>{coverageCards}</div>;
   const normalizationBody = (
     <Fragment>
-      <div className="ui statistics">{normalizationCardsMarkup}</div>
-      <Table title="Normalization field outcomes" description={"Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator."} columns={normalizationColumns} rows={normalizationRows} classes="rw-normalization-outcomes" />
+      <div className={classNames.uiStatistics}>{normalizationCardsMarkup}</div>
+      <Table title="Normalization field outcomes" description={"Changed, already-canonical, and unavailable counts use each field\u2019s assessed count as their denominator."} columns={normalizationColumns} rows={normalizationRows} classes={["rw-normalization-outcomes"]} />
     </Fragment>
   );
   const cacheBody = (
     <Fragment>
-      <div className="rw-metric-grid"><MetricCard name="Recorded cache uses" metric={{ value: cacheUses }} /></div>
-      <p className="ui info message">Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
+      <div className="rw-metric-grid"><MetricCard name="Recorded cache uses" metric={{ available: true, state: "derived", value: cacheUses }} /></div>
+      <p className={classNames.uiInfoMessage}>Reuse does not mean a work revision was copied without evidence. Each cache use remains linked to this historical run.</p>
     </Fragment>
   );
 
   var sourceFilterDiagnostics: JSX.Element | null = null;
   if (overview.source_filter_diagnostics?.length) {
-    const diagnosticItems = overview.source_filter_diagnostics.map((diagnostic: any) => {
+    const diagnosticItems = overview.source_filter_diagnostics.map((diagnostic) => {
       return <li><strong>{diagnostic.source || "Unknown source"}:</strong> {diagnostic.message || "Stored source-filter evidence is invalid."}</li>;
     });
     sourceFilterDiagnostics = (
-      <div className="ui negative message rw-grid-span-all" role="alert">
+      <div className={classNames.uiNegativeMessageRwGridSpanAll} role="alert">
         <h3>Source-filter evidence needs attention</h3>
         <p>The retention flow excludes malformed stored counts instead of treating them as zero.</p>
         <ul>{diagnosticItems}</ul>
@@ -393,12 +409,12 @@ export async function overviewView(): Promise<void> {
   const pageMarkup = (
     <Fragment>
       <PageHeader kicker="" title="Overview" description="Recorded execution evidence and current coverage are shown separately to preserve their meaning." />
-      <div className="ui grid rw-dashboard-grid">
-        <section className="rw-run-identity-strip rw-grid-span-all">{runIdentity}</section>
+      <div className={classNames.uiGridRwDashboardGrid}>
+        <section className={classNames.rwRunIdentityStripRwGridSpanAll}>{runIdentity}</section>
         <RetentionFlow overview={overview} />
         {sourceFilterDiagnostics}
-        <SourceResultCountSummary items={overview.source_result_counts} classes="rw-grid-span-all" />
-        <SourceSearchQueries items={overview.source_result_counts} classes="rw-grid-span-all" />
+        <SourceResultCountSummary items={overview.source_result_counts} classes={["rw-grid-span-all"]} />
+        <SourceSearchQueries items={overview.source_result_counts} classes={["rw-grid-span-all"]} />
         <Panel title="Corpus summary" description="Immutable records available for this selected run." body={corpusSummaryBody} />
         <Panel title="Current data coverage" description="Derived from stored run data, not necessarily captured when the run completed." body={coverageBody} />
         <Breakdown title="Enrichment activity" source={overview.enrichment_breakdown} />

@@ -1,4 +1,3 @@
-// @ts-check
 import { defineConfig, devices } from '@playwright/test';
 
 /**
@@ -8,11 +7,11 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  testMatch: process.env.PLAYWRIGHT_SUITE === 'mutation' ? /(?:review|e2e)\.spec\.cjs$/ : undefined,
+  testMatch: process.env.PLAYWRIGHT_SUITE === 'mutation' ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : undefined,
   testIgnore: [
-    process.env.PLAYWRIGHT_SUITE === 'read' ? /(?:review|e2e)\.spec\.cjs$/ : undefined,
+    process.env.PLAYWRIGHT_SUITE === 'read' ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : undefined,
     /tests\/unit\//,
-  ].filter(Boolean),
+  ].filter((entry): entry is RegExp => entry !== undefined),
   fullyParallel: process.env.PLAYWRIGHT_SUITE !== 'mutation',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

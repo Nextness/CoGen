@@ -21,6 +21,8 @@ The CSS source is authoritative. This reference describes current selectors with
 
 New rules go into the narrowest owning layer. Do not use import order to create hidden cross-layer overrides when an existing component selector or token expresses the relationship directly.
 
+`frontend/scripts/generate-classes.ts` reads these six authoritative stylesheets and generates the committed `frontend/src/jsx/classes.ts` token registry. `make frontend-classes` regenerates it, while `make frontend-classes-check` compares it without writing and validates statically visible class uses. The registry proves that individual tokens exist; it cannot prove that a set of valid tokens matches an intended compound selector, so compound combinations still require design and visual review.
+
 ## 3. Naming conventions
 
 - `ui` selectors implement local Semantic-UI-inspired primitives such as `.ui.button`, `.ui.label`, `.ui.message`, `.ui.segment`, `.ui.grid`, `.ui.menu`, `.ui.table`, and `.ui.progress`; no runtime Semantic UI package is loaded.
@@ -124,7 +126,7 @@ The shell constrains the body to 1680px, prevents page-level horizontal overflow
 | Messages | `.ui.message`, `.ui.negative.message`, `.ui.error.message`, `.ui.warning.message`, `.ui.info.message`, `.ui.success.message`, `.ui.review.message` | Global and local feedback with a symbol, text, semantic boundary, and soft color. |
 | Headers | `.ui.header`, `.ui.header .sub.header`, `.ui.top.attached.header`, `.rw-page-header`, `.rw-eyebrow` | Product, page, panel, section, eyebrow, and supporting-heading hierarchy. |
 | Loading | `.ui.loader`, `.ui.active.loader` | Progress state with accessible surrounding status text. |
-| Segments | `.ui.segment`, `.ui.attached.segment`, `.rw-panel`, `.rw-panel__header`, `.rw-panel__body` | Bordered parent surfaces with internal structure and no component-owned external spacing. |
+| Segments | `.ui.segment`, `.ui.attached.segment` | Bordered parent surfaces with internal structure and no component-owned external spacing. |
 | Supporting text | `.ui.faded.text` | Secondary content that retains readable contrast. |
 
 Native `button` states provide the fallback for specialized controls that intentionally do not use `.ui.button`; `.ui.loading.button` is the sole button-loading presentation. `.notice`, `#loading`, and hidden attached segments or expansion rows remain explicit application states.
@@ -141,7 +143,7 @@ Native `button` states provide the fallback for specialized controls that intent
 | Tables | `.ui.table`, `.table-wrap`, `.rw-table-empty`, `.rw-filter-bar`, `.toggle-cell`, `.expansion-row`, `.rw-table-number`, `.rw-table-time` | Bounded records, sortable headers, explicit empty rows, selectable or expandable row states, stable disclosure, data alignment, and horizontal overflow. |
 | Pagination | `.ui.pagination.menu`, `.rw-pagination__summary`, `.pagination`, `.pagination-pages`, `.pagination-actions` | Result summary and boundary-aware page controls. |
 | Forms and controls | `.ui.form`, `.controls`, `.rw-filter-bar`, `.rw-filter-bar__search`, `.rw-filter-panel`, `.rw-filter-panel__fields`, `.rw-filter-panel__actions`, `.rw-filter-disclosure`, `.rw-filter-field-grid--advanced`, `.rw-filter-summary`, `.rw-filter-chips`, `.rw-filter-chip`, `.rw-filter-clear` | Shared control states, simple and complex filter surfaces, compact advanced filter grids, one removable chip per value, sorting, search, and page-size inputs. |
-| Panels and stacks | `.rw-panel`, `.rw-panel__header`, `.rw-panel__body`, `.rw-page-stack`, `.rw-section-stack`, `.rw-content-stack`, `.rw-inline-group` | Parent surfaces and layout-owned separation. |
+| Panels and stacks | `.rw-page-stack`, `.rw-section-stack`, `.rw-content-stack`, `.rw-inline-group` | Parent surfaces and layout-owned separation. |
 | Query evidence | `.rw-query-row`, `.rw-query-row__source`, `.rw-query-row__content`, `.rw-query-row__code` | Source query and captured input presentation. |
 
 Tables use a scroll wrapper rather than shrinking evidence beyond readability. Only selectable or expandable rows use hover treatment. Sortable headers expose `aria-sort`; expansion buttons expose stable `aria-expanded` and `aria-controls` relationships; selected, expanded, focus, and disabled states use borders, text, icons, attributes, and surface treatment in addition to color.
@@ -160,7 +162,8 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. O
 | Review layout | `.rw-article-split`, `.rw-article-split__pdf`, `.rw-article-split__review`, `.rw-review-panel`, `.rw-review-onboarding`, `.rw-review-dialog*`, `.rw-review-nav`, `.rw-review-section*`, `.rw-review-form*`, `.rw-review-history*` | Responsive PDF and review columns, contained modal lineage setup, local section navigation, complete decision state, inherited labels, feedback, and immutable history. |
 | Notes | `.rw-note-list`, `.rw-note-card*`, `.rw-note-workspace`, `.rw-note-form*`, `.rw-note-editor-tools`, `.rw-note-link-insert`, `.rw-note-content`, `.rw-note-heading*`, `.rw-note-table`, `.rw-note-syntax`, `.rw-note-preview*`, `.rw-note-saved*`, `.rw-note-history`, `.rw-note-link--unresolved`, `.rw-note-comparison`, `.rw-note-diff*` | Side-by-side editing and preview before saved-note search and cards, scoped heading hierarchy, compact tables, optional evidence-link and syntax tools, unresolved text treatment, drafts and history, bounded comparison, and added or removed lines. |
 | Anchors | `.rw-anchor-panel`, `.rw-anchor-candidate`, `.rw-anchor-list`, `.rw-anchor-card*`, `.rw-anchor-history`, `.rw-pdf-anchor-layer`, `.rw-pdf-anchor-highlight` | Contextual anchor creation, keyboard-operable evidence cards, immutable history, and supplemental page highlights. |
-| PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar*`, `.rw-pdf-page-control`, `.rw-pdf-pages`, `.rw-pdf-page`, `.rw-pdf-status`, `.textLayer` descendants | Contained sticky desktop reader, grouped boundary-aware controls, one scrollable current page, canvas, selectable text, status, and overlay stacking. |
+| PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar*`, `.rw-pdf-page-control`, `.rw-pdf-pages`, `.rw-pdf-page`, `.rw-pdf-status`, `.rw-pdf-viewer--dark`, `.textLayer` descendants | Contained sticky desktop reader, grouped boundary-aware controls, one scrollable current page, canvas, selectable text, status, inverted reading theme, and overlay stacking. |
+| Fullscreen reader | `.rw-reading-workspace:fullscreen`, `.rw-reading-workspace--expanded`, `.rw-reading-workspace--drawer-collapsed`, `.rw-reading-workspace__drawer-edge` | Browser-fullscreen PDF-main-plus-drawer layout, fixed-viewport fallback, collapsed review drawer, and the drawer edge control. |
 | Disclosure | `.rw-disclosure`, `.rw-filter-disclosure`, `.rw-event-details`, `.rw-query-row`, `.rw-note-history`, `.rw-keyword-details` | Keyboard-accessible expandable record, filter, event, query, history, and raw-value content with one chevron language. |
 | Audit | `.rw-audit-layout`, `.rw-audit-filter`, `.rw-audit-stream`, `.rw-audit-day`, `.rw-audit-events`, `.rw-audit-event*`, `.rw-review-audit-change`, `.rw-review-audit-state`, `.rw-review-audit-substatuses`, `.rw-audit-load`, `.rw-record-audit*` | Full-width filters, date-grouped vertical timeline, continuous rail, category markers, visible review-decision comparisons, safe recorded-data disclosure, append status, and compact record investigation. |
 | Artifacts | `.rw-artifact-*`, `.artifact-actions`, `.artifact-inspector-toolbar` | Artifact lists, bounded inspection, copy, and download actions. |
@@ -213,8 +216,10 @@ The principal responsive boundaries are 70rem for the article reading workspace,
 ## 15. Change checklist
 
 - Identify the owning stylesheet and reuse an existing token or component family before adding a selector.
+- Add or change selectors in the owning stylesheet, run `make frontend-classes`, and review the generated registry diff; never edit `frontend/src/jsx/classes.ts` directly.
 - Verify source markup and JavaScript use the documented selector and do not change generated vendor content.
+- Use a single `ClassName` literal directly and compose multiple or conditional tokens with `cx` through a descriptive binding before JSX. Token membership does not replace review of compound selector intent.
 - Preserve the six-file cascade order unless an approved architecture change requires another layer.
 - Test light, dark, desktop, tablet, mobile, keyboard focus, reduced motion, loading, error, and unavailable states affected by the change.
-- Run frontend unit, server, Playwright, accessibility, and visual verification required by [STANDARDS.md](STANDARDS.md).
+- Run `make frontend-classes-check`, frontend unit, server, Playwright, accessibility, and visual verification required by [STANDARDS.md](STANDARDS.md). The check also reports defined tokens with no statically visible authored use.
 - Update this reference when active tokens, selector families, cascade ownership, theme behavior, or responsive behavior changes.

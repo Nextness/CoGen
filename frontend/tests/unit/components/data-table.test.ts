@@ -115,11 +115,11 @@ describe('data-table.tsx — dataTable', function() {
       page: 1,
       expandableFields: [{
         f: 'term_matches', w: 'full', render: function(row: any) {
-          return h('span', { className: 'custom-render' }, String(row.term_matches.matched_total));
+          return h("span", { className: "rw-inline-group" }, String(row.term_matches.matched_total));
         },
       }],
     });
-    assert.ok(html.includes('custom-render'));
+    assert.ok(html.includes("rw-inline-group"));
     assert.ok(html.includes('2'));
     assert.ok(!html.includes('Not recorded'));
   });

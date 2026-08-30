@@ -161,6 +161,9 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte(index), 0644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(assetDir, "overview.html"), []byte(strings.Replace(index, "<title>Research workspace</title>", "<title>Overview · Research workspace</title>", 1)), 0644); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(assetDir, "app.js"), []byte("export const marker = 'forceSimulation';\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -190,6 +193,25 @@ func TestDiskServedFrontendContract(t *testing.T) {
 		}
 		if strings.Contains(index.Body.String(), `data-view-link="trash"`) {
 			t.Error("served index still exposes Trash as a Deepdive tab")
+		}
+	})
+
+	t.Run("serves a view page with an HTML content type", func(t *testing.T) {
+		viewer, err := Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer viewer.Close()
+		viewer.AssetsFS = os.DirFS(assetDir)
+		page := viewerRequest(t, viewer.Handler(), "/overview.html?view=overview")
+		if page.Code != http.StatusOK {
+			t.Fatalf("overview page status=%d body=%s", page.Code, page.Body.String())
+		}
+		if contentType := page.Header().Get("Content-Type"); !strings.Contains(contentType, "text/html") {
+			t.Errorf("overview page content type = %q, want text/html", contentType)
+		}
+		if !strings.Contains(page.Body.String(), "Overview · Research workspace") {
+			t.Error("served overview page is missing its page title")
 		}
 	})
 

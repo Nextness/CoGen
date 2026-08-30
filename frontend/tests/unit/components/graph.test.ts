@@ -7,7 +7,7 @@ import { GraphField, graphQuery, graphLink, GraphResult, graphClusters, zoomView
 import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
 import { state, value } from '../../../src/state.tsx';
 
-const graphField = (name: string, label: string, type?: string): string => renderToString(GraphField({ name: name, label: label, type: type }));
+const graphField = (name: string, label: string, type?: JSX.RWInputType): string => renderToString(GraphField({ name: name, label: label, type: type }));
 const graphResult = (data: any): string => renderToString(GraphResult({ data: data }));
 
 describe('graph.tsx — graphField', function() {
@@ -169,7 +169,22 @@ describe('graph.tsx — mountGraph', function() {
     if (canvas) {
       canvas.remove();
     }
-    mountGraph({ nodes: [], edges: [] });
+    mountGraph({
+      nodes: [],
+      edges: [],
+      filters: {},
+      truncated: false,
+      limits: {},
+      counts: {
+        article_matches: 0,
+        article_rendered: 0,
+        nodes_rendered: 0,
+        edges_rendered: 0,
+        node_types: {},
+        edge_types: {},
+      },
+      truncation_reason: "",
+    });
     assert.ok(true);
 
     const newCanvas = document.createElement('canvas');

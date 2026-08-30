@@ -1,5 +1,15 @@
 // Custom PDF.js rendering with bounded page lifecycle and accessible anchor selection.
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwPdfStatusUiFadedText: cx("rw-pdf-status", "ui", "faded", "text"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiIconBasicButton: cx("ui", "icon", "basic", "button"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegmentRwPdfViewer: cx("ui", "segment", "rw-pdf-viewer"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+};
 
 const workerURL = "/vendor/pdfjs/pdf.worker.min.mjs";
 const cMapURL = "/vendor/pdfjs/cmaps/";
@@ -14,7 +24,7 @@ export interface NormalizedRectangle {
 }
 
 /** Converts displayed normalized rectangles back to unrotated page coordinates. */
-export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
+export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
   return rectangles.map(({ x, y, width, height }) => {
     let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
@@ -50,7 +60,7 @@ export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: 
 }
 
 /** Projects stored unrotated rectangles into the currently displayed page rotation. */
-export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
+export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
   return rectangles.map(({ x, y, width, height }) => {
     let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
@@ -86,7 +96,7 @@ export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: an
 }
 
 /** Extracts bounded normalized rectangles from a same-page browser selection. */
-export function selectionRectangles(selection: any, pageElement: HTMLElement | null, rotation: any): NormalizedRectangle[] {
+export function selectionRectangles(selection: Selection | null, pageElement: HTMLElement | null, rotation: unknown): NormalizedRectangle[] {
   if (!selection || selection.isCollapsed || !selection.rangeCount || !pageElement) return [];
   const range: Range = selection.getRangeAt(0);
   if (!pageElement.contains(range.commonAncestorContainer)) return [];
@@ -114,9 +124,10 @@ export function selectionRectangles(selection: any, pageElement: HTMLElement | n
 /** One PDF viewer option set. */
 export interface PDFViewerOptions {
   url: string;
-  page?: any;
+  page?: unknown;
   onPageChange?: (page: number) => void;
   onSelection?: (selection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] }) => void;
+  onFullscreenToggle?: () => void;
 }
 
 /** One anchor head used by the viewer highlight layer. */
@@ -128,27 +139,89 @@ export interface PDFAnchorHead {
   };
 }
 
+/** The lifecycle and navigation controls returned by one mounted PDF viewer. */
+export interface PDFViewerController {
+  goToPage: (page: unknown) => void;
+  setAnchors: (anchors: unknown) => void;
+  destroy: () => Promise<void>;
+}
+
+/** The viewport fields consumed from one PDF.js page projection. */
+interface PDFViewport {
+  width: number;
+  height: number;
+  transform: number[];
+}
+
+/** One cancellable PDF.js canvas render. */
+interface PDFRenderTask {
+  cancel: () => void;
+  promise: Promise<void>;
+}
+
+/** One bounded PDF.js text item used by the selectable text layer. */
+interface PDFTextItem {
+  str: string;
+  transform: number[];
+  fontName: string;
+  hasEOL?: boolean;
+}
+
+/** The text-content fields consumed from a PDF.js page. */
+interface PDFTextContent {
+  items: PDFTextItem[];
+  styles?: Record<string, { fontFamily?: string }>;
+}
+
+/** The page operations consumed by the custom reader. */
+interface PDFPage {
+  getViewport: (options: { scale: number; rotation: number }) => PDFViewport;
+  render: (options: { canvasContext: CanvasRenderingContext2D | null; viewport: PDFViewport; transform: number[] | null }) => PDFRenderTask;
+  getTextContent: () => PDFTextContent | Promise<PDFTextContent>;
+}
+
+/** The document operations consumed by the custom reader. */
+interface PDFDocument {
+  numPages: number;
+  getPage: (page: number) => PDFPage | Promise<PDFPage>;
+  destroy: () => void | Promise<void>;
+}
+
+/** The loading-task operations consumed by the custom reader. */
+interface PDFLoadingTask {
+  promise: Promise<PDFDocument>;
+  destroy: () => Promise<void>;
+}
+
+/** The narrow PDF.js module surface used behind the vendored-module boundary. */
+interface PDFJSModule {
+  GlobalWorkerOptions: { workerSrc?: string };
+  Util: { transform: (viewport: number[], item: number[]) => number[] };
+  getDocument: (options: { url: string; isEvalSupported: boolean; cMapUrl: string; cMapPacked: boolean; standardFontDataUrl: string }) => PDFLoadingTask;
+}
+
 /** Mounts a project-styled PDF.js viewer and returns a lifecycle controller. */
-export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>): Promise<any> {
+export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<unknown>): Promise<PDFViewerController> {
   const loadPDFJS = loader || (() => {
     return import("../../vendor/pdfjs/pdf.min.mjs");
   });
-  const pdfjs = await loadPDFJS();
+  const pdfjs = await loadPDFJS() as PDFJSModule;
   pdfjs.GlobalWorkerOptions.workerSrc = workerURL;
   let pageNumber = Math.max(1, Number(options.page || 1));
   let scale = 1.15;
   let rotation = 0;
+  let darkMode = false;
   let destroyed = false;
   let anchors: PDFAnchorHead[] = [];
   let renderSequence = 0;
-  const renderTasks = new Set<any>();
-  const pageCache = new Map<number, Promise<any>>();
-  const textCache = new Map<number, Promise<any>>();
+  const renderTasks = new Set<PDFRenderTask>();
+  const pageCache = new Map<number, Promise<PDFPage>>();
+  const textCache = new Map<number, Promise<PDFTextContent>>();
   let lastSelectionIdentity = "";
   let pendingSelection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] } | null = null;
 
   const headerMarkup = (
-    <div className="ui top attached header">
+    <div className={classNames.uiTopAttachedHeader}>
       <div>
         <h3>Document reader</h3>
         <p>One page is shown at a time. Select text to create a review anchor.</p>
@@ -157,34 +230,36 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   );
   const pageToolbar = (
     <div className="rw-pdf-toolbar__group" aria-label="Page navigation">
-      <button type="button" className="ui basic button" data-pdf-previous aria-label="Previous PDF page">Previous</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-previous aria-label="Previous PDF page">Previous</button>
       <label className="rw-pdf-page-control">
         <span>Page</span>
         <input type="number" min={1} value={pageNumber} data-pdf-page aria-label="Current PDF page" />
         <span data-pdf-count></span>
       </label>
-      <button type="button" className="ui basic button" data-pdf-next aria-label="Next PDF page">Next</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-next aria-label="Next PDF page">Next</button>
     </div>
   );
   const displayToolbar = (
     <div className="rw-pdf-toolbar__group" aria-label="Display controls">
-      <button type="button" className="ui icon basic button" data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
+      <button type="button" className={classNames.uiIconBasicButton} data-pdf-zoom-out aria-label="Zoom out">{"\u2212"}</button>
       <span className="rw-pdf-zoom" data-pdf-zoom aria-live="polite">115%</span>
-      <button type="button" className="ui icon basic button" data-pdf-zoom-in aria-label="Zoom in">+</button>
-      <button type="button" className="ui basic button" data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
-      <button type="button" className="ui basic button" data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
-      <button type="button" className="ui primary button rw-pdf-review-selection" data-pdf-review-selection hidden>Review selection</button>
+      <button type="button" className={classNames.uiIconBasicButton} data-pdf-zoom-in aria-label="Zoom in">+</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-fit-width aria-label="Fit PDF page to reader width">Fit width</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-rotate aria-label="Rotate PDF clockwise">Rotate</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-theme aria-pressed="false">Dark</button>
+      <button type="button" className={classNames.uiBasicButton} data-pdf-fullscreen aria-pressed="false">Fullscreen</button>
+      <button type="button" className={classNames.uiPrimaryButton} data-pdf-review-selection hidden>Review selection</button>
     </div>
   );
-  const statusText = <p className="rw-pdf-status ui faded text" data-pdf-status role="status">Loading PDF.</p>;
+  const statusText = <p className={classNames.rwPdfStatusUiFadedText} data-pdf-status role="status">Loading PDF.</p>;
   const viewerMarkup = (
-    <section className="ui segment rw-pdf-viewer" aria-label="PDF reader">
+    <section className={classNames.uiSegmentRwPdfViewer} aria-label="PDF reader">
       {headerMarkup}
       <div className="rw-pdf-toolbar" role="toolbar" aria-label="PDF controls">
         {pageToolbar}
         {displayToolbar}
       </div>
-      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" tabindex={0}></div>
+      <div className="rw-pdf-pages" data-pdf-pages aria-label="PDF page viewport" tabIndex={0}></div>
       {statusText}
     </section>
   );
@@ -200,7 +275,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   pageNumber = Math.min(pageNumber, document.numPages);
 
   /** Returns one cached PDF.js page object without repeating document parsing. */
-  function cachedPage(requestedPage: number): Promise<any> {
+  function cachedPage(requestedPage: number): Promise<PDFPage> {
     const cached = pageCache.get(requestedPage);
     if (cached) return cached;
     const requested = Promise.resolve(document.getPage(requestedPage));
@@ -209,7 +284,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   }
 
   /** Returns one cached text-content projection for a loaded page. */
-  function cachedText(requestedPage: number, page: any): Promise<any> {
+  function cachedText(requestedPage: number, page: PDFPage): Promise<PDFTextContent> {
     const cached = textCache.get(requestedPage);
     if (cached) return cached;
     const requested = Promise.resolve(page.getTextContent());
@@ -244,7 +319,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
     if (destroyed || sequence !== renderSequence) return;
     const viewport = page.getViewport({ scale: requestedScale, rotation: requestedRotation });
     const section = window.document.createElement("section");
-    section.className = "rw-pdf-page rw-pdf-page--current";
+    section.className = "rw-pdf-page";
     section.dataset.pdfPageNumber = String(requestedPage);
     section.dataset.rotation = String(requestedRotation);
     section.setAttribute("aria-label", `PDF page ${requestedPage}`);
@@ -272,8 +347,8 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       transform: transform,
     });
     renderTasks.add(renderTask);
-    await renderTask.promise.catch((error: any) => {
-      if (error?.name !== "RenderingCancelledException") throw error;
+    await renderTask.promise.catch((error: unknown) => {
+      if (!(error instanceof Error) || error.name !== "RenderingCancelledException") throw error;
     });
     renderTasks.delete(renderTask);
     if (destroyed || sequence !== renderSequence) return;
@@ -294,16 +369,16 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   async function requestRender(): Promise<void> {
     try {
       await render();
-    } catch (error: any) {
-      if (destroyed || error?.name === "RenderingCancelledException") return;
+    } catch (error) {
+      if (destroyed || error instanceof Error && error.name === "RenderingCancelledException") return;
       const pagesHost = host.querySelector<HTMLElement>("[data-pdf-pages]");
       pagesHost?.setAttribute("aria-busy", "false");
       const status = host.querySelector<HTMLElement>("[data-pdf-status]");
       if (!status) return;
       const errorMarkup = (
         <Fragment>
-          Page {pageNumber} could not be rendered: {error.message}
-          <button type="button" className="ui basic button" data-pdf-retry>Retry page</button>
+          Page {pageNumber} could not be rendered: {error instanceof Error ? error.message : "Unknown rendering error"}
+          <button type="button" className={classNames.uiBasicButton} data-pdf-retry>Retry page</button>
         </Fragment>
       );
       renderTree(errorMarkup, status);
@@ -314,7 +389,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   }
 
   /** Clamps and renders a requested current page. */
-  function changePage(next: any): void {
+  function changePage(next: unknown): void {
     pageNumber = Math.max(1, Math.min(document.numPages, Number(next) || pageNumber));
     void requestRender();
   }
@@ -324,6 +399,19 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   host.querySelector("[data-pdf-zoom-out]")!.addEventListener("click", () => { scale = Math.max(0.6, scale - 0.15); void requestRender(); });
   host.querySelector("[data-pdf-zoom-in]")!.addEventListener("click", () => { scale = Math.min(3, scale + 0.15); void requestRender(); });
   host.querySelector("[data-pdf-rotate]")!.addEventListener("click", () => { rotation = (rotation + 90) % 360; void requestRender(); });
+  host.querySelector("[data-pdf-theme]")!.addEventListener("click", () => {
+    darkMode = !darkMode;
+    const viewer = host.querySelector(".rw-pdf-viewer") as HTMLElement;
+    if (darkMode) {
+      classAdd(viewer, ["rw-pdf-viewer--dark"]);
+    } else {
+      classRemove(viewer, "rw-pdf-viewer--dark");
+    }
+    const themeButton = host.querySelector<HTMLButtonElement>("[data-pdf-theme]")!;
+    themeButton.textContent = darkMode ? "Light" : "Dark";
+    themeButton.setAttribute("aria-pressed", darkMode ? "true" : "false");
+  });
+  host.querySelector("[data-pdf-fullscreen]")!.addEventListener("click", () => { options.onFullscreenToggle?.(); });
   host.querySelector("[data-pdf-fit-width]")!.addEventListener("click", async () => {
     const page = await cachedPage(pageNumber);
     const viewport = page.getViewport({ scale: 1, rotation: rotation });
@@ -382,11 +470,11 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   await requestRender();
   return {
     goToPage: changePage,
-    setAnchors: (nextAnchors: PDFAnchorHead[] | any) => {
+    setAnchors: (nextAnchors: unknown) => {
       let effectiveAnchors: PDFAnchorHead[] = [];
       if (Array.isArray(nextAnchors)) effectiveAnchors = nextAnchors;
       anchors = effectiveAnchors;
-      const section = host.querySelector<HTMLElement>(".rw-pdf-page--current");
+      const section = host.querySelector<HTMLElement>(".rw-pdf-page");
       const anchorLayer = section?.querySelector<HTMLElement>(".rw-pdf-anchor-layer");
       if (anchorLayer && section) {
         anchorLayer.textContent = "";
@@ -409,7 +497,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
 }
 
 /** Projects active content-matched anchor rectangles into one displayed page layer. */
-function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any): void {
+function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: unknown): void {
   for (const anchor of anchors) {
     for (const rectangle of rotateRectangles(anchor.version.rectangles || [], rotation)) {
       const highlight = window.document.createElement("span");
@@ -426,7 +514,7 @@ function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotatio
 }
 
 /** Creates transparent positioned text spans from PDF.js text content and viewport transforms. */
-function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any): void {
+function renderSelectableText(pdfjs: PDFJSModule, content: PDFTextContent, container: HTMLElement, viewport: PDFViewport): void {
   const fragment = window.document.createDocumentFragment();
   for (const item of content.items || []) {
     if (!item.str) continue;

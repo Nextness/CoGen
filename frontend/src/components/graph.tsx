@@ -2,36 +2,43 @@
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
 import { currentDetailOrigin, graphFilters, humanLabel, link, list, value } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
+import type { ClassNames } from "../jsx/jsx-runtime.ts";
+import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
+import type { PaginationOptions } from "./pagination.tsx";
+import type {
+  ClusterSummary,
+  GraphEdge,
+  GraphNode,
+  GraphResponse,
+} from "../api/types.ts";
+
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwGraphTruncationUiWarningMessage: cx("rw-graph__truncation", "ui", "warning", "message"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiButton: cx("ui", "button"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiTable: cx("ui", "table"),
+};
+
+/** Defined legend-mark modifier for each graph entity presentation. */
+const entityMarkClasses: Record<"article" | "author" | "reference" | "referenced-author", ClassName> = {
+  article: "rw-graph__legend-mark--article",
+  author: "rw-graph__legend-mark--author",
+  reference: "rw-graph__legend-mark--reference",
+  "referenced-author": "rw-graph__legend-mark--referenced-author",
+};
+
+/** Defined legend-line modifier for each styled relationship presentation. */
+const relationshipLineClasses: Record<"derived" | "directed", ClassName> = {
+  derived: "rw-graph__legend-line--derived",
+  directed: "rw-graph__legend-line--directed",
+};
 
 /** One graph node with its resolved layout and cluster state. */
-export interface GraphNode extends SimulationNode {
-  label?: string;
-  doi?: string;
-  orcid?: string;
-  author?: string;
-  revision_id?: any;
-  author_id?: any;
-  reference_id?: any;
-  cluster?: number;
-  degree?: number;
-}
-
-/** One graph edge between resolved node objects. */
-export interface GraphEdge extends SimulationLink {
-  id?: string;
-  type?: string;
-  author_order?: any;
-  affiliation?: string;
-  shared_reference_count?: number;
-}
-
-/** One connected-cluster summary. */
-export interface ClusterSummary {
-  id: number;
-  size: number;
-}
+export type { ClusterSummary, GraphEdge, GraphNode } from "../api/types.ts";
 
 /** The full interactive graph state owned by one mounted viewport. */
 interface GraphState {
@@ -63,10 +70,30 @@ interface GraphState {
   overviewLayout?: Array<{ id: number; x: number; y: number; radius: number }>;
 }
 
+/** One active graph pointer gesture for node selection or canvas panning. */
+type GraphDragState = {
+  mode: "node";
+  node: GraphNode;
+  x: number;
+  y: number;
+  moved: boolean;
+} | {
+  mode: "pan";
+  x: number;
+  y: number;
+  viewX: number;
+  viewY: number;
+  overviewX: number;
+  overviewY: number;
+  overview: boolean;
+  secondary: boolean;
+  moved: boolean;
+};
+
 var activeGraph: GraphState | undefined;
 
 /** Renders an escaped graph-filter input with its current URL value. */
-export function GraphField(props: { name: string; label: string; type?: string }): JSX.Element {
+export function GraphField(props: { name: string; label: string; type?: JSX.RWInputType }): JSX.Element {
   const type = props.type || "text";
   return (
     <label>
@@ -159,7 +186,7 @@ export function graphClusters(sourceNodes: GraphNode[], sourceEdges: GraphEdge[]
 }
 
 /** Renders one legend entry with a colored mark and its label. */
-function legendEntry(markClass: string, label: string): JSX.Element {
+function legendEntry(markClass: ClassNames, label: string): JSX.Element {
   return (
     <span>
       <i className={markClass}></i>
@@ -169,9 +196,9 @@ function legendEntry(markClass: string, label: string): JSX.Element {
 }
 
 /** Renders the interactive graph viewport, legend, and relationship table. */
-export function GraphResult(props: { data: any }): JSX.Element {
-  const nodes = list(props.data, ["nodes"]);
-  const edges = list(props.data, ["edges"]);
+export function GraphResult(props: { data: GraphResponse }): JSX.Element {
+  const nodes = list<GraphNode>(props.data, ["nodes"]);
+  const edges = list<GraphEdge>(props.data, ["edges"]);
   const counts = props.data.counts || {};
 
   if (!nodes.length) {
@@ -193,7 +220,7 @@ export function GraphResult(props: { data: any }): JSX.Element {
     const renderedNodes = String(counts.nodes_rendered ?? nodes.length);
     const renderedEdges = String(counts.edges_rendered ?? edges.length);
     warning = (
-      <p className="rw-graph__truncation ui warning message" role="status">Graph results truncated. {matchedCount} articles matched; {renderedArticles} articles, {renderedNodes} nodes, and {renderedEdges} edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>
+      <p className={classNames.rwGraphTruncationUiWarningMessage} role="status">Graph results truncated. {matchedCount} articles matched; {renderedArticles} articles, {renderedNodes} nodes, and {renderedEdges} edges are rendered. Refine the article filters to inspect relationships outside this bounded result.</p>
     );
   }
 
@@ -202,7 +229,7 @@ export function GraphResult(props: { data: any }): JSX.Element {
     ["author", "Author occurrence", "author"],
     ["reference", "Reference mention", "reference"],
     ["referenced_author", "Referenced-author string", "referenced-author"],
-  ];
+  ] as const;
   const relationshipDefinitions = [
     ["authorship", "Authorship", ""],
     ["reference", "Reference mention", ""],
@@ -210,22 +237,24 @@ export function GraphResult(props: { data: any }): JSX.Element {
     ["citation", "Internal citation", "directed"],
     ["coauthor", "Co-author", "derived"],
     ["shared_reference", "Shared reference", "derived"],
-  ];
+  ] as const;
   const visibleEntityDefinitions = entityDefinitions.filter(([type]) => {
     return Number(nodeTypes[type] || 0) > 0;
   });
-  const entityLegend = visibleEntityDefinitions.map(([type, label, markClass]) => {
-    const markClassValue = `rw-graph__legend-mark rw-graph__legend-mark--${markClass}`;
-    return legendEntry(markClassValue, label);
+  const entityLegend = visibleEntityDefinitions.map(([, label, markClass]) => {
+    const markClasses = cx("rw-graph__legend-mark", entityMarkClasses[markClass]);
+    const legendMarkup = legendEntry(markClasses, label);
+    return legendMarkup;
   });
   const visibleRelationshipDefinitions = relationshipDefinitions.filter(([type]) => {
     return Number(edgeTypes[type] || 0) > 0;
   });
-  const relationshipLegend = visibleRelationshipDefinitions.map(([type, label, lineClass]) => {
-    var modifier = "";
-    if (lineClass) modifier = ` rw-graph__legend-line--${lineClass}`;
-    const lineClassValue = `rw-graph__legend-line${modifier}`;
-    return legendEntry(lineClassValue, label);
+  const relationshipLegend = visibleRelationshipDefinitions.map(([, label, lineClass]) => {
+    var modifier: ClassName | undefined;
+    if (lineClass) modifier = relationshipLineClasses[lineClass];
+    const lineClasses = cx("rw-graph__legend-line", modifier);
+    const legendMarkup = legendEntry(lineClasses, label);
+    return legendMarkup;
   });
 
   var largeGraphHint = "";
@@ -234,13 +263,13 @@ export function GraphResult(props: { data: any }): JSX.Element {
   const toolbarMarkup = (
     <div className="rw-graph__toolbar">
       <div className="rw-graph__search"><input type="text" id="graph-node-search" placeholder={"Search nodes\u2026"} aria-label="Search nodes by name or DOI" /></div>
-      <button type="button" id="graph-fit" className="ui button">Fit graph</button>
-      <button type="button" id="graph-run-layout" className="ui basic button">Re-run layout</button>
-      <button type="button" id="graph-clear-selection" className="ui basic button" disabled>Show full graph</button>
+      <button type="button" id="graph-fit" className={classNames.uiButton}>Fit graph</button>
+      <button type="button" id="graph-run-layout" className={classNames.uiBasicButton}>Re-run layout</button>
+      <button type="button" id="graph-clear-selection" className={classNames.uiBasicButton} disabled>Show full graph</button>
       <span className="rw-graph__zoom" id="graph-zoom-indicator" role="status">100%</span>
       <span id="graph-layout-status" role="status" aria-live="polite">Preparing physics layout</span>
-      <button type="button" id="graph-expand" className="ui button">Expand graph</button>
-      <button type="button" id="graph-export-png" className="ui button" title="Download graph as PNG">Export PNG</button>
+      <button type="button" id="graph-expand" className={classNames.uiButton}>Expand graph</button>
+      <button type="button" id="graph-export-png" className={classNames.uiButton} title="Download graph as PNG">Export PNG</button>
     </div>
   );
   const searchResultsMarkup = (
@@ -282,7 +311,7 @@ export function GraphResult(props: { data: any }): JSX.Element {
           <canvas className="rw-graph__canvas"></canvas>
         </div>
       </div>
-      <section className="rw-graph__selection" id="graph-selection" tabindex={-1} aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
+      <section className="rw-graph__selection" id="graph-selection" tabIndex={-1} aria-live="polite"><p>Select a node to inspect its direct relationships.</p></section>
       <section className="rw-graph__edges">
         <h3>Relationship table</h3>
         <p>The exact, paginated relationship records behind the graph.</p>
@@ -305,7 +334,7 @@ function nodeSize(node: GraphNode, degree: number, maxDegree: number): number {
 }
 
 /** Returns a deterministic unsigned hash for stable graph placement. */
-function hash(value: any): number {
+function hash(value: unknown): number {
   var result = 2166136261;
   for (const character of String(value)) {
     result = Math.imul(result ^ character.charCodeAt(0), 16777619);
@@ -420,7 +449,7 @@ function layoutNode(node: GraphNode, clusters: { byID: Map<string | number, numb
 }
 
 /** Mounts the interactive graph viewport and its force-layout simulation. */
-export function mountGraph(data: any): void {
+export function mountGraph(data: GraphResponse): void {
   destroyGraph();
   const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas");
   if (!canvasElement) return;
@@ -498,7 +527,7 @@ export function mountGraph(data: any): void {
     frame: 0,
     edgePage: 1,
     // Assigned after construction; the simulation is created over the nodes below.
-    simulation: undefined as any,
+    simulation: undefined as unknown as ReturnType<typeof forceSimulation>,
   };
   activeGraph = graph;
 
@@ -549,7 +578,7 @@ export function mountGraph(data: any): void {
     if (nodes.length > 900) collisionIterations = 1;
     const collisionForce = forceCollide()
       .radius((node) => {
-        return node.radius + 7;
+        return (node.radius || 0) + 7;
       })
       .strength(0.92)
       .iterations(collisionIterations);
@@ -1047,7 +1076,7 @@ function nearestNode(graph: GraphState, point: { x: number; y: number }): GraphN
 
 /** Binds pointer, keyboard, and toolbar interactions for the graph viewport. */
 function bindInteractions(graph: GraphState, status: HTMLElement | null, selectionPanel: HTMLElement | null, zoomIndicator: HTMLElement | null): (id: string | number | null) => void {
-  var drag: any = null;
+  var drag: GraphDragState | null = null;
   const dragThreshold = 4;
 
   /** Sets the selected node and refreshes the inspection panel and edge table. */
@@ -1093,6 +1122,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     if (event.button === 2) {
       event.preventDefault();
       drag = {
+        mode: "pan",
         x: event.clientX,
         y: event.clientY,
         viewX: graph.view.x,
@@ -1121,6 +1151,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     const node = nearestNode(graph, graphCoordinates(graph, event));
     if (node) {
       drag = {
+        mode: "node",
         node: node,
         x: event.clientX,
         y: event.clientY,
@@ -1128,6 +1159,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       };
     } else {
       drag = {
+        mode: "pan",
         x: event.clientX,
         y: event.clientY,
         viewX: graph.view.x,
@@ -1135,7 +1167,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         overviewX: graph.overviewOffset.x,
         overviewY: graph.overviewOffset.y,
         overview: graph.overviewMode,
-        background: true,
+        secondary: false,
         moved: false,
       };
     }
@@ -1145,7 +1177,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   graph.canvas.addEventListener("pointermove", (event) => {
     if (drag) {
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > dragThreshold;
-      if (drag.node) {
+      if (drag.mode === "node") {
         return;
       }
       if (drag.overview) {
@@ -1176,11 +1208,11 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   });
 
   graph.canvas.addEventListener("pointerup", (event) => {
-    if (drag && drag.node && !drag.moved) {
+    if (drag?.mode === "node" && !drag.moved) {
       var nextSelection: string | number | null = drag.node.id;
       if (graph.selection === drag.node.id) nextSelection = null;
       setSelection(nextSelection);
-    } else if (drag && drag.background && !drag.moved && !drag.secondary) {
+    } else if (drag?.mode === "pan" && !drag.moved && !drag.secondary) {
       setSelection(null);
     }
     drag = null;
@@ -1283,7 +1315,8 @@ function bindGraphSearch(graph: GraphState, setSelection: (id: string | number |
         const label = node.label || node.id;
         return <li><button type="button" data-graph-search-node={node.id}>{label}<span>{humanLabel(node.type)}</span></button></li>;
       });
-      renderTree(<Fragment>{items}</Fragment>, results!);
+      const resultItems = <Fragment>{items}</Fragment>;
+      renderTree(resultItems, results!);
       results!.querySelectorAll<HTMLButtonElement>("[data-graph-search-node]").forEach((button) => {
         button.addEventListener("click", () => {
           setSelection(button.dataset.graphSearchNode || null);
@@ -1314,7 +1347,7 @@ function bindGraphTheme(graph: GraphState): void {
 }
 
 /** Binds graph export as PNG, downloading the canvas as a PNG image. */
-function bindGraphExport(graph: GraphState, data: any): void {
+function bindGraphExport(graph: GraphState, data: GraphResponse): void {
   const exportButton = document.querySelector<HTMLButtonElement>("#graph-export-png");
   if (!exportButton) return;
 
@@ -1358,14 +1391,14 @@ function bindGraphExpand(graph: GraphState): void {
   var priorOverflow = "";
   /** Leaves the CSS fallback state and restores document and opener state. */
   function closeFallback(): void {
-    if (!expandViewport.classList.contains("rw-graph__viewport--expanded")) return;
-    expandViewport.classList.remove("rw-graph__viewport--expanded");
+    if (!classHas(expandViewport, "rw-graph__viewport--expanded")) return;
+    classRemove(expandViewport, "rw-graph__viewport--expanded");
     document.body.style.overflow = priorOverflow;
     updateLabel();
   }
   /** Updates the expand button label and refits the graph after a size change. */
   function updateLabel(): void {
-    const expanded = document.fullscreenElement === expandViewport || expandViewport.classList.contains("rw-graph__viewport--expanded");
+    const expanded = document.fullscreenElement === expandViewport || classHas(expandViewport, "rw-graph__viewport--expanded");
     var label = "Expand graph";
     if (expanded) label = "Restore graph";
     expandButton.textContent = label;
@@ -1387,27 +1420,27 @@ function bindGraphExpand(graph: GraphState): void {
       } else if (expandViewport.requestFullscreen) {
         await expandViewport.requestFullscreen();
       } else {
-        if (expandViewport.classList.contains("rw-graph__viewport--expanded")) {
+        if (classHas(expandViewport, "rw-graph__viewport--expanded")) {
           closeFallback();
         } else {
           priorOverflow = document.body.style.overflow;
           document.body.style.overflow = "hidden";
-          expandViewport.classList.add("rw-graph__viewport--expanded");
+          classAdd(expandViewport, ["rw-graph__viewport--expanded"]);
           updateLabel();
         }
       }
     } catch (_) {
-      if (expandViewport.classList.contains("rw-graph__viewport--expanded")) closeFallback();
+      if (classHas(expandViewport, "rw-graph__viewport--expanded")) closeFallback();
       else {
         priorOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
-        expandViewport.classList.add("rw-graph__viewport--expanded");
+        classAdd(expandViewport, ["rw-graph__viewport--expanded"]);
         updateLabel();
       }
     }
   });
   const escapeHandler = (event: KeyboardEvent) => {
-    if (event.key === "Escape" && expandViewport.classList.contains("rw-graph__viewport--expanded")) {
+    if (event.key === "Escape" && classHas(expandViewport, "rw-graph__viewport--expanded")) {
       event.preventDefault();
       closeFallback();
     }
@@ -1417,8 +1450,8 @@ function bindGraphExpand(graph: GraphState): void {
   document.addEventListener("fullscreenchange", updateLabel);
   graph.expandCleanup = () => {
     document.removeEventListener("keydown", escapeHandler);
-    if (expandViewport.classList.contains("rw-graph__viewport--expanded")) {
-      expandViewport.classList.remove("rw-graph__viewport--expanded");
+    if (classHas(expandViewport, "rw-graph__viewport--expanded")) {
+      classRemove(expandViewport, "rw-graph__viewport--expanded");
       document.body.style.overflow = priorOverflow;
     }
   };
@@ -1445,7 +1478,7 @@ function SelectionMarkup(props: { node: GraphNode | undefined; neighbours: numbe
   }
   const href = graphLink(props.node);
   const clusterLabel = (props.node.cluster || 0) + 1;
-  var recordMarkup: JSX.Element = <span className="ui faded text">No separate domain record exists for this raw referenced-author string.</span>;
+  var recordMarkup: JSX.Element = <span className={classNames.uiFadedText}>No separate domain record exists for this raw referenced-author string.</span>;
   if (href) recordMarkup = <a href={href}>Open full record</a>;
   const summaryLine = (
     <p>
@@ -1492,7 +1525,7 @@ function renderEdgePage(graph: GraphState): void {
   if (graph.edgePage > pages) graph.edgePage = pages;
   const rows = visibleEdges.slice((graph.edgePage - 1) * pageSize, graph.edgePage * pageSize);
 
-  var rowsHtml: JSX.Element[] = [<tr><td colspan={4} className="rw-table-empty">No relationships.</td></tr>];
+  var rowsHtml: JSX.Element[] = [<tr><td colSpan={4} className="rw-table-empty">No relationships.</td></tr>];
   if (rows.length) {
     rowsHtml = rows.map((edge) => {
       return (
@@ -1508,10 +1541,9 @@ function renderEdgePage(graph: GraphState): void {
 
   var itemLabel = "relationships";
   if (graph.selection) itemLabel = "relationships in this neighbourhood";
-  const paginationOptions = {
+  const paginationOptions: PaginationOptions = {
     itemLabel: itemLabel,
     pageAttribute: "data-graph-page",
-    pageClass: " graph-page",
   };
   const paginationResult = {
     page: graph.edgePage,
@@ -1523,7 +1555,7 @@ function renderEdgePage(graph: GraphState): void {
   const edgeTableMarkup = (
     <Fragment>
       <div className="table-wrap" aria-label="Relationship table">
-        <table className="ui table">
+        <table className={classNames.uiTable}>
           <thead>
             <tr>
               <th scope="col">Relationship</th>

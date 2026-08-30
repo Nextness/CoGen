@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 
 // Setup DOM before importing the module under test
 import './setup.ts';
+import type { HierarchyRun } from '../../src/api/types.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
-  params, value, view, section, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
+  params, value, view, section, detailOrigin, viewPage, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
   percent, formatTime, formatDate, formatDuration, formatBytes, humanLabel, parseObject, statusClass, StatusChip, metricEntries, selectedRun, showError,
   clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
   FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary, Timeline,
@@ -22,7 +23,17 @@ const table = (title: string, description: string, columns: any[], rows: any[]):
 const subnav = (items: Array<[string, string]>, current: string, key: string): string => renderToString(Subnav({ items: items, current: current, key: key }));
 const filterChips = (filters: Record<string, any>, labels?: Record<string, string>, options?: any): string => renderToString(FilterChips({ filters: filters, labels: labels, options: options }));
 const metricCard = (name: string, metric: any, href?: string): string => renderToString(MetricCard({ name: name, metric: metric, href: href }));
-const flowStage = (label: string, raw: any, base: any, previous: any, extraClass: string, stageKey: string, options: any): string => renderToString(FlowStage({ label: label, raw: raw, base: base, previous: previous, extraClass: extraClass, stageKey: stageKey, options: options }));
+const flowStage = (label: string, raw: any, base: any, previous: any, stageKey: string, options: any): string => {
+  const stageMarkup = FlowStage({
+    label: label,
+    raw: raw,
+    base: base,
+    previous: previous,
+    stageKey: stageKey,
+    options: options,
+  });
+  return renderToString(stageMarkup);
+};
 const retentionFlow = (overview: any): string => renderToString(RetentionFlow({ overview: overview }));
 const breakdown = (title: string, source: any, valueLabel?: string, useTotal?: boolean): string => renderToString(Breakdown({ title: title, source: source, valueLabel: valueLabel, useTotal: useTotal }));
 const sourceResultCountSummary = (items: any[]): string => renderToString(SourceResultCountSummary({ items: items }));
@@ -31,6 +42,12 @@ const detailTable = (title: string, rows: any): string => renderToString(DetailT
 const cell = (item: any, column: string, tableName?: string): string => renderToString(Cell({ item: item, column: column, tableName: tableName }));
 
 describe('state.tsx — constants', function() {
+
+  it('maps supported views to their owning page files', function() {
+    assert.equal(viewPage.home, 'index.html');
+    assert.equal(viewPage.overview, 'overview.html');
+    assert.equal(viewPage.article, 'article.html');
+  });
 
   it('app is a DOM element', function() {
     assert.ok(app instanceof HTMLElement);
@@ -475,7 +492,7 @@ describe('state.tsx — selectedRun', function() {
   });
 
   it('finds a run by run_id', function() {
-    state.runs = [{ id: 'run-1', status: 'complete' }];
+    state.runs = [{ id: 'run-1', status: 'complete' } as unknown as HierarchyRun];
     // Set run_id in URL
     const url = new URL(location.href);
     url.searchParams.set('run_id', 'run-1');
@@ -524,20 +541,26 @@ describe('state.tsx — showError / clearError / busy', function() {
 
 describe('state.tsx — link', function() {
 
+  beforeEach(function() {
+    history.replaceState({}, '', '/?view=overview');
+  });
+
   it('builds a query string from updates', function() {
     const result = link({ view: 'corpus', section: 'articles' });
-    assert.ok(result.startsWith('?'));
+    assert.ok(result.startsWith('corpus.html?'));
     assert.ok(result.includes('view=corpus'));
     assert.ok(result.includes('section=articles'));
   });
 
   it('removes keys with empty values but keeps the Home default', function() {
     const result = link({ view: '' });
+    assert.ok(result.startsWith('index.html?'));
     assert.ok(result.includes('view=home'));
   });
 
   it('removes keys with null values but keeps the Home default', function() {
     const result = link({ view: null });
+    assert.ok(result.startsWith('index.html?'));
     assert.ok(result.includes('view=home'));
   });
 
@@ -551,9 +574,15 @@ describe('state.tsx — link', function() {
     history.pushState({}, '', url.toString());
   });
 
-  it('returns empty query for no updates', function() {
+  it('uses the current view page when no updates are supplied', function() {
     const result = link();
-    assert.ok(result.startsWith('?'));
+    assert.ok(result.startsWith('overview.html?'));
+  });
+
+  it('uses the home page for an unsupported destination', function() {
+    const result = link({ view: 'unsupported' });
+    assert.ok(result.startsWith('index.html?'));
+    assert.ok(result.includes('view=unsupported'));
   });
 
   it("keeps only canonical context and destination-owned route state", () => {
@@ -592,6 +621,34 @@ describe('state.tsx — link', function() {
     assert.equal(target.has("note_id"), false);
     assert.equal(target.has("anchor_id"), false);
     assert.equal(target.has("pdf_page"), false);
+    history.replaceState({}, "", "?view=overview");
+  });
+
+  it("returns a detail origin through the origin view page", () => {
+    const origin = new URLSearchParams({
+      view: "corpus",
+      search_id: "1",
+      search_revision_id: "2",
+      plan_id: "3",
+      run_id: "4",
+      section: "articles",
+    });
+    const detail = new URLSearchParams({
+      view: "article",
+      search_id: "1",
+      search_revision_id: "2",
+      plan_id: "3",
+      run_id: "4",
+      article_id: "8",
+      origin: origin.toString(),
+    });
+    history.replaceState({}, "", `?${detail.toString()}`);
+
+    const result = detailOrigin();
+
+    assert.ok(result);
+    assert.ok(result.href.startsWith("corpus.html?"));
+    assert.equal(new URL(result.href, location.origin).searchParams.get("section"), "articles");
     history.replaceState({}, "", "?view=overview");
   });
 
@@ -723,7 +780,7 @@ describe('state.tsx — metricCard', function() {
 describe('state.tsx — flowStage', function() {
 
   it('renders a flow stage with count', function() {
-    const result = flowStage('Parsed', 100, 200, null, '', '', {});
+    const result = flowStage("Parsed", 100, 200, null, "", {});
     assert.ok(result.includes('rw-flow__step'));
     assert.ok(result.includes('Parsed'));
     assert.ok(result.includes('100'));
@@ -731,22 +788,22 @@ describe('state.tsx — flowStage', function() {
   });
 
   it('shows input baseline for null previous', function() {
-    const result = flowStage('Input', 100, 100, null, '', '', {});
+    const result = flowStage("Input", 100, 100, null, "", {});
     assert.ok(result.includes('Input baseline'));
   });
 
   it('shows diff from prior', function() {
-    const result = flowStage('Parsed', 80, 100, 100, '', '', {});
+    const result = flowStage("Parsed", 80, 100, 100, "", {});
     assert.ok(result.includes('from prior'));
   });
 
   it('handles unavailable state', function() {
-    const result = flowStage('Test', { available: false }, 100, null, '', '', {});
+    const result = flowStage("Test", { available: false }, 100, null, "", {});
     assert.ok(result.includes('Not recorded'));
   });
 
   it('handles null raw', function() {
-    const result = flowStage('Test', null, 100, null, '', '', {});
+    const result = flowStage("Test", null, 100, null, "", {});
     assert.ok(result.includes('Not recorded'));
   });
 
@@ -811,9 +868,9 @@ describe('state.tsx — retentionFlow', function() {
       return label.textContent;
     }), ['Source selection', 'Pipeline processing', 'Corpus enrichment']);
     assert.equal(document.querySelectorAll('.rw-flow--source > .rw-flow__step').length, 4);
-    assert.equal(document.querySelectorAll('.rw-flow--pipeline > .rw-flow__step').length, 3);
-    assert.equal(document.querySelectorAll('.rw-flow--corpus > .rw-flow__step').length, 3);
-    assert.match((document.querySelector('.rw-retention__phase--source .ui.label') as HTMLElement).textContent, /300 initial raw results across 2 sources/);
+    assert.equal(document.querySelectorAll(`[data-retention-phase="pipeline"] > .rw-flow > .rw-flow__step`).length, 3);
+    assert.equal(document.querySelectorAll(`[data-retention-phase="corpus"] > .rw-flow > .rw-flow__step`).length, 3);
+    assert.match((document.querySelector(`[data-retention-phase="source"] .ui.label`) as HTMLElement).textContent, /300 initial raw results across 2 sources/);
     assert.equal((document.querySelector('[data-flow-stage="input_records"] .rw-flow__percentage') as HTMLElement).textContent, '22.67%');
     assert.equal((document.querySelector('[data-flow-stage="parsed_articles"] .rw-flow__percentage') as HTMLElement).textContent, '20.00%');
     assert.equal((document.querySelector('[data-flow-stage="deduplicated_articles"] .rw-flow__percentage') as HTMLElement).textContent, '16.67%');

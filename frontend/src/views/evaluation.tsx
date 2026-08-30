@@ -13,8 +13,9 @@ import {
   StatusChip,
   currentDetailOrigin,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
+import type { EvaluationFacet, EvaluationResponse, EvaluationRow, WireRecord } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import {
@@ -24,44 +25,63 @@ import {
 import { bindFocusContext, setURL } from "../router.tsx";
 import { mountRunNotesIndex } from "../components/run-notes-index.tsx";
 
+/** Typed compound class names used by this module. */
+const classNames = {
+  rwFilterDisclosureRwEvaluationFiltersAdvanced: cx("rw-filter-disclosure", "rw-evaluation-filters__advanced"),
+  rwFilterPanelFieldsRwEvaluationFiltersAdvancedFields: cx("rw-filter-panel__fields", "rw-evaluation-filters__advanced-fields"),
+  uiBasicButton: cx("ui", "basic", "button"),
+  uiFadedText: cx("ui", "faded", "text"),
+  uiFormRwFilterPanel: cx("ui", "form", "rw-filter-panel"),
+  uiInput: cx("ui", "input"),
+  uiNeutralLabel: cx("ui", "neutral", "label"),
+  uiOrangeLabel: cx("ui", "orange", "label"),
+  uiPrimaryButton: cx("ui", "primary", "button"),
+  uiSegment: cx("ui", "segment"),
+  uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
+  uiVioletLabel: cx("ui", "violet", "label"),
+};
+
 const evaluationSortFields = ["title", "doi"];
 const evaluationFilterKeys = ["q", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"];
 
 /** Renders a queue-preserving article link for an evaluation row. */
-function titleLink(row: any): JSX.Element {
+function titleLink(row: WireRecord): JSX.Element {
+  const record = row as EvaluationRow;
   const recordHref = link({
     view: "article",
-    article_id: row.work_revision_id,
+    article_id: record.work_revision_id,
     origin: currentDetailOrigin(),
   });
   return (
-    <a className="rw-table-title" href={recordHref} title={row.title || "Not recorded"}>
-      <span>{row.title || "Not recorded"}</span>
+    <a className="rw-table-title" href={recordHref} title={record.title || "Not recorded"}>
+      <span>{record.title || "Not recorded"}</span>
     </a>
   );
 }
 
 /** Renders the recorded PDF inventory date or an unavailable label. */
-function inventoriedDate(row: any): JSX.Element {
-  if (!row.inventoried_at) {
-    return <span className="ui faded text">{"\u2014"}</span>;
+function inventoriedDate(row: WireRecord): JSX.Element {
+  const record = row as EvaluationRow;
+  if (!record.inventoried_at) {
+    return <span className={classNames.uiFadedText}>{"\u2014"}</span>;
   }
-  return <time datetime={row.inventoried_at}>{formatDate(row.inventoried_at)}</time>;
+  return <time dateTime={record.inventoried_at}>{formatDate(record.inventoried_at)}</time>;
 }
 
 /** Renders explicit review-lineage state from the invariant server response. */
-function reviewSource(row: any, initialized: boolean): JSX.Element {
-  if (!initialized || !row.review_version_id) {
-    return <span className="ui orange label">Not started</span>;
+function reviewSource(row: WireRecord, initialized: boolean): JSX.Element {
+  const record = row as EvaluationRow;
+  if (!initialized || !record.review_version_id) {
+    return <span className={classNames.uiOrangeLabel}>Not started</span>;
   }
-  if (row.review_inherited) {
-    return <span className="ui violet label">Inherited</span>;
+  if (record.review_inherited) {
+    return <span className={classNames.uiVioletLabel}>Inherited</span>;
   }
-  return <span className="ui neutral label">This context</span>;
+  return <span className={classNames.uiNeutralLabel}>This context</span>;
 }
 
 /** Renders one select option from an aggregate facet value. */
-function facetOptions(items: any[], selected: string): JSX.Element[] {
+function facetOptions(items: EvaluationFacet[], selected: string): JSX.Element[] {
   return (items || []).map((item) => {
     const label = `${humanLabel(item.value)} (${formatNumber(item.count)})`;
     return <option value={item.value} selected={String(item.value) === selected}>{label}</option>;
@@ -72,7 +92,7 @@ function facetOptions(items: any[], selected: string): JSX.Element[] {
 export async function evaluationView(): Promise<void> {
   const runID = value("run_id");
   if (!runID) {
-    const emptyAction = <button type="button" className="ui primary button" data-focus-context>Select a run attempt</button>;
+    const emptyAction = <button type="button" className={classNames.uiPrimaryButton} data-focus-context>Select a run attempt</button>;
     const emptyStateMarkup = (
       <EmptyState
         title="Evaluation"
@@ -99,7 +119,7 @@ export async function evaluationView(): Promise<void> {
   evaluationFilterKeys.forEach((key) => {
     filters[key] = value(key);
   });
-  const data = await api(`/api/runs/${encodeURIComponent(runID)}/evaluation`, {
+  const data = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(runID)}/evaluation`, {
     page: page,
     per_page: perPage,
     sort: sort,
@@ -147,11 +167,11 @@ export async function evaluationView(): Promise<void> {
   if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
   const clearFilterHref = link(clearUpdates);
   const controls = (
-    <form className="ui form rw-filter-panel rw-evaluation-filters" data-evaluation-filters>
+    <form className={classNames.uiFormRwFilterPanel} data-evaluation-filters>
       <div className="rw-evaluation-filters__primary">
         <label className="rw-evaluation-filters__search">
           <span>Search normalized articles</span>
-          <span className="ui input">
+          <span className={classNames.uiInput}>
             <input id="evaluation-query" name="q" type="search" value={filters.q} placeholder="Title or DOI" />
           </span>
         </label>
@@ -160,16 +180,16 @@ export async function evaluationView(): Promise<void> {
           <select id="evaluation-per-page">{pageSizeOptions}</select>
         </label>
         <div className="rw-filter-panel__actions">
-          <button type="submit" className="ui primary button">Apply filters</button>
-          <a className="ui basic button" href={clearFilterHref}>Clear filters</a>
+          <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
+          <a className={classNames.uiBasicButton} href={clearFilterHref}>Clear filters</a>
         </div>
       </div>
-      <details className="rw-filter-disclosure rw-evaluation-filters__advanced" open={advancedOpen}>
+      <details className={classNames.rwFilterDisclosureRwEvaluationFiltersAdvanced} open={advancedOpen}>
         <summary>
           <span>PDF, review, source, and progress filters</span>
           <small>{advancedSummary}</small>
         </summary>
-        <div className="rw-filter-panel__fields rw-evaluation-filters__advanced-fields">
+        <div className={classNames.rwFilterPanelFieldsRwEvaluationFiltersAdvancedFields}>
           <label>
             <span>PDF availability</span>
             <select name="pdf_status">
@@ -263,7 +283,7 @@ export async function evaluationView(): Promise<void> {
     sortFields: evaluationSortFields,
     rowKey: "work_revision_id",
     itemLabel: "normalized articles",
-    tableClass: "rw-evaluation-table",
+    tableClasses: ["rw-evaluation-table"],
     columnConfig: columnConfig,
     columnsWhitelist: ["title", "doi", "inventory_status", "inventoried_at", "review_status", "review_inherited"],
     perPageSelector: "#evaluation-per-page",
@@ -275,24 +295,24 @@ export async function evaluationView(): Promise<void> {
 
   var contextAction: JSX.Element | null = null;
   if (!data.review_context_initialized && data.run_writable) {
-    contextAction = <button type="button" className="ui primary button" data-start-review>Start review</button>;
+    contextAction = <button type="button" className={classNames.uiPrimaryButton} data-start-review>Start review</button>;
   }
-  var contextStatus: JSX.Element = <span className="ui orange label">Not started</span>;
-  if (data.review_context_initialized) contextStatus = <span className="ui violet label">Review initialized</span>;
+  var contextStatus: JSX.Element = <span className={classNames.uiOrangeLabel}>Not started</span>;
+  if (data.review_context_initialized) contextStatus = <span className={classNames.uiVioletLabel}>Review initialized</span>;
   const progressWidth = Math.max(0, Math.min(100, Number(summary.percent_reviewed) || 0));
   const navigation = data.queue_navigation || {};
   var previousUnreviewed: JSX.Element | null = null;
   var nextUnreviewed: JSX.Element | null = null;
   if (navigation.previous_work_revision_id) {
     previousUnreviewed = (
-      <a className="ui basic button" href={link({ view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() })}>
+      <a className={classNames.uiBasicButton} href={link({ view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() })}>
         Previous unreviewed
       </a>
     );
   }
   if (navigation.next_work_revision_id) {
     nextUnreviewed = (
-      <a className="ui primary button" href={link({ view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() })}>
+      <a className={classNames.uiPrimaryButton} href={link({ view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() })}>
         Next unreviewed
       </a>
     );
@@ -326,8 +346,8 @@ export async function evaluationView(): Promise<void> {
         description="Review normalized articles with explicit PDF, decision, lineage, and progress filters."
       />
       {progressMarkup}
-      <section className="ui segment rw-data-section">
-        <div className="ui top attached header">
+      <section className={classNames.uiSegment}>
+        <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>Normalized article queue</h3>
             <p>The queue and its return links preserve the selected filters, sorting, and page.</p>
@@ -335,16 +355,16 @@ export async function evaluationView(): Promise<void> {
           {contextAction}
         </div>
         <div className="content">
-          <div className="rw-content-stack rw-evaluation-queue" data-table-scope="evaluation">
+          <div className="rw-content-stack" data-table-scope="evaluation">
             {controls}
             {table}
           </div>
         </div>
       </section>
-      <details className="ui segment rw-run-notes-index">
+      <details className={classNames.uiSegment}>
         <summary>Browse all Notes in this review context</summary>
         <div className="content">
-          <button type="button" className="ui basic button" data-run-notes-open disabled={!data.review_context_initialized}>Load run Notes index</button>
+          <button type="button" className={classNames.uiBasicButton} data-run-notes-open disabled={!data.review_context_initialized}>Load run Notes index</button>
           <div data-run-notes-host></div>
         </div>
       </details>
@@ -358,7 +378,7 @@ export async function evaluationView(): Promise<void> {
     event.preventDefault();
     const formElement = event.currentTarget as HTMLFormElement;
     const form = new FormData(formElement);
-    const updates: Record<string, any> = { page: 1 };
+    const updates: Record<string, unknown> = { page: 1 };
     evaluationFilterKeys.forEach((key) => {
       updates[key] = String(form.get(key) || "");
     });

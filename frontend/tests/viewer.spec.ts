@@ -1,6 +1,7 @@
-// @ts-check
-const { test, expect } = require('@playwright/test');
-const { readFile } = require('node:fs/promises');
+import { readFile } from 'node:fs/promises';
+
+import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 // ── Fixture identifiers ───────────────────────────────────────────────
 // URL parameters use row IDs (not search_id strings or execution fingerprints)
@@ -44,7 +45,7 @@ const REF_1_ID = '1';     // Points to 10.1000/2
 /**
  * Navigate to a URL and wait for network idle.
  */
-async function goto(page, url) {
+async function goto(page: Page, url: string): Promise<void> {
   await page.goto(url);
   await page.waitForLoadState('networkidle');
 }
@@ -52,7 +53,7 @@ async function goto(page, url) {
 /**
  * Build a context URL with search, revision, plan, and run IDs.
  */
-function contextURL(overrides = {}) {
+function contextURL(overrides: Record<string, string> = {}): string {
   const params = new URLSearchParams({
     view: 'overview',
     search_id: SEARCH_DL,
@@ -67,7 +68,7 @@ function contextURL(overrides = {}) {
 /**
  * Navigate to a fully selected context URL.
  */
-async function selectRun(page, searchId, revisionId, planId, runId) {
+async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string): Promise<void> {
   await goto(page, contextURL({ search_id: searchId, search_revision_id: revisionId, plan_id: planId, run_id: runId }));
 }
 
@@ -116,12 +117,63 @@ test.describe('Health and page load', () => {
   test('primary navigation preserves the selected research context', async ({ page }) => {
     await goto(page, contextURL({ view: 'overview' }));
     const href = await page.getByRole('link', { name: 'Corpus', exact: true }).getAttribute('href');
+    if (!href) throw new Error('Corpus navigation link has no href');
     const target = new URL(href, page.url());
     expect(target.searchParams.get('view')).toBe('corpus');
     expect(target.searchParams.get('search_id')).toBe(SEARCH_DL);
     expect(target.searchParams.get('search_revision_id')).toBe(REV_DL_R1);
     expect(target.searchParams.get('plan_id')).toBe(PLAN_DL_R1);
     expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
+  });
+
+  test('primary navigation loads view pages and browser history returns to the prior document', async ({ page }) => {
+    await goto(page, contextURL({ view: 'overview' }));
+    const priorURL = page.url();
+
+    await page.getByRole('link', { name: 'Corpus', exact: true }).click();
+    await page.waitForLoadState('networkidle');
+
+    const corpusURL = new URL(page.url());
+    expect(corpusURL.pathname).toBe('/corpus.html');
+    expect(corpusURL.searchParams.get('view')).toBe('corpus');
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'corpus');
+    await expect(page.getByRole('heading', { name: 'Corpus', exact: true })).toBeFocused();
+
+    await page.goBack();
+    await page.waitForLoadState('networkidle');
+    expect(page.url()).toBe(priorURL);
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  });
+
+  test('cancelable draft protection blocks a native view-page transition', async ({ page }) => {
+    await goto(page, contextURL({ view: 'overview' }));
+    const priorURL = page.url();
+    await page.evaluate(() => {
+      document.addEventListener('rw-before-navigate', (event) => {
+        event.preventDefault();
+      }, { once: true });
+    });
+
+    await page.getByRole('link', { name: 'Corpus', exact: true }).click();
+
+    await expect(page).toHaveURL(priorURL);
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'home');
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+  });
+
+  test('a view page URL loads its identified document directly', async ({ page }) => {
+    const query = new URLSearchParams({
+      view: 'overview',
+      search_id: SEARCH_DL,
+      search_revision_id: REV_DL_R1,
+      plan_id: PLAN_DL_R1,
+      run_id: RUN_1_COMPLETED,
+    });
+    await goto(page, `/overview.html?${query.toString()}`);
+
+    await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page).toHaveTitle('Overview · Research workspace');
   });
 
   test('research context is displayed after selecting a run', async ({ page }) => {
@@ -134,6 +186,7 @@ test.describe('Health and page load', () => {
     await expect(context).not.toContainText(/Select a captured run|Inspecting run attempt/i);
     const contextGap = await context.evaluate((element) => {
       const tabs = document.querySelector('.rw-primary-nav');
+      if (!tabs) throw new Error('Deepdive navigation is unavailable');
       return tabs.getBoundingClientRect().top - element.getBoundingClientRect().bottom;
     });
     expect(contextGap).toBeGreaterThanOrEqual(20);
@@ -241,8 +294,8 @@ test.describe('Overview view', () => {
     await expect(page.locator('.rw-retention__phase')).toHaveCount(3);
     await expect(page.locator('.rw-retention__phase-header h4')).toHaveText(['Source selection', 'Pipeline processing', 'Corpus enrichment']);
     await expect(page.locator('.rw-flow--source > .rw-flow__step')).toHaveCount(4);
-    await expect(page.locator('.rw-flow--pipeline > .rw-flow__step')).toHaveCount(3);
-    await expect(page.locator('.rw-flow--corpus > .rw-flow__step')).toHaveCount(3);
+    await expect(page.locator(`[data-retention-phase="pipeline"] > .rw-flow > .rw-flow__step`)).toHaveCount(3);
+    await expect(page.locator(`[data-retention-phase="corpus"] > .rw-flow > .rw-flow__step`)).toHaveCount(3);
     await expect(page.locator('[data-flow-stage="input_records"] .rw-flow__percentage')).toHaveText('22.67%');
     await expect(page.locator('[data-flow-stage="enrichment_candidates"] .rw-flow__percentage')).toHaveText('16.67%');
     await expect(page.locator('[data-flow-stage="validation_outcomes"] .rw-flow__percentage')).toHaveText('16.67%');
@@ -290,7 +343,7 @@ test.describe('Corpus view', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms|Deep Reinforcement Learning|Convolutional Neural/i);
     await expect(page.locator('#corpus-section-select')).toBeVisible();
-    await expect(page.locator('.rw-data-section .ui.tabular.menu')).toHaveCount(0);
+    await expect(page.locator(`[data-table-owner="work_revisions"] .ui.tabular.menu`)).toHaveCount(0);
     await expect(page.locator('.rw-corpus-table thead th').filter({ hasText: /DOI|Title|Year|Journal|Source/ })).toHaveCount(5);
     await expect(page.getByRole('columnheader', { name: 'ID', exact: true })).toHaveCount(0);
     await expect(page.getByRole('columnheader', { name: 'Work', exact: true })).toHaveCount(0);
@@ -307,8 +360,8 @@ test.describe('Corpus view', () => {
   test('articles expansion shows matched search terms', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'articles' }));
     await page.waitForLoadState('networkidle');
-    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
-    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await page.locator(".rw-corpus-table .expand-toggle").first().click();
+    const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
     await expect(expansion).toContainText('Matched search terms');
     await expect(expansion).toContainText('3 of 6 search terms matched');
     await expect(expansion).toContainText('transformer');
@@ -319,8 +372,8 @@ test.describe('Corpus view', () => {
   test('articles expansion shows no search terms recorded for a run without queries', async ({ page }) => {
     await goto(page, contextURL({ view: 'corpus', section: 'articles', run_id: RUN_4_NO_ENRICH }));
     await page.waitForLoadState('networkidle');
-    await page.locator('.rw-corpus-table--articles .expand-toggle').first().click();
-    const expansion = page.locator('.rw-corpus-table--articles tr.expansion-row').first();
+    await page.locator(".rw-corpus-table .expand-toggle").first().click();
+    const expansion = page.locator(".rw-corpus-table tr.expansion-row").first();
     await expect(expansion).toContainText('Matched search terms');
     await expect(expansion).toContainText('No search terms recorded');
   });
@@ -463,6 +516,7 @@ test.describe('Relationships (graph) view', () => {
     expect(download.suggestedFilename()).toBe('graph-export.png');
     const path = await download.path();
     expect(path).not.toBeNull();
+    if (!path) throw new Error('Downloaded graph path is unavailable');
     const bytes = await readFile(path);
     expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   });
@@ -475,6 +529,7 @@ test.describe('Relationships (graph) view', () => {
     const canvasBox = await canvas.boundingBox();
     expect(legendBox).not.toBeNull();
     expect(canvasBox).not.toBeNull();
+    if (!legendBox || !canvasBox) throw new Error('Graph legend or canvas bounds are unavailable');
     expect(Math.abs(legendBox.x - canvasBox.x)).toBeLessThan(24);
     expect(canvasBox.y + canvasBox.height - legendBox.y - legendBox.height).toBeLessThan(24);
   });
@@ -506,6 +561,7 @@ test.describe('Relationships (graph) view', () => {
     const canvas = page.locator('.rw-graph__canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
+    if (!box) throw new Error('Graph canvas bounds are unavailable');
     const position = { x: box.width / 2, y: box.height / 2 };
     await canvas.click({ position });
     await expect(page.locator('#graph-clear-selection')).toBeEnabled();
@@ -519,6 +575,7 @@ test.describe('Relationships (graph) view', () => {
     const canvas = page.locator('.rw-graph__canvas');
     const box = await canvas.boundingBox();
     expect(box).not.toBeNull();
+    if (!box) throw new Error('Graph canvas bounds are unavailable');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down({ button: 'right' });
     await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 35, { steps: 4 });
@@ -552,6 +609,7 @@ test.describe('Provenance view', () => {
     await expect(categoryCheckbox).toHaveCSS('height', '16px');
     const summaryBox = await categoryFilter.locator('summary').boundingBox();
     const checkboxBox = await categoryCheckbox.boundingBox();
+    if (!summaryBox || !checkboxBox) throw new Error('Audit category control bounds are unavailable');
     expect(Math.abs(checkboxBox.x - summaryBox.x)).toBeLessThan(14);
     await categoryCheckbox.check();
     await page.getByRole('button', { name: 'Apply filters' }).click();
@@ -602,7 +660,7 @@ test.describe('Provenance view', () => {
     await page.locator('#cache-query').fill('openalex');
     await page.locator('#cache-controls').getByRole('button', { name: 'Search' }).click();
     await expect(page).toHaveURL(/(?:\?|&)cache_q=openalex(?:&|$)/);
-    await expect(page.locator('.rw-cache-view')).toContainText('openalex');
+    await expect(page.locator(`[data-table-scope="Cache uses"]`)).toContainText("openalex");
     const cacheControlBottoms = await page.locator('#cache-controls').evaluate(function(form) {
       return Array.from(form.children).slice(0, 3).map(function(control) { return Math.round(control.getBoundingClientRect().bottom); });
     });
@@ -654,6 +712,7 @@ test.describe('Evaluation view', () => {
     await goto(page, contextURL({ view: 'provenance' }));
     const evaluation = page.getByRole('link', { name: 'Evaluation', exact: true });
     const href = await evaluation.getAttribute('href');
+    if (!href) throw new Error('Evaluation navigation link has no href');
     const target = new URL(href, page.url());
     expect(target.searchParams.get('view')).toBe('evaluation');
     expect(target.searchParams.get('run_id')).toBe(RUN_1_COMPLETED);
@@ -815,6 +874,144 @@ test.describe('Detail views', () => {
     await page.waitForLoadState('networkidle');
     const body = page.locator('body');
     await expect(body).toContainText(/10\.1000|Deep Reinforcement Learning/i);
+  });
+});
+
+// ── 8b. Fullscreen PDF reader ─────────────────────────────────────────
+
+test.describe('Fullscreen PDF reader', () => {
+
+  /** Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. */
+  async function workspaceExpanded(page: Page): Promise<boolean> {
+    return page.locator('.rw-reading-workspace').evaluate((workspace) => {
+      return document.fullscreenElement === workspace || workspace.classList.contains('rw-reading-workspace--expanded');
+    });
+  }
+
+  /** Selects the fixture methods text and hands it to the review selection flow. */
+  async function selectFixtureText(page: Page): Promise<void> {
+    await page.evaluate(() => {
+      const layer = document.querySelector('.rw-pdf-page .textLayer');
+      if (!layer) throw new Error('PDF text layer is unavailable');
+      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
+      if (!text) throw new Error('Selectable fixture methods text is unavailable');
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const selection = window.getSelection();
+      if (!selection) throw new Error('Document selection is unavailable');
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const viewer = document.querySelector('.rw-pdf-viewer');
+      if (!viewer) throw new Error('PDF viewer is unavailable');
+      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    });
+  }
+
+  test('enters fullscreen from the toolbar with the drawer expanded by default', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    const fullscreenButton = page.getByRole('button', { name: 'Fullscreen' });
+    await expect(fullscreenButton).toBeVisible();
+    await expect(fullscreenButton).toHaveAttribute('aria-pressed', 'false');
+
+    await fullscreenButton.click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toHaveAttribute('aria-pressed', 'true');
+    expect(await workspaceExpanded(page)).toBe(true);
+    await expect(page.locator('[data-drawer-edge]')).toBeVisible();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+  });
+
+  test('collapses and expands the review drawer through the edge control', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.locator('[data-drawer-edge]')).toBeVisible();
+
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeHidden();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'false');
+
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('selecting PDF text expands a collapsed drawer', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await page.locator('[data-drawer-edge]').click();
+    await expect(page.locator('[data-review-host]')).toBeHidden();
+
+    await selectFixtureText(page);
+    await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
+    await page.getByRole('button', { name: 'Review selection' }).click();
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+    await expect(page.locator('[data-drawer-edge]')).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('exits fullscreen and restores the embedded article layout', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toHaveAttribute('aria-pressed', 'false');
+    expect(await workspaceExpanded(page)).toBe(false);
+    await expect(page.locator('[data-drawer-edge]')).toHaveCount(0);
+    await expect(page.locator('[data-review-host]')).toBeVisible();
+  });
+});
+
+// ── 8c. PDF theme toggle ──────────────────────────────────────────────
+
+test.describe('PDF theme toggle', () => {
+
+  /** Returns the computed filter of the rendered PDF page. */
+  async function pageFilter(page: Page): Promise<string> {
+    return page.locator('.rw-pdf-page').evaluate((element) => {
+      return getComputedStyle(element).filter;
+    });
+  }
+
+  test('inverts the rendered page through the Dark toggle and restores it', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    const themeButton = page.getByRole('button', { name: 'Dark' });
+    await expect(themeButton).toBeVisible();
+    await expect(themeButton).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.rw-pdf-viewer')).not.toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toBe('none');
+
+    await themeButton.click();
+    await expect(page.getByRole('button', { name: 'Light' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
+
+    await page.getByRole('button', { name: 'Light' }).click();
+    await expect(page.getByRole('button', { name: 'Dark' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.rw-pdf-viewer')).not.toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toBe('none');
+  });
+
+  test('keeps the inverted theme while entering and leaving fullscreen', async ({ page }) => {
+    await goto(page, contextURL({ view: 'article', article_id: ARTICLE_1_ID }));
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: 'Dark' }).click();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+
+    await page.getByRole('button', { name: 'Fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Exit fullscreen' })).toBeVisible();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
+
+    await page.getByRole('button', { name: 'Exit fullscreen' }).click();
+    await expect(page.getByRole('button', { name: 'Fullscreen' })).toBeVisible();
+    await expect(page.locator('.rw-pdf-viewer')).toHaveClass(/rw-pdf-viewer--dark/);
+    expect(await pageFilter(page)).toContain('invert(1)');
   });
 });
 
@@ -1048,7 +1245,9 @@ test.describe('Dismissible messages', () => {
       message.className = 'ui info message';
       message.dataset.testDismissible = '';
       message.innerHTML = '<button type="button" class="close" aria-label="Dismiss test message">×</button><p>Deterministic dismissible message.</p>';
-      document.querySelector('#main-content').prepend(message);
+      const main = document.querySelector('#main-content');
+      if (!main) throw new Error('Main content is unavailable');
+      main.prepend(message);
     });
     const message = page.locator('[data-test-dismissible]');
     await expect(message).toBeVisible();

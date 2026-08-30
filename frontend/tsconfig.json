@@ -16,6 +16,6 @@
     "skipLibCheck": true,
     "allowJs": false
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.d.ts"],
+  "include": ["playwright.config.ts", "scripts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.d.ts"],
   "exclude": ["vendor", "dist", "dist-ts", "node_modules"]
 }

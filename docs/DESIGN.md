@@ -97,13 +97,13 @@ The shell begins with a skip link, then a site header containing Local research 
 
 The compact context surface contains only dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls. It has no separate title or Clear context action. Each control presents a bounded server-searchable page eligible under its current parent, supports keyboard listbox navigation, preserves an exact selected option outside the current page, selects a sole available child automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
 
-The main region contains an alert notice, a polite live loading indicator, and the view container. View titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
+The main region contains an alert notice, a polite live loading indicator, and the view container. One authoritative shell template generates the Home, six Deepdive, and three detail HTML documents with a static `rw-page` marker and initial title. Rendered view titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
 
 ## 6. URL and navigation behavior
 
 The default view is Home when `view` is absent. Explore links establish the complete research context and open Overview; Deepdive links retain that context. Changing search clears revision, plan, and run; changing revision clears plan and run; changing plan clears run; changing run preserves its ancestors. Every view supplies an explicit breadcrumb beginning at Home, with detail routes extending through Deepdive and Corpus.
 
-The SPA intercepts same-page query links without modifier keys, pushes browser history, and renders without a full reload. Back and forward navigation re-renders from the URL. External links, downloads, modified clicks, and non-query links retain normal browser behavior.
+Every application-generated URL contains the owning page file and the `view` query parameter. Cross-view links perform a native full-page load, so browser back, forward, reload, and bookmarks use document navigation. Same-view links and programmatic state changes without modifier keys push or replace browser history and render without reloading the document. External links, downloads, modified clicks, and non-application paths retain normal browser behavior. Direct legacy root URLs such as `/?view=overview` remain supported through `index.html`; application links canonicalize the same view to `overview.html?view=overview`.
 
 Each render aborts the previous request controller and receives a monotonically increasing sequence number. Only the newest sequence may display errors, change the title, or clear the loading state. Aborted requests are silent.
 
@@ -141,7 +141,9 @@ Article detail uses the breadcrumb Home / Deepdive / Corpus / Analysis-ready art
 
 The Search term coverage panel is derived from the run's recorded queries and the revision's stored fields. It shows a summary line of how many of the run's search terms matched the article, one row per field (Title, Abstract, Keywords, Keywords plus) with matched terms as chips, and an All search terms disclosure listing matched and unmatched terms with their source badges. A field with no recorded value shows Not recorded, a recorded field with no matches shows No matched terms, and a run without stored term data shows No search terms recorded. The panel states that matching is deterministic and stems every word before whole-word matching.
 
-The PDF panel distinguishes Available from Not Available, shows inventory timing when present, and exposes content only when the read-only PDF API can join the available inventory row to stored bytes. The custom PDF.js interface renders exactly one current page with selectable text, boundary-aware page controls, zoom, rotation, and active anchor highlights without the default PDF.js viewer UI. One Previous or Next activation changes the current page once, concurrent display changes cancel stale rendering, the contained page viewport owns document overflow, and navigation destroys rendering and worker tasks. The frontend never creates or changes PDF inventory state.
+The PDF panel distinguishes Available from Not Available, shows inventory timing when present, and exposes content only when the read-only PDF API can join the available inventory row to stored bytes. The custom PDF.js interface renders exactly one current page with selectable text, boundary-aware page controls, zoom, rotation, a Dark/Light theme toggle that inverts the rendered page through a CSS filter, and active anchor highlights without the default PDF.js viewer UI. One Previous or Next activation changes the current page once, concurrent display changes cancel stale rendering, the contained page viewport owns document overflow, and navigation destroys rendering and worker tasks. The frontend never creates or changes PDF inventory state.
+
+A toolbar Fullscreen toggle expands the reading workspace into browser fullscreen (or a fixed-viewport fallback class when the Fullscreen API is unavailable or rejects), following the graph view's expand pattern. In fullscreen the workspace becomes a PDF-main-plus-drawer layout: the PDF viewer fills the main area and the review panel becomes a collapsible drawer on the right, expanded by default, with the Decision, Notes, and PDF anchors tabs unchanged. The drawer edge control collapses and expands the panel, and the PDF selection handoff dispatches a synchronous `rw-pdf-selection` event that expands a collapsed drawer before the anchor candidate form renders. Fullscreen state is transient, is not URL-backed, preserves the existing `pdf_page`, `anchor_id`, and `note_id` URL state, and is destroyed with the review controller on navigation.
 
 Review is started explicitly for one completed non-trashed run. Start review opens a modal dialog with a dimmed backdrop, visible title and close action, deterministic proposed parent, same-search alternatives loaded first, and a deliberate action that expands to all earlier searches. The expansion action reports loading, added, empty, and failed outcomes in one contextual message region instead of disappearing or exposing an unexplained disabled control. Starting empty and dismissal without initialization are always available. Creation freezes inherited version IDs for stable work matches; inherited labels identify reused heads and later parent edits do not propagate.
 
@@ -151,7 +153,7 @@ Review notes use a bounded project grammar with headings, paragraphs, quotes, li
 
 Unsaved note drafts remain only in browser storage under a key containing the opaque corpus ID, run, revision, logical note, and expected version. A successful save clears only the matching draft. Storage failures and version conflicts keep textarea content and display a warning. OSF export does not scan or copy browser drafts.
 
-Selecting text on one rendered PDF page creates one through 64 normalized rectangles and opens an anchor form with a work-scoped human label. The repository generates the corpus-unique opaque anchor ID used by stable note links. Anchors retain exact work revision, PDF content hash, selected text, geometry, immutable history, and inherited or current labels. A hash mismatch displays the anchor as unavailable and does not project stale geometry or offer an unqualified page action. The textual anchor list is keyboard operable, can navigate to a matching page, shows history and tombstones, and remains the non-visual equivalent of highlights.
+Selecting text on one rendered PDF page creates one through 64 normalized rectangles and opens an anchor form with a work-scoped human label. The repository generates the corpus-unique opaque anchor ID used by stable note links. Anchors retain exact work revision, PDF content hash, selected text, geometry, immutable history, and inherited or current labels. A hash mismatch displays the anchor as unavailable and does not project stale geometry or offer an unqualified page action. The textual anchor list is keyboard operable, can navigate to a matching page, shows history and tombstones, and remains the non-visual equivalent of highlights. In fullscreen reading mode the same anchor flow runs inside the review drawer: the selection handoff expands a collapsed drawer so the candidate form, label focus, and scroll-into-view behavior operate on a visible panel.
 
 Author detail describes one author occurrence and its linked articles, affiliations, person identity, and audit context. Reference detail describes one mention, its citing revision, captured fields, and resolved target when the selected run contains a suitable revision.
 
@@ -231,7 +233,7 @@ Responsive changes must preserve context labels, status meaning, pagination, dis
 
 ## 17. Accessibility
 
-The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus.
+The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. A generated page-file load focuses the rendered page title after the busy region becomes interactive, while a direct legacy root load retains normal top-of-document focus and the Skip to content entry path.
 
 All actions must be operable by keyboard and have discernible text or an accessible name. Interactive rows cannot be the only way to expand a record. Focus order follows visual order, and disabled selectors or buttons communicate why through nearby text.
 
@@ -243,7 +245,7 @@ Reduced-motion preferences must avoid unnecessary smooth transitions or animated
 
 ## 18. Loading, errors, and resilience
 
-Global view fetches show the shared loading region and clear prior errors. The API helper requires JSON, extracts the standard error message when present, and reports invalid JSON or request failures in plain language. Aborted stale renders never overwrite a newer view.
+Global view fetches show the shared loading region and clear prior errors. Cross-view loads repeat shell health, hierarchy hydration, run-context reconciliation, and view requests; same-view history renders retain the abortable request lifecycle without reloading the shell. The API helper requires JSON, extracts the standard error message when present, and reports invalid JSON or request failures in plain language. Aborted stale renders never overwrite a newer view.
 
 Local progressive actions such as loading older audit events, inspecting artifacts, copying preview text, or running graph controls keep existing content visible and report failures near the action. A failed preview always leaves original download available when the server permits it.
 
@@ -261,13 +263,16 @@ The interface must not render credentials, tokens, private keys, raw environment
 
 | Path | Design responsibility |
 |---|---|
-| `index.html` | Accessible shell, navigation, context selectors, status, loading, notice, and app mount point. |
-| `app.tsx` | Global event binding, history interception, shell initialization, and first render. |
-| `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
-| `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, permissive `IntrinsicElements`). |
-| `state.tsx` | URL values, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
+| `index.html` | Authoritative accessible shell template for every generated page document. |
+| `scripts/build.ts` | Compiled-source assembly, per-view page generation and markers, and served-root validation. |
+| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, non-mutating freshness verification, non-JSX class validation, and defined-without-static-use reporting. |
+| `app.tsx` | Global event binding, same-view history interception, protected native cross-view navigation, shell initialization, and first render. |
+| `jsx/classes.ts` | Committed generated union of class tokens defined by the six authoritative stylesheets; never edit it directly. |
+| `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |
+| `jsx/jsx.d.ts` | The ambient global `JSX` namespace (`Element = Node`, class names narrowed to generated tokens or branded combinations, and otherwise permissive intrinsic attributes). |
+| `state.tsx` | URL values, view-to-page ownership, DOM state, escaping, formatting, shared JSX panels/tables/flows/labels, links, statuses, and global UI behavior. It imports only the leaf JSX runtime. |
 | `api.tsx` | Abort-aware JSON reads and mutations, endpoint construction, structured error extraction, and table discovery cache. |
-| `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, primary-nav state, and document title. |
+| `router.tsx` | Request sequencing, abort lifecycle, selector hydration, view dispatch, native cross-view navigation, same-view history state, primary-nav state, document title, and focus. |
 | `components/context-selector.tsx` | Dependent bounded searchable single-select hydration, loading skeletons, keyboard listbox interaction, exact selected options, and sole-child auto-selection. |
 | `components/data-table.tsx` | Shared rows, sorting, search, page size, expansion, and control binding. |
 | `components/pagination.tsx` | First/Previous/numbered/Next/Last controls and result ranges. |
@@ -289,15 +294,15 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; never edit it manually. |
 | `vendor/pdfjs/` | Generated pinned PDF.js core, exact worker, CMaps, standard fonts, and license assets; never edit them manually. |
 
-Components may import shared state, API, router helpers, the JSX runtime, pagination, and the pinned D3 module as required, but they must not import view modules. Views build a JSX tree and call `render(<View .../>, app)`; reusable components return JSX elements, and behavior helpers bind to caller-owned DOM after render.
+Components may import shared state, API, router helpers, the JSX runtime, pagination, and the pinned D3 module as required, but they must not import view modules. Views assign a built JSX tree to a descriptive binding and pass that binding to `render`; reusable components return JSX elements, and behavior helpers bind to caller-owned DOM after render.
 
 ## 21. Testing and acceptance
 
 Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API reads and mutations, routing and cleanup, selectors, tables, pagination, graph transformation and interactions, note parser conformance and safe rendering, draft and comparison helpers, PDF geometry projection and one-activation pagination, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
 
-The main Playwright suite runs against an isolated fixture copy and verifies context selection, navigation, URL preservation, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks and reviewed screenshots for core views.
+The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for both legacy root and generated page URLs plus reviewed screenshots for core views.
 
-Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.cjs`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
+Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
 Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review and run-visibility controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
 
@@ -311,6 +316,11 @@ Acceptance requires no hard-coded context-dropping internal links, no unbounded 
 - The JSX runtime has no VDOM reconciliation and no automatic re-render; a view re-renders by building a fresh tree and calling `render`. Application views and components compose Nodes directly. `renderToString` remains a test serializer, and `raw` has no application caller.
 - Router and context-selector currently form one ES-module cycle to connect selector navigation with render-time hydration; it is initialized safely, but new modules should not add dependencies to that cycle.
 - The URL contains research context and filters, which is useful for reproducibility but can reveal search/run identifiers through copied links or browser history.
+- Canonical application links use page-file URLs with a duplicate `view` query parameter, while legacy `/?view=...` URLs remain supported, so one rendered view has two valid URL forms and Home links use `index.html?view=home`.
+- A page file without its matching `view` query parameter renders Home because the query parameter remains the dispatch source of truth.
+- A cross-view load repeats approximately seven to nine health, hierarchy, reconciliation, and view requests through the server's single read connection; same-view filters and pagination avoid this cost by rendering in place.
+- Cross-view navigation discards in-memory graph simulation positions, zoom and pan, and appended audit pages. The URL-backed graph selection, filters, and other route state remain restorable.
+- The filesystem server uses `Last-Modified` revalidation without an explicit project cache policy, so rebuilding page or module assets within one timestamp-resolution interval can leave a stale browser response until revalidation observes the new modification time.
 - The local fixture and screenshot baselines represent controlled test data and Chromium/Linux rendering; they do not prove visual identity across every platform font and browser.
 - Active CSS aliases remain part of current source behavior and can change only with a verified, scoped update to styles, markup, JavaScript, tests, and [CSS-REFERENCE.md](CSS-REFERENCE.md).
 

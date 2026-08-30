@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import '../setup.ts';
 import { overviewView } from '../../../src/views/overview.tsx';
 import { app, state, value } from '../../../src/state.tsx';
+import type { HierarchyRun } from '../../../src/api/types.ts';
 
 describe('overview.tsx — overviewView', function() {
 
@@ -85,7 +86,7 @@ describe('overview.tsx — overviewView', function() {
     state.runs = [{
       id: 'run-1', attempt_number: 3, execution_plan_id: 9, status: 'completed', visibility_state: 'active',
       started_at: '2024-01-01T00:00:00Z', finished_at: '2024-01-01T00:05:30Z'
-    }];
+    } as unknown as HierarchyRun];
 
     await overviewView();
     assert.ok(app.innerHTML.includes('Overview'));
