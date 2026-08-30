@@ -13,8 +13,9 @@ import {
   FilterChips,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
-import { api, mutate } from "../api.tsx";
+import { api, mutate, errorMessage } from "../api.tsx";
 import type {
+  Identifier,
   HierarchyPage,
   HierarchyRevision,
   HierarchyRun,
@@ -45,8 +46,8 @@ const classNames = {
 };
 
 /** Returns a clean Deepdive URL for one complete research context. */
-function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any): string {
-  const updates: Record<string, any> = {};
+function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Identifier, runID: Identifier): string {
+  const updates: Record<string, unknown> = {};
   for (const key of params().keys()) updates[key] = "";
   return link({
     ...updates,
@@ -59,12 +60,12 @@ function deepdiveLink(searchID: any, revisionID: any, planID: any, runID: any): 
 }
 
 /** Returns whether one hierarchy item contains a complete planned-run context. */
-function hasContext(item: any): boolean {
+function hasContext(item: HierarchyRun): boolean {
   return Boolean(item.search_id && item.search_revision_id && item.execution_plan_id && item.id);
 }
 
 /** Renders one direct action for a search's latest complete run. */
-function ContinueAction(props: { searchID: any; revisionID: any; planID: any; runID: any }): JSX.Element | null {
+function ContinueAction(props: { searchID: Identifier | null; revisionID: Identifier | null; planID: Identifier | null; runID: Identifier | null }): JSX.Element | null {
   if (!props.searchID || !props.revisionID || !props.planID || !props.runID) return null;
   return (
     <a
@@ -77,7 +78,7 @@ function ContinueAction(props: { searchID: any; revisionID: any; planID: any; ru
 }
 
 /** Renders one bounded search-history summary with lazy revision discovery. */
-function SearchCard(props: { search: any }): JSX.Element {
+function SearchCard(props: { search: HierarchySearch }): JSX.Element {
   const search = props.search;
   const continueAction = (
     <ContinueAction
@@ -122,9 +123,8 @@ function SearchCard(props: { search: any }): JSX.Element {
 }
 
 /** Renders one hierarchy API failure without hiding successful sibling sections. */
-function SectionError(props: { title: string; failure: any }): JSX.Element {
-  var message = "The section could not be loaded.";
-  if (props.failure?.message) message = props.failure.message;
+function SectionError(props: { title: string; failure: unknown }): JSX.Element {
+  const message = errorMessage(props.failure, "The section could not be loaded.");
   return (
     <p className={classNames.uiErrorMessage} role="alert">
       <span className="header">{props.title}</span>
@@ -134,7 +134,7 @@ function SectionError(props: { title: string; failure: any }): JSX.Element {
 }
 
 /** Renders one bounded page of run attempts and lifecycle controls. */
-function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
+function RunTable(props: { runs: HierarchyRun[]; hasMore: boolean }): JSX.Element {
   const rows = props.runs.map((run) => {
     const canExplore = hasContext(run);
     const visibility = run.visibility_state || "active";
@@ -167,7 +167,7 @@ function RunTable(props: { runs: any[]; hasMore: boolean }): JSX.Element {
       explore = (
         <a
           className={classNames.uiPrimaryButton}
-          href={deepdiveLink(run.search_id, run.search_revision_id, run.execution_plan_id, run.id)}
+          href={deepdiveLink(run.search_id!, run.search_revision_id!, run.execution_plan_id!, run.id)}
         >
           Explore
         </a>
@@ -241,7 +241,7 @@ function HomeFilters(): JSX.Element {
   var advancedSummary = "Active runs, any outcome or start date";
   if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
   const advancedOpen = advancedFilterCount > 0;
-  const activeFilters: Record<string, any> = {};
+  const activeFilters: Record<string, unknown> = {};
   if (query) activeFilters.home_q = query;
   if (visibility !== "active") activeFilters.home_visibility = visibility;
   if (status !== "all") activeFilters.home_status = status;
@@ -373,7 +373,7 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    const rows = result.items.map((revision: any) => {
+    const rows = result.items.map((revision) => {
       return (
         <div>
           <div>
@@ -405,7 +405,7 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
       const button = event.currentTarget as HTMLButtonElement;
       void loadRevisions(searchID, button.dataset.moreRevisions || "", host);
     });
-  } catch (failure: any) {
+  } catch (failure) {
     const errorMarkup = <SectionError title="Revision history unavailable" failure={failure} />;
     renderTree(errorMarkup, host);
   }
@@ -539,8 +539,8 @@ function bindRunLifecycle(): void {
         visibility_state: visibilityState,
         reason: reasonValue,
       });
-    } catch (failure: any) {
-      error.textContent = failure.message;
+    } catch (failure) {
+      error.textContent = errorMessage(failure, "The run could not be updated.");
       error.hidden = false;
       mutating = false;
       submit.disabled = false;
@@ -561,9 +561,9 @@ function bindRunLifecycle(): void {
       var actionLabel = "Restored";
       if (visibilityState === "trashed") actionLabel = "Moved";
       await homeView(`${actionLabel} run ${runID}.`);
-    } catch (failure: any) {
+    } catch (failure) {
       const status = app.querySelector<HTMLElement>("[data-home-lifecycle-status]");
-      if (status) status.textContent = `Run ${runID} was updated, but Home could not refresh: ${failure.message}`;
+      if (status) status.textContent = `Run ${runID} was updated, but Home could not refresh: ${errorMessage(failure, "Unknown error")}`;
     }
   });
 }
@@ -620,7 +620,7 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
 
   var searchHistory: JSX.Element = <SectionError title="Research history unavailable" failure={(searchesResult as PromiseRejectedResult).reason} />;
   if (searchesResult.status === "fulfilled") {
-    const cards = searchesResult.value.items.map((search: any) => {
+    const cards = searchesResult.value.items.map((search) => {
       return <SearchCard search={search} />;
     });
     var searchEmpty: JSX.Element | null = null;

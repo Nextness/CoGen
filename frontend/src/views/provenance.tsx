@@ -6,13 +6,20 @@ import {
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
-import { api } from "../api.tsx";
+import { api, errorMessage } from "../api.tsx";
 import type {
+  APIQuery,
+  ArtifactContext as ArtifactContextRecord,
   ArtifactInspectionResponse,
+  ArtifactRecord,
   ArtifactsResponse,
+  AuditFacet,
   AuditResponse,
   CacheUsesResponse,
+  RunStep,
+  StageSummary,
   StagesResponse,
+  WireRecord,
 } from "../api/types.ts";
 import { setURL, bindFocusContext } from "../router.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
@@ -65,7 +72,16 @@ const auditFilterKeys: Record<string, string> = {
   audit_review_substatus: "Review subclassification",
 };
 
-let activeArtifactPreview: any = null;
+/** Client presentation state derived from one artifact inspection response. */
+interface ArtifactPreviewState extends ArtifactInspectionResponse {
+  raw: string;
+  formatted: string;
+  formatError: boolean;
+  mode: "raw" | "formatted";
+  wrap: boolean;
+}
+
+let activeArtifactPreview: ArtifactPreviewState | null = null;
 let activeArtifactRow: HTMLElement | null = null;
 let artifactInspectionSequence = 0;
 let auditEvents: AuditEventRecord[] = [];
@@ -76,12 +92,12 @@ let auditHasMore = false;
 export const auditVisibleEventLimit = 200;
 
 /** Renders a formatted timestamp cell for a data-table column. */
-function renderTime(row: any, raw: any): JSX.Element {
+function renderTime(row: WireRecord, raw: unknown): JSX.Element {
   return <>{formatTime(raw)}</>;
 }
 
 /** Returns the selected comma-separated values for an audit facet. */
-function selectedValues(raw: any): string[] {
+function selectedValues(raw: unknown): string[] {
   const parts = String(raw || "").split(",");
   const trimmed = parts.map((item) => {
     return item.trim();
@@ -90,15 +106,16 @@ function selectedValues(raw: any): string[] {
 }
 
 /** Renders a multi-select control for one audit facet. */
-function AuditMultiSelect(props: { name: string; label: string; options: any[]; selectedRaw: any }): JSX.Element {
+function AuditMultiSelect(props: { name: string; label: string; options: Array<string | AuditFacet>; selectedRaw: unknown }): JSX.Element {
   const selected = new Set(selectedValues(props.selectedRaw));
   var summary = "Any";
   if (selected.size) summary = `${selected.size} selected`;
   const choices = (props.options || []).map((item) => {
+    const optionValue = typeof item === "string" ? item : item.value;
     return (
       <label className="rw-check-option">
-        <input type="checkbox" name={props.name} value={item} checked={selected.has(String(item))} />
-        <span>{humanLabel(item)}</span>
+        <input type="checkbox" name={props.name} value={optionValue} checked={selected.has(optionValue)} />
+        <span>{humanLabel(optionValue)}</span>
       </label>
     );
   });
@@ -122,7 +139,7 @@ function AuditMultiSelect(props: { name: string; label: string; options: any[]; 
 }
 
 /** Builds API query parameters from the active audit filters. */
-function auditQuery(cursor: string): Record<string, any> {
+function auditQuery(cursor: string): APIQuery {
   return {
     run_id: value("run_id"),
     q: value("audit_q"),
@@ -142,7 +159,7 @@ function auditQuery(cursor: string): Record<string, any> {
 
 /** Renders markup summarizing active audit filters and their removal links. */
 function AuditFilterSummary(): JSX.Element {
-  const filters: Record<string, any> = {};
+  const filters: Record<string, unknown> = {};
   const filterKeys = Object.keys(auditFilterKeys);
   filterKeys.forEach((key) => {
     if (!value(key)) return;
@@ -160,10 +177,10 @@ function AuditFilterSummary(): JSX.Element {
 }
 
 /** Renders the complete audit filter form. */
-function AuditFilters(props: { facets: any }): JSX.Element {
-  const actors = list(props.facets, ["actors"]);
-  const actions = list(props.facets, ["actions"]);
-  const entityTypes = list(props.facets, ["entity_types"]);
+function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
+  const actors = list<string | AuditFacet>(props.facets, ["actors"]);
+  const actions = list<string | AuditFacet>(props.facets, ["actions"]);
+  const entityTypes = list<string | AuditFacet>(props.facets, ["entity_types"]);
   const resetUpdates = Object.fromEntries(Object.keys(auditFilterKeys).map((key) => {
     return [key, ""];
   }));
@@ -225,9 +242,9 @@ function AuditFilters(props: { facets: any }): JSX.Element {
 }
 
 /** Renders summary cards for the filtered audit result. */
-function AuditSummary(props: { data: any }): JSX.Element {
-  const summary = props.data.summary || {};
-  const actions = list(summary, ["actions"]);
+function AuditSummary(props: { data: AuditResponse }): JSX.Element {
+  const summary = props.data.summary;
+  const actions = summary?.actions || [];
   var scope = "All recorded runs";
   if (value("run_id")) {
     var scopeSuffix = "";
@@ -238,7 +255,7 @@ function AuditSummary(props: { data: any }): JSX.Element {
     <dl className="rw-summary-strip">
       <div>
         <dt>Matching events</dt>
-        <dd>{formatNumber(summary.total_events || auditEvents.length)}</dd>
+        <dd>{formatNumber(summary?.total_events || auditEvents.length)}</dd>
       </div>
       <div>
         <dt>Events loaded</dt>
@@ -257,15 +274,15 @@ function AuditSummary(props: { data: any }): JSX.Element {
 }
 
 /** Renders the audit timeline and pagination markup. */
-function AuditView(props: { data: any }): JSX.Element {
-  auditEvents = list(props.data, ["events", "items"]);
+function AuditView(props: { data: AuditResponse }): JSX.Element {
+  auditEvents = list<AuditEventRecord>(props.data, ["events", "items"]);
   auditKnownEventIDs = new Set(auditEvents.map((event) => String(event.id)));
   auditLoadedCount = auditEvents.length;
-  auditCursor = props.data.next_cursor || "";
+  auditCursor = String(props.data.next_cursor || "");
   auditHasMore = Boolean(props.data.has_more);
   return (
     <div className="rw-audit-layout">
-      <AuditFilters facets={props.data.facets || {}} />
+      <AuditFilters facets={props.data.facets || { actors: [], actions: [], entity_types: [] }} />
       <section className={classNames.uiSegment}>
         <div className={classNames.uiTopAttachedHeader}>
           <div>
@@ -331,7 +348,7 @@ export function boundAuditWindow(stream: HTMLElement, limit: number = auditVisib
 }
 
 /** Renders the research-context fields displayed for an artifact. */
-function ArtifactContext(props: { context: any }): JSX.Element {
+function ArtifactContext(props: { context: ArtifactContextRecord }): JSX.Element {
   var planLabel = props.context.execution_plan_id || "Not recorded";
   if (props.context.execution_fingerprint) planLabel = String(props.context.execution_fingerprint).slice(0, 16);
   var runLabel = "Not recorded";
@@ -354,7 +371,7 @@ function ArtifactContext(props: { context: any }): JSX.Element {
 }
 
 /** Renders safe inspect and download actions for an artifact. */
-function ArtifactActions(props: { row: any }): JSX.Element {
+function ArtifactActions(props: { row: ArtifactRecord }): JSX.Element {
   if (!props.row.has_blob) {
     return <span className={classNames.uiFadedText}>Payload not stored</span>;
   }
@@ -371,8 +388,8 @@ function ArtifactActions(props: { row: any }): JSX.Element {
 }
 
 /** Renders the run artifact inventory markup. */
-function ArtifactsView(props: { data: any }): JSX.Element {
-  const artifacts = list(props.data, ["artifacts"]);
+function ArtifactsView(props: { data: ArtifactsResponse }): JSX.Element {
+  const artifacts = list<ArtifactRecord>(props.data, ["artifacts"]);
   const page = Math.max(1, Number(value("artifact_page") || props.data.pagination?.page || 1));
   const perPage = Number(value("artifact_per_page") || props.data.pagination?.per_page || 50);
   const pagination = props.data.pagination || {
@@ -466,7 +483,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
   const artifactCount = formatNumber(pagination.total_rows);
   return (
     <Fragment>
-      <ArtifactContext context={props.data.context || {}} />
+      <ArtifactContext context={props.data.context} />
       <p className={classNames.uiInfoMessage}>Artifact inspection is read-only. Text previews are bounded before they reach the browser; download the original file for complete inspection.</p>
       <section className={classNames.uiSegment}>
         <div className={classNames.uiTopAttachedHeader}>
@@ -510,7 +527,7 @@ function ArtifactsView(props: { data: any }): JSX.Element {
 }
 
 /** Renders page-size option markup with the current value selected. */
-function PageSizeOptions(props: { current: any }): JSX.Element {
+function PageSizeOptions(props: { current: number | string }): JSX.Element {
   const sizeOptions = pageSizes.map((size) => {
     return <option value={size} selected={Number(props.current) === size}>{size}</option>;
   });
@@ -518,8 +535,8 @@ function PageSizeOptions(props: { current: any }): JSX.Element {
 }
 
 /** Renders cache-use evidence and pagination markup. */
-function CacheView(props: { data: any }): JSX.Element {
-  const rows = list(props.data, ["rows", "cache_uses"]);
+function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
+  const rows = list<WireRecord>(props.data, ["rows", "cache_uses"]);
   const columns = list<string>(props.data, ["columns"]);
   const page = Math.max(1, Number(value("cache_page") || props.data.pagination?.page || 1));
   const perPage = Number(value("cache_per_page") || props.data.pagination?.per_page || 50);
@@ -611,7 +628,7 @@ function CacheView(props: { data: any }): JSX.Element {
 }
 
 /** Returns the effective display status for a work-stage record. */
-function stageStatus(summary: any, step: any): string {
+function stageStatus(summary: StageSummary | undefined, step: RunStep | undefined): string {
   const recorded = String(step?.step_status || "").toLocaleLowerCase();
   if (recorded) return recorded;
   const outcomes = summary?.outcomes || {};
@@ -638,7 +655,7 @@ function stageStatus(summary: any, step: any): string {
 }
 
 /** Renders ordered stage-flow markup for one work. */
-function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
+function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] }): JSX.Element {
   const summaryByName = new Map(props.summaries.map((item) => {
     return [item.stage_name, item];
   }));
@@ -728,10 +745,10 @@ function StageFlow(props: { summaries: any[]; steps: any[] }): JSX.Element {
 }
 
 /** Renders work-stage evidence and pagination markup. */
-function StagesView(props: { data: any }): JSX.Element {
-  const rows = list(props.data, ["rows"]);
-  const summaries = list(props.data, ["stage_summaries"]);
-  const steps = list(props.data, ["run_steps"]);
+function StagesView(props: { data: StagesResponse }): JSX.Element {
+  const rows = list<WireRecord>(props.data, ["rows"]);
+  const summaries = list<StageSummary>(props.data, ["stage_summaries"]);
+  const steps = list<RunStep>(props.data, ["run_steps"]);
   const page = Math.max(1, Number(value("stage_page") || props.data.pagination?.page || 1));
   const perPage = Number(value("stage_per_page") || props.data.pagination?.per_page || 50);
   const result = {
@@ -822,12 +839,12 @@ function StagesView(props: { data: any }): JSX.Element {
 }
 
 /** Renders stored run details and exact configuration links. */
-function RunView(props: { artifactData: any }): JSX.Element {
+function RunView(props: { artifactData: ArtifactsResponse }): JSX.Element {
   const run = selectedRun();
   const plan = state.plans.find((item) => {
     return String(pickID(item)) === String(run?.execution_plan_id || value("plan_id"));
   });
-  const snapshots = list(props.artifactData, ["artifacts"]);
+  const snapshots = list<ArtifactRecord>(props.artifactData, ["artifacts"]);
   const snapshotArtifacts = snapshots.filter((artifact) => {
     return artifact.artifact_roles;
   });
@@ -859,7 +876,7 @@ function RunView(props: { artifactData: any }): JSX.Element {
       </div>
     </dl>
   );
-  const fields: Record<string, any> = {
+  const fields: Record<string, unknown> = {
     run_id: run?.id || value("run_id"),
     execution_plan_id: run?.execution_plan_id || value("plan_id"),
     attempt_number: run?.attempt_number,
@@ -867,7 +884,7 @@ function RunView(props: { artifactData: any }): JSX.Element {
     visibility: run?.visibility_state,
     started_at: run?.started_at,
     finished_at: run?.finished_at,
-    summary: run?.summary,
+    summary: run && "summary" in run ? run.summary : undefined,
     execution_fingerprint: plan?.execution_fingerprint,
     resolved_manifest_hash: plan?.resolved_manifest_hash,
     input_manifest_hash: plan?.input_manifest_hash,
@@ -1014,7 +1031,7 @@ function bindAuditControls(): void {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const values = new FormData(form);
-      const updates: Record<string, any> = {};
+      const updates: Record<string, unknown> = {};
       const multiValueKeys = new Set(["audit_category", "audit_action", "audit_actor", "audit_entity"]);
       const filterKeys = Object.keys(auditFilterKeys);
       filterKeys.forEach((key) => {
@@ -1096,8 +1113,8 @@ function bindAuditControls(): void {
         pageStatus.textContent = `${formatNumber(auditLoadedCount)} events loaded; ${formatNumber(visible)} currently visible.`;
         (document.querySelector(".rw-load-more") as HTMLElement).hidden = !auditHasMore;
         (document.querySelector("[data-audit-end]") as HTMLElement).hidden = auditHasMore;
-      } catch (error: any) {
-        pageError.textContent = error.message || "Unable to load older audit events.";
+      } catch (error) {
+        pageError.textContent = errorMessage(error, "Unable to load older audit events.");
         pageError.hidden = false;
         pageStatus.textContent = "Older events were not loaded. The current timeline is unchanged.";
       } finally {
@@ -1162,7 +1179,7 @@ function bindArtifactInspection(): void {
             formatError = true;
           }
         }
-        var previewMode = "raw";
+        var previewMode: ArtifactPreviewState["mode"] = "raw";
         if (payload.format === "json" && !formatError) previewMode = "formatted";
         activeArtifactPreview = {
           ...payload,
@@ -1178,13 +1195,13 @@ function bindArtifactInspection(): void {
           title?.scrollIntoView?.({ behavior: "smooth", block: "center" });
           title?.focus({ preventScroll: true });
         }
-      } catch (error: any) {
+      } catch (error) {
         if (sequence !== artifactInspectionSequence) return;
         const errorMarkup = (
           <Fragment>
             <div className={classNames.uiErrorMessage}>
               <div className="header">Preview unavailable</div>
-              <p>{error.message || "Unable to inspect this artifact."}</p>
+              <p>{errorMessage(error, "Unable to inspect this artifact.")}</p>
             </div>
             <a className={classNames.uiButton} href={`/api/artifacts/${encodeURIComponent(id)}/content`} download>Download original</a>
           </Fragment>
@@ -1286,12 +1303,12 @@ function renderArtifactInspector(): void {
   const previewModeButtons = document.querySelectorAll<HTMLButtonElement>("[data-artifact-preview-mode]");
   previewModeButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      activeArtifactPreview.mode = button.dataset.artifactPreviewMode;
+      preview.mode = button.dataset.artifactPreviewMode === "formatted" ? "formatted" : "raw";
       renderArtifactInspector();
     });
   });
   document.querySelector("[data-toggle-artifact-wrap]")!.addEventListener("click", () => {
-    activeArtifactPreview.wrap = !activeArtifactPreview.wrap;
+    preview.wrap = !preview.wrap;
     renderArtifactInspector();
   });
   document.querySelector("[data-copy-artifact-preview]")!.addEventListener("click", async () => {

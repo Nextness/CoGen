@@ -1,5 +1,5 @@
 // Paged inbound note-link evidence shared by review targets.
-import { api } from "../api.tsx";
+import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
 import { link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
@@ -85,7 +85,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       render();
-    } catch (error: any) {
+    } catch (error) {
       var prior: JSX.Element | null = null;
       if (loaded.length) {
         const retained = loaded.map((source) => {
@@ -103,7 +103,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
       const errorMarkup = (
         <Fragment>
           {prior}
-          <p className={classNames.uiErrorMessage}>Inbound links could not be loaded: {error.message}</p>
+          <p className={classNames.uiErrorMessage}>Inbound links could not be loaded: {errorMessage(error, "Unknown error")}</p>
           <button type="button" className={classNames.uiBasicButton} data-backlinks-retry>Retry inbound links</button>
         </Fragment>
       );

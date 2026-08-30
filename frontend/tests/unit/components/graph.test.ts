@@ -169,7 +169,22 @@ describe('graph.tsx — mountGraph', function() {
     if (canvas) {
       canvas.remove();
     }
-    mountGraph({ nodes: [], edges: [] });
+    mountGraph({
+      nodes: [],
+      edges: [],
+      filters: {},
+      truncated: false,
+      limits: {},
+      counts: {
+        article_matches: 0,
+        article_rendered: 0,
+        nodes_rendered: 0,
+        edges_rendered: 0,
+        node_types: {},
+        edge_types: {},
+      },
+      truncation_reason: "",
+    });
     assert.ok(true);
 
     const newCanvas = document.createElement('canvas');

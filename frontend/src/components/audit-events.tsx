@@ -2,8 +2,8 @@
 import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, list, parseObject, StatusChip, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
-import { api } from "../api.tsx";
-import type { AuditRecordedData, AuditResponse, DetailCollectionPage } from "../api/types.ts";
+import { api, errorMessage } from "../api.tsx";
+import type { AuditEventRecord, AuditRecordedData, AuditResponse, DetailCollectionPage, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -19,21 +19,7 @@ const classNames = {
 const recordAuditBatchSize = 25;
 
 /** One audit event record returned by the server. */
-export interface AuditEventRecord {
-  id?: any;
-  action?: string;
-  entity_type?: string;
-  entity_id?: any;
-  occurred_at?: any;
-  created_at?: any;
-  actor?: string;
-  metadata_json?: any;
-  before_json?: any;
-  after_json?: any;
-  correlation_id?: any;
-  pipeline_run_id?: any;
-  [key: string]: any;
-}
+export type { AuditEventRecord } from "../api/types.ts";
 
 /** Classifies an audit event into its presentation category. */
 export type AuditCategory = "review" | "pdf" | "enrichment" | "validation" | "pipeline";
@@ -62,12 +48,12 @@ export function auditCategory(event: AuditEventRecord): AuditCategory {
 }
 
 /** Parses an audit event's stored metadata object. */
-function eventMetadata(event: AuditEventRecord): Record<string, any> {
+function eventMetadata(event: AuditEventRecord): WireRecord {
   return parseObject(event.metadata_json);
 }
 
 /** Derives the display outcome from recorded metadata and action semantics. */
-function auditOutcome(event: AuditEventRecord, metadata: Record<string, any>, after: Record<string, any>): string {
+function auditOutcome(event: AuditEventRecord, metadata: WireRecord, after: WireRecord): string {
   const recorded = metadata.outcome || metadata.status || metadata.cache_outcome || after.status;
   if (recorded) return String(recorded);
   const action = String(event.action || "").toLocaleLowerCase();
@@ -115,7 +101,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
 }
 
 /** Returns a concise human-readable summary of an audit event. */
-function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, before: Record<string, any>, after: Record<string, any>): string {
+function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: WireRecord, after: WireRecord): string {
   const action = String(event.action || "").toLocaleLowerCase();
   if (action === "work_review_version_created" && before.status && after.status) {
     return `Review decision changed from ${humanLabel(before.status || "not_evaluated")} to ${humanLabel(after.status || "not_evaluated")}.`;
@@ -154,8 +140,8 @@ function eventSummary(event: AuditEventRecord, metadata: Record<string, any>, be
 }
 
 /** Renders one complete previous or new review-decision state. */
-function ReviewDecisionState(props: { label: string; state: Record<string, any> }): JSX.Element {
-  var substatuses: any[] = [];
+function ReviewDecisionState(props: { label: string; state: WireRecord }): JSX.Element {
+  var substatuses: unknown[] = [];
   if (Array.isArray(props.state.sub_statuses)) substatuses = props.state.sub_statuses;
   var substatusMarkup: JSX.Element = <span className={classNames.uiFadedText}>None</span>;
   if (substatuses.length) {
@@ -165,7 +151,7 @@ function ReviewDecisionState(props: { label: string; state: Record<string, any> 
     substatusMarkup = <div className="rw-review-audit-substatuses">{substatusLabels}</div>;
   }
   var reasonMarkup: JSX.Element = <span className={classNames.uiFadedText}>Not recorded</span>;
-  if (props.state.reason) reasonMarkup = <>{props.state.reason}</>;
+  if (props.state.reason) reasonMarkup = <>{String(props.state.reason)}</>;
   return (
     <section className="rw-review-audit-state">
       <h6>{props.label}</h6>
@@ -188,7 +174,7 @@ function ReviewDecisionState(props: { label: string; state: Record<string, any> 
 }
 
 /** Renders the visible before-and-after decision comparison for review audit events. */
-function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<string, any>; after: Record<string, any> }): JSX.Element | null {
+function ReviewDecisionChange(props: { event: AuditEventRecord; before: WireRecord; after: WireRecord }): JSX.Element | null {
   if (String(props.event.action || "") !== "work_review_version_created" || !props.before.status || !props.after.status) return null;
   return (
     <div className="rw-review-audit-change" aria-label="Review decision change">
@@ -199,7 +185,7 @@ function ReviewDecisionChange(props: { event: AuditEventRecord; before: Record<s
 }
 
 /** Renders expandable facts and JSON payloads for an audit event. */
-function EventDetails(props: { event: AuditEventRecord; metadata: Record<string, any>; before: Record<string, any>; after: Record<string, any> }): JSX.Element | null {
+function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; before: WireRecord; after: WireRecord }): JSX.Element | null {
   var duration = props.metadata.duration;
   if (props.metadata.duration_seconds != null) duration = `${props.metadata.duration_seconds} seconds`;
   const facts = [
@@ -210,16 +196,16 @@ function EventDetails(props: { event: AuditEventRecord; metadata: Record<string,
     ["Output artifact", props.metadata.output_artifact_id],
   ].filter(([, value]) => {
     return value !== null && value !== undefined && value !== "";
-  }) as Array<[string, any]>;
+  }) as Array<[string, unknown]>;
   if (!facts.length && !props.event.id) {
     return null;
   }
   var factsMarkup: JSX.Element | null = null;
   if (facts.length) {
     const factRows = facts.map(([label, value]) => {
-      var shown: JSX.Element = <>{value}</>;
+      var shown: JSX.Element = <>{String(value)}</>;
       if ((label === "Input artifact" || label === "Output artifact") && value) {
-        shown = <a href={link({ section: "artifacts" })}>Artifact {value}</a>;
+        shown = <a href={link({ section: "artifacts" })}>Artifact {String(value)}</a>;
       }
       return (
         <div>
@@ -242,8 +228,9 @@ function EventDetails(props: { event: AuditEventRecord; metadata: Record<string,
 }
 
 /** Renders one lazy audit recorded-data response. */
-function RecordedData(props: { data: any }): JSX.Element {
-  const sections = [["Metadata", props.data.metadata], ["Before", props.data.before], ["After", props.data.after]].filter(([, item]) => {
+function RecordedData(props: { data: AuditRecordedData }): JSX.Element {
+  const candidates: Array<[string, WireRecord | null | undefined]> = [["Metadata", props.data.metadata], ["Before", props.data.before], ["After", props.data.after]];
+  const sections = candidates.filter(([, item]) => {
     return item && Object.keys(item).length > 0;
   }).map(([label, item]) => {
     return <div><h5>{label}</h5><pre>{JSON.stringify(item, null, 2)}</pre></div>;
@@ -274,8 +261,8 @@ export function bindAuditRecordedData(root: ParentNode = document): void {
         const recordedDataMarkup = <RecordedData data={data} />;
         renderTree(recordedDataMarkup, host);
         details.dataset.auditRecordedLoaded = "true";
-      } catch (error: any) {
-        const errorMarkup = <p className={classNames.uiErrorMessage}>{error.message || "Unable to load recorded data."}</p>;
+      } catch (error) {
+        const errorMarkup = <p className={classNames.uiErrorMessage}>{errorMessage(error, "Unable to load recorded data.")}</p>;
         renderTree(errorMarkup, host);
       }
     });
@@ -302,7 +289,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   const eventClass = cx("rw-audit-event", auditCategoryClasses[category]);
   var stageMarkup: JSX.Element | null = null;
   if (stage) {
-    stageMarkup = <span>Stage: <strong>{stage}</strong></span>;
+    stageMarkup = <span>Stage: <strong>{String(stage)}</strong></span>;
   }
   return (
     <article className={eventClass} data-audit-event-id={eventID}>
@@ -316,7 +303,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
         <p>{eventSummary(props.event, metadata, before, after)}</p>
         <ReviewDecisionChange event={props.event} before={before} after={after} />
         <div className="rw-audit-event__context">
-          <span>Source: <strong>{source}</strong></span>
+          <span>Source: <strong>{String(source)}</strong></span>
           <span>Scope: <strong>{runContext}</strong></span>
           {stageMarkup}
         </div>
@@ -369,7 +356,7 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
 }
 
 /** Renders the record audit investigation controls and initial event batch. */
-export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; collection?: any; endpoint?: string; cursorKey?: string }): JSX.Element {
+export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; collection?: DetailCollectionPage<AuditEventRecord>; endpoint?: string; cursorKey?: string }): JSX.Element {
   const actionNames = props.events.map((event) => {
     return String(event.action || "event");
   });
@@ -501,8 +488,8 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
         visibleLimit += recordAuditBatchSize;
         pageStatus.textContent = `${events.length.toLocaleString()} audit events loaded.`;
         apply();
-      } catch (error: any) {
-        pageStatus.textContent = error.message || "Unable to load older audit events.";
+      } catch (error) {
+        pageStatus.textContent = errorMessage(error, "Unable to load older audit events.");
       } finally {
         more.disabled = false;
       }

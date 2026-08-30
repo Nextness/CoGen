@@ -17,6 +17,11 @@ const REFERENCE = '1';
 const ARTIFACT = '1';
 const RESOLUTION = '1';
 const TABLE = 'work_revisions';
+let createdReviewVersionID = '';
+let createdNoteID = '';
+let createdNoteVersionID = '';
+let createdAnchorID = '';
+let createdAnchorVersionID = '';
 
 // ── Runtime shape assertions ──────────────────────────────────────────
 
@@ -194,6 +199,21 @@ function expectNote(value: unknown, path: string): void {
   expectNumber(value.work_revision_id, `${path}.work_revision_id`);
   expectString(value.created_at, `${path}.created_at`);
   expectNoteVersion(value.version, `${path}.version`);
+}
+
+/** Asserts one immutable work-review version. */
+function expectWorkReviewVersion(value: unknown, path: string): void {
+  expectObject(value, path);
+  expectNumber(value.id, `${path}.id`);
+  expectNumber(value.work_id, `${path}.work_id`);
+  expectNumber(value.work_revision_id, `${path}.work_revision_id`);
+  expectNumber(value.created_in_context_id, `${path}.created_in_context_id`);
+  expectString(value.status, `${path}.status`);
+  expectStringArray(value.sub_statuses, `${path}.sub_statuses`);
+  expectNullableString(value.reason, `${path}.reason`);
+  expectBoolean(value.reason_truncated, `${path}.reason_truncated`);
+  expectString(value.created_at, `${path}.created_at`);
+  expectString(value.reviewer_display, `${path}.reviewer_display`);
 }
 
 /** Asserts one review anchor version. */
@@ -386,6 +406,56 @@ async function validateHierarchy(request: APIRequestContext): Promise<void> {
   expectBoolean(runs.has_more, 'hierarchy.runs.has_more');
   expectString(runs.next_cursor, 'hierarchy.runs.next_cursor');
   expectNumber(runs.limit, 'hierarchy.runs.limit');
+
+  const searchesResponse = await request.get('/api/hierarchy', { params: { section: 'searches' } });
+  expect(searchesResponse.ok()).toBeTruthy();
+  const searches = await searchesResponse.json();
+  expectObject(searches, 'hierarchy.searches');
+  expectObjectArray(searches.items, 'hierarchy.searches.items');
+  searches.items.forEach((item, index) => {
+    expectNumber(item.id, `hierarchy.searches.items[${index}].id`);
+    expectString(item.search_id, `hierarchy.searches.items[${index}].search_id`);
+    expectNumber(item.revision_count, `hierarchy.searches.items[${index}].revision_count`);
+    expectNumber(item.plan_count, `hierarchy.searches.items[${index}].plan_count`);
+    expectNumber(item.run_count, `hierarchy.searches.items[${index}].run_count`);
+  });
+
+  const revisionsResponse = await request.get('/api/hierarchy', { params: { section: 'revisions', search_id: '1' } });
+  expect(revisionsResponse.ok()).toBeTruthy();
+  const revisions = await revisionsResponse.json();
+  expectObject(revisions, 'hierarchy.revisions');
+  expectObjectArray(revisions.items, 'hierarchy.revisions.items');
+  revisions.items.forEach((item, index) => {
+    expectNumber(item.id, `hierarchy.revisions.items[${index}].id`);
+    expectString(item.label, `hierarchy.revisions.items[${index}].label`);
+    expectNumber(item.plan_count, `hierarchy.revisions.items[${index}].plan_count`);
+    expectNumber(item.run_count, `hierarchy.revisions.items[${index}].run_count`);
+  });
+
+  const plansResponse = await request.get('/api/hierarchy', { params: { section: 'plans', search_revision_id: '1' } });
+  expect(plansResponse.ok()).toBeTruthy();
+  const plans = await plansResponse.json();
+  expectObject(plans, 'hierarchy.plans');
+  expectObjectArray(plans.items, 'hierarchy.plans.items');
+  plans.items.forEach((item, index) => {
+    expectNumber(item.id, `hierarchy.plans.items[${index}].id`);
+    expectNumber(item.search_revision_id, `hierarchy.plans.items[${index}].search_revision_id`);
+    expectString(item.execution_fingerprint, `hierarchy.plans.items[${index}].execution_fingerprint`);
+    expectBoolean(item.enrichment_enabled, `hierarchy.plans.items[${index}].enrichment_enabled`);
+  });
+
+  const attemptsResponse = await request.get('/api/hierarchy', { params: { section: 'attempts', plan_id: '1' } });
+  expect(attemptsResponse.ok()).toBeTruthy();
+  const attempts = await attemptsResponse.json();
+  expectObject(attempts, 'hierarchy.attempts');
+  expectObjectArray(attempts.items, 'hierarchy.attempts.items');
+  attempts.items.forEach((item, index) => {
+    expectNumber(item.id, `hierarchy.attempts.items[${index}].id`);
+    expectNumber(item.execution_plan_id, `hierarchy.attempts.items[${index}].execution_plan_id`);
+    expectNullableNumber(item.attempt_number, `hierarchy.attempts.items[${index}].attempt_number`);
+    expectString(item.status, `hierarchy.attempts.items[${index}].status`);
+    expectString(item.visibility_state, `hierarchy.attempts.items[${index}].visibility_state`);
+  });
 }
 
 /** Validates GET /api/runs/{id}/context. */
@@ -496,6 +566,19 @@ async function validateAudit(request: APIRequestContext): Promise<void> {
   expectObject(body.scope, 'audit.scope');
   expectNullableString(body.scope.run_id, 'audit.scope.run_id');
   expectString(body.scope.pdf_scope, 'audit.scope.pdf_scope');
+  if (body.events.length > 0) {
+    const eventID = String(body.events[0].id);
+    const recordedResponse = await request.get(`/api/audit/${eventID}/recorded-data`, { params: { run_id: RUN } });
+    expect(recordedResponse.ok()).toBeTruthy();
+    const recorded = await recordedResponse.json();
+    expectObject(recorded, 'audit.recordedData');
+    expectNumber(recorded.event_id, 'audit.recordedData.event_id');
+    expectNumber(recorded.byte_limit, 'audit.recordedData.byte_limit');
+    expectStringArray(recorded.truncated_fields, 'audit.recordedData.truncated_fields');
+    for (const field of ['metadata', 'before', 'after']) {
+      if (recorded[field] !== null) expectObject(recorded[field], `audit.recordedData.${field}`);
+    }
+  }
 }
 
 /** Validates GET /api/runs/{id}/artifacts and GET /api/artifacts/{id}/inspect. */
@@ -553,15 +636,17 @@ async function validateCacheUses(request: APIRequestContext): Promise<void> {
 
 /** Validates GET /api/runs/{id}/corpus/{kind}. */
 async function validateCorpus(request: APIRequestContext): Promise<void> {
-  const response = await request.get(`/api/runs/${RUN}/corpus/articles`);
-  expect(response.ok()).toBeTruthy();
-  const body = await response.json();
-  expectObject(body, 'corpus');
-  expectNumber(body.run_id, 'corpus.run_id');
-  expectString(body.collection, 'corpus.collection');
-  expectStringArray(body.columns, 'corpus.columns');
-  expectObjectArray(body.rows, 'corpus.rows');
-  expectPagination(body.pagination, 'corpus.pagination');
+  for (const collection of ['articles', 'authors', 'references', 'sources']) {
+    const response = await request.get(`/api/runs/${RUN}/corpus/${collection}`);
+    expect(response.ok()).toBeTruthy();
+    const body = await response.json();
+    expectObject(body, `corpus.${collection}`);
+    expectNumber(body.run_id, `corpus.${collection}.run_id`);
+    expectString(body.collection, `corpus.${collection}.collection`);
+    expectStringArray(body.columns, `corpus.${collection}.columns`);
+    expectObjectArray(body.rows, `corpus.${collection}.rows`);
+    expectPagination(body.pagination, `corpus.${collection}.pagination`);
+  }
 }
 
 /** Validates GET /api/runs/{id}/evaluation. */
@@ -617,6 +702,18 @@ async function validateReviewContext(request: APIRequestContext): Promise<void> 
     expectString(body.proposed_parent.started_at, 'reviewContext.proposed_parent.started_at');
     expectNumber(body.proposed_parent.inherited_work_count, 'reviewContext.proposed_parent.inherited_work_count');
   }
+
+  const candidatesResponse = await request.get(`/api/runs/${RUN}/review-context-candidates`, {
+    params: { scope: 'same_search' },
+  });
+  expect(candidatesResponse.ok()).toBeTruthy();
+  const candidates = await candidatesResponse.json();
+  expectObject(candidates, 'reviewContextCandidates');
+  expectObjectArray(candidates.items, 'reviewContextCandidates.items');
+  expectObjectArray(candidates.rows, 'reviewContextCandidates.rows');
+  expectNumber(candidates.limit, 'reviewContextCandidates.limit');
+  expectBoolean(candidates.has_more, 'reviewContextCandidates.has_more');
+  expectNullableString(candidates.next_cursor, 'reviewContextCandidates.next_cursor');
 }
 
 /** Validates GET /api/runs/{id}/articles/{revision}/review. */
@@ -667,12 +764,61 @@ async function validateReviewCollections(request: APIRequestContext): Promise<vo
   anchors.items.forEach((item, index) => expectAnchor(item, `anchors.items[${index}]`));
 
   const backlinksResponse = await request.get(`/api/runs/${RUN}/links/backlinks`, {
-    params: { target_type: 'note', target_id: '1' },
+    params: { target_type: 'note', target_id: createdNoteID },
   });
   expect(backlinksResponse.ok()).toBeTruthy();
   const backlinks = await backlinksResponse.json();
   expectReviewCollection(backlinks, 'backlinks');
   expectArray(backlinks.backlinks, 'backlinks.backlinks');
+
+  const reviewVersionsResponse = await request.get(`/api/runs/${RUN}/articles/${ARTICLE}/review/versions`);
+  expect(reviewVersionsResponse.ok()).toBeTruthy();
+  const reviewVersions = await reviewVersionsResponse.json();
+  expectReviewCollection(reviewVersions, 'reviewVersions');
+  expectArray(reviewVersions.versions, 'reviewVersions.versions');
+  reviewVersions.items.forEach((item, index) => expectWorkReviewVersion(item, `reviewVersions.items[${index}]`));
+
+  const reviewVersionResponse = await request.get(`/api/runs/${RUN}/articles/${ARTICLE}/review/versions/${createdReviewVersionID}`);
+  expect(reviewVersionResponse.ok()).toBeTruthy();
+  const reviewVersion = await reviewVersionResponse.json();
+  expectObject(reviewVersion, 'reviewVersion');
+  expectWorkReviewVersion(reviewVersion.version, 'reviewVersion.version');
+
+  const noteResponse = await request.get(`/api/runs/${RUN}/notes/${createdNoteID}`);
+  expect(noteResponse.ok()).toBeTruthy();
+  const note = await noteResponse.json();
+  expectObject(note, 'note');
+  expectNumber(note.run_id, 'note.run_id');
+  expectNote(note.note, 'note.note');
+
+  const noteVersionsResponse = await request.get(`/api/runs/${RUN}/notes/${createdNoteID}/versions`);
+  expect(noteVersionsResponse.ok()).toBeTruthy();
+  const noteVersions = await noteVersionsResponse.json();
+  expectReviewCollection(noteVersions, 'noteVersions');
+  expectArray(noteVersions.versions, 'noteVersions.versions');
+  noteVersions.items.forEach((item, index) => expectNoteVersion(item, `noteVersions.items[${index}]`));
+
+  const noteVersionResponse = await request.get(`/api/runs/${RUN}/notes/${createdNoteID}/versions/${createdNoteVersionID}`);
+  expect(noteVersionResponse.ok()).toBeTruthy();
+  const noteVersion = await noteVersionResponse.json();
+  expectObject(noteVersion, 'noteVersion');
+  expectNumber(noteVersion.run_id, 'noteVersion.run_id');
+  expectNoteVersion(noteVersion.version, 'noteVersion.version');
+
+  const anchorVersionsResponse = await request.get(`/api/runs/${RUN}/anchors/${createdAnchorID}/versions`);
+  expect(anchorVersionsResponse.ok()).toBeTruthy();
+  const anchorVersions = await anchorVersionsResponse.json();
+  expectReviewCollection(anchorVersions, 'anchorVersions');
+  expectAnchor(anchorVersions.anchor, 'anchorVersions.anchor');
+  expectArray(anchorVersions.versions, 'anchorVersions.versions');
+  anchorVersions.items.forEach((item, index) => expectAnchorVersion(item, `anchorVersions.items[${index}]`));
+
+  const anchorVersionResponse = await request.get(`/api/runs/${RUN}/anchors/${createdAnchorID}/versions/${createdAnchorVersionID}`);
+  expect(anchorVersionResponse.ok()).toBeTruthy();
+  const anchorVersion = await anchorVersionResponse.json();
+  expectObject(anchorVersion, 'anchorVersion');
+  expectNumber(anchorVersion.run_id, 'anchorVersion.run_id');
+  expectAnchorVersion(anchorVersion.version, 'anchorVersion.version');
 }
 
 /** Validates GET /api/runs/{id}/identity-evidence and candidate pages. */
@@ -809,6 +955,19 @@ async function validateDetails(request: APIRequestContext): Promise<void> {
   expectNumber(reference.reference.work_revision_id, 'referenceDetail.reference.work_revision_id');
   expectNumber(reference.reference.pipeline_run_id, 'referenceDetail.reference.pipeline_run_id');
   expectNumber(reference.reference.mention_order, 'referenceDetail.reference.mention_order');
+
+  for (const collection of ['authors', 'references', 'stages', 'audit']) {
+    const collectionResponse = await request.get(`/api/articles/${ARTICLE}/collections/${collection}`, { params: { run_id: RUN } });
+    expect(collectionResponse.ok()).toBeTruthy();
+    const collectionBody = await collectionResponse.json();
+    expectDetailCollection(collectionBody, `articleDetailCollection.${collection}`);
+  }
+  for (const collection of ['articles', 'identity', 'audit']) {
+    const collectionResponse = await request.get(`/api/authors/${AUTHOR}/collections/${collection}`, { params: { run_id: RUN } });
+    expect(collectionResponse.ok()).toBeTruthy();
+    const collectionBody = await collectionResponse.json();
+    expectDetailCollection(collectionBody, `authorDetailCollection.${collection}`);
+  }
 }
 
 /** Validates GET /api/graph. */
@@ -861,15 +1020,103 @@ test('initializes the review context on the fixture copy', async ({ request }) =
   const contextResponse = await request.get(`/api/runs/${RUN}/review-context`);
   expect(contextResponse.ok()).toBeTruthy();
   const context = await contextResponse.json();
-  if (context.context_initialized) return;
-  const createResponse = await request.post(`/api/runs/${RUN}/review-context`, {
-    data: { parent_context_id: null },
+  if (!context.context_initialized) {
+    const createResponse = await request.post(`/api/runs/${RUN}/review-context`, {
+      data: { parent_context_id: null },
+    });
+    expect(createResponse.ok()).toBeTruthy();
+    const created = await createResponse.json();
+    expectObject(created, 'reviewContextMutation');
+    expect(created.context_initialized).toBe(true);
+    expectReviewContext(created.context, 'reviewContextMutation.context');
+  }
+
+  const visibilityResponse = await request.put(`/api/runs/${RUN}/visibility`, {
+    data: { visibility_state: 'active', reason: '' },
   });
-  expect(createResponse.ok()).toBeTruthy();
-  const created = await createResponse.json();
-  expectObject(created, 'reviewContextMutation');
-  expect(created.context_initialized).toBe(true);
-  expectReviewContext(created.context, 'reviewContextMutation.context');
+  expect(visibilityResponse.ok()).toBeTruthy();
+  const visibility = await visibilityResponse.json();
+  expectObject(visibility, 'runVisibilityMutation');
+  expectNumber(visibility.run_id, 'runVisibilityMutation.run_id');
+  expectString(visibility.visibility_state, 'runVisibilityMutation.visibility_state');
+  expectBoolean(visibility.changed, 'runVisibilityMutation.changed');
+
+  const reviewResponse = await request.put(`/api/runs/${RUN}/articles/${ARTICLE}/review`, {
+    data: { expected_version_id: null, status: 'in_progress', sub_statuses: [], reason: 'Shape contract' },
+  });
+  expect(reviewResponse.ok()).toBeTruthy();
+  const review = await reviewResponse.json();
+  expectObject(review, 'workReviewMutation');
+  expectBoolean(review.changed, 'workReviewMutation.changed');
+  expectObject(review.review, 'workReviewMutation.review');
+  expectWorkReviewVersion(review.review.version, 'workReviewMutation.review.version');
+  expectObject(review.review.version, 'workReviewMutation.review.version');
+  expectNumber(review.review.version.id, 'workReviewMutation.review.version.id');
+  createdReviewVersionID = String(review.review.version.id);
+
+  const noteResponse = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/notes`, {
+    data: { body: 'Contract note [[pdf:page=1]].' },
+  });
+  expect(noteResponse.ok()).toBeTruthy();
+  const note = await noteResponse.json();
+  expectObject(note, 'noteCreateMutation');
+  expectNote(note.note, 'noteCreateMutation.note');
+  expectObject(note.note, 'noteCreateMutation.note');
+  expectNumber(note.note.id, 'noteCreateMutation.note.id');
+  expectObject(note.note.version, 'noteCreateMutation.note.version');
+  expectNumber(note.note.version.id, 'noteCreateMutation.note.version.id');
+  createdNoteID = String(note.note.id);
+
+  const noteVersionResponse = await request.post(`/api/runs/${RUN}/notes/${createdNoteID}/versions`, {
+    data: {
+      expected_version_id: note.note.version.id,
+      state: 'active',
+      body: 'Updated contract note [[pdf:page=1]].',
+    },
+  });
+  expect(noteVersionResponse.ok()).toBeTruthy();
+  const noteVersion = await noteVersionResponse.json();
+  expectObject(noteVersion, 'noteMutation');
+  expectBoolean(noteVersion.changed, 'noteMutation.changed');
+  expectNote(noteVersion.note, 'noteMutation.note');
+  expectObject(noteVersion.note, 'noteMutation.note');
+  expectObject(noteVersion.note.version, 'noteMutation.note.version');
+  expectNumber(noteVersion.note.version.id, 'noteMutation.note.version.id');
+  createdNoteVersionID = String(noteVersion.note.version.id);
+
+  const anchorResponse = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/anchors`, {
+    data: {
+      label: 'shape-contract-anchor',
+      page: 1,
+      selected_text: 'Selectable fixture methods',
+      rectangles: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.1 }],
+    },
+  });
+  expect(anchorResponse.ok()).toBeTruthy();
+  const anchor = await anchorResponse.json();
+  expectObject(anchor, 'anchorCreateMutation');
+  expectAnchor(anchor.anchor, 'anchorCreateMutation.anchor');
+  expectObject(anchor.anchor, 'anchorCreateMutation.anchor');
+  expectString(anchor.anchor.id, 'anchorCreateMutation.anchor.id');
+  expectObject(anchor.anchor.version, 'anchorCreateMutation.anchor.version');
+  expectNumber(anchor.anchor.version.id, 'anchorCreateMutation.anchor.version.id');
+  createdAnchorID = String(anchor.anchor.id);
+  createdAnchorVersionID = String(anchor.anchor.version.id);
+
+  const anchorVersionResponse = await request.post(`/api/runs/${RUN}/anchors/${createdAnchorID}/versions`, {
+    data: {
+      expected_version_id: anchor.anchor.version.id,
+      state: 'active',
+      page: 1,
+      selected_text: 'Selectable fixture methods',
+      rectangles: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.1 }],
+    },
+  });
+  expect(anchorVersionResponse.ok()).toBeTruthy();
+  const anchorVersion = await anchorVersionResponse.json();
+  expectObject(anchorVersion, 'anchorMutation');
+  expectBoolean(anchorVersion.changed, 'anchorMutation.changed');
+  expectAnchor(anchorVersion.anchor, 'anchorMutation.anchor');
 });
 
 test('health and hierarchy endpoints match their contracts', async ({ request }) => {

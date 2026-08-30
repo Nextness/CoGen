@@ -1,6 +1,7 @@
 // Shared review-context initialization dialog and controller.
-import { api, mutate, APIError } from "../api.tsx";
+import { api, mutate, APIError, errorMessage } from "../api.tsx";
 import type {
+  ProposedParent,
   ReviewContextCandidatesResponse,
   ReviewContextMutationResponse,
 } from "../api/types.ts";
@@ -21,14 +22,7 @@ const classNames = {
   uiWarningMessageRwReviewCandidateStatus: cx("ui", "warning", "message", "rw-review-candidate-status"),
 };
 
-/** One proposed parent review context returned by the server. */
-export interface ProposedParent {
-  context_id: number;
-  pipeline_run_id: number;
-  search_id: any;
-  search_revision: any;
-  inherited_work_count: number;
-}
+export type { ProposedParent } from "../api/types.ts";
 
 /** Options used to bind one review-context initialization surface. */
 export interface ReviewContextInitializerOptions {
@@ -203,12 +197,12 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
         );
         renderTree(sameMarkup, status);
       }
-    } catch (error: any) {
+    } catch (error) {
       status.className = classNames.uiErrorMessageRwReviewCandidateStatus;
       const errorMarkup = (
         <Fragment>
           <span className="header">Context search failed</span>
-          {error.message}
+          {errorMessage(error, "Unable to search review contexts.")}
         </Fragment>
       );
       renderTree(errorMarkup, status);
@@ -259,7 +253,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     closeButton.disabled = true;
     try {
       await mutate<ReviewContextMutationResponse>(`/api/runs/${options.runID}/review-context`, "POST", { parent_context_id: parentContextID });
-    } catch (error: any) {
+    } catch (error) {
       initializingContext = false;
       status.className = classNames.uiErrorMessageRwReviewCandidateStatus;
       var title = "Review could not be initialized";
@@ -267,7 +261,7 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
       const errorMarkup = (
         <Fragment>
           <span className="header">{title}</span>
-          {error.message}
+          {errorMessage(error, "Review context initialization failed.")}
         </Fragment>
       );
       renderTree(errorMarkup, status);
@@ -289,12 +283,12 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
     renderTree(savedMarkup, status);
     try {
       await options.onInitialized();
-    } catch (error: any) {
+    } catch (error) {
       status.className = classNames.uiWarningMessageRwReviewCandidateStatus;
       const refreshMarkup = (
         <Fragment>
           <span className="header">Review context saved, refresh failed</span>
-          {error.message}
+          {errorMessage(error, "Review tools could not be refreshed.")}
           <button type="button" className={classNames.uiBasicButton} data-review-refresh>Retry review tools</button>
         </Fragment>
       );

@@ -110,7 +110,7 @@ Every maintained declaration requires the adjacent JSDoc description that the ca
 
 Annotate the `JSX.Element` return type on every component and helper that returns markup, and type the props object explicitly, as `SearchTermCoveragePanel(props: { matches: TermMatchSummary | null; record: ArticleRecord }): JSX.Element` does.
 
-Payload interfaces live in `frontend/src/api/types.ts` and are imported with `import type`; do not declare endpoint payload shapes in view or component files. New code must not introduce `any` or `any[]` annotations: use the typed payload interfaces, `unknown` for genuinely untyped wire values that are narrowed before use, and `WireRecord` for schema-discovered rows. Existing `any` sites are a documented follow-up and must not be copied into new code.
+Payload interfaces live in `frontend/src/api/types.ts` and are imported with `import type`; do not declare endpoint payload shapes in view or component files. New code must not introduce `any` or `any[]` annotations: use the typed payload interfaces, `unknown` for genuinely untyped wire values that are narrowed before use, and `WireRecord` for schema-discovered rows. The only production `any` annotations are the documented generic component defaults and internal dispatch parameter in `jsx-runtime.ts`, where the classic JSX transform has already checked the call before the permissive runtime implementation receives it.
 
 Do not widen or overload types during a readability refactor; rename and restructure only, and leave every payload shape and rendered node the same. Class-producing props and local mappings use `ClassName`, arrays use `readonly ClassName[]` where mutation is unnecessary, and compound results use the branded `ClassNames` type returned by `cx`.
 

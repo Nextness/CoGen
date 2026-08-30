@@ -7,7 +7,7 @@ import {
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, tables } from "../api.tsx";
-import type { CorpusResponse, IdentityEvidenceResponse, TableRowsResponse } from "../api/types.ts";
+import type { CorpusResponse, IdentityEvidenceResponse, IdentityEvidenceRow, TableInfo, TableRowsResponse, TermMatchSummary, WireRecord } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
@@ -168,19 +168,18 @@ const scopedSortFields: Record<string, string[]> = {
 };
 
 /** Returns the ordered union of column names present in result rows. */
-function columnNames(table: any): string[] {
+function columnNames(table: TableInfo | undefined): string[] {
   if (!table) return [];
-  const names = (table.columns || []).map((column: any) => {
-    if (typeof column === "string") return column;
+  const names = table.columns.map((column) => {
     return column.name;
   });
   return names.filter(Boolean);
 }
 
 /** Renders the column definition used for identity evidence rows. */
-function IdentityEvidenceTable(props: { data: any; context: DataTableContext & { perPage: number } }): JSX.Element {
-  const stats = props.data.stats || {};
-  const rows = props.data.rows || [];
+function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context: DataTableContext & { perPage: number } }): JSX.Element {
+  const stats = props.data.stats;
+  const rows = props.data.rows;
 
   var pct = "—";
   if (stats.resolutions > 0) pct = percent(stats.unclear, stats.resolutions);
@@ -215,7 +214,7 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
   const emptyCell = <td colSpan={4} className="rw-table-empty">{emptyMessage}</td>;
   var body: JSX.Element[] = [<tr>{emptyCell}</tr>];
   if (rows.length) {
-    body = rows.map((row: any) => {
+    body = rows.map((row: IdentityEvidenceRow) => {
       var errorHtml: JSX.Element | null = null;
       if (row.error_message) errorHtml = <p className={classNames.uiFadedText}>{row.error_message}</p>;
       const authorHref = link({
@@ -269,13 +268,13 @@ function IdentityEvidenceTable(props: { data: any; context: DataTableContext & {
 }
 
 /** Renders the clipped label text for a record title. */
-function clippedLabel(title: any): JSX.Element {
-  return <span>{title || "Not recorded"}</span>;
+function clippedLabel(title: unknown): JSX.Element {
+  return <span>{String(title || "Not recorded")}</span>;
 }
 
 /** Renders a context-preserving record link with a clipped label. */
-function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JSX.Element {
-  const updates: Record<string, any> = {
+function clippedRecordLink(kind: string, idKey: string, id: unknown, title: unknown): JSX.Element {
+  const updates: Record<string, unknown> = {
     view: kind,
     article_id: "",
     author_id: "",
@@ -284,19 +283,20 @@ function clippedRecordLink(kind: string, idKey: string, id: any, title: any): JS
   };
   updates[idKey] = id;
   const recordHref = link(updates);
-  return <a className="rw-table-title" href={recordHref} title={title || "Not recorded"}>{clippedLabel(title)}</a>;
+  return <a className="rw-table-title" href={recordHref} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
 }
 
 /** Renders escaped record text clipped to the requested length. */
-function clippedRecordText(title: any): JSX.Element {
-  return <span className="rw-table-title" title={title || "Not recorded"}>{clippedLabel(title)}</span>;
+function clippedRecordText(title: unknown): JSX.Element {
+  return <span className="rw-table-title" title={String(title || "Not recorded")}>{clippedLabel(title)}</span>;
 }
 
 /** Renders the stored search-term coverage for one article row. */
-function termMatchMarkup(row: any): JSX.Element {
+function termMatchMarkup(row: WireRecord): JSX.Element {
   if (row.term_matches === null || row.term_matches === undefined) {
     return <span className={classNames.uiFadedText}>No search terms recorded</span>;
   }
+  const termMatches = row.term_matches as TermMatchSummary;
   const fields = [
     {
       key: "title",
@@ -316,7 +316,7 @@ function termMatchMarkup(row: any): JSX.Element {
     },
   ];
   const fieldElements: JSX.Element[] = fields.map(({ key, label }) => {
-    const terms = row.term_matches[key] || [];
+    const terms = termMatches[key] as string[] | undefined || [];
     var content: JSX.Element = <span className={classNames.uiFadedText}>No matched terms</span>;
     if (terms.length) {
       const termTags: JSX.Element[] = terms.map((term: string) => {
@@ -331,8 +331,8 @@ function termMatchMarkup(row: any): JSX.Element {
       </div>
     );
   });
-  const matchedTotal = row.term_matches.matched_total;
-  const termTotal = row.term_matches.term_total;
+  const matchedTotal = termMatches.matched_total;
+  const termTotal = termMatches.term_total;
   return (
     <Fragment>
       <p className={classNames.uiFadedText}>{matchedTotal} of {termTotal} search terms matched</p>
@@ -376,7 +376,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
     config.title = {
       label: "Title",
       className: "col-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("article", "article_id", row.id, row.title);
       },
     };
@@ -389,21 +389,21 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
     config.title = {
       label: "Referenced title",
       className: "col-reference-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("reference", "reference_id", row.id, row.title);
       },
     };
     config.author = {
       label: "Referenced author",
       className: "col-reference-author",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordText(row.author);
       },
     };
     config.citing_title = {
       label: "Citing article",
       className: "col-citing-title",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         if (row.work_revision_id) {
           return clippedRecordLink("article", "article_id", row.work_revision_id, row.citing_title);
         }
@@ -414,7 +414,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
   if (current === "authors") {
     config.citation_name = {
       label: "Observed author",
-      render: (row: any) => {
+      render: (row: WireRecord) => {
         return clippedRecordLink("author", "author_id", row.id, row.citation_name);
       },
     };
@@ -476,7 +476,7 @@ export async function corpusView(): Promise<void> {
   var order = "asc";
   if (value("order").toLowerCase() === "desc") order = "desc";
 
-  var data: any = null;
+  var data: CorpusResponse | IdentityEvidenceResponse | TableRowsResponse | null = null;
   if (scoped) {
     if (current === "identity_evidence") {
       data = await api<IdentityEvidenceResponse>(`/api/runs/${runID}/identity-evidence`, {
@@ -595,12 +595,12 @@ export async function corpusView(): Promise<void> {
 
   var sourceCounts: JSX.Element | null = null;
   if (current === "sources" && scoped && data) {
-    sourceCounts = <SourceResultCountSummary items={data.source_result_counts} classes={["rw-grid-span-all"]} />;
+    sourceCounts = <SourceResultCountSummary items={(data as CorpusResponse).source_result_counts || []} classes={["rw-grid-span-all"]} />;
   }
 
   var body: JSX.Element = <p className={classNames.uiFadedText}>This database does not contain the expected table.</p>;
   if (current === "identity_evidence" && data) {
-    body = <IdentityEvidenceTable data={data} context={context} />;
+    body = <IdentityEvidenceTable data={data as IdentityEvidenceResponse} context={context} />;
   } else if (data) {
     body = <DataTable tableName={definition.table} result={data} context={context} />;
   }

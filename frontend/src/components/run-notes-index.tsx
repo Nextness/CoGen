@@ -1,5 +1,5 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
-import { api } from "../api.tsx";
+import { api, errorMessage } from "../api.tsx";
 import type { ReviewNote, ReviewNotesResponse } from "../api/types.ts";
 import { currentDetailOrigin, link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
@@ -104,11 +104,11 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       render();
-    } catch (error: any) {
+    } catch (error) {
       if (!host.childElementCount) render();
       const message = host.querySelector<HTMLElement>("[data-run-notes-error]");
       if (message) {
-        message.textContent = error.message;
+        message.textContent = errorMessage(error, "Notes could not be loaded.");
         message.hidden = false;
       }
     }

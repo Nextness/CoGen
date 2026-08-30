@@ -7,6 +7,12 @@ import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
 import type { PaginationOptions } from "./pagination.tsx";
+import type {
+  ClusterSummary,
+  GraphEdge,
+  GraphNode,
+  GraphResponse,
+} from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -32,32 +38,7 @@ const relationshipLineClasses: Record<"derived" | "directed", ClassName> = {
 };
 
 /** One graph node with its resolved layout and cluster state. */
-export interface GraphNode extends SimulationNode {
-  label?: string;
-  doi?: string;
-  orcid?: string;
-  author?: string;
-  revision_id?: any;
-  author_id?: any;
-  reference_id?: any;
-  cluster?: number;
-  degree?: number;
-}
-
-/** One graph edge between resolved node objects. */
-export interface GraphEdge extends SimulationLink {
-  id?: string;
-  type?: string;
-  author_order?: any;
-  affiliation?: string;
-  shared_reference_count?: number;
-}
-
-/** One connected-cluster summary. */
-export interface ClusterSummary {
-  id: number;
-  size: number;
-}
+export type { ClusterSummary, GraphEdge, GraphNode } from "../api/types.ts";
 
 /** The full interactive graph state owned by one mounted viewport. */
 interface GraphState {
@@ -88,6 +69,26 @@ interface GraphState {
   themeHandler?: () => void;
   overviewLayout?: Array<{ id: number; x: number; y: number; radius: number }>;
 }
+
+/** One active graph pointer gesture for node selection or canvas panning. */
+type GraphDragState = {
+  mode: "node";
+  node: GraphNode;
+  x: number;
+  y: number;
+  moved: boolean;
+} | {
+  mode: "pan";
+  x: number;
+  y: number;
+  viewX: number;
+  viewY: number;
+  overviewX: number;
+  overviewY: number;
+  overview: boolean;
+  secondary: boolean;
+  moved: boolean;
+};
 
 var activeGraph: GraphState | undefined;
 
@@ -195,9 +196,9 @@ function legendEntry(markClass: ClassNames, label: string): JSX.Element {
 }
 
 /** Renders the interactive graph viewport, legend, and relationship table. */
-export function GraphResult(props: { data: any }): JSX.Element {
-  const nodes = list(props.data, ["nodes"]);
-  const edges = list(props.data, ["edges"]);
+export function GraphResult(props: { data: GraphResponse }): JSX.Element {
+  const nodes = list<GraphNode>(props.data, ["nodes"]);
+  const edges = list<GraphEdge>(props.data, ["edges"]);
   const counts = props.data.counts || {};
 
   if (!nodes.length) {
@@ -333,7 +334,7 @@ function nodeSize(node: GraphNode, degree: number, maxDegree: number): number {
 }
 
 /** Returns a deterministic unsigned hash for stable graph placement. */
-function hash(value: any): number {
+function hash(value: unknown): number {
   var result = 2166136261;
   for (const character of String(value)) {
     result = Math.imul(result ^ character.charCodeAt(0), 16777619);
@@ -448,7 +449,7 @@ function layoutNode(node: GraphNode, clusters: { byID: Map<string | number, numb
 }
 
 /** Mounts the interactive graph viewport and its force-layout simulation. */
-export function mountGraph(data: any): void {
+export function mountGraph(data: GraphResponse): void {
   destroyGraph();
   const canvasElement = document.querySelector<HTMLCanvasElement>(".rw-graph__canvas");
   if (!canvasElement) return;
@@ -526,7 +527,7 @@ export function mountGraph(data: any): void {
     frame: 0,
     edgePage: 1,
     // Assigned after construction; the simulation is created over the nodes below.
-    simulation: undefined as any,
+    simulation: undefined as unknown as ReturnType<typeof forceSimulation>,
   };
   activeGraph = graph;
 
@@ -577,7 +578,7 @@ export function mountGraph(data: any): void {
     if (nodes.length > 900) collisionIterations = 1;
     const collisionForce = forceCollide()
       .radius((node) => {
-        return node.radius + 7;
+        return (node.radius || 0) + 7;
       })
       .strength(0.92)
       .iterations(collisionIterations);
@@ -1075,7 +1076,7 @@ function nearestNode(graph: GraphState, point: { x: number; y: number }): GraphN
 
 /** Binds pointer, keyboard, and toolbar interactions for the graph viewport. */
 function bindInteractions(graph: GraphState, status: HTMLElement | null, selectionPanel: HTMLElement | null, zoomIndicator: HTMLElement | null): (id: string | number | null) => void {
-  var drag: any = null;
+  var drag: GraphDragState | null = null;
   const dragThreshold = 4;
 
   /** Sets the selected node and refreshes the inspection panel and edge table. */
@@ -1121,6 +1122,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     if (event.button === 2) {
       event.preventDefault();
       drag = {
+        mode: "pan",
         x: event.clientX,
         y: event.clientY,
         viewX: graph.view.x,
@@ -1149,6 +1151,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
     const node = nearestNode(graph, graphCoordinates(graph, event));
     if (node) {
       drag = {
+        mode: "node",
         node: node,
         x: event.clientX,
         y: event.clientY,
@@ -1156,6 +1159,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
       };
     } else {
       drag = {
+        mode: "pan",
         x: event.clientX,
         y: event.clientY,
         viewX: graph.view.x,
@@ -1163,7 +1167,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
         overviewX: graph.overviewOffset.x,
         overviewY: graph.overviewOffset.y,
         overview: graph.overviewMode,
-        background: true,
+        secondary: false,
         moved: false,
       };
     }
@@ -1173,7 +1177,7 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   graph.canvas.addEventListener("pointermove", (event) => {
     if (drag) {
       drag.moved = drag.moved || Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > dragThreshold;
-      if (drag.node) {
+      if (drag.mode === "node") {
         return;
       }
       if (drag.overview) {
@@ -1204,11 +1208,11 @@ function bindInteractions(graph: GraphState, status: HTMLElement | null, selecti
   });
 
   graph.canvas.addEventListener("pointerup", (event) => {
-    if (drag && drag.node && !drag.moved) {
+    if (drag?.mode === "node" && !drag.moved) {
       var nextSelection: string | number | null = drag.node.id;
       if (graph.selection === drag.node.id) nextSelection = null;
       setSelection(nextSelection);
-    } else if (drag && drag.background && !drag.moved && !drag.secondary) {
+    } else if (drag?.mode === "pan" && !drag.moved && !drag.secondary) {
       setSelection(null);
     }
     drag = null;
@@ -1343,7 +1347,7 @@ function bindGraphTheme(graph: GraphState): void {
 }
 
 /** Binds graph export as PNG, downloading the canvas as a PNG image. */
-function bindGraphExport(graph: GraphState, data: any): void {
+function bindGraphExport(graph: GraphState, data: GraphResponse): void {
   const exportButton = document.querySelector<HTMLButtonElement>("#graph-export-png");
   if (!exportButton) return;
 

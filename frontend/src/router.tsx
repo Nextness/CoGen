@@ -13,7 +13,7 @@ import { detailView, destroyActiveArticleReview } from "./views/detail.tsx";
 import { destroyGraph } from "./components/graph.tsx";
 
 /** Pushes or replaces URL state and immediately renders the resulting route. */
-export function setURL(updates: Record<string, any>, replace: boolean): void {
+export function setURL(updates: Record<string, unknown>, replace: boolean): void {
   if (!navigationAllowed()) return;
   const href = link(updates);
   const destination = new URL(href, location.href).searchParams.get("view") || "home";
@@ -110,7 +110,7 @@ function syncShell(current: string): void {
 }
 
 /** Asynchronously renders view. */
-async function renderView(): Promise<any> {
+async function renderView(): Promise<void> {
   const current = view();
 
   if (current === "home" || current === "trash") return homeView();
@@ -154,7 +154,8 @@ export async function render(options?: { focusTitle?: boolean; resetScroll?: boo
     if (options?.resetScroll) window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     if (options?.focusTitle && titleElement) titleToFocus = titleElement;
   } catch (error) {
-    if ((error as any)?.name !== "AbortError" && sequence === state.request) {
+    const isAbort = typeof error === "object" && error !== null && "name" in error && error.name === "AbortError";
+    if (!isAbort && sequence === state.request) {
       renderTree(null, app);
       showError(error);
     }

@@ -5,6 +5,7 @@ import { h, Fragment, render as renderTree, cx, classAdd } from "./jsx/jsx-runti
 import type { ClassName } from "./jsx/classes.ts";
 import type {
   HierarchyPlan,
+  HierarchyAttempt,
   HierarchyRun,
   HierarchySearch,
   MetricEvidence,
@@ -46,7 +47,7 @@ export const breadcrumbHost = document.querySelector<HTMLElement>("#workspace-br
 export interface ViewerState {
   searches: HierarchySearch[];
   plans: HierarchyPlan[];
-  runs: HierarchyRun[];
+  runs: Array<HierarchyRun | HierarchyAttempt>;
   tables: TableInfo[];
   request: number;
   controller: AbortController | null;
@@ -251,7 +252,7 @@ export function list<T = WireRecord>(data: unknown, keys?: string[]): T[] {
 }
 
 /** Returns the first supported identifier present on an item. */
-export function pickID(item: WireRecord | HierarchySearch | HierarchyPlan | HierarchyRun | null | undefined): unknown {
+export function pickID(item: object | null | undefined): unknown {
   const record = item as WireRecord | null | undefined;
   if (record?.id)        return record.id;
   if (record?.search_id) return record.search_id;
@@ -261,10 +262,11 @@ export function pickID(item: WireRecord | HierarchySearch | HierarchyPlan | Hier
 }
 
 /** Returns the first non-empty display field on an item. */
-export function text(item: WireRecord | null | undefined, fields: string[]): string {
+export function text(item: object | null | undefined, fields: string[]): string {
+  const record = item as WireRecord | null | undefined;
   for (const field of fields) {
-    if (item?.[field] !== undefined && item?.[field] !== null && item[field] !== "") {
-      return String(item[field]);
+    if (record?.[field] !== undefined && record?.[field] !== null && record[field] !== "") {
+      return String(record[field]);
     }
   }
   return "Unnamed";
@@ -421,7 +423,7 @@ export function metricEntries(group: MetricValue[] | Record<string, MetricValue>
 }
 
 /** Returns the pipeline run selected by the current URL context. */
-export function selectedRun(): HierarchyRun | undefined {
+export function selectedRun(): HierarchyRun | HierarchyAttempt | undefined {
   const runId = value("run_id");
   return state.runs.find((run) => {
     return String(pickID(run)) === runId;

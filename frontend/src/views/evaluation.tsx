@@ -378,7 +378,7 @@ export async function evaluationView(): Promise<void> {
     event.preventDefault();
     const formElement = event.currentTarget as HTMLFormElement;
     const form = new FormData(formElement);
-    const updates: Record<string, any> = { page: 1 };
+    const updates: Record<string, unknown> = { page: 1 };
     evaluationFilterKeys.forEach((key) => {
       updates[key] = String(form.get(key) || "");
     });

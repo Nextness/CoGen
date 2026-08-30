@@ -46,6 +46,12 @@ export class APIError extends Error {
   }
 }
 
+/** Returns a safe message for an unknown caught value. */
+export function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 /** Fetches and decodes one JSON API response. */
 export async function api<T>(path: string, query: APIQuery = {}, options: APIRequestOptions): Promise<T> {
   var signal = options.signal;

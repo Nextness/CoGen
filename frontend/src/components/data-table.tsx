@@ -4,7 +4,7 @@ import { setURL } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
-import type { ColumnInfo, DataTableContext, WireRecord } from "../api/types.ts";
+import type { ColumnInfo, DataTableContext, ScopedPagination, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -34,7 +34,7 @@ export type { DataTableContext } from "../api/types.ts";
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
 export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
-  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: WireRecord };
+  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: Partial<ScopedPagination> };
 
   var rawColumns = list<string | ColumnInfo>(response, ["columns", "schema"]);
   if (!rawColumns.length) {
@@ -234,8 +234,8 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
     expanded: context.expandedKey || "expanded",
   };
   /** Maps context key names to their URL query parameter names. */
-  function updates(values: Record<string, any>): Record<string, any> {
-    const result: Record<string, any> = {};
+  function updates(values: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
     Object.entries(values).forEach(([key, raw]) => {
       result[(keys as Record<string, string>)[key] || key] = raw;
     });

@@ -143,7 +143,7 @@ export interface HierarchyRun {
   finished_at: string | null;
   status: string;
   visibility_state: string;
-  search_id: string | null;
+  search_id: number | null;
   search_name: string;
   search_revision_id: number | null;
   revision_label: string;
@@ -179,10 +179,42 @@ export interface HierarchyPage<T extends HierarchyItem> {
 
 /** The exact ancestry and lifecycle context for a selected run. */
 export interface RunContextResponse {
-  search: HierarchySearch;
-  revision: HierarchyRevision;
-  plan: HierarchyPlan;
-  run: HierarchyRun;
+  search: {
+    id: number;
+    search_id: string;
+    created_at: string;
+  };
+  revision: {
+    id: number;
+    search_id: number;
+    label: string;
+    config_artifact_hash: string;
+    resolved_manifest_hash: string;
+    created_at: string;
+    updated_at?: string | null;
+  };
+  plan: {
+    id: number;
+    search_revision_id: number;
+    execution_fingerprint: string;
+    resolved_manifest_hash: string;
+    input_manifest_hash: string;
+    enrichment_enabled: boolean;
+    created_at: string;
+  };
+  run: {
+    id: number;
+    execution_plan_id: number;
+    step: string;
+    started_at: string;
+    finished_at: string | null;
+    status: string;
+    summary: string | null;
+    attempt_number: number;
+    visibility_state: string;
+    trashed_at: string | null;
+    trash_reason: string | null;
+  };
   lifecycle: {
     status: string;
     visibility_state: string;
@@ -197,7 +229,8 @@ export interface RunContextResponse {
 
 /** The response returned after a run visibility change. */
 export interface RunVisibilityResponse {
-  run: HierarchyRun;
+  run_id: number;
+  visibility_state: string;
   changed: boolean;
 }
 
@@ -269,10 +302,13 @@ export interface OverviewResponse {
 
 /** One search-term match summary attached to an article. */
 export interface TermMatchSummary extends WireRecord {
-  matched_terms?: string[];
-  missing_terms?: string[];
-  total_terms?: number;
-  matched_count?: number;
+  title?: string[];
+  abstract?: string[];
+  keywords?: string[];
+  keywords_plus?: string[];
+  terms_with_sources?: Record<string, string[]>;
+  term_total?: number;
+  matched_total?: number;
 }
 
 /** One corpus row with the fields shared by the rendered collections. */
@@ -310,12 +346,23 @@ export interface IdentityEvidenceRow extends CorpusRow {
   provider?: string;
   outcome?: string;
   candidate_count?: number;
+  queried_citation_name?: string;
+  article_title?: string | null;
+  observed_orcid?: string | null;
+  candidates?: IdentityCandidate[];
 }
 
 /** The identity-evidence collection for one run. */
 export interface IdentityEvidenceResponse extends CorpusResponse {
   rows: IdentityEvidenceRow[];
   identity_evidence?: IdentityEvidenceRow[];
+  stats: {
+    resolutions: number;
+    unclear: number;
+    no_candidate: number;
+    provider_failed: number;
+    candidates: number;
+  };
 }
 
 /** One evaluation facet value and count. */
@@ -393,6 +440,7 @@ export interface GraphNode {
   identity_status?: string;
   cluster?: number;
   degree?: number;
+  radius?: number;
   index?: number;
   x?: number;
   y?: number;
@@ -403,7 +451,7 @@ export interface GraphNode {
 }
 
 /** One graph relationship plus optional resolved node references. */
-export interface GraphEdge {
+export interface GraphEdge extends WireRecord {
   id: string;
   source: string | number | GraphNode;
   target: string | number | GraphNode;
@@ -458,6 +506,9 @@ export interface AuditEvent extends WireRecord {
   recorded_data_available: boolean;
   recorded_data_truncated_fields: string[];
 }
+
+/** An audit event accepted by reusable presentation components and partial fixtures. */
+export type AuditEventRecord = Partial<AuditEvent> & WireRecord;
 
 /** One audit facet and its recorded count. */
 export interface AuditFacet {
@@ -601,17 +652,14 @@ export interface StageSummary {
 
 /** One run-level execution step and its measured duration. */
 export interface RunStep {
-  id: number;
-  pipeline_run_id: number;
   step_name: string;
   step_status: string;
   input_artifact_id: number | null;
   output_artifact_id: number | null;
-  reused_from_run_id: number | null;
   input_fingerprint: string;
   output_fingerprint: string;
-  started_at: string;
-  finished_at: string;
+  started_at: string | null;
+  finished_at: string | null;
   duration_seconds: number | null;
 }
 
@@ -629,7 +677,7 @@ export interface StagesResponse extends TabularResponse {
 export interface ReviewContext {
   id: number;
   pipeline_run_id: number;
-  parent_context_id?: number;
+  parent_context_id?: number | null;
   created_at: string;
 }
 
@@ -886,9 +934,10 @@ export type ReviewBacklinksResponse = ReviewCollectionPage<ReviewNote, "backlink
 /** One PDF inventory state attached to an article. */
 export interface PDFStatus {
   status: string;
-  content_hash: string | null;
+  content_hash?: string | null;
   byte_size?: number | null;
   created_at?: string | null;
+  inventoried_at?: string | null;
 }
 
 /** One detail collection with endpoint-specific cursor pagination. */
@@ -976,9 +1025,20 @@ export interface ArticleDetailResponse {
 /** One identity-resolution record attached to an author occurrence. */
 export interface IdentityResolution extends WireRecord {
   id: number;
+  resolution_id?: number;
+  author_occurrence_id?: number;
   provider: string;
   status: string;
   candidate_count?: number;
+  candidate_preview_limit?: number;
+  candidates_truncated?: boolean;
+  candidates?: IdentityCandidate[];
+  queried_citation_name?: string;
+  observed_orcid?: string | null;
+  article_title?: string | null;
+  doi?: string | null;
+  error_message?: string | null;
+  resolved_at?: string;
 }
 
 /** Complete author detail and its bounded related collections. */
@@ -999,6 +1059,11 @@ export interface IdentityCandidate extends WireRecord {
   id?: number;
   candidate_name?: string | null;
   candidate_orcid?: string | null;
+  provider_display_name?: string | null;
+  provider_rank?: number | null;
+  query_url?: string;
+  payload_artifact_id?: number | null;
+  created_at?: string;
   rank?: number;
 }
 

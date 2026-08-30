@@ -24,7 +24,7 @@ export interface NormalizedRectangle {
 }
 
 /** Converts displayed normalized rectangles back to unrotated page coordinates. */
-export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
+export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
   return rectangles.map(({ x, y, width, height }) => {
     let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
@@ -60,7 +60,7 @@ export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: 
 }
 
 /** Projects stored unrotated rectangles into the currently displayed page rotation. */
-export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: any): NormalizedRectangle[] {
+export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
   return rectangles.map(({ x, y, width, height }) => {
     let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
@@ -96,7 +96,7 @@ export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: an
 }
 
 /** Extracts bounded normalized rectangles from a same-page browser selection. */
-export function selectionRectangles(selection: any, pageElement: HTMLElement | null, rotation: any): NormalizedRectangle[] {
+export function selectionRectangles(selection: Selection | null, pageElement: HTMLElement | null, rotation: unknown): NormalizedRectangle[] {
   if (!selection || selection.isCollapsed || !selection.rangeCount || !pageElement) return [];
   const range: Range = selection.getRangeAt(0);
   if (!pageElement.contains(range.commonAncestorContainer)) return [];
@@ -124,7 +124,7 @@ export function selectionRectangles(selection: any, pageElement: HTMLElement | n
 /** One PDF viewer option set. */
 export interface PDFViewerOptions {
   url: string;
-  page?: any;
+  page?: unknown;
   onPageChange?: (page: number) => void;
   onSelection?: (selection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] }) => void;
   onFullscreenToggle?: () => void;
@@ -139,12 +139,73 @@ export interface PDFAnchorHead {
   };
 }
 
+/** The lifecycle and navigation controls returned by one mounted PDF viewer. */
+export interface PDFViewerController {
+  goToPage: (page: unknown) => void;
+  setAnchors: (anchors: unknown) => void;
+  destroy: () => Promise<void>;
+}
+
+/** The viewport fields consumed from one PDF.js page projection. */
+interface PDFViewport {
+  width: number;
+  height: number;
+  transform: number[];
+}
+
+/** One cancellable PDF.js canvas render. */
+interface PDFRenderTask {
+  cancel: () => void;
+  promise: Promise<void>;
+}
+
+/** One bounded PDF.js text item used by the selectable text layer. */
+interface PDFTextItem {
+  str: string;
+  transform: number[];
+  fontName: string;
+  hasEOL?: boolean;
+}
+
+/** The text-content fields consumed from a PDF.js page. */
+interface PDFTextContent {
+  items: PDFTextItem[];
+  styles?: Record<string, { fontFamily?: string }>;
+}
+
+/** The page operations consumed by the custom reader. */
+interface PDFPage {
+  getViewport: (options: { scale: number; rotation: number }) => PDFViewport;
+  render: (options: { canvasContext: CanvasRenderingContext2D | null; viewport: PDFViewport; transform: number[] | null }) => PDFRenderTask;
+  getTextContent: () => PDFTextContent | Promise<PDFTextContent>;
+}
+
+/** The document operations consumed by the custom reader. */
+interface PDFDocument {
+  numPages: number;
+  getPage: (page: number) => PDFPage | Promise<PDFPage>;
+  destroy: () => void | Promise<void>;
+}
+
+/** The loading-task operations consumed by the custom reader. */
+interface PDFLoadingTask {
+  promise: Promise<PDFDocument>;
+  destroy: () => Promise<void>;
+}
+
+/** The narrow PDF.js module surface used behind the vendored-module boundary. */
+interface PDFJSModule {
+  GlobalWorkerOptions: { workerSrc?: string };
+  Util: { transform: (viewport: number[], item: number[]) => number[] };
+  getDocument: (options: { url: string; isEvalSupported: boolean; cMapUrl: string; cMapPacked: boolean; standardFontDataUrl: string }) => PDFLoadingTask;
+}
+
 /** Mounts a project-styled PDF.js viewer and returns a lifecycle controller. */
-export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<any>): Promise<any> {
+export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOptions, loader?: () => Promise<unknown>): Promise<PDFViewerController> {
   const loadPDFJS = loader || (() => {
     return import("../../vendor/pdfjs/pdf.min.mjs");
   });
-  const pdfjs = await loadPDFJS();
+  const pdfjs = await loadPDFJS() as PDFJSModule;
   pdfjs.GlobalWorkerOptions.workerSrc = workerURL;
   let pageNumber = Math.max(1, Number(options.page || 1));
   let scale = 1.15;
@@ -153,9 +214,9 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   let destroyed = false;
   let anchors: PDFAnchorHead[] = [];
   let renderSequence = 0;
-  const renderTasks = new Set<any>();
-  const pageCache = new Map<number, Promise<any>>();
-  const textCache = new Map<number, Promise<any>>();
+  const renderTasks = new Set<PDFRenderTask>();
+  const pageCache = new Map<number, Promise<PDFPage>>();
+  const textCache = new Map<number, Promise<PDFTextContent>>();
   let lastSelectionIdentity = "";
   let pendingSelection: { page: number; selectedText: string; rectangles: NormalizedRectangle[] } | null = null;
 
@@ -214,7 +275,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   pageNumber = Math.min(pageNumber, document.numPages);
 
   /** Returns one cached PDF.js page object without repeating document parsing. */
-  function cachedPage(requestedPage: number): Promise<any> {
+  function cachedPage(requestedPage: number): Promise<PDFPage> {
     const cached = pageCache.get(requestedPage);
     if (cached) return cached;
     const requested = Promise.resolve(document.getPage(requestedPage));
@@ -223,7 +284,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   }
 
   /** Returns one cached text-content projection for a loaded page. */
-  function cachedText(requestedPage: number, page: any): Promise<any> {
+  function cachedText(requestedPage: number, page: PDFPage): Promise<PDFTextContent> {
     const cached = textCache.get(requestedPage);
     if (cached) return cached;
     const requested = Promise.resolve(page.getTextContent());
@@ -286,8 +347,8 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
       transform: transform,
     });
     renderTasks.add(renderTask);
-    await renderTask.promise.catch((error: any) => {
-      if (error?.name !== "RenderingCancelledException") throw error;
+    await renderTask.promise.catch((error: unknown) => {
+      if (!(error instanceof Error) || error.name !== "RenderingCancelledException") throw error;
     });
     renderTasks.delete(renderTask);
     if (destroyed || sequence !== renderSequence) return;
@@ -308,15 +369,15 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   async function requestRender(): Promise<void> {
     try {
       await render();
-    } catch (error: any) {
-      if (destroyed || error?.name === "RenderingCancelledException") return;
+    } catch (error) {
+      if (destroyed || error instanceof Error && error.name === "RenderingCancelledException") return;
       const pagesHost = host.querySelector<HTMLElement>("[data-pdf-pages]");
       pagesHost?.setAttribute("aria-busy", "false");
       const status = host.querySelector<HTMLElement>("[data-pdf-status]");
       if (!status) return;
       const errorMarkup = (
         <Fragment>
-          Page {pageNumber} could not be rendered: {error.message}
+          Page {pageNumber} could not be rendered: {error instanceof Error ? error.message : "Unknown rendering error"}
           <button type="button" className={classNames.uiBasicButton} data-pdf-retry>Retry page</button>
         </Fragment>
       );
@@ -328,7 +389,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   }
 
   /** Clamps and renders a requested current page. */
-  function changePage(next: any): void {
+  function changePage(next: unknown): void {
     pageNumber = Math.max(1, Math.min(document.numPages, Number(next) || pageNumber));
     void requestRender();
   }
@@ -409,7 +470,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
   await requestRender();
   return {
     goToPage: changePage,
-    setAnchors: (nextAnchors: PDFAnchorHead[] | any) => {
+    setAnchors: (nextAnchors: unknown) => {
       let effectiveAnchors: PDFAnchorHead[] = [];
       if (Array.isArray(nextAnchors)) effectiveAnchors = nextAnchors;
       anchors = effectiveAnchors;
@@ -436,7 +497,7 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
 }
 
 /** Projects active content-matched anchor rectangles into one displayed page layer. */
-function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: any): void {
+function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotation: unknown): void {
   for (const anchor of anchors) {
     for (const rectangle of rotateRectangles(anchor.version.rectangles || [], rotation)) {
       const highlight = window.document.createElement("span");
@@ -453,7 +514,7 @@ function renderAnchors(container: HTMLElement, anchors: PDFAnchorHead[], rotatio
 }
 
 /** Creates transparent positioned text spans from PDF.js text content and viewport transforms. */
-function renderSelectableText(pdfjs: any, content: any, container: HTMLElement, viewport: any): void {
+function renderSelectableText(pdfjs: PDFJSModule, content: PDFTextContent, container: HTMLElement, viewport: PDFViewport): void {
   const fragment = window.document.createDocumentFragment();
   for (const item of content.items || []) {
     if (!item.str) continue;

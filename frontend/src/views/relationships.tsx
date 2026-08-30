@@ -86,7 +86,7 @@ function AppliedFilters(): JSX.Element {
   filterKeys.forEach((key) => {
     if (value(key)) filters[key] = value(key);
   });
-  const clear: Record<string, any> = {
+  const clear: Record<string, unknown> = {
     view: "relationships",
     mode: value("mode") || "research_network",
     node: "",
@@ -99,7 +99,7 @@ function AppliedFilters(): JSX.Element {
 }
 
 /** Renders markup summarizing connected graph clusters. */
-function ClusterSummary(props: { data: any }): JSX.Element {
+function ClusterSummary(props: { data: GraphResponse }): JSX.Element {
   const counts = props.data.counts || {};
   const clusters = graphClusters(list(props.data, ["nodes"]), list(props.data, ["edges"])).components;
   const largest = clusters.reduce((size, cluster) => {
@@ -232,7 +232,7 @@ export async function relationshipsView(): Promise<void> {
   graphForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       view: "relationships",
       node: "",
     };
@@ -264,7 +264,7 @@ export async function relationshipsView(): Promise<void> {
 
   const resetButton = document.querySelector("#graph-reset")!;
   resetButton.addEventListener("click", () => {
-    const updates: Record<string, any> = {
+    const updates: Record<string, unknown> = {
       view: "relationships",
       mode: "research_network",
       node: "",

@@ -6,7 +6,7 @@ import {
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
-import { api } from "../api.tsx";
+import { api, errorMessage } from "../api.tsx";
 import type {
   ArticleDetailResponse,
   ArticleRecord,
@@ -16,10 +16,14 @@ import type {
   DetailCollectionPage,
   EvaluationNavigation,
   EvaluationResponse,
+  Identifier,
   IdentityCandidate,
   IdentityCandidatesResponse,
+  IdentityResolution,
+  PDFStatus,
   ReferenceDetailResponse,
   ReferenceRecord,
+  TermMatchSummary,
   WireRecord,
 } from "../api/types.ts";
 import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
@@ -47,8 +51,8 @@ const classNames = {
 interface CollectionState {
   title: string;
   description: string;
-  columns: Array<{ label: string; render: (row: any) => JSX.Element }>;
-  rows: any[];
+  columns: Array<{ label: string; render: (row: WireRecord) => JSX.Element }>;
+  rows: WireRecord[];
   total: number;
   hasMore: boolean;
   nextCursor: string;
@@ -62,7 +66,7 @@ interface CollectionState {
 }
 
 const collectionState = new Map<string, CollectionState>();
-let activeArticleReview: any = null;
+let activeArticleReview: Awaited<ReturnType<typeof mountArticleReview>> | null = null;
 let activePDFFullscreen: PDFFullscreenController | null = null;
 
 /** Releases the article review and PDF lifecycle before another SPA view renders. */
@@ -80,15 +84,15 @@ export async function destroyActiveArticleReview(): Promise<void> {
 }
 
 /** Returns a context-preserving link to a related detail record. */
-function detailLink(kind: string, id: any): string {
-  const updates: Record<string, any> = {
+function detailLink(kind: string, id: unknown): string {
+  const updates: Record<string, unknown> = {
     view: kind,
     article_id: "",
     author_id: "",
     reference_id: "",
     origin: currentDetailOrigin(),
   };
-  updates[`${kind}_id`] = id;
+  updates[`${kind}_id`] = String(id ?? "");
   return link(updates);
 }
 
@@ -109,17 +113,18 @@ function backToCorpus(kind: string): string {
 }
 
 /** Renders a recorded value or its unavailable presentation. */
-function recorded(raw: any, fallback?: JSX.Element): JSX.Element {
+function recorded(raw: unknown, fallback?: JSX.Element): JSX.Element {
   if (raw === null || raw === undefined || raw === "") {
     return fallback || <span className={classNames.uiFadedText}>Not recorded</span>;
   }
-  return <>{raw}</>;
+  if (raw instanceof Node) return raw;
+  return <>{String(raw)}</>;
 }
 
 /** One labeled detail property. */
 interface DetailEntry {
   label: string;
-  value: any;
+  value: unknown;
 }
 
 /** The fields shared by the three detail presentations after endpoint dispatch. */
@@ -165,7 +170,7 @@ function summaryStrip(entries: DetailEntry[]): JSX.Element {
 }
 
 /** Converts a stored mapping representation to a displayable object. */
-function mappingValue(raw: any): JSX.Element {
+function mappingValue(raw: unknown): JSX.Element {
   if (raw === null || raw === undefined || raw === "") return recorded(raw);
   if (Array.isArray(raw)) {
     const listItems = raw.map((item) => {
@@ -187,18 +192,18 @@ function mappingValue(raw: any): JSX.Element {
     });
     return <dl className="rw-mapping-list">{entryRows}</dl>;
   }
-  return <span className="rw-mono">{raw}</span>;
+  return <span className="rw-mono">{String(raw)}</span>;
 }
 
 /** Renders the parsed extension mapping stored on a work revision. */
-function extensionMapping(raw: any): JSX.Element {
+function extensionMapping(raw: unknown): JSX.Element {
   const parsed = parseObject(raw);
   if (!Object.keys(parsed).length) return recorded(raw);
   return mappingValue(parsed);
 }
 
 /** Returns normalized keyword values from stored array or delimited input. */
-function keywordValues(raw: any): string[] {
+function keywordValues(raw: unknown): string[] {
   if (Array.isArray(raw)) {
     const strings = raw.map(String);
     return strings.filter(Boolean);
@@ -225,7 +230,7 @@ function keywordValues(raw: any): string[] {
 }
 
 /** Renders label markup for normalized keyword values. */
-function keywordMarkup(raw: any): JSX.Element {
+function keywordMarkup(raw: unknown): JSX.Element {
   const keywords = keywordValues(raw);
   if (!keywords.length) return <span className={classNames.uiFadedText}>Not recorded</span>;
 
@@ -250,7 +255,7 @@ function keywordMarkup(raw: any): JSX.Element {
 }
 
 /** Renders expandable JSON markup for a raw record. */
-function rawRecord(record: Record<string, any>, excluded: string[]): JSX.Element | null {
+function rawRecord(record: WireRecord, excluded: string[]): JSX.Element | null {
   const entries = Object.entries(record);
   const rows = entries.filter(([key]) => {
     return !excluded.includes(key);
@@ -344,8 +349,8 @@ function CollectionMarkup(props: { collectionKey: string; state: CollectionState
 }
 
 /** Mounts collection. */
-function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: any) => JSX.Element }>, source: any, endpoint: string, cursorKey: string): void {
-  const rows = list(source, ["rows", "items"]);
+function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: WireRecord) => JSX.Element }>, source: DetailCollectionPage<WireRecord>, endpoint: string, cursorKey: string): void {
+  const rows = list<WireRecord>(source, ["rows", "items"]);
   const state: CollectionState = {
     title: title,
     description: description,
@@ -389,9 +394,9 @@ async function loadCollectionPage(key: string, cursor: string, rememberCurrent: 
     state.nextCursor = data.next_cursor || "";
     state.currentCursor = cursor;
     history.replaceState({}, "", link({ [state.cursorKey]: cursor }));
-  } catch (error: any) {
+  } catch (error) {
     if (sequence !== state.request) return;
-    state.error = error.message || `Unable to load ${state.title.toLocaleLowerCase()}.`;
+    state.error = errorMessage(error, `Unable to load ${state.title.toLocaleLowerCase()}.`);
   } finally {
     if (sequence === state.request) {
       state.loading = false;
@@ -419,7 +424,7 @@ function renderCollection(key: string): void {
 }
 
 /** Renders escaped validation or failure reason markup for a stage outcome. */
-function stageReasonMarkup(raw: any): JSX.Element {
+function stageReasonMarkup(raw: unknown): JSX.Element {
   if (typeof raw !== "string") return recorded(raw);
 
   try {
@@ -437,7 +442,7 @@ function stageReasonMarkup(raw: any): JSX.Element {
 }
 
 /** Renders the search term coverage panel for an article revision. */
-function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Element {
+function SearchTermCoveragePanel(props: { matches: TermMatchSummary | null; record: ArticleRecord }): JSX.Element {
   if (props.matches === null || props.matches === undefined) {
     const body = <p className={classNames.uiFadedText}>No search terms recorded for this run.</p>;
     return (
@@ -448,6 +453,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
       />
     );
   }
+  const matches = props.matches;
 
   const fields = [
     {
@@ -470,19 +476,19 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
       label: "Keywords plus",
       recorded: keywordValues(props.record.keywords_plus).length > 0,
     },
-  ];
+  ] as const;
 
   // Distinct term names recorded as matched in any of the article's fields.
   const matchedTermNames = new Set<string>();
   fields.forEach((field) => {
-    const fieldMatches = props.matches[field.key] || [];
+    const fieldMatches = matches[field.key] || [];
     fieldMatches.forEach((term: string) => {
       matchedTermNames.add(term);
     });
   });
 
   // The recorded term inventory, each [term, sources] entry split into matched and unmatched groups.
-  const termEntries = Object.entries(props.matches.terms_with_sources || {}) as Array<[string, string[]]>;
+  const termEntries = Object.entries(matches.terms_with_sources || {});
   const matchedTerms = termEntries.filter(([term]) => {
     return matchedTermNames.has(term);
   });
@@ -491,7 +497,7 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
   });
 
   const fieldElements: JSX.Element[] = fields.map((field) => {
-    const fieldMatches = props.matches[field.key] || [];
+    const fieldMatches = matches[field.key] || [];
     var content: JSX.Element = <span className={classNames.uiFadedText}>No matched terms</span>;
 
     if (!field.recorded) {
@@ -549,8 +555,8 @@ function SearchTermCoveragePanel(props: { matches: any; record: any }): JSX.Elem
     disclosureContent = <Fragment>{sections}</Fragment>;
   }
 
-  const matchedTotal = props.matches.matched_total;
-  const termTotal = props.matches.term_total;
+  const matchedTotal = matches.matched_total;
+  const termTotal = matches.term_total;
   const panelBody: JSX.Element = (
     <Fragment>
       <p className={classNames.uiFadedText}>{matchedTotal} of {termTotal} search terms matched this article.</p>
@@ -712,7 +718,7 @@ function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse
 }
 
 /** Renders PDF inventory and download-status markup for an article. */
-export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
+export function PDFStatusPanel(props: { record: ArticleRecord; pdf: PDFStatus }): JSX.Element {
   const pdfLabels: Record<string, string> = {
     available: "Available",
     unavailable: "Unavailable without a DOI",
@@ -761,7 +767,7 @@ export function PDFStatusPanel(props: { record: any; pdf: any }): JSX.Element {
 }
 
 /** Renders one ranked ORCID candidate list without implying confirmed identity. */
-function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
+function IdentityCandidateList(props: { candidates: IdentityCandidate[] }): JSX.Element {
   if (!props.candidates.length) return <p className={classNames.uiFadedText}>No provider candidate was returned.</p>;
   const candidateItems = props.candidates.map((candidate) => {
     var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
@@ -789,7 +795,7 @@ function IdentityCandidateList(props: { candidates: any[] }): JSX.Element {
 }
 
 /** Renders candidate ORCID evidence associated with the selected author occurrence. */
-function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
+function AuthorIdentityEvidence(props: { evidence: IdentityResolution[] }): JSX.Element {
   const evidence = props.evidence;
   if (!evidence.length) {
     const emptyEvidenceBody = <p className={classNames.uiFadedText}>No ORCID name-search evidence was recorded for this author occurrence.</p>;
@@ -797,7 +803,7 @@ function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
   }
 
   const body = evidence.map((resolution) => {
-    const candidates = list(resolution, ["candidates"]);
+    const candidates = list<IdentityCandidate>(resolution, ["candidates"]);
     const candidateList = <IdentityCandidateList candidates={candidates} />;
     var moreCandidates: JSX.Element | null = null;
     if (resolution.candidates_truncated) {
@@ -838,7 +844,7 @@ function AuthorIdentityEvidence(props: { evidence: any[] }): JSX.Element {
 
 /** Renders one cursor page of author identity resolutions with local continuation status. */
 function IdentityCollectionMarkup(props: { state: CollectionState }): JSX.Element {
-  const evidence = <AuthorIdentityEvidence evidence={props.state.rows} />;
+  const evidence = <AuthorIdentityEvidence evidence={props.state.rows as IdentityResolution[]} />;
   var previous: JSX.Element | null = null;
   if (props.state.previousCursors.length) previous = <button type="button" className={classNames.uiBasicButton} data-detail-previous disabled={props.state.loading}>Previous identity page</button>;
   var next: JSX.Element | null = null;
@@ -880,8 +886,8 @@ function bindIdentityCandidatePages(runID: string): void {
         } else {
           button.remove();
         }
-      } catch (failure: any) {
-        button.textContent = `Retry candidates: ${failure.message}`;
+      } catch (failure) {
+        button.textContent = `Retry candidates: ${errorMessage(failure, "Unknown error")}`;
         button.disabled = false;
         classRemove(button, "loading");
       }
@@ -1108,8 +1114,8 @@ export async function detailView(kind: string): Promise<void> {
         headers: { Accept: "application/json" },
       });
       evaluationNavigation = queue.queue_navigation;
-    } catch (error: any) {
-      evaluationNavigationError = error.message;
+    } catch (error) {
+      evaluationNavigationError = errorMessage(error, "Unable to load evaluation navigation.");
     }
   }
 
@@ -1212,7 +1218,7 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Author occurrence",
-        render: (row) => <a href={detailLink("author", row.id)}>{row.citation_name}</a>,
+        render: (row) => <a href={detailLink("author", row.id)}>{String(row.citation_name || "Not recorded")}</a>,
       },
       {
         label: "ORCID",
@@ -1237,7 +1243,7 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Reference mention",
-        render: (row) => <a href={detailLink("reference", row.id)}>{row.title || row.doi || `Reference ${row.id}`}</a>,
+        render: (row) => <a href={detailLink("reference", row.id)}>{String(row.title || row.doi || `Reference ${row.id}`)}</a>,
       },
       {
         label: "Author",
@@ -1283,7 +1289,7 @@ export async function detailView(kind: string): Promise<void> {
       activeArticleReview = await mountArticleReview(
         document.querySelector("[data-review-host]") as HTMLElement,
         document.querySelector<HTMLElement>("[data-pdf-viewer-host]"),
-        record,
+        record as ArticleRecord,
         articleData,
         async () => {
           const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") }, {
@@ -1311,7 +1317,7 @@ export async function detailView(kind: string): Promise<void> {
     mountCollection("author-articles", "Linked article revisions", "Articles that contain this observed author occurrence.", [
       {
         label: "Article revision",
-        render: (row) => <a href={detailLink("article", row.work_revision_id)}>{row.title}</a>,
+        render: (row) => <a href={detailLink("article", row.work_revision_id)}>{String(row.title || "Not recorded")}</a>,
       },
       {
         label: "Year",

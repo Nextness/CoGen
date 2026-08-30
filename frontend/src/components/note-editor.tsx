@@ -1,6 +1,7 @@
 // Immutable review-note editor, draft persistence, history, and bounded comparison.
-import { api, mutate, APIError } from "../api.tsx";
+import { api, mutate, APIError, errorMessage as apiErrorMessage } from "../api.tsx";
 import type {
+  Identifier,
   ReviewAnchorsResponse,
   ReviewNote,
   ReviewNoteCreateResponse,
@@ -43,7 +44,7 @@ const classNames = {
 const diffLineLimit = 200;
 
 /** Builds a browser-local draft key scoped to the opaque corpus and immutable head. */
-export function draftKey(corpusID: string, runID: string | number, workRevisionID: string | number, noteID?: any, expectedVersionID?: any): string {
+export function draftKey(corpusID: string, runID: Identifier, workRevisionID: Identifier, noteID?: Identifier | null, expectedVersionID?: Identifier | null): string {
   return ["review-draft", corpusID, runID, workRevisionID, noteID || "new", expectedVersionID || "none"].join(":");
 }
 
@@ -85,7 +86,7 @@ export interface LineDiffResult {
 }
 
 /** Produces a bounded line comparison or complete side-by-side fallback. */
-export function lineDiff(previous: any, current: any, limit?: number): LineDiffResult {
+export function lineDiff(previous: unknown, current: unknown, limit?: number): LineDiffResult {
   const before = String(previous || "").split("\n");
   const after = String(current || "").split("\n");
   const bound = limit || diffLineLimit;
@@ -194,7 +195,7 @@ function noteCardMarkup(note: ReviewNoteRecord, editable: boolean): JSX.Element 
 }
 
 /** Renders one immutable version comparison row for the note history. */
-function versionComparisonMarkup(previous: string, version: any): JSX.Element {
+function versionComparisonMarkup(previous: string, version: ReviewNoteVersion): JSX.Element {
   const comparison = lineDiff(previous, version.body || "");
   var comparisonHTML: JSX.Element;
   if (comparison.fallback) {
@@ -476,8 +477,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           const fullMarkup = <NoteDocument document={fullDocument} resolvedLinks={full.version.links} />;
           renderTree(fullMarkup, content);
           button.remove();
-        } catch (error: any) {
-          showNoteListError(error.message || "The complete note could not be loaded.");
+        } catch (error) {
+          showNoteListError(apiErrorMessage(error, "The complete note could not be loaded."));
           button.disabled = false;
           classRemove(button, "loading");
         }
@@ -515,12 +516,12 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             await loadNotes(true);
             await showHistory(result.note);
             await options.onChanged?.();
-          } catch (refreshError: any) {
+          } catch (refreshError) {
             message.className = classNames.uiWarningMessage;
-            message.textContent = `Note removed, refresh failed: ${refreshError.message}`;
+            message.textContent = `Note removed, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
-          showNoteListError(error.message || "The note could not be removed.");
+        } catch (error) {
+          showNoteListError(apiErrorMessage(error, "The note could not be removed."));
           button.disabled = false;
           classRemove(button, "loading");
         }
@@ -568,7 +569,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Displays one selected head's paged immutable ancestry and optional restoration control. */
   async function showHistory(note: ReviewNoteRecord): Promise<void> {
-    let versions: any[] = [];
+    let versions: ReviewNoteVersion[] = [];
     let cursor = "";
     let hasMore = false;
     const historyHost = host.querySelector("[data-note-history]") as HTMLElement;
@@ -629,8 +630,8 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             }
             renderTree(versionComparisonMarkup(previousBody, data.version), content);
             disclosure.dataset.loaded = "true";
-          } catch (error: any) {
-            const errorMarkup = <p className={classNames.uiErrorMessage}>{error.message}</p>;
+          } catch (error) {
+            const errorMarkup = <p className={classNames.uiErrorMessage}>{apiErrorMessage(error, "The note version could not be loaded.")}</p>;
             renderTree(errorMarkup, content);
           }
         });
@@ -668,13 +669,13 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
             await loadNotes(true);
             await focusNote(note.id);
             await options.onChanged?.();
-          } catch (refreshError: any) {
+          } catch (refreshError) {
             message.className = classNames.uiWarningMessage;
-            message.textContent = `Note restored, refresh failed: ${refreshError.message}`;
+            message.textContent = `Note restored, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
+        } catch (error) {
           const message = historyHost.querySelector("[data-note-history-error]") as HTMLElement;
-          message.textContent = error.message || "The note could not be restored.";
+          message.textContent = apiErrorMessage(error, "The note could not be restored.");
           message.hidden = false;
           button.disabled = false;
           classRemove(button, "loading");
@@ -698,7 +699,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     await loadHistoryPage();
   }
   /** Resolves a URL-focused active or deleted note and exposes its history. */
-  async function focusNote(noteID: any): Promise<void> {
+  async function focusNote(noteID: Identifier): Promise<void> {
     const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`, {}, {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -776,9 +777,9 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   async function loadAnchorChoicesSafely(reset: boolean): Promise<void> {
     try {
       await loadAnchorChoices(reset);
-    } catch (error: any) {
+    } catch (error) {
       draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
-      draftStatus.textContent = `Saved anchors could not be loaded: ${error.message}`;
+      draftStatus.textContent = `Saved anchors could not be loaded: ${apiErrorMessage(error, "Unknown error")}`;
     }
   }
   linkType.addEventListener("change", () => {
@@ -839,12 +840,12 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       try {
         await loadNotes(true);
         await options.onChanged?.();
-      } catch (refreshError: any) {
+      } catch (refreshError) {
         draftStatus.className = classNames.rwDraftStatusUiWarningMessage;
-        draftStatus.textContent = `Note saved, but the local display refresh failed: ${refreshError.message}. Reload to see version ${saved.note?.version?.id || "the new version"}.`;
+        draftStatus.textContent = `Note saved, but the local display refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}. Reload to see version ${saved.note?.version?.id || "the new version"}.`;
       }
-    } catch (error: any) {
-      var errorMessage = `Save failed. Your draft was kept: ${error.message}`;
+    } catch (error) {
+      var errorMessage = `Save failed. Your draft was kept: ${apiErrorMessage(error, "Unknown error")}`;
       if (error instanceof APIError && error.status === 409) {
         errorMessage = "This note changed elsewhere. Your draft was kept.";
       }
@@ -884,5 +885,5 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   resetEditor();
   await loadNotes(true);
   const focused = new URLSearchParams(location.search).get("note_id");
-  if (/^[1-9]\d*$/.test(focused || "")) await focusNote(focused);
+  if (focused && /^[1-9]\d*$/.test(focused)) await focusNote(focused);
 }

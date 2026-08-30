@@ -8,9 +8,9 @@ declare module "*d3-force.js" {
   export interface SimulationNode {
     id: string | number;
     type?: string;
-    radius: number;
-    x: number;
-    y: number;
+    radius?: number;
+    x?: number;
+    y?: number;
     vx?: number;
     vy?: number;
   }
@@ -73,7 +73,7 @@ declare module "*d3-force.js" {
 
 /** PDF.js runtime module loaded lazily from the vendored bundle. */
 declare module "*pdf.min.mjs" {
-  /** Any PDF.js namespace; runtime members are exercised but not statically typed. */
-  const pdfjs: any;
+  /** Untrusted PDF.js namespace narrowed by the viewer's local adapter contract. */
+  const pdfjs: unknown;
   export = pdfjs;
 }

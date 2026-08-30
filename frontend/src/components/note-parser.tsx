@@ -1,6 +1,7 @@
 // Bounded note parsing and safe preview rendering for the review editor.
 import { esc, link } from "../state.tsx";
 import { h, Fragment, cx } from "../jsx/jsx-runtime.ts";
+import type { ResolvedNoteLink } from "../api/types.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 
@@ -56,19 +57,19 @@ export interface NoteDiagnostic {
 }
 
 /** Parses bounded note text into blocks, extracted links, and UTF-16 diagnostics. */
-export function parseNote(body: any): { blocks: NoteBlock[]; links: NoteLink[]; errors: NoteDiagnostic[] } {
-  body = String(body || "");
+export function parseNote(body: unknown): { blocks: NoteBlock[]; links: NoteLink[]; errors: NoteDiagnostic[] } {
+  const source = String(body || "");
   const errors: NoteDiagnostic[] = [];
-  if (new TextEncoder().encode(body).length > noteBodyLimit) {
+  if (new TextEncoder().encode(source).length > noteBodyLimit) {
     errors.push({
       position: 0,
-      length: body.length,
+      length: source.length,
       message: `note body exceeds ${noteBodyLimit} bytes`,
     });
     return { blocks: [], links: [], errors: errors };
   }
 
-  const rawLines: string[] = body.split("\n");
+  const rawLines: string[] = source.split("\n");
   const lines: Array<{ text: string; start: number }> = [];
   let sourceOffset = 0;
   rawLines.forEach((rawLine) => {
@@ -380,18 +381,7 @@ function normalizeDOI(value: string): string {
 }
 
 /** One resolved note link used by the preview renderer. */
-export interface ResolvedNoteLink {
-  ordinal: number;
-  resolved: boolean;
-  target_type?: string;
-  raw_target?: string;
-  display_text?: string | null;
-  url?: string;
-  work_revision_id?: any;
-  note_id?: any;
-  anchor_id?: any;
-  page?: any;
-}
+export type { ResolvedNoteLink } from "../api/types.ts";
 
 /** Renders a parsed note as escaped HTML with context-preserving resolved links. */
 export function NoteDocument(props: { document: { blocks: NoteBlock[] }; resolvedLinks?: ResolvedNoteLink[] | null }): JSX.Element {
@@ -498,7 +488,7 @@ function renderLink(label: string, source: NoteLink, resolved?: ResolvedNoteLink
   if (resolved.target_type === "ext") {
     return <a href={resolved.url} target="_blank" rel="noopener noreferrer">{label}</a>;
   }
-  const updates: Record<string, any> = {
+  const updates: Record<string, unknown> = {
     view: "article",
     article_id: resolved.work_revision_id,
     note_id: "",

@@ -1,7 +1,7 @@
 // Advanced: table browser, pagination, sort.
 import { app, value, link, PageHeader, EmptyState } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
-import { api, tables } from "../api.tsx";
+import { api, tables, errorMessage } from "../api.tsx";
 import type { TableRowsResponse } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
@@ -46,8 +46,7 @@ export async function advancedView(): Promise<void> {
   });
 
   const rawColumns = currentTable?.columns || [];
-  const columnNames = rawColumns.map((column: any) => {
-    if (typeof column === "string") return column;
+  const columnNames = rawColumns.map((column) => {
     return column.name;
   });
   const columns = columnNames.filter(Boolean);
@@ -59,7 +58,7 @@ export async function advancedView(): Promise<void> {
   var order = "asc";
   if (value("order").toLowerCase() === "desc") order = "desc";
 
-  var data: any = null;
+  var data: TableRowsResponse | null = null;
   var tableError = "";
   try {
     data = await api<TableRowsResponse>(`/api/tables/${encodeURIComponent(current)}`, {
@@ -71,8 +70,8 @@ export async function advancedView(): Promise<void> {
       method: "GET",
       headers: { Accept: "application/json" },
     });
-  } catch (failure: any) {
-    tableError = failure.message;
+  } catch (failure) {
+    tableError = errorMessage(failure, "The selected table could not be loaded.");
   }
 
   if (data && Number(data.pagination?.page) !== page) {

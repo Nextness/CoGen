@@ -1,5 +1,5 @@
 // Run-scoped review context, complete status versions, notes, and PDF anchors.
-import { api, mutate, APIError } from "../api.tsx";
+import { api, mutate, APIError, errorMessage as apiErrorMessage } from "../api.tsx";
 import type {
   AnchorRectangle,
   ArticleDetailResponse,
@@ -7,12 +7,14 @@ import type {
   ArticleReviewResponse,
   HealthResponse,
   ReviewAnchor,
+  ReviewAnchorVersion,
   ReviewAnchorCreateResponse,
   ReviewAnchorMutationResponse,
   ReviewAnchorsResponse,
   ReviewAnchorVersionsResponse,
   ReviewContextResponse,
   WorkReviewMutationResponse,
+  WorkReviewVersion,
   WorkReviewVersionResponse,
   WorkReviewVersionsResponse,
 } from "../api/types.ts";
@@ -20,6 +22,7 @@ import { formatTime, humanLabel, link } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { mountNoteEditor } from "./note-editor.tsx";
 import { mountPDFViewer } from "./pdf-viewer.tsx";
+import type { PDFViewerController } from "./pdf-viewer.tsx";
 import { bindReviewContextInitializer, ReviewContextDialog, reviewContextSummary } from "./review-context-dialog.tsx";
 import type { ProposedParent } from "./review-context-dialog.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
@@ -88,11 +91,11 @@ export interface PDFSelection {
 export type AnchorHead = ReviewAnchor;
 
 /** Mounts all editable review controls for one immutable run article revision. */
-export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: any, detailData: any, onAuditChange?: () => Promise<void>): Promise<{ destroy: () => any }> {
+export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: ArticleRecord, detailData: ArticleDetailResponse, onAuditChange?: () => Promise<void>): Promise<{ destroy: () => Promise<void> | void }> {
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
-  let pdfController: any = null;
+  let pdfController: PDFViewerController | null = null;
   let pendingSelection: PDFSelection | null = null;
   let reviewEditable = false;
   let notesEditable = false;
@@ -123,8 +126,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           candidate?.scrollIntoView({ block: "nearest" });
         });
       },
-    }).catch((error: any) => {
-      const errorMarkup = <p className={classNames.uiNegativeMessage}>The embedded PDF could not be rendered. The original PDF remains available through the download endpoint: {error.message}</p>;
+    }).catch((error: unknown) => {
+      const errorMarkup = <p className={classNames.uiNegativeMessage}>The embedded PDF could not be rendered. The original PDF remains available through the download endpoint: {apiErrorMessage(error, "Unknown error")}</p>;
       renderTree(errorMarkup, pdfHost!);
       return null;
     });
@@ -136,11 +139,11 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       method: "GET",
       headers: { Accept: "application/json" },
     });
-  } catch (error: any) {
+  } catch (error) {
     const contextErrorMarkup = (
       <section className={classNames.uiErrorMessage} role="alert">
         <span className="header">Article review is unavailable</span>
-        <p>{error.message}</p>
+        <p>{apiErrorMessage(error, "Review context could not be loaded.")}</p>
         <p>The immutable article and document reader remain available.</p>
         <button type="button" className={classNames.uiBasicButton} data-review-context-retry>Retry Article review</button>
       </section>
@@ -363,11 +366,11 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             onChanged: onAuditChange,
           });
           notesLoaded = true;
-        } catch (error: any) {
+        } catch (error) {
           const errorMarkup = (
             <p className={classNames.uiErrorMessage} role="alert">
               <span className="header">Notes could not be loaded</span>
-              {error.message}
+              {apiErrorMessage(error, "Notes could not be loaded.")}
               <button type="button" className={classNames.uiBasicButton} data-notes-retry>Retry Notes</button>
             </p>
           );
@@ -385,11 +388,11 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           await loadAnchors(true);
           renderAnchorCandidate();
           anchorsLoaded = true;
-        } catch (error: any) {
+        } catch (error) {
           const errorMarkup = (
             <p className={classNames.uiErrorMessage} role="alert">
               <span className="header">PDF anchors could not be loaded</span>
-              {error.message}
+              {apiErrorMessage(error, "PDF anchors could not be loaded.")}
               <button type="button" className={classNames.uiBasicButton} data-anchors-retry>Retry PDF anchors</button>
             </p>
           );
@@ -487,7 +490,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       const compatible = statusSelect.value === "not_approved" || statusSelect.value === "removed";
       var checkedInputs: HTMLInputElement[] = [];
       if (compatible) checkedInputs = Array.from(substatusField.querySelectorAll<HTMLInputElement>("input:checked"));
-      var saved: any;
+      var saved: WorkReviewMutationResponse;
       try {
         saved = await mutate<WorkReviewMutationResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, "PUT", {
           expected_version_id: expectedVersionID,
@@ -497,9 +500,9 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           }),
           reason: reasonText || null,
         });
-      } catch (error: any) {
+      } catch (error) {
         message.className = classNames.uiErrorMessageRwReviewFeedback;
-        var errorMessage = error.message;
+        var errorMessage = apiErrorMessage(error, "Review could not be saved.");
         var rebaseAction: JSX.Element | null = null;
         if (error instanceof APIError && error.code === "version_conflict") {
           rebaseAction = <button type="button" className={classNames.uiBasicButton} data-review-load-latest>Load latest while keeping my input</button>;
@@ -551,12 +554,12 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       classRemove(saveButton, "loading");
       try {
         await renderReview();
-      } catch (refreshError: any) {
+      } catch (refreshError) {
         message.className = classNames.uiWarningMessageRwReviewFeedback;
         const refreshMarkup = (
           <Fragment>
             <span className="header">Decision saved, refresh failed</span>
-            <p>{refreshError.message}</p>
+            <p>{apiErrorMessage(refreshError, "Review display could not be refreshed.")}</p>
             <button type="button" className={classNames.uiBasicButton} data-review-refresh>Retry refresh</button>
           </Fragment>
         );
@@ -580,13 +583,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         }
       }
     });
-    let decisionVersions: any[] = [];
+    let decisionVersions: WorkReviewVersion[] = [];
     let decisionCursor = "";
     let decisionHasMore = false;
     /** Renders every loaded decision-summary page and lazy full-reason controls. */
     function renderDecisionHistory(): void {
       const target = host.querySelector("[data-review-history-list]") as HTMLElement;
-      const historyItems = decisionVersions.map((item: any) => {
+      const historyItems = decisionVersions.map((item) => {
         var reasonMarkup: JSX.Element | null = null;
         if (item.reason) {
           var reasonSuffix = "";
@@ -666,11 +669,11 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         target.hidden = false;
         button.setAttribute("aria-expanded", "true");
         button.textContent = "Hide version history";
-      } catch (error: any) {
+      } catch (error) {
         const errorMarkup = (
           <p className={classNames.uiErrorMessage}>
             <span className="header">History could not be loaded</span>
-            {error.message}
+            {apiErrorMessage(error, "Decision history could not be loaded.")}
           </p>
         );
         renderTree(errorMarkup, target);
@@ -739,16 +742,16 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           await loadAnchors();
           await onAuditChange?.();
           targetElement.textContent = "";
-        } catch (refreshError: any) {
+        } catch (refreshError) {
           message.className = classNames.uiWarningMessage;
-          message.textContent = `PDF anchor saved, refresh failed: ${refreshError.message}`;
+          message.textContent = `PDF anchor saved, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
         }
-      } catch (error: any) {
+      } catch (error) {
         message.className = classNames.uiErrorMessage;
         const errorMarkup = (
           <>
             <span className="header">Anchor was not saved</span>
-            {error.message}
+            {apiErrorMessage(error, "Anchor could not be saved.")}
           </>
         );
         renderTree(errorMarkup, message);
@@ -869,13 +872,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             await loadAnchors();
             await showAnchorHistory(anchor.id, anchor.label);
             await onAuditChange?.();
-          } catch (refreshError: any) {
+          } catch (refreshError) {
             message.className = classNames.uiWarningMessage;
-            message.textContent = `Anchor removed, refresh failed: ${refreshError.message}`;
+            message.textContent = `Anchor removed, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
+        } catch (error) {
           const message = target.querySelector("[data-anchor-list-message]") as HTMLElement;
-          message.textContent = error.message || "Anchor could not be removed.";
+          message.textContent = apiErrorMessage(error, "Anchor could not be removed.");
           message.hidden = false;
           deleteButton.disabled = false;
           classRemove(deleteButton, "loading");
@@ -891,13 +894,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   /** Displays bounded immutable active and tombstone ancestry for a focused anchor. */
   async function showAnchorHistory(anchorID: string, anchorLabel?: string): Promise<void> {
     const target = host.querySelector("[data-anchor-list]") as HTMLElement;
-    let versions: any[] = [];
+    let versions: ReviewAnchorVersion[] = [];
     let cursor = "";
     let hasMore = false;
     /** Renders all loaded immutable anchor summaries and their continuation controls. */
     function renderHistory(): void {
       const newest = versions[0];
-      const restorable = versions.find((version: any) => {
+      const restorable = versions.find((version) => {
         return version.state === "active";
       });
       const restorableOnCurrentPDF = restorable && restorable.pdf_content_hash === detailData.pdf_status?.content_hash;
@@ -910,7 +913,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         }
         restoreMarkup = <button type="button" className={classNames.uiPrimaryButton} data-anchor-restore disabled={!anchorsEditable || !restorableOnCurrentPDF}>{restoreText}</button>;
       }
-      const historyItems = versions.map((version: any) => {
+      const historyItems = versions.map((version) => {
         var pageSummary = " · tombstone";
         if (version.state === "active") pageSummary = ` · page ${version.page}`;
         var quoteMarkup: JSX.Element | null = null;
@@ -984,13 +987,13 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           try {
             await loadAnchors(true);
             await onAuditChange?.();
-          } catch (refreshError: any) {
+          } catch (refreshError) {
             message.className = classNames.uiWarningMessage;
-            message.textContent = `Anchor restored, refresh failed: ${refreshError.message}`;
+            message.textContent = `Anchor restored, refresh failed: ${apiErrorMessage(refreshError, "Unknown error")}`;
           }
-        } catch (error: any) {
+        } catch (error) {
           const message = target.querySelector("[data-anchor-history-message]") as HTMLElement;
-          message.textContent = error.message || "Anchor could not be restored.";
+          message.textContent = apiErrorMessage(error, "Anchor could not be restored.");
           message.hidden = false;
           restoreButton.disabled = false;
           classRemove(restoreButton, "loading");
