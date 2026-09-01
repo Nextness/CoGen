@@ -208,12 +208,7 @@ async function loadDropdownPage(key: string, query: string, cursor = ""): Promis
   try {
     const page = await fetchOptionPage(config, query, cursor);
     if (sequence !== dropdown.sequence) return;
-    const items = page.items.slice();
-    if (page.selected_item && !items.some((item) => {
-      return String(pickID(item)) === String(pickID(page.selected_item));
-    })) {
-      items.unshift(page.selected_item);
-    }
+    const items = withSelectedItem(page, null);
     dropdown.nextCursor = page.next_cursor || "";
     if (cursor) appendOptions(key, items, config);
     else selectOptions(key, items, selects[key as keyof ContextSelects].value, config);
@@ -391,11 +386,6 @@ function hideDropdownError(key: string): void {
   field?.querySelector(".ui.error.message")?.remove();
 }
 
-/** Replaces invalid or crossed hierarchy identifiers without starting a second render. */
-function replaceContext(updates: Record<string, unknown>): void {
-  replaceState(updates);
-}
-
 /** Reconciles a selected run to its server-owned complete ancestry. */
 async function reconcileSelectedRun(): Promise<RunContextResponse | null> {
   const selectedRunID = value("run_id");
@@ -414,11 +404,11 @@ async function reconcileSelectedRun(): Promise<RunContextResponse | null> {
     const crossed = Object.entries(canonical).some(([key, expected]) => {
       return value(key) !== expected;
     });
-    if (crossed) replaceContext(canonical);
+    if (crossed) replaceState(canonical);
     return context;
   } catch (error) {
     if (error instanceof APIError && error.status === 404) {
-      replaceContext({ run_id: "" });
+      replaceState({ run_id: "" });
       return null;
     }
     throw error;
@@ -457,12 +447,12 @@ async function hydrateLevel(key: string, config: DropdownConfig, canonicalItem: 
   const validSelected = items.some((item) => {
     return String(pickID(item)) === selected;
   });
-  if (selected && !validSelected) replaceContext(clearInvalid);
+  if (selected && !validSelected) replaceState(clearInvalid);
   var effectiveSelected = selected;
   if (selected && !validSelected) effectiveSelected = "";
   if (!effectiveSelected && items.length === 1 && !page.has_more) {
     effectiveSelected = String(pickID(items[0]));
-    replaceContext({ [selectorParam(key)]: effectiveSelected });
+    replaceState({ [selectorParam(key)]: effectiveSelected });
   }
   config.selectedID = effectiveSelected;
   selectOptions(key, items, effectiveSelected, config);
@@ -478,7 +468,7 @@ export async function hydrateSelectors(): Promise<void> {
   try {
     selectedRunContext = await reconcileSelectedRun();
   } catch (error) {
-    replaceContext({ run_id: "" });
+    replaceState({ run_id: "" });
     showDropdownError("run", `Failed to validate run context: ${errorMessage(error, "Unknown error")}`);
   }
 
@@ -525,7 +515,7 @@ export async function hydrateSelectors(): Promise<void> {
     const revisionPage = await hydrateLevel("revision", revisionConfig, selectedRunContext?.revision, {
       search_revision_id: "", plan_id: "", run_id: "",
     });
-    if (!revisionPage.items.length && value("search_revision_id")) replaceContext({ search_revision_id: "", plan_id: "", run_id: "" });
+    if (!revisionPage.items.length && value("search_revision_id")) replaceState({ search_revision_id: "", plan_id: "", run_id: "" });
   } catch (error) {
     selectOptions("revision", [], "", revisionConfig);
     showDropdownError("revision", `Failed to load revisions: ${errorMessage(error, "Unknown error")}`);

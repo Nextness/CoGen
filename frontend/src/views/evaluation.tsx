@@ -285,9 +285,6 @@ export async function evaluationView(): Promise<void> {
     columnConfig: columnConfig,
     columnsWhitelist: ["title", "doi", "inventory_status", "inventoried_at", "review_status", "review_inherited"],
     perPageSelector: "#evaluation-per-page",
-    querySelector: "#evaluation-unused-query",
-    searchButtonSelector: "[data-evaluation-unused-search]",
-    clearButtonSelector: "[data-evaluation-unused-clear]",
   };
   const table = <DataTable tableName="evaluation" result={data} context={tableContext} />;
 

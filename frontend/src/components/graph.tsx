@@ -2,11 +2,12 @@
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
 import { graphFilters, humanLabel, detailLinkFor, list, value } from "../state.tsx";
-import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { Pagination } from "./pagination.tsx";
 import type { PaginationOptions } from "./pagination.tsx";
+import { createFallbackExpand } from "./fallback-expand.ts";
 import { replaceState } from "../router.tsx";
 import type {
   ClusterSummary,
@@ -23,6 +24,11 @@ const classNames = {
   uiFadedText: cx("ui", "faded", "text"),
   uiTable: cx("ui", "table"),
 };
+
+/** Returns the lowercased searchable text for one graph node. */
+function nodeSearchText(node: GraphNode): string {
+  return [node.label, node.id, node.doi, node.orcid, node.author].filter(Boolean).join(" ").toLocaleLowerCase();
+}
 
 /** Defined legend-mark modifier for each graph entity presentation. */
 const entityMarkClasses: Record<"article" | "author" | "reference" | "referenced-author", ClassName> = {
@@ -817,8 +823,7 @@ function draw(graph: GraphState): void {
   if (searchQuery) {
     searchMatchIds = new Set();
     nodes.forEach((node) => {
-      const searchableParts = [node.label, node.id, node.doi, node.orcid, node.author].filter(Boolean);
-      const searchable = searchableParts.join(" ").toLocaleLowerCase();
+      const searchable = nodeSearchText(node);
       if (searchable.includes(searchQuery)) {
         searchMatchIds!.add(node.id);
       }
@@ -1283,8 +1288,7 @@ function bindGraphSearch(graph: GraphState, setSelection: (id: string | number |
   function updateResults(): void {
     graph.searchQuery = searchInput!.value.trim().toLocaleLowerCase();
     const matches = graph.nodes.filter((node) => {
-      const searchableParts = [node.label, node.id, node.doi, node.orcid, node.author].filter(Boolean);
-      return searchableParts.join(" ").toLocaleLowerCase().includes(graph.searchQuery);
+      return nodeSearchText(node).includes(graph.searchQuery);
     });
     const visible = matches.slice(0, 100);
     if (!graph.searchQuery) {
@@ -1371,12 +1375,11 @@ function bindGraphExpand(graph: GraphState): void {
   const expandButton = expandButtonElement;
   const expandViewport = expandViewportElement;
   var previouslyExpanded = false;
-  var priorOverflow = "";
+  const fallbackExpand = createFallbackExpand(expandViewport, "rw-graph__viewport--expanded");
   /** Leaves the CSS fallback state and restores document and opener state. */
   function closeFallback(): void {
-    if (!classHas(expandViewport, "rw-graph__viewport--expanded")) return;
-    classRemove(expandViewport, "rw-graph__viewport--expanded");
-    document.body.style.overflow = priorOverflow;
+    if (!fallbackExpand.isExpanded()) return;
+    fallbackExpand.close();
     updateLabel();
   }
   /** Updates the expand button label and refits the graph after a size change. */
@@ -1403,27 +1406,23 @@ function bindGraphExpand(graph: GraphState): void {
       } else if (expandViewport.requestFullscreen) {
         await expandViewport.requestFullscreen();
       } else {
-        if (classHas(expandViewport, "rw-graph__viewport--expanded")) {
+        if (fallbackExpand.isExpanded()) {
           closeFallback();
         } else {
-          priorOverflow = document.body.style.overflow;
-          document.body.style.overflow = "hidden";
-          classAdd(expandViewport, ["rw-graph__viewport--expanded"]);
+          fallbackExpand.toggle();
           updateLabel();
         }
       }
     } catch (_) {
-      if (classHas(expandViewport, "rw-graph__viewport--expanded")) closeFallback();
+      if (fallbackExpand.isExpanded()) closeFallback();
       else {
-        priorOverflow = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
-        classAdd(expandViewport, ["rw-graph__viewport--expanded"]);
+        fallbackExpand.toggle();
         updateLabel();
       }
     }
   });
   const escapeHandler = (event: KeyboardEvent) => {
-    if (event.key === "Escape" && classHas(expandViewport, "rw-graph__viewport--expanded")) {
+    if (event.key === "Escape" && fallbackExpand.isExpanded()) {
       event.preventDefault();
       closeFallback();
     }
@@ -1433,10 +1432,7 @@ function bindGraphExpand(graph: GraphState): void {
   document.addEventListener("fullscreenchange", updateLabel);
   graph.expandCleanup = () => {
     document.removeEventListener("keydown", escapeHandler);
-    if (classHas(expandViewport, "rw-graph__viewport--expanded")) {
-      classRemove(expandViewport, "rw-graph__viewport--expanded");
-      document.body.style.overflow = priorOverflow;
-    }
+    fallbackExpand.close();
   };
 }
 

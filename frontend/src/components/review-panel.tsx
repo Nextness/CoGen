@@ -26,6 +26,7 @@ import type { PDFViewerController } from "./pdf-viewer.tsx";
 import { bindReviewContextInitializer, ReviewContextDialog, reviewContextSummary } from "./review-context-dialog.tsx";
 import type { ProposedParent } from "./review-context-dialog.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
+import { installNavigationGuard } from "./navigation-guard.ts";
 import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
@@ -457,23 +458,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       return JSON.stringify({ status: statusSelect.value, reason: reasonInput.value, qualifiers: checked });
     }
     let savedDecisionDraft = decisionDraft();
-    /** Prevents route changes from silently discarding a local decision draft. */
-    function protectDecision(event: Event): void {
-      if (!reviewForm.isConnected) {
-        document.removeEventListener("rw-before-navigate", protectDecision);
-        window.removeEventListener("beforeunload", protectDecision);
-        return;
-      }
-      if (decisionDraft() === savedDecisionDraft) return;
-      if (event.type === "beforeunload") {
-        event.preventDefault();
-        (event as BeforeUnloadEvent).returnValue = "";
-        return;
-      }
-      if (!window.confirm("Leave this article and discard the unsaved review decision?")) event.preventDefault();
-    }
-    document.addEventListener("rw-before-navigate", protectDecision);
-    window.addEventListener("beforeunload", protectDecision);
+    installNavigationGuard(reviewForm, () => decisionDraft() !== savedDecisionDraft, "Leave this article and discard the unsaved review decision?");
     /** Enables sub-status choices only for the two compatible terminal statuses. */
     function updateSubstatuses(): void {
       const compatible = statusSelect.value === "not_approved" || statusSelect.value === "removed";
