@@ -4,6 +4,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { selectFixtureText } from './helpers/pdf-selection.ts';
+import { visit, viewerState } from './support/visit.ts';
 
 // ── Fixture identifiers ───────────────────────────────────────────────
 // URL parameters use row IDs (not search_id strings or execution fingerprints)
@@ -45,36 +46,6 @@ const REF_1_ID = '1';     // Points to 10.1000/2
 // ── Helpers ───────────────────────────────────────────────────────────
 
 /**
- * Seeds viewer state through sessionStorage before load, then navigates to
- * the clean path for the requested view. The seed travels in window.name
- * (which survives navigation) and is applied only when sessionStorage has no
- * viewer state, so in-app cross-view navigation state written by the app is
- * never clobbered, while every visit applies its explicit state. history.state
- * is cleared only for same-path navigation, because a same-URL navigation
- * reuses the prior entry and the app prefers history.state over sessionStorage
- * at boot; cross-path navigation keeps the current entry's state so browser
- * back and forward restore each visit's adopted state.
- */
-async function visit(page: Page, state: Record<string, string>): Promise<void> {
-  const path = state.view === "home" ? "/" : `/${state.view}`;
-  await page.evaluate(({ seed, seedPath }) => {
-    window.name = JSON.stringify(seed);
-    try {
-      sessionStorage.removeItem("rw-viewer-state");
-      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
-    } catch (_) {
-      // The initial about:blank document may deny sessionStorage access.
-    }
-  }, { seed: state, seedPath: path });
-  await page.addInitScript(() => {
-    const seed = window.name ? JSON.parse(window.name) : null;
-    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
-  });
-  await page.goto(path);
-  await page.waitForLoadState('networkidle');
-}
-
-/**
  * Navigate to a URL and wait for network idle.
  */
 async function goto(page: Page, url: string): Promise<void> {
@@ -95,13 +66,6 @@ function contextState(overrides: Record<string, string> = {}): Record<string, st
     ...overrides,
   };
   return state;
-}
-
-/**
- * Reads the current viewer state from sessionStorage.
- */
-async function viewerState(page: Page): Promise<Record<string, string>> {
-  return page.evaluate(() => JSON.parse(sessionStorage.getItem("rw-viewer-state") || "{}"));
 }
 
 /**

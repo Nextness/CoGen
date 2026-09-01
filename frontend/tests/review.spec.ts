@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 import { selectFixtureText } from './helpers/pdf-selection.ts';
+import { visit, viewerState } from './support/visit.ts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -18,27 +19,7 @@ const articleState: Record<string, string> = {
 
 /** Seeds viewer state through sessionStorage and navigates to the clean article path. */
 async function visitArticle(page: Page): Promise<void> {
-  const path = '/article';
-  await page.evaluate(({ seed, seedPath }) => {
-    window.name = JSON.stringify(seed);
-    try {
-      sessionStorage.removeItem("rw-viewer-state");
-      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
-    } catch (_) {
-      // The initial about:blank document may deny sessionStorage access.
-    }
-  }, { seed: articleState, seedPath: path });
-  await page.addInitScript(() => {
-    const seed = window.name ? JSON.parse(window.name) : null;
-    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
-  });
-  await page.goto(path);
-  await page.waitForLoadState('networkidle');
-}
-
-/** Reads the current viewer state from sessionStorage. */
-async function viewerState(page: Page): Promise<Record<string, string>> {
-  return page.evaluate(() => JSON.parse(sessionStorage.getItem('rw-viewer-state') || '{}'));
+  await visit(page, articleState, '/article');
 }
 
 /** Activates a continuation control until the collection reports its terminal page. */

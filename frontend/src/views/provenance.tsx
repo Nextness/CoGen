@@ -754,7 +754,7 @@ function StagesView(props: { data: StagesResponse }): JSX.Element {
   const page = Math.max(1, Number(value("stage_page") || props.data.pagination?.page || 1));
   const perPage = Number(value("stage_per_page") || props.data.pagination?.per_page || 50);
   const result = {
-    columns: list(props.data, ["columns"]),
+    columns: list<string>(props.data, ["columns"]),
     rows: rows,
     pagination: props.data.pagination || {
       page: page,

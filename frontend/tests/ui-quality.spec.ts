@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { visit } from './support/visit.ts';
+
 /** URL-owned state used to open one viewer presentation. */
 type ViewState = Record<string, string>;
 
@@ -16,24 +18,9 @@ const context: Record<string, string> = {
 };
 
 /** Navigates to a UI-quality fixture state through sessionStorage seeding. */
-async function visit(page: Page, overrides: Record<string, string> = {}): Promise<void> {
+async function visitQuality(page: Page, overrides: Record<string, string> = {}): Promise<void> {
   const state = { ...context, ...overrides };
-  const path = state.view === 'home' ? '/' : `/${state.view}`;
-  await page.evaluate(({ seed, seedPath }) => {
-    window.name = JSON.stringify(seed);
-    try {
-      sessionStorage.removeItem("rw-viewer-state");
-      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
-    } catch (_) {
-      // The initial about:blank document may deny sessionStorage access.
-    }
-  }, { seed: state, seedPath: path });
-  await page.addInitScript(() => {
-    const seed = window.name ? JSON.parse(window.name) : null;
-    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
-  });
-  await page.goto(path);
-  await page.waitForLoadState('networkidle');
+  await visit(page, state);
 }
 
 /** Asynchronously implements expect no page overflow for the viewer. */
@@ -52,7 +39,7 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 
 test.describe('Research-context and responsive behavior', () => {
   test('detail breadcrumbs remain concise and identify the parent collection', async ({ page }) => {
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb).toContainText('Home');
     await expect(breadcrumb).toContainText('Deepdive');
@@ -65,7 +52,7 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('article reading and review share the desktop workspace and stack on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     const desktopBoxes = await page.locator('.rw-reading-workspace > div').evaluateAll(function(items) {
       return items.map(function(item) {
         const rect = item.getBoundingClientRect();
@@ -86,7 +73,7 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('mobile and medium layouts fit the viewport while tables retain their own scroller', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
     await expectNoPageOverflow(page);
     // At 375px, grid items wrap to a single column
     var itemWidth = await page.locator('.rw-context-grid > .ui.field').first().evaluate(function(el) {
@@ -94,15 +81,15 @@ test.describe('Research-context and responsive behavior', () => {
     });
     expect(itemWidth).toBeLessThan(400);
 
-    await visit(page, { view: 'corpus', section: 'articles' });
+    await visitQuality(page, { view: 'corpus', section: 'articles' });
     await expectNoPageOverflow(page);
     await expect(page.locator('.table-wrap').first()).toHaveCSS('overflow-x', 'auto');
 
-    await visit(page, { view: 'provenance', section: 'audit' });
+    await visitQuality(page, { view: 'provenance', section: 'audit' });
     await page.getByText('Recorded data').first().click();
     await expectNoPageOverflow(page);
 
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await expectNoPageOverflow(page);
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
     await page.getByRole('button', { name: 'Start review' }).click();
@@ -110,7 +97,7 @@ test.describe('Research-context and responsive behavior', () => {
     await page.getByRole('button', { name: 'Close review setup' }).click();
 
     await page.setViewportSize({ width: 768, height: 1024 });
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
     await expectNoPageOverflow(page);
     // At 768px, grid items should be narrower than the full viewport (multiple columns)
     var itemWidth768 = await page.locator('.rw-context-grid > .ui.field').first().evaluate(function(el) {
@@ -118,7 +105,7 @@ test.describe('Research-context and responsive behavior', () => {
     });
     expect(itemWidth768).toBeLessThan(400);
 
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await expectNoPageOverflow(page);
     await expect(page.locator('.rw-pdf-page')).toHaveCount(1);
     await expect(page.locator('.rw-pdf-pages')).toHaveCSS('overflow', 'auto');
@@ -133,7 +120,7 @@ test.describe('Research-context and responsive behavior', () => {
       { view: 'article', article_id: '1' },
     ];
     for (const overrides of responsiveStates) {
-      await visit(page, overrides);
+      await visitQuality(page, overrides);
       await expectNoPageOverflow(page);
     }
     await page.locator('#search-select-trigger').click();
@@ -141,14 +128,14 @@ test.describe('Research-context and responsive behavior', () => {
     await expectNoPageOverflow(page);
 
     await page.setViewportSize({ width: 667, height: 320 });
-    await visit(page, { view: 'relationships' });
+    await visitQuality(page, { view: 'relationships' });
     await expectNoPageOverflow(page);
     await expect(page.getByRole('button', { name: /Expand graph|Restore graph/ })).toBeVisible();
   });
 
   test('200 percent reflow, text spacing, and focused-input viewport changes preserve actions', async ({ page }) => {
     await page.setViewportSize({ width: 640, height: 800 });
-    await visit(page, { view: 'evaluation' });
+    await visitQuality(page, { view: 'evaluation' });
     await page.evaluate(function() { document.documentElement.style.zoom = '2'; });
     await expectNoPageOverflow(page);
     await expect(page.locator('[data-evaluation-filters]').getByRole('button', { name: 'Apply filters' })).toBeVisible();
@@ -160,11 +147,11 @@ test.describe('Research-context and responsive behavior', () => {
       style.textContent = 'body { line-height: 1.5 !important; letter-spacing: .12em !important; word-spacing: .16em !important; } p { margin-bottom: 2em !important; }';
       document.head.append(style);
     });
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await expectNoPageOverflow(page);
 
     await page.setViewportSize({ width: 320, height: 420 });
-    await visit(page, { view: 'provenance', section: 'artifacts' });
+    await visitQuality(page, { view: 'provenance', section: 'artifacts' });
     const search = page.getByLabel('Search artifacts');
     await search.focus();
     await search.fill('manifest');
@@ -175,7 +162,7 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('skip link, errors, and reduced motion are announced', async ({ page }) => {
     // Home boots without programmatic title focus, so the first Tab stop is the skip link.
-    await visit(page, { view: 'home' });
+    await visitQuality(page, { view: 'home' });
     await page.keyboard.press('Tab');
     await expect(page.locator('.skip-link')).toBeFocused();
 
@@ -185,21 +172,21 @@ test.describe('Research-context and responsive behavior', () => {
       contentType: 'application/json',
       body: JSON.stringify({ error: { message: 'Injected overview failure' } }),
     }));
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
     await expect(page.locator('#notice')).toHaveAttribute('role', 'alert');
     await expect(page.locator('#notice')).toContainText('Injected overview failure');
 
     // Reduced motion — graph layout respects prefers-reduced-motion
     await page.unroute('**/api/overview?*');
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await visit(page, { view: 'relationships' });
+    await visitQuality(page, { view: 'relationships' });
     await expect(page.locator('#graph-layout-status')).toHaveText('Physics layout placed with reduced motion');
   });
 });
 
 test.describe('Automated accessibility checks', () => {
   test('the overview page document has no axe violations', async ({ page }) => {
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
 
     await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'overview');
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
@@ -225,14 +212,14 @@ test.describe('Automated accessibility checks', () => {
   ];
   for (const [name, overrides] of accessibilityStates) {
     test(`${name} has no axe violations`, async ({ page }) => {
-      await visit(page, overrides);
+      await visitQuality(page, overrides);
       const results = await new AxeBuilder({ page }).analyze();
       expect(results.violations).toEqual([]);
     });
   }
 
   test('review setup dialog has no axe violations and can be dismissed', async ({ page }) => {
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     const dialog = page.getByRole('dialog', { name: 'Start article review' });
     await expect(dialog).toBeVisible();
@@ -244,7 +231,7 @@ test.describe('Automated accessibility checks', () => {
 
   test('open context selector and mobile navigation remain keyboard-accessible', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
     await page.locator('#search-select-trigger').click();
     await expect(page.getByLabel('Search available searches')).toBeFocused();
     var results = await new AxeBuilder({ page }).include('.rw-context-panel').analyze();
@@ -258,7 +245,7 @@ test.describe('Automated accessibility checks', () => {
   });
 
   test('expanded graph remains keyboard-accessible and restores opener focus', async ({ page }) => {
-    await visit(page, { view: 'relationships' });
+    await visitQuality(page, { view: 'relationships' });
     await page.locator('#graph-viewport').evaluate((viewport) => {
       Object.defineProperty(viewport, 'requestFullscreen', { value: undefined, configurable: true });
     });
@@ -288,7 +275,7 @@ test.describe('Automated accessibility checks', () => {
         content_type: 'application/json',
       } }),
     }));
-    await visit(page, { view: 'provenance', section: 'artifacts' });
+    await visitQuality(page, { view: 'provenance', section: 'artifacts' });
     await page.getByRole('button', { name: 'Inspect preview' }).first().click();
     await expect(page.locator('#artifact-inspector')).toContainText('Preview truncated');
     await expect(page.locator('#artifact-inspector')).toContainText('Formatted JSON is unavailable');
@@ -325,7 +312,7 @@ test.describe('Visual regression', () => {
   ];
   for (const [name, overrides] of visualStates) {
     test(`${name} light`, async ({ page }) => {
-      await visit(page, overrides);
+      await visitQuality(page, overrides);
       if (name === 'relationships') {
         await expect(page.locator('#graph-layout-status')).toContainText(/settled|placed/);
       }
@@ -335,18 +322,18 @@ test.describe('Visual regression', () => {
 
   test('overview dark', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
-    await visit(page, { view: 'overview' });
+    await visitQuality(page, { view: 'overview' });
     await expect(page).toHaveScreenshot('overview-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('provenance audit dark', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
-    await visit(page, { view: 'provenance', section: 'audit' });
+    await visitQuality(page, { view: 'provenance', section: 'audit' });
     await expect(page).toHaveScreenshot('provenance-audit-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('article review setup light', async ({ page }) => {
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
     await expect(page).toHaveScreenshot('article-review-setup-light.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
@@ -354,14 +341,14 @@ test.describe('Visual regression', () => {
 
   test('article review setup dark', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
-    await visit(page, { view: 'article', article_id: '1' });
+    await visitQuality(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
     await expect(page).toHaveScreenshot('article-review-setup-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
   test('artifact preview light', async ({ page }) => {
-    await visit(page, { view: 'provenance', section: 'artifacts' });
+    await visitQuality(page, { view: 'provenance', section: 'artifacts' });
     await page.getByRole('button', { name: 'Inspect preview' }).first().click();
     await expect(page.locator('#artifact-inspector')).toContainText('Bytes shown');
     await expect(page).toHaveScreenshot('artifact-preview-light.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });

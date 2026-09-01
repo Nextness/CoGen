@@ -355,7 +355,6 @@ export interface IdentityEvidenceRow extends CorpusRow {
 /** The identity-evidence collection for one run. */
 export interface IdentityEvidenceResponse extends CorpusResponse {
   rows: IdentityEvidenceRow[];
-  identity_evidence?: IdentityEvidenceRow[];
   stats: {
     resolutions: number;
     unclear: number;
@@ -1024,7 +1023,7 @@ export interface ArticleDetailResponse {
 
 /** One identity-resolution record attached to an author occurrence. */
 export interface IdentityResolution extends WireRecord {
-  id: number;
+  id?: number;
   resolution_id?: number;
   author_occurrence_id?: number;
   provider: string;
@@ -1057,14 +1056,12 @@ export interface ReferenceDetailResponse {
 /** One identity candidate returned for explicit investigation. */
 export interface IdentityCandidate extends WireRecord {
   id?: number;
-  candidate_name?: string | null;
   candidate_orcid?: string | null;
   provider_display_name?: string | null;
   provider_rank?: number | null;
   query_url?: string;
   payload_artifact_id?: number | null;
   created_at?: string;
-  rank?: number;
 }
 
 /** One page of identity candidates for a resolution. */

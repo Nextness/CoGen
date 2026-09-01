@@ -313,7 +313,8 @@ button.ui.label:hover:not(:disabled) {
   content: "!";
 }
 
-.ui.error.message {
+.ui.error.message,
+.ui.negative.message {
   border-left-color: var(--color-status-danger);
   color: var(--color-text-secondary);
   background: var(--color-status-danger-soft);
@@ -323,12 +324,6 @@ button.ui.label:hover:not(:disabled) {
 .ui.negative.message::before {
   color: var(--color-status-danger);
   content: "\00D7";
-}
-
-.ui.negative.message {
-  border-left-color: var(--color-status-danger);
-  color: var(--color-text-secondary);
-  background: var(--color-status-danger-soft);
 }
 
 /* ── Header ── */
@@ -363,12 +358,7 @@ button.ui.label:hover:not(:disabled) {
 
 .rw-page-header__kicker {
   margin: 0 0 var(--space-1);
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
-  letter-spacing: 0.06em;
   line-height: 1.35;
-  text-transform: uppercase;
 }
 
 .rw-page-header h2 {

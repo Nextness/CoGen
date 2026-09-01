@@ -738,7 +738,7 @@ export function Subnav(props: { items: Array<[string, string]>; current: string;
     const state = stateFor(updates);
     const active = id === props.current;
     var ariaCurrent: string | undefined;
-    if (id === props.current) ariaCurrent = "page";
+    if (active) ariaCurrent = "page";
     const itemClass = cx("item", active && "active");
     return <a href={href} className={itemClass} aria-current={ariaCurrent} data-state={JSON.stringify(state)}>{label}</a>;
   });

@@ -4,7 +4,7 @@ import { setURL, replaceState } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
-import type { ColumnInfo, DataTableContext, ScopedPagination, WireRecord } from "../api/types.ts";
+import type { ColumnInfo, DataTableContext, ScopedPagination, TabularResponse, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -44,9 +44,9 @@ function tableKeys(context: DataTableContext): { page: string; perPage: string; 
 }
 
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
-export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
+export function DataTable(props: { tableName: string; result: TabularResponse; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
-  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: Partial<ScopedPagination> };
+  const response = props.result;
 
   var rawColumns = list<string | ColumnInfo>(response, ["columns", "schema"]);
   if (!rawColumns.length) {

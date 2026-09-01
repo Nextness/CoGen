@@ -1638,24 +1638,6 @@
   background: var(--color-border-default);
 }
 
-/* Progress bar. */
-.rw-progress__bar {
-  display: inline-block;
-  width: min(100%, 220px);
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--color-bg-surface-muted);
-  vertical-align: middle;
-}
-
-.rw-progress__bar > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--color-accent-default);
-}
-
 /* Property grid. */
 .rw-property-grid {
   display: grid;
@@ -1702,14 +1684,6 @@
   .rw-review-audit-change,
   .rw-stage-flow {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rw-audit-event {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rw-audit-event__entity {
-    padding-top: 0;
   }
 }
 
