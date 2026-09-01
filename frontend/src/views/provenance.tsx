@@ -553,7 +553,8 @@ function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
     columns: resultColumns,
     rows: rows,
     pagination: pagination,
-  };  var filterSummary: JSX.Element | null = null;
+  };
+  var filterSummary: JSX.Element | null = null;
   if (value("cache_q")) {
     filterSummary = <FilterChips filters={{ cache_q: value("cache_q") }} labels={{ cache_q: "Search" }} options={{
       removeUpdates: { cache_page: 1 },

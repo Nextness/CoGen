@@ -29,8 +29,8 @@ function unavailableMarkup(): JSX.Element {
   return <span className={classNames.uiFadedText}>Not recorded</span>;
 }
 
-/** Renders a normalization metric value or its unavailable presentation. */
-function normalizationValue(metric: MetricEvidence | undefined): JSX.Element {
+/** Renders a metric value or its unavailable presentation, with an optional denominator branch. */
+function metricValue(metric: MetricEvidence | undefined): JSX.Element {
   if (metric?.available === false) {
     return unavailableMarkup();
   }
@@ -100,14 +100,6 @@ const executionMetricStages = [
   },
 ];
 
-/** Renders the numeric value of a captured metric or its unavailable presentation. */
-function capturedMetricValue(item: MetricEvidence): JSX.Element {
-  if (item.available === false) {
-    return unavailableMarkup();
-  }
-  return <>{formatNumber(item.value)}</>;
-}
-
 /** Groups captured metrics by pipeline stage. */
 function capturedMetricsByStage(metrics: MetricEvidence[]): Array<{ id: string; label: string; description: string; matches: (name: string) => boolean; metrics: MetricEvidence[] }> {
   const groups = executionMetricStages.map((stage) => {
@@ -151,7 +143,7 @@ function CapturedMetricsMarkup(props: { metrics: MetricEvidence[] }): JSX.Elemen
       return (
         <tr>
           <td>{humanLabel(metric.metric)}</td>
-          <td>{capturedMetricValue(metric)}</td>
+          <td>{metricValue(metric)}</td>
           <td>{source}</td>
         </tr>
       );
@@ -370,25 +362,25 @@ export async function overviewView(): Promise<void> {
     {
       label: "Assessed",
       render: (row: WireRecord) => {
-        return normalizationValue(row.processed as MetricEvidence | undefined);
+        return metricValue(row.processed as MetricEvidence | undefined);
       },
     },
     {
       label: "Changed",
       render: (row: WireRecord) => {
-        return normalizationValue(row.changed as MetricEvidence | undefined);
+        return metricValue(row.changed as MetricEvidence | undefined);
       },
     },
     {
       label: "Already canonical",
       render: (row: WireRecord) => {
-        return normalizationValue(row.already_canonical as MetricEvidence | undefined);
+        return metricValue(row.already_canonical as MetricEvidence | undefined);
       },
     },
     {
       label: "Unavailable",
       render: (row: WireRecord) => {
-        return normalizationValue(row.unavailable as MetricEvidence | undefined);
+        return metricValue(row.unavailable as MetricEvidence | undefined);
       },
     },
   ];

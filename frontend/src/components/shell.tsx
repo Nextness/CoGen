@@ -14,6 +14,13 @@ function setCapability(id: string, available: boolean, availableLabel: string, u
   classToggle(element, "rw-capability-unavailable", !available);
 }
 
+/** Marks the health status dot as unavailable. */
+function setUnavailable(): void {
+  healthStatus.textContent = "Database unavailable";
+  classAdd(healthStatus, ["rw-status-dot--unavailable"]);
+  classAdd(healthStatus, ["unavailable"]);
+}
+
 /** Initializes health check. */
 export function initHealthCheck(): void {
   api<HealthResponse>("/api/health", {}, {
@@ -22,12 +29,12 @@ export function initHealthCheck(): void {
   }).then((health) => {
     const unavailable = health?.readable === false;
     if (unavailable) {
-      healthStatus.textContent = "Database unavailable";
+      setUnavailable();
     } else {
       healthStatus.textContent = "Database healthy";
+      classRemove(healthStatus, "rw-status-dot--unavailable");
+      classRemove(healthStatus, "unavailable");
     }
-    classToggle(healthStatus, "rw-status-dot--unavailable", unavailable);
-    classToggle(healthStatus, "unavailable", unavailable);
     const metadataReadable = health?.metadata_readable ?? health?.readable;
     setCapability("#metadata-capability", metadataReadable === true, "Readable", "Unavailable");
     setCapability("#review-capability", health?.review_writable === true, "Writable", "Read-only or unavailable");
@@ -35,9 +42,7 @@ export function initHealthCheck(): void {
     if (health?.pdf_store_bound !== true) unavailablePDFLabel = "Not connected";
     setCapability("#pdf-capability", health?.pdf_store_bound === true && health?.pdf_store_readable === true, "Readable, read-only", unavailablePDFLabel);
   }).catch(() => {
-    healthStatus.textContent = "Database unavailable";
-    classAdd(healthStatus, ["rw-status-dot--unavailable"]);
-    classAdd(healthStatus, ["unavailable"]);
+    setUnavailable();
     setCapability("#metadata-capability", false, "Readable", "Unavailable");
     setCapability("#review-capability", false, "Writable", "Unavailable");
     setCapability("#pdf-capability", false, "Readable, read-only", "Unknown");
