@@ -2,7 +2,7 @@
 import {
   app, value, pageSizes, corpusSections, section, PageHeader,
   formatNumber, percent,
-  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, detailLinkFor,
+  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, detailLinkFor, columnNamesOf,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -170,10 +170,7 @@ const scopedSortFields: Record<string, string[]> = {
 /** Returns the ordered union of column names present in result rows. */
 function columnNames(table: TableInfo | undefined): string[] {
   if (!table) return [];
-  const names = table.columns.map((column) => {
-    return column.name;
-  });
-  return names.filter(Boolean);
+  return columnNamesOf(table.columns);
 }
 
 /** Renders the column definition used for identity evidence rows. */

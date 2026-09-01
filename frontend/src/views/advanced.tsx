@@ -1,5 +1,5 @@
 // Advanced: table browser, pagination, sort.
-import { app, value, PageHeader, EmptyState } from "../state.tsx";
+import { app, value, PageHeader, EmptyState, columnNamesOf } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api, tables, errorMessage } from "../api.tsx";
 import type { TableRowsResponse } from "../api/types.ts";
@@ -46,10 +46,7 @@ export async function advancedView(): Promise<void> {
   });
 
   const rawColumns = currentTable?.columns || [];
-  const columnNames = rawColumns.map((column) => {
-    return column.name;
-  });
-  const columns = columnNames.filter(Boolean);
+  const columns = columnNamesOf(rawColumns);
 
   const requestedSort = value("sort");
   var sort = "";

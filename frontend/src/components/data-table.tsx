@@ -1,5 +1,5 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
+import { asJSON, list, value, Cell, humanLabel, columnNamesOf } from "../state.tsx";
 import { setURL, replaceState } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
@@ -52,11 +52,7 @@ export function DataTable(props: { tableName: string; result: unknown; context?:
   if (!rawColumns.length) {
     rawColumns = list<string | ColumnInfo>(response.table, ["columns", "schema"]);
   }
-  const columnNames = rawColumns.map((column) => {
-    if (typeof column === "string") return column;
-    return column.name;
-  });
-  var columns = columnNames.filter(Boolean);
+  var columns = columnNamesOf(rawColumns);
 
   if (context.columnsWhitelist && context.columnsWhitelist.length) {
     const availableColumns = new Set(columns);

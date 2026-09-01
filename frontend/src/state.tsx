@@ -4,6 +4,7 @@
 import { h, Fragment, render as renderTree, cx } from "./jsx/jsx-runtime.ts";
 import type { ClassName } from "./jsx/classes.ts";
 import type {
+  ColumnInfo,
   HierarchyPlan,
   HierarchyAttempt,
   HierarchyRun,
@@ -361,6 +362,26 @@ export function list<T = WireRecord>(data: unknown, keys?: string[]): T[] {
   }
   if (Array.isArray(data)) return data as T[];
   return [];
+}
+
+/** Appends only the incoming items whose id is not already present in the target array. */
+export function appendUnique<T>(items: T[], incoming: readonly T[], idKey: (item: T) => string | number): void {
+  const known = new Set(items.map((item) => String(idKey(item))));
+  for (const item of incoming) {
+    const id = String(idKey(item));
+    if (!known.has(id)) {
+      known.add(id);
+      items.push(item);
+    }
+  }
+}
+
+/** Returns the ordered names of columns, accepting string or object column entries. */
+export function columnNamesOf(columns: readonly (string | ColumnInfo)[]): string[] {
+  return columns.map((column) => {
+    if (typeof column === "string") return column;
+    return column.name;
+  }).filter(Boolean);
 }
 
 /** Returns the first supported identifier present on an item. */

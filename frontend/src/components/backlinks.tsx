@@ -1,7 +1,7 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
-import { link, stateFor } from "../state.tsx";
+import { link, stateFor, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -83,10 +83,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const known = new Set(loaded.map((source) => String(source.id)));
-      for (const source of data.items || data.backlinks || []) {
-        if (!known.has(String(source.id))) loaded.push(source);
-      }
+      appendUnique(loaded, data.items || data.backlinks || [], (source) => source.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       render();
