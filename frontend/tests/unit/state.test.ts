@@ -15,7 +15,8 @@ import {
   Cell, bindCopyButtons,
   initViewerState, pathView, pathFor, stateFor,
 } from '../../src/state.tsx';
-import { h, renderToString } from "../../src/jsx/jsx-runtime.ts";
+import { h } from "../../src/jsx/jsx-runtime.ts";
+import { renderToString } from "./helpers/jsx-render.ts";
 
 const statusChip = (raw: any): string => renderToString(StatusChip({ raw: raw }));
 const pageHeader = (kicker: string, title: string, description: string, extra?: JSX.Element): string => renderToString(PageHeader({ kicker: kicker, title: title, description: description, extra: extra }));

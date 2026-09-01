@@ -3967,10 +3967,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`cx`](../frontend/src/jsx/jsx-runtime.ts#L33) | function | 33 | `function cx(...tokens: Array<ClassName \| false \| null \| undefined>)` | Joins registered class tokens while omitting false, null, and undefined values. |
-| [`classAdd`](../frontend/src/jsx/jsx-runtime.ts#L39) | function | 39 | `function classAdd(element: Element, tokens: readonly ClassName[])` | Adds registered class tokens to an element. |
-| [`classRemove`](../frontend/src/jsx/jsx-runtime.ts#L44) | function | 44 | `function classRemove(element: Element, token: ClassName)` | Removes one registered class token from an element. |
-| [`classToggle`](../frontend/src/jsx/jsx-runtime.ts#L49) | function | 49 | `function classToggle(element: Element, token: ClassName, force?: boolean)` | Toggles one registered class token on an element. |
+| [`cx`](../frontend/src/jsx/jsx-runtime.ts#L34) | function | 34 | `function cx(...tokens: Array<ClassName \| false \| null \| undefined>)` | Joins registered class tokens while omitting false, null, and undefined values. |
+| [`classAdd`](../frontend/src/jsx/jsx-runtime.ts#L40) | function | 40 | `function classAdd(element: Element, tokens: readonly ClassName[])` | Adds registered class tokens to an element. |
+| [`classRemove`](../frontend/src/jsx/jsx-runtime.ts#L45) | function | 45 | `function classRemove(element: Element, token: ClassName)` | Removes one registered class token from an element. |
+| [`classToggle`](../frontend/src/jsx/jsx-runtime.ts#L50) | function | 50 | `function classToggle(element: Element, token: ClassName, force?: boolean)` | Toggles one registered class token on an element. |
 | [`classHas`](../frontend/src/jsx/jsx-runtime.ts#L55) | function | 55 | `function classHas(element: Element, token: ClassName)` | Returns whether an element has one registered class token. |
 | [`appendChildren`](../frontend/src/jsx/jsx-runtime.ts#L67) | function | 67 | `function appendChildren(parent: Node, children: JSX.Node)` | Appends one child value to a parent, recursing through arrays. |
 | [`setAttribute`](../frontend/src/jsx/jsx-runtime.ts#L110) | function | 110 | `function setAttribute(element: Element, name: string, value: unknown)` | Applies one JSX attribute to a created element. |
@@ -3978,9 +3978,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`h`](../frontend/src/jsx/jsx-runtime.ts#L155) | function | 155 | `function h(type: ComponentType<P>, props: P \| null, ...children: JSX.Node[])` | Creates a DOM node from a JSX type, props, and children. |
 | [`h`](../frontend/src/jsx/jsx-runtime.ts#L157) | function | 157 | `function h(type: K, props: JSX.IntrinsicElements[K] \| null, ...children: JSX.Node[])` | Creates a DOM node from a JSX type, props, and children. |
 | [`h`](../frontend/src/jsx/jsx-runtime.ts#L159) | function | 159 | `function h(type: any, props: Record<string, unknown> \| null, ...children: JSX.Node[])` | Creates a DOM node from a JSX type, props, and children. |
-| [`render`](../frontend/src/jsx/jsx-runtime.ts#L187) | function | 187 | `function render(node: Node \| null \| undefined, host: HTMLElement)` | Replaces the children of a host element with a rendered node tree. |
-| [`renderToString`](../frontend/src/jsx/jsx-runtime.ts#L196) | function | 196 | `function renderToString(node: unknown)` | Serializes a rendered node tree to an HTML string for the migration bridge. |
-| [`raw`](../frontend/src/jsx/jsx-runtime.ts#L213) | function | 213 | `function raw(html: string)` | Builds a node from a trusted, already-escaped HTML string. |
+| [`render`](../frontend/src/jsx/jsx-runtime.ts#L183) | function | 183 | `function render(node: Node \| null \| undefined, host: HTMLElement)` | Replaces the children of a host element with a rendered node tree. |
 
 ### [`frontend/src/router.tsx`](../frontend/src/router.tsx)
 
@@ -4040,28 +4038,28 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`contextChange`](../frontend/src/state.tsx#L563) | function | 563 | `function contextChange(updates: Record<string, unknown>)` | Adds route and focus cleanup required when a parent research context changes. |
 | [`PageHeader`](../frontend/src/state.tsx#L584) | function | 584 | `function PageHeader(props: { kicker: string; title: string; description: string; extra?: JSX.Element })` | Renders the standard page header with escaped copy and optional actions. |
 | [`Breadcrumb`](../frontend/src/state.tsx#L605) | function | 605 | `function Breadcrumb(props: { items: BreadcrumbItem[] })` | Renders escaped breadcrumb markup for an ordered page hierarchy. |
-| [`setBreadcrumb`](../frontend/src/state.tsx#L628) | function | 628 | `function setBreadcrumb(items: BreadcrumbItem[])` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
-| [`EmptyState`](../frontend/src/state.tsx#L634) | function | 634 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
-| [`EmptyPanel`](../frontend/src/state.tsx#L647) | function | 647 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
-| [`Panel`](../frontend/src/state.tsx#L658) | function | 658 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: readonly ClassName[] })` | Renders the standard titled content panel. |
-| [`Table`](../frontend/src/state.tsx#L677) | function | 677 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: WireRecord[]; classes?: readonly ClassName[] })` | Renders an escaped data table inside the standard panel wrapper. |
-| [`Subnav`](../frontend/src/state.tsx#L714) | function | 714 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
-| [`FilterChips`](../frontend/src/state.tsx#L735) | function | 735 | `function FilterChips(props: { filters: Record<string, unknown> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
-| [`MetricCard`](../frontend/src/state.tsx#L786) | function | 786 | `function MetricCard(props: { name: string; metric: MetricValue \| null \| undefined; href?: string; state?: Record<string, string> })` | Renders a metric card with availability, denominator, and optional navigation. |
-| [`FlowStage`](../frontend/src/state.tsx#L839) | function | 839 | `function FlowStage(props: { label: string; raw: unknown; base: unknown; previous: unknown; modifier?: ClassName; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
-| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L962) | function | 962 | `function sourceFilterStageSummary(items: SourceFilterCount[])` | Combines cumulative source filter counts into ordered cross-source stages. |
-| [`RetentionPhase`](../frontend/src/state.tsx#L1021) | function | 1021 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; phase: "source" \| "pipeline" \| "corpus" })` | Renders one titled phase in the retention-flow presentation. |
-| [`RetentionFlow`](../frontend/src/state.tsx#L1039) | function | 1039 | `function RetentionFlow(props: { overview: OverviewResponse })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
-| [`Breakdown`](../frontend/src/state.tsx#L1191) | function | 1191 | `function Breakdown(props: { title: string; source: Record<string, MetricEvidence>; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
-| [`valueRender`](../frontend/src/state.tsx#L1218) | function | 1218 | `function valueRender(row: WireRecord)` | Renders one breakdown value with availability and optional percentage. |
-| [`barRender`](../frontend/src/state.tsx#L1240) | function | 1240 | `function barRender(row: WireRecord)` | Renders an accessible relative-volume bar for one breakdown row. |
-| [`SourceResultCountSummary`](../frontend/src/state.tsx#L1280) | function | 1280 | `function SourceResultCountSummary(props: { items: SourceResultCount[] \| null; classes?: readonly ClassName[] })` | Renders the expected-versus-observed source export count table. |
-| [`count`](../frontend/src/state.tsx#L1283) | function | 1283 | `function count(raw: unknown)` | Formats a source count or its unavailable state. |
-| [`comparison`](../frontend/src/state.tsx#L1291) | function | 1291 | `function comparison(raw: unknown)` | Renders a status chip for a source-count comparison. |
-| [`date`](../frontend/src/state.tsx#L1299) | function | 1299 | `function date(raw: unknown)` | Renders an export date or its unavailable state. |
-| [`SourceSearchQueries`](../frontend/src/state.tsx#L1354) | function | 1354 | `function SourceSearchQueries(props: { items: SourceResultCount[] \| null; classes?: readonly ClassName[] })` | Renders expandable exact-query markup for source exports. |
-| [`Cell`](../frontend/src/state.tsx#L1386) | function | 1386 | `function Cell(props: { item: unknown; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
-| [`bindCopyButtons`](../frontend/src/state.tsx#L1429) | function | 1429 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
+| [`setBreadcrumb`](../frontend/src/state.tsx#L627) | function | 627 | `function setBreadcrumb(items: BreadcrumbItem[])` | Replaces the shell breadcrumb with the supplied ordered page hierarchy. |
+| [`EmptyState`](../frontend/src/state.tsx#L633) | function | 633 | `function EmptyState(props: { title: string; detail: string; action?: JSX.Element })` | Renders a complete empty-view state with the standard page header. |
+| [`EmptyPanel`](../frontend/src/state.tsx#L646) | function | 646 | `function EmptyPanel(props: { title: string; detail: string; action?: JSX.Element })` | Renders a compact empty-state panel. |
+| [`Panel`](../frontend/src/state.tsx#L657) | function | 657 | `function Panel(props: { title: string; description: string; body: JSX.Element; classes?: readonly ClassName[] })` | Renders the standard titled content panel. |
+| [`Table`](../frontend/src/state.tsx#L676) | function | 676 | `function Table(props: { title: string; description: string; columns: TableColumn[]; rows: WireRecord[]; classes?: readonly ClassName[] })` | Renders an escaped data table inside the standard panel wrapper. |
+| [`Subnav`](../frontend/src/state.tsx#L713) | function | 713 | `function Subnav(props: { items: Array<[string, string]>; current: string; key: string })` | Renders context-preserving tab navigation for a keyed section. |
+| [`FilterChips`](../frontend/src/state.tsx#L734) | function | 734 | `function FilterChips(props: { filters: Record<string, unknown> \| null; labels?: Record<string, string>; options?: FilterChipOptions })` | Renders removable filter chips with a clear-all action. |
+| [`MetricCard`](../frontend/src/state.tsx#L785) | function | 785 | `function MetricCard(props: { name: string; metric: MetricValue \| null \| undefined; href?: string; state?: Record<string, string> })` | Renders a metric card with availability, denominator, and optional navigation. |
+| [`FlowStage`](../frontend/src/state.tsx#L838) | function | 838 | `function FlowStage(props: { label: string; raw: unknown; base: unknown; previous: unknown; modifier?: ClassName; stageKey: string; options: FlowStageOptions })` | Renders one retention-flow stage with counts, percentages, and optional links. |
+| [`sourceFilterStageSummary`](../frontend/src/state.tsx#L961) | function | 961 | `function sourceFilterStageSummary(items: SourceFilterCount[])` | Combines cumulative source filter counts into ordered cross-source stages. |
+| [`RetentionPhase`](../frontend/src/state.tsx#L1020) | function | 1020 | `function RetentionPhase(props: { title: string; description: string; summary: string; children: JSX.Element; phase: "source" \| "pipeline" \| "corpus" })` | Renders one titled phase in the retention-flow presentation. |
+| [`RetentionFlow`](../frontend/src/state.tsx#L1038) | function | 1038 | `function RetentionFlow(props: { overview: OverviewResponse })` | Renders the three-phase source-selection, pipeline-processing, and corpus-enrichment flow for an overview payload. |
+| [`Breakdown`](../frontend/src/state.tsx#L1190) | function | 1190 | `function Breakdown(props: { title: string; source: Record<string, MetricEvidence>; valueLabel?: string; useTotal?: boolean })` | Renders a metric breakdown table with relative bars and optional total percentages. |
+| [`valueRender`](../frontend/src/state.tsx#L1217) | function | 1217 | `function valueRender(row: WireRecord)` | Renders one breakdown value with availability and optional percentage. |
+| [`barRender`](../frontend/src/state.tsx#L1239) | function | 1239 | `function barRender(row: WireRecord)` | Renders an accessible relative-volume bar for one breakdown row. |
+| [`SourceResultCountSummary`](../frontend/src/state.tsx#L1279) | function | 1279 | `function SourceResultCountSummary(props: { items: SourceResultCount[] \| null; classes?: readonly ClassName[] })` | Renders the expected-versus-observed source export count table. |
+| [`count`](../frontend/src/state.tsx#L1282) | function | 1282 | `function count(raw: unknown)` | Formats a source count or its unavailable state. |
+| [`comparison`](../frontend/src/state.tsx#L1290) | function | 1290 | `function comparison(raw: unknown)` | Renders a status chip for a source-count comparison. |
+| [`date`](../frontend/src/state.tsx#L1298) | function | 1298 | `function date(raw: unknown)` | Renders an export date or its unavailable state. |
+| [`SourceSearchQueries`](../frontend/src/state.tsx#L1353) | function | 1353 | `function SourceSearchQueries(props: { items: SourceResultCount[] \| null; classes?: readonly ClassName[] })` | Renders expandable exact-query markup for source exports. |
+| [`Cell`](../frontend/src/state.tsx#L1385) | function | 1385 | `function Cell(props: { item: unknown; column: string; tableName?: string; options?: CellOptions })` | Renders and links a table cell according to its column and table context. |
+| [`bindCopyButtons`](../frontend/src/state.tsx#L1428) | function | 1428 | `function bindCopyButtons()` | Bind copy-to-clipboard behavior for [data-copy-text] buttons. Shows "Copied!" feedback for 2 seconds, falls back to prompt(). |
 
 ### [`frontend/src/views/advanced.tsx`](../frontend/src/views/advanced.tsx)
 
@@ -4303,11 +4301,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`createFixturePair`](../frontend/tests/unit/fixture-contract.test.ts#L11) | function | 11 | `function createFixturePair(directory: string, contractVersion = viewerFixtureContractVersion)` | Creates a minimal fixture pair satisfying the browser runner contract. |
 
+### [`frontend/tests/unit/helpers/jsx-render.ts`](../frontend/tests/unit/helpers/jsx-render.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`renderToString`](../frontend/tests/unit/helpers/jsx-render.ts#L6) | function | 6 | `function renderToString(node: unknown)` | Serializes a rendered node tree to an HTML string. |
+| [`raw`](../frontend/tests/unit/helpers/jsx-render.ts#L23) | function | 23 | `function raw(html: string)` | Builds a node from a trusted, already-escaped HTML string. |
+
 ### [`frontend/tests/unit/jsx-runtime.test.ts`](../frontend/tests/unit/jsx-runtime.test.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Greeting`](../frontend/tests/unit/jsx-runtime.test.ts#L43) | function | 43 | `function Greeting(props: { name: string })` | A function component used to verify the function-component path. |
+| [`Greeting`](../frontend/tests/unit/jsx-runtime.test.ts#L44) | function | 44 | `function Greeting(props: { name: string })` | A function component used to verify the function-component path. |
 
 ### [`frontend/tests/unit/jsx-types.test.tsx`](../frontend/tests/unit/jsx-types.test.tsx)
 
@@ -4475,25 +4480,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`returns all rows when query is empty`](../frontend/tests/unit/components/data-table.test.ts#L21) | test | 21 | `it('returns all rows when query is empty', callback)` | returns all rows when query is empty |
-| [`filters rows by matching any field`](../frontend/tests/unit/components/data-table.test.ts#L27) | test | 27 | `it('filters rows by matching any field', callback)` | filters rows by matching any field |
-| [`is case-insensitive`](../frontend/tests/unit/components/data-table.test.ts#L33) | test | 33 | `it('is case-insensitive', callback)` | is case-insensitive |
-| [`matches across multiple fields`](../frontend/tests/unit/components/data-table.test.ts#L38) | test | 38 | `it('matches across multiple fields', callback)` | matches across multiple fields |
-| [`returns empty array when no match`](../frontend/tests/unit/components/data-table.test.ts#L43) | test | 43 | `it('returns empty array when no match', callback)` | returns empty array when no match |
-| [`renders a table with header and rows`](../frontend/tests/unit/components/data-table.test.ts#L51) | test | 51 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
-| [`renders empty state when no rows`](../frontend/tests/unit/components/data-table.test.ts#L69) | test | 69 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
-| [`renders empty state with query message when query is set`](../frontend/tests/unit/components/data-table.test.ts#L79) | test | 79 | `it('renders empty state with query message when query is set', callback)` | renders empty state with query message when query is set |
-| [`renders expandable rows when expandableFields provided`](../frontend/tests/unit/components/data-table.test.ts#L89) | test | 89 | `it('renders expandable rows when expandableFields provided', callback)` | renders expandable rows when expandableFields provided |
-| [`uses the render hook for expandable fields when provided`](../frontend/tests/unit/components/data-table.test.ts#L109) | test | 109 | `it('uses the render hook for expandable fields when provided', callback)` | uses the render hook for expandable fields when provided |
-| [`keeps the default text rendering when no render hook is provided`](../frontend/tests/unit/components/data-table.test.ts#L128) | test | 128 | `it('keeps the default text rendering when no render hook is provided', callback)` | keeps the default text rendering when no render hook is provided |
-| [`renders sort buttons for sortable columns`](../frontend/tests/unit/components/data-table.test.ts#L141) | test | 141 | `it('renders sort buttons for sortable columns', callback)` | renders sort buttons for sortable columns |
-| [`disables previous button on page 1`](../frontend/tests/unit/components/data-table.test.ts#L153) | test | 153 | `it('disables previous button on page 1', callback)` | disables previous button on page 1 |
-| [`disables next button when has_next is false`](../frontend/tests/unit/components/data-table.test.ts#L163) | test | 163 | `it('disables next button when has_next is false', callback)` | disables next button when has_next is false |
-| [`handles column objects with name property`](../frontend/tests/unit/components/data-table.test.ts#L173) | test | 173 | `it('handles column objects with name property', callback)` | handles column objects with name property |
-| [`filters and orders columns by whitelist`](../frontend/tests/unit/components/data-table.test.ts#L185) | test | 185 | `it('filters and orders columns by whitelist', callback)` | filters and orders columns by whitelist |
-| [`binds sort controls only inside the requested table root`](../frontend/tests/unit/components/data-table.test.ts#L207) | test | 207 | `it("binds sort controls only inside the requested table root", callback)` | binds sort controls only inside the requested table root |
-| [`binds page controls inside the requested table root`](../frontend/tests/unit/components/data-table.test.ts#L227) | test | 227 | `it("binds page controls inside the requested table root", callback)` | binds page controls inside the requested table root |
-| [`binds a sibling filter form inside the requested table scope`](../frontend/tests/unit/components/data-table.test.ts#L241) | test | 241 | `it("binds a sibling filter form inside the requested table scope", callback)` | binds a sibling filter form inside the requested table scope |
+| [`returns all rows when query is empty`](../frontend/tests/unit/components/data-table.test.ts#L22) | test | 22 | `it('returns all rows when query is empty', callback)` | returns all rows when query is empty |
+| [`filters rows by matching any field`](../frontend/tests/unit/components/data-table.test.ts#L28) | test | 28 | `it('filters rows by matching any field', callback)` | filters rows by matching any field |
+| [`is case-insensitive`](../frontend/tests/unit/components/data-table.test.ts#L34) | test | 34 | `it('is case-insensitive', callback)` | is case-insensitive |
+| [`matches across multiple fields`](../frontend/tests/unit/components/data-table.test.ts#L39) | test | 39 | `it('matches across multiple fields', callback)` | matches across multiple fields |
+| [`returns empty array when no match`](../frontend/tests/unit/components/data-table.test.ts#L44) | test | 44 | `it('returns empty array when no match', callback)` | returns empty array when no match |
+| [`renders a table with header and rows`](../frontend/tests/unit/components/data-table.test.ts#L52) | test | 52 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
+| [`renders empty state when no rows`](../frontend/tests/unit/components/data-table.test.ts#L70) | test | 70 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
+| [`renders empty state with query message when query is set`](../frontend/tests/unit/components/data-table.test.ts#L80) | test | 80 | `it('renders empty state with query message when query is set', callback)` | renders empty state with query message when query is set |
+| [`renders expandable rows when expandableFields provided`](../frontend/tests/unit/components/data-table.test.ts#L90) | test | 90 | `it('renders expandable rows when expandableFields provided', callback)` | renders expandable rows when expandableFields provided |
+| [`uses the render hook for expandable fields when provided`](../frontend/tests/unit/components/data-table.test.ts#L110) | test | 110 | `it('uses the render hook for expandable fields when provided', callback)` | uses the render hook for expandable fields when provided |
+| [`keeps the default text rendering when no render hook is provided`](../frontend/tests/unit/components/data-table.test.ts#L129) | test | 129 | `it('keeps the default text rendering when no render hook is provided', callback)` | keeps the default text rendering when no render hook is provided |
+| [`renders sort buttons for sortable columns`](../frontend/tests/unit/components/data-table.test.ts#L142) | test | 142 | `it('renders sort buttons for sortable columns', callback)` | renders sort buttons for sortable columns |
+| [`disables previous button on page 1`](../frontend/tests/unit/components/data-table.test.ts#L154) | test | 154 | `it('disables previous button on page 1', callback)` | disables previous button on page 1 |
+| [`disables next button when has_next is false`](../frontend/tests/unit/components/data-table.test.ts#L164) | test | 164 | `it('disables next button when has_next is false', callback)` | disables next button when has_next is false |
+| [`handles column objects with name property`](../frontend/tests/unit/components/data-table.test.ts#L174) | test | 174 | `it('handles column objects with name property', callback)` | handles column objects with name property |
+| [`filters and orders columns by whitelist`](../frontend/tests/unit/components/data-table.test.ts#L186) | test | 186 | `it('filters and orders columns by whitelist', callback)` | filters and orders columns by whitelist |
+| [`binds sort controls only inside the requested table root`](../frontend/tests/unit/components/data-table.test.ts#L208) | test | 208 | `it("binds sort controls only inside the requested table root", callback)` | binds sort controls only inside the requested table root |
+| [`binds page controls inside the requested table root`](../frontend/tests/unit/components/data-table.test.ts#L228) | test | 228 | `it("binds page controls inside the requested table root", callback)` | binds page controls inside the requested table root |
+| [`binds a sibling filter form inside the requested table scope`](../frontend/tests/unit/components/data-table.test.ts#L242) | test | 242 | `it("binds a sibling filter form inside the requested table scope", callback)` | binds a sibling filter form inside the requested table scope |
 
 ### [`frontend/tests/unit/components/graph.test.ts`](../frontend/tests/unit/components/graph.test.ts)
 
@@ -4590,22 +4595,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`joins registered tokens and omits conditional gaps`](../frontend/tests/unit/jsx-runtime.test.ts#L12) | test | 12 | `it("joins registered tokens and omits conditional gaps", callback)` | joins registered tokens and omits conditional gaps |
-| [`applies typed DOM class operations`](../frontend/tests/unit/jsx-runtime.test.ts#L16) | test | 16 | `it("applies typed DOM class operations", callback)` | applies typed DOM class operations |
-| [`builds an intrinsic element with attributes and text children`](../frontend/tests/unit/jsx-runtime.test.ts#L27) | test | 27 | `it('builds an intrinsic element with attributes and text children', callback)` | builds an intrinsic element with attributes and text children |
-| [`builds a fragment with multiple children`](../frontend/tests/unit/jsx-runtime.test.ts#L35) | test | 35 | `it('builds a fragment with multiple children', callback)` | builds a fragment with multiple children |
-| [`calls function components with props and children`](../frontend/tests/unit/jsx-runtime.test.ts#L41) | test | 41 | `it('calls function components with props and children', callback)` | calls function components with props and children |
-| [`escapes text children automatically`](../frontend/tests/unit/jsx-runtime.test.ts#L51) | test | 51 | `it('escapes text children automatically', callback)` | escapes text children automatically |
-| [`stringifies aria boolean attributes`](../frontend/tests/unit/jsx-runtime.test.ts#L57) | test | 57 | `it('stringifies aria boolean attributes', callback)` | stringifies aria boolean attributes |
-| [`handles HTML boolean attributes`](../frontend/tests/unit/jsx-runtime.test.ts#L63) | test | 63 | `it('handles HTML boolean attributes', callback)` | handles HTML boolean attributes |
-| [`passes string style values through`](../frontend/tests/unit/jsx-runtime.test.ts#L69) | test | 69 | `it('passes string style values through', callback)` | passes string style values through |
-| [`creates SVG elements in the SVG namespace`](../frontend/tests/unit/jsx-runtime.test.ts#L74) | test | 74 | `it("creates SVG elements in the SVG namespace", callback)` | creates SVG elements in the SVG namespace |
-| [`renders a node into a host`](../frontend/tests/unit/jsx-runtime.test.ts#L84) | test | 84 | `it('renders a node into a host', callback)` | renders a node into a host |
-| [`clears the host for a null node`](../frontend/tests/unit/jsx-runtime.test.ts#L90) | test | 90 | `it('clears the host for a null node', callback)` | clears the host for a null node |
-| [`serializes a single element`](../frontend/tests/unit/jsx-runtime.test.ts#L97) | test | 97 | `it('serializes a single element', callback)` | serializes a single element |
-| [`serializes a fragment by concatenating children`](../frontend/tests/unit/jsx-runtime.test.ts#L101) | test | 101 | `it('serializes a fragment by concatenating children', callback)` | serializes a fragment by concatenating children |
-| [`returns empty string for null`](../frontend/tests/unit/jsx-runtime.test.ts#L106) | test | 106 | `it('returns empty string for null', callback)` | returns empty string for null |
-| [`builds a node from trusted markup`](../frontend/tests/unit/jsx-runtime.test.ts#L112) | test | 112 | `it('builds a node from trusted markup', callback)` | builds a node from trusted markup |
+| [`joins registered tokens and omits conditional gaps`](../frontend/tests/unit/jsx-runtime.test.ts#L13) | test | 13 | `it("joins registered tokens and omits conditional gaps", callback)` | joins registered tokens and omits conditional gaps |
+| [`applies typed DOM class operations`](../frontend/tests/unit/jsx-runtime.test.ts#L17) | test | 17 | `it("applies typed DOM class operations", callback)` | applies typed DOM class operations |
+| [`builds an intrinsic element with attributes and text children`](../frontend/tests/unit/jsx-runtime.test.ts#L28) | test | 28 | `it('builds an intrinsic element with attributes and text children', callback)` | builds an intrinsic element with attributes and text children |
+| [`builds a fragment with multiple children`](../frontend/tests/unit/jsx-runtime.test.ts#L36) | test | 36 | `it('builds a fragment with multiple children', callback)` | builds a fragment with multiple children |
+| [`calls function components with props and children`](../frontend/tests/unit/jsx-runtime.test.ts#L42) | test | 42 | `it('calls function components with props and children', callback)` | calls function components with props and children |
+| [`escapes text children automatically`](../frontend/tests/unit/jsx-runtime.test.ts#L52) | test | 52 | `it('escapes text children automatically', callback)` | escapes text children automatically |
+| [`stringifies aria boolean attributes`](../frontend/tests/unit/jsx-runtime.test.ts#L58) | test | 58 | `it('stringifies aria boolean attributes', callback)` | stringifies aria boolean attributes |
+| [`handles HTML boolean attributes`](../frontend/tests/unit/jsx-runtime.test.ts#L64) | test | 64 | `it('handles HTML boolean attributes', callback)` | handles HTML boolean attributes |
+| [`passes string style values through`](../frontend/tests/unit/jsx-runtime.test.ts#L70) | test | 70 | `it('passes string style values through', callback)` | passes string style values through |
+| [`creates SVG elements in the SVG namespace`](../frontend/tests/unit/jsx-runtime.test.ts#L75) | test | 75 | `it("creates SVG elements in the SVG namespace", callback)` | creates SVG elements in the SVG namespace |
+| [`renders a node into a host`](../frontend/tests/unit/jsx-runtime.test.ts#L85) | test | 85 | `it('renders a node into a host', callback)` | renders a node into a host |
+| [`clears the host for a null node`](../frontend/tests/unit/jsx-runtime.test.ts#L91) | test | 91 | `it('clears the host for a null node', callback)` | clears the host for a null node |
+| [`serializes a single element`](../frontend/tests/unit/jsx-runtime.test.ts#L98) | test | 98 | `it('serializes a single element', callback)` | serializes a single element |
+| [`serializes a fragment by concatenating children`](../frontend/tests/unit/jsx-runtime.test.ts#L102) | test | 102 | `it('serializes a fragment by concatenating children', callback)` | serializes a fragment by concatenating children |
+| [`returns empty string for null`](../frontend/tests/unit/jsx-runtime.test.ts#L107) | test | 107 | `it('returns empty string for null', callback)` | returns empty string for null |
+| [`builds a node from trusted markup`](../frontend/tests/unit/jsx-runtime.test.ts#L113) | test | 113 | `it('builds a node from trusted markup', callback)` | builds a node from trusted markup |
 
 ### [`frontend/tests/unit/router.test.ts`](../frontend/tests/unit/router.test.ts)
 
@@ -4625,127 +4630,127 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`maps supported views to their clean application paths`](../frontend/tests/unit/state.test.ts#L46) | test | 46 | `it('maps supported views to their clean application paths', callback)` | maps supported views to their clean application paths |
-| [`app is a DOM element`](../frontend/tests/unit/state.test.ts#L52) | test | 52 | `it('app is a DOM element', callback)` | app is a DOM element |
-| [`notice is a DOM element`](../frontend/tests/unit/state.test.ts#L57) | test | 57 | `it('notice is a DOM element', callback)` | notice is a DOM element |
-| [`loading is a DOM element`](../frontend/tests/unit/state.test.ts#L62) | test | 62 | `it('loading is a DOM element', callback)` | loading is a DOM element |
-| [`state has expected keys`](../frontend/tests/unit/state.test.ts#L67) | test | 67 | `it('state has expected keys', callback)` | state has expected keys |
-| [`pageSizes contains expected values`](../frontend/tests/unit/state.test.ts#L76) | test | 76 | `it('pageSizes contains expected values', callback)` | pageSizes contains expected values |
-| [`corpusSections has expected keys`](../frontend/tests/unit/state.test.ts#L80) | test | 80 | `it('corpusSections has expected keys', callback)` | corpusSections has expected keys |
-| [`provenanceSections has expected keys`](../frontend/tests/unit/state.test.ts#L89) | test | 89 | `it('provenanceSections has expected keys', callback)` | provenanceSections has expected keys |
-| [`graphFilters contains expected filters`](../frontend/tests/unit/state.test.ts#L98) | test | 98 | `it('graphFilters contains expected filters', callback)` | graphFilters contains expected filters |
-| [`params returns URLSearchParams from viewerState`](../frontend/tests/unit/state.test.ts#L109) | test | 109 | `it('params returns URLSearchParams from viewerState', callback)` | params returns URLSearchParams from viewerState |
-| [`value reads a viewerState key`](../frontend/tests/unit/state.test.ts#L116) | test | 116 | `it('value reads a viewerState key', callback)` | value reads a viewerState key |
-| [`view returns the current view or the pathname-derived default`](../frontend/tests/unit/state.test.ts#L122) | test | 122 | `it('view returns the current view or the pathname-derived default', callback)` | view returns the current view or the pathname-derived default |
-| [`section returns the named parameter or fallback`](../frontend/tests/unit/state.test.ts#L131) | test | 131 | `it('section returns the named parameter or fallback', callback)` | section returns the named parameter or fallback |
-| [`pathView derives the view from a pathname`](../frontend/tests/unit/state.test.ts#L141) | test | 141 | `it('pathView derives the view from a pathname', callback)` | pathView derives the view from a pathname |
-| [`pathFor returns the owning path for a state view`](../frontend/tests/unit/state.test.ts#L150) | test | 150 | `it('pathFor returns the owning path for a state view', callback)` | pathFor returns the owning path for a state view |
-| [`initViewerState adopts history.state over sessionStorage and forces the view from the pathname`](../frontend/tests/unit/state.test.ts#L157) | test | 157 | `it('initViewerState adopts history.state over sessionStorage and forces the view from the pathname', callback)` | initViewerState adopts history.state over sessionStorage and forces the view from the pathname |
-| [`initViewerState drops disallowed keys from the adopted state`](../frontend/tests/unit/state.test.ts#L167) | test | 167 | `it('initViewerState drops disallowed keys from the adopted state', callback)` | initViewerState drops disallowed keys from the adopted state |
-| [`initViewerState corrects the view from the pathname and keeps only adopted canonical context`](../frontend/tests/unit/state.test.ts#L176) | test | 176 | `it('initViewerState corrects the view from the pathname and keeps only adopted canonical context', callback)` | initViewerState corrects the view from the pathname and keeps only adopted canonical context |
-| [`returns strings unchanged`](../frontend/tests/unit/state.test.ts#L189) | test | 189 | `it('returns strings unchanged', callback)` | returns strings unchanged |
-| [`formats objects as pretty JSON`](../frontend/tests/unit/state.test.ts#L193) | test | 193 | `it('formats objects as pretty JSON', callback)` | formats objects as pretty JSON |
-| [`formats arrays as pretty JSON`](../frontend/tests/unit/state.test.ts#L199) | test | 199 | `it('formats arrays as pretty JSON', callback)` | formats arrays as pretty JSON |
-| [`handles null`](../frontend/tests/unit/state.test.ts#L204) | test | 204 | `it('handles null', callback)` | handles null |
-| [`returns the first matching key from data`](../frontend/tests/unit/state.test.ts#L212) | test | 212 | `it('returns the first matching key from data', callback)` | returns the first matching key from data |
-| [`returns data if it is an array`](../frontend/tests/unit/state.test.ts#L217) | test | 217 | `it('returns data if it is an array', callback)` | returns data if it is an array |
-| [`returns empty array for non-array data`](../frontend/tests/unit/state.test.ts#L221) | test | 221 | `it('returns empty array for non-array data', callback)` | returns empty array for non-array data |
-| [`returns empty array when no keys match`](../frontend/tests/unit/state.test.ts#L227) | test | 227 | `it('returns empty array when no keys match', callback)` | returns empty array when no keys match |
-| [`prefers .id`](../frontend/tests/unit/state.test.ts#L235) | test | 235 | `it('prefers .id', callback)` | prefers .id |
-| [`falls back to search_id`](../frontend/tests/unit/state.test.ts#L239) | test | 239 | `it('falls back to search_id', callback)` | falls back to search_id |
-| [`falls back to run_id`](../frontend/tests/unit/state.test.ts#L243) | test | 243 | `it('falls back to run_id', callback)` | falls back to run_id |
-| [`falls back to plan_id`](../frontend/tests/unit/state.test.ts#L247) | test | 247 | `it('falls back to plan_id', callback)` | falls back to plan_id |
-| [`returns empty string when no id found`](../frontend/tests/unit/state.test.ts#L251) | test | 251 | `it('returns empty string when no id found', callback)` | returns empty string when no id found |
-| [`returns the first non-empty field`](../frontend/tests/unit/state.test.ts#L261) | test | 261 | `it('returns the first non-empty field', callback)` | returns the first non-empty field |
-| [`returns Unnamed when all fields are empty`](../frontend/tests/unit/state.test.ts#L265) | test | 265 | `it('returns Unnamed when all fields are empty', callback)` | returns Unnamed when all fields are empty |
-| [`returns Unnamed for null/undefined item`](../frontend/tests/unit/state.test.ts#L269) | test | 269 | `it('returns Unnamed for null/undefined item', callback)` | returns Unnamed for null/undefined item |
-| [`parses numeric values`](../frontend/tests/unit/state.test.ts#L278) | test | 278 | `it('parses numeric values', callback)` | parses numeric values |
-| [`does not conflate unavailable or invalid values with recorded zero`](../frontend/tests/unit/state.test.ts#L283) | test | 283 | `it('does not conflate unavailable or invalid values with recorded zero', callback)` | does not conflate unavailable or invalid values with recorded zero |
-| [`handles { value } objects`](../frontend/tests/unit/state.test.ts#L293) | test | 293 | `it('handles { value } objects', callback)` | handles { value } objects |
-| [`returns NaN for NaN and Infinity`](../frontend/tests/unit/state.test.ts#L298) | test | 298 | `it('returns NaN for NaN and Infinity', callback)` | returns NaN for NaN and Infinity |
-| [`formats numbers with locale separators`](../frontend/tests/unit/state.test.ts#L307) | test | 307 | `it('formats numbers with locale separators', callback)` | formats numbers with locale separators |
-| [`handles zero`](../frontend/tests/unit/state.test.ts#L313) | test | 313 | `it('handles zero', callback)` | handles zero |
-| [`handles object values`](../frontend/tests/unit/state.test.ts#L317) | test | 317 | `it('handles object values', callback)` | handles object values |
-| [`labels unavailable and invalid evidence explicitly`](../frontend/tests/unit/state.test.ts#L322) | test | 322 | `it('labels unavailable and invalid evidence explicitly', callback)` | labels unavailable and invalid evidence explicitly |
-| [`calculates percentage`](../frontend/tests/unit/state.test.ts#L331) | test | 331 | `it('calculates percentage', callback)` | calculates percentage |
-| [`returns em dash for zero denominator`](../frontend/tests/unit/state.test.ts#L335) | test | 335 | `it('returns em dash for zero denominator', callback)` | returns em dash for zero denominator |
-| [`handles object values`](../frontend/tests/unit/state.test.ts#L339) | test | 339 | `it('handles object values', callback)` | handles object values |
-| [`returns em dash for falsy input`](../frontend/tests/unit/state.test.ts#L347) | test | 347 | `it('returns em dash for falsy input', callback)` | returns em dash for falsy input |
-| [`returns the raw string for invalid dates`](../frontend/tests/unit/state.test.ts#L353) | test | 353 | `it('returns the raw string for invalid dates', callback)` | returns the raw string for invalid dates |
-| [`formats valid date strings`](../frontend/tests/unit/state.test.ts#L357) | test | 357 | `it('formats valid date strings', callback)` | formats valid date strings |
-| [`uses the documented English UTC calendar policy at a day boundary`](../frontend/tests/unit/state.test.ts#L364) | test | 364 | `it("uses the documented English UTC calendar policy at a day boundary", callback)` | uses the documented English UTC calendar policy at a day boundary |
-| [`formats recorded elapsed time`](../frontend/tests/unit/state.test.ts#L373) | test | 373 | `it('formats recorded elapsed time', callback)` | formats recorded elapsed time |
-| [`rejects missing, invalid, or reversed timestamps`](../frontend/tests/unit/state.test.ts#L377) | test | 377 | `it('rejects missing, invalid, or reversed timestamps', callback)` | rejects missing, invalid, or reversed timestamps |
-| [`formats byte counts without treating kilobytes as decimal units`](../frontend/tests/unit/state.test.ts#L387) | test | 387 | `it('formats byte counts without treating kilobytes as decimal units', callback)` | formats byte counts without treating kilobytes as decimal units |
-| [`turns stored field names into readable labels`](../frontend/tests/unit/state.test.ts#L392) | test | 392 | `it('turns stored field names into readable labels', callback)` | turns stored field names into readable labels |
-| [`parses object payloads and rejects scalar or malformed JSON`](../frontend/tests/unit/state.test.ts#L396) | test | 396 | `it('parses object payloads and rejects scalar or malformed JSON', callback)` | parses object payloads and rejects scalar or malformed JSON |
-| [`uses namespaced pagination updates when a filter chip is removed`](../frontend/tests/unit/state.test.ts#L402) | test | 402 | `it('uses namespaced pagination updates when a filter chip is removed', callback)` | uses namespaced pagination updates when a filter chip is removed |
-| [`renders one independently removable chip for each selected facet value`](../frontend/tests/unit/state.test.ts#L416) | test | 416 | `it('renders one independently removable chip for each selected facet value', callback)` | renders one independently removable chip for each selected facet value |
-| [`returns red for failure-related statuses`](../frontend/tests/unit/state.test.ts#L432) | test | 432 | `it('returns red for failure-related statuses', callback)` | returns red for failure-related statuses |
-| [`returns green for completion-related statuses`](../frontend/tests/unit/state.test.ts#L440) | test | 440 | `it('returns green for completion-related statuses', callback)` | returns green for completion-related statuses |
-| [`returns orange for warning-like statuses`](../frontend/tests/unit/state.test.ts#L448) | test | 448 | `it('returns orange for warning-like statuses', callback)` | returns orange for warning-like statuses |
-| [`returns blue for informational statuses and neutral for unrecorded values`](../frontend/tests/unit/state.test.ts#L458) | test | 458 | `it('returns blue for informational statuses and neutral for unrecorded values', callback)` | returns blue for informational statuses and neutral for unrecorded values |
-| [`wraps status in a span with class`](../frontend/tests/unit/state.test.ts#L473) | test | 473 | `it('wraps status in a span with class', callback)` | wraps status in a span with class |
-| [`uses Not recorded for null`](../frontend/tests/unit/state.test.ts#L479) | test | 479 | `it('uses Not recorded for null', callback)` | uses Not recorded for null |
-| [`converts arrays of objects to entries`](../frontend/tests/unit/state.test.ts#L488) | test | 488 | `it('converts arrays of objects to entries', callback)` | converts arrays of objects to entries |
-| [`converts object to entries`](../frontend/tests/unit/state.test.ts#L499) | test | 499 | `it('converts object to entries', callback)` | converts object to entries |
-| [`returns empty array for null/undefined`](../frontend/tests/unit/state.test.ts#L504) | test | 504 | `it('returns empty array for null/undefined', callback)` | returns empty array for null/undefined |
-| [`returns undefined when no run_id is set`](../frontend/tests/unit/state.test.ts#L513) | test | 513 | `it('returns undefined when no run_id is set', callback)` | returns undefined when no run_id is set |
-| [`finds a run by run_id`](../frontend/tests/unit/state.test.ts#L517) | test | 517 | `it('finds a run by run_id', callback)` | finds a run by run_id |
-| [`showError sets notice text and removes hidden`](../frontend/tests/unit/state.test.ts#L531) | test | 531 | `it('showError sets notice text and removes hidden', callback)` | showError sets notice text and removes hidden |
-| [`showError handles string errors`](../frontend/tests/unit/state.test.ts#L538) | test | 538 | `it('showError handles string errors', callback)` | showError handles string errors |
-| [`clearError hides notice and clears text`](../frontend/tests/unit/state.test.ts#L543) | test | 543 | `it('clearError hides notice and clears text', callback)` | clearError hides notice and clears text |
-| [`busy toggles loading visibility`](../frontend/tests/unit/state.test.ts#L549) | test | 549 | `it('busy toggles loading visibility', callback)` | busy toggles loading visibility |
-| [`builds a path from updates`](../frontend/tests/unit/state.test.ts#L560) | test | 560 | `it('builds a path from updates', callback)` | builds a path from updates |
-| [`removes keys with empty values but keeps the Home default`](../frontend/tests/unit/state.test.ts#L566) | test | 566 | `it('removes keys with empty values but keeps the Home default', callback)` | removes keys with empty values but keeps the Home default |
-| [`removes keys with null values but keeps the Home default`](../frontend/tests/unit/state.test.ts#L572) | test | 572 | `it('removes keys with null values but keeps the Home default', callback)` | removes keys with null values but keeps the Home default |
-| [`ensures view defaults to Home`](../frontend/tests/unit/state.test.ts#L578) | test | 578 | `it('ensures view defaults to Home', callback)` | ensures view defaults to Home |
-| [`uses the current view path when no updates are supplied`](../frontend/tests/unit/state.test.ts#L584) | test | 584 | `it('uses the current view path when no updates are supplied', callback)` | uses the current view path when no updates are supplied |
-| [`uses the home path for an unsupported destination`](../frontend/tests/unit/state.test.ts#L590) | test | 590 | `it('uses the home path for an unsupported destination', callback)` | uses the home path for an unsupported destination |
-| [`keeps only canonical context and destination-owned route state`](../frontend/tests/unit/state.test.ts#L596) | test | 596 | `it("keeps only canonical context and destination-owned route state", callback)` | keeps only canonical context and destination-owned route state |
-| [`returns detail context changes to the corresponding collection without record focus`](../frontend/tests/unit/state.test.ts#L610) | test | 610 | `it("returns detail context changes to the corresponding collection without record focus", callback)` | returns detail context changes to the corresponding collection without record focus |
-| [`clears article-local note, anchor, and page focus when the article changes`](../frontend/tests/unit/state.test.ts#L623) | test | 623 | `it("clears article-local note, anchor, and page focus when the article changes", callback)` | clears article-local note, anchor, and page focus when the article changes |
-| [`returns a detail origin through the origin view path`](../frontend/tests/unit/state.test.ts#L632) | test | 632 | `it("returns a detail origin through the origin view path", callback)` | returns a detail origin through the origin view path |
-| [`renders a page header with kicker, title, description`](../frontend/tests/unit/state.test.ts#L662) | test | 662 | `it('renders a page header with kicker, title, description', callback)` | renders a page header with kicker, title, description |
-| [`includes extra content when provided`](../frontend/tests/unit/state.test.ts#L672) | test | 672 | `it('includes extra content when provided', callback)` | includes extra content when provided |
-| [`escapes HTML in inputs`](../frontend/tests/unit/state.test.ts#L677) | test | 677 | `it('escapes HTML in inputs', callback)` | escapes HTML in inputs |
-| [`returns empty string when no context is set`](../frontend/tests/unit/state.test.ts#L687) | test | 687 | `it('returns empty string when no context is set', callback)` | returns empty string when no context is set |
-| [`renders an explicit ordered page hierarchy`](../frontend/tests/unit/state.test.ts#L691) | test | 691 | `it('renders an explicit ordered page hierarchy', callback)` | renders an explicit ordered page hierarchy |
-| [`marks only the final item as the current page and mounts it in the shell`](../frontend/tests/unit/state.test.ts#L700) | test | 700 | `it('marks only the final item as the current page and mounts it in the shell', callback)` | marks only the final item as the current page and mounts it in the shell |
-| [`renders an empty state with page header and panel`](../frontend/tests/unit/state.test.ts#L712) | test | 712 | `it('renders an empty state with page header and panel', callback)` | renders an empty state with page header and panel |
-| [`renders a table with header and rows`](../frontend/tests/unit/state.test.ts#L723) | test | 723 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
-| [`renders empty state when no rows`](../frontend/tests/unit/state.test.ts#L735) | test | 735 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
-| [`renders subnavigation links`](../frontend/tests/unit/state.test.ts#L744) | test | 744 | `it('renders subnavigation links', callback)` | renders subnavigation links |
-| [`renders a metric card with value`](../frontend/tests/unit/state.test.ts#L758) | test | 758 | `it('renders a metric card with value', callback)` | renders a metric card with value |
-| [`renders unavailable state`](../frontend/tests/unit/state.test.ts#L765) | test | 765 | `it('renders unavailable state', callback)` | renders unavailable state |
-| [`includes href when provided`](../frontend/tests/unit/state.test.ts#L770) | test | 770 | `it('includes href when provided', callback)` | includes href when provided |
-| [`shows percentage when denominator is present`](../frontend/tests/unit/state.test.ts#L775) | test | 775 | `it('shows percentage when denominator is present', callback)` | shows percentage when denominator is present |
-| [`renders a flow stage with count`](../frontend/tests/unit/state.test.ts#L785) | test | 785 | `it('renders a flow stage with count', callback)` | renders a flow stage with count |
-| [`shows input baseline for null previous`](../frontend/tests/unit/state.test.ts#L793) | test | 793 | `it('shows input baseline for null previous', callback)` | shows input baseline for null previous |
-| [`shows diff from prior`](../frontend/tests/unit/state.test.ts#L798) | test | 798 | `it('shows diff from prior', callback)` | shows diff from prior |
-| [`handles unavailable state`](../frontend/tests/unit/state.test.ts#L803) | test | 803 | `it('handles unavailable state', callback)` | handles unavailable state |
-| [`handles null raw`](../frontend/tests/unit/state.test.ts#L808) | test | 808 | `it('handles null raw', callback)` | handles null raw |
-| [`renders not recorded when input is missing`](../frontend/tests/unit/state.test.ts#L817) | test | 817 | `it('renders not recorded when input is missing', callback)` | renders not recorded when input is missing |
-| [`renders not recorded when input is unavailable`](../frontend/tests/unit/state.test.ts#L822) | test | 822 | `it('renders not recorded when input is unavailable', callback)` | renders not recorded when input is unavailable |
-| [`renders full retention flow with valid data`](../frontend/tests/unit/state.test.ts#L827) | test | 827 | `it('renders full retention flow with valid data', callback)` | renders full retention flow with valid data |
-| [`uses the initial unfiltered source total for every retention percentage`](../frontend/tests/unit/state.test.ts#L845) | test | 845 | `it('uses the initial unfiltered source total for every retention percentage', callback)` | uses the initial unfiltered source total for every retention percentage |
-| [`does not repeat a shorter source sequence into later aggregate stages`](../frontend/tests/unit/state.test.ts#L891) | test | 891 | `it('does not repeat a shorter source sequence into later aggregate stages', callback)` | does not repeat a shorter source sequence into later aggregate stages |
-| [`renders not recorded for empty entries`](../frontend/tests/unit/state.test.ts#L916) | test | 916 | `it('renders not recorded for empty entries', callback)` | renders not recorded for empty entries |
-| [`renders a breakdown table with entries`](../frontend/tests/unit/state.test.ts#L921) | test | 921 | `it('renders a breakdown table with entries', callback)` | renders a breakdown table with entries |
-| [`renders with total when useTotal is true`](../frontend/tests/unit/state.test.ts#L929) | test | 929 | `it('renders with total when useTotal is true', callback)` | renders with total when useTotal is true |
-| [`renders a table with source counts`](../frontend/tests/unit/state.test.ts#L940) | test | 940 | `it('renders a table with source counts', callback)` | renders a table with source counts |
-| [`handles empty items`](../frontend/tests/unit/state.test.ts#L951) | test | 951 | `it('handles empty items', callback)` | handles empty items |
-| [`renders NULL for null/undefined`](../frontend/tests/unit/state.test.ts#L960) | test | 960 | `it('renders NULL for null/undefined', callback)` | renders NULL for null/undefined |
-| [`renders short values inline`](../frontend/tests/unit/state.test.ts#L966) | test | 966 | `it('renders short values inline', callback)` | renders short values inline |
-| [`truncates long values with details`](../frontend/tests/unit/state.test.ts#L972) | test | 972 | `it('truncates long values with details', callback)` | truncates long values with details |
-| [`creates article link for article_id column`](../frontend/tests/unit/state.test.ts#L979) | test | 979 | `it('creates article link for article_id column', callback)` | creates article link for article_id column |
-| [`creates author link for author_id column`](../frontend/tests/unit/state.test.ts#L985) | test | 985 | `it('creates author link for author_id column', callback)` | creates author link for author_id column |
-| [`creates reference link for reference_id column`](../frontend/tests/unit/state.test.ts#L991) | test | 991 | `it('creates reference link for reference_id column', callback)` | creates reference link for reference_id column |
-| [`creates article link for work_revision id with tableName`](../frontend/tests/unit/state.test.ts#L997) | test | 997 | `it('creates article link for work_revision id with tableName', callback)` | creates article link for work_revision id with tableName |
-| [`creates author link for author_occurrences id with tableName`](../frontend/tests/unit/state.test.ts#L1002) | test | 1002 | `it('creates author link for author_occurrences id with tableName', callback)` | creates author link for author_occurrences id with tableName |
-| [`creates reference link for reference_mentions id with tableName`](../frontend/tests/unit/state.test.ts#L1007) | test | 1007 | `it('creates reference link for reference_mentions id with tableName', callback)` | creates reference link for reference_mentions id with tableName |
-| [`copies text and shows Copied! feedback`](../frontend/tests/unit/state.test.ts#L1020) | test | 1020 | `it('copies text and shows Copied! feedback', callback)` | copies text and shows Copied! feedback |
-| [`falls back to prompt when clipboard fails`](../frontend/tests/unit/state.test.ts#L1045) | test | 1045 | `it('falls back to prompt when clipboard fails', callback)` | falls back to prompt when clipboard fails |
+| [`maps supported views to their clean application paths`](../frontend/tests/unit/state.test.ts#L47) | test | 47 | `it('maps supported views to their clean application paths', callback)` | maps supported views to their clean application paths |
+| [`app is a DOM element`](../frontend/tests/unit/state.test.ts#L53) | test | 53 | `it('app is a DOM element', callback)` | app is a DOM element |
+| [`notice is a DOM element`](../frontend/tests/unit/state.test.ts#L58) | test | 58 | `it('notice is a DOM element', callback)` | notice is a DOM element |
+| [`loading is a DOM element`](../frontend/tests/unit/state.test.ts#L63) | test | 63 | `it('loading is a DOM element', callback)` | loading is a DOM element |
+| [`state has expected keys`](../frontend/tests/unit/state.test.ts#L68) | test | 68 | `it('state has expected keys', callback)` | state has expected keys |
+| [`pageSizes contains expected values`](../frontend/tests/unit/state.test.ts#L77) | test | 77 | `it('pageSizes contains expected values', callback)` | pageSizes contains expected values |
+| [`corpusSections has expected keys`](../frontend/tests/unit/state.test.ts#L81) | test | 81 | `it('corpusSections has expected keys', callback)` | corpusSections has expected keys |
+| [`provenanceSections has expected keys`](../frontend/tests/unit/state.test.ts#L90) | test | 90 | `it('provenanceSections has expected keys', callback)` | provenanceSections has expected keys |
+| [`graphFilters contains expected filters`](../frontend/tests/unit/state.test.ts#L99) | test | 99 | `it('graphFilters contains expected filters', callback)` | graphFilters contains expected filters |
+| [`params returns URLSearchParams from viewerState`](../frontend/tests/unit/state.test.ts#L110) | test | 110 | `it('params returns URLSearchParams from viewerState', callback)` | params returns URLSearchParams from viewerState |
+| [`value reads a viewerState key`](../frontend/tests/unit/state.test.ts#L117) | test | 117 | `it('value reads a viewerState key', callback)` | value reads a viewerState key |
+| [`view returns the current view or the pathname-derived default`](../frontend/tests/unit/state.test.ts#L123) | test | 123 | `it('view returns the current view or the pathname-derived default', callback)` | view returns the current view or the pathname-derived default |
+| [`section returns the named parameter or fallback`](../frontend/tests/unit/state.test.ts#L132) | test | 132 | `it('section returns the named parameter or fallback', callback)` | section returns the named parameter or fallback |
+| [`pathView derives the view from a pathname`](../frontend/tests/unit/state.test.ts#L142) | test | 142 | `it('pathView derives the view from a pathname', callback)` | pathView derives the view from a pathname |
+| [`pathFor returns the owning path for a state view`](../frontend/tests/unit/state.test.ts#L151) | test | 151 | `it('pathFor returns the owning path for a state view', callback)` | pathFor returns the owning path for a state view |
+| [`initViewerState adopts history.state over sessionStorage and forces the view from the pathname`](../frontend/tests/unit/state.test.ts#L158) | test | 158 | `it('initViewerState adopts history.state over sessionStorage and forces the view from the pathname', callback)` | initViewerState adopts history.state over sessionStorage and forces the view from the pathname |
+| [`initViewerState drops disallowed keys from the adopted state`](../frontend/tests/unit/state.test.ts#L168) | test | 168 | `it('initViewerState drops disallowed keys from the adopted state', callback)` | initViewerState drops disallowed keys from the adopted state |
+| [`initViewerState corrects the view from the pathname and keeps only adopted canonical context`](../frontend/tests/unit/state.test.ts#L177) | test | 177 | `it('initViewerState corrects the view from the pathname and keeps only adopted canonical context', callback)` | initViewerState corrects the view from the pathname and keeps only adopted canonical context |
+| [`returns strings unchanged`](../frontend/tests/unit/state.test.ts#L190) | test | 190 | `it('returns strings unchanged', callback)` | returns strings unchanged |
+| [`formats objects as pretty JSON`](../frontend/tests/unit/state.test.ts#L194) | test | 194 | `it('formats objects as pretty JSON', callback)` | formats objects as pretty JSON |
+| [`formats arrays as pretty JSON`](../frontend/tests/unit/state.test.ts#L200) | test | 200 | `it('formats arrays as pretty JSON', callback)` | formats arrays as pretty JSON |
+| [`handles null`](../frontend/tests/unit/state.test.ts#L205) | test | 205 | `it('handles null', callback)` | handles null |
+| [`returns the first matching key from data`](../frontend/tests/unit/state.test.ts#L213) | test | 213 | `it('returns the first matching key from data', callback)` | returns the first matching key from data |
+| [`returns data if it is an array`](../frontend/tests/unit/state.test.ts#L218) | test | 218 | `it('returns data if it is an array', callback)` | returns data if it is an array |
+| [`returns empty array for non-array data`](../frontend/tests/unit/state.test.ts#L222) | test | 222 | `it('returns empty array for non-array data', callback)` | returns empty array for non-array data |
+| [`returns empty array when no keys match`](../frontend/tests/unit/state.test.ts#L228) | test | 228 | `it('returns empty array when no keys match', callback)` | returns empty array when no keys match |
+| [`prefers .id`](../frontend/tests/unit/state.test.ts#L236) | test | 236 | `it('prefers .id', callback)` | prefers .id |
+| [`falls back to search_id`](../frontend/tests/unit/state.test.ts#L240) | test | 240 | `it('falls back to search_id', callback)` | falls back to search_id |
+| [`falls back to run_id`](../frontend/tests/unit/state.test.ts#L244) | test | 244 | `it('falls back to run_id', callback)` | falls back to run_id |
+| [`falls back to plan_id`](../frontend/tests/unit/state.test.ts#L248) | test | 248 | `it('falls back to plan_id', callback)` | falls back to plan_id |
+| [`returns empty string when no id found`](../frontend/tests/unit/state.test.ts#L252) | test | 252 | `it('returns empty string when no id found', callback)` | returns empty string when no id found |
+| [`returns the first non-empty field`](../frontend/tests/unit/state.test.ts#L262) | test | 262 | `it('returns the first non-empty field', callback)` | returns the first non-empty field |
+| [`returns Unnamed when all fields are empty`](../frontend/tests/unit/state.test.ts#L266) | test | 266 | `it('returns Unnamed when all fields are empty', callback)` | returns Unnamed when all fields are empty |
+| [`returns Unnamed for null/undefined item`](../frontend/tests/unit/state.test.ts#L270) | test | 270 | `it('returns Unnamed for null/undefined item', callback)` | returns Unnamed for null/undefined item |
+| [`parses numeric values`](../frontend/tests/unit/state.test.ts#L279) | test | 279 | `it('parses numeric values', callback)` | parses numeric values |
+| [`does not conflate unavailable or invalid values with recorded zero`](../frontend/tests/unit/state.test.ts#L284) | test | 284 | `it('does not conflate unavailable or invalid values with recorded zero', callback)` | does not conflate unavailable or invalid values with recorded zero |
+| [`handles { value } objects`](../frontend/tests/unit/state.test.ts#L294) | test | 294 | `it('handles { value } objects', callback)` | handles { value } objects |
+| [`returns NaN for NaN and Infinity`](../frontend/tests/unit/state.test.ts#L299) | test | 299 | `it('returns NaN for NaN and Infinity', callback)` | returns NaN for NaN and Infinity |
+| [`formats numbers with locale separators`](../frontend/tests/unit/state.test.ts#L308) | test | 308 | `it('formats numbers with locale separators', callback)` | formats numbers with locale separators |
+| [`handles zero`](../frontend/tests/unit/state.test.ts#L314) | test | 314 | `it('handles zero', callback)` | handles zero |
+| [`handles object values`](../frontend/tests/unit/state.test.ts#L318) | test | 318 | `it('handles object values', callback)` | handles object values |
+| [`labels unavailable and invalid evidence explicitly`](../frontend/tests/unit/state.test.ts#L323) | test | 323 | `it('labels unavailable and invalid evidence explicitly', callback)` | labels unavailable and invalid evidence explicitly |
+| [`calculates percentage`](../frontend/tests/unit/state.test.ts#L332) | test | 332 | `it('calculates percentage', callback)` | calculates percentage |
+| [`returns em dash for zero denominator`](../frontend/tests/unit/state.test.ts#L336) | test | 336 | `it('returns em dash for zero denominator', callback)` | returns em dash for zero denominator |
+| [`handles object values`](../frontend/tests/unit/state.test.ts#L340) | test | 340 | `it('handles object values', callback)` | handles object values |
+| [`returns em dash for falsy input`](../frontend/tests/unit/state.test.ts#L348) | test | 348 | `it('returns em dash for falsy input', callback)` | returns em dash for falsy input |
+| [`returns the raw string for invalid dates`](../frontend/tests/unit/state.test.ts#L354) | test | 354 | `it('returns the raw string for invalid dates', callback)` | returns the raw string for invalid dates |
+| [`formats valid date strings`](../frontend/tests/unit/state.test.ts#L358) | test | 358 | `it('formats valid date strings', callback)` | formats valid date strings |
+| [`uses the documented English UTC calendar policy at a day boundary`](../frontend/tests/unit/state.test.ts#L365) | test | 365 | `it("uses the documented English UTC calendar policy at a day boundary", callback)` | uses the documented English UTC calendar policy at a day boundary |
+| [`formats recorded elapsed time`](../frontend/tests/unit/state.test.ts#L374) | test | 374 | `it('formats recorded elapsed time', callback)` | formats recorded elapsed time |
+| [`rejects missing, invalid, or reversed timestamps`](../frontend/tests/unit/state.test.ts#L378) | test | 378 | `it('rejects missing, invalid, or reversed timestamps', callback)` | rejects missing, invalid, or reversed timestamps |
+| [`formats byte counts without treating kilobytes as decimal units`](../frontend/tests/unit/state.test.ts#L388) | test | 388 | `it('formats byte counts without treating kilobytes as decimal units', callback)` | formats byte counts without treating kilobytes as decimal units |
+| [`turns stored field names into readable labels`](../frontend/tests/unit/state.test.ts#L393) | test | 393 | `it('turns stored field names into readable labels', callback)` | turns stored field names into readable labels |
+| [`parses object payloads and rejects scalar or malformed JSON`](../frontend/tests/unit/state.test.ts#L397) | test | 397 | `it('parses object payloads and rejects scalar or malformed JSON', callback)` | parses object payloads and rejects scalar or malformed JSON |
+| [`uses namespaced pagination updates when a filter chip is removed`](../frontend/tests/unit/state.test.ts#L403) | test | 403 | `it('uses namespaced pagination updates when a filter chip is removed', callback)` | uses namespaced pagination updates when a filter chip is removed |
+| [`renders one independently removable chip for each selected facet value`](../frontend/tests/unit/state.test.ts#L417) | test | 417 | `it('renders one independently removable chip for each selected facet value', callback)` | renders one independently removable chip for each selected facet value |
+| [`returns red for failure-related statuses`](../frontend/tests/unit/state.test.ts#L433) | test | 433 | `it('returns red for failure-related statuses', callback)` | returns red for failure-related statuses |
+| [`returns green for completion-related statuses`](../frontend/tests/unit/state.test.ts#L441) | test | 441 | `it('returns green for completion-related statuses', callback)` | returns green for completion-related statuses |
+| [`returns orange for warning-like statuses`](../frontend/tests/unit/state.test.ts#L449) | test | 449 | `it('returns orange for warning-like statuses', callback)` | returns orange for warning-like statuses |
+| [`returns blue for informational statuses and neutral for unrecorded values`](../frontend/tests/unit/state.test.ts#L459) | test | 459 | `it('returns blue for informational statuses and neutral for unrecorded values', callback)` | returns blue for informational statuses and neutral for unrecorded values |
+| [`wraps status in a span with class`](../frontend/tests/unit/state.test.ts#L474) | test | 474 | `it('wraps status in a span with class', callback)` | wraps status in a span with class |
+| [`uses Not recorded for null`](../frontend/tests/unit/state.test.ts#L480) | test | 480 | `it('uses Not recorded for null', callback)` | uses Not recorded for null |
+| [`converts arrays of objects to entries`](../frontend/tests/unit/state.test.ts#L489) | test | 489 | `it('converts arrays of objects to entries', callback)` | converts arrays of objects to entries |
+| [`converts object to entries`](../frontend/tests/unit/state.test.ts#L500) | test | 500 | `it('converts object to entries', callback)` | converts object to entries |
+| [`returns empty array for null/undefined`](../frontend/tests/unit/state.test.ts#L505) | test | 505 | `it('returns empty array for null/undefined', callback)` | returns empty array for null/undefined |
+| [`returns undefined when no run_id is set`](../frontend/tests/unit/state.test.ts#L514) | test | 514 | `it('returns undefined when no run_id is set', callback)` | returns undefined when no run_id is set |
+| [`finds a run by run_id`](../frontend/tests/unit/state.test.ts#L518) | test | 518 | `it('finds a run by run_id', callback)` | finds a run by run_id |
+| [`showError sets notice text and removes hidden`](../frontend/tests/unit/state.test.ts#L532) | test | 532 | `it('showError sets notice text and removes hidden', callback)` | showError sets notice text and removes hidden |
+| [`showError handles string errors`](../frontend/tests/unit/state.test.ts#L539) | test | 539 | `it('showError handles string errors', callback)` | showError handles string errors |
+| [`clearError hides notice and clears text`](../frontend/tests/unit/state.test.ts#L544) | test | 544 | `it('clearError hides notice and clears text', callback)` | clearError hides notice and clears text |
+| [`busy toggles loading visibility`](../frontend/tests/unit/state.test.ts#L550) | test | 550 | `it('busy toggles loading visibility', callback)` | busy toggles loading visibility |
+| [`builds a path from updates`](../frontend/tests/unit/state.test.ts#L561) | test | 561 | `it('builds a path from updates', callback)` | builds a path from updates |
+| [`removes keys with empty values but keeps the Home default`](../frontend/tests/unit/state.test.ts#L567) | test | 567 | `it('removes keys with empty values but keeps the Home default', callback)` | removes keys with empty values but keeps the Home default |
+| [`removes keys with null values but keeps the Home default`](../frontend/tests/unit/state.test.ts#L573) | test | 573 | `it('removes keys with null values but keeps the Home default', callback)` | removes keys with null values but keeps the Home default |
+| [`ensures view defaults to Home`](../frontend/tests/unit/state.test.ts#L579) | test | 579 | `it('ensures view defaults to Home', callback)` | ensures view defaults to Home |
+| [`uses the current view path when no updates are supplied`](../frontend/tests/unit/state.test.ts#L585) | test | 585 | `it('uses the current view path when no updates are supplied', callback)` | uses the current view path when no updates are supplied |
+| [`uses the home path for an unsupported destination`](../frontend/tests/unit/state.test.ts#L591) | test | 591 | `it('uses the home path for an unsupported destination', callback)` | uses the home path for an unsupported destination |
+| [`keeps only canonical context and destination-owned route state`](../frontend/tests/unit/state.test.ts#L597) | test | 597 | `it("keeps only canonical context and destination-owned route state", callback)` | keeps only canonical context and destination-owned route state |
+| [`returns detail context changes to the corresponding collection without record focus`](../frontend/tests/unit/state.test.ts#L611) | test | 611 | `it("returns detail context changes to the corresponding collection without record focus", callback)` | returns detail context changes to the corresponding collection without record focus |
+| [`clears article-local note, anchor, and page focus when the article changes`](../frontend/tests/unit/state.test.ts#L624) | test | 624 | `it("clears article-local note, anchor, and page focus when the article changes", callback)` | clears article-local note, anchor, and page focus when the article changes |
+| [`returns a detail origin through the origin view path`](../frontend/tests/unit/state.test.ts#L633) | test | 633 | `it("returns a detail origin through the origin view path", callback)` | returns a detail origin through the origin view path |
+| [`renders a page header with kicker, title, description`](../frontend/tests/unit/state.test.ts#L663) | test | 663 | `it('renders a page header with kicker, title, description', callback)` | renders a page header with kicker, title, description |
+| [`includes extra content when provided`](../frontend/tests/unit/state.test.ts#L673) | test | 673 | `it('includes extra content when provided', callback)` | includes extra content when provided |
+| [`escapes HTML in inputs`](../frontend/tests/unit/state.test.ts#L678) | test | 678 | `it('escapes HTML in inputs', callback)` | escapes HTML in inputs |
+| [`returns empty string when no context is set`](../frontend/tests/unit/state.test.ts#L688) | test | 688 | `it('returns empty string when no context is set', callback)` | returns empty string when no context is set |
+| [`renders an explicit ordered page hierarchy`](../frontend/tests/unit/state.test.ts#L692) | test | 692 | `it('renders an explicit ordered page hierarchy', callback)` | renders an explicit ordered page hierarchy |
+| [`marks only the final item as the current page and mounts it in the shell`](../frontend/tests/unit/state.test.ts#L701) | test | 701 | `it('marks only the final item as the current page and mounts it in the shell', callback)` | marks only the final item as the current page and mounts it in the shell |
+| [`renders an empty state with page header and panel`](../frontend/tests/unit/state.test.ts#L713) | test | 713 | `it('renders an empty state with page header and panel', callback)` | renders an empty state with page header and panel |
+| [`renders a table with header and rows`](../frontend/tests/unit/state.test.ts#L724) | test | 724 | `it('renders a table with header and rows', callback)` | renders a table with header and rows |
+| [`renders empty state when no rows`](../frontend/tests/unit/state.test.ts#L736) | test | 736 | `it('renders empty state when no rows', callback)` | renders empty state when no rows |
+| [`renders subnavigation links`](../frontend/tests/unit/state.test.ts#L745) | test | 745 | `it('renders subnavigation links', callback)` | renders subnavigation links |
+| [`renders a metric card with value`](../frontend/tests/unit/state.test.ts#L759) | test | 759 | `it('renders a metric card with value', callback)` | renders a metric card with value |
+| [`renders unavailable state`](../frontend/tests/unit/state.test.ts#L766) | test | 766 | `it('renders unavailable state', callback)` | renders unavailable state |
+| [`includes href when provided`](../frontend/tests/unit/state.test.ts#L771) | test | 771 | `it('includes href when provided', callback)` | includes href when provided |
+| [`shows percentage when denominator is present`](../frontend/tests/unit/state.test.ts#L776) | test | 776 | `it('shows percentage when denominator is present', callback)` | shows percentage when denominator is present |
+| [`renders a flow stage with count`](../frontend/tests/unit/state.test.ts#L786) | test | 786 | `it('renders a flow stage with count', callback)` | renders a flow stage with count |
+| [`shows input baseline for null previous`](../frontend/tests/unit/state.test.ts#L794) | test | 794 | `it('shows input baseline for null previous', callback)` | shows input baseline for null previous |
+| [`shows diff from prior`](../frontend/tests/unit/state.test.ts#L799) | test | 799 | `it('shows diff from prior', callback)` | shows diff from prior |
+| [`handles unavailable state`](../frontend/tests/unit/state.test.ts#L804) | test | 804 | `it('handles unavailable state', callback)` | handles unavailable state |
+| [`handles null raw`](../frontend/tests/unit/state.test.ts#L809) | test | 809 | `it('handles null raw', callback)` | handles null raw |
+| [`renders not recorded when input is missing`](../frontend/tests/unit/state.test.ts#L818) | test | 818 | `it('renders not recorded when input is missing', callback)` | renders not recorded when input is missing |
+| [`renders not recorded when input is unavailable`](../frontend/tests/unit/state.test.ts#L823) | test | 823 | `it('renders not recorded when input is unavailable', callback)` | renders not recorded when input is unavailable |
+| [`renders full retention flow with valid data`](../frontend/tests/unit/state.test.ts#L828) | test | 828 | `it('renders full retention flow with valid data', callback)` | renders full retention flow with valid data |
+| [`uses the initial unfiltered source total for every retention percentage`](../frontend/tests/unit/state.test.ts#L846) | test | 846 | `it('uses the initial unfiltered source total for every retention percentage', callback)` | uses the initial unfiltered source total for every retention percentage |
+| [`does not repeat a shorter source sequence into later aggregate stages`](../frontend/tests/unit/state.test.ts#L892) | test | 892 | `it('does not repeat a shorter source sequence into later aggregate stages', callback)` | does not repeat a shorter source sequence into later aggregate stages |
+| [`renders not recorded for empty entries`](../frontend/tests/unit/state.test.ts#L917) | test | 917 | `it('renders not recorded for empty entries', callback)` | renders not recorded for empty entries |
+| [`renders a breakdown table with entries`](../frontend/tests/unit/state.test.ts#L922) | test | 922 | `it('renders a breakdown table with entries', callback)` | renders a breakdown table with entries |
+| [`renders with total when useTotal is true`](../frontend/tests/unit/state.test.ts#L930) | test | 930 | `it('renders with total when useTotal is true', callback)` | renders with total when useTotal is true |
+| [`renders a table with source counts`](../frontend/tests/unit/state.test.ts#L941) | test | 941 | `it('renders a table with source counts', callback)` | renders a table with source counts |
+| [`handles empty items`](../frontend/tests/unit/state.test.ts#L952) | test | 952 | `it('handles empty items', callback)` | handles empty items |
+| [`renders NULL for null/undefined`](../frontend/tests/unit/state.test.ts#L961) | test | 961 | `it('renders NULL for null/undefined', callback)` | renders NULL for null/undefined |
+| [`renders short values inline`](../frontend/tests/unit/state.test.ts#L967) | test | 967 | `it('renders short values inline', callback)` | renders short values inline |
+| [`truncates long values with details`](../frontend/tests/unit/state.test.ts#L973) | test | 973 | `it('truncates long values with details', callback)` | truncates long values with details |
+| [`creates article link for article_id column`](../frontend/tests/unit/state.test.ts#L980) | test | 980 | `it('creates article link for article_id column', callback)` | creates article link for article_id column |
+| [`creates author link for author_id column`](../frontend/tests/unit/state.test.ts#L986) | test | 986 | `it('creates author link for author_id column', callback)` | creates author link for author_id column |
+| [`creates reference link for reference_id column`](../frontend/tests/unit/state.test.ts#L992) | test | 992 | `it('creates reference link for reference_id column', callback)` | creates reference link for reference_id column |
+| [`creates article link for work_revision id with tableName`](../frontend/tests/unit/state.test.ts#L998) | test | 998 | `it('creates article link for work_revision id with tableName', callback)` | creates article link for work_revision id with tableName |
+| [`creates author link for author_occurrences id with tableName`](../frontend/tests/unit/state.test.ts#L1003) | test | 1003 | `it('creates author link for author_occurrences id with tableName', callback)` | creates author link for author_occurrences id with tableName |
+| [`creates reference link for reference_mentions id with tableName`](../frontend/tests/unit/state.test.ts#L1008) | test | 1008 | `it('creates reference link for reference_mentions id with tableName', callback)` | creates reference link for reference_mentions id with tableName |
+| [`copies text and shows Copied! feedback`](../frontend/tests/unit/state.test.ts#L1021) | test | 1021 | `it('copies text and shows Copied! feedback', callback)` | copies text and shows Copied! feedback |
+| [`falls back to prompt when clipboard fails`](../frontend/tests/unit/state.test.ts#L1050) | test | 1050 | `it('falls back to prompt when clipboard fails', callback)` | falls back to prompt when clipboard fails |
 
 ### [`frontend/tests/unit/views/advanced.test.ts`](../frontend/tests/unit/views/advanced.test.ts)
 

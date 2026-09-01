@@ -31,6 +31,18 @@ function scrollTableIntoView(root: HTMLElement): void {
 /** One data table option set. */
 export type { DataTableContext } from "../api/types.ts";
 
+/** Maps context key names to their URL query parameter names. */
+function tableKeys(context: DataTableContext): { page: string; perPage: string; sort: string; order: string; query: string; expanded: string } {
+  return {
+    page: context.pageKey || "page",
+    perPage: context.perPageKey || "per_page",
+    sort: context.sortKey || "sort",
+    order: context.orderKey || "order",
+    query: context.queryKey || "q",
+    expanded: context.expandedKey || "expanded",
+  };
+}
+
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
 export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
@@ -53,14 +65,7 @@ export function DataTable(props: { tableName: string; result: unknown; context?:
     });
   }
 
-  const keys = {
-    page: context.pageKey || "page",
-    perPage: context.perPageKey || "per_page",
-    sort: context.sortKey || "sort",
-    order: context.orderKey || "order",
-    query: context.queryKey || "q",
-    expanded: context.expandedKey || "expanded",
-  };
+  const keys = tableKeys(context);
   const rows = rowFilter(list<WireRecord>(response, ["rows", "items"]), context.query || "");
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
@@ -225,14 +230,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
   });
   if (!root) return;
   const controlScope = root.closest<HTMLElement>("[data-table-scope]") || root;
-  const keys = {
-    page: context.pageKey || "page",
-    perPage: context.perPageKey || "per_page",
-    sort: context.sortKey || "sort",
-    order: context.orderKey || "order",
-    query: context.queryKey || "q",
-    expanded: context.expandedKey || "expanded",
-  };
+  const keys = tableKeys(context);
   /** Maps context key names to their URL query parameter names. */
   function updates(values: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};

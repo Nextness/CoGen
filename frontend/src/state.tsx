@@ -603,8 +603,7 @@ export interface BreadcrumbItem {
 
 /** Renders escaped breadcrumb markup for an ordered page hierarchy. */
 export function Breadcrumb(props: { items: BreadcrumbItem[] }): JSX.Element | null {
-  var parts: BreadcrumbItem[] = [];
-  if (Array.isArray(props.items)) parts = props.items;
+  const parts = props.items;
   if (!parts.length) {
     return null;
   }

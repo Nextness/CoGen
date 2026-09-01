@@ -6,7 +6,8 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
-import { h, Fragment, classAdd, classHas, classRemove, classToggle, cx, render, renderToString, raw } from "../../src/jsx/jsx-runtime.ts";
+import { h, Fragment, classAdd, classHas, classRemove, classToggle, cx, render } from "../../src/jsx/jsx-runtime.ts";
+import { renderToString, raw } from "./helpers/jsx-render.ts";
 
 describe("jsx-runtime - class helpers", () => {
   it("joins registered tokens and omits conditional gaps", () => {

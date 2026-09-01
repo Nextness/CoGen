@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 
 import '../setup.ts';
 import { parseNote, NoteDocument, resolutionMatches } from '../../../src/components/note-parser.tsx';
-import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
+import { renderToString } from '../helpers/jsx-render.ts';
 
 const renderNote = (document: any, resolvedLinks?: any[]): string => renderToString(NoteDocument({ document: document, resolvedLinks: resolvedLinks }));
 
