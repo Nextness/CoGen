@@ -34,7 +34,6 @@ document.body.innerHTML = `
   <button id="graph-fit"></button>
   <button id="graph-clear-selection"></button>
   <canvas class="rw-graph__canvas" width="800" height="600"></canvas>
-  <div id="artifact-inspector"><div class="panel-body"></div></div>
 `;
 
 // --- Assign window globals FIRST so polyfills can reference them ---

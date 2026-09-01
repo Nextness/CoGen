@@ -3650,6 +3650,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`requireNumber`](../frontend/scripts/fixture-contract.ts#L33) | function | 33 | `function requireNumber(db: DatabaseSync, query: string, field: string, expected: number, label: string)` | Requires one numeric scalar query result to equal its fixture-contract value. |
 | [`requireString`](../frontend/scripts/fixture-contract.ts#L42) | function | 42 | `function requireString(db: DatabaseSync, query: string, field: string, expected: string, label: string)` | Requires one string scalar query result to equal its fixture-contract value. |
 
+### [`frontend/scripts/fixture-paths.ts`](../frontend/scripts/fixture-paths.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`inferFixturePDF`](../frontend/scripts/fixture-paths.ts#L4) | function | 4 | `function inferFixturePDF(metadataPath: string)` | Infers the companion PDF database path from a metadata database path. |
+
 ### [`frontend/scripts/generate-classes.ts`](../frontend/scripts/generate-classes.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3680,18 +3686,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`runSuite`](../frontend/scripts/run-playwright.ts#L57) | function | 57 | `async function runSuite(suite: Suite, args: readonly string[])` | Runs one Playwright suite against its own fixture copy and viewer process. |
-| [`mustExist`](../frontend/scripts/run-playwright.ts#L85) | function | 85 | `async function mustExist(target: string, name: string, hint: string)` | Asynchronously implements must exist for the viewer. |
-| [`startServer`](../frontend/scripts/run-playwright.ts#L94) | function | 94 | `function startServer(db: string)` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
-| [`fail`](../frontend/scripts/run-playwright.ts#L126) | function | 126 | `function fail(error: Error)` | Stops startup and rejects with the server process failure. |
-| [`copyFixturePair`](../frontend/scripts/run-playwright.ts#L136) | function | 136 | `async function copyFixturePair(destination: string)` | Copies the generated fixture pair so browser mutations never alter their authoritative base. |
-| [`waitForHealth`](../frontend/scripts/run-playwright.ts#L153) | function | 153 | `async function waitForHealth(baseURL: string)` | Asynchronously implements wait for health for the viewer. |
-| [`stopServer`](../frontend/scripts/run-playwright.ts#L170) | function | 170 | `async function stopServer(server: ViewerServer)` | Asynchronously implements stop server for the viewer. |
-| [`suitesForArguments`](../frontend/scripts/run-playwright.ts#L182) | function | 182 | `function suitesForArguments(args: readonly string[])` | Selects read-only, mutation, or both suites from explicit test-file arguments. |
-| [`withoutOptions`](../frontend/scripts/run-playwright.ts#L193) | function | 193 | `function withoutOptions(args: readonly string[], names: readonly string[])` | Removes named CLI options in both --name=value and --name value forms. |
-| [`exitCode`](../frontend/scripts/run-playwright.ts#L208) | function | 208 | `function exitCode(child: ChildProcess, name: string)` | Normalizes a child-process exit result. |
-| [`delay`](../frontend/scripts/run-playwright.ts#L216) | function | 216 | `function delay(milliseconds: number)` | Returns a promise that resolves after the requested interval. |
-| [`npmCommand`](../frontend/scripts/run-playwright.ts#L221) | function | 221 | `function npmCommand()` | Returns the platform-appropriate npm command. |
+| [`runSuite`](../frontend/scripts/run-playwright.ts#L58) | function | 58 | `async function runSuite(suite: Suite, args: readonly string[])` | Runs one Playwright suite against its own fixture copy and viewer process. |
+| [`mustExist`](../frontend/scripts/run-playwright.ts#L86) | function | 86 | `async function mustExist(target: string, name: string, hint: string)` | Asynchronously implements must exist for the viewer. |
+| [`startServer`](../frontend/scripts/run-playwright.ts#L95) | function | 95 | `function startServer(db: string)` | Starts the fixture-backed viewer on an operating-system-assigned loopback port. |
+| [`fail`](../frontend/scripts/run-playwright.ts#L127) | function | 127 | `function fail(error: Error)` | Stops startup and rejects with the server process failure. |
+| [`copyFixturePair`](../frontend/scripts/run-playwright.ts#L137) | function | 137 | `async function copyFixturePair(destination: string)` | Copies the generated fixture pair so browser mutations never alter their authoritative base. |
+| [`waitForHealth`](../frontend/scripts/run-playwright.ts#L154) | function | 154 | `async function waitForHealth(baseURL: string)` | Asynchronously implements wait for health for the viewer. |
+| [`stopServer`](../frontend/scripts/run-playwright.ts#L171) | function | 171 | `async function stopServer(server: ViewerServer)` | Asynchronously implements stop server for the viewer. |
+| [`suitesForArguments`](../frontend/scripts/run-playwright.ts#L183) | function | 183 | `function suitesForArguments(args: readonly string[])` | Selects read-only, mutation, or both suites from explicit test-file arguments. |
+| [`withoutOptions`](../frontend/scripts/run-playwright.ts#L194) | function | 194 | `function withoutOptions(args: readonly string[], names: readonly string[])` | Removes named CLI options in both --name=value and --name value forms. |
+| [`exitCode`](../frontend/scripts/run-playwright.ts#L209) | function | 209 | `function exitCode(child: ChildProcess, name: string)` | Normalizes a child-process exit result. |
+| [`delay`](../frontend/scripts/run-playwright.ts#L217) | function | 217 | `function delay(milliseconds: number)` | Returns a promise that resolves after the requested interval. |
+| [`npmCommand`](../frontend/scripts/run-playwright.ts#L222) | function | 222 | `function npmCommand()` | Returns the platform-appropriate npm command. |
 
 ### [`frontend/src/api.tsx`](../frontend/src/api.tsx)
 
@@ -3906,10 +3912,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`isExpanded`](../frontend/src/components/pdf-fullscreen.tsx#L27) | function | 27 | `function isExpanded()` | Returns whether the workspace is expanded by either the Fullscreen API or the fallback class. |
 | [`updateLabel`](../frontend/src/components/pdf-fullscreen.tsx#L32) | function | 32 | `function updateLabel()` | Updates the fullscreen button label and pressed state, returning focus on exit. |
 | [`syncState`](../frontend/src/components/pdf-fullscreen.tsx#L42) | function | 42 | `function syncState()` | Synchronizes the drawer state, edge control, and button label with the current expansion. |
-| [`renderEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L59) | function | 59 | `function renderEdgeControl()` | Renders the drawer edge control as a direct workspace child so it survives drawer collapse. |
-| [`removeEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L75) | function | 75 | `function removeEdgeControl()` | Removes the drawer edge control from the workspace. |
-| [`toggleDrawer`](../frontend/src/components/pdf-fullscreen.tsx#L81) | function | 81 | `function toggleDrawer()` | Toggles the review drawer between expanded and collapsed. |
-| [`toggleFallback`](../frontend/src/components/pdf-fullscreen.tsx#L97) | function | 97 | `function toggleFallback()` | Enters or leaves the CSS fallback expansion, mirroring the graph's fallback path. |
+| [`renderEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L57) | function | 57 | `function renderEdgeControl()` | Renders the drawer edge control as a direct workspace child so it survives drawer collapse. |
+| [`removeEdgeControl`](../frontend/src/components/pdf-fullscreen.tsx#L73) | function | 73 | `function removeEdgeControl()` | Removes the drawer edge control from the workspace. |
+| [`toggleDrawer`](../frontend/src/components/pdf-fullscreen.tsx#L79) | function | 79 | `function toggleDrawer()` | Toggles the review drawer between expanded and collapsed. |
+| [`toggleFallback`](../frontend/src/components/pdf-fullscreen.tsx#L95) | function | 95 | `function toggleFallback()` | Enters or leaves the CSS fallback expansion, mirroring the graph's fallback path. |
 
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
@@ -3972,10 +3978,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`setCapability`](../frontend/src/components/shell.tsx#L10) | function | 10 | `function setCapability(id: string, available: boolean, availableLabel: string, unavailableLabel: string)` | Writes one independently reported viewer capability into the shell disclosure. |
-| [`initHealthCheck`](../frontend/src/components/shell.tsx#L18) | function | 18 | `function initHealthCheck()` | Initializes health check. |
-| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L51) | function | 51 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
-| [`closeNavigation`](../frontend/src/components/shell.tsx#L59) | function | 59 | `function closeNavigation(restoreFocus: boolean)` | Closes the mobile navigation and optionally restores its opener focus. |
-| [`handleToggle`](../frontend/src/components/shell.tsx#L68) | function | 68 | `function handleToggle()` | Toggles the mobile navigation disclosure. |
+| [`setUnavailable`](../frontend/src/components/shell.tsx#L18) | function | 18 | `function setUnavailable()` | Marks the health status dot as unavailable. |
+| [`initHealthCheck`](../frontend/src/components/shell.tsx#L25) | function | 25 | `function initHealthCheck()` | Initializes health check. |
+| [`initMobileNavToggle`](../frontend/src/components/shell.tsx#L56) | function | 56 | `function initMobileNavToggle()` | Initialize mobile nav toggle. Shows/hides the primary navigation on small screens. |
+| [`closeNavigation`](../frontend/src/components/shell.tsx#L64) | function | 64 | `function closeNavigation(restoreFocus: boolean)` | Closes the mobile navigation and optionally restores its opener focus. |
+| [`handleToggle`](../frontend/src/components/shell.tsx#L73) | function | 73 | `function handleToggle()` | Toggles the mobile navigation disclosure. |
 
 ### [`frontend/src/jsx/jsx-runtime.ts`](../frontend/src/jsx/jsx-runtime.ts)
 
@@ -4159,12 +4166,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`unavailableMarkup`](../frontend/src/views/overview.tsx#L28) | function | 28 | `function unavailableMarkup()` | Renders the unavailable-value presentation shared by metric helpers. |
-| [`normalizationValue`](../frontend/src/views/overview.tsx#L33) | function | 33 | `function normalizationValue(metric: MetricEvidence \| undefined)` | Renders a normalization metric value or its unavailable presentation. |
-| [`capturedMetricValue`](../frontend/src/views/overview.tsx#L104) | function | 104 | `function capturedMetricValue(item: MetricEvidence)` | Renders the numeric value of a captured metric or its unavailable presentation. |
-| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L112) | function | 112 | `function capturedMetricsByStage(metrics: MetricEvidence[])` | Groups captured metrics by pipeline stage. |
-| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L145) | function | 145 | `function CapturedMetricsMarkup(props: { metrics: MetricEvidence[] })` | Renders table markup for captured pipeline metrics. |
-| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L191) | function | 191 | `function fixedPercentageMetric(metric: MetricEvidence)` | Returns a metric copy with a percentage derived from its value and denominator. |
-| [`overviewView`](../frontend/src/views/overview.tsx#L203) | function | 203 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
+| [`metricValue`](../frontend/src/views/overview.tsx#L33) | function | 33 | `function metricValue(metric: MetricEvidence \| undefined)` | Renders a metric value or its unavailable presentation, with an optional denominator branch. |
+| [`capturedMetricsByStage`](../frontend/src/views/overview.tsx#L104) | function | 104 | `function capturedMetricsByStage(metrics: MetricEvidence[])` | Groups captured metrics by pipeline stage. |
+| [`CapturedMetricsMarkup`](../frontend/src/views/overview.tsx#L137) | function | 137 | `function CapturedMetricsMarkup(props: { metrics: MetricEvidence[] })` | Renders table markup for captured pipeline metrics. |
+| [`fixedPercentageMetric`](../frontend/src/views/overview.tsx#L183) | function | 183 | `function fixedPercentageMetric(metric: MetricEvidence)` | Returns a metric copy with a percentage derived from its value and denominator. |
+| [`overviewView`](../frontend/src/views/overview.tsx#L195) | function | 195 | `async function overviewView()` | Asynchronously implements overview view for the viewer. |
 
 ### [`frontend/src/views/provenance.tsx`](../frontend/src/views/provenance.tsx)
 
@@ -4185,15 +4191,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`ArtifactsView`](../frontend/src/views/provenance.tsx#L392) | function | 392 | `function ArtifactsView(props: { data: ArtifactsResponse })` | Renders the run artifact inventory markup. |
 | [`PageSizeOptions`](../frontend/src/views/provenance.tsx#L531) | function | 531 | `function PageSizeOptions(props: { current: number \| string })` | Renders page-size option markup with the current value selected. |
 | [`CacheView`](../frontend/src/views/provenance.tsx#L539) | function | 539 | `function CacheView(props: { data: CacheUsesResponse })` | Renders cache-use evidence and pagination markup. |
-| [`stageStatus`](../frontend/src/views/provenance.tsx#L632) | function | 632 | `function stageStatus(summary: StageSummary \| undefined, step: RunStep \| undefined)` | Returns the effective display status for a work-stage record. |
-| [`StageFlow`](../frontend/src/views/provenance.tsx#L659) | function | 659 | `function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] })` | Renders ordered stage-flow markup for one work. |
-| [`StagesView`](../frontend/src/views/provenance.tsx#L749) | function | 749 | `function StagesView(props: { data: StagesResponse })` | Renders work-stage evidence and pagination markup. |
-| [`RunView`](../frontend/src/views/provenance.tsx#L843) | function | 843 | `function RunView(props: { artifactData: ArtifactsResponse })` | Renders stored run details and exact configuration links. |
-| [`provenanceView`](../frontend/src/views/provenance.tsx#L934) | function | 934 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
-| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L1028) | function | 1028 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
-| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L1131) | function | 1131 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
-| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L1235) | function | 1235 | `function renderArtifactInspector()` | Renders artifact inspector. |
-| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1327) | function | 1327 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
+| [`stageStatus`](../frontend/src/views/provenance.tsx#L633) | function | 633 | `function stageStatus(summary: StageSummary \| undefined, step: RunStep \| undefined)` | Returns the effective display status for a work-stage record. |
+| [`StageFlow`](../frontend/src/views/provenance.tsx#L660) | function | 660 | `function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] })` | Renders ordered stage-flow markup for one work. |
+| [`StagesView`](../frontend/src/views/provenance.tsx#L750) | function | 750 | `function StagesView(props: { data: StagesResponse })` | Renders work-stage evidence and pagination markup. |
+| [`RunView`](../frontend/src/views/provenance.tsx#L844) | function | 844 | `function RunView(props: { artifactData: ArtifactsResponse })` | Renders stored run details and exact configuration links. |
+| [`provenanceView`](../frontend/src/views/provenance.tsx#L935) | function | 935 | `async function provenanceView()` | Asynchronously implements provenance view for the viewer. |
+| [`bindAuditControls`](../frontend/src/views/provenance.tsx#L1029) | function | 1029 | `function bindAuditControls()` | Binds DOM behavior for audit controls. |
+| [`bindArtifactInspection`](../frontend/src/views/provenance.tsx#L1132) | function | 1132 | `function bindArtifactInspection()` | Binds DOM behavior for artifact inspection. |
+| [`renderArtifactInspector`](../frontend/src/views/provenance.tsx#L1236) | function | 1236 | `function renderArtifactInspector()` | Renders artifact inspector. |
+| [`copyArtifactText`](../frontend/src/views/provenance.tsx#L1328) | function | 1328 | `async function copyArtifactText(text: string)` | Asynchronously copies artifact text. |
 
 ### [`frontend/src/views/relationships.tsx`](../frontend/src/views/relationships.tsx)
 
@@ -4268,13 +4274,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`generatedState`](../frontend/tests/e2e.spec.ts#L78) | function | 78 | `function generatedState(context: GeneratedContext, updates: Record<string, Identifier>)` | Builds a context-preserving viewer state for one generated route. |
 | [`visitGenerated`](../frontend/tests/e2e.spec.ts#L90) | function | 90 | `async function visitGenerated(page: Page, context: GeneratedContext, updates: Record<string, Identifier>)` | Seeds viewer state through sessionStorage and navigates to the clean generated route. |
 
+### [`frontend/tests/helpers/pdf-selection.ts`](../frontend/tests/helpers/pdf-selection.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`selectFixtureText`](../frontend/tests/helpers/pdf-selection.ts#L4) | function | 4 | `async function selectFixtureText(page: Page)` | Selects the fixture methods text and hands it to the review selection flow. |
+
 ### [`frontend/tests/review.spec.ts`](../frontend/tests/review.spec.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`visitArticle`](../frontend/tests/review.spec.ts#L18) | function | 18 | `async function visitArticle(page: Page)` | Seeds viewer state through sessionStorage and navigates to the clean article path. |
-| [`viewerState`](../frontend/tests/review.spec.ts#L38) | function | 38 | `async function viewerState(page: Page)` | Reads the current viewer state from sessionStorage. |
-| [`exhaustContinuation`](../frontend/tests/review.spec.ts#L43) | function | 43 | `async function exhaustContinuation(page: Page, selector: string)` | Activates a continuation control until the collection reports its terminal page. |
+| [`visitArticle`](../frontend/tests/review.spec.ts#L20) | function | 20 | `async function visitArticle(page: Page)` | Seeds viewer state through sessionStorage and navigates to the clean article path. |
+| [`viewerState`](../frontend/tests/review.spec.ts#L40) | function | 40 | `async function viewerState(page: Page)` | Reads the current viewer state from sessionStorage. |
+| [`exhaustContinuation`](../frontend/tests/review.spec.ts#L45) | function | 45 | `async function exhaustContinuation(page: Page, selector: string)` | Activates a continuation control until the collection reports its terminal page. |
 
 ### [`frontend/tests/ui-quality.spec.ts`](../frontend/tests/ui-quality.spec.ts)
 
@@ -4372,14 +4384,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`visit`](../frontend/tests/viewer.spec.ts#L56) | function | 56 | `async function visit(page: Page, state: Record<string, string>)` | Seeds viewer state through sessionStorage before load, then navigates to the clean path for the requested view. The seed travels in window.name (which survives navigation) and is applied only when sessionStorage has no viewer state, so in-app cross-view navigation state written by the app is never clobbered, while every visit applies its explicit state. history.state is cleared only for same-path navigation, because a same-URL navigation reuses the prior entry and the app prefers history.state over sessionStorage at boot; cross-path navigation keeps the current entry's state so browser back and forward restore each visit's adopted state. |
-| [`goto`](../frontend/tests/viewer.spec.ts#L78) | function | 78 | `async function goto(page: Page, url: string)` | Navigate to a URL and wait for network idle. |
-| [`contextState`](../frontend/tests/viewer.spec.ts#L86) | function | 86 | `function contextState(overrides: Record<string, string> = {})` | Build a context state with search, revision, plan, and run IDs. |
-| [`viewerState`](../frontend/tests/viewer.spec.ts#L101) | function | 101 | `async function viewerState(page: Page)` | Reads the current viewer state from sessionStorage. |
-| [`selectRun`](../frontend/tests/viewer.spec.ts#L108) | function | 108 | `async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string)` | Navigate to a fully selected context state. |
-| [`workspaceExpanded`](../frontend/tests/viewer.spec.ts#L924) | function | 924 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
-| [`selectFixtureText`](../frontend/tests/viewer.spec.ts#L931) | function | 931 | `async function selectFixtureText(page: Page)` | Selects the fixture methods text and hands it to the review selection flow. |
-| [`pageFilter`](../frontend/tests/viewer.spec.ts#L1013) | function | 1013 | `async function pageFilter(page: Page)` | Returns the computed filter of the rendered PDF page. |
+| [`visit`](../frontend/tests/viewer.spec.ts#L58) | function | 58 | `async function visit(page: Page, state: Record<string, string>)` | Seeds viewer state through sessionStorage before load, then navigates to the clean path for the requested view. The seed travels in window.name (which survives navigation) and is applied only when sessionStorage has no viewer state, so in-app cross-view navigation state written by the app is never clobbered, while every visit applies its explicit state. history.state is cleared only for same-path navigation, because a same-URL navigation reuses the prior entry and the app prefers history.state over sessionStorage at boot; cross-path navigation keeps the current entry's state so browser back and forward restore each visit's adopted state. |
+| [`goto`](../frontend/tests/viewer.spec.ts#L80) | function | 80 | `async function goto(page: Page, url: string)` | Navigate to a URL and wait for network idle. |
+| [`contextState`](../frontend/tests/viewer.spec.ts#L88) | function | 88 | `function contextState(overrides: Record<string, string> = {})` | Build a context state with search, revision, plan, and run IDs. |
+| [`viewerState`](../frontend/tests/viewer.spec.ts#L103) | function | 103 | `async function viewerState(page: Page)` | Reads the current viewer state from sessionStorage. |
+| [`selectRun`](../frontend/tests/viewer.spec.ts#L110) | function | 110 | `async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string)` | Navigate to a fully selected context state. |
+| [`workspaceExpanded`](../frontend/tests/viewer.spec.ts#L925) | function | 925 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
+| [`pageFilter`](../frontend/tests/viewer.spec.ts#L995) | function | 995 | `async function pageFilter(page: Page)` | Returns the computed filter of the rendered PDF page. |
 
 ## JavaScript test cases
 
@@ -4407,11 +4418,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI`](../frontend/tests/review.spec.ts#L56) | test | 56 | `test('creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI', callback)` | creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI |
-| [`creates an anchor through the fullscreen reader drawer`](../frontend/tests/review.spec.ts#L224) | test | 224 | `test('creates an anchor through the fullscreen reader drawer', callback)` | creates an anchor through the fullscreen reader drawer |
-| [`edits, links, conflicts, removes, restores, and audits review evidence through visible controls`](../frontend/tests/review.spec.ts#L267) | test | 267 | `test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', callback)` | edits, links, conflicts, removes, restores, and audits review evidence through visible controls |
-| [`restores and trashes a run through Home with persisted audit evidence`](../frontend/tests/review.spec.ts#L384) | test | 384 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
-| [`traverses 101-record review collection boundaries through UI continuations`](../frontend/tests/review.spec.ts#L416) | test | 416 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
+| [`creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI`](../frontend/tests/review.spec.ts#L58) | test | 58 | `test('creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI', callback)` | creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI |
+| [`creates an anchor through the fullscreen reader drawer`](../frontend/tests/review.spec.ts#L212) | test | 212 | `test('creates an anchor through the fullscreen reader drawer', callback)` | creates an anchor through the fullscreen reader drawer |
+| [`edits, links, conflicts, removes, restores, and audits review evidence through visible controls`](../frontend/tests/review.spec.ts#L241) | test | 241 | `test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', callback)` | edits, links, conflicts, removes, restores, and audits review evidence through visible controls |
+| [`restores and trashes a run through Home with persisted audit evidence`](../frontend/tests/review.spec.ts#L358) | test | 358 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
+| [`traverses 101-record review collection boundaries through UI continuations`](../frontend/tests/review.spec.ts#L390) | test | 390 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
 
 ### [`frontend/tests/ui-quality.spec.ts`](../frontend/tests/ui-quality.spec.ts)
 
@@ -4844,97 +4855,97 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`health endpoint returns readable status`](../frontend/tests/viewer.spec.ts#L120) | test | 120 | `test('health endpoint returns readable status', callback)` | health endpoint returns readable status |
-| [`page loads and renders navigation`](../frontend/tests/viewer.spec.ts#L129) | test | 129 | `test('page loads and renders navigation', callback)` | page loads and renders navigation |
-| [`primary navigation links are present`](../frontend/tests/viewer.spec.ts#L142) | test | 142 | `test('primary navigation links are present', callback)` | primary navigation links are present |
-| [`primary navigation preserves the selected research context`](../frontend/tests/viewer.spec.ts#L152) | test | 152 | `test('primary navigation preserves the selected research context', callback)` | primary navigation preserves the selected research context |
-| [`primary navigation loads view pages and browser history returns to the prior document`](../frontend/tests/viewer.spec.ts#L166) | test | 166 | `test('primary navigation loads view pages and browser history returns to the prior document', callback)` | primary navigation loads view pages and browser history returns to the prior document |
-| [`cancelable draft protection blocks a native view-page transition`](../frontend/tests/viewer.spec.ts#L185) | test | 185 | `test('cancelable draft protection blocks a native view-page transition', callback)` | cancelable draft protection blocks a native view-page transition |
-| [`a view page URL loads its identified document directly`](../frontend/tests/viewer.spec.ts#L201) | test | 201 | `test('a view page URL loads its identified document directly', callback)` | a view page URL loads its identified document directly |
-| [`research context is displayed after selecting a run`](../frontend/tests/viewer.spec.ts#L209) | test | 209 | `test('research context is displayed after selecting a run', callback)` | research context is displayed after selecting a run |
-| [`a selected run owns the complete displayed ancestry across crossed URLs and reload`](../frontend/tests/viewer.spec.ts#L228) | test | 228 | `test('a selected run owns the complete displayed ancestry across crossed URLs and reload', callback)` | a selected run owns the complete displayed ancestry across crossed URLs and reload |
-| [`run-only, stale descendant, trashed, and history states remain deterministic and visibly focused`](../frontend/tests/viewer.spec.ts#L248) | test | 248 | `test('run-only, stale descendant, trashed, and history states remain deterministic and visibly focused', callback)` | run-only, stale descendant, trashed, and history states remain deterministic and visibly focused |
-| [`displays run metrics for a completed run`](../frontend/tests/viewer.spec.ts#L285) | test | 285 | `test('displays run metrics for a completed run', callback)` | displays run metrics for a completed run |
-| [`displays retention funnel for completed run`](../frontend/tests/viewer.spec.ts#L292) | test | 292 | `test('displays retention funnel for completed run', callback)` | displays retention funnel for completed run |
-| [`uses one initial raw-result baseline across source and pipeline retention stages`](../frontend/tests/viewer.spec.ts#L299) | test | 299 | `test('uses one initial raw-result baseline across source and pipeline retention stages', callback)` | uses one initial raw-result baseline across source and pipeline retention stages |
-| [`displays informational source export-count comparisons`](../frontend/tests/viewer.spec.ts#L344) | test | 344 | `test('displays informational source export-count comparisons', callback)` | displays informational source export-count comparisons |
-| [`shows no enrichment badge for enrichment-disabled run`](../frontend/tests/viewer.spec.ts#L352) | test | 352 | `test('shows no enrichment badge for enrichment-disabled run', callback)` | shows no enrichment badge for enrichment-disabled run |
-| [`displays enrichment field and provider breakdowns`](../frontend/tests/viewer.spec.ts#L359) | test | 359 | `test('displays enrichment field and provider breakdowns', callback)` | displays enrichment field and provider breakdowns |
-| [`articles section loads and shows article rows`](../frontend/tests/viewer.spec.ts#L372) | test | 372 | `test('articles section loads and shows article rows', callback)` | articles section loads and shows article rows |
-| [`articles section supports search filtering`](../frontend/tests/viewer.spec.ts#L384) | test | 384 | `test('articles section supports search filtering', callback)` | articles section supports search filtering |
-| [`articles expansion shows matched search terms`](../frontend/tests/viewer.spec.ts#L392) | test | 392 | `test('articles expansion shows matched search terms', callback)` | articles expansion shows matched search terms |
-| [`articles expansion shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.ts#L404) | test | 404 | `test('articles expansion shows no search terms recorded for a run without queries', callback)` | articles expansion shows no search terms recorded for a run without queries |
-| [`authors section loads and shows author rows`](../frontend/tests/viewer.spec.ts#L413) | test | 413 | `test('authors section loads and shows author rows', callback)` | authors section loads and shows author rows |
-| [`references section loads and shows reference rows`](../frontend/tests/viewer.spec.ts#L420) | test | 420 | `test('references section loads and shows reference rows', callback)` | references section loads and shows reference rows |
-| [`sources section loads and shows source records`](../frontend/tests/viewer.spec.ts#L434) | test | 434 | `test('sources section loads and shows source records', callback)` | sources section loads and shows source records |
-| [`identity evidence links to author-scoped candidate details without expanding candidates inside the table`](../frontend/tests/viewer.spec.ts#L450) | test | 450 | `test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', callback)` | identity evidence links to author-scoped candidate details without expanding candidates inside the table |
-| [`corpus supports pagination`](../frontend/tests/viewer.spec.ts#L464) | test | 464 | `test('corpus supports pagination', callback)` | corpus supports pagination |
-| [`corpus ignores a sort field that is unsupported by its selected section`](../frontend/tests/viewer.spec.ts#L483) | test | 483 | `test('corpus ignores a sort field that is unsupported by its selected section', callback)` | corpus ignores a sort field that is unsupported by its selected section |
-| [`graph loads and renders for a completed run`](../frontend/tests/viewer.spec.ts#L494) | test | 494 | `test('graph loads and renders for a completed run', callback)` | graph loads and renders for a completed run |
-| [`graph supports mode switching to citation`](../frontend/tests/viewer.spec.ts#L503) | test | 503 | `test('graph supports mode switching to citation', callback)` | graph supports mode switching to citation |
-| [`graph supports text search filter`](../frontend/tests/viewer.spec.ts#L510) | test | 510 | `test('graph supports text search filter', callback)` | graph supports text search filter |
-| [`graph filters are applied explicitly and remain visible in the URL`](../frontend/tests/viewer.spec.ts#L517) | test | 517 | `test('graph filters are applied explicitly and remain visible in the URL', callback)` | graph filters are applied explicitly and remain visible in the URL |
-| [`graph node search input is present and functional`](../frontend/tests/viewer.spec.ts#L525) | test | 525 | `test('graph node search input is present and functional', callback)` | graph node search input is present and functional |
-| [`graph export downloads a valid PNG`](../frontend/tests/viewer.spec.ts#L541) | test | 541 | `test('graph export downloads a valid PNG', callback)` | graph export downloads a valid PNG |
-| [`graph legend is anchored at the bottom left of the canvas`](../frontend/tests/viewer.spec.ts#L557) | test | 557 | `test('graph legend is anchored at the bottom left of the canvas', callback)` | graph legend is anchored at the bottom left of the canvas |
-| [`background click clears a selected graph node`](../frontend/tests/viewer.spec.ts#L570) | test | 570 | `test('background click clears a selected graph node', callback)` | background click clears a selected graph node |
-| [`clicking the selected graph node again clears it`](../frontend/tests/viewer.spec.ts#L579) | test | 579 | `test('clicking the selected graph node again clears it', callback)` | clicking the selected graph node again clears it |
-| [`secondary-button drag pans without changing graph selection`](../frontend/tests/viewer.spec.ts#L606) | test | 606 | `test('secondary-button drag pans without changing graph selection', callback)` | secondary-button drag pans without changing graph selection |
-| [`audit section loads and shows events`](../frontend/tests/viewer.spec.ts#L624) | test | 624 | `test('audit section loads and shows events', callback)` | audit section loads and shows events |
-| [`audit stream filters events by category on the server`](../frontend/tests/viewer.spec.ts#L636) | test | 636 | `test('audit stream filters events by category on the server', callback)` | audit stream filters events by category on the server |
-| [`audit stream exposes mirrored PDF events`](../frontend/tests/viewer.spec.ts#L656) | test | 656 | `test('audit stream exposes mirrored PDF events', callback)` | audit stream exposes mirrored PDF events |
-| [`artifacts section identifies configuration snapshots and offers downloads`](../frontend/tests/viewer.spec.ts#L664) | test | 664 | `test('artifacts section identifies configuration snapshots and offers downloads', callback)` | artifacts section identifies configuration snapshots and offers downloads |
-| [`cache uses section supports shared filtering and pagination controls`](../frontend/tests/viewer.spec.ts#L686) | test | 686 | `test('cache uses section supports shared filtering and pagination controls', callback)` | cache uses section supports shared filtering and pagination controls |
-| [`stages section loads`](../frontend/tests/viewer.spec.ts#L703) | test | 703 | `test('stages section loads', callback)` | stages section loads |
-| [`run details section loads`](../frontend/tests/viewer.spec.ts#L715) | test | 715 | `test('run details section loads', callback)` | run details section loads |
-| [`lists only normalized articles with manual inventory status`](../frontend/tests/viewer.spec.ts#L727) | test | 727 | `test('lists only normalized articles with manual inventory status', callback)` | lists only normalized articles with manual inventory status |
-| [`preserves research context in the Evaluation navigation link`](../frontend/tests/viewer.spec.ts#L744) | test | 744 | `test('preserves research context in the Evaluation navigation link', callback)` | preserves research context in the Evaluation navigation link |
-| [`lists available tables`](../frontend/tests/viewer.spec.ts#L760) | test | 760 | `test('lists available tables', callback)` | lists available tables |
-| [`displays rows from a selected table`](../frontend/tests/viewer.spec.ts#L767) | test | 767 | `test('displays rows from a selected table', callback)` | displays rows from a selected table |
-| [`table browser supports pagination`](../frontend/tests/viewer.spec.ts#L774) | test | 774 | `test('table browser supports pagination', callback)` | table browser supports pagination |
-| [`ignores a sort field that does not belong to the selected table`](../frontend/tests/viewer.spec.ts#L783) | test | 783 | `test('ignores a sort field that does not belong to the selected table', callback)` | ignores a sort field that does not belong to the selected table |
-| [`Home shows all research hierarchy totals and manages trashed runs through a modal`](../frontend/tests/viewer.spec.ts#L793) | test | 793 | `test('Home shows all research hierarchy totals and manages trashed runs through a modal', callback)` | Home shows all research hierarchy totals and manages trashed runs through a modal |
-| [`article detail shows revision metadata`](../frontend/tests/viewer.spec.ts#L817) | test | 817 | `test('article detail shows revision metadata', callback)` | article detail shows revision metadata |
-| [`article detail shows the search term coverage panel`](../frontend/tests/viewer.spec.ts#L830) | test | 830 | `test('article detail shows the search term coverage panel', callback)` | article detail shows the search term coverage panel |
-| [`article detail shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.ts#L842) | test | 842 | `test('article detail shows no search terms recorded for a run without queries', callback)` | article detail shows no search terms recorded for a run without queries |
-| [`article detail opens the bound PDF without discarding research context`](../frontend/tests/viewer.spec.ts#L855) | test | 855 | `test('article detail opens the bound PDF without discarding research context', callback)` | article detail opens the bound PDF without discarding research context |
-| [`article detail shows an absent PDF without an open action`](../frontend/tests/viewer.spec.ts#L870) | test | 870 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
-| [`article detail preserves the originating corpus state`](../frontend/tests/viewer.spec.ts#L876) | test | 876 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
-| [`article detail shows authors and references`](../frontend/tests/viewer.spec.ts#L891) | test | 891 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
-| [`author detail shows author information`](../frontend/tests/viewer.spec.ts#L899) | test | 899 | `test('author detail shows author information', callback)` | author detail shows author information |
-| [`reference detail shows reference information`](../frontend/tests/viewer.spec.ts#L911) | test | 911 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
-| [`enters fullscreen from the toolbar with the drawer expanded by default`](../frontend/tests/viewer.spec.ts#L949) | test | 949 | `test('enters fullscreen from the toolbar with the drawer expanded by default', callback)` | enters fullscreen from the toolbar with the drawer expanded by default |
-| [`collapses and expands the review drawer through the edge control`](../frontend/tests/viewer.spec.ts#L964) | test | 964 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
-| [`selecting PDF text expands a collapsed drawer`](../frontend/tests/viewer.spec.ts#L979) | test | 979 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
-| [`exits fullscreen and restores the embedded article layout`](../frontend/tests/viewer.spec.ts#L993) | test | 993 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
-| [`inverts the rendered page through the Dark toggle and restores it`](../frontend/tests/viewer.spec.ts#L1019) | test | 1019 | `test('inverts the rendered page through the Dark toggle and restores it', callback)` | inverts the rendered page through the Dark toggle and restores it |
-| [`keeps the inverted theme while entering and leaving fullscreen`](../frontend/tests/viewer.spec.ts#L1039) | test | 1039 | `test('keeps the inverted theme while entering and leaving fullscreen', callback)` | keeps the inverted theme while entering and leaving fullscreen |
-| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L1060) | test | 1060 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
-| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L1068) | test | 1068 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
-| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L1075) | test | 1075 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
-| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L1082) | test | 1082 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
-| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L1089) | test | 1089 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
-| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L1096) | test | 1096 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
-| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L1103) | test | 1103 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
-| [`legacy view query parameters are rejected and the root renders Home`](../frontend/tests/viewer.spec.ts#L1108) | test | 1108 | `test('legacy view query parameters are rejected and the root renders Home', callback)` | legacy view query parameters are rejected and the root renders Home |
-| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L1122) | test | 1122 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
-| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L1131) | test | 1131 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
-| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L1137) | test | 1137 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
-| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L1147) | test | 1147 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
-| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L1158) | test | 1158 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
-| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L1168) | test | 1168 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
-| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L1174) | test | 1174 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
-| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L1180) | test | 1180 | `test('navigation is a landmark', callback)` | navigation is a landmark |
-| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1186) | test | 1186 | `test('images have alt text', callback)` | images have alt text |
-| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1200) | test | 1200 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
-| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1207) | test | 1207 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
-| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1218) | test | 1218 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
-| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1226) | test | 1226 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
-| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1237) | test | 1237 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
-| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1246) | test | 1246 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
-| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1256) | test | 1256 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
-| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1270) | test | 1270 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
-| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1284) | test | 1284 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
-| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1305) | test | 1305 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
+| [`health endpoint returns readable status`](../frontend/tests/viewer.spec.ts#L122) | test | 122 | `test('health endpoint returns readable status', callback)` | health endpoint returns readable status |
+| [`page loads and renders navigation`](../frontend/tests/viewer.spec.ts#L131) | test | 131 | `test('page loads and renders navigation', callback)` | page loads and renders navigation |
+| [`primary navigation links are present`](../frontend/tests/viewer.spec.ts#L144) | test | 144 | `test('primary navigation links are present', callback)` | primary navigation links are present |
+| [`primary navigation preserves the selected research context`](../frontend/tests/viewer.spec.ts#L154) | test | 154 | `test('primary navigation preserves the selected research context', callback)` | primary navigation preserves the selected research context |
+| [`primary navigation loads view pages and browser history returns to the prior document`](../frontend/tests/viewer.spec.ts#L168) | test | 168 | `test('primary navigation loads view pages and browser history returns to the prior document', callback)` | primary navigation loads view pages and browser history returns to the prior document |
+| [`cancelable draft protection blocks a native view-page transition`](../frontend/tests/viewer.spec.ts#L187) | test | 187 | `test('cancelable draft protection blocks a native view-page transition', callback)` | cancelable draft protection blocks a native view-page transition |
+| [`a view page URL loads its identified document directly`](../frontend/tests/viewer.spec.ts#L203) | test | 203 | `test('a view page URL loads its identified document directly', callback)` | a view page URL loads its identified document directly |
+| [`research context is displayed after selecting a run`](../frontend/tests/viewer.spec.ts#L211) | test | 211 | `test('research context is displayed after selecting a run', callback)` | research context is displayed after selecting a run |
+| [`a selected run owns the complete displayed ancestry across crossed URLs and reload`](../frontend/tests/viewer.spec.ts#L230) | test | 230 | `test('a selected run owns the complete displayed ancestry across crossed URLs and reload', callback)` | a selected run owns the complete displayed ancestry across crossed URLs and reload |
+| [`run-only, stale descendant, trashed, and history states remain deterministic and visibly focused`](../frontend/tests/viewer.spec.ts#L250) | test | 250 | `test('run-only, stale descendant, trashed, and history states remain deterministic and visibly focused', callback)` | run-only, stale descendant, trashed, and history states remain deterministic and visibly focused |
+| [`displays run metrics for a completed run`](../frontend/tests/viewer.spec.ts#L287) | test | 287 | `test('displays run metrics for a completed run', callback)` | displays run metrics for a completed run |
+| [`displays retention funnel for completed run`](../frontend/tests/viewer.spec.ts#L294) | test | 294 | `test('displays retention funnel for completed run', callback)` | displays retention funnel for completed run |
+| [`uses one initial raw-result baseline across source and pipeline retention stages`](../frontend/tests/viewer.spec.ts#L301) | test | 301 | `test('uses one initial raw-result baseline across source and pipeline retention stages', callback)` | uses one initial raw-result baseline across source and pipeline retention stages |
+| [`displays informational source export-count comparisons`](../frontend/tests/viewer.spec.ts#L346) | test | 346 | `test('displays informational source export-count comparisons', callback)` | displays informational source export-count comparisons |
+| [`shows no enrichment badge for enrichment-disabled run`](../frontend/tests/viewer.spec.ts#L354) | test | 354 | `test('shows no enrichment badge for enrichment-disabled run', callback)` | shows no enrichment badge for enrichment-disabled run |
+| [`displays enrichment field and provider breakdowns`](../frontend/tests/viewer.spec.ts#L361) | test | 361 | `test('displays enrichment field and provider breakdowns', callback)` | displays enrichment field and provider breakdowns |
+| [`articles section loads and shows article rows`](../frontend/tests/viewer.spec.ts#L374) | test | 374 | `test('articles section loads and shows article rows', callback)` | articles section loads and shows article rows |
+| [`articles section supports search filtering`](../frontend/tests/viewer.spec.ts#L386) | test | 386 | `test('articles section supports search filtering', callback)` | articles section supports search filtering |
+| [`articles expansion shows matched search terms`](../frontend/tests/viewer.spec.ts#L394) | test | 394 | `test('articles expansion shows matched search terms', callback)` | articles expansion shows matched search terms |
+| [`articles expansion shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.ts#L406) | test | 406 | `test('articles expansion shows no search terms recorded for a run without queries', callback)` | articles expansion shows no search terms recorded for a run without queries |
+| [`authors section loads and shows author rows`](../frontend/tests/viewer.spec.ts#L415) | test | 415 | `test('authors section loads and shows author rows', callback)` | authors section loads and shows author rows |
+| [`references section loads and shows reference rows`](../frontend/tests/viewer.spec.ts#L422) | test | 422 | `test('references section loads and shows reference rows', callback)` | references section loads and shows reference rows |
+| [`sources section loads and shows source records`](../frontend/tests/viewer.spec.ts#L436) | test | 436 | `test('sources section loads and shows source records', callback)` | sources section loads and shows source records |
+| [`identity evidence links to author-scoped candidate details without expanding candidates inside the table`](../frontend/tests/viewer.spec.ts#L452) | test | 452 | `test('identity evidence links to author-scoped candidate details without expanding candidates inside the table', callback)` | identity evidence links to author-scoped candidate details without expanding candidates inside the table |
+| [`corpus supports pagination`](../frontend/tests/viewer.spec.ts#L466) | test | 466 | `test('corpus supports pagination', callback)` | corpus supports pagination |
+| [`corpus ignores a sort field that is unsupported by its selected section`](../frontend/tests/viewer.spec.ts#L485) | test | 485 | `test('corpus ignores a sort field that is unsupported by its selected section', callback)` | corpus ignores a sort field that is unsupported by its selected section |
+| [`graph loads and renders for a completed run`](../frontend/tests/viewer.spec.ts#L496) | test | 496 | `test('graph loads and renders for a completed run', callback)` | graph loads and renders for a completed run |
+| [`graph supports mode switching to citation`](../frontend/tests/viewer.spec.ts#L505) | test | 505 | `test('graph supports mode switching to citation', callback)` | graph supports mode switching to citation |
+| [`graph supports text search filter`](../frontend/tests/viewer.spec.ts#L512) | test | 512 | `test('graph supports text search filter', callback)` | graph supports text search filter |
+| [`graph filters are applied explicitly and remain visible in the URL`](../frontend/tests/viewer.spec.ts#L519) | test | 519 | `test('graph filters are applied explicitly and remain visible in the URL', callback)` | graph filters are applied explicitly and remain visible in the URL |
+| [`graph node search input is present and functional`](../frontend/tests/viewer.spec.ts#L527) | test | 527 | `test('graph node search input is present and functional', callback)` | graph node search input is present and functional |
+| [`graph export downloads a valid PNG`](../frontend/tests/viewer.spec.ts#L543) | test | 543 | `test('graph export downloads a valid PNG', callback)` | graph export downloads a valid PNG |
+| [`graph legend is anchored at the bottom left of the canvas`](../frontend/tests/viewer.spec.ts#L559) | test | 559 | `test('graph legend is anchored at the bottom left of the canvas', callback)` | graph legend is anchored at the bottom left of the canvas |
+| [`background click clears a selected graph node`](../frontend/tests/viewer.spec.ts#L572) | test | 572 | `test('background click clears a selected graph node', callback)` | background click clears a selected graph node |
+| [`clicking the selected graph node again clears it`](../frontend/tests/viewer.spec.ts#L581) | test | 581 | `test('clicking the selected graph node again clears it', callback)` | clicking the selected graph node again clears it |
+| [`secondary-button drag pans without changing graph selection`](../frontend/tests/viewer.spec.ts#L608) | test | 608 | `test('secondary-button drag pans without changing graph selection', callback)` | secondary-button drag pans without changing graph selection |
+| [`audit section loads and shows events`](../frontend/tests/viewer.spec.ts#L626) | test | 626 | `test('audit section loads and shows events', callback)` | audit section loads and shows events |
+| [`audit stream filters events by category on the server`](../frontend/tests/viewer.spec.ts#L638) | test | 638 | `test('audit stream filters events by category on the server', callback)` | audit stream filters events by category on the server |
+| [`audit stream exposes mirrored PDF events`](../frontend/tests/viewer.spec.ts#L658) | test | 658 | `test('audit stream exposes mirrored PDF events', callback)` | audit stream exposes mirrored PDF events |
+| [`artifacts section identifies configuration snapshots and offers downloads`](../frontend/tests/viewer.spec.ts#L666) | test | 666 | `test('artifacts section identifies configuration snapshots and offers downloads', callback)` | artifacts section identifies configuration snapshots and offers downloads |
+| [`cache uses section supports shared filtering and pagination controls`](../frontend/tests/viewer.spec.ts#L688) | test | 688 | `test('cache uses section supports shared filtering and pagination controls', callback)` | cache uses section supports shared filtering and pagination controls |
+| [`stages section loads`](../frontend/tests/viewer.spec.ts#L705) | test | 705 | `test('stages section loads', callback)` | stages section loads |
+| [`run details section loads`](../frontend/tests/viewer.spec.ts#L717) | test | 717 | `test('run details section loads', callback)` | run details section loads |
+| [`lists only normalized articles with manual inventory status`](../frontend/tests/viewer.spec.ts#L729) | test | 729 | `test('lists only normalized articles with manual inventory status', callback)` | lists only normalized articles with manual inventory status |
+| [`preserves research context in the Evaluation navigation link`](../frontend/tests/viewer.spec.ts#L746) | test | 746 | `test('preserves research context in the Evaluation navigation link', callback)` | preserves research context in the Evaluation navigation link |
+| [`lists available tables`](../frontend/tests/viewer.spec.ts#L762) | test | 762 | `test('lists available tables', callback)` | lists available tables |
+| [`displays rows from a selected table`](../frontend/tests/viewer.spec.ts#L769) | test | 769 | `test('displays rows from a selected table', callback)` | displays rows from a selected table |
+| [`table browser supports pagination`](../frontend/tests/viewer.spec.ts#L776) | test | 776 | `test('table browser supports pagination', callback)` | table browser supports pagination |
+| [`ignores a sort field that does not belong to the selected table`](../frontend/tests/viewer.spec.ts#L785) | test | 785 | `test('ignores a sort field that does not belong to the selected table', callback)` | ignores a sort field that does not belong to the selected table |
+| [`Home shows all research hierarchy totals and manages trashed runs through a modal`](../frontend/tests/viewer.spec.ts#L795) | test | 795 | `test('Home shows all research hierarchy totals and manages trashed runs through a modal', callback)` | Home shows all research hierarchy totals and manages trashed runs through a modal |
+| [`article detail shows revision metadata`](../frontend/tests/viewer.spec.ts#L818) | test | 818 | `test('article detail shows revision metadata', callback)` | article detail shows revision metadata |
+| [`article detail shows the search term coverage panel`](../frontend/tests/viewer.spec.ts#L831) | test | 831 | `test('article detail shows the search term coverage panel', callback)` | article detail shows the search term coverage panel |
+| [`article detail shows no search terms recorded for a run without queries`](../frontend/tests/viewer.spec.ts#L843) | test | 843 | `test('article detail shows no search terms recorded for a run without queries', callback)` | article detail shows no search terms recorded for a run without queries |
+| [`article detail opens the bound PDF without discarding research context`](../frontend/tests/viewer.spec.ts#L856) | test | 856 | `test('article detail opens the bound PDF without discarding research context', callback)` | article detail opens the bound PDF without discarding research context |
+| [`article detail shows an absent PDF without an open action`](../frontend/tests/viewer.spec.ts#L871) | test | 871 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
+| [`article detail preserves the originating corpus state`](../frontend/tests/viewer.spec.ts#L877) | test | 877 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
+| [`article detail shows authors and references`](../frontend/tests/viewer.spec.ts#L892) | test | 892 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
+| [`author detail shows author information`](../frontend/tests/viewer.spec.ts#L900) | test | 900 | `test('author detail shows author information', callback)` | author detail shows author information |
+| [`reference detail shows reference information`](../frontend/tests/viewer.spec.ts#L912) | test | 912 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
+| [`enters fullscreen from the toolbar with the drawer expanded by default`](../frontend/tests/viewer.spec.ts#L931) | test | 931 | `test('enters fullscreen from the toolbar with the drawer expanded by default', callback)` | enters fullscreen from the toolbar with the drawer expanded by default |
+| [`collapses and expands the review drawer through the edge control`](../frontend/tests/viewer.spec.ts#L946) | test | 946 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
+| [`selecting PDF text expands a collapsed drawer`](../frontend/tests/viewer.spec.ts#L961) | test | 961 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
+| [`exits fullscreen and restores the embedded article layout`](../frontend/tests/viewer.spec.ts#L975) | test | 975 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
+| [`inverts the rendered page through the Dark toggle and restores it`](../frontend/tests/viewer.spec.ts#L1001) | test | 1001 | `test('inverts the rendered page through the Dark toggle and restores it', callback)` | inverts the rendered page through the Dark toggle and restores it |
+| [`keeps the inverted theme while entering and leaving fullscreen`](../frontend/tests/viewer.spec.ts#L1021) | test | 1021 | `test('keeps the inverted theme while entering and leaving fullscreen', callback)` | keeps the inverted theme while entering and leaving fullscreen |
+| [`shows error for invalid API route`](../frontend/tests/viewer.spec.ts#L1042) | test | 1042 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
+| [`shows error for invalid per_page value`](../frontend/tests/viewer.spec.ts#L1050) | test | 1050 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
+| [`rejects SQL injection attempts in sort parameter`](../frontend/tests/viewer.spec.ts#L1057) | test | 1057 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
+| [`rejects invalid order parameter`](../frontend/tests/viewer.spec.ts#L1064) | test | 1064 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
+| [`rejects unknown query parameters`](../frontend/tests/viewer.spec.ts#L1071) | test | 1071 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
+| [`returns 404 for nonexistent table`](../frontend/tests/viewer.spec.ts#L1078) | test | 1078 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
+| [`handles article detail with nonexistent ID gracefully`](../frontend/tests/viewer.spec.ts#L1085) | test | 1085 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
+| [`legacy view query parameters are rejected and the root renders Home`](../frontend/tests/viewer.spec.ts#L1090) | test | 1090 | `test('legacy view query parameters are rejected and the root renders Home', callback)` | legacy view query parameters are rejected and the root renders Home |
+| [`renders on mobile viewport (375px)`](../frontend/tests/viewer.spec.ts#L1104) | test | 1104 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
+| [`renders on tablet viewport (768px)`](../frontend/tests/viewer.spec.ts#L1113) | test | 1113 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
+| [`renders on desktop viewport (1280px)`](../frontend/tests/viewer.spec.ts#L1119) | test | 1119 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
+| [`respects prefers-color-scheme: dark`](../frontend/tests/viewer.spec.ts#L1129) | test | 1129 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
+| [`respects prefers-color-scheme: light`](../frontend/tests/viewer.spec.ts#L1140) | test | 1140 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
+| [`page has a skip-to-content link`](../frontend/tests/viewer.spec.ts#L1150) | test | 1150 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
+| [`main content area has a landmark role or id`](../frontend/tests/viewer.spec.ts#L1156) | test | 1156 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
+| [`navigation is a landmark`](../frontend/tests/viewer.spec.ts#L1162) | test | 1162 | `test('navigation is a landmark', callback)` | navigation is a landmark |
+| [`images have alt text`](../frontend/tests/viewer.spec.ts#L1168) | test | 1168 | `test('images have alt text', callback)` | images have alt text |
+| [`selecting a search revision shows its plans`](../frontend/tests/viewer.spec.ts#L1182) | test | 1182 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
+| [`viewing a failed run shows failure indicators`](../frontend/tests/viewer.spec.ts#L1189) | test | 1189 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
+| [`uses an unlabeled, plain disclosure column`](../frontend/tests/viewer.spec.ts#L1200) | test | 1200 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
+| [`toggle arrow expands a row showing property grid`](../frontend/tests/viewer.spec.ts#L1208) | test | 1208 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
+| [`clicking anywhere on the row expands it`](../frontend/tests/viewer.spec.ts#L1219) | test | 1219 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
+| [`clicking toggle again collapses the row`](../frontend/tests/viewer.spec.ts#L1228) | test | 1228 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
+| [`toggle arrow and aria-expanded update on click`](../frontend/tests/viewer.spec.ts#L1238) | test | 1238 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
+| [`multiple rows can be expanded simultaneously`](../frontend/tests/viewer.spec.ts#L1252) | test | 1252 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
+| [`clicking close button hides the message`](../frontend/tests/viewer.spec.ts#L1266) | test | 1266 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
+| [`mobile nav toggle shows and hides navigation links`](../frontend/tests/viewer.spec.ts#L1287) | test | 1287 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
 
 <!-- END GENERATED PROJECT CATALOG -->

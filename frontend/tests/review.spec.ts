@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { selectFixtureText } from './helpers/pdf-selection.ts';
+
 test.describe.configure({ mode: 'serial' });
 
 /** The article review fixture state used by every mutation test. */
@@ -95,21 +97,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await expect(page.locator('[data-note-list]')).toContainText(`${browserName} results page`);
 
     const anchorLabel = `methods-${browserName}`;
-    await page.evaluate(() => {
-      const layer = document.querySelector('.rw-pdf-page .textLayer');
-      if (!layer) throw new Error('PDF text layer is unavailable');
-      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
-      if (!text) throw new Error('Selectable fixture methods text is unavailable');
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const selection = window.getSelection();
-      if (!selection) throw new Error('Document selection is unavailable');
-      selection.removeAllRanges();
-      selection.addRange(range);
-      const viewer = document.querySelector('.rw-pdf-viewer');
-      if (!viewer) throw new Error('PDF viewer is unavailable');
-      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    });
+    await selectFixtureText(page);
     await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
     await page.getByRole('button', { name: 'Review selection' }).click();
     await expect(page.getByRole('tab', { name: 'PDF anchors' })).toHaveAttribute('aria-selected', 'true');
@@ -234,21 +222,7 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.locator('[data-drawer-edge]').click();
     await expect(page.locator('[data-review-host]')).toBeHidden();
 
-    await page.evaluate(() => {
-      const layer = document.querySelector('.rw-pdf-page .textLayer');
-      if (!layer) throw new Error('PDF text layer is unavailable');
-      const text = Array.from(layer.querySelectorAll('span')).find((span) => span.textContent?.includes('Selectable fixture methods'));
-      if (!text) throw new Error('Selectable fixture methods text is unavailable');
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const selection = window.getSelection();
-      if (!selection) throw new Error('Document selection is unavailable');
-      selection.removeAllRanges();
-      selection.addRange(range);
-      const viewer = document.querySelector('.rw-pdf-viewer');
-      if (!viewer) throw new Error('PDF viewer is unavailable');
-      viewer.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    });
+    await selectFixtureText(page);
     await expect(page.getByRole('button', { name: 'Review selection' })).toBeVisible();
     await page.getByRole('button', { name: 'Review selection' }).click();
     await expect(page.locator('[data-review-host]')).toBeVisible();

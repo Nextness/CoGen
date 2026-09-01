@@ -6,12 +6,13 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { validateViewerFixture } from './fixture-contract.ts';
+import { inferFixturePDF } from './fixture-paths.ts';
 
 const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rootDir = path.resolve(frontendDir, '..');
 const binary = process.env.ANALYSIS_BINARY || path.join(rootDir, 'build', 'analysis');
 const fixtureDB = process.env.FIXTURE_DB || path.join(rootDir, 'src', 'server', 'testdata', 'workspace.fixture.db');
-const inferredFixturePDF = fixtureDB.endsWith('.metadata.db') ? fixtureDB.replace(/\.metadata\.db$/, '.pdf.db') : fixtureDB.replace(/\.db$/, '.pdf.db');
+const inferredFixturePDF = inferFixturePDF(fixtureDB);
 const fixturePDF = process.env.FIXTURE_PDF_DB || inferredFixturePDF;
 const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, 'frontend', 'dist');
 const runDir = path.join(rootDir, 'build', 'playwright', `run-${Date.now()}-${process.pid}`);
