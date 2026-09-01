@@ -1,6 +1,6 @@
 // Overview: retention funnel, metrics, coverage, breakdowns.
 import {
-  app, value, link, linkState, formatNumber, formatTime, formatDuration, metricEntries,
+  app, value, link, stateFor, formatNumber, formatTime, formatDuration, metricEntries,
   MetricCard, Table, selectedRun, PageHeader, EmptyState, Panel, RetentionFlow,
   Breakdown, SourceResultCountSummary, SourceSearchQueries, list, bindCopyButtons,
   humanLabel, StatusChip
@@ -233,7 +233,7 @@ export async function overviewView(): Promise<void> {
     ["Analysis-ready articles", relationship.analysis_ready_articles, link({
       view: "corpus",
       section: "articles",
-    }), linkState({
+    }), stateFor({
       view: "corpus",
       section: "articles",
     })],
@@ -241,7 +241,7 @@ export async function overviewView(): Promise<void> {
       view: "advanced",
       table: "work_revisions",
       page: 1,
-    }), linkState({
+    }), stateFor({
       view: "advanced",
       table: "work_revisions",
       page: 1,
@@ -249,21 +249,21 @@ export async function overviewView(): Promise<void> {
     ["Analysis-ready authorships", relationship.authorships, link({
       view: "corpus",
       section: "authors",
-    }), linkState({
+    }), stateFor({
       view: "corpus",
       section: "authors",
     })],
     ["Analysis-ready reference mentions", relationship.reference_mentions, link({
       view: "corpus",
       section: "references",
-    }), linkState({
+    }), stateFor({
       view: "corpus",
       section: "references",
     })],
     ["Internal citations", relationship.internal_citations, link({
       view: "relationships",
       mode: "citation",
-    }), linkState({
+    }), stateFor({
       view: "relationships",
       mode: "citation",
     })],

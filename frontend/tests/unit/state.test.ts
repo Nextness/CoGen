@@ -8,12 +8,12 @@ import { seedViewerState } from './seed.ts';
 import type { HierarchyRun } from '../../src/api/types.ts';
 import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
-  params, value, view, section, detailOrigin, viewPage, esc, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
+  params, value, view, section, detailOrigin, viewPage, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
   percent, formatTime, formatDate, formatDuration, formatBytes, humanLabel, parseObject, statusClass, StatusChip, metricEntries, selectedRun, showError,
   clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
-  FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary, Timeline,
-  DetailTable, Cell, bindCopyButtons, bindDismissibleMessages, bindLoadingButtons,
-  initViewerState, pathView, pathFor, stateFor, linkState,
+  FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary,
+  Cell, bindCopyButtons,
+  initViewerState, pathView, pathFor, stateFor,
 } from '../../src/state.tsx';
 import { h, renderToString } from "../../src/jsx/jsx-runtime.ts";
 
@@ -39,8 +39,6 @@ const flowStage = (label: string, raw: any, base: any, previous: any, stageKey: 
 const retentionFlow = (overview: any): string => renderToString(RetentionFlow({ overview: overview }));
 const breakdown = (title: string, source: any, valueLabel?: string, useTotal?: boolean): string => renderToString(Breakdown({ title: title, source: source, valueLabel: valueLabel, useTotal: useTotal }));
 const sourceResultCountSummary = (items: any[]): string => renderToString(SourceResultCountSummary({ items: items }));
-const timeline = (rows: any[]): string => renderToString(Timeline({ rows: rows }));
-const detailTable = (title: string, rows: any): string => renderToString(DetailTable({ title: title, rows: rows }));
 const cell = (item: any, column: string, tableName?: string): string => renderToString(Cell({ item: item, column: column, tableName: tableName }));
 
 describe('state.tsx — constants', function() {
@@ -182,31 +180,6 @@ describe('state.tsx — pathView / pathFor / initViewerState', function() {
     assert.equal(value('article_id'), '');
     assert.equal(value('note_id'), '');
     assert.equal(value('run_id'), '4');
-  });
-
-});
-
-describe('state.tsx — esc', function() {
-
-  it('escapes HTML special characters', function() {
-    const result = esc('<script>alert("xss")</script>');
-    // jsdom's innerHTML does not escape quotes in text content
-    assert.ok(result.includes('&lt;script&gt;'));
-    assert.ok(result.includes('&lt;/script&gt;'));
-  });
-
-  it('handles null and undefined', function() {
-    assert.equal(esc(null), '');
-    assert.equal(esc(undefined), '');
-  });
-
-  it('converts numbers to strings', function() {
-    assert.equal(esc(42), '42');
-    assert.equal(esc(0), '0');
-  });
-
-  it('escapes ampersands', function() {
-    assert.equal(esc('a & b'), 'a &amp; b');
   });
 
 });
@@ -623,21 +596,21 @@ describe('state.tsx — link', function() {
   it("keeps only canonical context and destination-owned route state", () => {
     seedViewerState({ view: 'corpus', search_id: '1', search_revision_id: '2', plan_id: '3', run_id: '4', section: 'articles', q: 'term', page: '2', note_id: '9', audit_q: 'stale' });
 
-    const provenance = linkState({ view: 'provenance', section: 'audit' });
+    const provenance = stateFor({ view: 'provenance', section: 'audit' });
     assert.equal(provenance.run_id, '4');
     assert.equal(provenance.section, 'audit');
     assert.equal(provenance.q, undefined);
     assert.equal(provenance.page, undefined);
     assert.equal(provenance.note_id, undefined);
 
-    const home = linkState({ view: 'home' });
+    const home = stateFor({ view: 'home' });
     assert.deepEqual(Object.keys(home), ['view']);
   });
 
   it("returns detail context changes to the corresponding collection without record focus", () => {
     seedViewerState({ view: 'article', search_id: '1', search_revision_id: '2', plan_id: '3', run_id: '4', article_id: '8', note_id: '9', anchor_id: 'a1', pdf_page: '2' });
     const updates = contextChange({ run_id: '5' });
-    const target = linkState(updates);
+    const target = stateFor(updates);
     assert.equal(target.view, 'corpus');
     assert.equal(target.section, 'articles');
     assert.equal(target.run_id, '5');
@@ -649,7 +622,7 @@ describe('state.tsx — link', function() {
 
   it("clears article-local note, anchor, and page focus when the article changes", () => {
     seedViewerState({ view: 'article', run_id: '4', article_id: '8', note_id: '9', anchor_id: 'a1', pdf_page: '2' });
-    const target = linkState({ view: 'article', article_id: '10' });
+    const target = stateFor({ view: 'article', article_id: '10' });
     assert.equal(target.article_id, '10');
     assert.equal(target.note_id, undefined);
     assert.equal(target.anchor_id, undefined);
@@ -982,117 +955,6 @@ describe('state.tsx — sourceResultCountSummary', function() {
 
 });
 
-describe('state.tsx — timeline', function() {
-
-  it('renders empty state for no rows', function() {
-    assert.equal(timeline([]), '<p class="ui faded text">No records.</p>');
-  });
-
-  it('renders timeline items', function() {
-    const events = [
-      { action: 'pipeline_started', entity_type: 'run', occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('ui feed'));
-    assert.ok(result.includes('pipeline_started'));
-    assert.ok(result.includes('pipeline-dot'));
-  });
-
-  it('renders enrichment detail', function() {
-    const events = [
-      { action: 'field_enriched', metadata_json: { field: 'title', provider: 'crossref' }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('field_enriched'));
-    assert.ok(result.includes('enrich-dot'));
-    assert.ok(result.includes('title'));
-    assert.ok(result.includes('crossref'));
-  });
-
-  it('renders validation detail', function() {
-    const events = [
-      { action: 'validation_discarded', metadata_json: { reasons: ['Invalid DOI', 'Missing title'] }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('validation_discarded'));
-    assert.ok(result.includes('validation-dot'));
-    assert.ok(result.includes('Invalid DOI'));
-  });
-
-  it('renders error detail', function() {
-    const events = [
-      { action: 'fetch_failed', metadata_json: { error: 'Connection timeout' }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('Error:'));
-    assert.ok(result.includes('Connection timeout'));
-  });
-
-  it('renders status detail', function() {
-    const events = [
-      { action: 'status_update', metadata_json: { status: 'running' }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('Status: running'));
-  });
-
-  it('renders identity detail', function() {
-    const events = [
-      { action: 'identity_resolved', metadata_json: { identity: '0000-0001-2345-6789' }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('0000-0001-2345-6789'));
-  });
-
-  it('renders search detail with revision', function() {
-    const events = [
-      { action: 'search_executed', metadata_json: { search_id: 's1', revision: 'r1' }, occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('Search: s1'));
-    assert.ok(result.includes('revision r1'));
-  });
-
-  it('includes actor when present', function() {
-    const events = [
-      { action: 'test', actor: 'system', occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('system'));
-    assert.ok(result.includes('class="user"'));
-  });
-
-  it('includes entity when present', function() {
-    const events = [
-      { action: 'test', entity_type: 'work', entity_id: 'w1', occurred_at: '2024-01-15T10:00:00Z' },
-    ];
-    const result = timeline(events);
-    assert.ok(result.includes('work'));
-    assert.ok(result.includes('w1'));
-    assert.ok(result.includes('class="extra"'));
-  });
-
-});
-
-describe('state.tsx — detailTable', function() {
-
-  it('renders a table from an array of records', function() {
-    const rows = [{ name: 'Alice', age: 30 }, { name: 'Bob', age: 25 }];
-    const result = detailTable('People', { items: rows });
-    assert.ok(result.includes('People'));
-    assert.ok(result.includes('Alice'));
-    assert.ok(result.includes('Bob'));
-    assert.ok(result.includes('name'));
-    assert.ok(result.includes('age'));
-  });
-
-  it('handles empty rows', function() {
-    const result = detailTable('Empty', { items: [] });
-    assert.ok(result.includes('No records.'));
-  });
-
-});
-
 describe('state.tsx — cell', function() {
 
   it('renders NULL for null/undefined', function() {
@@ -1203,53 +1065,6 @@ describe('state.tsx — bindCopyButtons', function() {
 
     globalThis.prompt = originalPrompt;
     Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, configurable: true });
-    btn.remove();
-  });
-
-});
-
-describe('state.tsx — bindDismissibleMessages', function() {
-
-  beforeEach(function() {
-    document.querySelectorAll('.ui.message').forEach(function(el) { el.remove(); });
-  });
-
-  it('fades out and hides message on close click', async function() {
-    var msg = document.createElement('div');
-    msg.className = 'ui message';
-    msg.innerHTML = '<button class="close">&times;</button><span>Content</span>';
-    document.body.appendChild(msg);
-
-    bindDismissibleMessages();
-    var close = msg.querySelector('.close') as HTMLButtonElement;
-    close.click();
-
-    assert.equal(msg.style.opacity, '0');
-    // hidden is set after 150ms timeout
-    await new Promise(function(resolve) { setTimeout(resolve, 160); });
-    assert.equal(msg.hidden, true);
-    msg.remove();
-  });
-
-});
-
-describe('state.tsx — bindLoadingButtons', function() {
-
-  beforeEach(function() {
-    document.querySelectorAll('[data-loading]').forEach(function(el) { el.remove(); });
-  });
-
-  it('adds loading class and disables button on click', function() {
-    var btn = document.createElement('button');
-    btn.setAttribute('data-loading', '');
-    btn.textContent = 'Submit';
-    document.body.appendChild(btn);
-
-    bindLoadingButtons();
-    btn.click();
-
-    assert.ok(btn.classList.contains('loading'));
-    assert.equal(btn.disabled, true);
     btn.remove();
   });
 

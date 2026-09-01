@@ -1,7 +1,7 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
-import { link, linkState } from "../state.tsx";
+import { link, stateFor } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -38,7 +38,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
         pdf_page: "",
       };
       const href = link(updates);
-      const state = linkState(updates);
+      const state = stateFor(updates);
       const title = source.version?.title || `Note ${source.id}`;
       return <li><a href={href} data-state={JSON.stringify(state)}>{title}</a></li>;
     });
@@ -99,7 +99,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
             pdf_page: "",
           };
           const href = link(updates);
-          const state = linkState(updates);
+          const state = stateFor(updates);
           return <li><a href={href} data-state={JSON.stringify(state)}>{source.version?.title || `Note ${source.id}`}</a></li>;
         });
         prior = <ul>{retained}</ul>;

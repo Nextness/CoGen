@@ -1,7 +1,7 @@
 // Shared state, DOM references, and utility functions.
 // This module is imported by every other module. It avoids circular dependencies
 // by importing only the leaf JSX runtime.
-import { h, Fragment, render as renderTree, cx, classAdd } from "./jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "./jsx/jsx-runtime.ts";
 import type { ClassName } from "./jsx/classes.ts";
 import type {
   HierarchyPlan,
@@ -23,7 +23,6 @@ const classNames = {
   uiBasicSegment: cx("ui", "basic", "segment"),
   uiButton: cx("ui", "button"),
   uiFadedText: cx("ui", "faded", "text"),
-  uiFeed: cx("ui", "feed"),
   uiLabel: cx("ui", "label"),
   uiNegativeText: cx("ui", "negative", "text"),
   uiProgress: cx("ui", "progress"),
@@ -287,14 +286,12 @@ export function link(updates?: Record<string, unknown>): string {
   return pathFor(stateFor(updates));
 }
 
-/** Returns the filtered destination state object for anchor state carrying. */
-export function linkState(updates?: Record<string, unknown>): Record<string, string> {
-  return stateFor(updates);
-}
-
 /** Adopts persisted state at boot, corrects the view from the pathname, and attaches it to the initial entry. */
 export function initViewerState(): void {
   const adopted = isStateObject(history.state) ? history.state : loadState() || {};
+  // Do not delete: stateFor() copies the module-level viewerState, so this
+  // assignment is the only path by which the adopted state reaches stateFor().
+  // Removing it drops all adopted context (the three initViewerState tests fail).
   viewerState = adopted;
   viewerState = stateFor({ view: pathView() });
   saveState();
@@ -338,13 +335,6 @@ export function detailOrigin(): DetailOrigin | null {
     params: origin,
     state: state,
   };
-}
-
-/** Escapes a value for safe HTML text insertion. */
-export function esc(raw: unknown): string {
-  const element = document.createElement("span");
-  element.textContent = raw == null ? "" : String(raw);
-  return element.innerHTML;
 }
 
 /** Formats a value for JSON-oriented display. */
@@ -719,7 +709,7 @@ export function Subnav(props: { items: Array<[string, string]>; current: string;
   const links = props.items.map(([id, label]) => {
     const updates = { [props.key]: id };
     const href = link(updates);
-    const state = linkState(updates);
+    const state = stateFor(updates);
     const active = id === props.current;
     var ariaCurrent: string | undefined;
     if (id === props.current) ariaCurrent = "page";
@@ -757,7 +747,7 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
       }
       const updates = { ...(options.removeUpdates || { page: 1 }), [key]: remaining };
       const href = link(updates);
-      const state = linkState(updates);
+      const state = stateFor(updates);
       return (
         <a className="rw-filter-chip" href={href} title="Remove filter" data-state={JSON.stringify(state)}>
           <span>{props.labels?.[key] || humanLabel(key)}:</span>
@@ -772,7 +762,7 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
   var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
     const clearHref = link(options.clearUpdates);
-    const clearState = linkState(options.clearUpdates);
+    const clearState = stateFor(options.clearUpdates);
     clear = <a className="rw-filter-clear" href={clearHref} data-state={JSON.stringify(clearState)}>Clear all</a>;
   }
   return (
@@ -842,7 +832,6 @@ export interface FlowStageOptions {
 /** Renders one retention-flow stage with counts, percentages, and optional links. */
 export function FlowStage(props: { label: string; raw: unknown; base: unknown; previous: unknown; modifier?: ClassName; stageKey: string; options: FlowStageOptions }): JSX.Element {
   const options = props.options || {};
-  const stageClass = cx("ui", "step", "rw-flow__step", props.modifier);
   var info: JSX.Element | null = null;
   if (options.description) {
     info = (
@@ -1120,10 +1109,10 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   const stageHref = (stage: string): { href: string; state: Record<string, string> } => {
     if (stage === "input") {
       const updates = { view: "corpus", section: "sources", q: "", page: 1 };
-      return { href: link(updates), state: linkState(updates) };
+      return { href: link(updates), state: stateFor(updates) };
     }
     const updates = { view: "provenance", section: "stages", stage_q: stage, stage_page: 1 };
-    return { href: link(updates), state: linkState(updates) };
+    return { href: link(updates), state: stateFor(updates) };
   };
   const stageOptions = (description: string, target: { href: string; state: Record<string, string> }): FlowStageOptions => {
     return {
@@ -1356,86 +1345,6 @@ export function SourceSearchQueries(props: { items: SourceResultCount[] | null; 
     body={body} classes={props.classes} />;
 }
 
-/** Renders chronological audit feed markup for generic event rows. */
-export function Timeline(props: { rows: WireRecord[] }): JSX.Element {
-  if (!props.rows.length) {
-    return <p className={classNames.uiFadedText}>No records.</p>;
-  }
-
-  const items = props.rows.map((event) => {
-    const action = text(event, ["action", "event_type", "type"]);
-    const entityType = text(event, ["entity_type", "entity", "source"]);
-    const actor = event.actor;
-    const entityId = event.entity_id;
-    const meta = parseObject(event.metadata_json);
-
-    var detail: JSX.Element | null = null;
-    if (Object.keys(meta).length) {
-      if (meta.field && meta.provider) {
-        detail = <>Field <strong>{String(meta.field)}</strong> enriched by <strong>{String(meta.provider)}</strong></>;
-      } else if (meta.reasons) {
-        var reasonsText = String(meta.reasons);
-        if (Array.isArray(meta.reasons)) reasonsText = meta.reasons.join("; ");
-        detail = <>{reasonsText}</>;
-      } else if (meta.error) {
-        detail = <>Error: {String(meta.error)}</>;
-      } else if (meta.status) {
-        detail = <>Status: {String(meta.status)}</>;
-      } else if (meta.identity) {
-        detail = <>{String(meta.identity)}</>;
-      } else if (meta.reason) {
-        detail = <>{String(meta.reason)}</>;
-      } else if (meta.search_id) {
-        detail = <>Search: {String(meta.search_id)}{meta.revision ? <> / revision {String(meta.revision)}</> : null}</>;
-      }
-    }
-
-    var dotClass: ClassName = "default-dot";
-    if (action.startsWith("pipeline_")) {
-      dotClass = "pipeline-dot";
-    } else if (action === "field_enriched") {
-      dotClass = "enrich-dot";
-    } else if (action.startsWith("validation_")) {
-      dotClass = "validation-dot";
-    }
-
-    const timestamp = formatTime(event.occurred_at || event.created_at || event.at || event.timestamp);
-    const eventClass = cx("event", dotClass);
-
-    return (
-      <li className={eventClass}>
-        {actor ? <span className="user">{String(actor)}</span> : null}
-        {entityId ? <span className="extra">{entityType} #{String(entityId)}</span> : null}
-        <strong>{action}</strong>
-        <br />
-        {detail ? <span className="summary">{detail}</span> : null}
-        <br />
-        <time>{timestamp}</time>
-      </li>
-    );
-  });
-
-  return <ol className={classNames.uiFeed}>{items}</ol>;
-}
-
-/** Renders a table whose columns are derived from the supplied detail records. */
-export function DetailTable(props: { title: string; rows: unknown }): JSX.Element {
-  const records = list(props.rows, ["items", "rows"]);
-  const recordKeys = records.flatMap((record) => {
-    return Object.keys(record);
-  });
-  const columns = [...new Set(recordKeys)];
-  const colDefs = columns.map((key) => {
-    return {
-      label: key,
-      render: (row: WireRecord) => {
-        return <Cell item={row[key]} column={key} />;
-      },
-    };
-  });
-  return <Table title={props.title} description="" columns={colDefs} rows={records} />;
-}
-
 /** One cell rendering option set. */
 export interface CellOptions {
   expandLong?: boolean;
@@ -1458,17 +1367,17 @@ export function Cell(props: { item: unknown; column: string; tableName?: string;
   if (props.column === "article_id" || props.column === "work_revision_id" || (tableName === "work_revisions" && props.column === "id")) {
     const updates = { view: "article", article_id: props.item };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   }
   if (props.column === "author_id" || props.column === "author_occurrence_id" || (tableName === "author_occurrences" && props.column === "id")) {
     const updates = { view: "author", author_id: props.item };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   }
   if (props.column === "reference_id" || (tableName === "reference_mentions" && props.column === "id")) {
     const updates = { view: "reference", reference_id: props.item };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   }
 
   const shown = <span className="rw-cell" title={full}>{display}</span>;
@@ -1497,37 +1406,6 @@ export function bindCopyButtons(): void {
       } catch (_) {
         prompt("Copy query manually:", text);
       }
-    });
-  });
-}
-
-/**
- * Bind dismissible behavior for .ui.message elements with a .close child.
- * Clicking the close button fades out and removes the message.
- */
-export function bindDismissibleMessages(): void {
-  const closeButtons = document.querySelectorAll<HTMLElement>(".ui.message > .close");
-  closeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const message = button.closest<HTMLElement>(".ui.message");
-      if (message) {
-        message.style.opacity = "0";
-        setTimeout(() => { message.hidden = true; }, 150);
-      }
-    });
-  });
-}
-
-/**
- * Bind loading state for buttons with [data-loading].
- * On click, the button shows a spinner and disables itself.
- */
-export function bindLoadingButtons(): void {
-  const loadingButtons = document.querySelectorAll<HTMLButtonElement>("[data-loading]");
-  loadingButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      classAdd(button, ["loading"]);
-      button.disabled = true;
     });
   });
 }

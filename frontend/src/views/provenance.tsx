@@ -1,6 +1,6 @@
 // Read-only execution evidence: audit events, artifacts, cache uses, stages, and run details.
 import {
-  app, value, link, linkState, state, provenanceSections, section,
+  app, value, link, stateFor, state, provenanceSections, section,
   Cell, list, selectedRun, pickID, formatTime, formatBytes,
   formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips,
 } from "../state.tsx";
@@ -185,7 +185,7 @@ function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
     return [key, ""];
   }));
   const resetLink = link(resetUpdates);
-  const resetState = linkState(resetUpdates);
+  const resetState = stateFor(resetUpdates);
   return (
     <aside className={classNames.uiSegmentRwAuditFilters}>
       <div className={classNames.uiTopAttachedHeader}>
@@ -597,7 +597,7 @@ function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
       label: "Payload artifact",
       render: (row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: raw, artifact_page: 1 }))}>Artifact {String(raw)}</a>;
+          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: raw, artifact_page: 1 }))}>Artifact {String(raw)}</a>;
         }
         return <span className={classNames.uiFadedText}>None</span>;
       },
@@ -691,10 +691,10 @@ function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] }): JSX.
     const outcomeDisplay = outcomeText || outcomeFallback;
     const artifacts: JSX.Element[] = [];
     if (step?.input_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 }))}>Input artifact {step.input_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 }))}>Input artifact {step.input_artifact_id}</a>);
     }
     if (step?.output_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(linkState({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 }))}>Output artifact {step.output_artifact_id}</a>);
+      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 }))}>Output artifact {step.output_artifact_id}</a>);
     }
     var duration = "Not recorded";
     if (step?.duration_seconds != null) {

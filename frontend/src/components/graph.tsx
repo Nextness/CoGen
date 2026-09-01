@@ -1,7 +1,7 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
-import { currentDetailOrigin, graphFilters, humanLabel, link, linkState, list, value } from "../state.tsx";
+import { currentDetailOrigin, graphFilters, humanLabel, link, stateFor, list, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -121,7 +121,7 @@ export function graphLink(node: GraphNode): { href: string; state: Record<string
       article_id: node.revision_id,
       origin: currentDetailOrigin(),
     };
-    return { href: link(updates), state: linkState(updates) };
+    return { href: link(updates), state: stateFor(updates) };
   }
   if (node.type === "author") {
     const updates = {
@@ -129,7 +129,7 @@ export function graphLink(node: GraphNode): { href: string; state: Record<string
       author_id: node.author_id,
       origin: currentDetailOrigin(),
     };
-    return { href: link(updates), state: linkState(updates) };
+    return { href: link(updates), state: stateFor(updates) };
   }
   if (node.type === "reference") {
     const updates = {
@@ -137,7 +137,7 @@ export function graphLink(node: GraphNode): { href: string; state: Record<string
       reference_id: node.reference_id,
       origin: currentDetailOrigin(),
     };
-    return { href: link(updates), state: linkState(updates) };
+    return { href: link(updates), state: stateFor(updates) };
   }
   return { href: "", state: {} };
 }

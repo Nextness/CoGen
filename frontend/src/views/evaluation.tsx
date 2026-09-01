@@ -3,7 +3,7 @@ import {
   app,
   value,
   link,
-  linkState,
+  stateFor,
   pageSizes,
   PageHeader,
   EmptyState,
@@ -54,7 +54,7 @@ function titleLink(row: WireRecord): JSX.Element {
     origin: currentDetailOrigin(),
   };
   const recordHref = link(updates);
-  const recordState = linkState(updates);
+  const recordState = stateFor(updates);
   return (
     <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={record.title || "Not recorded"}>
       <span>{record.title || "Not recorded"}</span>
@@ -169,7 +169,7 @@ export async function evaluationView(): Promise<void> {
   var advancedSummary = "Any PDF, review, source, or progress state";
   if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
   const clearFilterHref = link(clearUpdates);
-  const clearFilterState = linkState(clearUpdates);
+  const clearFilterState = stateFor(clearUpdates);
   const controls = (
     <form className={classNames.uiFormRwFilterPanel} data-evaluation-filters>
       <div className="rw-evaluation-filters__primary">
@@ -310,7 +310,7 @@ export async function evaluationView(): Promise<void> {
   if (navigation.previous_work_revision_id) {
     const updates = { view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() };
     previousUnreviewed = (
-      <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>
+      <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>
         Previous unreviewed
       </a>
     );
@@ -318,7 +318,7 @@ export async function evaluationView(): Promise<void> {
   if (navigation.next_work_revision_id) {
     const updates = { view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() };
     nextUnreviewed = (
-      <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>
+      <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>
         Next unreviewed
       </a>
     );

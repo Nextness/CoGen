@@ -1,5 +1,5 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, linkState, list, parseObject, StatusChip, value } from "../state.tsx";
+import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, stateFor, list, parseObject, StatusChip, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, errorMessage } from "../api.tsx";
@@ -77,7 +77,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
       origin: currentDetailOrigin(),
     };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   } else if (id && type === "author_occurrence") {
     const updates = {
       view: "author",
@@ -85,7 +85,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
       origin: currentDetailOrigin(),
     };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   } else if (id && type === "reference_mention") {
     const updates = {
       view: "reference",
@@ -93,14 +93,14 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
       origin: currentDetailOrigin(),
     };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   } else if (type === "pipeline_run") {
     const updates = {
       view: "provenance",
       section: "run",
     };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   }
   var label = humanLabel(type);
   if (id) label += ` #${id}`;
@@ -215,7 +215,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; be
     const factRows = facts.map(([label, value]) => {
       var shown: JSX.Element = <>{String(value)}</>;
       if ((label === "Input artifact" || label === "Output artifact") && value) {
-        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(linkState({ section: "artifacts" }))}>Artifact {String(value)}</a>;
+        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(stateFor({ section: "artifacts" }))}>Artifact {String(value)}</a>;
       }
       return (
         <div>

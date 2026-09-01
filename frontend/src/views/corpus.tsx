@@ -1,6 +1,6 @@
 // Corpus: articles, authors, references, sources lists.
 import {
-  app, value, link, linkState, pageSizes, corpusSections, section, PageHeader,
+  app, value, link, stateFor, pageSizes, corpusSections, section, PageHeader,
   formatNumber, percent,
   humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, currentDetailOrigin,
 } from "../state.tsx";
@@ -223,7 +223,7 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
         origin: currentDetailOrigin(),
       };
       const authorHref = link(authorUpdates);
-      const authorState = linkState(authorUpdates);
+      const authorState = stateFor(authorUpdates);
       return (
         <tr>
           <td>
@@ -285,7 +285,7 @@ function clippedRecordLink(kind: string, idKey: string, id: unknown, title: unkn
   };
   updates[idKey] = id;
   const recordHref = link(updates);
-  const recordState = linkState(updates);
+  const recordState = stateFor(updates);
   return <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
 }
 

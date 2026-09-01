@@ -1,6 +1,6 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, linkState, list,
+  app, value, link, stateFor, list,
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
   PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
 } from "../state.tsx";
@@ -100,7 +100,7 @@ function detailLink(kind: string, id: unknown): LinkTarget {
     origin: currentDetailOrigin(),
   };
   updates[`${kind}_id`] = String(id ?? "");
-  return { href: link(updates), state: linkState(updates) };
+  return { href: link(updates), state: stateFor(updates) };
 }
 
 /** Returns the context-preserving corpus return target for a detail view. */
@@ -117,7 +117,7 @@ function backToCorpus(kind: string): LinkTarget {
     reference_id: "",
     table: "",
   };
-  return { href: link(updates), state: linkState(updates) };
+  return { href: link(updates), state: stateFor(updates) };
 }
 
 /** Renders a recorded value or its unavailable presentation. */
@@ -784,7 +784,7 @@ function IdentityCandidateList(props: { candidates: IdentityCandidate[] }): JSX.
         <Fragment>
           {links}
           <span aria-hidden="true">·</span>
-          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(linkState({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
+          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(stateFor({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
         </Fragment>
       );
     }
@@ -1197,11 +1197,11 @@ export async function detailView(kind: string): Promise<void> {
     var nextAction: JSX.Element | null = null;
     if (evaluationNavigation?.previous_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.previous_work_revision_id };
-      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Previous unreviewed</a>;
+      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Previous unreviewed</a>;
     }
     if (evaluationNavigation?.next_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.next_work_revision_id };
-      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Next unreviewed</a>;
+      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Next unreviewed</a>;
     }
     var navigationError: JSX.Element | null = null;
     if (evaluationNavigationError) navigationError = <span className={classNames.uiWarningMessage}>Queue navigation is unavailable: {evaluationNavigationError}</span>;
