@@ -2,7 +2,7 @@
 import {
   app, value, link, stateFor, list,
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
-  PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
+  PageHeader, EmptyState, Panel, StatusChip, Cell, detailOrigin, routeOwnedKeys, detailLinkFor,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -92,15 +92,7 @@ interface LinkTarget {
 
 /** Returns a context-preserving link to a related detail record. */
 function detailLink(kind: string, id: unknown): LinkTarget {
-  const updates: Record<string, unknown> = {
-    view: kind,
-    article_id: "",
-    author_id: "",
-    reference_id: "",
-    origin: currentDetailOrigin(),
-  };
-  updates[`${kind}_id`] = String(id ?? "");
-  return { href: link(updates), state: stateFor(updates) };
+  return detailLinkFor(kind as "article" | "author" | "reference", id);
 }
 
 /** Returns the context-preserving corpus return target for a detail view. */

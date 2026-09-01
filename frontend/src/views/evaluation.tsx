@@ -4,6 +4,7 @@ import {
   value,
   link,
   stateFor,
+  detailLinkFor,
   pageSizes,
   PageHeader,
   EmptyState,
@@ -12,7 +13,6 @@ import {
   formatNumber,
   formatDate,
   StatusChip,
-  currentDetailOrigin,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
@@ -48,15 +48,9 @@ const evaluationFilterKeys = ["q", "pdf_status", "review_status", "review_source
 /** Renders a queue-preserving article link for an evaluation row. */
 function titleLink(row: WireRecord): JSX.Element {
   const record = row as EvaluationRow;
-  const updates = {
-    view: "article",
-    article_id: record.work_revision_id,
-    origin: currentDetailOrigin(),
-  };
-  const recordHref = link(updates);
-  const recordState = stateFor(updates);
+  const target = detailLinkFor("article", record.work_revision_id);
   return (
-    <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={record.title || "Not recorded"}>
+    <a className="rw-table-title" href={target.href} data-state={JSON.stringify(target.state)} title={record.title || "Not recorded"}>
       <span>{record.title || "Not recorded"}</span>
     </a>
   );
@@ -308,17 +302,17 @@ export async function evaluationView(): Promise<void> {
   var previousUnreviewed: JSX.Element | null = null;
   var nextUnreviewed: JSX.Element | null = null;
   if (navigation.previous_work_revision_id) {
-    const updates = { view: "article", article_id: navigation.previous_work_revision_id, origin: currentDetailOrigin() };
+    const target = detailLinkFor("article", navigation.previous_work_revision_id);
     previousUnreviewed = (
-      <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>
+      <a className={classNames.uiBasicButton} href={target.href} data-state={JSON.stringify(target.state)}>
         Previous unreviewed
       </a>
     );
   }
   if (navigation.next_work_revision_id) {
-    const updates = { view: "article", article_id: navigation.next_work_revision_id, origin: currentDetailOrigin() };
+    const target = detailLinkFor("article", navigation.next_work_revision_id);
     nextUnreviewed = (
-      <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>
+      <a className={classNames.uiPrimaryButton} href={target.href} data-state={JSON.stringify(target.state)}>
         Next unreviewed
       </a>
     );

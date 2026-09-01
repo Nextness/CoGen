@@ -1,7 +1,7 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
 import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
-import { currentDetailOrigin, graphFilters, humanLabel, link, stateFor, list, value } from "../state.tsx";
+import { graphFilters, humanLabel, detailLinkFor, list, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -116,28 +116,13 @@ export function graphQuery(): Record<string, string> {
 /** Returns a context-preserving detail link target for a graph node when one exists. */
 export function graphLink(node: GraphNode): { href: string; state: Record<string, string> } {
   if (node.type === "article") {
-    const updates = {
-      view: "article",
-      article_id: node.revision_id,
-      origin: currentDetailOrigin(),
-    };
-    return { href: link(updates), state: stateFor(updates) };
+    return detailLinkFor("article", node.revision_id);
   }
   if (node.type === "author") {
-    const updates = {
-      view: "author",
-      author_id: node.author_id,
-      origin: currentDetailOrigin(),
-    };
-    return { href: link(updates), state: stateFor(updates) };
+    return detailLinkFor("author", node.author_id);
   }
   if (node.type === "reference") {
-    const updates = {
-      view: "reference",
-      reference_id: node.reference_id,
-      origin: currentDetailOrigin(),
-    };
-    return { href: link(updates), state: stateFor(updates) };
+    return detailLinkFor("reference", node.reference_id);
   }
   return { href: "", state: {} };
 }

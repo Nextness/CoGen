@@ -1020,7 +1020,7 @@ describe('state.tsx — bindCopyButtons', function() {
   it('copies text and shows Copied! feedback', async function() {
     var btn = document.createElement('button');
     btn.setAttribute('data-copy-text', 'hello');
-    btn.textContent = 'Copy';
+    btn.textContent = 'Copy query';
     document.body.appendChild(btn);
 
     // Mock clipboard
@@ -1037,6 +1037,10 @@ describe('state.tsx — bindCopyButtons', function() {
     await new Promise(function(resolve) { setTimeout(resolve, 10); });
     assert.equal(written, 'hello');
     assert.equal(btn.textContent, 'Copied!');
+
+    // Original label is restored after the feedback timeout
+    await new Promise(function(resolve) { setTimeout(resolve, 2010); });
+    assert.equal(btn.textContent, 'Copy query');
 
     Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, configurable: true });
     btn.remove();

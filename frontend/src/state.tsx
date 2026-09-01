@@ -243,6 +243,20 @@ export function section(name: string, fallback: string): string {
   return value(name) || fallback;
 }
 
+/** Deletes keys a view may not carry from a parameter collection. */
+function filterState(params: URLSearchParams, view: string, includeCanonical: boolean): URLSearchParams {
+  const allowed = new Set<string>(["view", ...(routeOwnedKeys[view] || [])]);
+  if (includeCanonical) {
+    canonicalContextKeys.forEach((key) => {
+      allowed.add(key);
+    });
+  }
+  Array.from(params.keys()).forEach((key) => {
+    if (!allowed.has(key)) params.delete(key);
+  });
+  return params;
+}
+
 /** Builds the filtered destination state from updates applied to the current viewerState. */
 export function stateFor(updates?: Record<string, unknown>): Record<string, string> {
   if (!updates) updates = {};
@@ -269,21 +283,22 @@ export function stateFor(updates?: Record<string, unknown>): Record<string, stri
     delete next.detail_stages_cursor;
     delete next.detail_audit_cursor;
   }
-  const allowed = new Set<string>(["view", ...(routeOwnedKeys[destination] || [])]);
-  if (destination !== "home" && destination !== "trash") {
-    canonicalContextKeys.forEach((key) => {
-      allowed.add(key);
-    });
-  }
-  for (const key of Object.keys(next)) {
-    if (!allowed.has(key)) delete next[key];
-  }
-  return next;
+  return Object.fromEntries(filterState(new URLSearchParams(next), destination, destination !== "home" && destination !== "trash"));
 }
 
 /** Builds an internal path-only URL from canonical context and destination-owned state only. */
 export function link(updates?: Record<string, unknown>): string {
   return pathFor(stateFor(updates));
+}
+
+/** Returns a context-preserving detail link target for one record kind. */
+export function detailLinkFor(kind: "article" | "author" | "reference", id: unknown): { href: string; state: Record<string, string> } {
+  const updates: Record<string, unknown> = {
+    view: kind,
+    [`${kind}_id`]: id,
+    origin: currentDetailOrigin(),
+  };
+  return { href: link(updates), state: stateFor(updates) };
 }
 
 /** Adopts persisted state at boot, corrects the view from the pathname, and attaches it to the initial entry. */
@@ -306,11 +321,7 @@ export function currentDetailOrigin(): string {
   }
   if (!detailOriginViews.has(currentView)) return "";
   const current = params();
-  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[currentView] || [])]);
-  Array.from(current.keys()).forEach((key) => {
-    if (!allowed.has(key)) current.delete(key);
-  });
-  return current.toString();
+  return filterState(current, currentView, true).toString();
 }
 
 /** Validates the stored detail origin against route ownership and visible canonical context. */
@@ -323,10 +334,7 @@ export function detailOrigin(): DetailOrigin | null {
   for (const key of canonicalContextKeys) {
     if ((origin.get(key) || "") !== value(key)) return null;
   }
-  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[originView] || [])]);
-  Array.from(origin.keys()).forEach((key) => {
-    if (!allowed.has(key)) origin.delete(key);
-  });
+  filterState(origin, originView, true);
   const state = Object.fromEntries(origin);
   return {
     view: originView,
@@ -496,14 +504,12 @@ export function statusClass(raw: unknown): ClassName {
   const success = new Set(["complete", "completed", "valid", "success", "successful", "hit", "cache_hit", "ready", "available", "approved", "resolved", "resolved_internally", "enriched", "normalized", "linked", "linked_global_person", "match", "matched"]);
   const info = new Set(["pending", "running", "recorded", "active", "visible", "inventoried", "observed_occurrence_only"]);
   const review = new Set(["inherited", "reviewed", "review"]);
-  const neutral = new Set(["no_orcid_candidate", "no_candidate", "no_match", "unknown", "not_recorded"]);
 
   if (danger.has(status)) return "red";
   if (warning.has(status)) return "orange";
   if (success.has(status)) return "green";
   if (info.has(status)) return "blue";
   if (review.has(status)) return "violet";
-  if (neutral.has(status)) return "grey";
   return "grey";
 }
 
@@ -1042,11 +1048,13 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   var denominatorLabel = "input records";
   if (hasFilterStages) denominatorLabel = "initial raw results";
   const sourceDefinitions = [
-    ["Initial raw results", "Unfiltered results reported by the configured sources."],
-    ["Publication range", "Results retained within the declared publication window."],
-    ["Document type", "Results retained after applying the declared document-type filter."],
-    ["Language", "Results retained after applying the declared language filter."]
-  ];
+    filterPresentations.NO_FILTER,
+    filterPresentations.RANGE_10_YEARS,
+    filterPresentations.ARTICLE_ONLY,
+    filterPresentations.ENGLISH_ONLY,
+  ].map((presentation) => {
+    return [presentation.label, presentation.description] as const;
+  });
   var previousFilterCount: number | null = null;
   const sourceSteps = sourceDefinitions.map(([label, description], index) => {
     const recordedStage = filterStages[index];
@@ -1070,24 +1078,55 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
     </RetentionPhase>
   ];
 
-  if (numericEvidence(input).value == null) {
+  /** One retention-flow stage with its recorded evidence and presentation options. */
+  type FlowStageData = {
+    label: string;
+    stageKey: string;
+    raw: unknown;
+    previous: number | null;
+    options: FlowStageOptions;
+  };
+
+  /** Renders one retention-flow stage list from parameterized stage data. */
+  const flowStages = (stages: FlowStageData[]): JSX.Element[] => {
+    return stages.map((stage) => {
+      return <FlowStage label={stage.label} raw={stage.raw} base={initialCount} previous={stage.previous} stageKey={stage.stageKey} options={stage.options} />;
+    });
+  };
+
+  /** Pushes the pipeline and corpus phases from parameterized stage data. */
+  const pushFlowPhases = (pipeline: { description: string; summary: string; stages: FlowStageData[] }, corpus: { summary: string; stages: FlowStageData[] }): void => {
     phases.push(
-      <RetentionPhase title="Pipeline processing" description="Records loaded, parsed, and deduplicated by the pipeline." summary="Pipeline counts not recorded" phase="pipeline">
-        <div className={classNames.uiStepsRwFlow}>
-          <FlowStage label="Input records" raw={input} base={initialCount} previous={null} stageKey="input_records" options={{ description: "Records read from exported source files." }} />
-          <FlowStage label="Parsed articles" raw={null} base={initialCount} previous={null} stageKey="parsed_articles" options={{ description: "Source records converted into article metadata." }} />
-          <FlowStage label="Deduplicated articles" raw={null} base={initialCount} previous={null} stageKey="deduplicated_articles" options={{ description: "Unique articles retained after source merging." }} />
-        </div>
+      <RetentionPhase title="Pipeline processing" description={pipeline.description} summary={pipeline.summary} phase="pipeline">
+        <div className={classNames.uiStepsRwFlow}>{flowStages(pipeline.stages)}</div>
       </RetentionPhase>
     );
     phases.push(
-      <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary="Corpus counts not recorded" phase="corpus">
-        <div className={classNames.uiStepsRwFlow}>
-          <FlowStage label="Candidate articles" raw={null} base={initialCount} previous={null} stageKey="enrichment_candidates" options={{ description: "Deduplicated articles considered for provider enrichment." }} />
-          <FlowStage label="Accepted + Discarded" raw={null} base={initialCount} previous={null} stageKey="validation_outcomes" options={{ description: "Validation divides candidate articles into accepted and discarded outcomes." }} />
-          <FlowStage label="Normalization" raw={null} base={initialCount} previous={null} stageKey="normalized_articles_processed" options={{ description: "Accepted articles processed into canonical forms." }} />
-        </div>
+      <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={corpus.summary} phase="corpus">
+        <div className={classNames.uiStepsRwFlow}>{flowStages(corpus.stages)}</div>
       </RetentionPhase>
+    );
+  };
+
+  if (numericEvidence(input).value == null) {
+    pushFlowPhases(
+      {
+        description: "Records loaded, parsed, and deduplicated by the pipeline.",
+        summary: "Pipeline counts not recorded",
+        stages: [
+          { label: "Input records", stageKey: "input_records", raw: input, previous: null, options: { description: "Records read from exported source files." } },
+          { label: "Parsed articles", stageKey: "parsed_articles", raw: null, previous: null, options: { description: "Source records converted into article metadata." } },
+          { label: "Deduplicated articles", stageKey: "deduplicated_articles", raw: null, previous: null, options: { description: "Unique articles retained after source merging." } },
+        ],
+      },
+      {
+        summary: "Corpus counts not recorded",
+        stages: [
+          { label: "Candidate articles", stageKey: "enrichment_candidates", raw: null, previous: null, options: { description: "Deduplicated articles considered for provider enrichment." } },
+          { label: "Accepted + Discarded", stageKey: "validation_outcomes", raw: null, previous: null, options: { description: "Validation divides candidate articles into accepted and discarded outcomes." } },
+          { label: "Normalization", stageKey: "normalized_articles_processed", raw: null, previous: null, options: { description: "Accepted articles processed into canonical forms." } },
+        ],
+      }
     );
     const retentionBody = <div className="rw-retention">{phases}</div>;
     return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes={["rw-grid-span-all", "rw-panel--no-separator"]} />;
@@ -1124,31 +1163,24 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
     };
   };
   const pipelineSteps = [
-    <FlowStage label="Input records" raw={input} base={initialCount} previous={pipelinePrevious} stageKey="input_records" options={stageOptions("Records read from the exported source files.", stageHref("input"))} />,
-    <FlowStage label="Parsed articles" raw={parsed} base={initialCount} previous={inputCount} stageKey="parsed_articles" options={stageOptions("Source records converted into article metadata.", stageHref("parse"))} />,
-    <FlowStage label="Deduplicated articles" raw={deduped} base={initialCount} previous={parsedCount} stageKey="deduplicated_articles" options={stageOptions("Unique articles retained after source merging.", stageHref("deduplicate"))} />,
+    { label: "Input records", stageKey: "input_records", raw: input, previous: pipelinePrevious, options: stageOptions("Records read from the exported source files.", stageHref("input")) },
+    { label: "Parsed articles", stageKey: "parsed_articles", raw: parsed, previous: inputCount, options: stageOptions("Source records converted into article metadata.", stageHref("parse")) },
+    { label: "Deduplicated articles", stageKey: "deduplicated_articles", raw: deduped, previous: parsedCount, options: stageOptions("Unique articles retained after source merging.", stageHref("deduplicate")) },
   ];
-  phases.push(
-    <RetentionPhase title="Pipeline processing" description="Records move from source loading through deduplication." summary={`${formatNumber(inputCount)} captured input records`} phase="pipeline">
-      <div className={classNames.uiStepsRwFlow}>{pipelineSteps}</div>
-    </RetentionPhase>
-  );
-
   const discardedCount = number(source.discarded_articles);
   var validationTotal: MetricEvidence | number = { available: false, state: "unavailable" };
   if (Number.isFinite(validCount) && Number.isFinite(discardedCount)) validationTotal = validCount + discardedCount;
   const corpusSteps = [
-    <FlowStage label="Candidate articles" raw={enrichmentCandidates} base={initialCount} previous={dedupedCount} stageKey="enrichment_candidates" options={stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich"))} />,
-    <FlowStage label="Accepted + Discarded" raw={validationTotal} base={initialCount} previous={enrichmentCount} stageKey="validation_outcomes" options={{
+    { label: "Candidate articles", stageKey: "enrichment_candidates", raw: enrichmentCandidates, previous: dedupedCount, options: stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich")) },
+    { label: "Accepted + Discarded", stageKey: "validation_outcomes", raw: validationTotal, previous: enrichmentCount, options: {
       ...stageOptions("Validation divides candidate articles into analysis-ready and discarded outcomes.", stageHref("validate")),
       outcomes: [{ label: "accepted", value: validCount }, { label: "discarded", value: discardedCount }]
-    }} />,
-    <FlowStage label="Normalization" raw={normalizedArticles} base={initialCount} previous={validCount} stageKey="normalized_articles_processed" options={stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize"))} />,
+    } },
+    { label: "Normalization", stageKey: "normalized_articles_processed", raw: normalizedArticles, previous: validCount, options: stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize")) },
   ];
-  phases.push(
-    <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={`${formatNumber(validCount)} accepted articles`} phase="corpus">
-      <div className={classNames.uiStepsRwFlow}>{corpusSteps}</div>
-    </RetentionPhase>
+  pushFlowPhases(
+    { description: "Records move from source loading through deduplication.", summary: `${formatNumber(inputCount)} captured input records`, stages: pipelineSteps },
+    { summary: `${formatNumber(validCount)} accepted articles`, stages: corpusSteps }
   );
 
   const retentionBody = <div className="rw-retention">{phases}</div>;
@@ -1365,19 +1397,19 @@ export function Cell(props: { item: unknown; column: string; tableName?: string;
   var href = "";
   var state: Record<string, string> | null = null;
   if (props.column === "article_id" || props.column === "work_revision_id" || (tableName === "work_revisions" && props.column === "id")) {
-    const updates = { view: "article", article_id: props.item };
-    href = link(updates);
-    state = stateFor(updates);
+    const target = detailLinkFor("article", props.item);
+    href = target.href;
+    state = target.state;
   }
   if (props.column === "author_id" || props.column === "author_occurrence_id" || (tableName === "author_occurrences" && props.column === "id")) {
-    const updates = { view: "author", author_id: props.item };
-    href = link(updates);
-    state = stateFor(updates);
+    const target = detailLinkFor("author", props.item);
+    href = target.href;
+    state = target.state;
   }
   if (props.column === "reference_id" || (tableName === "reference_mentions" && props.column === "id")) {
-    const updates = { view: "reference", reference_id: props.item };
-    href = link(updates);
-    state = stateFor(updates);
+    const target = detailLinkFor("reference", props.item);
+    href = target.href;
+    state = target.state;
   }
 
   const shown = <span className="rw-cell" title={full}>{display}</span>;
@@ -1399,10 +1431,11 @@ export function bindCopyButtons(): void {
   copyButtons.forEach((button) => {
     button.addEventListener("click", async () => {
       const text = button.getAttribute("data-copy-text") || "";
+      const originalLabel = button.textContent;
       try {
         await navigator.clipboard.writeText(text);
         button.textContent = "Copied!";
-        setTimeout(() => { button.textContent = "Copy"; }, 2000);
+        setTimeout(() => { button.textContent = originalLabel; }, 2000);
       } catch (_) {
         prompt("Copy query manually:", text);
       }

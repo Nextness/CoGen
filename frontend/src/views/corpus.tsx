@@ -1,8 +1,8 @@
 // Corpus: articles, authors, references, sources lists.
 import {
-  app, value, link, stateFor, pageSizes, corpusSections, section, PageHeader,
+  app, value, pageSizes, corpusSections, section, PageHeader,
   formatNumber, percent,
-  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, currentDetailOrigin,
+  humanLabel as humanLabelState, SourceResultCountSummary, FilterChips, StatusChip, detailLinkFor,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -217,13 +217,7 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
     body = rows.map((row: IdentityEvidenceRow) => {
       var errorHtml: JSX.Element | null = null;
       if (row.error_message) errorHtml = <p className={classNames.uiFadedText}>{row.error_message}</p>;
-      const authorUpdates = {
-        view: "author",
-        author_id: row.author_occurrence_id,
-        origin: currentDetailOrigin(),
-      };
-      const authorHref = link(authorUpdates);
-      const authorState = stateFor(authorUpdates);
+      const authorTarget = detailLinkFor("author", row.author_occurrence_id);
       return (
         <tr>
           <td>
@@ -231,7 +225,7 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
             {errorHtml}
           </td>
           <td>
-            <a href={authorHref} data-state={JSON.stringify(authorState)}>{row.queried_citation_name}</a>
+            <a href={authorTarget.href} data-state={JSON.stringify(authorTarget.state)}>{row.queried_citation_name}</a>
           </td>
           <td>{row.article_title || "Not recorded"}</td>
           <td>{row.doi || "Not recorded"}</td>
@@ -275,18 +269,9 @@ function clippedLabel(title: unknown): JSX.Element {
 }
 
 /** Renders a context-preserving record link with a clipped label. */
-function clippedRecordLink(kind: string, idKey: string, id: unknown, title: unknown): JSX.Element {
-  const updates: Record<string, unknown> = {
-    view: kind,
-    article_id: "",
-    author_id: "",
-    reference_id: "",
-    origin: currentDetailOrigin(),
-  };
-  updates[idKey] = id;
-  const recordHref = link(updates);
-  const recordState = stateFor(updates);
-  return <a className="rw-table-title" href={recordHref} data-state={JSON.stringify(recordState)} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
+function clippedRecordLink(kind: string, id: unknown, title: unknown): JSX.Element {
+  const target = detailLinkFor(kind as "article" | "author" | "reference", id);
+  return <a className="rw-table-title" href={target.href} data-state={JSON.stringify(target.state)} title={String(title || "Not recorded")}>{clippedLabel(title)}</a>;
 }
 
 /** Renders escaped record text clipped to the requested length. */
@@ -380,7 +365,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
       label: "Title",
       className: "col-title",
       render: (row: WireRecord) => {
-        return clippedRecordLink("article", "article_id", row.id, row.title);
+        return clippedRecordLink("article", row.id, row.title);
       },
     };
   }
@@ -393,7 +378,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
       label: "Referenced title",
       className: "col-reference-title",
       render: (row: WireRecord) => {
-        return clippedRecordLink("reference", "reference_id", row.id, row.title);
+        return clippedRecordLink("reference", row.id, row.title);
       },
     };
     config.author = {
@@ -408,7 +393,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
       className: "col-citing-title",
       render: (row: WireRecord) => {
         if (row.work_revision_id) {
-          return clippedRecordLink("article", "article_id", row.work_revision_id, row.citing_title);
+          return clippedRecordLink("article", row.work_revision_id, row.citing_title);
         }
         return clippedRecordText(row.citing_title);
       },
@@ -418,7 +403,7 @@ function corpusColumnConfig(current: string): NonNullable<DataTableContext["colu
     config.citation_name = {
       label: "Observed author",
       render: (row: WireRecord) => {
-        return clippedRecordLink("author", "author_id", row.id, row.citation_name);
+        return clippedRecordLink("author", row.id, row.citation_name);
       },
     };
   }
