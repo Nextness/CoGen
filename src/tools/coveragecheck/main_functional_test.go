@@ -51,3 +51,25 @@ func TestCheckReportsTrackedCoverageAndRejectsRegression(t *testing.T) {
 		t.Fatalf("coverage regression error = %v", err)
 	}
 }
+
+// TestReadPolicyRejectsNonStringExcludedPackage verifies malformed policy lists
+// return a descriptive error instead of panicking during conversion.
+func TestReadPolicyRejectsNonStringExcludedPackage(t *testing.T) {
+	policyPath := filepath.Join(t.TempDir(), "policy.something")
+	policy := `
+CoverageMode: enum = { atomic; }
+coverage_policy: scope = {
+    version := 1;
+    coverage_mode := CoverageMode.atomic;
+    exclude_packages := []integer{1};
+    package_minimums := mapping(string, integer){};
+    file_minimums := mapping(string, integer){};
+}
+`
+	if err := os.WriteFile(policyPath, []byte(policy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPolicy(policyPath); err == nil || !strings.Contains(err.Error(), "exclude_packages[0]") {
+		t.Fatalf("readPolicy() error = %v, want indexed exclude_packages error", err)
+	}
+}

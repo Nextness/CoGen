@@ -15,8 +15,12 @@ import (
 
 const (
 	// MaxProviderPayloadBytes bounds one provider response retained as inline evidence.
-	MaxProviderPayloadBytes = 10 << 20
-	maxProviderConcurrency  = 64
+	MaxProviderPayloadBytes   = 10 << 20
+	maxProviderRatePerSecond  = int(time.Second)
+	maxProviderConcurrency    = 64
+	maxProviderTimeoutSeconds = 300
+	maxProviderRetries        = 10
+	maxProviderBatchSize      = 1000
 )
 
 // Client fetches URLs concurrently with configurable rate limiting and
@@ -61,20 +65,20 @@ func ValidateSourceConfig(cfg SourceConfig) error {
 			return err
 		}
 	}
-	if cfg.RatePerSecond < 1 || cfg.RatePerSecond > int(time.Second) {
-		return fmt.Errorf("provider rate_per_second must be between 1 and %d", int(time.Second))
+	if cfg.RatePerSecond < 1 || cfg.RatePerSecond > maxProviderRatePerSecond {
+		return fmt.Errorf("provider rate_per_second must be between 1 and %d", maxProviderRatePerSecond)
 	}
 	if cfg.Concurrency < 1 || cfg.Concurrency > maxProviderConcurrency {
 		return fmt.Errorf("provider concurrency must be between 1 and %d", maxProviderConcurrency)
 	}
-	if cfg.TimeoutSecs < 1 {
-		return fmt.Errorf("provider timeout_seconds must be positive")
+	if cfg.TimeoutSecs < 1 || cfg.TimeoutSecs > maxProviderTimeoutSeconds {
+		return fmt.Errorf("provider timeout_seconds must be between 1 and %d", maxProviderTimeoutSeconds)
 	}
-	if cfg.MaxRetries < 1 {
-		return fmt.Errorf("provider max_retries must be positive")
+	if cfg.MaxRetries < 1 || cfg.MaxRetries > maxProviderRetries {
+		return fmt.Errorf("provider max_retries must be between 1 and %d", maxProviderRetries)
 	}
-	if cfg.BatchSize < 1 {
-		return fmt.Errorf("provider batch_size must be positive")
+	if cfg.BatchSize < 1 || cfg.BatchSize > maxProviderBatchSize {
+		return fmt.Errorf("provider batch_size must be between 1 and %d", maxProviderBatchSize)
 	}
 	return nil
 }

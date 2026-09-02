@@ -53,6 +53,9 @@ func TestLoadRejectsInvalidProviderRequestBounds(t *testing.T) {
 		{"relative endpoint", `base_url = "https://example.test/works/",`, `base_url = "/works/",`},
 		{"zero rate", `fields = []string { "title" },`, `fields = []string { "title" }, rate_per_second = 0,`},
 		{"unbounded concurrency", `fields = []string { "title" },`, `fields = []string { "title" }, concurrency = 65,`},
+		{"unbounded timeout", `fields = []string { "title" },`, `fields = []string { "title" }, timeout_seconds = 301,`},
+		{"unbounded retries", `fields = []string { "title" },`, `fields = []string { "title" }, max_retries = 11,`},
+		{"unbounded batch size", `fields = []string { "title" },`, `fields = []string { "title" }, batch_size = 1001,`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

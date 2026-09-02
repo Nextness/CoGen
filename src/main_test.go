@@ -586,8 +586,12 @@ func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if metric == nil || metric.Value != workspace.BoolMetric(enabled) {
-			t.Fatalf("enrichment metric = %+v, want %d", metric, workspace.BoolMetric(enabled))
+		expectedMetric := 0
+		if enabled {
+			expectedMetric = 1
+		}
+		if metric == nil || metric.Value != expectedMetric {
+			t.Fatalf("enrichment metric = %+v, want %d", metric, expectedMetric)
 		}
 		events, err := db.AuditEvents.ListByRun(runID)
 		if err != nil {
@@ -902,8 +906,8 @@ func TestFrontendAssets(t *testing.T) {
 // TestVersion verifies the version command output format and current value.
 func TestVersion(t *testing.T) {
 	got := version()
-	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(-development)?$`).MatchString(got) {
-		t.Fatalf("version() = %q, want MAJOR.MINOR.PATCH with optional -development suffix", got)
+	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(got) {
+		t.Fatalf("version() = %q, want MAJOR.MINOR.PATCH", got)
 	}
 	if !strings.HasPrefix(got, "1.0.0") {
 		t.Errorf("version() = %q, want current version 1.0.0", got)

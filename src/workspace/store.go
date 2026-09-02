@@ -302,38 +302,12 @@ type normalizedInventoryWork struct {
 	PipelineRunID int64
 }
 
+const normalizedInventoryBatchSize = 100
+
 // syncNormalizedPDFInventory reconciles the companion inventory from the
 // authoritative normalized revisions. It is safe to call after a new run or
 // when a completed execution plan is reused.
 func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error) {
-	rows, err := db.DB.QueryContext(ctx, `SELECT w.doi, w.id, MIN(wr.pipeline_run_id)
-		FROM works w
-		JOIN work_revisions wr ON wr.work_id=w.id
-		WHERE wr.producer_stage='normalize' AND w.doi IS NOT NULL AND trim(w.doi)<>''
-		GROUP BY w.id, w.doi ORDER BY w.id`)
-	if err != nil {
-		return 0, 0, fmt.Errorf("read normalized works: %w", err)
-	}
-	var works []normalizedInventoryWork
-	for rows.Next() {
-		var work normalizedInventoryWork
-		if err := rows.Scan(&work.DOI, &work.WorkID, &work.PipelineRunID); err != nil {
-			rows.Close()
-			return 0, 0, fmt.Errorf("scan normalized work: %w", err)
-		}
-		works = append(works, work)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return 0, 0, fmt.Errorf("read normalized works: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return 0, 0, fmt.Errorf("close normalized work rows: %w", err)
-	}
-	if len(works) == 0 {
-		return 0, 0, nil
-	}
-
 	storePath, err := pdfstore.BoundStorePath(ctx, db.DB, dbPath)
 	if err != nil {
 		return 0, 0, err
@@ -349,14 +323,25 @@ func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPa
 		return 0, flushed, err
 	}
 	registered := 0
-	for _, work := range works {
-		added, err := store.Register(ctx, work.DOI, work.WorkID, work.PipelineRunID)
+	lastWorkID := int64(0)
+	for {
+		works, err := normalizedInventoryBatch(ctx, db, lastWorkID)
 		if err != nil {
 			return registered, flushed, err
 		}
-		if added {
-			registered++
+		if len(works) == 0 {
+			break
 		}
+		for _, work := range works {
+			added, err := store.Register(ctx, work.DOI, work.WorkID, work.PipelineRunID)
+			if err != nil {
+				return registered, flushed, err
+			}
+			if added {
+				registered++
+			}
+		}
+		lastWorkID = works[len(works)-1].WorkID
 	}
 	newlyFlushed, err := store.FlushAuditOutbox(ctx, db.DB)
 	flushed += newlyFlushed
@@ -364,6 +349,36 @@ func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPa
 		return registered, flushed, err
 	}
 	return registered, flushed, nil
+}
+
+// normalizedInventoryBatch reads one bounded, deterministic inventory page and
+// closes the metadata cursor before callers touch the companion database.
+func normalizedInventoryBatch(ctx context.Context, db *database.Database, afterWorkID int64) ([]normalizedInventoryWork, error) {
+	rows, err := db.DB.QueryContext(ctx, `SELECT w.doi, w.id, MIN(wr.pipeline_run_id)
+		FROM works w
+		JOIN work_revisions wr ON wr.work_id=w.id
+		WHERE wr.producer_stage='normalize' AND w.doi IS NOT NULL AND trim(w.doi)<>'' AND w.id > ?
+		GROUP BY w.id, w.doi ORDER BY w.id LIMIT ?`, afterWorkID, normalizedInventoryBatchSize)
+	if err != nil {
+		return nil, fmt.Errorf("read normalized works: %w", err)
+	}
+	works := make([]normalizedInventoryWork, 0, normalizedInventoryBatchSize)
+	for rows.Next() {
+		var work normalizedInventoryWork
+		if err := rows.Scan(&work.DOI, &work.WorkID, &work.PipelineRunID); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan normalized work: %w", err)
+		}
+		works = append(works, work)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("read normalized works: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close normalized work rows: %w", err)
+	}
+	return works, nil
 }
 
 // articlesWithFailedIdentityEvidence selects articles whose identity provider search failed.
@@ -894,11 +909,11 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 	updated := 0
 	var changes []fieldChange
 
-	// Build a DOI lookup for authors so we can record per-article field changes.
-	authorDOI := make(map[*article.Author]string)
+	// Build per-author provenance so mutation and audit evidence share one source.
+	authorProvenance := make(map[*article.Author]authorProfileProvenance)
 	for _, a := range articles {
 		for i := range a.Authors {
-			authorDOI[&a.Authors[i]] = a.DOI
+			authorProvenance[&a.Authors[i]] = authorProfileProvenance{DOI: a.DOI, Index: i}
 		}
 	}
 
@@ -917,10 +932,10 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 			return 0, nil, nil, err
 		}
 		if profile != nil {
-			changed := applyAuthorProfile(authors, profile, "")
+			changed, observedChanges := applyAuthorProfile(authors, profile, "", authorProvenance)
 			if changed {
 				updated++
-				changes = append(changes, recordAuthorFieldChanges(authors, profile, authorDOI)...)
+				changes = append(changes, observedChanges...)
 			}
 		}
 	}
@@ -943,35 +958,6 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 		}
 	}
 	return updated, changes, evidence, nil
-}
-
-// recordAuthorFieldChanges returns fieldChange entries for each author field
-// that was filled by the given profile. It assumes applyAuthorProfile has
-// already been called and the author fields are now populated.
-func recordAuthorFieldChanges(authors []*article.Author, profile *enrich.EnrichedAuthor, authorDOI map[*article.Author]string) []fieldChange {
-	var changes []fieldChange
-	for authorIndex, author := range authors {
-		doi := authorDOI[author]
-		if doi == "" {
-			continue
-		}
-		if author.Orcid != "" && profile.ORCID != "" {
-			changes = append(changes, fieldChange{DOI: doi, Field: fmt.Sprintf("author_orcid_%d", authorIndex), Provider: "orcid"})
-		}
-		if author.FirstName != "" && profile.FirstName != "" {
-			changes = append(changes, fieldChange{DOI: doi, Field: fmt.Sprintf("author_first_name_%d", authorIndex), Provider: "orcid"})
-		}
-		if author.LastName != "" && profile.LastName != "" {
-			changes = append(changes, fieldChange{DOI: doi, Field: fmt.Sprintf("author_last_name_%d", authorIndex), Provider: "orcid"})
-		}
-		if author.CitationName != "" && profile.CitationName != "" {
-			changes = append(changes, fieldChange{DOI: doi, Field: fmt.Sprintf("author_citation_name_%d", authorIndex), Provider: "orcid"})
-		}
-		if author.Affiliation != "" && profile.Institution != "" {
-			changes = append(changes, fieldChange{DOI: doi, Field: fmt.Sprintf("author_affiliation_%d", authorIndex), Provider: "orcid"})
-		}
-	}
-	return changes
 }
 
 // resolveCachedORCIDProfile resolves cached orcid profile from the supplied context.
@@ -1086,32 +1072,51 @@ func normalizeCacheName(name string) string {
 	return strings.ToLower(strings.Join(strings.Fields(name), " "))
 }
 
-// applyAuthorProfile applies author profile to the supplied state.
-func applyAuthorProfile(authors []*article.Author, profile *enrich.EnrichedAuthor, matchedORCID string) bool {
+// authorProfileProvenance identifies the persisted article location of one author.
+type authorProfileProvenance struct {
+	DOI   string
+	Index int
+}
+
+// applyAuthorProfile fills missing author values and returns exactly the fields
+// it changed, using the supplied provenance for audit and metric evidence.
+func applyAuthorProfile(authors []*article.Author, profile *enrich.EnrichedAuthor, matchedORCID string, provenance map[*article.Author]authorProfileProvenance) (bool, []fieldChange) {
 	changed := false
+	changes := make([]fieldChange, 0)
+	record := func(author *article.Author, field string) {
+		location, ok := provenance[author]
+		if ok && location.DOI != "" {
+			changes = append(changes, fieldChange{DOI: location.DOI, Field: fmt.Sprintf("author_%s_%d", field, location.Index), Provider: "orcid"})
+		}
+	}
 	for _, author := range authors {
 		if author.Orcid == "" && matchedORCID != "" {
 			author.Orcid = matchedORCID
 			changed = true
+			record(author, "orcid")
 		}
 		if author.FirstName == "" && profile.FirstName != "" {
 			author.FirstName = profile.FirstName
 			changed = true
+			record(author, "first_name")
 		}
 		if author.LastName == "" && profile.LastName != "" {
 			author.LastName = profile.LastName
 			changed = true
+			record(author, "last_name")
 		}
 		if author.CitationName == "" && profile.CitationName != "" {
 			author.CitationName = profile.CitationName
 			changed = true
+			record(author, "citation_name")
 		}
 		if author.Affiliation == "" && profile.Institution != "" {
 			author.Affiliation = profile.Institution
 			changed = true
+			record(author, "affiliation")
 		}
 	}
-	return changed
+	return changed, changes
 }
 
 // fieldChange records one enriched field change for audit purposes.

@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"analysis/database"
-	"analysis/dev"
 	"analysis/logging"
 	"analysis/server"
 	"analysis/workspace"
@@ -27,14 +26,9 @@ const major int = 1
 const minor int = 0
 const patch int = 0
 
-// version returns the semantic version string, appending "-development" for
-// development builds so release and dev binaries are distinguishable.
+// version returns the semantic version string.
 func version() string {
-	v := fmt.Sprintf("%d.%d.%d", major, minor, patch)
-	if dev.Mode {
-		v += "-development"
-	}
-	return v
+	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
 }
 
 // usage writes the supported command syntax to standard error.
@@ -46,8 +40,7 @@ metadata database ("migrate"), or starts the local viewer ("serve").
 
 Commands:
 
-  version Print the semantic version (MAJOR.MINOR.PATCH, with a
-          "-development" suffix for development builds).
+  version Print the semantic version (MAJOR.MINOR.PATCH).
 
   run     Execute one or more declared workspace iterations. Reads
           article metadata from CSV and BibTeX sources, normalizes and

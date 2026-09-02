@@ -170,7 +170,11 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err
 	}
-	if err := db.Metrics.Set(runID, "enrichment_enabled", "", BoolMetric(run.Manifest.EnrichmentEnabled)); err != nil {
+	enrichmentEnabled := 0
+	if run.Manifest.EnrichmentEnabled {
+		enrichmentEnabled = 1
+	}
+	if err := db.Metrics.Set(runID, "enrichment_enabled", "", enrichmentEnabled); err != nil {
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err
 	}
@@ -322,14 +326,6 @@ func persistArtifact(db *database.Database, runID int64, data []byte, contentTyp
 func contentHash(data []byte) string {
 	digest := sha256.Sum256(data)
 	return fmt.Sprintf("%x", digest)
-}
-
-// BoolMetric converts a Boolean value to the metric convention of one or zero.
-func BoolMetric(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 // freshReason returns the persisted reason for starting a non-reused attempt.

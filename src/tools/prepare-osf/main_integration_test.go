@@ -19,7 +19,10 @@ import (
 
 // TestPrepareCopiesAndSanitizesWithoutMutatingSources verifies the atomic copy-only export boundary.
 func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
-	directory := t.TempDir()
+	directory := filepath.Join(t.TempDir(), "bundle with ? and #")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	metadataPath := filepath.Join(directory, "corpus.metadata.db")
 	pdfPath := filepath.Join(directory, "corpus.pdf.db")
 	registry := filepath.Join("..", "..", "..", "config", "database.something")
@@ -73,7 +76,7 @@ func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
 	if metadataBefore != metadataAfter || pdfBefore != pdfAfter {
 		t.Fatal("prepare changed a source database")
 	}
-	copy, err := sql.Open("sqlite", filepath.Join(out, filepath.Base(metadataPath)))
+	copy, err := sql.Open("sqlite", sqliteReadURI(filepath.Join(out, filepath.Base(metadataPath))))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,5 +169,25 @@ func TestConfigurationCopyRejectsSymlinkEscape(t *testing.T) {
 	}
 	if _, err := copyAndSanitizeConfiguration(mainPath, t.TempDir()); err == nil || !strings.Contains(err.Error(), "symbolic link") {
 		t.Fatalf("expected symlink escape rejection, got %v", err)
+	}
+}
+
+// TestSafeCompanionPathRejectsSymlinkEscape verifies a bundle-local link
+// cannot select a companion database outside the selected metadata directory.
+func TestSafeCompanionPathRejectsSymlinkEscape(t *testing.T) {
+	bundle := t.TempDir()
+	metadataPath := filepath.Join(bundle, "corpus.metadata.db")
+	if err := os.WriteFile(metadataPath, []byte("metadata"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.pdf.db")
+	if err := os.WriteFile(outside, []byte("pdf"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(bundle, "corpus.pdf.db")); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	if _, err := safeCompanionPath(metadataPath, "corpus.pdf.db"); err == nil || !strings.Contains(err.Error(), "escapes metadata bundle") {
+		t.Fatalf("safeCompanionPath() error = %v, want symlink escape rejection", err)
 	}
 }
