@@ -1,5 +1,5 @@
 // Entry point: imports modules, sets up event listeners, kicks off initial render.
-import { bindDismissibleMessages, bindLoadingButtons, contextChange, initViewerState, isStateObject, loadState, pathView, restoreState, stateFor, view, viewerState, viewPage } from "./state.tsx";
+import { contextChange, initViewerState, isStateObject, loadState, pathView, restoreState, stateFor, view, viewerState, viewPage } from "./state.tsx";
 import { navigationAllowed, render, setURL } from "./router.tsx";
 import { selects } from "./components/context-selector.tsx";
 import { initHealthCheck, initMobileNavToggle } from "./components/shell.tsx";

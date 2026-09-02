@@ -7,7 +7,7 @@ import {
   formatDuration,
   StatusChip,
   link,
-  linkState,
+  stateFor,
   params,
   PageHeader,
   Panel,
@@ -58,7 +58,7 @@ function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Iden
     plan_id: planID,
     run_id: runID,
   };
-  return { href: link(destination), state: linkState(destination) };
+  return { href: link(destination), state: stateFor(destination) };
 }
 
 /** Returns whether one hierarchy item contains a complete planned-run context. */

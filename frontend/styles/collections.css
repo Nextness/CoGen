@@ -867,53 +867,6 @@ tr.expansion-row[hidden] {
   font-size: var(--text-sm);
 }
 
-/* Table wrapper */
-.table-wrap {
-  overflow-x: auto;
-  overflow-y: visible;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-small);
-}
-
-/* Pagination */
-.pagination {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: end;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  color: var(--color-text-secondary);
-  font-size: var(--text-sm);
-}
-
-.pagination-actions {
-  display: flex;
-  gap: var(--space-1);
-}
-
-.pagination-actions button {
-  padding: 6px 12px;
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-small);
-  color: var(--color-text-primary);
-  background: var(--color-bg-surface);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
-  min-height: 0;
-}
-
-.pagination-actions button:hover:not(:disabled) {
-  border-color: var(--color-accent-default);
-  color: var(--color-accent-default);
-}
-
-.pagination-actions button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
 /* Expand toggle */
 .expand-toggle {
   display: inline-flex;
@@ -1247,11 +1200,6 @@ td.toggle-cell {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .pagination {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .pagination-actions {
     width: 100%;
   }
@@ -1265,7 +1213,7 @@ td.toggle-cell {
     display: none;
   }
 
-  .pagination-actions button {
+  .ui.pagination.menu .item {
     flex: 1 1 auto;
   }
 }

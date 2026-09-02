@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { auditCategory, AuditEventMarkup, AuditStream } from '../../../src/components/audit-events.tsx';
-import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
+import { renderToString } from '../helpers/jsx-render.ts';
 
 const auditEventMarkup = (event: any): string => renderToString(AuditEventMarkup({ event: event }));
 const auditStream = (events: any[]): string => renderToString(AuditStream({ events: events }));

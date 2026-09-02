@@ -1,7 +1,7 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
-import { link, linkState } from "../state.tsx";
+import { link, stateFor, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -20,6 +20,21 @@ export interface BacklinkOptions {
   heading?: string;
 }
 
+/** Renders one source-note backlink with its article destination. */
+function noteLinkMarkup(source: ReviewNote): JSX.Element {
+  const updates = {
+    view: "article",
+    article_id: source.work_revision_id,
+    note_id: source.id,
+    anchor_id: "",
+    pdf_page: "",
+  };
+  const href = link(updates);
+  const state = stateFor(updates);
+  const title = source.version?.title || `Note ${source.id}`;
+  return <li><a href={href} data-state={JSON.stringify(state)}>{title}</a></li>;
+}
+
 /** Loads and renders every requested backlink page without discarding prior rows. */
 export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions): Promise<void> {
   let cursor = "";
@@ -29,19 +44,7 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
 
   /** Renders loaded source-note summaries and an explicit continuation control. */
   function render(): void {
-    const items = loaded.map((source) => {
-      const updates = {
-        view: "article",
-        article_id: source.work_revision_id,
-        note_id: source.id,
-        anchor_id: "",
-        pdf_page: "",
-      };
-      const href = link(updates);
-      const state = linkState(updates);
-      const title = source.version?.title || `Note ${source.id}`;
-      return <li><a href={href} data-state={JSON.stringify(state)}>{title}</a></li>;
-    });
+    const items = loaded.map(noteLinkMarkup);
     var content: JSX.Element = <p className={classNames.uiFadedText}>No current note links point here.</p>;
     if (items.length) {
       var more: JSX.Element | null = null;
@@ -80,28 +83,14 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const known = new Set(loaded.map((source) => String(source.id)));
-      for (const source of data.items || data.backlinks || []) {
-        if (!known.has(String(source.id))) loaded.push(source);
-      }
+      appendUnique(loaded, data.items || data.backlinks || [], (source) => source.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       render();
     } catch (error) {
       var prior: JSX.Element | null = null;
       if (loaded.length) {
-        const retained = loaded.map((source) => {
-          const updates = {
-            view: "article",
-            article_id: source.work_revision_id,
-            note_id: source.id,
-            anchor_id: "",
-            pdf_page: "",
-          };
-          const href = link(updates);
-          const state = linkState(updates);
-          return <li><a href={href} data-state={JSON.stringify(state)}>{source.version?.title || `Note ${source.id}`}</a></li>;
-        });
+        const retained = loaded.map(noteLinkMarkup);
         prior = <ul>{retained}</ul>;
       }
       const errorMarkup = (

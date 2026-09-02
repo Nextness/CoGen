@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { GraphField, graphQuery, graphLink, GraphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.tsx';
-import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
+import { renderToString } from '../helpers/jsx-render.ts';
 import { state, value } from '../../../src/state.tsx';
 
 const graphField = (name: string, label: string, type?: JSX.RWInputType): string => renderToString(GraphField({ name: name, label: label, type: type }));

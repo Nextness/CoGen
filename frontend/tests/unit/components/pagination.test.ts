@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { paginationPages, Pagination } from '../../../src/components/pagination.tsx';
-import { renderToString } from '../../../src/jsx/jsx-runtime.ts';
+import { renderToString } from '../helpers/jsx-render.ts';
 
 const pagination = (result: any, options?: any): string => renderToString(Pagination({ result: result, options: options }));
 

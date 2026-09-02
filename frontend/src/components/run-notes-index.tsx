@@ -1,7 +1,7 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewNote, ReviewNotesResponse } from "../api/types.ts";
-import { currentDetailOrigin, link, linkState } from "../state.tsx";
+import { currentDetailOrigin, link, stateFor, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -32,7 +32,7 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
         origin: currentDetailOrigin(),
       };
       const href = link(updates);
-      const state = linkState(updates);
+      const state = stateFor(updates);
       const title = note.version?.title || `Note ${note.id}`;
       const excerpt = note.version?.excerpt || "No excerpt recorded.";
       return (
@@ -99,10 +99,7 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const known = new Set(notes.map((note) => String(note.id)));
-      for (const note of data.items || data.notes || []) {
-        if (!known.has(String(note.id))) notes.push(note);
-      }
+      appendUnique(notes, data.items || data.notes || [], (note) => note.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       render();

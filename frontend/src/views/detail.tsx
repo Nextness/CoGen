@@ -1,8 +1,8 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, linkState, list,
+  app, value, link, stateFor, list,
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
-  PageHeader, EmptyState, Panel, StatusChip, Cell, currentDetailOrigin, detailOrigin, routeOwnedKeys,
+  PageHeader, EmptyState, Panel, StatusChip, Cell, detailOrigin, routeOwnedKeys, detailLinkFor,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -92,15 +92,7 @@ interface LinkTarget {
 
 /** Returns a context-preserving link to a related detail record. */
 function detailLink(kind: string, id: unknown): LinkTarget {
-  const updates: Record<string, unknown> = {
-    view: kind,
-    article_id: "",
-    author_id: "",
-    reference_id: "",
-    origin: currentDetailOrigin(),
-  };
-  updates[`${kind}_id`] = String(id ?? "");
-  return { href: link(updates), state: linkState(updates) };
+  return detailLinkFor(kind as "article" | "author" | "reference", id);
 }
 
 /** Returns the context-preserving corpus return target for a detail view. */
@@ -117,7 +109,7 @@ function backToCorpus(kind: string): LinkTarget {
     reference_id: "",
     table: "",
   };
-  return { href: link(updates), state: linkState(updates) };
+  return { href: link(updates), state: stateFor(updates) };
 }
 
 /** Renders a recorded value or its unavailable presentation. */
@@ -139,7 +131,7 @@ interface DetailEntry {
 type RenderableDetailRecord = WireRecord & Partial<ArticleRecord & AuthorRecord & ReferenceRecord> & { id: number };
 
 /** Renders definition-list markup for labeled record properties. */
-function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[]): JSX.Element {
+function propertyGrid(entries: DetailEntry[], baseClass: ClassName, classes?: readonly ClassName[]): JSX.Element {
   const rowItems = entries.map((entry) => {
     const content = recorded(entry.value);
     return (
@@ -150,7 +142,7 @@ function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[]): J
     );
   });
 
-  const gridClass = cx("rw-property-grid", ...(classes || []));
+  const gridClass = cx(baseClass, ...(classes || []));
   return (
     <dl className={gridClass}>
       {rowItems}
@@ -160,21 +152,8 @@ function propertyGrid(entries: DetailEntry[], classes?: readonly ClassName[]): J
 
 /** Renders compact summary-fact markup for a detail record. */
 function summaryStrip(entries: DetailEntry[]): JSX.Element {
-  const rowItems = entries.map((entry) => {
-    const content = recorded(entry.value);
-    return (
-      <div>
-        <dt>{entry.label}</dt>
-        <dd>{content}</dd>
-      </div>
-    );
-  });
-
-  return (
-    <dl className="rw-record-summary">
-      {rowItems}
-    </dl>
-  );
+  const summaryClass: ClassName = "rw-record-summary";
+  return propertyGrid(entries, summaryClass);
 }
 
 /** Converts a stored mapping representation to a displayable object. */
@@ -283,7 +262,7 @@ function rawRecord(record: WireRecord, excluded: string[]): JSX.Element | null {
     };
   });
 
-  const grid = propertyGrid(gridEntries, ["rw-property-grid--compact"]);
+  const grid = propertyGrid(gridEntries, "rw-property-grid", ["rw-property-grid--compact"]);
   return (
     <details className="rw-disclosure">
       <summary>Advanced raw record data</summary>
@@ -655,7 +634,7 @@ function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse
       label: "Payload hash",
       value: props.record.payload_hash,
     },
-  ]);
+  ], "rw-property-grid");
 
   var abstract: JSX.Element = <p className={classNames.uiFadedText}>No abstract was recorded for this revision.</p>;
   if (props.record.abstract) {
@@ -681,7 +660,7 @@ function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse
       label: "Reference count",
       value: props.record.reference_count,
     },
-  ], ["rw-property-grid--compact"]);
+  ], "rw-property-grid", ["rw-property-grid--compact"]);
 
   const bibliographyBody = (
     <Fragment>
@@ -759,7 +738,7 @@ export function PDFStatusPanel(props: { record: ArticleRecord; pdf: PDFStatus })
       label: "Content hash",
       value: props.pdf.content_hash,
     },
-  ], ["rw-property-grid--compact"]);
+  ], "rw-property-grid", ["rw-property-grid--compact"]);
 
   const pdfStatusBody = (
     <div className="rw-pdf-status-strip">
@@ -784,7 +763,7 @@ function IdentityCandidateList(props: { candidates: IdentityCandidate[] }): JSX.
         <Fragment>
           {links}
           <span aria-hidden="true">·</span>
-          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(linkState({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
+          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(stateFor({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
         </Fragment>
       );
     }
@@ -954,7 +933,7 @@ function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })
       label: "Captured",
       value: formatTime(props.record.created_at),
     },
-  ]);
+  ], "rw-property-grid");
 
   const rawRecordMarkup = rawRecord(props.record, ["citation_name", "first_name", "last_name", "orcid", "person_id", "person_orcid"]);
 
@@ -982,6 +961,8 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
   const resolved = Boolean(props.record.resolved_revision_id);
   var resolutionLabel = "Unresolved";
   if (resolved) resolutionLabel = "Resolved internally";
+  const citingRevisionLink = detailLink("article", props.record.work_revision_id);
+  const resolvedRevisionLink = detailLink("article", props.record.resolved_revision_id);
 
   const summary = summaryStrip([
     {
@@ -1009,7 +990,7 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
     },
     {
       label: "Article revision",
-      value: <a href={detailLink("article", props.record.work_revision_id).href} data-state={JSON.stringify(detailLink("article", props.record.work_revision_id).state)}>{props.record.work_revision_id}</a>,
+      value: <a href={citingRevisionLink.href} data-state={JSON.stringify(citingRevisionLink.state)}>{props.record.work_revision_id}</a>,
     },
     {
       label: "Work",
@@ -1019,7 +1000,7 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
       label: "Run attempt",
       value: props.record.pipeline_run_id,
     },
-  ]);
+  ], "rw-property-grid");
 
   var resolvedBody: JSX.Element = <p className={classNames.uiFadedText}>This reference mention was not resolved to a work revision in the selected run.</p>;
   if (resolved) {
@@ -1030,13 +1011,13 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
       },
       {
         label: "Target revision",
-        value: <a href={detailLink("article", props.record.resolved_revision_id).href} data-state={JSON.stringify(detailLink("article", props.record.resolved_revision_id).state)}>{props.record.resolved_revision_id}</a>,
+        value: <a href={resolvedRevisionLink.href} data-state={JSON.stringify(resolvedRevisionLink.state)}>{props.record.resolved_revision_id}</a>,
       },
       {
         label: "Resolution",
         value: <StatusChip raw="Resolved internally" />,
       },
-    ]);
+    ], "rw-property-grid");
   }
 
   const citedGrid = propertyGrid([
@@ -1056,7 +1037,7 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
       label: "Captured",
       value: formatTime(props.record.created_at),
     },
-  ]);
+  ], "rw-property-grid");
 
   const rawRecordMarkup = rawRecord(props.record, ["title", "author", "doi", "year", "source", "mention_order", "citing_title", "resolved_title"]);
 
@@ -1197,11 +1178,11 @@ export async function detailView(kind: string): Promise<void> {
     var nextAction: JSX.Element | null = null;
     if (evaluationNavigation?.previous_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.previous_work_revision_id };
-      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Previous unreviewed</a>;
+      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Previous unreviewed</a>;
     }
     if (evaluationNavigation?.next_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.next_work_revision_id };
-      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(linkState(updates))}>Next unreviewed</a>;
+      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Next unreviewed</a>;
     }
     var navigationError: JSX.Element | null = null;
     if (evaluationNavigationError) navigationError = <span className={classNames.uiWarningMessage}>Queue navigation is unavailable: {evaluationNavigationError}</span>;

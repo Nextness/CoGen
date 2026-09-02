@@ -1,5 +1,5 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { currentDetailOrigin, formatDate, formatTime, humanLabel, link, linkState, list, parseObject, StatusChip, value } from "../state.tsx";
+import { formatDate, formatTime, humanLabel, link, stateFor, list, parseObject, StatusChip, value, detailLinkFor } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, errorMessage } from "../api.tsx";
@@ -71,36 +71,24 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
   var href = "";
   var state: Record<string, string> | null = null;
   if (id && type === "work_revision") {
-    const updates = {
-      view: "article",
-      article_id: id,
-      origin: currentDetailOrigin(),
-    };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("article", id);
+    href = target.href;
+    state = target.state;
   } else if (id && type === "author_occurrence") {
-    const updates = {
-      view: "author",
-      author_id: id,
-      origin: currentDetailOrigin(),
-    };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("author", id);
+    href = target.href;
+    state = target.state;
   } else if (id && type === "reference_mention") {
-    const updates = {
-      view: "reference",
-      reference_id: id,
-      origin: currentDetailOrigin(),
-    };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("reference", id);
+    href = target.href;
+    state = target.state;
   } else if (type === "pipeline_run") {
     const updates = {
       view: "provenance",
       section: "run",
     };
     href = link(updates);
-    state = linkState(updates);
+    state = stateFor(updates);
   }
   var label = humanLabel(type);
   if (id) label += ` #${id}`;
@@ -215,7 +203,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; be
     const factRows = facts.map(([label, value]) => {
       var shown: JSX.Element = <>{String(value)}</>;
       if ((label === "Input artifact" || label === "Output artifact") && value) {
-        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(linkState({ section: "artifacts" }))}>Artifact {String(value)}</a>;
+        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(stateFor({ section: "artifacts" }))}>Artifact {String(value)}</a>;
       }
       return (
         <div>

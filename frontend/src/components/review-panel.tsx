@@ -18,7 +18,7 @@ import type {
   WorkReviewVersionResponse,
   WorkReviewVersionsResponse,
 } from "../api/types.ts";
-import { formatTime, humanLabel, value } from "../state.tsx";
+import { formatTime, humanLabel, value, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classToggle, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import { mountNoteEditor } from "./note-editor.tsx";
 import { mountPDFViewer } from "./pdf-viewer.tsx";
@@ -26,6 +26,7 @@ import type { PDFViewerController } from "./pdf-viewer.tsx";
 import { bindReviewContextInitializer, ReviewContextDialog, reviewContextSummary } from "./review-context-dialog.tsx";
 import type { ProposedParent } from "./review-context-dialog.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
+import { installNavigationGuard } from "./navigation-guard.ts";
 import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
@@ -457,23 +458,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       return JSON.stringify({ status: statusSelect.value, reason: reasonInput.value, qualifiers: checked });
     }
     let savedDecisionDraft = decisionDraft();
-    /** Prevents route changes from silently discarding a local decision draft. */
-    function protectDecision(event: Event): void {
-      if (!reviewForm.isConnected) {
-        document.removeEventListener("rw-before-navigate", protectDecision);
-        window.removeEventListener("beforeunload", protectDecision);
-        return;
-      }
-      if (decisionDraft() === savedDecisionDraft) return;
-      if (event.type === "beforeunload") {
-        event.preventDefault();
-        (event as BeforeUnloadEvent).returnValue = "";
-        return;
-      }
-      if (!window.confirm("Leave this article and discard the unsaved review decision?")) event.preventDefault();
-    }
-    document.addEventListener("rw-before-navigate", protectDecision);
-    window.addEventListener("beforeunload", protectDecision);
+    installNavigationGuard(reviewForm, () => decisionDraft() !== savedDecisionDraft, "Leave this article and discard the unsaved review decision?");
     /** Enables sub-status choices only for the two compatible terminal statuses. */
     function updateSubstatuses(): void {
       const compatible = statusSelect.value === "not_approved" || statusSelect.value === "removed";
@@ -646,10 +631,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const known = new Set(decisionVersions.map((item) => String(item.id)));
-      for (const item of historyData.items || historyData.versions || []) {
-        if (!known.has(String(item.id))) decisionVersions.push(item);
-      }
+      appendUnique(decisionVersions, historyData.items || historyData.versions || [], (item) => item.id);
       decisionCursor = historyData.next_cursor || "";
       decisionHasMore = Boolean(historyData.has_more);
       renderDecisionHistory();
@@ -775,10 +757,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    const known = new Set(loadedAnchors.map((anchor) => anchor.id));
-    for (const anchor of data.items || data.anchors || []) {
-      if (!known.has(anchor.id)) loadedAnchors.push(anchor);
-    }
+    appendUnique(loadedAnchors, data.items || data.anchors || [], (anchor) => anchor.id);
     anchorCursor = data.next_cursor || "";
     anchorHasMore = Boolean(data.has_more);
     const activeAnchors = loadedAnchors;
@@ -1008,10 +987,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         headers: { Accept: "application/json" },
       });
       anchorLabel ||= data.anchor?.label;
-      const known = new Set(versions.map((version) => String(version.id)));
-      for (const version of data.items || data.versions || []) {
-        if (!known.has(String(version.id))) versions.push(version);
-      }
+      appendUnique(versions, data.items || data.versions || [], (version) => version.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       renderHistory();

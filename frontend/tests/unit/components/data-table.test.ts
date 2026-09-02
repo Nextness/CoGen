@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import '../setup.ts';
 import { seedViewerState } from '../seed.ts';
 import { rowFilter, DataTable, bindTableControls } from '../../../src/components/data-table.tsx';
-import { h, renderToString } from '../../../src/jsx/jsx-runtime.ts';
+import { h } from '../../../src/jsx/jsx-runtime.ts';
+import { renderToString } from '../helpers/jsx-render.ts';
 import { state, value } from '../../../src/state.tsx';
 
 const dataTable = (tableName: string, result: any, context?: any): string => renderToString(DataTable({ tableName: tableName, result: result, context: context }));

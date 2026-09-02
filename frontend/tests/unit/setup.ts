@@ -1,7 +1,7 @@
 // Shared JSDOM setup for frontend unit tests.
 // Import this as a side-effect before importing any frontend module:
 //   import './setup.js';
-//   import { esc } from '../../src/state.ts';
+//   import { asJSON } from '../../src/state.ts';
 
 import { JSDOM } from 'jsdom';
 
@@ -34,7 +34,6 @@ document.body.innerHTML = `
   <button id="graph-fit"></button>
   <button id="graph-clear-selection"></button>
   <canvas class="rw-graph__canvas" width="800" height="600"></canvas>
-  <div id="artifact-inspector"><div class="panel-body"></div></div>
 `;
 
 // --- Assign window globals FIRST so polyfills can reference them ---

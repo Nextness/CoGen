@@ -2,13 +2,15 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
+import { inferFixturePDF } from './fixture-paths.ts';
+
 const [binary, fixtureDB, assetsDir, address] = process.argv.slice(2);
 if (!binary || !fixtureDB || !assetsDir || !address) {
   throw new Error('usage: node run-dev.ts <analysis-binary> <fixture-db> <assets-dir> <loopback-address>');
 }
 const rootDir = path.resolve(process.cwd(), '..');
 const absoluteFixture = path.resolve(rootDir, fixtureDB);
-const sourcePDF = absoluteFixture.endsWith('.metadata.db') ? absoluteFixture.replace(/\.metadata\.db$/, '.pdf.db') : absoluteFixture.replace(/\.db$/, '.pdf.db');
+const sourcePDF = inferFixturePDF(absoluteFixture);
 const destination = path.resolve(rootDir, 'build', 'dev', `run-${Date.now()}-${process.pid}`);
 await mkdir(destination, { recursive: true });
 const metadataCopy = path.join(destination, path.basename(absoluteFixture));

@@ -3,14 +3,15 @@
 // This module is the authoritative implementation of the custom JSX runtime
 // described in docs/JSX-RUNTIME.md. It is framework-free: it provides the
 // classic-mode JSX factory (h), the fragment factory (Fragment), a render
-// function that mounts a node tree into a host, a renderToString bridge used
-// during migration, typed class composition and DOM class helpers, and a
-// controlled raw-HTML escape hatch (raw) for trusted, already-escaped markup.
+// function that mounts a node tree into a host, and typed class composition
+// and DOM class helpers.
+//
+// The renderToString serialization bridge and the raw() escape hatch are
+// test-only helpers and live in tests/unit/helpers/jsx-render.ts, not here.
 //
 // Escaping is automatic: text children are inserted through
 // document.createTextNode and attribute values through setAttribute, so raw
-// HTML in data is inert. The raw() helper is the only path that inserts markup
-// and must only ever be fed already-escaped or trusted content.
+// HTML in data is inert.
 
 import type { ClassName } from "./classes.ts";
 
@@ -47,7 +48,6 @@ export function classRemove(element: Element, token: ClassName): void {
 
 /** Toggles one registered class token on an element. */
 export function classToggle(element: Element, token: ClassName, force?: boolean): boolean {
-  if (force === undefined) return element.classList.toggle(token);
   return element.classList.toggle(token, force);
 }
 
@@ -108,7 +108,7 @@ const svgNamespace = "http://www.w3.org/2000/svg";
 
 /** Applies one JSX attribute to a created element. */
 function setAttribute(element: Element, name: string, value: unknown): void {
-  if (value == null || value === undefined) {
+  if (value == null) {
     return;
   }
   if (name === "className") {
@@ -128,8 +128,8 @@ function setAttribute(element: Element, name: string, value: unknown): void {
     return;
   }
   if (name.startsWith("on") && typeof value === "function") {
-    const eventName = name.slice(2).toLowerCase() === "doubleclick" ? "dblclick" : name.slice(2).toLowerCase();
-    element.addEventListener(eventName, value as EventListener);
+    const eventName = name.slice(2).toLowerCase();
+    element.addEventListener(eventName === "doubleclick" ? "dblclick" : eventName, value as EventListener);
     return;
   }
   if (name.startsWith("aria-")) {
@@ -158,11 +158,7 @@ export function h<K extends keyof JSX.IntrinsicElements>(type: K, props: JSX.Int
 /** Creates a DOM node from a JSX type, props, and children. */
 export function h(type: any, props: Record<string, unknown> | null, ...children: JSX.Node[]): Node {
   if (type === Fragment) {
-    const fragment = document.createDocumentFragment();
-    for (const child of children) {
-      appendChildren(fragment, child);
-    }
-    return fragment;
+    return Fragment({ children: children });
   }
   if (typeof type === "function") {
     // TypeScript checks component props at the overload boundary. The internal
@@ -190,32 +186,4 @@ export function render(node: Node | null | undefined, host: HTMLElement): void {
     return;
   }
   host.replaceChildren(node);
-}
-
-/** Serializes a rendered node tree to an HTML string for the migration bridge. */
-export function renderToString(node: unknown): string {
-  if (node == null) {
-    return "";
-  }
-  if (Array.isArray(node)) {
-    return node.map(renderToString).join("");
-  }
-  if (node instanceof DocumentFragment) {
-    return Array.from(node.childNodes).map(renderToString).join("");
-  }
-  if (node instanceof Node) {
-    return (node as Element).outerHTML ?? "";
-  }
-  return String(node);
-}
-
-/** Builds a node from a trusted, already-escaped HTML string. */
-export function raw(html: string): Node {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  const fragment = document.createDocumentFragment();
-  while (container.firstChild) {
-    fragment.appendChild(container.firstChild);
-  }
-  return fragment;
 }

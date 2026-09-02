@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { visit } from './support/visit.ts';
+
 /** Persistent identifier shape returned by generated fixture APIs. */
 type Identifier = string | number;
 
@@ -89,22 +91,7 @@ function generatedState(context: GeneratedContext, updates: Record<string, Ident
 /** Seeds viewer state through sessionStorage and navigates to the clean generated route. */
 async function visitGenerated(page: Page, context: GeneratedContext, updates: Record<string, Identifier>): Promise<void> {
   const state = generatedState(context, updates);
-  const path = state.view === 'home' ? '/' : `/${state.view}`;
-  await page.evaluate(({ seed, seedPath }: { seed: Record<string, string>; seedPath: string }) => {
-    window.name = JSON.stringify(seed);
-    try {
-      sessionStorage.removeItem("rw-viewer-state");
-      if (location.pathname === seedPath) history.replaceState(null, "", location.pathname);
-    } catch (_) {
-      // The initial about:blank document may deny sessionStorage access.
-    }
-  }, { seed: state, seedPath: path });
-  await page.addInitScript(() => {
-    const seed = window.name ? JSON.parse(window.name) : null;
-    if (seed && !sessionStorage.getItem("rw-viewer-state")) sessionStorage.setItem("rw-viewer-state", JSON.stringify(seed));
-  });
-  await page.goto(path);
-  await page.waitForLoadState('networkidle');
+  await visit(page, state);
 }
 
 test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', async ({ page, request }) => {

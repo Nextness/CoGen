@@ -23,33 +23,31 @@ export interface NormalizedRectangle {
   height: number;
 }
 
-/** Converts displayed normalized rectangles back to unrotated page coordinates. */
-export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
+/** Maps one normalized rectangle through a page rotation in the given direction. */
+type RectangleTransform = (x: number, y: number, width: number, height: number) => NormalizedRectangle;
+
+/** Forward (stored to displayed) and inverse (displayed to stored) transforms per rotation. */
+const rectangleTransforms: Record<number, { forward: RectangleTransform; inverse: RectangleTransform }> = {
+  90: {
+    forward: (x, y, width, height) => ({ x: 1 - y - height, y: x, width: height, height: width }),
+    inverse: (x, y, width, height) => ({ x: y, y: 1 - x - width, width: height, height: width }),
+  },
+  180: {
+    forward: (x, y, width, height) => ({ x: 1 - x - width, y: 1 - y - height, width: width, height: height }),
+    inverse: (x, y, width, height) => ({ x: 1 - x - width, y: 1 - y - height, width: width, height: height }),
+  },
+  270: {
+    forward: (x, y, width, height) => ({ x: y, y: 1 - x - width, width: height, height: width }),
+    inverse: (x, y, width, height) => ({ x: 1 - y - height, y: x, width: height, height: width }),
+  },
+};
+
+/** Projects normalized rectangles through the current page rotation in one direction. */
+function transformRectangles(rectangles: NormalizedRectangle[], rotation: unknown, direction: "forward" | "inverse"): NormalizedRectangle[] {
   const angle = ((Number(rotation) % 360) + 360) % 360;
+  const transform = rectangleTransforms[angle]?.[direction];
   return rectangles.map(({ x, y, width, height }) => {
-    let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
-    if (angle === 90) {
-      result = {
-        x: y,
-        y: 1 - x - width,
-        width: height,
-        height: width,
-      };
-    } else if (angle === 180) {
-      result = {
-        x: 1 - x - width,
-        y: 1 - y - height,
-        width: width,
-        height: height,
-      };
-    } else if (angle === 270) {
-      result = {
-        x: 1 - y - height,
-        y: x,
-        width: height,
-        height: width,
-      };
-    }
+    const result = transform ? transform(x, y, width, height) : { x: x, y: y, width: width, height: height };
     return {
       x: Number(result.x.toFixed(12)),
       y: Number(result.y.toFixed(12)),
@@ -59,40 +57,14 @@ export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: 
   });
 }
 
+/** Converts displayed normalized rectangles back to unrotated page coordinates. */
+export function unrotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
+  return transformRectangles(rectangles, rotation, "inverse");
+}
+
 /** Projects stored unrotated rectangles into the currently displayed page rotation. */
 export function rotateRectangles(rectangles: NormalizedRectangle[], rotation: unknown): NormalizedRectangle[] {
-  const angle = ((Number(rotation) % 360) + 360) % 360;
-  return rectangles.map(({ x, y, width, height }) => {
-    let result: NormalizedRectangle = { x: x, y: y, width: width, height: height };
-    if (angle === 90) {
-      result = {
-        x: 1 - y - height,
-        y: x,
-        width: height,
-        height: width,
-      };
-    } else if (angle === 180) {
-      result = {
-        x: 1 - x - width,
-        y: 1 - y - height,
-        width: width,
-        height: height,
-      };
-    } else if (angle === 270) {
-      result = {
-        x: y,
-        y: 1 - x - width,
-        width: height,
-        height: width,
-      };
-    }
-    return {
-      x: Number(result.x.toFixed(12)),
-      y: Number(result.y.toFixed(12)),
-      width: Number(result.width.toFixed(12)),
-      height: Number(result.height.toFixed(12)),
-    };
-  });
+  return transformRectangles(rectangles, rotation, "forward");
 }
 
 /** Extracts bounded normalized rectangles from a same-page browser selection. */

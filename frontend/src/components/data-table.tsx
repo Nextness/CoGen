@@ -1,10 +1,10 @@
 // Data table rendering, pagination, sort controls, and cell rendering.
-import { asJSON, list, value, Cell, humanLabel } from "../state.tsx";
+import { asJSON, list, value, Cell, humanLabel, columnNamesOf } from "../state.tsx";
 import { setURL, replaceState } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
-import type { ColumnInfo, DataTableContext, ScopedPagination, WireRecord } from "../api/types.ts";
+import type { ColumnInfo, DataTableContext, ScopedPagination, TabularResponse, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -31,20 +31,28 @@ function scrollTableIntoView(root: HTMLElement): void {
 /** One data table option set. */
 export type { DataTableContext } from "../api/types.ts";
 
+/** Maps context key names to their URL query parameter names. */
+function tableKeys(context: DataTableContext): { page: string; perPage: string; sort: string; order: string; query: string; expanded: string } {
+  return {
+    page: context.pageKey || "page",
+    perPage: context.perPageKey || "per_page",
+    sort: context.sortKey || "sort",
+    order: context.orderKey || "order",
+    query: context.queryKey || "q",
+    expanded: context.expandedKey || "expanded",
+  };
+}
+
 /** Renders and binds a filterable, sortable, paginated in-memory data table. */
-export function DataTable(props: { tableName: string; result: unknown; context?: DataTableContext }): JSX.Element {
+export function DataTable(props: { tableName: string; result: TabularResponse; context?: DataTableContext }): JSX.Element {
   const context = props.context || {};
-  const response = props.result as { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo>; rows?: WireRecord[]; items?: WireRecord[]; table?: { columns?: Array<string | ColumnInfo>; schema?: Array<string | ColumnInfo> }; pagination?: Partial<ScopedPagination> };
+  const response = props.result;
 
   var rawColumns = list<string | ColumnInfo>(response, ["columns", "schema"]);
   if (!rawColumns.length) {
     rawColumns = list<string | ColumnInfo>(response.table, ["columns", "schema"]);
   }
-  const columnNames = rawColumns.map((column) => {
-    if (typeof column === "string") return column;
-    return column.name;
-  });
-  var columns = columnNames.filter(Boolean);
+  var columns = columnNamesOf(rawColumns);
 
   if (context.columnsWhitelist && context.columnsWhitelist.length) {
     const availableColumns = new Set(columns);
@@ -53,14 +61,7 @@ export function DataTable(props: { tableName: string; result: unknown; context?:
     });
   }
 
-  const keys = {
-    page: context.pageKey || "page",
-    perPage: context.perPageKey || "per_page",
-    sort: context.sortKey || "sort",
-    order: context.orderKey || "order",
-    query: context.queryKey || "q",
-    expanded: context.expandedKey || "expanded",
-  };
+  const keys = tableKeys(context);
   const rows = rowFilter(list<WireRecord>(response, ["rows", "items"]), context.query || "");
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
@@ -225,14 +226,7 @@ export function bindTableControls(tableName: string, page: number, context?: Dat
   });
   if (!root) return;
   const controlScope = root.closest<HTMLElement>("[data-table-scope]") || root;
-  const keys = {
-    page: context.pageKey || "page",
-    perPage: context.perPageKey || "per_page",
-    sort: context.sortKey || "sort",
-    order: context.orderKey || "order",
-    query: context.queryKey || "q",
-    expanded: context.expandedKey || "expanded",
-  };
+  const keys = tableKeys(context);
   /** Maps context key names to their URL query parameter names. */
   function updates(values: Record<string, unknown>): Record<string, unknown> {
     const result: Record<string, unknown> = {};

@@ -1,9 +1,10 @@
 // Shared state, DOM references, and utility functions.
 // This module is imported by every other module. It avoids circular dependencies
 // by importing only the leaf JSX runtime.
-import { h, Fragment, render as renderTree, cx, classAdd } from "./jsx/jsx-runtime.ts";
+import { h, Fragment, render as renderTree, cx } from "./jsx/jsx-runtime.ts";
 import type { ClassName } from "./jsx/classes.ts";
 import type {
+  ColumnInfo,
   HierarchyPlan,
   HierarchyAttempt,
   HierarchyRun,
@@ -23,7 +24,6 @@ const classNames = {
   uiBasicSegment: cx("ui", "basic", "segment"),
   uiButton: cx("ui", "button"),
   uiFadedText: cx("ui", "faded", "text"),
-  uiFeed: cx("ui", "feed"),
   uiLabel: cx("ui", "label"),
   uiNegativeText: cx("ui", "negative", "text"),
   uiProgress: cx("ui", "progress"),
@@ -244,6 +244,20 @@ export function section(name: string, fallback: string): string {
   return value(name) || fallback;
 }
 
+/** Deletes keys a view may not carry from a parameter collection. */
+function filterState(params: URLSearchParams, view: string, includeCanonical: boolean): URLSearchParams {
+  const allowed = new Set<string>(["view", ...(routeOwnedKeys[view] || [])]);
+  if (includeCanonical) {
+    canonicalContextKeys.forEach((key) => {
+      allowed.add(key);
+    });
+  }
+  Array.from(params.keys()).forEach((key) => {
+    if (!allowed.has(key)) params.delete(key);
+  });
+  return params;
+}
+
 /** Builds the filtered destination state from updates applied to the current viewerState. */
 export function stateFor(updates?: Record<string, unknown>): Record<string, string> {
   if (!updates) updates = {};
@@ -270,16 +284,7 @@ export function stateFor(updates?: Record<string, unknown>): Record<string, stri
     delete next.detail_stages_cursor;
     delete next.detail_audit_cursor;
   }
-  const allowed = new Set<string>(["view", ...(routeOwnedKeys[destination] || [])]);
-  if (destination !== "home" && destination !== "trash") {
-    canonicalContextKeys.forEach((key) => {
-      allowed.add(key);
-    });
-  }
-  for (const key of Object.keys(next)) {
-    if (!allowed.has(key)) delete next[key];
-  }
-  return next;
+  return Object.fromEntries(filterState(new URLSearchParams(next), destination, destination !== "home" && destination !== "trash"));
 }
 
 /** Builds an internal path-only URL from canonical context and destination-owned state only. */
@@ -287,14 +292,22 @@ export function link(updates?: Record<string, unknown>): string {
   return pathFor(stateFor(updates));
 }
 
-/** Returns the filtered destination state object for anchor state carrying. */
-export function linkState(updates?: Record<string, unknown>): Record<string, string> {
-  return stateFor(updates);
+/** Returns a context-preserving detail link target for one record kind. */
+export function detailLinkFor(kind: "article" | "author" | "reference", id: unknown): { href: string; state: Record<string, string> } {
+  const updates: Record<string, unknown> = {
+    view: kind,
+    [`${kind}_id`]: id,
+    origin: currentDetailOrigin(),
+  };
+  return { href: link(updates), state: stateFor(updates) };
 }
 
 /** Adopts persisted state at boot, corrects the view from the pathname, and attaches it to the initial entry. */
 export function initViewerState(): void {
   const adopted = isStateObject(history.state) ? history.state : loadState() || {};
+  // Do not delete: stateFor() copies the module-level viewerState, so this
+  // assignment is the only path by which the adopted state reaches stateFor().
+  // Removing it drops all adopted context (the three initViewerState tests fail).
   viewerState = adopted;
   viewerState = stateFor({ view: pathView() });
   saveState();
@@ -309,11 +322,7 @@ export function currentDetailOrigin(): string {
   }
   if (!detailOriginViews.has(currentView)) return "";
   const current = params();
-  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[currentView] || [])]);
-  Array.from(current.keys()).forEach((key) => {
-    if (!allowed.has(key)) current.delete(key);
-  });
-  return current.toString();
+  return filterState(current, currentView, true).toString();
 }
 
 /** Validates the stored detail origin against route ownership and visible canonical context. */
@@ -326,10 +335,7 @@ export function detailOrigin(): DetailOrigin | null {
   for (const key of canonicalContextKeys) {
     if ((origin.get(key) || "") !== value(key)) return null;
   }
-  const allowed = new Set(["view", ...canonicalContextKeys, ...(routeOwnedKeys[originView] || [])]);
-  Array.from(origin.keys()).forEach((key) => {
-    if (!allowed.has(key)) origin.delete(key);
-  });
+  filterState(origin, originView, true);
   const state = Object.fromEntries(origin);
   return {
     view: originView,
@@ -338,13 +344,6 @@ export function detailOrigin(): DetailOrigin | null {
     params: origin,
     state: state,
   };
-}
-
-/** Escapes a value for safe HTML text insertion. */
-export function esc(raw: unknown): string {
-  const element = document.createElement("span");
-  element.textContent = raw == null ? "" : String(raw);
-  return element.innerHTML;
 }
 
 /** Formats a value for JSON-oriented display. */
@@ -363,6 +362,26 @@ export function list<T = WireRecord>(data: unknown, keys?: string[]): T[] {
   }
   if (Array.isArray(data)) return data as T[];
   return [];
+}
+
+/** Appends only the incoming items whose id is not already present in the target array. */
+export function appendUnique<T>(items: T[], incoming: readonly T[], idKey: (item: T) => string | number): void {
+  const known = new Set(items.map((item) => String(idKey(item))));
+  for (const item of incoming) {
+    const id = String(idKey(item));
+    if (!known.has(id)) {
+      known.add(id);
+      items.push(item);
+    }
+  }
+}
+
+/** Returns the ordered names of columns, accepting string or object column entries. */
+export function columnNamesOf(columns: readonly (string | ColumnInfo)[]): string[] {
+  return columns.map((column) => {
+    if (typeof column === "string") return column;
+    return column.name;
+  }).filter(Boolean);
 }
 
 /** Returns the first supported identifier present on an item. */
@@ -506,14 +525,12 @@ export function statusClass(raw: unknown): ClassName {
   const success = new Set(["complete", "completed", "valid", "success", "successful", "hit", "cache_hit", "ready", "available", "approved", "resolved", "resolved_internally", "enriched", "normalized", "linked", "linked_global_person", "match", "matched"]);
   const info = new Set(["pending", "running", "recorded", "active", "visible", "inventoried", "observed_occurrence_only"]);
   const review = new Set(["inherited", "reviewed", "review"]);
-  const neutral = new Set(["no_orcid_candidate", "no_candidate", "no_match", "unknown", "not_recorded"]);
 
   if (danger.has(status)) return "red";
   if (warning.has(status)) return "orange";
   if (success.has(status)) return "green";
   if (info.has(status)) return "blue";
   if (review.has(status)) return "violet";
-  if (neutral.has(status)) return "grey";
   return "grey";
 }
 
@@ -607,8 +624,7 @@ export interface BreadcrumbItem {
 
 /** Renders escaped breadcrumb markup for an ordered page hierarchy. */
 export function Breadcrumb(props: { items: BreadcrumbItem[] }): JSX.Element | null {
-  var parts: BreadcrumbItem[] = [];
-  if (Array.isArray(props.items)) parts = props.items;
+  const parts = props.items;
   if (!parts.length) {
     return null;
   }
@@ -719,10 +735,10 @@ export function Subnav(props: { items: Array<[string, string]>; current: string;
   const links = props.items.map(([id, label]) => {
     const updates = { [props.key]: id };
     const href = link(updates);
-    const state = linkState(updates);
+    const state = stateFor(updates);
     const active = id === props.current;
     var ariaCurrent: string | undefined;
-    if (id === props.current) ariaCurrent = "page";
+    if (active) ariaCurrent = "page";
     const itemClass = cx("item", active && "active");
     return <a href={href} className={itemClass} aria-current={ariaCurrent} data-state={JSON.stringify(state)}>{label}</a>;
   });
@@ -757,7 +773,7 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
       }
       const updates = { ...(options.removeUpdates || { page: 1 }), [key]: remaining };
       const href = link(updates);
-      const state = linkState(updates);
+      const state = stateFor(updates);
       return (
         <a className="rw-filter-chip" href={href} title="Remove filter" data-state={JSON.stringify(state)}>
           <span>{props.labels?.[key] || humanLabel(key)}:</span>
@@ -772,7 +788,7 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
   var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
     const clearHref = link(options.clearUpdates);
-    const clearState = linkState(options.clearUpdates);
+    const clearState = stateFor(options.clearUpdates);
     clear = <a className="rw-filter-clear" href={clearHref} data-state={JSON.stringify(clearState)}>Clear all</a>;
   }
   return (
@@ -842,7 +858,6 @@ export interface FlowStageOptions {
 /** Renders one retention-flow stage with counts, percentages, and optional links. */
 export function FlowStage(props: { label: string; raw: unknown; base: unknown; previous: unknown; modifier?: ClassName; stageKey: string; options: FlowStageOptions }): JSX.Element {
   const options = props.options || {};
-  const stageClass = cx("ui", "step", "rw-flow__step", props.modifier);
   var info: JSX.Element | null = null;
   if (options.description) {
     info = (
@@ -1053,11 +1068,13 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   var denominatorLabel = "input records";
   if (hasFilterStages) denominatorLabel = "initial raw results";
   const sourceDefinitions = [
-    ["Initial raw results", "Unfiltered results reported by the configured sources."],
-    ["Publication range", "Results retained within the declared publication window."],
-    ["Document type", "Results retained after applying the declared document-type filter."],
-    ["Language", "Results retained after applying the declared language filter."]
-  ];
+    filterPresentations.NO_FILTER,
+    filterPresentations.RANGE_10_YEARS,
+    filterPresentations.ARTICLE_ONLY,
+    filterPresentations.ENGLISH_ONLY,
+  ].map((presentation) => {
+    return [presentation.label, presentation.description] as const;
+  });
   var previousFilterCount: number | null = null;
   const sourceSteps = sourceDefinitions.map(([label, description], index) => {
     const recordedStage = filterStages[index];
@@ -1081,24 +1098,55 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
     </RetentionPhase>
   ];
 
-  if (numericEvidence(input).value == null) {
+  /** One retention-flow stage with its recorded evidence and presentation options. */
+  type FlowStageData = {
+    label: string;
+    stageKey: string;
+    raw: unknown;
+    previous: number | null;
+    options: FlowStageOptions;
+  };
+
+  /** Renders one retention-flow stage list from parameterized stage data. */
+  const flowStages = (stages: FlowStageData[]): JSX.Element[] => {
+    return stages.map((stage) => {
+      return <FlowStage label={stage.label} raw={stage.raw} base={initialCount} previous={stage.previous} stageKey={stage.stageKey} options={stage.options} />;
+    });
+  };
+
+  /** Pushes the pipeline and corpus phases from parameterized stage data. */
+  const pushFlowPhases = (pipeline: { description: string; summary: string; stages: FlowStageData[] }, corpus: { summary: string; stages: FlowStageData[] }): void => {
     phases.push(
-      <RetentionPhase title="Pipeline processing" description="Records loaded, parsed, and deduplicated by the pipeline." summary="Pipeline counts not recorded" phase="pipeline">
-        <div className={classNames.uiStepsRwFlow}>
-          <FlowStage label="Input records" raw={input} base={initialCount} previous={null} stageKey="input_records" options={{ description: "Records read from exported source files." }} />
-          <FlowStage label="Parsed articles" raw={null} base={initialCount} previous={null} stageKey="parsed_articles" options={{ description: "Source records converted into article metadata." }} />
-          <FlowStage label="Deduplicated articles" raw={null} base={initialCount} previous={null} stageKey="deduplicated_articles" options={{ description: "Unique articles retained after source merging." }} />
-        </div>
+      <RetentionPhase title="Pipeline processing" description={pipeline.description} summary={pipeline.summary} phase="pipeline">
+        <div className={classNames.uiStepsRwFlow}>{flowStages(pipeline.stages)}</div>
       </RetentionPhase>
     );
     phases.push(
-      <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary="Corpus counts not recorded" phase="corpus">
-        <div className={classNames.uiStepsRwFlow}>
-          <FlowStage label="Candidate articles" raw={null} base={initialCount} previous={null} stageKey="enrichment_candidates" options={{ description: "Deduplicated articles considered for provider enrichment." }} />
-          <FlowStage label="Accepted + Discarded" raw={null} base={initialCount} previous={null} stageKey="validation_outcomes" options={{ description: "Validation divides candidate articles into accepted and discarded outcomes." }} />
-          <FlowStage label="Normalization" raw={null} base={initialCount} previous={null} stageKey="normalized_articles_processed" options={{ description: "Accepted articles processed into canonical forms." }} />
-        </div>
+      <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={corpus.summary} phase="corpus">
+        <div className={classNames.uiStepsRwFlow}>{flowStages(corpus.stages)}</div>
       </RetentionPhase>
+    );
+  };
+
+  if (numericEvidence(input).value == null) {
+    pushFlowPhases(
+      {
+        description: "Records loaded, parsed, and deduplicated by the pipeline.",
+        summary: "Pipeline counts not recorded",
+        stages: [
+          { label: "Input records", stageKey: "input_records", raw: input, previous: null, options: { description: "Records read from exported source files." } },
+          { label: "Parsed articles", stageKey: "parsed_articles", raw: null, previous: null, options: { description: "Source records converted into article metadata." } },
+          { label: "Deduplicated articles", stageKey: "deduplicated_articles", raw: null, previous: null, options: { description: "Unique articles retained after source merging." } },
+        ],
+      },
+      {
+        summary: "Corpus counts not recorded",
+        stages: [
+          { label: "Candidate articles", stageKey: "enrichment_candidates", raw: null, previous: null, options: { description: "Deduplicated articles considered for provider enrichment." } },
+          { label: "Accepted + Discarded", stageKey: "validation_outcomes", raw: null, previous: null, options: { description: "Validation divides candidate articles into accepted and discarded outcomes." } },
+          { label: "Normalization", stageKey: "normalized_articles_processed", raw: null, previous: null, options: { description: "Accepted articles processed into canonical forms." } },
+        ],
+      }
     );
     const retentionBody = <div className="rw-retention">{phases}</div>;
     return <Panel title="Retention flow" description="Three phases connect source selection to the analysis-ready corpus." body={retentionBody} classes={["rw-grid-span-all", "rw-panel--no-separator"]} />;
@@ -1120,10 +1168,10 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   const stageHref = (stage: string): { href: string; state: Record<string, string> } => {
     if (stage === "input") {
       const updates = { view: "corpus", section: "sources", q: "", page: 1 };
-      return { href: link(updates), state: linkState(updates) };
+      return { href: link(updates), state: stateFor(updates) };
     }
     const updates = { view: "provenance", section: "stages", stage_q: stage, stage_page: 1 };
-    return { href: link(updates), state: linkState(updates) };
+    return { href: link(updates), state: stateFor(updates) };
   };
   const stageOptions = (description: string, target: { href: string; state: Record<string, string> }): FlowStageOptions => {
     return {
@@ -1135,31 +1183,24 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
     };
   };
   const pipelineSteps = [
-    <FlowStage label="Input records" raw={input} base={initialCount} previous={pipelinePrevious} stageKey="input_records" options={stageOptions("Records read from the exported source files.", stageHref("input"))} />,
-    <FlowStage label="Parsed articles" raw={parsed} base={initialCount} previous={inputCount} stageKey="parsed_articles" options={stageOptions("Source records converted into article metadata.", stageHref("parse"))} />,
-    <FlowStage label="Deduplicated articles" raw={deduped} base={initialCount} previous={parsedCount} stageKey="deduplicated_articles" options={stageOptions("Unique articles retained after source merging.", stageHref("deduplicate"))} />,
+    { label: "Input records", stageKey: "input_records", raw: input, previous: pipelinePrevious, options: stageOptions("Records read from the exported source files.", stageHref("input")) },
+    { label: "Parsed articles", stageKey: "parsed_articles", raw: parsed, previous: inputCount, options: stageOptions("Source records converted into article metadata.", stageHref("parse")) },
+    { label: "Deduplicated articles", stageKey: "deduplicated_articles", raw: deduped, previous: parsedCount, options: stageOptions("Unique articles retained after source merging.", stageHref("deduplicate")) },
   ];
-  phases.push(
-    <RetentionPhase title="Pipeline processing" description="Records move from source loading through deduplication." summary={`${formatNumber(inputCount)} captured input records`} phase="pipeline">
-      <div className={classNames.uiStepsRwFlow}>{pipelineSteps}</div>
-    </RetentionPhase>
-  );
-
   const discardedCount = number(source.discarded_articles);
   var validationTotal: MetricEvidence | number = { available: false, state: "unavailable" };
   if (Number.isFinite(validCount) && Number.isFinite(discardedCount)) validationTotal = validCount + discardedCount;
   const corpusSteps = [
-    <FlowStage label="Candidate articles" raw={enrichmentCandidates} base={initialCount} previous={dedupedCount} stageKey="enrichment_candidates" options={stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich"))} />,
-    <FlowStage label="Accepted + Discarded" raw={validationTotal} base={initialCount} previous={enrichmentCount} stageKey="validation_outcomes" options={{
+    { label: "Candidate articles", stageKey: "enrichment_candidates", raw: enrichmentCandidates, previous: dedupedCount, options: stageOptions("Deduplicated articles considered for provider enrichment.", stageHref("enrich")) },
+    { label: "Accepted + Discarded", stageKey: "validation_outcomes", raw: validationTotal, previous: enrichmentCount, options: {
       ...stageOptions("Validation divides candidate articles into analysis-ready and discarded outcomes.", stageHref("validate")),
       outcomes: [{ label: "accepted", value: validCount }, { label: "discarded", value: discardedCount }]
-    }} />,
-    <FlowStage label="Normalization" raw={normalizedArticles} base={initialCount} previous={validCount} stageKey="normalized_articles_processed" options={stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize"))} />,
+    } },
+    { label: "Normalization", stageKey: "normalized_articles_processed", raw: normalizedArticles, previous: validCount, options: stageOptions("Accepted articles processed into canonical forms.", stageHref("normalize")) },
   ];
-  phases.push(
-    <RetentionPhase title="Corpus enrichment" description="Candidate articles continue through enrichment, validation, and normalization." summary={`${formatNumber(validCount)} accepted articles`} phase="corpus">
-      <div className={classNames.uiStepsRwFlow}>{corpusSteps}</div>
-    </RetentionPhase>
+  pushFlowPhases(
+    { description: "Records move from source loading through deduplication.", summary: `${formatNumber(inputCount)} captured input records`, stages: pipelineSteps },
+    { summary: `${formatNumber(validCount)} accepted articles`, stages: corpusSteps }
   );
 
   const retentionBody = <div className="rw-retention">{phases}</div>;
@@ -1356,86 +1397,6 @@ export function SourceSearchQueries(props: { items: SourceResultCount[] | null; 
     body={body} classes={props.classes} />;
 }
 
-/** Renders chronological audit feed markup for generic event rows. */
-export function Timeline(props: { rows: WireRecord[] }): JSX.Element {
-  if (!props.rows.length) {
-    return <p className={classNames.uiFadedText}>No records.</p>;
-  }
-
-  const items = props.rows.map((event) => {
-    const action = text(event, ["action", "event_type", "type"]);
-    const entityType = text(event, ["entity_type", "entity", "source"]);
-    const actor = event.actor;
-    const entityId = event.entity_id;
-    const meta = parseObject(event.metadata_json);
-
-    var detail: JSX.Element | null = null;
-    if (Object.keys(meta).length) {
-      if (meta.field && meta.provider) {
-        detail = <>Field <strong>{String(meta.field)}</strong> enriched by <strong>{String(meta.provider)}</strong></>;
-      } else if (meta.reasons) {
-        var reasonsText = String(meta.reasons);
-        if (Array.isArray(meta.reasons)) reasonsText = meta.reasons.join("; ");
-        detail = <>{reasonsText}</>;
-      } else if (meta.error) {
-        detail = <>Error: {String(meta.error)}</>;
-      } else if (meta.status) {
-        detail = <>Status: {String(meta.status)}</>;
-      } else if (meta.identity) {
-        detail = <>{String(meta.identity)}</>;
-      } else if (meta.reason) {
-        detail = <>{String(meta.reason)}</>;
-      } else if (meta.search_id) {
-        detail = <>Search: {String(meta.search_id)}{meta.revision ? <> / revision {String(meta.revision)}</> : null}</>;
-      }
-    }
-
-    var dotClass: ClassName = "default-dot";
-    if (action.startsWith("pipeline_")) {
-      dotClass = "pipeline-dot";
-    } else if (action === "field_enriched") {
-      dotClass = "enrich-dot";
-    } else if (action.startsWith("validation_")) {
-      dotClass = "validation-dot";
-    }
-
-    const timestamp = formatTime(event.occurred_at || event.created_at || event.at || event.timestamp);
-    const eventClass = cx("event", dotClass);
-
-    return (
-      <li className={eventClass}>
-        {actor ? <span className="user">{String(actor)}</span> : null}
-        {entityId ? <span className="extra">{entityType} #{String(entityId)}</span> : null}
-        <strong>{action}</strong>
-        <br />
-        {detail ? <span className="summary">{detail}</span> : null}
-        <br />
-        <time>{timestamp}</time>
-      </li>
-    );
-  });
-
-  return <ol className={classNames.uiFeed}>{items}</ol>;
-}
-
-/** Renders a table whose columns are derived from the supplied detail records. */
-export function DetailTable(props: { title: string; rows: unknown }): JSX.Element {
-  const records = list(props.rows, ["items", "rows"]);
-  const recordKeys = records.flatMap((record) => {
-    return Object.keys(record);
-  });
-  const columns = [...new Set(recordKeys)];
-  const colDefs = columns.map((key) => {
-    return {
-      label: key,
-      render: (row: WireRecord) => {
-        return <Cell item={row[key]} column={key} />;
-      },
-    };
-  });
-  return <Table title={props.title} description="" columns={colDefs} rows={records} />;
-}
-
 /** One cell rendering option set. */
 export interface CellOptions {
   expandLong?: boolean;
@@ -1456,19 +1417,19 @@ export function Cell(props: { item: unknown; column: string; tableName?: string;
   var href = "";
   var state: Record<string, string> | null = null;
   if (props.column === "article_id" || props.column === "work_revision_id" || (tableName === "work_revisions" && props.column === "id")) {
-    const updates = { view: "article", article_id: props.item };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("article", props.item);
+    href = target.href;
+    state = target.state;
   }
   if (props.column === "author_id" || props.column === "author_occurrence_id" || (tableName === "author_occurrences" && props.column === "id")) {
-    const updates = { view: "author", author_id: props.item };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("author", props.item);
+    href = target.href;
+    state = target.state;
   }
   if (props.column === "reference_id" || (tableName === "reference_mentions" && props.column === "id")) {
-    const updates = { view: "reference", reference_id: props.item };
-    href = link(updates);
-    state = linkState(updates);
+    const target = detailLinkFor("reference", props.item);
+    href = target.href;
+    state = target.state;
   }
 
   const shown = <span className="rw-cell" title={full}>{display}</span>;
@@ -1490,44 +1451,14 @@ export function bindCopyButtons(): void {
   copyButtons.forEach((button) => {
     button.addEventListener("click", async () => {
       const text = button.getAttribute("data-copy-text") || "";
+      const originalLabel = button.textContent;
       try {
         await navigator.clipboard.writeText(text);
         button.textContent = "Copied!";
-        setTimeout(() => { button.textContent = "Copy"; }, 2000);
+        setTimeout(() => { button.textContent = originalLabel; }, 2000);
       } catch (_) {
         prompt("Copy query manually:", text);
       }
-    });
-  });
-}
-
-/**
- * Bind dismissible behavior for .ui.message elements with a .close child.
- * Clicking the close button fades out and removes the message.
- */
-export function bindDismissibleMessages(): void {
-  const closeButtons = document.querySelectorAll<HTMLElement>(".ui.message > .close");
-  closeButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const message = button.closest<HTMLElement>(".ui.message");
-      if (message) {
-        message.style.opacity = "0";
-        setTimeout(() => { message.hidden = true; }, 150);
-      }
-    });
-  });
-}
-
-/**
- * Bind loading state for buttons with [data-loading].
- * On click, the button shows a spinner and disables itself.
- */
-export function bindLoadingButtons(): void {
-  const loadingButtons = document.querySelectorAll<HTMLButtonElement>("[data-loading]");
-  loadingButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      classAdd(button, ["loading"]);
-      button.disabled = true;
     });
   });
 }

@@ -1,5 +1,6 @@
 // Fullscreen reading mode for the embedded PDF viewer with a collapsible review drawer.
 import { h, cx, classAdd, classRemove, classHas } from "../jsx/jsx-runtime.ts";
+import { createFallbackExpand } from "./fallback-expand.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -19,8 +20,8 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
   let drawerCollapsed = false;
   let previouslyExpanded = false;
   let destroyed = false;
-  var priorOverflow = "";
   let edgeControl: HTMLButtonElement | null = null;
+  const fallbackExpand = createFallbackExpand(workspace, "rw-reading-workspace--expanded");
 
   /** Returns whether the workspace is expanded by either the Fullscreen API or the fallback class. */
   function isExpanded(): boolean {
@@ -39,16 +40,14 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
 
   /** Synchronizes the drawer state, edge control, and button label with the current expansion. */
   function syncState(): void {
+    drawerCollapsed = false;
+    classRemove(workspace, "rw-reading-workspace--drawer-collapsed");
     if (isExpanded()) {
-      drawerCollapsed = false;
-      classRemove(workspace, "rw-reading-workspace--drawer-collapsed");
       renderEdgeControl();
       reviewHost.scrollTop = 0;
       const pages = workspace.querySelector<HTMLElement>("[data-pdf-pages]");
       pages?.focus();
     } else {
-      drawerCollapsed = false;
-      classRemove(workspace, "rw-reading-workspace--drawer-collapsed");
       removeEdgeControl();
     }
     updateLabel();
@@ -94,14 +93,7 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
 
   /** Enters or leaves the CSS fallback expansion, mirroring the graph's fallback path. */
   function toggleFallback(): void {
-    if (classHas(workspace, "rw-reading-workspace--expanded")) {
-      classRemove(workspace, "rw-reading-workspace--expanded");
-      document.body.style.overflow = priorOverflow;
-    } else {
-      priorOverflow = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      classAdd(workspace, ["rw-reading-workspace--expanded"]);
-    }
+    fallbackExpand.toggle();
     syncState();
   }
 
@@ -150,9 +142,8 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
       if (document.fullscreenElement === workspace && document.exitFullscreen) {
         void document.exitFullscreen();
       }
-      classRemove(workspace, "rw-reading-workspace--expanded");
+      fallbackExpand.close();
       classRemove(workspace, "rw-reading-workspace--drawer-collapsed");
-      document.body.style.overflow = priorOverflow;
       removeEdgeControl();
       if (button) {
         button.textContent = "Fullscreen";

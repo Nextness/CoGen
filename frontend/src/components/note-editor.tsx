@@ -12,12 +12,13 @@ import type {
   ReviewNoteVersionsResponse,
   ReviewNotesResponse,
 } from "../api/types.ts";
-import { formatTime, value } from "../state.tsx";
+import { formatTime, value, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { parseNote, NoteDocument } from "./note-parser.tsx";
 import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
+import { installNavigationGuard } from "./navigation-guard.ts";
 import { replaceState } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
@@ -368,23 +369,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   function isDirty(): boolean {
     return body.value !== savedEditorBody;
   }
-  /** Protects browser and SPA navigation while preserving a user-controlled discard path. */
-  function protectDraft(event: Event): void {
-    if (!host.isConnected) {
-      document.removeEventListener("rw-before-navigate", protectDraft);
-      window.removeEventListener("beforeunload", protectDraft);
-      return;
-    }
-    if (!isDirty()) return;
-    if (event.type === "beforeunload") {
-      event.preventDefault();
-      (event as BeforeUnloadEvent).returnValue = "";
-      return;
-    }
-    if (!window.confirm("Leave this article and discard the unsaved note draft?")) event.preventDefault();
-  }
-  document.addEventListener("rw-before-navigate", protectDraft);
-  window.addEventListener("beforeunload", protectDraft);
+  installNavigationGuard(host, isDirty, "Leave this article and discard the unsaved note draft?");
 
   /** Returns the draft key for the current new-note or immutable note head. */
   function key(): string {
@@ -551,10 +536,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       method: "GET",
       headers: { Accept: "application/json" },
     });
-    const known = new Set(loadedNotes.map((note) => String(note.id)));
-    for (const note of data.items || data.notes || []) {
-      if (!known.has(String(note.id))) loadedNotes.push(note);
-    }
+    appendUnique(loadedNotes, data.items || data.notes || [], (note) => note.id);
     noteCursor = data.next_cursor || "";
     noteHasMore = Boolean(data.has_more);
     renderNoteList();
@@ -689,10 +671,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
         method: "GET",
         headers: { Accept: "application/json" },
       });
-      const known = new Set(versions.map((version) => String(version.id)));
-      for (const version of data.items || data.versions || []) {
-        if (!known.has(String(version.id))) versions.push(version);
-      }
+      appendUnique(versions, data.items || data.versions || [], (version) => version.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
       renderHistory();

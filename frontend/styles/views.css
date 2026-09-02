@@ -559,83 +559,6 @@
   font-size: var(--text-xs);
 }
 
-/* ── Feed (timeline) ── */
-
-.ui.feed {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.ui.feed .event {
-  position: relative;
-  margin: 0 0 0 6px;
-  padding: 0 0 var(--space-3) 19px;
-  border-left: 1px solid var(--color-border-strong);
-}
-
-.ui.feed .event::before {
-  position: absolute;
-  top: 4px;
-  left: -5px;
-  width: 9px;
-  height: 9px;
-  border: 2px solid var(--color-bg-surface);
-  border-radius: 50%;
-  content: "";
-}
-
-.ui.feed .event:last-child {
-  padding-bottom: 0;
-}
-
-/* Feed dot colors via CSS custom properties */
-.ui.feed .event.pipeline-dot::before {
-  background: var(--color-accent-default);
-}
-
-.ui.feed .event.enrich-dot::before {
-  background: var(--color-status-success);
-}
-
-.ui.feed .event.validation-dot::before {
-  background: var(--color-status-warning);
-}
-
-.ui.feed .event.default-dot::before {
-  background: var(--color-text-muted);
-}
-
-.ui.feed .event time {
-  color: var(--color-text-secondary);
-  font-size: var(--text-xs);
-}
-
-.ui.feed .event .user {
-  display: inline-block;
-  margin-right: 6px;
-  padding: 1px 5px;
-  border-radius: var(--radius-small);
-  background: var(--color-bg-surface-muted);
-  color: var(--color-text-secondary);
-  font-size: var(--text-xxs);
-  font-weight: var(--weight-bold);
-}
-
-.ui.feed .event .extra {
-  display: inline-block;
-  margin-right: 6px;
-  color: var(--color-text-secondary);
-  font-size: var(--text-xxs);
-}
-
-.ui.feed .event .summary {
-  display: block;
-  margin: 2px 0;
-  color: var(--color-text-primary);
-  font-size: var(--text-sm);
-}
-
 /* ── Custom cell (monospace truncation) ── */
 
 .rw-cell {
@@ -1715,24 +1638,6 @@
   background: var(--color-border-default);
 }
 
-/* Progress bar. */
-.rw-progress__bar {
-  display: inline-block;
-  width: min(100%, 220px);
-  height: 8px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--color-bg-surface-muted);
-  vertical-align: middle;
-}
-
-.rw-progress__bar > span {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--color-accent-default);
-}
-
 /* Property grid. */
 .rw-property-grid {
   display: grid;
@@ -1779,14 +1684,6 @@
   .rw-review-audit-change,
   .rw-stage-flow {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rw-audit-event {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rw-audit-event__entity {
-    padding-top: 0;
   }
 }
 
