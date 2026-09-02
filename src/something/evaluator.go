@@ -146,7 +146,11 @@ func NewEvaluator(checked *CheckedProgram, filepath string) *Evaluator {
 	if filepath == "" && checked != nil && checked.Program != nil {
 		filepath = checked.Program.Filepath
 	}
-	return &Evaluator{checked: checked, filepath: filepath, state: newRuntimeState(filepath, checked.AssignmentTypes)}
+	var assignmentTypes map[*Assignment]TypeRef
+	if checked != nil {
+		assignmentTypes = checked.AssignmentTypes
+	}
+	return &Evaluator{checked: checked, filepath: filepath, state: newRuntimeState(filepath, assignmentTypes)}
 }
 
 // evaluate executes a checked program and returns its public configuration map.
@@ -204,7 +208,10 @@ func (state *runtimeState) evaluateIfDirective(ifDir *IfDirective) {
 		state.err("#if condition must evaluate to a boolean", ifDir.Condition.expressionLocation(), "Use a boolean expression")
 	}
 	if cond {
+		previous := state.current
+		state.current = newRuntimeEnvironment(previous)
 		state.evaluateStatements(ifDir.Body)
+		state.current = previous
 	}
 }
 
