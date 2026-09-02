@@ -7,9 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	// MaxProviderPayloadBytes bounds one provider response retained as inline evidence.
+	MaxProviderPayloadBytes = 10 << 20
+	maxProviderConcurrency  = 64
 )
 
 // Client fetches URLs concurrently with configurable rate limiting and
@@ -25,12 +32,12 @@ var (
 	slowRequestLogAfter    = 5 * time.Second
 )
 
-// NewClient creates a Client for the given source config.
-func NewClient(cfg SourceConfig) *Client {
-	interval := time.Second
-	if cfg.RatePerSecond > 0 {
-		interval = time.Second / time.Duration(cfg.RatePerSecond)
+// NewClient creates a Client for the given validated source config.
+func NewClient(cfg SourceConfig) (*Client, error) {
+	if err := ValidateSourceConfig(cfg); err != nil {
+		return nil, err
 	}
+	interval := time.Second / time.Duration(cfg.RatePerSecond)
 
 	return &Client{
 		cfg:    cfg,
@@ -38,7 +45,47 @@ func NewClient(cfg SourceConfig) *Client {
 		client: &http.Client{
 			Timeout: time.Duration(cfg.TimeoutSecs) * time.Second,
 		},
+	}, nil
+}
+
+// ValidateSourceConfig verifies provider endpoints and request bounds before enrichment begins.
+func ValidateSourceConfig(cfg SourceConfig) error {
+	if strings.TrimSpace(cfg.Name) == "" {
+		return fmt.Errorf("provider name is required")
 	}
+	if err := validProviderURL("base URL", cfg.BaseURL); err != nil {
+		return err
+	}
+	for name, value := range cfg.ExtraURLs {
+		if err := validProviderURL("extra URL "+name, value); err != nil {
+			return err
+		}
+	}
+	if cfg.RatePerSecond < 1 || cfg.RatePerSecond > int(time.Second) {
+		return fmt.Errorf("provider rate_per_second must be between 1 and %d", int(time.Second))
+	}
+	if cfg.Concurrency < 1 || cfg.Concurrency > maxProviderConcurrency {
+		return fmt.Errorf("provider concurrency must be between 1 and %d", maxProviderConcurrency)
+	}
+	if cfg.TimeoutSecs < 1 {
+		return fmt.Errorf("provider timeout_seconds must be positive")
+	}
+	if cfg.MaxRetries < 1 {
+		return fmt.Errorf("provider max_retries must be positive")
+	}
+	if cfg.BatchSize < 1 {
+		return fmt.Errorf("provider batch_size must be positive")
+	}
+	return nil
+}
+
+// validProviderURL verifies an HTTP(S) provider endpoint has a host.
+func validProviderURL(label, value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("provider %s must be an absolute HTTP(S) URL", label)
+	}
+	return nil
 }
 
 // Close stops the rate-limit ticker.
@@ -79,9 +126,6 @@ func (c *Client) FetchAll(ctx context.Context, urls []string) map[string]*FetchR
 	// Start worker goroutines
 	var wg sync.WaitGroup
 	poolSize := c.cfg.Concurrency
-	if poolSize < 1 {
-		poolSize = 1
-	}
 	log.Info(
 		"http batch started",
 		"source", source,
@@ -89,7 +133,7 @@ func (c *Client) FetchAll(ctx context.Context, urls []string) map[string]*FetchR
 		"concurrency", poolSize,
 		"rate_per_second", c.cfg.RatePerSecond,
 		"request_timeout", time.Duration(c.cfg.TimeoutSecs)*time.Second,
-		"max_attempts", c.cfg.MaxRetries,
+		"max_attempts", c.cfg.MaxRetries+1,
 	)
 	for i := 0; i < poolSize; i++ {
 		wg.Add(1)
@@ -184,25 +228,27 @@ func (c *Client) Fetch(ctx context.Context, url string) *FetchResult {
 
 // fetchOne performs a single HTTP GET with retries and exponential backoff.
 func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return &FetchResult{Err: fmt.Errorf("create request: %w", err)}
-	}
 	contact := strings.TrimSpace(c.cfg.ContactEmail)
-	userAgent := c.cfg.UserAgent
-	req.Header.Set("From", contact)
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
+	host, path := requestLogTarget(url)
+	maxAttempts := c.cfg.MaxRetries + 1
 
-	for attempt := 1; attempt <= c.cfg.MaxRetries; attempt++ {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		currentAttempt := attempt
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return &FetchResult{Err: fmt.Errorf("create request: %w", err)}
+		}
+		req.Header.Set("From", contact)
+		req.Header.Set("User-Agent", c.cfg.UserAgent)
+		req.Header.Set("Accept", "application/json")
 		attemptStarted := time.Now()
 		log.Debug(
 			"http request started",
 			"source", c.sourceName(),
 			"attempt", currentAttempt,
-			"max_attempts", c.cfg.MaxRetries,
-			"url", truncateStr(url, 160),
+			"max_attempts", maxAttempts,
+			"host", host,
+			"path", path,
 		)
 		slowTimer := time.AfterFunc(slowRequestLogAfter, func() {
 			log.Info(
@@ -211,7 +257,8 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 				"attempt", currentAttempt,
 				"elapsed", time.Since(attemptStarted).Round(time.Second),
 				"timeout", time.Duration(c.cfg.TimeoutSecs)*time.Second,
-				"url", truncateStr(url, 160),
+				"host", host,
+				"path", path,
 			)
 		})
 		resp, err := c.client.Do(req)
@@ -219,14 +266,22 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 			slowTimer.Stop()
 			log.Warn(
 				"http request failed",
-				"source", c.sourceName(), "attempt", currentAttempt, "error", err,
+				"source", c.sourceName(), "attempt", currentAttempt, "host", host, "path", path,
 			)
 			return &FetchResult{Err: fmt.Errorf("request failed: %w", err)}
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		var body []byte
+		if resp.StatusCode == http.StatusTooManyRequests {
+			err = discardProviderBody(resp.Body)
+		} else {
+			body, err = readProviderBody(resp.Body)
+		}
+		closeErr := resp.Body.Close()
 		slowTimer.Stop()
+		if err == nil {
+			err = closeErr
+		}
 		if err != nil {
 			log.Warn(
 				"http response read failed",
@@ -249,7 +304,7 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 				"http request rate limited; backing off",
 				"source", c.sourceName(),
 				"attempt", currentAttempt,
-				"max_attempts", c.cfg.MaxRetries,
+				"max_attempts", maxAttempts,
 				"backoff", wait,
 			)
 
@@ -273,18 +328,42 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 		}
 	}
 
-	err = fmt.Errorf("max retries (%d) exceeded", c.cfg.MaxRetries)
+	err := fmt.Errorf("max retries (%d) exceeded", c.cfg.MaxRetries)
 	log.Warn("http request exhausted retries", "source", c.sourceName(), "error", err)
 	return &FetchResult{Err: err}
 }
 
-// truncateStr truncates str to the requested limit.
-func truncateStr(value string, limit int) string {
-	runes := []rune(value)
-	if len(runes) <= limit {
-		return value
+// readProviderBody reads one retained provider payload and rejects oversized responses.
+func readProviderBody(body io.Reader) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(body, MaxProviderPayloadBytes+1))
+	if err != nil {
+		return nil, err
 	}
-	return string(runes[:limit]) + "..."
+	if len(data) > MaxProviderPayloadBytes {
+		return nil, fmt.Errorf("provider response exceeds %d bytes", MaxProviderPayloadBytes)
+	}
+	return data, nil
+}
+
+// discardProviderBody consumes a bounded non-retained response body before the connection is reused.
+func discardProviderBody(body io.Reader) error {
+	read, err := io.Copy(io.Discard, io.LimitReader(body, MaxProviderPayloadBytes+1))
+	if err != nil {
+		return err
+	}
+	if read > MaxProviderPayloadBytes {
+		return fmt.Errorf("provider response exceeds %d bytes", MaxProviderPayloadBytes)
+	}
+	return nil
+}
+
+// requestLogTarget returns query-free request fields suitable for operational logs.
+func requestLogTarget(value string) (string, string) {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "invalid", ""
+	}
+	return parsed.Host, parsed.EscapedPath()
 }
 
 // sourceName returns the configured provider name used in logging and evidence.

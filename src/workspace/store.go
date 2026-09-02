@@ -741,7 +741,10 @@ func enrichWorkspaceIdentity(db *database.Database, runID int64, run *Run, artic
 
 // gatherCachedCrossref gathers cached crossref from the supplied inputs.
 func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error) {
-	client := enrich.NewClient(source)
+	client, err := enrich.NewClient(source)
+	if err != nil {
+		return nil, fmt.Errorf("create crossref client: %w", err)
+	}
 	defer client.Close()
 	result := &enrich.GatherResult{Source: "crossref", Articles: make(map[string]*enrich.ArticleEnrichment)}
 	for _, a := range articles {
@@ -767,7 +770,10 @@ func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enr
 
 // gatherCachedOpenAlex gathers cached open alex from the supplied inputs.
 func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error) {
-	client := enrich.NewClient(source)
+	client, err := enrich.NewClient(source)
+	if err != nil {
+		return nil, fmt.Errorf("create openalex client: %w", err)
+	}
 	defer client.Close()
 	result := &enrich.GatherResult{Source: "openalex", Articles: make(map[string]*enrich.ArticleEnrichment)}
 	refIDsByDOI := make(map[string][]string)
@@ -872,11 +878,17 @@ type uncertainORCIDSearchEvidence struct {
 
 // enrichCachedORCID gathers confirmed ORCID records and uncertain name-search evidence through the workspace cache.
 func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, openAlexSource enrich.SourceConfig, hasOpenAlex bool, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error) {
-	orcidClient := enrich.NewClient(orcidSource)
+	orcidClient, err := enrich.NewClient(orcidSource)
+	if err != nil {
+		return 0, nil, nil, fmt.Errorf("create ORCID client: %w", err)
+	}
 	defer orcidClient.Close()
 	var openAlexClient *enrich.Client
 	if hasOpenAlex {
-		openAlexClient = enrich.NewClient(openAlexSource)
+		openAlexClient, err = enrich.NewClient(openAlexSource)
+		if err != nil {
+			return 0, nil, nil, fmt.Errorf("create OpenAlex client: %w", err)
+		}
 		defer openAlexClient.Close()
 	}
 	updated := 0

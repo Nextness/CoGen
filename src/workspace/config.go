@@ -434,17 +434,21 @@ func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enric
 		}
 		userAgent, _ := provider["user_agent"].(string)
 		contactEmail, _ := provider["contact_email"].(string)
-		providers = append(providers, manifest.EnrichmentProvider{
-			Name: name, BaseURL: baseURL, ExtraURLs: extraURLs, Fields: fields,
-			FillMissingOnly: fillMissing, RatePerSecond: rate, Concurrency: concurrency,
-			TimeoutSeconds: timeout, MaxRetries: retries, BatchSize: batchSize,
-		})
-		config.Sources[name] = enrich.SourceConfig{
+		source := enrich.SourceConfig{
 			Name: name, BaseURL: baseURL, UserAgent: userAgent, ContactEmail: contactEmail,
 			RatePerSecond: rate, Concurrency: concurrency, TimeoutSecs: timeout,
 			MaxRetries: retries, Fields: fields,
 			ExtraURLs: extraURLs, BatchSize: batchSize, FillMissingOnly: fillMissing,
 		}
+		if err := enrich.ValidateSourceConfig(source); err != nil {
+			return nil, nil, fmt.Errorf("enrichment provider %q: %w", name, err)
+		}
+		providers = append(providers, manifest.EnrichmentProvider{
+			Name: name, BaseURL: baseURL, ExtraURLs: extraURLs, Fields: fields,
+			FillMissingOnly: fillMissing, RatePerSecond: rate, Concurrency: concurrency,
+			TimeoutSeconds: timeout, MaxRetries: retries, BatchSize: batchSize,
+		})
+		config.Sources[name] = source
 	}
 	return providers, config, nil
 }

@@ -120,7 +120,7 @@ The process logger is installed as the standard `slog` default and package logge
 
 Workspace selectors are stable `search_id@search_revision` strings. Supported source file types are `csv` and `bib`. Supported reuse policies are `reuse_completed`, `fresh`, and `retry`; command-line `--fresh` forces a new attempt.
 
-Provider endpoint values, requested fields, fill policy, rate, concurrency, timeout, retries, batch size, and extra URLs are configured, but provider keys and orchestration order are implemented code: Crossref, OpenAlex metadata and references, then ORCID exact profiles and name-search evidence.
+Provider endpoint values, requested fields, fill policy, rate, concurrency, timeout, retries, batch size, and extra URLs are configured, but provider keys and orchestration order are implemented code: Crossref, OpenAlex metadata and references, then ORCID exact profiles and name-search evidence. `max_retries` counts retries after the initial request.
 
 Cache read layers are ordered and may be `active_run`, `global`, `network`, or resolved `run:N`; writes may target `active_run` and `global`. A `run_specific` declaration becomes `run:N` after requiring a positive `read_run_id`. Fresh policy cannot write global cache data, and negative TTL must be nonnegative.
 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"unicode"
 )
 
 // DecodeOpenAlexAuthorResponse converts an OpenAlex author response for an
@@ -99,12 +100,12 @@ func ORCIDNameSearchURLs(source SourceConfig, name string) []string {
 	queries := make([]string, 0, 3)
 	if givenName != "" && familyName != "" {
 		queries = append(queries,
-			fmt.Sprintf("given-names:%s AND family-name:%s", queryEscape(givenName), queryEscape(familyName)),
-			fmt.Sprintf("credit-name:\"%s\"", creditName),
-			fmt.Sprintf("credit-name:\"%s, %s\"", familyName, givenName),
+			fmt.Sprintf("given-names:%s AND family-name:%s", orcidSearchLiteral(givenName), orcidSearchLiteral(familyName)),
+			fmt.Sprintf("credit-name:%s", orcidSearchLiteral(creditName)),
+			fmt.Sprintf("credit-name:%s", orcidSearchLiteral(familyName+", "+givenName)),
 		)
 	} else if creditName != "" {
-		queries = append(queries, fmt.Sprintf("credit-name:\"%s\"", creditName))
+		queries = append(queries, fmt.Sprintf("credit-name:%s", orcidSearchLiteral(creditName)))
 	}
 	urls := make([]string, 0, len(queries))
 	for _, query := range queries {
@@ -192,11 +193,16 @@ func orcidEntryToAuthor(entry map[string]any, orcid string) *EnrichedAuthor {
 	return author
 }
 
-// queryEscape removes embedded quotes and quotes multi-word ORCID search values.
-func queryEscape(value string) string {
-	value = strings.ReplaceAll(value, "\"", "")
-	if strings.Contains(value, " ") {
-		return "\"" + value + "\""
-	}
-	return value
+// orcidSearchLiteral returns a quoted ORCID search literal with query syntax escaped.
+func orcidSearchLiteral(value string) string {
+	value = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, value)
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return `"` + value + `"`
 }

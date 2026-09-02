@@ -14,7 +14,12 @@ import (
 // Shared helpers
 // =========================================================================
 
-var wordSplitRE = regexp.MustCompile(`[ ]+`)
+var (
+	wordSplitRE           = regexp.MustCompile(`[ ]+`)
+	whitespaceRE          = regexp.MustCompile(`\s+`)
+	asciiLetterRE         = regexp.MustCompile(`[A-Za-z]`)
+	surroundedASCIIWordRE = regexp.MustCompile(`^([^a-zA-Z]*)([a-zA-Z].*[a-zA-Z]|[a-zA-Z])([^a-zA-Z]*)$`)
+)
 
 // titleFirstRune lowercases a string and uppercases its first Unicode rune.
 func titleFirstRune(value string) string {
@@ -142,8 +147,7 @@ func wordToInitial(word string) string {
 		return ""
 	}
 	if isInitials(word) {
-		re := regexp.MustCompile(`[A-Za-z]`)
-		letters := re.FindAllString(word, -1)
+		letters := asciiLetterRE.FindAllString(word, -1)
 		parts := make([]string, len(letters))
 		for i, l := range letters {
 			parts[i] = strings.ToUpper(l)
@@ -182,8 +186,7 @@ func normalizeFamilyWords(words []string) []string {
 		if lowerPrefixes[strings.ToLower(w)] {
 			result = append(result, strings.ToLower(w))
 		} else if isInitials(w) {
-			re := regexp.MustCompile(`[A-Za-z]`)
-			letters := re.FindAllString(w, -1)
+			letters := asciiLetterRE.FindAllString(w, -1)
 			parts := make([]string, len(letters))
 			for i, l := range letters {
 				parts[i] = strings.ToUpper(l)
@@ -326,12 +329,19 @@ var affAbbreviations = map[string]string{
 	"st.": "St.", "mt.": "Mt.", "dr.": "Dr.", "prof.": "Prof.",
 }
 
+var affAbbreviationRE = func() map[string]*regexp.Regexp {
+	patterns := make(map[string]*regexp.Regexp, len(affAbbreviations))
+	for abbreviation := range affAbbreviations {
+		patterns[abbreviation] = regexp.MustCompile(`(?i)` + regexp.QuoteMeta(abbreviation))
+	}
+	return patterns
+}()
+
 // expandAbbreviations expands recognized affiliation abbreviations case-insensitively.
 func expandAbbreviations(text string) string {
 	result := text
 	for abbr, full := range affAbbreviations {
-		re := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(abbr))
-		result = re.ReplaceAllString(result, full)
+		result = affAbbreviationRE[abbr].ReplaceAllString(result, full)
 	}
 	return result
 }
@@ -513,7 +523,7 @@ func pubTitleWord(word string) string {
 	if firstLetterIsNonASCII(stripped) {
 		return titleFirstRune(stripped)
 	}
-	m := regexp.MustCompile(`^([^a-zA-Z]*)([a-zA-Z].*[a-zA-Z]|[a-zA-Z])([^a-zA-Z]*)$`).FindStringSubmatch(stripped)
+	m := surroundedASCIIWordRE.FindStringSubmatch(stripped)
 	if m != nil {
 		prefix, core, suffixExtra := m[1], m[2], m[3]
 		cased := prefix + pubTitleCore(core) + suffixExtra
@@ -579,7 +589,7 @@ func titleCasePublisher(name string) string {
 					casedWords[i] = titleFirstRune(w)
 					continue
 				}
-				m := regexp.MustCompile(`^([^a-zA-Z]*)([a-zA-Z].*[a-zA-Z]|[a-zA-Z])([^a-zA-Z]*)$`).FindStringSubmatch(w)
+				m := surroundedASCIIWordRE.FindStringSubmatch(w)
 				if m != nil {
 					pre, core, suf := m[1], m[2], m[3]
 					lower := strings.ToLower(core)
@@ -633,7 +643,7 @@ func NormalizePublisher(publisher string) string {
 	}
 	text := strings.TrimSpace(publisher)
 	text = html.UnescapeString(text)
-	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	text = whitespaceRE.ReplaceAllString(text, " ")
 	text = strings.TrimSpace(text)
 
 	if v, ok := publisherCanonical[text]; ok {
@@ -722,90 +732,84 @@ func titleCaseJournal(name string) string {
 		return name
 	}
 	name = strings.TrimSpace(name)
-
-	type part struct {
-		typ  string
-		text string
+	var result strings.Builder
+	var segment strings.Builder
+	depth := 0
+	flush := func() {
+		if segment.Len() == 0 {
+			return
+		}
+		result.WriteString(titleCaseJournalSegment(segment.String(), depth > 0))
+		segment.Reset()
 	}
-	var parts []part
-	parenDepth := 0
-	var current []byte
-	for i := 0; i < len(name); i++ {
-		ch := name[i]
-		if ch == '(' && parenDepth == 0 {
-			if len(current) > 0 {
-				parts = append(parts, part{"", string(current)})
-				current = nil
+	for _, character := range name {
+		switch character {
+		case '(':
+			flush()
+			result.WriteRune(character)
+			depth++
+		case ')':
+			flush()
+			result.WriteRune(character)
+			if depth > 0 {
+				depth--
 			}
-			parenDepth = 1
-		} else if ch == ')' && parenDepth == 1 {
-			parenDepth = 0
-			parts = append(parts, part{"paren", string(current)})
-			current = nil
-		} else {
-			current = append(current, ch)
+		default:
+			segment.WriteRune(character)
 		}
 	}
-	if len(current) > 0 {
-		parts = append(parts, part{"", string(current)})
-	}
+	flush()
+	return result.String()
+}
 
-	var resultParts []string
-	for _, p := range parts {
-		words := wordSplitRE.Split(strings.TrimSpace(p.text), -1)
-		if len(words) == 0 || (len(words) == 1 && words[0] == "") {
+// titleCaseJournalSegment cases one text segment while preserving its surrounding whitespace.
+func titleCaseJournalSegment(value string, parenthesized bool) string {
+	leadingLength := len(value) - len(strings.TrimLeft(value, " "))
+	trailingLength := len(value) - len(strings.TrimRight(value, " "))
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return value
+	}
+	words := wordSplitRE.Split(trimmed, -1)
+	for index, word := range words {
+		if word == "" {
 			continue
 		}
-		casedWords := make([]string, len(words))
-		for i, w := range words {
-			if w == "" {
-				continue
-			}
-			m := regexp.MustCompile(`^([^a-zA-Z]*)([a-zA-Z].*[a-zA-Z]|[a-zA-Z])([^a-zA-Z]*)$`).FindStringSubmatch(w)
-			if m == nil {
-				casedWords[i] = titleFirstRune(w)
-				continue
-			}
-			prefix, core, suffix := m[1], m[2], m[3]
-			lowerCore := strings.ToLower(core)
-			if journalIsAcronym(core) {
-				casedWords[i] = prefix + strings.ToUpper(core) + suffix
-			} else if journalLowerWords[lowerCore] {
-				if (i == 0 || i == len(words)-1) && p.typ != "paren" {
-					casedWords[i] = prefix + titleFirstRune(core) + suffix
-				} else {
-					casedWords[i] = prefix + lowerCore + suffix
-				}
-			} else if strings.Contains(core, "-") {
-				segments := strings.Split(core, "-")
-				for j, s := range segments {
-					if s != "" {
-						segments[j] = titleFirstRune(s)
-					}
-				}
-				cased := prefix + strings.Join(segments, "-") + suffix
-				if strings.HasSuffix(cased, "..") {
-					cased = strings.TrimSuffix(cased, ".")
-				}
-				casedWords[i] = cased
-			} else {
-				cased := prefix + titleFirstRune(core) + suffix
-				if strings.HasSuffix(cased, "..") {
-					cased = strings.TrimSuffix(cased, ".")
-				}
-				casedWords[i] = cased
-			}
+		match := surroundedASCIIWordRE.FindStringSubmatch(word)
+		if match == nil {
+			words[index] = titleFirstRune(word)
+			continue
 		}
-		partResult := strings.Join(casedWords, " ")
-		if p.typ == "paren" {
-			partResult = "(" + partResult + ")"
+		prefix, core, suffix := match[1], match[2], match[3]
+		lowerCore := strings.ToLower(core)
+		switch {
+		case journalIsAcronym(core):
+			words[index] = prefix + strings.ToUpper(core) + suffix
+		case journalLowerWords[lowerCore] && !parenthesized && (index == 0 || index == len(words)-1):
+			words[index] = prefix + titleFirstRune(core) + suffix
+		case journalLowerWords[lowerCore]:
+			words[index] = prefix + lowerCore + suffix
+		case strings.Contains(core, "-"):
+			segments := strings.Split(core, "-")
+			for segmentIndex, segment := range segments {
+				if segment != "" {
+					segments[segmentIndex] = titleFirstRune(segment)
+				}
+			}
+			words[index] = normalizedPunctuationWord(prefix + strings.Join(segments, "-") + suffix)
+		default:
+			words[index] = normalizedPunctuationWord(prefix + titleFirstRune(core) + suffix)
 		}
-		if len(resultParts) > 0 && strings.HasPrefix(partResult, "(") && !strings.HasSuffix(resultParts[len(resultParts)-1], " ") {
-			resultParts = append(resultParts, " ")
-		}
-		resultParts = append(resultParts, partResult)
 	}
-	return strings.Join(resultParts, "")
+	return value[:leadingLength] + strings.Join(words, " ") + value[len(value)-trailingLength:]
+}
+
+// normalizedPunctuationWord removes a duplicate terminal period introduced by casing.
+func normalizedPunctuationWord(value string) string {
+	if strings.HasSuffix(value, "..") {
+		return strings.TrimSuffix(value, ".")
+	}
+	return value
 }
 
 // NormalizeJournal normalizes a journal name.
@@ -816,7 +820,7 @@ func NormalizeJournal(journal string) string {
 	text := strings.TrimSpace(journal)
 	text = html.UnescapeString(text)
 	text = strings.ReplaceAll(text, "\\&", "&")
-	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
+	text = whitespaceRE.ReplaceAllString(text, " ")
 	text = strings.TrimSpace(text)
 
 	if v, ok := journalCanonical[text]; ok {
