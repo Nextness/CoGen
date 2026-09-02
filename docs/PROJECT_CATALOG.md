@@ -21,23 +21,24 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Author`](../src/article/article.go#L15) | struct | 15-22 | ``type Author struct { CitationName string `json:"citation_name"` Orcid string `json:"orcid"` FirstName string `json:"first_name"` LastName string `json:"last_name"` NormalizedName string `json:"normalized_name"` Affiliation string `json:"affiliation"` }`` | Author stores one source-observed or enriched author occurrence before persistence. |
 | [`Reference`](../src/article/article.go#L25) | struct | 25-32 | ``type Reference struct { Raw string `json:"raw"` DOI string `json:"doi"` Title string `json:"title"` Author string `json:"author"` Year int `json:"year"` Source string `json:"source"` }`` | Reference stores one ordered bibliographic reference parsed or enriched for an article. |
 | [`Article`](../src/article/article.go#L35) | struct | 35-48 | ``type Article struct { DOI string `json:"doi"` Title string `json:"title"` Abstract string `json:"abstract"` Year int `json:"year"` Keywords []string `json:"keywords"` KeywordsAdditional []string `json:"keywords_additional"` Journal string `json:"journal"` Publisher string `json:"publisher"` Source string `json:"source"` CitationCount int `json:"citation_count"` CitedReferences []Reference `json:"cited_references"` Authors []Author `json:"authors"` }`` | Article is the pipeline's mutable in-memory work record before immutable revision persistence. |
-| [`SanitizeText`](../src/article/article.go#L67) | function | 67-74 | `func SanitizeText(data string) string` | SanitizeText cleans problematic characters from raw export text. Removes HTML tags, replaces smart quotes/dashes with ASCII equivalents, strips BOM. |
-| [`SplitToList`](../src/article/article.go#L78) | function | 78-101 | `func SplitToList(value, separator string) []string` | SplitToList splits a string by separator, returning cleaned non-empty parts. When separator is "\n", it splits on newlines directly without stripping newlines first. |
-| [`ParseInt`](../src/article/article.go#L104) | function | 104-114 | `func ParseInt(value string) int` | ParseInt parses a string as an integer. Returns 0 on failure. |
-| [`ParseOptionalInt`](../src/article/article.go#L117) | function | 117-127 | `func ParseOptionalInt(value string) *int` | ParseOptionalInt parses a string as an integer. Returns nil pointer on failure. |
-| [`ExtractDOI`](../src/article/article.go#L130) | function | 130-138 | `func ExtractDOI(text string) string` | ExtractDOI returns the first DOI found in text, or empty string. |
-| [`ParseAuthors`](../src/article/article.go#L144) | function | 144-180 | `func ParseAuthors(authorsStr, affiliationsStr string) []Author` | ParseAuthors parses semicolon/newline-separated author and affiliation strings. Affiliations are matched by position (same index as authors). BibTeX uses " and " as separator - this is tried as a fallback when semicolons don't produce a useful split. |
-| [`ParseReferences`](../src/article/article.go#L185) | function | 185-207 | `func ParseReferences(refsStr string) []Reference` | ParseReferences parses a newline or semicolon-separated reference list with DOI extraction. CSV exports generally use semicolons while BibTeX exports use one reference per line. |
-| [`RenameFields`](../src/article/article.go#L210) | function | 210-234 | `func RenameFields(m map[string]string, patches map[string]string)` | RenameFields renames keys in m according to patches (old -> new), in-place. |
-| [`KeepFields`](../src/article/article.go#L237) | function | 237-247 | `func KeepFields(m map[string]string, keep []string)` | KeepFields deletes keys not in the keep set, in-place. |
-| [`RequiredFieldError`](../src/article/article.go#L250) | struct | 250-252 | `type RequiredFieldError struct { Missing []string }` | RequiredFieldError is returned when a required field is missing. |
-| [`(*RequiredFieldError).Error`](../src/article/article.go#L255) | method | 255-257 | `func (*RequiredFieldError).Error() string` | Error returns the receiver's diagnostic message. |
-| [`CheckRequired`](../src/article/article.go#L260) | function | 260-272 | `func CheckRequired(a *Article) []string` | CheckRequired returns the list of missing required fields. |
-| [`NewFromMap`](../src/article/article.go#L277) | function | 277-306 | `func NewFromMap(entry map[string]string, source string) (*Article, error)` | NewFromMap builds an Article from a canonical-field map[string]string. All text values are sanitised automatically. Returns nil + *RequiredFieldError if required fields are missing. |
-| [`ArticleToMap`](../src/article/article.go#L309) | function | 309-346 | `func ArticleToMap(a *Article) map[string]any` | ArticleToMap serialises an Article to a plain map for JSON output. |
-| [`MergeBySource`](../src/article/article.go#L350) | function | 350-375 | `func MergeBySource(articlesBySource map[string][]*Article) (unique, duplicates []*Article)` | MergeBySource merges articles from multiple sources, deduplicating by DOI. Returns (unique, duplicates). Articles without DOI are always kept. |
-| [`lowerAll`](../src/article/article.go#L378) | function | 378-383 | `func lowerAll(ss []string) []string` | lowerAll returns lowercase copies of all input strings. |
-| [`sortedKeys`](../src/article/article.go#L386) | function | 386-393 | `func sortedKeys(m map[string][]*Article) []string` | sortedKeys returns keys in deterministic order. |
+| [`SanitizeText`](../src/article/article.go#L68) | function | 68-75 | `func SanitizeText(data string) string` | SanitizeText cleans problematic characters from raw export text. Removes HTML tags, replaces smart quotes/dashes with ASCII equivalents, strips BOM. |
+| [`SplitToList`](../src/article/article.go#L79) | function | 79-102 | `func SplitToList(value, separator string) []string` | SplitToList splits a string by separator, returning cleaned non-empty parts. When separator is "\n", it splits on newlines directly without stripping newlines first. |
+| [`parseInteger`](../src/article/article.go#L105) | function | 105-115 | `func parseInteger(value string) (int, bool)` | parseInteger parses one export value after normalizing its whitespace. |
+| [`ParseInt`](../src/article/article.go#L118) | function | 118-124 | `func ParseInt(value string) int` | ParseInt parses a string as an integer. Returns 0 on failure. |
+| [`ParseOptionalInt`](../src/article/article.go#L127) | function | 127-133 | `func ParseOptionalInt(value string) *int` | ParseOptionalInt parses a string as an integer. Returns nil pointer on failure. |
+| [`ExtractDOI`](../src/article/article.go#L136) | function | 136-143 | `func ExtractDOI(text string) string` | ExtractDOI returns the first DOI found in text, or empty string. |
+| [`ParseAuthors`](../src/article/article.go#L149) | function | 149-185 | `func ParseAuthors(authorsStr, affiliationsStr string) []Author` | ParseAuthors parses semicolon/newline-separated author and affiliation strings. Affiliations are matched by position (same index as authors). BibTeX uses " and " as separator - this is tried as a fallback when semicolons don't produce a useful split. |
+| [`ParseReferences`](../src/article/article.go#L190) | function | 190-212 | `func ParseReferences(refsStr string) []Reference` | ParseReferences parses a newline or semicolon-separated reference list with DOI extraction. CSV exports generally use semicolons while BibTeX exports use one reference per line. |
+| [`RenameFields`](../src/article/article.go#L215) | function | 215-239 | `func RenameFields(m map[string]string, patches map[string]string)` | RenameFields renames keys in m according to patches (old -> new), in-place. |
+| [`KeepFields`](../src/article/article.go#L242) | function | 242-252 | `func KeepFields(m map[string]string, keep []string)` | KeepFields deletes keys not in the keep set, in-place. |
+| [`RequiredFieldError`](../src/article/article.go#L255) | struct | 255-257 | `type RequiredFieldError struct { Missing []string }` | RequiredFieldError is returned when a required field is missing. |
+| [`(*RequiredFieldError).Error`](../src/article/article.go#L260) | method | 260-262 | `func (*RequiredFieldError).Error() string` | Error returns the receiver's diagnostic message. |
+| [`CheckRequired`](../src/article/article.go#L265) | function | 265-280 | `func CheckRequired(a *Article) []string` | CheckRequired returns the list of missing required fields. |
+| [`NewFromMap`](../src/article/article.go#L285) | function | 285-314 | `func NewFromMap(entry map[string]string, source string) (*Article, error)` | NewFromMap builds an Article from a canonical-field map[string]string. All text values are sanitised automatically. Returns nil + *RequiredFieldError if required fields are missing. |
+| [`ArticleToMap`](../src/article/article.go#L317) | function | 317-354 | `func ArticleToMap(a *Article) map[string]any` | ArticleToMap serialises an Article to a plain map for JSON output. |
+| [`MergeBySource`](../src/article/article.go#L358) | function | 358-383 | `func MergeBySource(articlesBySource map[string][]*Article) (unique, duplicates []*Article)` | MergeBySource merges articles from multiple sources, deduplicating by DOI. Returns (unique, duplicates). Articles without DOI are always kept. |
+| [`lowerAll`](../src/article/article.go#L386) | function | 386-391 | `func lowerAll(ss []string) []string` | lowerAll returns lowercase copies of all input strings. |
+| [`sortedKeys`](../src/article/article.go#L394) | function | 394-401 | `func sortedKeys(m map[string][]*Article) []string` | sortedKeys returns keys in deterministic order. |
 
 ### [`src/article/article_unit_test.go`](../src/article/article_unit_test.go)
 
@@ -51,28 +52,28 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestSplitToListByNewline`](../src/article/article_unit_test.go#L53) | test | 53-59 | `func TestSplitToListByNewline(t *testing.T)` | TestSplitToListByNewline verifies split to list by newline. |
 | [`TestSplitToListEmpty`](../src/article/article_unit_test.go#L62) | test | 62-67 | `func TestSplitToListEmpty(t *testing.T)` | TestSplitToListEmpty verifies split to list empty. |
 | [`TestSplitToListNoNewlineCollapse`](../src/article/article_unit_test.go#L70) | test | 70-77 | `func TestSplitToListNoNewlineCollapse(t *testing.T)` | TestSplitToListNoNewlineCollapse verifies split to list no newline collapse. |
-| [`TestParseInt`](../src/article/article_unit_test.go#L80) | test | 80-96 | `func TestParseInt(t *testing.T)` | TestParseInt verifies parse int. |
-| [`TestParseOptionalInt`](../src/article/article_unit_test.go#L99) | test | 99-106 | `func TestParseOptionalInt(t *testing.T)` | TestParseOptionalInt verifies parse optional int. |
-| [`TestExtractDOIBare`](../src/article/article_unit_test.go#L109) | test | 109-114 | `func TestExtractDOIBare(t *testing.T)` | TestExtractDOIBare verifies extract doi bare. |
-| [`TestExtractDOIFromURL`](../src/article/article_unit_test.go#L117) | test | 117-122 | `func TestExtractDOIFromURL(t *testing.T)` | TestExtractDOIFromURL verifies extract doi from url. |
-| [`TestExtractDOITrailingPunct`](../src/article/article_unit_test.go#L125) | test | 125-130 | `func TestExtractDOITrailingPunct(t *testing.T)` | TestExtractDOITrailingPunct verifies extract doi trailing punct. |
-| [`TestExtractDOINone`](../src/article/article_unit_test.go#L133) | test | 133-138 | `func TestExtractDOINone(t *testing.T)` | TestExtractDOINone verifies extract doi none. |
-| [`TestParseAuthorsSemicolon`](../src/article/article_unit_test.go#L141) | test | 141-152 | `func TestParseAuthorsSemicolon(t *testing.T)` | TestParseAuthorsSemicolon verifies parse authors semicolon. |
-| [`TestParseAuthorsSemicolonAffiliations`](../src/article/article_unit_test.go#L155) | test | 155-160 | `func TestParseAuthorsSemicolonAffiliations(t *testing.T)` | TestParseAuthorsSemicolonAffiliations verifies parse authors semicolon affiliations. |
-| [`TestParseAuthorsAndFallback`](../src/article/article_unit_test.go#L163) | test | 163-171 | `func TestParseAuthorsAndFallback(t *testing.T)` | TestParseAuthorsAndFallback verifies parse authors and fallback. |
-| [`TestParseAuthorsEmpty`](../src/article/article_unit_test.go#L174) | test | 174-179 | `func TestParseAuthorsEmpty(t *testing.T)` | TestParseAuthorsEmpty verifies parse authors empty. |
-| [`TestParseReferences`](../src/article/article_unit_test.go#L182) | test | 182-193 | `func TestParseReferences(t *testing.T)` | TestParseReferences verifies parse references. |
-| [`TestParseReferencesSemicolonSeparated`](../src/article/article_unit_test.go#L196) | test | 196-201 | `func TestParseReferencesSemicolonSeparated(t *testing.T)` | TestParseReferencesSemicolonSeparated verifies parse references semicolon separated. |
-| [`TestRenameFields`](../src/article/article_unit_test.go#L204) | test | 204-216 | `func TestRenameFields(t *testing.T)` | TestRenameFields verifies rename fields. |
-| [`TestRenameFieldsChainedRenamesAreDeterministic`](../src/article/article_unit_test.go#L219) | test | 219-225 | `func TestRenameFieldsChainedRenamesAreDeterministic(t *testing.T)` | TestRenameFieldsChainedRenamesAreDeterministic verifies rename fields chained renames are deterministic. |
-| [`TestKeepFields`](../src/article/article_unit_test.go#L228) | test | 228-240 | `func TestKeepFields(t *testing.T)` | TestKeepFields verifies keep fields. |
-| [`TestNewFromMapMinimal`](../src/article/article_unit_test.go#L243) | test | 243-269 | `func TestNewFromMapMinimal(t *testing.T)` | TestNewFromMapMinimal verifies new from map minimal. |
-| [`TestNewFromMapNormalizesDOIURL`](../src/article/article_unit_test.go#L272) | test | 272-284 | `func TestNewFromMapNormalizesDOIURL(t *testing.T)` | TestNewFromMapNormalizesDOIURL verifies article construction normalizes a DOI URL. |
-| [`TestNewFromMapMissingRequired`](../src/article/article_unit_test.go#L287) | test | 287-296 | `func TestNewFromMapMissingRequired(t *testing.T)` | TestNewFromMapMissingRequired verifies new from map missing required. |
-| [`TestCheckRequired`](../src/article/article_unit_test.go#L299) | test | 299-312 | `func TestCheckRequired(t *testing.T)` | TestCheckRequired verifies check required. |
-| [`TestArticleToMap`](../src/article/article_unit_test.go#L315) | test | 315-336 | `func TestArticleToMap(t *testing.T)` | TestArticleToMap verifies article to map. |
-| [`TestMergeBySource`](../src/article/article_unit_test.go#L339) | test | 339-357 | `func TestMergeBySource(t *testing.T)` | TestMergeBySource verifies merge by source. |
-| [`TestMergeBySourceNoDOIIsUnique`](../src/article/article_unit_test.go#L360) | test | 360-373 | `func TestMergeBySourceNoDOIIsUnique(t *testing.T)` | TestMergeBySourceNoDOIIsUnique verifies merge by source no doi is unique. |
+| [`TestParseInt`](../src/article/article_unit_test.go#L80) | test | 80-97 | `func TestParseInt(t *testing.T)` | TestParseInt verifies parse int. |
+| [`TestParseOptionalInt`](../src/article/article_unit_test.go#L100) | test | 100-107 | `func TestParseOptionalInt(t *testing.T)` | TestParseOptionalInt verifies parse optional int. |
+| [`TestExtractDOIBare`](../src/article/article_unit_test.go#L110) | test | 110-115 | `func TestExtractDOIBare(t *testing.T)` | TestExtractDOIBare verifies extract doi bare. |
+| [`TestExtractDOIFromURL`](../src/article/article_unit_test.go#L118) | test | 118-123 | `func TestExtractDOIFromURL(t *testing.T)` | TestExtractDOIFromURL verifies extract doi from url. |
+| [`TestExtractDOITrailingPunct`](../src/article/article_unit_test.go#L126) | test | 126-131 | `func TestExtractDOITrailingPunct(t *testing.T)` | TestExtractDOITrailingPunct verifies extract doi trailing punct. |
+| [`TestExtractDOINone`](../src/article/article_unit_test.go#L134) | test | 134-139 | `func TestExtractDOINone(t *testing.T)` | TestExtractDOINone verifies extract doi none. |
+| [`TestParseAuthorsSemicolon`](../src/article/article_unit_test.go#L142) | test | 142-153 | `func TestParseAuthorsSemicolon(t *testing.T)` | TestParseAuthorsSemicolon verifies parse authors semicolon. |
+| [`TestParseAuthorsSemicolonAffiliations`](../src/article/article_unit_test.go#L156) | test | 156-161 | `func TestParseAuthorsSemicolonAffiliations(t *testing.T)` | TestParseAuthorsSemicolonAffiliations verifies parse authors semicolon affiliations. |
+| [`TestParseAuthorsAndFallback`](../src/article/article_unit_test.go#L164) | test | 164-172 | `func TestParseAuthorsAndFallback(t *testing.T)` | TestParseAuthorsAndFallback verifies parse authors and fallback. |
+| [`TestParseAuthorsEmpty`](../src/article/article_unit_test.go#L175) | test | 175-180 | `func TestParseAuthorsEmpty(t *testing.T)` | TestParseAuthorsEmpty verifies parse authors empty. |
+| [`TestParseReferences`](../src/article/article_unit_test.go#L183) | test | 183-194 | `func TestParseReferences(t *testing.T)` | TestParseReferences verifies parse references. |
+| [`TestParseReferencesSemicolonSeparated`](../src/article/article_unit_test.go#L197) | test | 197-202 | `func TestParseReferencesSemicolonSeparated(t *testing.T)` | TestParseReferencesSemicolonSeparated verifies parse references semicolon separated. |
+| [`TestRenameFields`](../src/article/article_unit_test.go#L205) | test | 205-217 | `func TestRenameFields(t *testing.T)` | TestRenameFields verifies rename fields. |
+| [`TestRenameFieldsChainedRenamesAreDeterministic`](../src/article/article_unit_test.go#L220) | test | 220-226 | `func TestRenameFieldsChainedRenamesAreDeterministic(t *testing.T)` | TestRenameFieldsChainedRenamesAreDeterministic verifies rename fields chained renames are deterministic. |
+| [`TestKeepFields`](../src/article/article_unit_test.go#L229) | test | 229-241 | `func TestKeepFields(t *testing.T)` | TestKeepFields verifies keep fields. |
+| [`TestNewFromMapMinimal`](../src/article/article_unit_test.go#L244) | test | 244-270 | `func TestNewFromMapMinimal(t *testing.T)` | TestNewFromMapMinimal verifies new from map minimal. |
+| [`TestNewFromMapNormalizesDOIURL`](../src/article/article_unit_test.go#L273) | test | 273-285 | `func TestNewFromMapNormalizesDOIURL(t *testing.T)` | TestNewFromMapNormalizesDOIURL verifies article construction normalizes a DOI URL. |
+| [`TestNewFromMapMissingRequired`](../src/article/article_unit_test.go#L288) | test | 288-297 | `func TestNewFromMapMissingRequired(t *testing.T)` | TestNewFromMapMissingRequired verifies new from map missing required. |
+| [`TestCheckRequired`](../src/article/article_unit_test.go#L300) | test | 300-318 | `func TestCheckRequired(t *testing.T)` | TestCheckRequired verifies check required. |
+| [`TestArticleToMap`](../src/article/article_unit_test.go#L321) | test | 321-342 | `func TestArticleToMap(t *testing.T)` | TestArticleToMap verifies article to map. |
+| [`TestMergeBySource`](../src/article/article_unit_test.go#L345) | test | 345-363 | `func TestMergeBySource(t *testing.T)` | TestMergeBySource verifies merge by source. |
+| [`TestMergeBySourceNoDOIIsUnique`](../src/article/article_unit_test.go#L366) | test | 366-379 | `func TestMergeBySourceNoDOIIsUnique(t *testing.T)` | TestMergeBySourceNoDOIIsUnique verifies merge by source no doi is unique. |
 
 ### [`src/article/helpers_test.go`](../src/article/helpers_test.go)
 
@@ -85,20 +86,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`EntryType`](../src/bibtex/bibtex.go#L15) | type | 15 | `type EntryType int` | EntryType identifies the supported BibTeX entry categories. |
-| [`(EntryType).String`](../src/bibtex/bibtex.go#L26) | method | 26-39 | `func (EntryType).String() string` | String returns the receiver's textual representation. |
-| [`entryTypeFromString`](../src/bibtex/bibtex.go#L42) | function | 42-55 | `func entryTypeFromString(s string) EntryType` | entryTypeFromString maps a case-insensitive BibTeX entry name to its category. |
-| [`Entry`](../src/bibtex/bibtex.go#L58) | type | 58 | `type Entry map[string]string` | Entry is a BibTeX entry represented as a map of field names to values. |
-| [`Library`](../src/bibtex/bibtex.go#L61) | type | 61 | `type Library map[string]Entry` | Library is a collection of BibTeX entries keyed by citation key. |
-| [`Parser`](../src/bibtex/bibtex.go#L64) | struct | 64-66 | `type Parser struct { log *slog.Logger }` | Parser parses BibTeX data. Use NewParser to create one. |
-| [`NewParser`](../src/bibtex/bibtex.go#L70) | function | 70-75 | `func NewParser(log *slog.Logger) *Parser` | NewParser creates a Parser that logs to the given logger. If log is nil, it uses the process-wide BibTeX component logger. |
-| [`(*Parser).LoadFile`](../src/bibtex/bibtex.go#L78) | method | 78-85 | `func (*Parser).LoadFile(filepath string) (string, error)` | LoadFile reads and logs a BibTeX input file without parsing it. |
-| [`tokenType`](../src/bibtex/bibtex.go#L88) | type | 88 | `type tokenType int` | tokenType identifies lexical tokens in the constrained BibTeX grammar. |
-| [`token`](../src/bibtex/bibtex.go#L103) | struct | 103-106 | `type token struct { typ tokenType value string }` | token carries one BibTeX token category and its optional text value. |
-| [`readBracedContent`](../src/bibtex/bibtex.go#L110) | function | 110-136 | `func readBracedContent(data string, i, n int, stripBraces bool) (string, int)` | readBracedContent reads content inside balanced braces. When stripBraces is true, the outermost braces are not included in the result. |
-| [`isIdentChar`](../src/bibtex/bibtex.go#L139) | function | 139-142 | `func isIdentChar(c byte) bool` | isIdentChar reports whether a byte is accepted inside a BibTeX identifier. |
-| [`tokenize`](../src/bibtex/bibtex.go#L145) | function | 145-219 | `func tokenize(data string, stripBraces bool) []token` | tokenize converts BibTeX source text into the constrained parser token stream. |
-| [`(*Parser).Parse`](../src/bibtex/bibtex.go#L224) | method | 224-329 | `func (*Parser).Parse(data, source string, stripBraces bool) (Library, error)` | Parse parses raw BibTeX data into a Library. Only "article" entries are retained. Duplicate citation keys get a numeric suffix. The source parameter is stored in the "article_source" field of each entry. |
+| [`Entry`](../src/bibtex/bibtex.go#L15) | type | 15 | `type Entry map[string]string` | Entry is a BibTeX entry represented as a map of field names to values. |
+| [`Library`](../src/bibtex/bibtex.go#L18) | type | 18 | `type Library map[string]Entry` | Library is a collection of BibTeX entries keyed by citation key. |
+| [`Parser`](../src/bibtex/bibtex.go#L21) | struct | 21-23 | `type Parser struct { log *slog.Logger }` | Parser parses BibTeX data. Use NewParser to create one. |
+| [`NewParser`](../src/bibtex/bibtex.go#L27) | function | 27-32 | `func NewParser(log *slog.Logger) *Parser` | NewParser creates a Parser that logs to the given logger. If log is nil, it uses the process-wide BibTeX component logger. |
+| [`(*Parser).LoadFile`](../src/bibtex/bibtex.go#L35) | method | 35-42 | `func (*Parser).LoadFile(filepath string) (string, error)` | LoadFile reads and logs a BibTeX input file without parsing it. |
+| [`tokenType`](../src/bibtex/bibtex.go#L45) | type | 45 | `type tokenType int` | tokenType identifies lexical tokens in the constrained BibTeX grammar. |
+| [`token`](../src/bibtex/bibtex.go#L60) | struct | 60-63 | `type token struct { typ tokenType value string }` | token carries one BibTeX token category and its optional text value. |
+| [`lexicalError`](../src/bibtex/bibtex.go#L66) | struct | 66-69 | `type lexicalError struct { position int message string }` | lexicalError identifies malformed constrained BibTeX input by byte position. |
+| [`(*lexicalError).Error`](../src/bibtex/bibtex.go#L72) | method | 72-74 | `func (*lexicalError).Error() string` | Error returns the lexical diagnostic with its input byte position. |
+| [`readBracedContent`](../src/bibtex/bibtex.go#L78) | function | 78-107 | `func readBracedContent(data string, i, n int, stripBraces bool) (string, int, error)` | readBracedContent reads content inside balanced braces. When stripBraces is true, the outermost braces are not included in the result. |
+| [`isIdentChar`](../src/bibtex/bibtex.go#L110) | function | 110-113 | `func isIdentChar(c byte) bool` | isIdentChar reports whether a byte is accepted inside a BibTeX identifier. |
+| [`tokenize`](../src/bibtex/bibtex.go#L116) | function | 116-199 | `func tokenize(data string, stripBraces bool) ([]token, error)` | tokenize converts BibTeX source text into the constrained parser token stream. |
+| [`(*Parser).Parse`](../src/bibtex/bibtex.go#L204) | method | 204-310 | `func (*Parser).Parse(data, source string, stripBraces bool) (Library, error)` | Parse parses raw BibTeX data into a Library. Only "article" entries are retained. Duplicate citation keys get a numeric suffix. The source parameter is stored in the "article_source" field of each entry. |
 
 ### [`src/bibtex/bibtex_functional_test.go`](../src/bibtex/bibtex_functional_test.go)
 
@@ -110,9 +110,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestEntryType`](../src/bibtex/bibtex_unit_test.go#L12) | test | 12-51 | `func TestEntryType(t *testing.T)` | TestEntryType verifies entry type. |
-| [`TestParse`](../src/bibtex/bibtex_unit_test.go#L54) | test | 54-279 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
-| [`TestNewParserNilLogger`](../src/bibtex/bibtex_unit_test.go#L282) | test | 282-291 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
+| [`TestParse`](../src/bibtex/bibtex_unit_test.go#L13) | test | 13-277 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
+| [`TestNewParserNilLogger`](../src/bibtex/bibtex_unit_test.go#L280) | test | 280-289 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
 
 ### [`src/bibtex/helpers_test.go`](../src/bibtex/helpers_test.go)
 
@@ -3592,6 +3591,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`freshReason`](../src/workspace/support.go#L343) | function | 343-351 | `func freshReason(explicitFresh bool, reusePolicy string) string` | freshReason returns the persisted reason for starting a non-reused attempt. |
 | [`loadCSVEntries`](../src/workspace/support.go#L354) | function | 354-389 | `func loadCSVEntries(path, source string) ([]map[string]string, error)` | loadCSVEntries loads csv entries from the supplied source. |
 | [`loadBibEntries`](../src/workspace/support.go#L392) | function | 392-414 | `func loadBibEntries(path, source string) ([]map[string]string, error)` | loadBibEntries loads bib entries from the supplied source. |
+
+### [`src/workspace/support_functional_test.go`](../src/workspace/support_functional_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestLoadBibEntriesRejectsMalformedInput`](../src/workspace/support_functional_test.go#L14) | test | 14-28 | `func TestLoadBibEntriesRejectsMalformedInput(t *testing.T)` | TestLoadBibEntriesRejectsMalformedInput verifies malformed BibTeX cannot enter workspace ingestion. |
 
 ### [`src/workspace/term_matches.go`](../src/workspace/term_matches.go)
 

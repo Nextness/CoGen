@@ -48,6 +48,7 @@ type Article struct {
 }
 
 var htmlTagRe = regexp.MustCompile(`<[^>]*>`)
+var doiInlineRe = regexp.MustCompile(`(?:doi\.org/)?(10\.\d{4,}/[^\s,;]+)`)
 
 var sanitizeReplace = map[string]string{
 	"\u201c": `"`,
@@ -100,14 +101,23 @@ func SplitToList(value, separator string) []string {
 	return parts
 }
 
-// ParseInt parses a string as an integer. Returns 0 on failure.
-func ParseInt(value string) int {
+// parseInteger parses one export value after normalizing its whitespace.
+func parseInteger(value string) (int, bool) {
 	value = strings.TrimSpace(strings.ReplaceAll(value, "\n", ""))
 	if value == "" {
-		return 0
+		return 0, false
 	}
 	n, err := strconv.Atoi(value)
 	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// ParseInt parses a string as an integer. Returns 0 on failure.
+func ParseInt(value string) int {
+	n, ok := parseInteger(value)
+	if !ok {
 		return 0
 	}
 	return n
@@ -115,12 +125,8 @@ func ParseInt(value string) int {
 
 // ParseOptionalInt parses a string as an integer. Returns nil pointer on failure.
 func ParseOptionalInt(value string) *int {
-	value = strings.TrimSpace(strings.ReplaceAll(value, "\n", ""))
-	if value == "" {
-		return nil
-	}
-	n, err := strconv.Atoi(value)
-	if err != nil {
+	n, ok := parseInteger(value)
+	if !ok {
 		return nil
 	}
 	return &n
@@ -128,7 +134,6 @@ func ParseOptionalInt(value string) *int {
 
 // ExtractDOI returns the first DOI found in text, or empty string.
 func ExtractDOI(text string) string {
-	doiInlineRe := regexp.MustCompile(`(?:doi\.org/)?(10\.\d{4,}/[^\s,;]+)`)
 	m := doiInlineRe.FindStringSubmatch(text)
 	if m == nil {
 		return ""
@@ -258,6 +263,9 @@ func (e *RequiredFieldError) Error() string {
 
 // CheckRequired returns the list of missing required fields.
 func CheckRequired(a *Article) []string {
+	if a == nil {
+		return []string{"article"}
+	}
 	var missing []string
 	if a.DOI == "" {
 		missing = append(missing, "doi")
