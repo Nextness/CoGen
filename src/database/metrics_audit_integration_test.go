@@ -96,30 +96,8 @@ func TestMetricsListByRun(t *testing.T) {
 	}
 }
 
-// TestMetricsListByRunAndSource verifies source-filtered listing.
-func TestMetricsListByRunAndSource(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	runID, _ := db.PipelineRuns.StartRun("metrics_source", "")
-	_ = db.Metrics.Set(runID, "input_records", "scopus", 60)
-	_ = db.Metrics.Set(runID, "input_records", "ieee", 45)
-	_ = db.Metrics.Set(runID, "input_records", "", 105)
-
-	metrics, err := db.Metrics.ListByRunAndSource(runID, "scopus")
-	if err != nil {
-		t.Fatalf("Metrics.ListByRunAndSource: %v", err)
-	}
-	if len(metrics) != 1 {
-		t.Fatalf("expected 1 scopus metric, got %d", len(metrics))
-	}
-	if metrics[0].Value != 60 {
-		t.Errorf("expected value 60, got %d", metrics[0].Value)
-	}
-}
-
-// TestAuditEventInsertAndListAll verifies inserting an audit event and listing all.
-func TestAuditEventInsertAndListAll(t *testing.T) {
+// TestAuditEventInsertAndListByRun verifies inserting an audit event and listing its run evidence.
+func TestAuditEventInsertAndListByRun(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 
@@ -146,9 +124,9 @@ func TestAuditEventInsertAndListAll(t *testing.T) {
 		t.Fatal("expected non-zero ID")
 	}
 
-	events, err := db.AuditEvents.ListAll(0)
+	events, err := db.AuditEvents.ListByRun(runID)
 	if err != nil {
-		t.Fatalf("AuditEvents.ListAll: %v", err)
+		t.Fatalf("AuditEvents.ListByRun: %v", err)
 	}
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
@@ -205,14 +183,11 @@ func TestAuditEventInsertWithZeroRunID(t *testing.T) {
 		t.Fatal("expected non-zero ID")
 	}
 
-	events, err := db.AuditEvents.ListAll(0)
-	if err != nil {
-		t.Fatalf("AuditEvents.ListAll: %v", err)
+	var pipelineRunID any
+	if err := db.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE id=?", id).Scan(&pipelineRunID); err != nil {
+		t.Fatal(err)
 	}
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if events[0].PipelineRunID != nil {
+	if pipelineRunID != nil {
 		t.Error("expected nil pipeline_run_id for zero input")
 	}
 }
@@ -277,65 +252,6 @@ func TestAuditEventListByEntity(t *testing.T) {
 	}
 	if len(events) != 2 {
 		t.Fatalf("expected 2 events for article, got %d", len(events))
-	}
-}
-
-// TestAuditEventListByAction verifies listing events by action.
-func TestAuditEventListByAction(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	_, _ = db.AuditEvents.Insert(&manifest.AuditEvent{
-		OccurredAt: "2026-07-21T12:00:00Z", Actor: "pipeline",
-		EntityType: "run", EntityID: "1", Action: manifest.AuditRunStarted,
-	})
-	_, _ = db.AuditEvents.Insert(&manifest.AuditEvent{
-		OccurredAt: "2026-07-21T12:00:01Z", Actor: "pipeline",
-		EntityType: "run", EntityID: "1", Action: manifest.AuditRunCompleted,
-	})
-	_, _ = db.AuditEvents.Insert(&manifest.AuditEvent{
-		OccurredAt: "2026-07-21T12:00:02Z", Actor: "pipeline",
-		EntityType: "run", EntityID: "2", Action: manifest.AuditRunStarted,
-	})
-
-	events, err := db.AuditEvents.ListByAction(manifest.AuditRunStarted)
-	if err != nil {
-		t.Fatalf("AuditEvents.ListByAction: %v", err)
-	}
-	if len(events) != 2 {
-		t.Fatalf("expected 2 'run_started' events, got %d", len(events))
-	}
-}
-
-// TestAuditEventListByActionRejectsInvalid verifies that an invalid action is rejected.
-func TestAuditEventListByActionRejectsInvalid(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	_, err := db.AuditEvents.ListByAction(manifest.AuditAction("bogus"))
-	if err == nil {
-		t.Fatal("expected error for invalid audit action")
-	}
-}
-
-// TestAuditEventListAllLimit verifies the limit parameter on ListAll.
-func TestAuditEventListAllLimit(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	for i := 0; i < 5; i++ {
-		_, _ = db.AuditEvents.Insert(&manifest.AuditEvent{
-			OccurredAt: "2026-07-21T12:00:00Z", Actor: "pipeline",
-			EntityType: "run", EntityID: "1", Action: manifest.AuditRunStarted,
-		})
-	}
-
-	events, err := db.AuditEvents.ListAll(3)
-	if err != nil {
-		t.Fatalf("AuditEvents.ListAll: %v", err)
-	}
-	if len(events) != 3 {
-		t.Fatalf("expected 3 events with limit=3, got %d", len(events))
 	}
 }
 

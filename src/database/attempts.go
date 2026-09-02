@@ -4,6 +4,8 @@
 package database
 
 import (
+	"bytes"
+	"context"
 	"database/sql"
 	"fmt"
 	"time"
@@ -301,8 +303,73 @@ func (r *ArtifactRepository) Create(contentHash, contentType string, byteSize in
 		lg.Debug("artifact creation failed", "hash", contentHash, "reason", "insert_skipped_but_not_found")
 		return 0, fmt.Errorf("create artifact: insert skipped but existing row not found")
 	}
+	if existing.ByteSize != byteSize || existing.ContentType != contentType {
+		return 0, fmt.Errorf("create artifact: content hash %q conflicts with stored metadata", contentHash)
+	}
 	lg.Debug("artifact creation successful", "hash", contentHash, "id", existing.ID, "result", "already_existing")
 	return existing.ID, nil
+}
+
+// CreateWithBlob atomically records an artifact and its bytes for a pipeline run.
+func (r *ArtifactRepository) CreateWithBlob(contentHash, contentType string, byteSize, pipelineRunID int64, data []byte) (int64, error) {
+	expectedSize := byteSize
+	expectedType := contentType
+	var artifactID int64
+	err := r.db.withTx(context.Background(), func(tx *sql.Tx) error {
+		result, err := tx.Exec(`INSERT OR IGNORE INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, ?)`, contentHash, byteSize, contentType)
+		if err != nil {
+			return fmt.Errorf("create artifact: %w", err)
+		}
+		inserted, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("read artifact insert result: %w", err)
+		}
+		if inserted > 0 {
+			artifactID, err = result.LastInsertId()
+			if err != nil {
+				return fmt.Errorf("read artifact ID: %w", err)
+			}
+		} else {
+			var existingSize int64
+			var existingType string
+			if err := tx.QueryRow(`SELECT id, byte_size, content_type FROM artifacts WHERE content_hash=?`, contentHash).Scan(&artifactID, &existingSize, &existingType); err != nil {
+				return fmt.Errorf("read existing artifact: %w", err)
+			}
+			if existingSize != expectedSize || existingType != expectedType {
+				return fmt.Errorf("create artifact: content hash %q conflicts with stored metadata", contentHash)
+			}
+		}
+		var storedSize int64
+		var storedType string
+		if err := tx.QueryRow(`SELECT byte_size, content_type FROM artifacts WHERE id=?`, artifactID).Scan(&storedSize, &storedType); err != nil {
+			return fmt.Errorf("read stored artifact metadata: %w", err)
+		}
+		if storedSize != expectedSize || storedType != expectedType || expectedSize != int64(len(data)) {
+			return fmt.Errorf("create artifact: content hash %q conflicts with stored metadata", contentHash)
+		}
+		result, err = tx.Exec(`INSERT OR IGNORE INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)`, artifactID, pipelineRunID, data)
+		if err != nil {
+			return fmt.Errorf("create artifact blob: %w", err)
+		}
+		inserted, err = result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("read artifact blob insert result: %w", err)
+		}
+		if inserted == 0 {
+			var existing []byte
+			if err := tx.QueryRow(`SELECT data FROM artifact_blobs WHERE artifact_id=?`, artifactID).Scan(&existing); err != nil {
+				return fmt.Errorf("read existing artifact blob: %w", err)
+			}
+			if !bytes.Equal(existing, data) {
+				return fmt.Errorf("create artifact blob: artifact %d conflicts with stored bytes", artifactID)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return artifactID, nil
 }
 
 // GetByHash returns an artifact by its content hash, or nil if not found.
@@ -401,6 +468,9 @@ func (r *ArtifactBlobRepository) Create(artifactID, pipelineRunID int64, data []
 			"artifact_id", artifactID, "reason", "insert_skipped_but_not_found")
 		return 0, fmt.Errorf("create artifact blob: insert skipped but existing row not found")
 	}
+	if !bytes.Equal(existing.Data, data) {
+		return 0, fmt.Errorf("create artifact blob: artifact %d conflicts with stored bytes", artifactID)
+	}
 	lg.Debug("artifact blob creation successful",
 		"artifact_id", artifactID, "id", existing.ID, "result", "already_existing")
 	return existing.ID, nil
@@ -423,50 +493,6 @@ func (r *ArtifactBlobRepository) GetByArtifactID(artifactID int64) (*ArtifactBlo
 	}
 	lg.Debug("artifact blob query successful", "artifact_id", artifactID, "id", b.ID, "result", "found")
 	return &b, nil
-}
-
-// ListByRun returns all blobs written during a given pipeline run, ordered by ID.
-func (r *ArtifactBlobRepository) ListByRun(pipelineRunID int64) ([]*ArtifactBlob, error) {
-	rows, err := r.db.DB.Query(
-		`SELECT id, artifact_id, pipeline_run_id, data, created_at
-		 FROM artifact_blobs WHERE pipeline_run_id = ? ORDER BY id`,
-		pipelineRunID,
-	)
-	if err != nil {
-		lg.Debug("artifact blob list by run failed", "pipeline_run_id", pipelineRunID, "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []*ArtifactBlob
-	for rows.Next() {
-		var b ArtifactBlob
-		if err := rows.Scan(&b.ID, &b.ArtifactID, &b.PipelineRunID, &b.Data, &b.CreatedAt); err != nil {
-			lg.Debug("artifact blob scan failed", "scanned", len(result), "error", err)
-			return nil, err
-		}
-		result = append(result, &b)
-	}
-	if err := rows.Err(); err != nil {
-		lg.Debug("artifact blob iteration failed", "scanned", len(result), "error", err)
-		return nil, err
-	}
-	lg.Debug("artifact blob list by run successful", "pipeline_run_id", pipelineRunID, "blobs", len(result))
-	return result, nil
-}
-
-// ExistsByArtifactID checks whether a blob already exists for the given artifact.
-func (r *ArtifactBlobRepository) ExistsByArtifactID(artifactID int64) (bool, error) {
-	var exists bool
-	err := r.db.DB.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM artifact_blobs WHERE artifact_id = ?)", artifactID,
-	).Scan(&exists)
-	if err != nil {
-		lg.Debug("artifact blob exists check failed", "artifact_id", artifactID, "error", err)
-		return false, err
-	}
-	lg.Debug("artifact blob exists check successful", "artifact_id", artifactID, "exists", exists)
-	return exists, nil
 }
 
 // RunStepRepository provides CRUD for the run_steps table.

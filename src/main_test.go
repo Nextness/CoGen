@@ -277,12 +277,9 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	if len(auditEvents) == 0 || !strings.Contains(auditEvents[0].MetadataJSON, `"enrichment_enabled":false`) {
 		t.Fatalf("run audit does not record enrichment policy: %+v", auditEvents)
 	}
-	planAudit, err := db.AuditEvents.ListByAction(manifest.AuditDuplicatePlanSkipped)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(planAudit) != 1 || !strings.Contains(planAudit[0].MetadataJSON, "matching_completed_plan") {
-		t.Fatalf("completed-plan reuse audit = %+v", planAudit)
+	var planMetadata string
+	if err := db.DB.QueryRow("SELECT metadata_json FROM audit_events WHERE action=?", manifest.AuditDuplicatePlanSkipped).Scan(&planMetadata); err != nil || !strings.Contains(planMetadata, "matching_completed_plan") {
+		t.Fatalf("completed-plan reuse audit = %q, %v", planMetadata, err)
 	}
 	steps, err := db.RunSteps.ListByRun(2)
 	if err != nil {
@@ -300,12 +297,9 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	if preflight.InputFingerprint == "" || preflight.OutputFingerprint == "" || preflight.InputArtifactID == nil || preflight.OutputArtifactID == nil {
 		t.Fatalf("preflight provenance is incomplete: %+v", preflight)
 	}
-	stepAudit, err := db.AuditEvents.ListByAction(manifest.AuditStepReused)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(stepAudit) != 1 || stepAudit[0].PipelineRunID == nil || *stepAudit[0].PipelineRunID != 2 {
-		t.Fatalf("preflight reuse audit = %+v", stepAudit)
+	var stepRunID int64
+	if err := db.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action=?", manifest.AuditStepReused).Scan(&stepRunID); err != nil || stepRunID != 2 {
+		t.Fatalf("preflight reuse audit run ID = %d, %v", stepRunID, err)
 	}
 	pdfInventory, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), filepath.Join(rootDir, "config", "database.something"))
 	if err != nil {
@@ -673,15 +667,23 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 		t.Fatalf("missing failed-run audit for unreadable source: %+v", events)
 	}
 
-	blobs, err := db.ArtifactBlobs.ListByRun(runID)
+	rows, err := db.DB.Query("SELECT data FROM artifact_blobs WHERE pipeline_run_id=?", runID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	foundInputFailure := false
-	for _, blob := range blobs {
-		if strings.Contains(string(blob.Data), `"read_error"`) && strings.Contains(string(blob.Data), missingPath) {
+	for rows.Next() {
+		var data []byte
+		if err := rows.Scan(&data); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), `"read_error"`) && strings.Contains(string(data), missingPath) {
 			foundInputFailure = true
 		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	if !foundInputFailure {
 		t.Fatalf("input manifest artifact does not record unreadable source %q", missingPath)

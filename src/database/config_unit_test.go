@@ -17,6 +17,10 @@ func TestValidMigrationFilename(t *testing.T) {
 		{filename: "V0026_review_anchor_labels.sql", want: false},
 		{filename: "V0002x_review_anchor_labels.sql", want: false},
 		{filename: "../V00026_review_anchor_labels.sql", want: false},
+		{filename: "V00001_../outside.sql", want: false},
+		{filename: "V00001_nested/name.sql", want: false},
+		{filename: "V00001_nested\\name.sql", want: false},
+		{filename: "V00001_..sql", want: false},
 		{filename: "V00026_review_anchor_labels.txt", want: false},
 	} {
 		t.Run(test.filename, func(t *testing.T) {

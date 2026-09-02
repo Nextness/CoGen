@@ -233,12 +233,12 @@ func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T) {
 	if len(terms) != 2 {
 		t.Fatalf("run_search_terms = %d, want 2: %+v", len(terms), terms)
 	}
-	count, err := db.TermMatches.CountRunTermData(runID)
+	reconciled, err := db.TermMatches.HasRunTermData(runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 0 {
-		t.Fatalf("match rows = %d, want 0", count)
+	if !reconciled {
+		t.Fatal("empty term-match result must be marked reconciled")
 	}
 }
 

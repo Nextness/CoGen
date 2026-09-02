@@ -6,7 +6,7 @@ This document describes the current SQLite schema after every configured migrati
 
 The authoritative schema sources are [config/database.something](../config/database.something), [config/database.corpus.metadata.something](../config/database.corpus.metadata.something), [config/database.corpus.pdf.something](../config/database.corpus.pdf.something), [migrations/corpus.metadata/](../migrations/corpus.metadata/), and [migrations/corpus.pdf/](../migrations/corpus.pdf/). Repository code under [src/database/](../src/database/) and [src/pdfstore/](../src/pdfstore/) is authoritative for application-level validation and update behavior that SQLite does not encode.
 
-The metadata database contains 42 application tables plus `schema_migrations`. The PDF database contains five application tables plus its independent `schema_migrations`. SQLite also creates the internal `sqlite_sequence` table for `AUTOINCREMENT` keys; it is implementation state rather than a project table and is not part of the documented application contract.
+The metadata database contains 43 application tables plus `schema_migrations`. The PDF database contains five application tables plus its independent `schema_migrations`. SQLite also creates the internal `sqlite_sequence` table for `AUTOINCREMENT` keys; it is implementation state rather than a project table and is not part of the documented application contract.
 
 In the column summaries below, `NULL` means the column is nullable, and a default is shown only when the DDL declares one. A column without an explicit `DEFAULT` has no SQL default even when repository code normally supplies a value. `PK` means primary key, `FK` means foreign key, and all foreign keys use SQLite's default `NO ACTION` behavior because the migrations declare no cascading action.
 
@@ -14,7 +14,7 @@ In the column summaries below, `NULL` means the column is nullable, and a defaul
 
 | Database | Normal filename | Migration chain | Owner | Current role |
 |---|---|---|---|---|
-| Metadata | `corpus.metadata.db` | V00001-V00026 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
+| Metadata | `corpus.metadata.db` | V00001-V00027 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
 | PDF | `corpus.pdf.db` | V00001-V00002 under `migrations/corpus.pdf/` | `src/pdfstore/` | Portable companion inventory for normalized DOIs, content-addressed validated PDF bytes, and cross-database audit delivery. |
 
 `config/database.something` selects the two migration configurations independently. Writable opening creates the parent directory, enables WAL, sets a 5,000 millisecond busy timeout, enables foreign keys on every pooled connection, and applies configured migrations in SOMETHING declaration order. Tracking-table creation and each individual migration use `BEGIN IMMEDIATE` to serialize concurrent schema changes.
@@ -262,6 +262,12 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `pipeline_run_id INTEGER NOT NULL FK pipeline_runs.id`; `work_revision_id INTEGER NOT NULL FK work_revisions.id`; `field TEXT NOT NULL CHECK (field IN ('title', 'abstract', 'keywords', 'keywords_plus'))`; `term TEXT NOT NULL`; `created_at TEXT NOT NULL DEFAULT (datetime('now'))`; `UNIQUE(pipeline_run_id, work_revision_id, field, term)`.
 - Relationships and expectations: The pipeline computes matches from the normalized revision fields and the run's parsed terms and replaces the run's rows transactionally, so the table holds derived data rather than immutable evidence and has no append-only trigger. Matching is deterministic and case-insensitive: every word in both the term and the field value is stemmed with the English snowball stemmer before whole-word matching, so inflected forms such as plural "Notations" match the singular term "Notation". `*` prefix wildcards are supported and are stemmed with the rest of the term; keywords are matched per element. The viewer reads this table for the article detail and corpus article payloads; `matched_total` is the distinct matched term count per revision.
 
+#### `run_term_match_reconciliations`
+
+- Purpose: Records that the derived search-term inventory and match computation completed for one run, including valid empty results.
+- Columns and defaults: `pipeline_run_id INTEGER PK FK pipeline_runs.id`; `reconciled_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: The repository writes this marker in the same transaction that replaces `run_search_terms` and `work_revision_term_matches`; reconciliation uses it rather than row counts, so runs with no terms or no matches are not recomputed on every invocation.
+
 ### 5.5 Authors, identity evidence, and references
 
 #### `people`
@@ -450,6 +456,7 @@ Primary keys and `UNIQUE` constraints create SQLite autoindexes. The following t
 | Metadata `run_work_stages` | `pipeline_run_id`, `work_id` | None |
 | Metadata `run_search_terms` | None | None; derived data replaced transactionally by the pipeline |
 | Metadata `work_revision_term_matches` | `(pipeline_run_id, field, term)` | None; derived data replaced transactionally by the pipeline |
+| Metadata `run_term_match_reconciliations` | None | None; completion marker written atomically with derived term data |
 | Metadata `author_occurrences` | `person_id`, `orcid` | Reject update and delete |
 | Metadata `people` | None | Reject blank or null ORCID insert and ORCID update |
 | Metadata `authorships` | `work_revision_id`, `author_occurrence_id` | Reject update and delete |

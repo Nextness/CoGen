@@ -207,6 +207,13 @@ database_migrations: database_migration_config = {
     filename = "V00026_review_anchor_labels.sql",
     description = "Separate generated global anchor identity from a work-scoped human label while preserving existing anchor IDs.",
     previous = "V00025_work_revision_term_matches.sql",
-    upgrade = "NONE",
+    upgrade = "V00027_run_term_match_reconciliations.sql",
     supersedes = []string { "V00025_review_anchor_labels.sql" }
+};
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00027_run_term_match_reconciliations.sql",
+    description = "Record completed term-match reconciliation so an empty derived result is not recomputed.",
+    previous = "V00026_review_anchor_labels.sql",
+    upgrade = "NONE",
 };

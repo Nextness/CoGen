@@ -57,7 +57,7 @@ Source exports + SOMETHING configuration
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00026. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00027. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
@@ -257,7 +257,7 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00026 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
+The metadata chain is V00001-V00027 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
 
 The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 

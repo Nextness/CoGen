@@ -492,6 +492,9 @@ type WorkRevisionRepository struct {
 // If FieldSchemaVersion is empty, it defaults to "1".
 // ProducerStage must be a known pipeline stage; legacy_unknown is rejected.
 func (r *WorkRevisionRepository) Create(rev *WorkRevision) (int64, error) {
+	if rev == nil {
+		return 0, fmt.Errorf("create work revision: value is required")
+	}
 	if rev.ProducerStage == "" {
 		return 0, fmt.Errorf("create work revision: producer_stage is required")
 	}

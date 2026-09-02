@@ -315,14 +315,7 @@ func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputMan
 // persistArtifact stores content-addressed artifact metadata and bytes for a run.
 func persistArtifact(db *database.Database, runID int64, data []byte, contentType string) (int64, error) {
 	hash := contentHash(data)
-	id, err := db.Artifacts.Create(hash, contentType, int64(len(data)))
-	if err != nil {
-		return 0, err
-	}
-	if _, err := db.ArtifactBlobs.Create(id, runID, data); err != nil {
-		return 0, err
-	}
-	return id, nil
+	return db.Artifacts.CreateWithBlob(hash, contentType, int64(len(data)), runID, data)
 }
 
 // contentHash returns the lowercase hexadecimal SHA-256 digest of data.

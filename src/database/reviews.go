@@ -28,6 +28,26 @@ var (
 	}
 )
 
+const (
+	reviewListLimit        = 101
+	reviewTextPreviewBytes = 1024
+	anchorTextPreviewBytes = 512
+)
+
+// boundedText decodes a bounded SQL text projection with its original byte length.
+type boundedText struct {
+	text  sql.NullString
+	bytes int
+}
+
+// optional returns the bounded value and whether SQL truncated its original byte sequence.
+func (value boundedText) optional() (*string, bool) {
+	if !value.text.Valid {
+		return nil, false
+	}
+	return &value.text.String, value.bytes > len([]byte(value.text.String))
+}
+
 // ReviewConflictError reports that a context head changed after the caller read it.
 type ReviewConflictError struct {
 	Expected *int64
@@ -157,6 +177,12 @@ type queryRower interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
+// reviewQuerier is the shared query boundary for review reads that need single and multiple rows.
+type reviewQuerier interface {
+	queryRower
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
 // getReviewContext reads the optional immutable context associated with one run.
 func getReviewContext(ctx context.Context, q queryRower, runID int64) (*ReviewContext, error) {
 	var item ReviewContext
@@ -258,7 +284,7 @@ func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64
 	if scope != "same_search" && scope != "all" {
 		return nil, reviewValidation("candidate scope must be same_search or all")
 	}
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("candidate fetch limit must be between 1 and 101")
 	}
 	target, err := r.reviewTarget(ctx, r.db.DB, runID)
@@ -447,7 +473,7 @@ func (r *ReviewRepository) AppendWorkReview(ctx context.Context, contextID, work
 		if err != nil {
 			return err
 		}
-		if !sameOptionalID(expectedVersionID, current) {
+		if !sameNullableID(expectedVersionID, current) {
 			return &ReviewConflictError{Expected: expectedVersionID, Current: current}
 		}
 		if current == nil && status == "not_evaluated" && len(canonical) == 0 && normalizedReason == nil {
@@ -538,7 +564,7 @@ func (r *ReviewRepository) mutableWorkHead(ctx context.Context, tx *sql.Tx, cont
 
 // ListWorkReviewVersions follows only the selected head's ancestor chain.
 func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID, workRevisionID, cursor int64, limit int) ([]WorkReviewVersion, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
@@ -549,7 +575,7 @@ func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID
 		 WHERE version.parent_version_id IS NOT NULL
 	)
 	SELECT version.id, version.work_id, version.work_revision_id, version.created_in_context_id,
-		version.parent_version_id, version.status, substr(version.reason, 1, 1024),
+		version.parent_version_id, version.status, substr(version.reason, 1, `+strconv.Itoa(reviewTextPreviewBytes)+`),
 		COALESCE(length(CAST(version.reason AS BLOB)), 0), version.created_at, reviewer.username, reviewer.email,
 		COALESCE((SELECT json_group_array(sub_status) FROM (
 			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=version.id ORDER BY sub_status)), '[]')
@@ -564,18 +590,15 @@ func (r *ReviewRepository) ListWorkReviewVersions(ctx context.Context, contextID
 	for rows.Next() {
 		var item WorkReviewVersion
 		var parent sql.NullInt64
-		var reason, username, email sql.NullString
-		var reasonBytes int
+		var reason boundedText
+		var username, email sql.NullString
 		var substatusesJSON string
 		if err := rows.Scan(&item.ID, &item.WorkID, &item.WorkRevisionID, &item.CreatedInContextID,
-			&parent, &item.Status, &reason, &reasonBytes, &item.CreatedAt, &username, &email, &substatusesJSON); err != nil {
+			&parent, &item.Status, &reason.text, &reason.bytes, &item.CreatedAt, &username, &email, &substatusesJSON); err != nil {
 			return nil, err
 		}
 		item.ParentVersionID = nullInt64Pointer(parent)
-		if reason.Valid {
-			item.Reason = &reason.String
-			item.ReasonTruncated = reasonBytes > len([]byte(reason.String))
-		}
+		item.Reason, item.ReasonTruncated = reason.optional()
 		item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
 		if err := json.Unmarshal([]byte(substatusesJSON), &item.Substatuses); err != nil {
 			return nil, err
@@ -611,9 +634,7 @@ func (r *ReviewRepository) GetWorkReviewVersion(ctx context.Context, contextID, 
 }
 
 // getWorkReviewVersion reads one immutable version with canonical sub-statuses and reviewer attribution.
-func (r *ReviewRepository) getWorkReviewVersion(ctx context.Context, q interface {
-	queryRower
-}, id int64) (*WorkReviewVersion, error) {
+func (r *ReviewRepository) getWorkReviewVersion(ctx context.Context, q reviewQuerier, id int64) (*WorkReviewVersion, error) {
 	var item WorkReviewVersion
 	var parent sql.NullInt64
 	var reason sql.NullString
@@ -634,7 +655,7 @@ func (r *ReviewRepository) getWorkReviewVersion(ctx context.Context, q interface
 		item.Reason = &reason.String
 	}
 	item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
-	rows, err := queryRowsContext(ctx, q, `SELECT sub_status FROM work_review_version_substatuses
+	rows, err := q.QueryContext(ctx, `SELECT sub_status FROM work_review_version_substatuses
 		WHERE review_version_id=? ORDER BY sub_status`, id)
 	if err != nil {
 		return nil, err
@@ -649,20 +670,6 @@ func (r *ReviewRepository) getWorkReviewVersion(ctx context.Context, q interface
 		item.Substatuses = append(item.Substatuses, value)
 	}
 	return &item, rows.Err()
-}
-
-// rowQuerier is the shared multi-row query boundary for database and transaction callers.
-type rowQuerier interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}
-
-// queryRowsContext checks that a review query source supports multi-row reads.
-func queryRowsContext(ctx context.Context, q any, query string, args ...any) (*sql.Rows, error) {
-	querier, ok := q.(rowQuerier)
-	if !ok {
-		return nil, fmt.Errorf("review query source does not support rows")
-	}
-	return querier.QueryContext(ctx, query, args...)
 }
 
 // validateReviewState normalizes one complete review state and enforces vocabulary compatibility.
@@ -762,11 +769,6 @@ func nullInt64Pointer(value sql.NullInt64) *int64 {
 	}
 	result := value.Int64
 	return &result
-}
-
-// sameOptionalID compares nullable version identifiers.
-func sameOptionalID(left, right *int64) bool {
-	return (left == nil && right == nil) || (left != nil && right != nil && *left == *right)
 }
 
 // optionalStringEqual compares nullable normalized text.
@@ -1006,10 +1008,7 @@ func (r *ReviewRepository) GetNote(ctx context.Context, contextID, noteID int64)
 }
 
 // getNote reads one selected context head and resolves inherited attribution.
-func (r *ReviewRepository) getNote(ctx context.Context, q interface {
-	queryRower
-	rowQuerier
-}, contextID, noteID int64) (*ReviewNote, error) {
+func (r *ReviewRepository) getNote(ctx context.Context, q reviewQuerier, contextID, noteID int64) (*ReviewNote, error) {
 	var note ReviewNote
 	var versionID int64
 	err := q.QueryRowContext(ctx, `SELECT logical.id, logical.work_id, work_head.work_revision_id,
@@ -1048,7 +1047,7 @@ func (r *ReviewRepository) ListNotes(ctx context.Context, contextID, workRevisio
 
 // ListNotesFiltered returns bounded current note-head summaries for one work or the complete run context.
 func (r *ReviewRepository) ListNotesFiltered(ctx context.Context, contextID int64, workRevisionID *int64, cursor int64, limit int, state, query string) ([]ReviewNote, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("note fetch limit must be between 1 and 101")
 	}
 	clauses := []string{"head.review_context_id=?", "(?=0 OR head.note_id<?)"}
@@ -1074,7 +1073,7 @@ func (r *ReviewRepository) ListNotesFiltered(ctx context.Context, contextID int6
 	args = append(args, limit)
 	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, logical.work_id, work_head.work_revision_id, logical.created_at,
 		version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
-		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		substr(version.body, 1, `+strconv.Itoa(reviewTextPreviewBytes)+`), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
 		reviewer.username, reviewer.email,
 		(SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id=version.id)
 		FROM review_context_note_heads head
@@ -1093,7 +1092,7 @@ func (r *ReviewRepository) ListNotesFiltered(ctx context.Context, contextID int6
 
 // ListNoteVersions follows only the selected context note head's ancestors.
 func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, noteID, cursor int64, limit int) ([]ReviewNoteVersion, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("note version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
@@ -1103,7 +1102,7 @@ func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, note
 		 WHERE version.parent_version_id IS NOT NULL
 	)
 	SELECT version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
-		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		substr(version.body, 1, `+strconv.Itoa(reviewTextPreviewBytes)+`), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
 		reviewer.username, reviewer.email,
 		(SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id=version.id)
 	FROM ancestry JOIN review_note_versions version ON version.id=ancestry.id
@@ -1117,16 +1116,17 @@ func (r *ReviewRepository) ListNoteVersions(ctx context.Context, contextID, note
 	for rows.Next() {
 		var item ReviewNoteVersion
 		var parent sql.NullInt64
-		var body, username, email sql.NullString
+		var body boundedText
+		var username, email sql.NullString
 		if err := rows.Scan(&item.ID, &item.NoteID, &parent, &item.CreatedInContextID, &item.State,
-			&body, &item.BodyBytes, &item.CreatedAt, &username, &email, &item.LinkCount); err != nil {
+			&body.text, &body.bytes, &item.CreatedAt, &username, &email, &item.LinkCount); err != nil {
 			return nil, err
 		}
 		item.ParentVersionID = nullInt64Pointer(parent)
-		if body.Valid {
-			item.Body = &body.String
-			item.BodyTruncated = item.BodyBytes > len([]byte(body.String))
-			item.Title, item.Excerpt = noteSummary(body.String)
+		item.Body, item.BodyTruncated = body.optional()
+		item.BodyBytes = body.bytes
+		if item.Body != nil {
+			item.Title, item.Excerpt = noteSummary(*item.Body)
 		}
 		item.Links = []ReviewLink{}
 		item.ReviewerDisplay = reviewerDisplay(username.String, email.String)
@@ -1160,10 +1160,7 @@ func (r *ReviewRepository) GetNoteVersion(ctx context.Context, contextID, noteID
 }
 
 // getNoteVersion reads one immutable note version and resolves its version-scoped links.
-func (r *ReviewRepository) getNoteVersion(ctx context.Context, q interface {
-	queryRower
-	rowQuerier
-}, contextID, versionID int64) (*ReviewNoteVersion, error) {
+func (r *ReviewRepository) getNoteVersion(ctx context.Context, q reviewQuerier, contextID, versionID int64) (*ReviewNoteVersion, error) {
 	var item ReviewNoteVersion
 	var parent sql.NullInt64
 	var body, username, email sql.NullString
@@ -1208,10 +1205,7 @@ func insertNoteLinks(ctx context.Context, tx *sql.Tx, versionID int64, links []n
 }
 
 // linksForVersion reads links in source order and resolves them against the selected context.
-func (r *ReviewRepository) linksForVersion(ctx context.Context, q interface {
-	queryRower
-	rowQuerier
-}, contextID, noteID, versionID int64) ([]ReviewLink, error) {
+func (r *ReviewRepository) linksForVersion(ctx context.Context, q reviewQuerier, contextID, noteID, versionID int64) ([]ReviewLink, error) {
 	rows, err := q.QueryContext(ctx, `SELECT ordinal, target_type, raw_target, display_text, utf16_position, utf16_length
 		FROM review_note_links WHERE note_version_id=? ORDER BY ordinal`, versionID)
 	if err != nil {
@@ -1316,12 +1310,12 @@ func (r *ReviewRepository) resolveLink(ctx context.Context, q queryRower, contex
 
 // ListBacklinks returns links from current note heads only.
 func (r *ReviewRepository) ListBacklinks(ctx context.Context, contextID int64, targetType, targetID string, sourceWorkID, cursor int64, limit int) ([]ReviewNote, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("backlink fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, logical.work_id, work_head.work_revision_id, logical.created_at,
 		version.id, version.note_id, version.parent_version_id, version.created_in_context_id, version.state,
-		substr(version.body, 1, 1024), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
+		substr(version.body, 1, `+strconv.Itoa(reviewTextPreviewBytes)+`), COALESCE(length(CAST(version.body AS BLOB)), 0), version.created_at,
 		reviewer.username, reviewer.email,
 		(SELECT COUNT(*) FROM review_note_links all_links WHERE all_links.note_version_id=version.id)
 		FROM review_context_note_heads head
@@ -1350,17 +1344,18 @@ func scanReviewNoteSummaries(rows *sql.Rows, contextID int64) ([]ReviewNote, err
 		var item ReviewNote
 		var version ReviewNoteVersion
 		var parent sql.NullInt64
-		var body, username, email sql.NullString
+		var body boundedText
+		var username, email sql.NullString
 		if err := rows.Scan(&item.ID, &item.WorkID, &item.WorkRevisionID, &item.CreatedAt,
 			&version.ID, &version.NoteID, &parent, &version.CreatedInContextID, &version.State,
-			&body, &version.BodyBytes, &version.CreatedAt, &username, &email, &version.LinkCount); err != nil {
+			&body.text, &body.bytes, &version.CreatedAt, &username, &email, &version.LinkCount); err != nil {
 			return nil, err
 		}
 		version.ParentVersionID = nullInt64Pointer(parent)
-		if body.Valid {
-			version.Body = &body.String
-			version.BodyTruncated = version.BodyBytes > len([]byte(body.String))
-			version.Title, version.Excerpt = noteSummary(body.String)
+		version.Body, version.BodyTruncated = body.optional()
+		version.BodyBytes = body.bytes
+		if version.Body != nil {
+			version.Title, version.Excerpt = noteSummary(*version.Body)
 		}
 		version.Links = []ReviewLink{}
 		version.ReviewerDisplay = reviewerDisplay(username.String, email.String)
@@ -1594,13 +1589,13 @@ func (r *ReviewRepository) GetAnchor(ctx context.Context, contextID int64, ancho
 
 // ListAnchors returns bounded active current anchors for one context work.
 func (r *ReviewRepository) ListAnchors(ctx context.Context, contextID, workRevisionID int64, cursor string, limit int) ([]ReviewAnchor, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("anchor fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `SELECT logical.id, COALESCE(logical.label, logical.id), logical.work_id, logical.created_at,
 		version.id, version.anchor_id, version.parent_version_id, version.created_in_context_id,
 		version.work_revision_id, version.pdf_content_hash, version.state, version.page,
-		substr(version.selected_text, 1, 512), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
+		substr(version.selected_text, 1, `+strconv.Itoa(anchorTextPreviewBytes)+`), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
 		version.rectangles_json, version.created_at, reviewer.username, reviewer.email
 		FROM review_context_anchor_heads head
 		JOIN review_anchors logical ON logical.id=head.anchor_id
@@ -1659,7 +1654,7 @@ func (r *ReviewRepository) getAnchor(ctx context.Context, contextID int64, ancho
 
 // ListAnchorVersions follows only the selected context anchor head's ancestors.
 func (r *ReviewRepository) ListAnchorVersions(ctx context.Context, contextID int64, anchorID string, cursor int64, limit int) ([]ReviewAnchorVersion, error) {
-	if limit < 1 || limit > 101 {
+	if limit < 1 || limit > reviewListLimit {
 		return nil, reviewValidation("anchor version fetch limit must be between 1 and 101")
 	}
 	rows, err := r.db.DB.QueryContext(ctx, `WITH RECURSIVE ancestry(id) AS (
@@ -1670,7 +1665,7 @@ func (r *ReviewRepository) ListAnchorVersions(ctx context.Context, contextID int
 	)
 	SELECT version.id, version.anchor_id, version.parent_version_id, version.created_in_context_id,
 		version.work_revision_id, version.pdf_content_hash, version.state, version.page,
-		substr(version.selected_text, 1, 512), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
+		substr(version.selected_text, 1, `+strconv.Itoa(anchorTextPreviewBytes)+`), COALESCE(length(CAST(version.selected_text AS BLOB)), 0),
 		version.rectangles_json, version.created_at, reviewer.username, reviewer.email
 	FROM ancestry JOIN review_anchor_versions version ON version.id=ancestry.id
 	JOIN review_contexts version_context ON version_context.id=version.created_in_context_id
@@ -1738,15 +1733,15 @@ func scanReviewAnchorVersion(scanner interface{ Scan(...any) error }) (ReviewAnc
 func scanReviewAnchorVersionWithPrefix(scanner interface{ Scan(...any) error }, anchor *ReviewAnchor) (ReviewAnchorVersion, error) {
 	var item ReviewAnchorVersion
 	var parent, page sql.NullInt64
-	var selectedText, rectanglesJSON, username, email sql.NullString
-	var selectedTextBytes int
+	var selectedText boundedText
+	var rectanglesJSON, username, email sql.NullString
 	targets := make([]any, 0, 18)
 	if anchor != nil {
 		targets = append(targets, &anchor.ID, &anchor.Label, &anchor.WorkID, &anchor.CreatedAt)
 	}
 	targets = append(targets, &item.ID, &item.AnchorID, &parent, &item.CreatedInContextID,
-		&item.WorkRevisionID, &item.PDFContentHash, &item.State, &page, &selectedText,
-		&selectedTextBytes, &rectanglesJSON, &item.CreatedAt, &username, &email)
+		&item.WorkRevisionID, &item.PDFContentHash, &item.State, &page, &selectedText.text,
+		&selectedText.bytes, &rectanglesJSON, &item.CreatedAt, &username, &email)
 	if err := scanner.Scan(targets...); err != nil {
 		return item, err
 	}
@@ -1755,10 +1750,7 @@ func scanReviewAnchorVersionWithPrefix(scanner interface{ Scan(...any) error }, 
 		value := int(page.Int64)
 		item.Page = &value
 	}
-	if selectedText.Valid {
-		item.SelectedText = &selectedText.String
-		item.SelectedTextTruncated = selectedTextBytes > len([]byte(selectedText.String))
-	}
+	item.SelectedText, item.SelectedTextTruncated = selectedText.optional()
 	if rectanglesJSON.Valid {
 		if err := json.Unmarshal([]byte(rectanglesJSON.String), &item.Rectangles); err != nil {
 			return item, fmt.Errorf("decode anchor rectangles: %w", err)

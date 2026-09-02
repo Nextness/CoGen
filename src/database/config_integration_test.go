@@ -24,8 +24,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 26 {
-		t.Fatalf("expected 26 applied metadata migrations, got %d", count)
+	if count != 27 {
+		t.Fatalf("expected 27 applied metadata migrations, got %d", count)
 	}
 
 	// Verify every workspace table exists.
@@ -203,8 +203,8 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count2 != 26 {
-		t.Fatalf("expected 26 migrations after reopen, got %d", count2)
+	if count2 != 27 {
+		t.Fatalf("expected 27 migrations after reopen, got %d", count2)
 	}
 }
 
@@ -307,8 +307,8 @@ func TestV00003MigrationApplies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 26 {
-		t.Fatalf("expected 26 applied migrations, got %d", count)
+	if count != 27 {
+		t.Fatalf("expected 27 applied migrations, got %d", count)
 	}
 
 	// Verify the four append-only triggers exist
@@ -598,8 +598,8 @@ func TestV00002MigrationApplies(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 26 {
-		t.Fatalf("expected 26 applied metadata migrations, got %d", count)
+	if count != 27 {
+		t.Fatalf("expected 27 applied metadata migrations, got %d", count)
 	}
 
 	// Verify the new tables exist
@@ -671,8 +671,8 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&metadataMigrations); err != nil {
 		t.Fatal(err)
 	}
-	if metadataMigrations != 26 {
-		t.Fatalf("metadata migrations = %d, want 26", metadataMigrations)
+	if metadataMigrations != 27 {
+		t.Fatalf("metadata migrations = %d, want 27", metadataMigrations)
 	}
 	for _, table := range []string{"pdf_store_binding", "pdf_audit_links"} {
 		var found int
@@ -813,7 +813,7 @@ func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T) {
 		'V00021_rename_pdf_audit_links.sql')`).Scan(&additions); err != nil {
 		t.Fatal(err)
 	}
-	if total != 26 || historical != 1 || additions != 3 {
+	if total != 27 || historical != 1 || additions != 3 {
 		t.Fatalf("migration history after V00018 upgrade: total=%d historical=%d additions=%d", total, historical, additions)
 	}
 }
