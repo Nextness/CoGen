@@ -106,6 +106,17 @@ func TestParse(t *testing.T) {
 		}
 	})
 
+	t.Run("strips_leading_bom", func(t *testing.T) {
+		bib := "\ufeff" + `@article{k, title = {Test}}`
+		lib, err := p.Parse(bib, "", true)
+		if err != nil {
+			t.Fatalf("Parse failed: %v", err)
+		}
+		if len(lib) != 1 || lib["k"]["title"] != "Test" {
+			t.Fatalf("BOM-prefixed library = %v", lib)
+		}
+	})
+
 	t.Run("empty_input", func(t *testing.T) {
 		lib, err := p.Parse("", "empty.bib", true)
 		if err != nil {

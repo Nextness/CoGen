@@ -201,7 +201,9 @@ func tokenize(data string, stripBraces bool) ([]token, error) {
 // Parse parses raw BibTeX data into a Library.
 // Only "article" entries are retained. Duplicate citation keys get a numeric suffix.
 // The source parameter is stored in the "article_source" field of each entry.
+// A leading UTF-8 byte order mark is stripped because exporters commonly prefix it.
 func (p *Parser) Parse(data, source string, stripBraces bool) (Library, error) {
+	data = strings.TrimPrefix(data, "\ufeff")
 	toks, err := tokenize(data, stripBraces)
 	if err != nil {
 		return nil, err

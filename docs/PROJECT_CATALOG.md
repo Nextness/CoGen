@@ -98,7 +98,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`readBracedContent`](../src/bibtex/bibtex.go#L78) | function | 78-107 | `func readBracedContent(data string, i, n int, stripBraces bool) (string, int, error)` | readBracedContent reads content inside balanced braces. When stripBraces is true, the outermost braces are not included in the result. |
 | [`isIdentChar`](../src/bibtex/bibtex.go#L110) | function | 110-113 | `func isIdentChar(c byte) bool` | isIdentChar reports whether a byte is accepted inside a BibTeX identifier. |
 | [`tokenize`](../src/bibtex/bibtex.go#L116) | function | 116-199 | `func tokenize(data string, stripBraces bool) ([]token, error)` | tokenize converts BibTeX source text into the constrained parser token stream. |
-| [`(*Parser).Parse`](../src/bibtex/bibtex.go#L204) | method | 204-310 | `func (*Parser).Parse(data, source string, stripBraces bool) (Library, error)` | Parse parses raw BibTeX data into a Library. Only "article" entries are retained. Duplicate citation keys get a numeric suffix. The source parameter is stored in the "article_source" field of each entry. |
+| [`(*Parser).Parse`](../src/bibtex/bibtex.go#L205) | method | 205-312 | `func (*Parser).Parse(data, source string, stripBraces bool) (Library, error)` | Parse parses raw BibTeX data into a Library. Only "article" entries are retained. Duplicate citation keys get a numeric suffix. The source parameter is stored in the "article_source" field of each entry. A leading UTF-8 byte order mark is stripped because exporters commonly prefix it. |
 
 ### [`src/bibtex/bibtex_functional_test.go`](../src/bibtex/bibtex_functional_test.go)
 
@@ -110,8 +110,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestParse`](../src/bibtex/bibtex_unit_test.go#L13) | test | 13-277 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
-| [`TestNewParserNilLogger`](../src/bibtex/bibtex_unit_test.go#L280) | test | 280-289 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
+| [`TestParse`](../src/bibtex/bibtex_unit_test.go#L13) | test | 13-288 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
+| [`TestNewParserNilLogger`](../src/bibtex/bibtex_unit_test.go#L291) | test | 291-300 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
 
 ### [`src/bibtex/helpers_test.go`](../src/bibtex/helpers_test.go)
 
