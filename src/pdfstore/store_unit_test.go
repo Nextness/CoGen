@@ -4,6 +4,7 @@
 package pdfstore
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -126,5 +127,36 @@ func TestResolveStorePathRejectsMetadataPathEqualToStorePath(t *testing.T) {
 	metadataPath := filepath.Join(t.TempDir(), "same.db")
 	if _, err := resolveStorePath(metadataPath, "same.db"); err == nil {
 		t.Fatal("metadata path equal to resolved store path was accepted")
+	}
+}
+
+// TestResolveStorePathRejectsSymlinkEscape verifies existing path components cannot escape the bundle.
+func TestResolveStorePathRejectsSymlinkEscape(t *testing.T) {
+	metadataDir := t.TempDir()
+	outsideDir := t.TempDir()
+	if err := os.Symlink(outsideDir, filepath.Join(metadataDir, "escape")); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	if _, err := resolveStorePath(filepath.Join(metadataDir, "corpus.metadata.db"), "escape/corpus.pdf.db"); err == nil {
+		t.Fatal("symlink escape was accepted")
+	}
+}
+
+// TestResolveStorePathAllowsInBundleSymlink verifies in-bundle targets remain valid.
+func TestResolveStorePathAllowsInBundleSymlink(t *testing.T) {
+	metadataDir := t.TempDir()
+	targetDir := filepath.Join(metadataDir, "stores")
+	if err := os.Mkdir(targetDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetDir, filepath.Join(metadataDir, "current")); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	path, err := resolveStorePath(filepath.Join(metadataDir, "corpus.metadata.db"), "current/corpus.pdf.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path != filepath.Join(targetDir, "corpus.pdf.db") {
+		t.Fatalf("resolved in-bundle symlink path = %q", path)
 	}
 }

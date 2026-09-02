@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 var permittedPageSizes = map[int]bool{20: true, 50: true, 100: true, 200: true, 500: true}
@@ -92,7 +93,7 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 			selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN %s IS NULL THEN NULL ELSE '[redacted]' END AS %s", quoted, quoted))
 			continue
 		}
-		selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN substr(%s,1,?) ELSE %s END AS %s", quoted, quoted, quoted, quoted, quoted))
+		selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN CAST(substr(CAST(%s AS BLOB),1,?) AS TEXT) ELSE %s END AS %s", quoted, quoted, quoted, quoted, quoted))
 		truncationColumns = append(truncationColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN 1 ELSE 0 END AS %s", quoted, quoted, quoteIdentifier(fmt.Sprintf("__truncated_%d", index))))
 	}
 	selectColumns = append(selectColumns, truncationColumns...)
@@ -145,6 +146,9 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 			if value, ok := item[marker]; ok {
 				delete(item, marker)
 				if value != nil && value != int64(0) {
+					if text, ok := item[column.Name].(string); ok {
+						item[column.Name] = truncateUTF8Bytes(text, advancedCellBytes)
+					}
 					truncatedFields[column.Name] = appendUnique(truncatedFields[column.Name], "cell_byte_limit")
 				}
 			}
@@ -165,6 +169,19 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 			"sort": sort, "order": strings.ToLower(order),
 		},
 	}, nil)
+}
+
+// truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit.
+func truncateUTF8Bytes(value string, limit int) string {
+	data := []byte(value)
+	if len(data) <= limit {
+		return value
+	}
+	data = data[:limit]
+	for len(data) > 0 && !utf8.Valid(data) {
+		data = data[:len(data)-1]
+	}
+	return string(data)
 }
 
 // safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas.

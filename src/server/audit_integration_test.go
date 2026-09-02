@@ -106,38 +106,6 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 	}
 }
 
-// TestDeprecatedRunAuditRemainsBounded verifies the compatibility route and its validation contract.
-func TestDeprecatedRunAuditRemainsBounded(t *testing.T) {
-	path, runID, _, _ := viewerFixture(t)
-	viewer, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer viewer.Close()
-	handler := viewer.Handler()
-	status, first := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/audit?limit=1")
-	if status != http.StatusOK || first["deprecated"] != true || first["has_more"] != true || first["next_cursor"] == nil {
-		t.Fatalf("deprecated audit first page status=%d body=%v", status, first)
-	}
-	cursor := int64(first["next_cursor"].(float64))
-	status, second := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/audit?limit=1&cursor="+stringID(cursor))
-	if status != http.StatusOK || len(second["events"].([]any)) != 1 {
-		t.Fatalf("deprecated audit continuation status=%d body=%v", status, second)
-	}
-	for _, requestPath := range []string{
-		"/api/runs/not-a-number/audit",
-		"/api/runs/999999/audit",
-		"/api/runs/" + stringID(runID) + "/audit?unknown=1",
-		"/api/runs/" + stringID(runID) + "/audit?limit=0",
-		"/api/runs/" + stringID(runID) + "/audit?cursor=invalid",
-	} {
-		response := viewerRequest(t, handler, requestPath)
-		if response.Code != http.StatusBadRequest && response.Code != http.StatusNotFound {
-			t.Errorf("GET %s: status=%d body=%s", requestPath, response.Code, response.Body.String())
-		}
-	}
-}
-
 // TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact verifies the complete bounded inventory contract.
 func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *testing.T) {
 	path, runID, _, _ := viewerFixture(t)

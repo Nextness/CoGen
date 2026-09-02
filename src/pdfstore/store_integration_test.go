@@ -6,6 +6,7 @@ package pdfstore
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -116,6 +117,27 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 	}
 }
 
+// TestAddRejectsCorruptExistingDocument verifies unchanged adds do not bless damaged PDF blobs.
+func TestAddRejectsCorruptExistingDocument(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/corrupt", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Add(ctx, "10.1000/corrupt", 1, []byte("%PDF-1.7\noriginal")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`DROP TRIGGER pdf_blobs_abort_update`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`UPDATE pdf_blobs SET data=? WHERE content_hash=(SELECT content_hash FROM pdf_documents WHERE doi=?)`, []byte("%PDF-1.7\nchanged!"), "10.1000/corrupt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Add(ctx, "10.1000/corrupt", 1, []byte("%PDF-1.7\nretry")); err == nil || !strings.Contains(err.Error(), "corrupt") {
+		t.Fatalf("corrupt unchanged add error = %v", err)
+	}
+}
+
 // TestFlushAuditOutboxDropsStalePipelineRun verifies a flush preserves an
 // outbox event whose pipeline run no longer exists in the bound metadata
 // database, matching the durable PDF store across metadata iterations.
@@ -160,6 +182,78 @@ func TestFlushAuditOutboxDropsStalePipelineRun(t *testing.T) {
 	}
 	if runID != nil {
 		t.Fatalf("stale registration audit run ID = %v, want NULL", runID)
+	}
+}
+
+// TestFlushAuditOutboxDrainsBoundedBatches verifies a full flush processes ordered batches without retaining the backlog.
+func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	for index := 0; index < auditOutboxBatchSize+2; index++ {
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+			VALUES (?, ?, 'test', 'work', ?, 'pdf_inventory_registered', '{}', ?)`,
+			fmt.Sprintf("batch-%03d", index), fmt.Sprintf("2026-01-01T00:00:%02dZ", index%60), index, fmt.Sprintf("correlation-%03d", index)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flushed != auditOutboxBatchSize+2 {
+		t.Fatalf("flushed=%d, want %d", flushed, auditOutboxBatchSize+2)
+	}
+	var remaining, events int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM audit_events WHERE actor='test'`).Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 || events != auditOutboxBatchSize+2 {
+		t.Fatalf("batch drain remaining=%d events=%d", remaining, events)
+	}
+}
+
+// TestFlushAuditOutboxContinuesAfterOneBadEvent verifies a failed event does not block later evidence.
+func TestFlushAuditOutboxContinuesAfterOneBadEvent(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := metadata.DB.Exec(`CREATE TRIGGER reject_bad_pdf_audit BEFORE INSERT ON audit_events
+		WHEN NEW.actor='bad' BEGIN SELECT RAISE(ABORT, 'injected audit failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []struct{ key, actor string }{{"bad-event", "bad"}, {"good-event", "good"}} {
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+			VALUES (?, '2026-01-01T00:00:00Z', ?, 'work', '1', 'pdf_inventory_registered', '{}', ?)`, event.key, event.actor, event.key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	if flushed != 1 || err == nil || !strings.Contains(err.Error(), "injected audit failure") {
+		t.Fatalf("failure-isolating flush=%d err=%v", flushed, err)
+	}
+	var goodEvents, remaining int
+	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM audit_events WHERE actor='good'`).Scan(&goodEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if goodEvents != 1 || remaining != 1 {
+		t.Fatalf("good events=%d remaining=%d", goodEvents, remaining)
 	}
 }
 

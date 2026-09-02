@@ -318,7 +318,7 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/hierarchy`, `/api/runs/{id}/context` | Returns bounded searchable hierarchy pages and one canonical complete run ancestry. Legacy `/api/searches`, `/api/plans`, and `/api/runs` discovery responses are explicitly deprecated and hard-bounded. |
 | `/api/runs/{id}/visibility` | Moves a terminal attempt between `active` and `trashed` in one transaction and appends the corresponding lifecycle audit event. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
-| `/api/runs/{id}/audit`, `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. The run-specific route is a deprecated compatibility view. |
+| `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists artifacts through numbered page and page-size metadata while retaining the bounded cursor contract for existing callers, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
 | `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
@@ -331,7 +331,6 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}`, `/api/articles/{id}/collections/{kind}`, `/api/authors/{id}/collections/{kind}`, `/api/identity-resolutions/{id}/candidates` | Requires selected-run membership, returns bounded detail summaries, and exposes counted run-owned cursor subresources for related evidence and identity candidates. Article summary retains stored search-term coverage for its exact normalized revision. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
-| `/api/trash` | Returns an explicitly deprecated hard-bounded compatibility view; `/api/hierarchy?section=runs&visibility=trashed` is the supported run-management collection. |
 
 Run-scoped articles contain valid normalize-stage revisions. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
 

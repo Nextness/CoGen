@@ -6,7 +6,9 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"mime"
 	"net/http"
 	"strconv"
@@ -133,7 +135,8 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 			s.respond(w, r, nil, err)
 			return
 		}
-		if int64(len(data)) != byteSize || len(data) < 5 || string(data[:5]) != "%PDF-" {
+		digest := sha256.Sum256(data)
+		if int64(len(data)) != byteSize || len(data) < 5 || string(data[:5]) != "%PDF-" || contentHash != hex.EncodeToString(digest[:]) {
 			s.pdfCacheMu.Unlock()
 			s.respond(w, r, nil, &apiProblem{Status: http.StatusUnprocessableEntity, Code: "pdf_integrity_error", Message: "stored PDF content failed integrity validation"})
 			return

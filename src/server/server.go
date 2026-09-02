@@ -189,7 +189,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/context", s.runContext)
 	mux.HandleFunc("PUT /api/runs/{run_id}/visibility", s.updateRunVisibility)
 	mux.HandleFunc("GET /api/overview", s.overview)
-	mux.HandleFunc("GET /api/runs/{id}/audit", s.runAudit)
 	mux.HandleFunc("GET /api/runs/{id}/artifacts", s.runArtifacts)
 	mux.HandleFunc("GET /api/artifacts/{id}/inspect", s.artifactInspection)
 	mux.HandleFunc("GET /api/artifacts/{id}/content", s.artifactContent)
@@ -221,7 +220,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/stages", s.runStages)
 	mux.HandleFunc("GET /api/audit", s.audit)
 	mux.HandleFunc("GET /api/audit/{id}/recorded-data", s.auditRecordedData)
-	mux.HandleFunc("GET /api/trash", s.trash)
 	mux.HandleFunc("GET /api/tables", s.tablesHandler)
 	mux.HandleFunc("GET /api/tables/{table}", s.tableRows)
 	mux.HandleFunc("GET /api/articles/{id}", s.articleDetail)
@@ -413,19 +411,27 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if filepath.IsAbs(relativePath) {
 		return fmt.Errorf("bound PDF store path must be relative")
 	}
-	absolute := filepath.Clean(filepath.Join(metadataDir, relativePath))
-	relative, err := filepath.Rel(metadataDir, absolute)
+	resolvedMetadataDir, err := filepath.EvalSymlinks(metadataDir)
+	if err != nil {
+		return fmt.Errorf("resolve metadata database directory: %w", err)
+	}
+	absolute := filepath.Clean(filepath.Join(resolvedMetadataDir, relativePath))
+	resolvedStorePath, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return fmt.Errorf("resolve bound PDF store: %w", err)
+	}
+	relative, err := filepath.Rel(resolvedMetadataDir, resolvedStorePath)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return fmt.Errorf("bound PDF store path escapes the metadata database directory")
 	}
-	info, err := os.Stat(absolute)
+	info, err := os.Stat(resolvedStorePath)
 	if err != nil {
 		return fmt.Errorf("inspect bound PDF store: %w", err)
 	}
-	if info.IsDir() {
-		return fmt.Errorf("bound PDF store path is a directory")
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("bound PDF store path is not a regular file")
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	uri := (&url.URL{Scheme: "file", Path: resolvedStorePath, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
 	pdfDB, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
