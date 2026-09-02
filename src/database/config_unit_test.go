@@ -30,3 +30,21 @@ func TestValidMigrationFilename(t *testing.T) {
 		})
 	}
 }
+
+// TestGetMigrationStructsRejectsMissingOrNonStringFilename verifies every configured iteration has a usable filename.
+func TestGetMigrationStructsRejectsMissingOrNonStringFilename(t *testing.T) {
+	for name, entry := range map[string]map[string]any{
+		"missing":    {},
+		"empty":      {"filename": ""},
+		"non-string": {"filename": int64(1)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := map[string]any{
+				"iteration_0000000000_db_migration": entry,
+			}
+			if _, err := getMigrationStructs(cfg); err == nil {
+				t.Fatal("getMigrationStructs() unexpectedly succeeded")
+			}
+		})
+	}
+}

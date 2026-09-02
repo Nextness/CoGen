@@ -52,3 +52,41 @@ func TestRunMigrationsRejectsInvalidMarkersWithoutTrackingRow(t *testing.T) {
 		t.Fatalf("invalid migration tracked=%d table=%d, want neither", tracked, table)
 	}
 }
+
+// TestRunMigrationsRejectsEmptyConfiguredFilename verifies an unusable migration iteration cannot be silently skipped.
+func TestRunMigrationsRejectsEmptyConfiguredFilename(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "config")
+	migrationsDir := filepath.Join(root, "migrations")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(configDir, "database.something")
+	config := `db_migration: setup = { filename: string; }
+#iteration("_db_migration"): db_migration = { filename = ""; };`
+	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := sql.Open("sqlite", filepath.Join(root, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	db := &Database{DB: conn, migrations: migrationsDir}
+	if err := db.runMigrations(configPath); err == nil {
+		t.Fatal("expected empty migration filename error")
+	}
+	var tracked, table int
+	if err := conn.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&tracked); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='escaped'").Scan(&table); err != nil {
+		t.Fatal(err)
+	}
+	if tracked != 0 || table != 0 {
+		t.Fatalf("empty migration filename tracked=%d table=%d, want neither", tracked, table)
+	}
+}

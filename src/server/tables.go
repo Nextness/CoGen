@@ -4,6 +4,7 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -93,7 +94,7 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 			selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN %s IS NULL THEN NULL ELSE '[redacted]' END AS %s", quoted, quoted))
 			continue
 		}
-		selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN CAST(substr(CAST(%s AS BLOB),1,?) AS TEXT) ELSE %s END AS %s", quoted, quoted, quoted, quoted, quoted))
+		selectColumns = append(selectColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN substr(CAST(%s AS BLOB),1,?) ELSE %s END AS %s", quoted, quoted, quoted, quoted, quoted))
 		truncationColumns = append(truncationColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN 1 ELSE 0 END AS %s", quoted, quoted, quoteIdentifier(fmt.Sprintf("__truncated_%d", index))))
 	}
 	selectColumns = append(selectColumns, truncationColumns...)
@@ -131,7 +132,7 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	items, err := rowsAsMaps(rows)
+	items, err := tableRowsAsMaps(rows)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -146,8 +147,11 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 			if value, ok := item[marker]; ok {
 				delete(item, marker)
 				if value != nil && value != int64(0) {
-					if text, ok := item[column.Name].(string); ok {
+					switch text := item[column.Name].(type) {
+					case string:
 						item[column.Name] = truncateUTF8Bytes(text, advancedCellBytes)
+					case []byte:
+						item[column.Name] = truncateUTF8Bytes(string(text), advancedCellBytes)
 					}
 					truncatedFields[column.Name] = appendUnique(truncatedFields[column.Name], "cell_byte_limit")
 				}
@@ -171,13 +175,40 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 	}, nil)
 }
 
+// tableRowsAsMaps scans table-browser rows without converting byte prefixes before UTF-8 truncation.
+func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]map[string]any, 0)
+	for rows.Next() {
+		values := make([]any, len(columns))
+		pointers := make([]any, len(columns))
+		for index := range values {
+			pointers[index] = &values[index]
+		}
+		if err := rows.Scan(pointers...); err != nil {
+			return nil, err
+		}
+		item := make(map[string]any, len(columns))
+		for index, value := range values {
+			item[columns[index]] = value
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
 // truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit.
 func truncateUTF8Bytes(value string, limit int) string {
 	data := []byte(value)
-	if len(data) <= limit {
+	if len(data) <= limit && utf8.Valid(data) {
 		return value
 	}
-	data = data[:limit]
+	if len(data) > limit {
+		data = data[:limit]
+	}
 	for len(data) > 0 && !utf8.Valid(data) {
 		data = data[:len(data)-1]
 	}

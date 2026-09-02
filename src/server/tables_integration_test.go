@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // TestAPITableBrowserErrors verifies api table browser errors.
@@ -29,6 +30,54 @@ func TestAPITableBrowserErrors(t *testing.T) {
 		if !strings.Contains(response.Body.String(), `"error"`) {
 			t.Errorf("GET %s did not return JSON API error", path)
 		}
+	}
+}
+
+// TestAPITableBrowserTruncatesMultibyteCellsByBytes verifies UTF-8 table cells honour the advertised byte limit.
+func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
+	path, _, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	ids := make(map[int64]struct{})
+	for _, value := range []string{
+		strings.Repeat("é", advancedCellBytes/2+1),
+		strings.Repeat("€", advancedCellBytes/3+1),
+		strings.Repeat("😀", advancedCellBytes/4+1),
+	} {
+		result, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := result.LastInsertId()
+		ids[id] = struct{}{}
+	}
+	status, payload := requestJSON(t, viewer.Handler(), "/api/tables/artifacts?per_page=20&sort=id&order=desc")
+	if status != http.StatusOK {
+		t.Fatalf("artifact table status=%d body=%v", status, payload)
+	}
+	seen := 0
+	for _, raw := range payload["rows"].([]any) {
+		row := raw.(map[string]any)
+		id := int64(row["id"].(float64))
+		if _, ok := ids[id]; !ok {
+			continue
+		}
+		value, ok := row["content_hash"].(string)
+		if !ok || len(value) > advancedCellBytes || !utf8.ValidString(value) {
+			t.Fatalf("artifact %d value bytes=%d valid=%v truncation=%v", id, len(value), utf8.ValidString(value), payload["truncated_fields"])
+		}
+		seen++
+	}
+	if seen != len(ids) {
+		t.Fatalf("multibyte artifacts rendered=%d, want %d", seen, len(ids))
+	}
+	reasons := payload["truncated_fields"].(map[string]any)["content_hash"].([]any)
+	if len(reasons) == 0 || reasons[0] != "cell_byte_limit" {
+		t.Fatalf("multibyte truncation reasons = %v", reasons)
 	}
 }
 

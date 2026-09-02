@@ -353,6 +353,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestValidMigrationFilename`](../src/database/config_unit_test.go#L9) | test | 9-32 | `func TestValidMigrationFilename(t *testing.T)` | TestValidMigrationFilename verifies canonical and malformed migration identities are distinguished without accepting paths or empty descriptions. |
+| [`TestGetMigrationStructsRejectsMissingOrNonStringFilename`](../src/database/config_unit_test.go#L35) | test | 35-50 | `func TestGetMigrationStructsRejectsMissingOrNonStringFilename(t *testing.T)` | TestGetMigrationStructsRejectsMissingOrNonStringFilename verifies every configured iteration has a usable filename. |
 
 ### [`src/database/database.go`](../src/database/database.go)
 
@@ -437,6 +438,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestRunMigrationsRejectsInvalidMarkersWithoutTrackingRow`](../src/database/migration_sql_integration_test.go#L16) | test | 16-54 | `func TestRunMigrationsRejectsInvalidMarkersWithoutTrackingRow(t *testing.T)` | TestRunMigrationsRejectsInvalidMarkersWithoutTrackingRow verifies malformed SQL is rejected before its schema or tracking row is committed. |
+| [`TestRunMigrationsRejectsEmptyConfiguredFilename`](../src/database/migration_sql_integration_test.go#L57) | test | 57-92 | `func TestRunMigrationsRejectsEmptyConfiguredFilename(t *testing.T)` | TestRunMigrationsRejectsEmptyConfiguredFilename verifies an unusable migration iteration cannot be silently skipped. |
 
 ### [`src/database/migration_sql_unit_test.go`](../src/database/migration_sql_unit_test.go)
 
@@ -885,13 +887,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`newTestClient`](../src/enrich/client_functional_test.go#L16) | function | 16-26 | `func newTestClient(t *testing.T, server *httptest.Server, retries int) *Client` | newTestClient creates a valid client for one controlled provider server. |
-| [`TestClientRetriesOn429`](../src/enrich/client_functional_test.go#L29) | test | 29-53 | `func TestClientRetriesOn429(t *testing.T)` | TestClientRetriesOn429 verifies client retries on429. |
-| [`TestClientReturns404WithoutError`](../src/enrich/client_functional_test.go#L56) | test | 56-71 | `func TestClientReturns404WithoutError(t *testing.T)` | TestClientReturns404WithoutError verifies client returns404 without error. |
-| [`TestClientReturnsErrorOnServerError`](../src/enrich/client_functional_test.go#L74) | test | 74-89 | `func TestClientReturnsErrorOnServerError(t *testing.T)` | TestClientReturnsErrorOnServerError verifies client returns error on server error. |
-| [`TestClientExhaustsRetries`](../src/enrich/client_functional_test.go#L92) | test | 92-112 | `func TestClientExhaustsRetries(t *testing.T)` | TestClientExhaustsRetries verifies client exhausts retries. |
-| [`TestClientFetchUsesPublicRateLimitedPath`](../src/enrich/client_functional_test.go#L115) | test | 115-135 | `func TestClientFetchUsesPublicRateLimitedPath(t *testing.T)` | TestClientFetchUsesPublicRateLimitedPath verifies client fetch uses public rate limited path. |
-| [`TestClientRejectsOversizedProviderPayload`](../src/enrich/client_functional_test.go#L138) | test | 138-151 | `func TestClientRejectsOversizedProviderPayload(t *testing.T)` | TestClientRejectsOversizedProviderPayload verifies untrusted provider bodies are bounded. |
+| [`newTestClient`](../src/enrich/client_functional_test.go#L18) | function | 18-28 | `func newTestClient(t *testing.T, server *httptest.Server, retries int) *Client` | newTestClient creates a valid client for one controlled provider server. |
+| [`TestClientRetriesOn429`](../src/enrich/client_functional_test.go#L31) | test | 31-55 | `func TestClientRetriesOn429(t *testing.T)` | TestClientRetriesOn429 verifies client retries on429. |
+| [`TestClientReturns404WithoutError`](../src/enrich/client_functional_test.go#L58) | test | 58-73 | `func TestClientReturns404WithoutError(t *testing.T)` | TestClientReturns404WithoutError verifies client returns404 without error. |
+| [`TestClientReturnsErrorOnServerError`](../src/enrich/client_functional_test.go#L76) | test | 76-91 | `func TestClientReturnsErrorOnServerError(t *testing.T)` | TestClientReturnsErrorOnServerError verifies client returns error on server error. |
+| [`TestClientExhaustsRetries`](../src/enrich/client_functional_test.go#L94) | test | 94-114 | `func TestClientExhaustsRetries(t *testing.T)` | TestClientExhaustsRetries verifies client exhausts retries. |
+| [`TestClientFetchUsesPublicRateLimitedPath`](../src/enrich/client_functional_test.go#L117) | test | 117-137 | `func TestClientFetchUsesPublicRateLimitedPath(t *testing.T)` | TestClientFetchUsesPublicRateLimitedPath verifies client fetch uses public rate limited path. |
+| [`TestClientRejectsOversizedProviderPayload`](../src/enrich/client_functional_test.go#L140) | test | 140-153 | `func TestClientRejectsOversizedProviderPayload(t *testing.T)` | TestClientRejectsOversizedProviderPayload verifies untrusted provider bodies are bounded. |
+| [`TestClientLogsDoNotExposeRequestQueries`](../src/enrich/client_functional_test.go#L156) | test | 156-180 | `func TestClientLogsDoNotExposeRequestQueries(t *testing.T)` | TestClientLogsDoNotExposeRequestQueries verifies request-level logs omit provider query content. |
 
 ### [`src/enrich/client_unit_test.go`](../src/enrich/client_unit_test.go)
 
@@ -1444,10 +1447,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestAPIDetailsArtifactsAndAudit`](../src/server/audit_integration_test.go#L16) | test | 16-107 | `func TestAPIDetailsArtifactsAndAudit(t *testing.T)` | TestAPIDetailsArtifactsAndAudit verifies api details artifacts and audit. |
-| [`TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact`](../src/server/audit_integration_test.go#L110) | test | 110-152 | `func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *testing.T)` | TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact verifies the complete bounded inventory contract. |
-| [`TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence`](../src/server/audit_integration_test.go#L155) | test | 155-208 | `func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T)` | TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence verifies category support, first-page metadata, and PDF membership isolation. |
-| [`TestAuditRecordedDataIsLazyBoundedAndPrivate`](../src/server/audit_integration_test.go#L211) | test | 211-266 | `func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T)` | TestAuditRecordedDataIsLazyBoundedAndPrivate verifies structured review filtering and the explicit payload endpoint. |
+| [`TestAPIDetailsArtifactsAndAudit`](../src/server/audit_integration_test.go#L17) | test | 17-108 | `func TestAPIDetailsArtifactsAndAudit(t *testing.T)` | TestAPIDetailsArtifactsAndAudit verifies api details artifacts and audit. |
+| [`TestArtifactDownloadLargeBodyFailsBeforeCommit`](../src/server/audit_integration_test.go#L111) | test | 111-142 | `func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T)` | TestArtifactDownloadLargeBodyFailsBeforeCommit verifies an artifact beyond the former chunk-query budget is never silently truncated. |
+| [`TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact`](../src/server/audit_integration_test.go#L145) | test | 145-187 | `func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *testing.T)` | TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact verifies the complete bounded inventory contract. |
+| [`TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence`](../src/server/audit_integration_test.go#L190) | test | 190-243 | `func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T)` | TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence verifies category support, first-page metadata, and PDF membership isolation. |
+| [`TestAuditRecordedDataIsLazyBoundedAndPrivate`](../src/server/audit_integration_test.go#L246) | test | 246-301 | `func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T)` | TestAuditRecordedDataIsLazyBoundedAndPrivate verifies structured review filtering and the explicit payload endpoint. |
 
 ### [`src/server/corpus.go`](../src/server/corpus.go)
 
@@ -1556,6 +1560,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAPIDetailsGraphModes`](../src/server/graph_integration_test.go#L20) | test | 20-57 | `func TestAPIDetailsGraphModes(t *testing.T)` | TestAPIDetailsGraphModes verifies api details graph modes. |
 | [`TestAPIGraphFiltersAndTruncation`](../src/server/graph_integration_test.go#L60) | test | 60-147 | `func TestAPIGraphFiltersAndTruncation(t *testing.T)` | TestAPIGraphFiltersAndTruncation verifies api graph filters and truncation. |
 | [`TestGraphEdgeBudgets`](../src/server/graph_integration_test.go#L150) | test | 150-186 | `func TestGraphEdgeBudgets(t *testing.T)` | TestGraphEdgeBudgets verifies empty and exhausted relationship budgets without large fixtures. |
+| [`TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget`](../src/server/graph_integration_test.go#L189) | test | 189-237 | `func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.T)` | TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget verifies irrelevant citations cannot consume the renderable edge limit. |
 
 ### [`src/server/helpers_test.go`](../src/server/helpers_test.go)
 
@@ -1877,23 +1882,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`tableProjection`](../src/server/tables.go#L25) | struct | 25-29 | ``type tableProjection struct { Columns []columnInfo `json:"columns"` OmittedColumns map[string]string `json:"omitted_columns,omitempty"` RedactedFields []string `json:"redacted_fields,omitempty"` }`` | tableProjection describes the columns that Advanced may return without exposing raw binary or sensitive evidence. |
-| [`tableSummary`](../src/server/tables.go#L32) | struct | 32-35 | ``type tableSummary struct { Name string `json:"name"` tableProjection }`` | tableSummary is the schema-only discovery shape; row counts are computed only for the selected table. |
-| [`(*Server).tablesHandler`](../src/server/tables.go#L38) | method | 38-49 | `func (*Server).tablesHandler(w http.ResponseWriter, r *http.Request)` | tablesHandler returns metadata for every discovered browsable table. |
-| [`(*Server).tableRows`](../src/server/tables.go#L52) | method | 52-172 | `func (*Server).tableRows(w http.ResponseWriter, r *http.Request)` | tableRows returns a bounded page from one validated browsable table. |
-| [`truncateUTF8Bytes`](../src/server/tables.go#L175) | function | 175-185 | `func truncateUTF8Bytes(value string, limit int) string` | truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit. |
-| [`safeTableProjection`](../src/server/tables.go#L188) | function | 188-208 | `func safeTableProjection(info tableInfo) tableProjection` | safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas. |
-| [`advancedSensitiveColumn`](../src/server/tables.go#L211) | function | 211-219 | `func advancedSensitiveColumn(name string) bool` | advancedSensitiveColumn reports whether a generic cell may contain private or large research evidence. |
-| [`boundAdvancedRows`](../src/server/tables.go#L222) | function | 222-239 | `func boundAdvancedRows(rows []map[string]any, columns []columnInfo, truncated map[string][]string)` | boundAdvancedRows enforces a deterministic total value budget without dropping page rows. |
-| [`appendUnique`](../src/server/tables.go#L242) | function | 242-249 | `func appendUnique(values []string, value string) []string` | appendUnique adds one truncation reason at most once per projected field. |
-| [`tableRequest`](../src/server/tables.go#L252) | function | 252-290 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
+| [`tableProjection`](../src/server/tables.go#L26) | struct | 26-30 | ``type tableProjection struct { Columns []columnInfo `json:"columns"` OmittedColumns map[string]string `json:"omitted_columns,omitempty"` RedactedFields []string `json:"redacted_fields,omitempty"` }`` | tableProjection describes the columns that Advanced may return without exposing raw binary or sensitive evidence. |
+| [`tableSummary`](../src/server/tables.go#L33) | struct | 33-36 | ``type tableSummary struct { Name string `json:"name"` tableProjection }`` | tableSummary is the schema-only discovery shape; row counts are computed only for the selected table. |
+| [`(*Server).tablesHandler`](../src/server/tables.go#L39) | method | 39-50 | `func (*Server).tablesHandler(w http.ResponseWriter, r *http.Request)` | tablesHandler returns metadata for every discovered browsable table. |
+| [`(*Server).tableRows`](../src/server/tables.go#L53) | method | 53-176 | `func (*Server).tableRows(w http.ResponseWriter, r *http.Request)` | tableRows returns a bounded page from one validated browsable table. |
+| [`tableRowsAsMaps`](../src/server/tables.go#L179) | function | 179-201 | `func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | tableRowsAsMaps scans table-browser rows without converting byte prefixes before UTF-8 truncation. |
+| [`truncateUTF8Bytes`](../src/server/tables.go#L204) | function | 204-216 | `func truncateUTF8Bytes(value string, limit int) string` | truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit. |
+| [`safeTableProjection`](../src/server/tables.go#L219) | function | 219-239 | `func safeTableProjection(info tableInfo) tableProjection` | safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas. |
+| [`advancedSensitiveColumn`](../src/server/tables.go#L242) | function | 242-250 | `func advancedSensitiveColumn(name string) bool` | advancedSensitiveColumn reports whether a generic cell may contain private or large research evidence. |
+| [`boundAdvancedRows`](../src/server/tables.go#L253) | function | 253-270 | `func boundAdvancedRows(rows []map[string]any, columns []columnInfo, truncated map[string][]string)` | boundAdvancedRows enforces a deterministic total value budget without dropping page rows. |
+| [`appendUnique`](../src/server/tables.go#L273) | function | 273-280 | `func appendUnique(values []string, value string) []string` | appendUnique adds one truncation reason at most once per projected field. |
+| [`tableRequest`](../src/server/tables.go#L283) | function | 283-321 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
 
 ### [`src/server/tables_integration_test.go`](../src/server/tables_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestAPITableBrowserErrors`](../src/server/tables_integration_test.go#L16) | test | 16-33 | `func TestAPITableBrowserErrors(t *testing.T)` | TestAPITableBrowserErrors verifies api table browser errors. |
-| [`TestAPITableBrowserUsesSafeBoundedProjection`](../src/server/tables_integration_test.go#L36) | test | 36-76 | `func TestAPITableBrowserUsesSafeBoundedProjection(t *testing.T)` | TestAPITableBrowserUsesSafeBoundedProjection verifies request-time counts, redaction, binary omission, and page canonicalization. |
+| [`TestAPITableBrowserErrors`](../src/server/tables_integration_test.go#L17) | test | 17-34 | `func TestAPITableBrowserErrors(t *testing.T)` | TestAPITableBrowserErrors verifies api table browser errors. |
+| [`TestAPITableBrowserTruncatesMultibyteCellsByBytes`](../src/server/tables_integration_test.go#L37) | test | 37-82 | `func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T)` | TestAPITableBrowserTruncatesMultibyteCellsByBytes verifies UTF-8 table cells honour the advertised byte limit. |
+| [`TestAPITableBrowserUsesSafeBoundedProjection`](../src/server/tables_integration_test.go#L85) | test | 85-125 | `func TestAPITableBrowserUsesSafeBoundedProjection(t *testing.T)` | TestAPITableBrowserUsesSafeBoundedProjection verifies request-time counts, redaction, binary omission, and page canonicalization. |
 
 ### [`src/server/term_matches.go`](../src/server/term_matches.go)
 

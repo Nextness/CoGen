@@ -5,6 +5,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -103,6 +104,40 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 		if response.Code != http.StatusBadRequest {
 			t.Errorf("GET %s: status=%d", path, response.Code)
 		}
+	}
+}
+
+// TestArtifactDownloadLargeBodyFailsBeforeCommit verifies an artifact beyond the former chunk-query budget is never silently truncated.
+func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	payload := bytes.Repeat([]byte("x"), 64*1024*(collectionAPIQueries+1))
+	result, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifactID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := viewer.writeDB.DB.Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
+		t.Fatal(err)
+	}
+
+	response := viewerRequest(t, viewer.Handler(), "/api/artifacts/"+stringID(artifactID)+"/content")
+	if response.Code == http.StatusOK {
+		if !bytes.Equal(response.Body.Bytes(), payload) {
+			t.Fatalf("large artifact response was truncated: got %d bytes, want %d", response.Body.Len(), len(payload))
+		}
+		return
+	}
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), `"error":"response_budget_exceeded"`) {
+		t.Fatalf("large artifact must fail before a partial success response: status=%d body=%s", response.Code, response.Body.String())
 	}
 }
 

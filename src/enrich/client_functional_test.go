@@ -4,8 +4,10 @@
 package enrich
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -147,5 +149,32 @@ func TestClientRejectsOversizedProviderPayload(t *testing.T) {
 	response := client.Fetch(context.Background(), server.URL)
 	if response.Err == nil || !strings.Contains(response.Err.Error(), "exceeds") {
 		t.Fatalf("Fetch() error = %v, want payload-size error", response.Err)
+	}
+}
+
+// TestClientLogsDoNotExposeRequestQueries verifies request-level logs omit provider query content.
+func TestClientLogsDoNotExposeRequestQueries(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	}))
+	defer server.Close()
+
+	var output bytes.Buffer
+	originalLog := log
+	log = slog.New(slog.NewTextHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	t.Cleanup(func() { log = originalLog })
+
+	client := newTestClient(t, server, 1)
+	defer client.Close()
+	secret := "Ada Lovelace"
+	response := client.Fetch(context.Background(), server.URL+"/search?q="+strings.ReplaceAll(secret, " ", "+"))
+	if response.Err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("Fetch() = %+v", response)
+	}
+	if logged := output.String(); strings.Contains(logged, secret) || strings.Contains(logged, "q=") {
+		t.Fatalf("request log exposed query content: %q", logged)
+	}
+	if !strings.Contains(output.String(), "path=/search") {
+		t.Fatalf("request log omitted query-free path: %q", output.String())
 	}
 }
