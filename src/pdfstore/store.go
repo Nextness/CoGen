@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/internal/pathpolicy"
 	"analysis/manifest"
 )
 
@@ -179,10 +180,11 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 	var status string
 	var existingHash sql.NullString
 	var existingSize sql.NullInt64
-	err = tx.QueryRowContext(ctx, `SELECT d.status, d.content_hash, b.byte_size
+	var existingData []byte
+	err = tx.QueryRowContext(ctx, `SELECT d.status, d.content_hash, b.byte_size, b.data
 		FROM pdf_documents d
 		LEFT JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=?`, doi).Scan(&status, &existingHash, &existingSize)
+		WHERE d.doi=?`, doi).Scan(&status, &existingHash, &existingSize, &existingData)
 	if err == sql.ErrNoRows {
 		return AddResult{}, fmt.Errorf("DOI %q is not registered in the normalized PDF inventory", doi)
 	}
@@ -190,8 +192,8 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 		return AddResult{}, fmt.Errorf("read existing PDF document: %w", err)
 	}
 	if status == StatusAvailable {
-		if !existingHash.Valid || !existingSize.Valid {
-			return AddResult{}, fmt.Errorf("available PDF inventory document %q has no stored blob", doi)
+		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+			return AddResult{}, fmt.Errorf("available PDF inventory document %q is corrupt: %w", doi, err)
 		}
 		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
 	}
@@ -218,11 +220,14 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 		return AddResult{}, fmt.Errorf("store PDF document: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected != 1 {
-		if err := tx.QueryRowContext(ctx, `SELECT d.content_hash, b.byte_size
+		if err := tx.QueryRowContext(ctx, `SELECT d.content_hash, b.byte_size, b.data
 			FROM pdf_documents d
 			JOIN pdf_blobs b ON b.content_hash=d.content_hash
-			WHERE d.doi=? AND d.status='available'`, doi).Scan(&existingHash, &existingSize); err != nil {
+			WHERE d.doi=? AND d.status='available'`, doi).Scan(&existingHash, &existingSize, &existingData); err != nil {
 			return AddResult{}, fmt.Errorf("read concurrently stored PDF document: %w", err)
+		}
+		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+			return AddResult{}, fmt.Errorf("concurrently stored PDF inventory document %q is corrupt: %w", doi, err)
 		}
 		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
 	}
@@ -248,6 +253,21 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 		return AddResult{}, fmt.Errorf("commit PDF document: %w", err)
 	}
 	return AddResult{ContentHash: hash, ByteSize: len(data), Added: true}, nil
+}
+
+// validateStoredPDFBlob verifies that a stored blob still matches its content-addressed metadata.
+func validateStoredPDFBlob(contentHash sql.NullString, byteSize sql.NullInt64, data []byte) error {
+	if !contentHash.Valid || !byteSize.Valid || byteSize.Int64 < 0 {
+		return fmt.Errorf("stored blob metadata is incomplete")
+	}
+	if int64(len(data)) != byteSize.Int64 {
+		return fmt.Errorf("stored blob byte size does not match its data")
+	}
+	digest := sha256.Sum256(data)
+	if contentHash.String != hex.EncodeToString(digest[:]) {
+		return fmt.Errorf("stored blob digest does not match its content hash")
+	}
+	return nil
 }
 
 // BindStore records a portable bundle-relative companion path. Existing
@@ -307,11 +327,19 @@ func resolveStorePath(metadataPath, relativePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve metadata database path: %w", err)
 	}
-	storeAbsolute := filepath.Clean(filepath.Join(filepath.Dir(metadataAbsolute), cleanPath))
-	if storeAbsolute == filepath.Clean(metadataAbsolute) {
+	metadataDir := filepath.Dir(metadataAbsolute)
+	storePath, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve PDF store path: %w", err)
+	}
+	metadataResolved, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, metadataAbsolute)
+	if err != nil {
+		return "", fmt.Errorf("resolve metadata database path: %w", err)
+	}
+	if storePath == metadataResolved {
 		return "", fmt.Errorf("PDF store path must differ from the metadata database path")
 	}
-	return storeAbsolute, nil
+	return storePath, nil
 }
 
 // validateRelativeStorePath rejects absolute or escaping companion-store paths and returns a clean relative path.

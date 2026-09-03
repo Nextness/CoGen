@@ -111,36 +111,6 @@ func (r *MetricsRepository) ListByRun(runID int64) ([]*PipelineRunMetric, error)
 	return result, nil
 }
 
-// ListByRunAndSource returns all metrics for a given run and source.
-func (r *MetricsRepository) ListByRunAndSource(runID int64, source string) ([]*PipelineRunMetric, error) {
-	rows, err := r.db.DB.Query(
-		`SELECT pipeline_run_id, metric, source, value
-		 FROM pipeline_run_metrics WHERE pipeline_run_id = ? AND source = ? ORDER BY metric`,
-		runID, source,
-	)
-	if err != nil {
-		lg.Debug("metric list by run and source failed", "run_id", runID, "source", source, "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []*PipelineRunMetric
-	for rows.Next() {
-		var m PipelineRunMetric
-		if err := rows.Scan(&m.PipelineRunID, &m.Metric, &m.Source, &m.Value); err != nil {
-			lg.Debug("metric scan failed", "run_id", runID, "source", source, "scanned", len(result), "error", err)
-			return nil, err
-		}
-		result = append(result, &m)
-	}
-	if err := rows.Err(); err != nil {
-		lg.Debug("metric iteration failed", "run_id", runID, "source", source, "scanned", len(result), "error", err)
-		return nil, err
-	}
-	lg.Debug("metric list by run and source successful", "run_id", runID, "source", source, "metrics", len(result))
-	return result, nil
-}
-
 // AuditEventRepository provides CRUD for the audit_events table.
 type AuditEventRepository struct {
 	db *Database
@@ -149,6 +119,9 @@ type AuditEventRepository struct {
 // Insert stores a new audit event. The event's action is validated against
 // the manifest lifecycle vocabulary before insertion.
 func (r *AuditEventRepository) Insert(event *manifest.AuditEvent) (int64, error) {
+	if event == nil {
+		return 0, fmt.Errorf("insert audit event: value is required")
+	}
 	if err := manifest.ValidateAuditAction(string(event.Action)); err != nil {
 		lg.Debug("audit event insert rejected", "action", event.Action, "error", err)
 		return 0, err
@@ -211,47 +184,6 @@ func (r *AuditEventRepository) ListByEntity(entityType, entityID string) ([]*Aud
 	)
 	if err != nil {
 		lg.Debug("audit event list by entity failed", "entity_type", entityType, "entity_id", entityID, "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-	return scanAuditEvents(rows)
-}
-
-// ListByAction returns all audit events for a given action, ordered by ID.
-func (r *AuditEventRepository) ListByAction(action manifest.AuditAction) ([]*AuditEventRecord, error) {
-	if err := manifest.ValidateAuditAction(string(action)); err != nil {
-		lg.Debug("audit event list by action rejected", "action", action, "error", err)
-		return nil, err
-	}
-	rows, err := r.db.DB.Query(
-		`SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id,
-		        action, before_json, after_json, metadata_json, correlation_id
-		 FROM audit_events WHERE action = ? ORDER BY id`,
-		string(action),
-	)
-	if err != nil {
-		lg.Debug("audit event list by action failed", "action", action, "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-	return scanAuditEvents(rows)
-}
-
-// ListAll returns all audit events ordered by ID, with an optional limit.
-// A limit of 0 returns all events.
-func (r *AuditEventRepository) ListAll(limit int) ([]*AuditEventRecord, error) {
-	q := `SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id,
-	             action, before_json, after_json, metadata_json, correlation_id
-	      FROM audit_events ORDER BY id`
-	var rows *sql.Rows
-	var err error
-	if limit > 0 {
-		rows, err = r.db.DB.Query(q+" LIMIT ?", limit)
-	} else {
-		rows, err = r.db.DB.Query(q)
-	}
-	if err != nil {
-		lg.Debug("audit event list all failed", "limit", limit, "error", err)
 		return nil, err
 	}
 	defer rows.Close()

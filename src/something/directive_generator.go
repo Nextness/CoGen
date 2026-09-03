@@ -296,21 +296,13 @@ func (generator *DirectiveGenerator) expandExpression(expression Expression) Exp
 	case *TypedExpression:
 		return &TypedExpression{Value: generator.expandExpression(value.Value), Type: value.Type, Location: value.Location}
 	case *BinaryOpExpression:
-		value.Left = generator.expandExpression(value.Left)
-		value.Right = generator.expandExpression(value.Right)
-		return value
+		return &BinaryOpExpression{Left: generator.expandExpression(value.Left), Op: value.Op, Right: generator.expandExpression(value.Right), Location: value.Location}
 	case *UnaryOpExpression:
-		value.Operand = generator.expandExpression(value.Operand)
-		return value
+		return &UnaryOpExpression{Op: value.Op, Operand: generator.expandExpression(value.Operand), Location: value.Location}
 	case *MatchExpression:
-		value.Value = generator.expandExpression(value.Value)
-		value.Pattern = generator.expandExpression(value.Pattern)
-		value.Accesses = generator.expandAccesses(value.Accesses)
-		return value
+		return &MatchExpression{Value: generator.expandExpression(value.Value), Pattern: generator.expandExpression(value.Pattern), Accesses: generator.expandAccesses(value.Accesses), Location: value.Location}
 	case *LenExpression:
-		value.Value = generator.expandExpression(value.Value)
-		value.Accesses = generator.expandAccesses(value.Accesses)
-		return value
+		return &LenExpression{Value: generator.expandExpression(value.Value), Accesses: generator.expandAccesses(value.Accesses), Location: value.Location}
 	case *IntrinsicExpression:
 		arguments := make([]Expression, len(value.Arguments))
 		for index, argument := range value.Arguments {

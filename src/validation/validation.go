@@ -32,7 +32,7 @@ func ValidateFields(a Fields, authorCount int) []string {
 	if a.Title == "" {
 		reasons = append(reasons, "missing title")
 	}
-	if authorCount == 0 {
+	if authorCount <= 0 {
 		reasons = append(reasons, "missing authors")
 	}
 	if a.Year <= 0 {
@@ -48,7 +48,7 @@ func ValidateFields(a Fields, authorCount int) []string {
 	if a.Publisher == "" {
 		reasons = append(reasons, "missing publisher")
 	}
-	if a.ReferenceCount == 0 {
+	if a.ReferenceCount <= 0 {
 		reasons = append(reasons, "missing references")
 	}
 	return reasons

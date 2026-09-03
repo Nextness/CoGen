@@ -119,94 +119,102 @@ func checkDict(current any, segment string) (map[string]any, error) {
 	return d, nil
 }
 
-// walkOnce walks segments through data. Every segment containing "[iteration]"
-// must match exactly one key. Returns the final value.
-func walkOnce(data map[string]any, segments []string) (any, error) {
-	current := any(data)
-	for _, segment := range segments {
-		d, err := checkDict(current, segment)
-		if err != nil {
-			return nil, err
-		}
-		keys := matchIterationKeys(d, segment)
-		if len(keys) == 0 {
-			return nil, &PathNotValidError{Segment: segment, Keys: mapKeys(d)}
-		}
-		if len(keys) > 1 {
-			return nil, &PathNotValidError{Segment: segment, Keys: mapKeys(d)}
-		}
-		current = d[keys[0]]
-	}
-	return current, nil
+// walkMode selects whether iteration segments require one match, a selected
+// match, or all matches.
+type walkMode int
+
+const (
+	walkOne walkMode = iota
+	walkAtIndex
+	walkEvery
+)
+
+// walk traverses one path according to mode. It is the shared primitive for
+// the public Once, Index, and All accessor families.
+func walk(data map[string]any, segments []string, mode walkMode, index int) ([]any, error) {
+	return walkFrom(data, segments, mode, index)
 }
 
-// walkIndex walks segments through data, using index to select among matching
-// iteration keys. The index is only applied to segments containing "[iteration]".
-func walkIndex(data map[string]any, index int, segments []string) (any, error) {
-	current := any(data)
-	for _, segment := range segments {
-		d, err := checkDict(current, segment)
-		if err != nil {
-			return nil, err
-		}
-		keys := matchIterationKeys(d, segment)
-		if len(keys) == 0 {
-			return nil, &PathNotValidError{Segment: segment, Keys: mapKeys(d)}
-		}
-		if strings.Contains(segment, "[iteration]") {
-			if index < 0 || index >= len(keys) {
-				return nil, &OutOfBoundsError{Index: index, Count: len(keys), Segment: segment}
-			}
-			current = d[keys[index]]
-		} else {
-			current = d[keys[0]]
-		}
-	}
-	return current, nil
-}
-
-// walkAll walks segments through data, branching on every "[iteration]" segment
-// that matches multiple keys. Returns all terminal values reachable.
-func walkAll(data map[string]any, segments []string) ([]any, error) {
+// walkFrom continues a traversal from the current value while preserving the
+// existing public error types and path text for every selection mode.
+func walkFrom(current any, segments []string, mode walkMode, index int) ([]any, error) {
 	if len(segments) == 0 {
-		return []any{data}, nil
+		return []any{current}, nil
 	}
 
 	segment := segments[0]
 	rest := segments[1:]
-
-	d, err := checkDict(data, segment)
+	d, err := checkDict(current, segment)
 	if err != nil {
 		return nil, err
 	}
 	keys := matchIterationKeys(d, segment)
 	if len(keys) == 0 {
-		if strings.Contains(segment, "[iteration]") {
+		if mode == walkEvery && strings.Contains(segment, "[iteration]") {
 			return nil, nil
 		}
 		return nil, &PathNotValidError{Segment: segment, Keys: mapKeys(d)}
 	}
 
-	var results []any
-	for _, key := range keys {
-		if len(rest) == 0 {
-			results = append(results, d[key])
-			continue
+	switch mode {
+	case walkOne:
+		if len(keys) > 1 {
+			return nil, &PathNotValidError{Segment: segment, Keys: mapKeys(d)}
 		}
-		subMap, ok := d[key].(map[string]any)
-		if !ok {
-			return nil, &PathCannotBeReachedError{
-				Segment:     key,
-				CurrentType: fmt.Sprintf("%T", d[key]),
+		return walkFrom(d[keys[0]], rest, mode, index)
+	case walkAtIndex:
+		key := keys[0]
+		if strings.Contains(segment, "[iteration]") {
+			if index < 0 || index >= len(keys) {
+				return nil, &OutOfBoundsError{Index: index, Count: len(keys), Segment: segment}
 			}
+			key = keys[index]
 		}
-		subResults, err := walkAll(subMap, rest)
-		if err != nil {
-			return nil, err
+		return walkFrom(d[key], rest, mode, index)
+	case walkEvery:
+		results := make([]any, 0, len(keys))
+		for _, key := range keys {
+			if len(rest) == 0 {
+				results = append(results, d[key])
+				continue
+			}
+			subMap, ok := d[key].(map[string]any)
+			if !ok {
+				return nil, &PathCannotBeReachedError{Segment: key, CurrentType: fmt.Sprintf("%T", d[key])}
+			}
+			subResults, err := walkFrom(subMap, rest, mode, index)
+			if err != nil {
+				return nil, err
+			}
+			results = append(results, subResults...)
 		}
-		results = append(results, subResults...)
+		return results, nil
+	default:
+		return nil, fmt.Errorf("unknown path traversal mode %d", mode)
 	}
-	return results, nil
+}
+
+// walkOnce returns the one value selected by a Once traversal.
+func walkOnce(data map[string]any, segments []string) (any, error) {
+	values, err := walk(data, segments, walkOne, 0)
+	if err != nil {
+		return nil, err
+	}
+	return values[0], nil
+}
+
+// walkIndex returns the one value selected by an Index traversal.
+func walkIndex(data map[string]any, index int, segments []string) (any, error) {
+	values, err := walk(data, segments, walkAtIndex, index)
+	if err != nil {
+		return nil, err
+	}
+	return values[0], nil
+}
+
+// walkAll returns every value selected by an All traversal.
+func walkAll(data map[string]any, segments []string) ([]any, error) {
+	return walk(data, segments, walkEvery, 0)
 }
 
 // checkType checks type against the current invariants.
@@ -247,13 +255,37 @@ func checkType(val any, expected string, path []string) error {
 	return nil
 }
 
+// valueAt selects and checks one typed value for the Once and Index accessors.
+func valueAt(data map[string]any, path []string, mode walkMode, index int, expected string) (any, error) {
+	values, err := walk(data, path, mode, index)
+	if err != nil {
+		return nil, err
+	}
+	value := values[0]
+	if err := checkType(value, expected, path); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+// valuesAt selects and checks every typed value for the All accessors.
+func valuesAt(data map[string]any, path []string, expected string) ([]any, error) {
+	values, err := walk(data, path, walkEvery, 0)
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range values {
+		if err := checkType(value, expected, path); err != nil {
+			return nil, err
+		}
+	}
+	return values, nil
+}
+
 // GetStringOnce returns a string value at path.
 func GetStringOnce(data map[string]any, path ...string) (string, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "string")
 	if err != nil {
-		return "", err
-	}
-	if err := checkType(val, "string", path); err != nil {
 		return "", err
 	}
 	return val.(string), nil
@@ -261,11 +293,8 @@ func GetStringOnce(data map[string]any, path ...string) (string, error) {
 
 // GetIntegerOnce returns an integer value at path.
 func GetIntegerOnce(data map[string]any, path ...string) (int, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "integer")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "integer", path); err != nil {
 		return 0, err
 	}
 	return val.(int), nil
@@ -273,11 +302,8 @@ func GetIntegerOnce(data map[string]any, path ...string) (int, error) {
 
 // GetFloatOnce returns a float value at path.
 func GetFloatOnce(data map[string]any, path ...string) (float64, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "float")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "float", path); err != nil {
 		return 0, err
 	}
 	if f, ok := val.(float64); ok {
@@ -288,11 +314,8 @@ func GetFloatOnce(data map[string]any, path ...string) (float64, error) {
 
 // GetBoolOnce returns a boolean value at path.
 func GetBoolOnce(data map[string]any, path ...string) (bool, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "boolean")
 	if err != nil {
-		return false, err
-	}
-	if err := checkType(val, "boolean", path); err != nil {
 		return false, err
 	}
 	return val.(bool), nil
@@ -300,11 +323,8 @@ func GetBoolOnce(data map[string]any, path ...string) (bool, error) {
 
 // GetTimestampOnce returns a timestamp (string) value at path.
 func GetTimestampOnce(data map[string]any, path ...string) (string, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "string")
 	if err != nil {
-		return "", err
-	}
-	if err := checkType(val, "string", path); err != nil {
 		return "", err
 	}
 	return val.(string), nil
@@ -312,11 +332,8 @@ func GetTimestampOnce(data map[string]any, path ...string) (string, error) {
 
 // GetListOnce returns a list value at path.
 func GetListOnce(data map[string]any, path ...string) ([]any, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "list")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "list", path); err != nil {
 		return nil, err
 	}
 	return val.([]any), nil
@@ -324,11 +341,8 @@ func GetListOnce(data map[string]any, path ...string) ([]any, error) {
 
 // GetMappingOnce returns a mapping (dict) value at path.
 func GetMappingOnce(data map[string]any, path ...string) (map[string]any, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "mapping")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "mapping", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -336,11 +350,8 @@ func GetMappingOnce(data map[string]any, path ...string) (map[string]any, error)
 
 // GetStructOnce returns a struct (dict) value at path.
 func GetStructOnce(data map[string]any, path ...string) (map[string]any, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "struct")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "struct", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -348,11 +359,8 @@ func GetStructOnce(data map[string]any, path ...string) (map[string]any, error) 
 
 // GetScopeOnce returns a scope (dict) value at path.
 func GetScopeOnce(data map[string]any, path ...string) (map[string]any, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "scope")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "scope", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -360,11 +368,8 @@ func GetScopeOnce(data map[string]any, path ...string) (map[string]any, error) {
 
 // GetEnumOnce returns an enum (integer ordinal) value at path.
 func GetEnumOnce(data map[string]any, path ...string) (int, error) {
-	val, err := walkOnce(data, path)
+	val, err := valueAt(data, path, walkOne, 0, "enum")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "enum", path); err != nil {
 		return 0, err
 	}
 	return val.(int), nil
@@ -372,11 +377,8 @@ func GetEnumOnce(data map[string]any, path ...string) (int, error) {
 
 // GetStringIndex returns a string at path, using index to select among iterations.
 func GetStringIndex(data map[string]any, index int, path ...string) (string, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "string")
 	if err != nil {
-		return "", err
-	}
-	if err := checkType(val, "string", path); err != nil {
 		return "", err
 	}
 	return val.(string), nil
@@ -384,11 +386,8 @@ func GetStringIndex(data map[string]any, index int, path ...string) (string, err
 
 // GetIntegerIndex returns an integer at path, using index to select among iterations.
 func GetIntegerIndex(data map[string]any, index int, path ...string) (int, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "integer")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "integer", path); err != nil {
 		return 0, err
 	}
 	return val.(int), nil
@@ -396,11 +395,8 @@ func GetIntegerIndex(data map[string]any, index int, path ...string) (int, error
 
 // GetFloatIndex returns a float at path, using index to select among iterations.
 func GetFloatIndex(data map[string]any, index int, path ...string) (float64, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "float")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "float", path); err != nil {
 		return 0, err
 	}
 	if f, ok := val.(float64); ok {
@@ -411,11 +407,8 @@ func GetFloatIndex(data map[string]any, index int, path ...string) (float64, err
 
 // GetBoolIndex returns a boolean at path, using index to select among iterations.
 func GetBoolIndex(data map[string]any, index int, path ...string) (bool, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "boolean")
 	if err != nil {
-		return false, err
-	}
-	if err := checkType(val, "boolean", path); err != nil {
 		return false, err
 	}
 	return val.(bool), nil
@@ -423,11 +416,8 @@ func GetBoolIndex(data map[string]any, index int, path ...string) (bool, error) 
 
 // GetTimestampIndex returns a timestamp at path, using index to select among iterations.
 func GetTimestampIndex(data map[string]any, index int, path ...string) (string, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "string")
 	if err != nil {
-		return "", err
-	}
-	if err := checkType(val, "string", path); err != nil {
 		return "", err
 	}
 	return val.(string), nil
@@ -435,11 +425,8 @@ func GetTimestampIndex(data map[string]any, index int, path ...string) (string, 
 
 // GetListIndex returns a list at path, using index to select among iterations.
 func GetListIndex(data map[string]any, index int, path ...string) ([]any, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "list")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "list", path); err != nil {
 		return nil, err
 	}
 	return val.([]any), nil
@@ -447,11 +434,8 @@ func GetListIndex(data map[string]any, index int, path ...string) ([]any, error)
 
 // GetMappingIndex returns a mapping at path, using index to select among iterations.
 func GetMappingIndex(data map[string]any, index int, path ...string) (map[string]any, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "mapping")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "mapping", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -459,11 +443,8 @@ func GetMappingIndex(data map[string]any, index int, path ...string) (map[string
 
 // GetStructIndex returns a struct at path, using index to select among iterations.
 func GetStructIndex(data map[string]any, index int, path ...string) (map[string]any, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "struct")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "struct", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -471,11 +452,8 @@ func GetStructIndex(data map[string]any, index int, path ...string) (map[string]
 
 // GetScopeIndex returns a scope at path, using index to select among iterations.
 func GetScopeIndex(data map[string]any, index int, path ...string) (map[string]any, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "scope")
 	if err != nil {
-		return nil, err
-	}
-	if err := checkType(val, "scope", path); err != nil {
 		return nil, err
 	}
 	return val.(map[string]any), nil
@@ -483,11 +461,8 @@ func GetScopeIndex(data map[string]any, index int, path ...string) (map[string]a
 
 // GetEnumIndex returns an enum at path, using index to select among iterations.
 func GetEnumIndex(data map[string]any, index int, path ...string) (int, error) {
-	val, err := walkIndex(data, index, path)
+	val, err := valueAt(data, path, walkAtIndex, index, "enum")
 	if err != nil {
-		return 0, err
-	}
-	if err := checkType(val, "enum", path); err != nil {
 		return 0, err
 	}
 	return val.(int), nil
@@ -495,15 +470,12 @@ func GetEnumIndex(data map[string]any, index int, path ...string) (int, error) {
 
 // GetStringAll returns all string values reachable at path.
 func GetStringAll(data map[string]any, path ...string) ([]string, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "string")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]string, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "string", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(string)
 	}
 	return result, nil
@@ -511,15 +483,12 @@ func GetStringAll(data map[string]any, path ...string) ([]string, error) {
 
 // GetIntegerAll returns all integer values reachable at path.
 func GetIntegerAll(data map[string]any, path ...string) ([]int, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "integer")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]int, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "integer", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(int)
 	}
 	return result, nil
@@ -527,15 +496,12 @@ func GetIntegerAll(data map[string]any, path ...string) ([]int, error) {
 
 // GetFloatAll returns all float values reachable at path.
 func GetFloatAll(data map[string]any, path ...string) ([]float64, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "float")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]float64, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "float", path); err != nil {
-			return nil, err
-		}
 		if f, ok := v.(float64); ok {
 			result[i] = f
 		} else {
@@ -547,15 +513,12 @@ func GetFloatAll(data map[string]any, path ...string) ([]float64, error) {
 
 // GetBoolAll returns all boolean values reachable at path.
 func GetBoolAll(data map[string]any, path ...string) ([]bool, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "boolean")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]bool, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "boolean", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(bool)
 	}
 	return result, nil
@@ -563,15 +526,12 @@ func GetBoolAll(data map[string]any, path ...string) ([]bool, error) {
 
 // GetTimestampAll returns all timestamp values reachable at path.
 func GetTimestampAll(data map[string]any, path ...string) ([]string, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "string")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]string, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "string", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(string)
 	}
 	return result, nil
@@ -579,32 +539,17 @@ func GetTimestampAll(data map[string]any, path ...string) ([]string, error) {
 
 // GetListAll returns all list values reachable at path.
 func GetListAll(data map[string]any, path ...string) ([]any, error) {
-	// walkAll already returns []any, but we need to check each is a list
-	vals, err := walkAll(data, path)
-	if err != nil {
-		return nil, err
-	}
-	// For list type, we return the values directly since walkAll already
-	// collects them. But we need to type-check each.
-	for _, v := range vals {
-		if err := checkType(v, "list", path); err != nil {
-			return nil, err
-		}
-	}
-	return vals, nil
+	return valuesAt(data, path, "list")
 }
 
 // GetMappingAll returns all mapping values reachable at path.
 func GetMappingAll(data map[string]any, path ...string) ([]map[string]any, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "mapping")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]map[string]any, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "mapping", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(map[string]any)
 	}
 	return result, nil
@@ -612,15 +557,12 @@ func GetMappingAll(data map[string]any, path ...string) ([]map[string]any, error
 
 // GetStructAll returns all struct values reachable at path.
 func GetStructAll(data map[string]any, path ...string) ([]map[string]any, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "struct")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]map[string]any, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "struct", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(map[string]any)
 	}
 	return result, nil
@@ -628,15 +570,12 @@ func GetStructAll(data map[string]any, path ...string) ([]map[string]any, error)
 
 // GetScopeAll returns all scope values reachable at path.
 func GetScopeAll(data map[string]any, path ...string) ([]map[string]any, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "scope")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]map[string]any, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "scope", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(map[string]any)
 	}
 	return result, nil
@@ -644,15 +583,12 @@ func GetScopeAll(data map[string]any, path ...string) ([]map[string]any, error) 
 
 // GetEnumAll returns all enum (int) values reachable at path.
 func GetEnumAll(data map[string]any, path ...string) ([]int, error) {
-	vals, err := walkAll(data, path)
+	vals, err := valuesAt(data, path, "enum")
 	if err != nil {
 		return nil, err
 	}
 	result := make([]int, len(vals))
 	for i, v := range vals {
-		if err := checkType(v, "enum", path); err != nil {
-			return nil, err
-		}
 		result[i] = v.(int)
 	}
 	return result, nil

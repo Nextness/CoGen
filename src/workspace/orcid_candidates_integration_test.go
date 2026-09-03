@@ -33,7 +33,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 	db, cache, runID := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run"}})
 	defer db.Close()
 	articles := []*article.Article{{DOI: "10.1000/orcid-candidate", Authors: []article.Author{{CitationName: "Lovelace, Ada"}}}}
-	source := enrich.SourceConfig{Name: "orcid", ExtraURLs: map[string]string{"search": provider.URL + "/search"}, TimeoutSecs: 5, MaxRetries: 1, RatePerSecond: 1000}
+	source := enrich.SourceConfig{Name: "orcid", BaseURL: provider.URL + "/record/", ExtraURLs: map[string]string{"search": provider.URL + "/search"}, Concurrency: 1, BatchSize: 1, TimeoutSecs: 5, MaxRetries: 1, RatePerSecond: 1000}
 	updated, changes, evidence, err := enrichCachedORCID(context.Background(), cache, source, enrich.SourceConfig{}, false, articles)
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 	run.Manifest.Sources[0].KeepFields = []string{"doi", "title", "year", "authors"}
 	run.Manifest.EnrichmentProviders = []manifest.EnrichmentProvider{{Name: "orcid", BaseURL: provider.URL + "/record/", ExtraURLs: map[string]string{"search": provider.URL + "/search"}}}
 	run.Enrichment = &enrich.Config{Sources: map[string]enrich.SourceConfig{
-		"orcid": {Name: "orcid", BaseURL: provider.URL + "/record/", ExtraURLs: map[string]string{"search": provider.URL + "/search"}, TimeoutSecs: 5, MaxRetries: 1, RatePerSecond: 1000},
+		"orcid": {Name: "orcid", BaseURL: provider.URL + "/record/", ExtraURLs: map[string]string{"search": provider.URL + "/search"}, Concurrency: 1, BatchSize: 1, TimeoutSecs: 5, MaxRetries: 1, RatePerSecond: 1000},
 	}}
 
 	dbPath := filepath.Join(tempDir, "workspace.db")

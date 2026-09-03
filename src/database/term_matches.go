@@ -25,22 +25,6 @@ type TermMatchesRepository struct {
 	db *Database
 }
 
-// ReplaceRunTerms replaces the parsed term inventory for one run in a single
-// transaction. It is safe to call twice for the same run.
-func (r *TermMatchesRepository) ReplaceRunTerms(runID int64, termsBySource map[string][]string) error {
-	return r.db.withTx(context.Background(), func(tx *sql.Tx) error {
-		return r.replaceRunTermsTx(tx, runID, termsBySource)
-	})
-}
-
-// ReplaceRunMatches replaces the per-revision field matches for one run in a
-// single transaction. It is safe to call twice for the same run.
-func (r *TermMatchesRepository) ReplaceRunMatches(runID int64, matches map[int64]map[string][]string) error {
-	return r.db.withTx(context.Background(), func(tx *sql.Tx) error {
-		return r.replaceRunMatchesTx(tx, runID, matches)
-	})
-}
-
 // ReplaceRunTermData replaces both the term inventory and the revision matches
 // for one run in a single transaction, preserving per-run atomicity.
 func (r *TermMatchesRepository) ReplaceRunTermData(runID int64, termsBySource map[string][]string, matches map[int64]map[string][]string) error {
@@ -48,20 +32,26 @@ func (r *TermMatchesRepository) ReplaceRunTermData(runID int64, termsBySource ma
 		if err := r.replaceRunTermsTx(tx, runID, termsBySource); err != nil {
 			return err
 		}
-		return r.replaceRunMatchesTx(tx, runID, matches)
+		if err := r.replaceRunMatchesTx(tx, runID, matches); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`INSERT INTO run_term_match_reconciliations (pipeline_run_id)
+			VALUES (?) ON CONFLICT(pipeline_run_id) DO UPDATE SET reconciled_at=datetime('now')`, runID); err != nil {
+			return fmt.Errorf("record term reconciliation: %w", err)
+		}
+		return nil
 	})
 }
 
-// CountRunTermData returns the number of stored match rows for one run. It is
-// used by the reconciliation pass to skip runs that already have term data.
-func (r *TermMatchesRepository) CountRunTermData(runID int64) (int64, error) {
-	var count int64
+// HasRunTermData reports whether term reconciliation completed, including valid empty results.
+func (r *TermMatchesRepository) HasRunTermData(runID int64) (bool, error) {
+	var found bool
 	if err := r.db.DB.QueryRow(
-		"SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id = ?", runID,
-	).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count run term data: %w", err)
+		"SELECT EXISTS(SELECT 1 FROM run_term_match_reconciliations WHERE pipeline_run_id = ?)", runID,
+	).Scan(&found); err != nil {
+		return false, fmt.Errorf("check run term reconciliation: %w", err)
 	}
-	return count, nil
+	return found, nil
 }
 
 // GetRunTerms returns the stored term inventory for one run ordered by id.
@@ -163,8 +153,21 @@ func (r *TermMatchesRepository) replaceRunMatchesTx(tx *sql.Tx, runID int64, mat
 	if _, err := tx.Exec("DELETE FROM work_revision_term_matches WHERE pipeline_run_id = ?", runID); err != nil {
 		return fmt.Errorf("clear revision term matches: %w", err)
 	}
-	for revisionID, fields := range matches {
-		for field, terms := range fields {
+	revisionIDs := make([]int64, 0, len(matches))
+	for revisionID := range matches {
+		revisionIDs = append(revisionIDs, revisionID)
+	}
+	sort.Slice(revisionIDs, func(i, j int) bool { return revisionIDs[i] < revisionIDs[j] })
+	for _, revisionID := range revisionIDs {
+		fields := matches[revisionID]
+		fieldNames := make([]string, 0, len(fields))
+		for field := range fields {
+			fieldNames = append(fieldNames, field)
+		}
+		sort.Strings(fieldNames)
+		for _, field := range fieldNames {
+			terms := append([]string(nil), fields[field]...)
+			sort.Strings(terms)
 			for _, term := range terms {
 				if _, err := tx.Exec(
 					"INSERT OR IGNORE INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, ?, ?)",

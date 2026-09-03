@@ -17,6 +17,8 @@ import (
 	"time"
 	"unicode"
 
+	"analysis/internal/pathpolicy"
+	"analysis/internal/sqliteuri"
 	"analysis/something"
 	"analysis/workspace"
 
@@ -167,7 +169,7 @@ func prepare(ctx context.Context, input options) error {
 		}
 	}
 
-	copyDB, err := sql.Open("sqlite", metadataCopy+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	copyDB, err := sql.Open("sqlite", sqliteWritableURI(metadataCopy))
 	if err != nil {
 		return err
 	}
@@ -694,28 +696,40 @@ func exportedFileHashes(root string) (map[string]string, error) {
 	return files, err
 }
 
-// safeCompanionPath resolves only a clean bundle-relative PDF binding.
+// safeCompanionPath resolves a clean bundle-relative PDF binding and rejects a
+// resolved target that escapes the metadata bundle through a symbolic link.
 func safeCompanionPath(metadataPath, relative string) (string, error) {
 	if relative == "" || filepath.IsAbs(relative) || filepath.Clean(relative) != relative || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("unsafe companion binding %q", relative)
 	}
-	return filepath.Join(filepath.Dir(metadataPath), relative), nil
+	companion, err := pathpolicy.ResolveExistingWithin(filepath.Dir(metadataPath), relative)
+	if err != nil {
+		return "", fmt.Errorf("bound PDF database escapes metadata bundle: %w", err)
+	}
+	if _, err := existingFile(companion); err != nil {
+		return "", err
+	}
+	return companion, nil
 }
 
-// existingFile returns an absolute path only for an existing regular file.
+// existingFile returns a resolved absolute path only for an existing regular file.
 func existingFile(path string) (string, error) {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
 	}
-	info, err := os.Stat(absolute)
+	resolved, err := filepath.EvalSymlinks(absolute)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(resolved)
 	if err != nil {
 		return "", err
 	}
 	if !info.Mode().IsRegular() {
-		return "", fmt.Errorf("not a regular file: %s", absolute)
+		return "", fmt.Errorf("not a regular file: %s", resolved)
 	}
-	return absolute, nil
+	return resolved, nil
 }
 
 // samePath detects aliases using filesystem identity when both targets exist.
@@ -730,7 +744,17 @@ func samePath(left, right string) bool {
 
 // sqliteReadURI returns an existing-only read URI with the project busy timeout.
 func sqliteReadURI(path string) string {
-	return "file:" + filepath.ToSlash(path) + "?mode=ro&_pragma=busy_timeout(5000)"
+	return sqliteuri.File(path, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"busy_timeout(5000)"},
+	})
+}
+
+// sqliteWritableURI returns a writable SQLite URI with the project pragmas.
+func sqliteWritableURI(path string) string {
+	return sqliteuri.File(path, map[string][]string{
+		"_pragma": {"foreign_keys(1)", "busy_timeout(5000)"},
+	})
 }
 
 // fileHash streams one file into a lowercase SHA-256 digest.

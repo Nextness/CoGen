@@ -95,11 +95,11 @@ func reconcileStoredTermMatches(db *database.Database) error {
 	}
 	backfilled := 0
 	for _, runID := range runIDs {
-		count, err := db.TermMatches.CountRunTermData(runID)
+		reconciled, err := db.TermMatches.HasRunTermData(runID)
 		if err != nil {
 			return err
 		}
-		if count > 0 {
+		if reconciled {
 			continue
 		}
 		termsBySource, matches, err := computeStoredRunTermMatches(db, runID)

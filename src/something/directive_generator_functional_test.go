@@ -19,6 +19,38 @@ func TestEvalForArray_Functional(t *testing.T) {
 	}
 }
 
+// TestEvalForExpandsExpressionsIndependently verifies each loop and macro
+// expansion receives a fresh expression tree rather than reusing prior values.
+func TestEvalForExpandsExpressionsIndependently(t *testing.T) {
+	result := evalText(t, `
+#macro is_two := (value: integer) -> boolean {
+    #set value == 2;
+}
+#for item: []integer{1, 2} {
+    #iteration: scope = {
+        binary := item == 2;
+        unary := #not (item == 2);
+        matched := #match("{item}", "^2$");
+        macro_result := is_two!(item);
+    }
+}
+#for item: [][]integer{[]integer{1}, []integer{1, 2}} {
+    #iteration("_length"): integer = #len(item);
+}
+`)
+	first := result["iteration_0000000000"].(map[string]any)
+	second := result["iteration_0000000001"].(map[string]any)
+	if first["binary"] != false || first["unary"] != true || first["matched"] != false || first["macro_result"] != false {
+		t.Fatalf("first expansion used incorrect values: %v", first)
+	}
+	if second["binary"] != true || second["unary"] != false || second["matched"] != true || second["macro_result"] != true {
+		t.Fatalf("second expansion reused the first iteration: %v", second)
+	}
+	if result["iteration_0000000000_length"] != 1 || result["iteration_0000000001_length"] != 2 {
+		t.Fatalf("length expressions did not expand independently: %v", result)
+	}
+}
+
 // TestEvalInsert_Functional verifies eval insert functional.
 func TestEvalInsert_Functional(t *testing.T) {
 	r := evalText(t, `#insert { "x := 42;" };`)

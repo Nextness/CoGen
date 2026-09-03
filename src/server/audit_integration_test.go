@@ -5,6 +5,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -106,35 +107,37 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 	}
 }
 
-// TestDeprecatedRunAuditRemainsBounded verifies the compatibility route and its validation contract.
-func TestDeprecatedRunAuditRemainsBounded(t *testing.T) {
+// TestArtifactDownloadLargeBodyFailsBeforeCommit verifies an artifact beyond the former chunk-query budget is never silently truncated.
+func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 	path, runID, _, _ := viewerFixture(t)
 	viewer, err := Open(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	handler := viewer.Handler()
-	status, first := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/audit?limit=1")
-	if status != http.StatusOK || first["deprecated"] != true || first["has_more"] != true || first["next_cursor"] == nil {
-		t.Fatalf("deprecated audit first page status=%d body=%v", status, first)
+
+	payload := bytes.Repeat([]byte("x"), 64*1024*(collectionAPIQueries+1))
+	result, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
+	if err != nil {
+		t.Fatal(err)
 	}
-	cursor := int64(first["next_cursor"].(float64))
-	status, second := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/audit?limit=1&cursor="+stringID(cursor))
-	if status != http.StatusOK || len(second["events"].([]any)) != 1 {
-		t.Fatalf("deprecated audit continuation status=%d body=%v", status, second)
+	artifactID, err := result.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, requestPath := range []string{
-		"/api/runs/not-a-number/audit",
-		"/api/runs/999999/audit",
-		"/api/runs/" + stringID(runID) + "/audit?unknown=1",
-		"/api/runs/" + stringID(runID) + "/audit?limit=0",
-		"/api/runs/" + stringID(runID) + "/audit?cursor=invalid",
-	} {
-		response := viewerRequest(t, handler, requestPath)
-		if response.Code != http.StatusBadRequest && response.Code != http.StatusNotFound {
-			t.Errorf("GET %s: status=%d body=%s", requestPath, response.Code, response.Body.String())
+	if _, err := viewer.writeDB.DB.Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
+		t.Fatal(err)
+	}
+
+	response := viewerRequest(t, viewer.Handler(), "/api/artifacts/"+stringID(artifactID)+"/content")
+	if response.Code == http.StatusOK {
+		if !bytes.Equal(response.Body.Bytes(), payload) {
+			t.Fatalf("large artifact response was truncated: got %d bytes, want %d", response.Body.Len(), len(payload))
 		}
+		return
+	}
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), `"error":"response_budget_exceeded"`) {
+		t.Fatalf("large artifact must fail before a partial success response: status=%d body=%s", response.Code, response.Body.String())
 	}
 }
 

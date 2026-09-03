@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"modernc.org/sqlite"
 )
@@ -60,6 +61,18 @@ func TestAPIResponseByteBudgets(t *testing.T) {
 	})).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/audit", nil))
 	if response.Code != http.StatusAccepted || response.Body.String() != "{\"bounded\":true}\n" {
 		t.Fatalf("bounded response code=%d body=%q", response.Code, response.Body.String())
+	}
+}
+
+// TestTruncateUTF8BytesPreservesByteLimitAndEncoding verifies table-cell truncation uses bytes safely.
+func TestTruncateUTF8BytesPreservesByteLimitAndEncoding(t *testing.T) {
+	value := strings.Repeat("x", advancedCellBytes-1) + "😀"
+	truncated := truncateUTF8Bytes(value, advancedCellBytes)
+	if len(truncated) > advancedCellBytes || !utf8.ValidString(truncated) {
+		t.Fatalf("truncated value length=%d valid=%v", len(truncated), utf8.ValidString(truncated))
+	}
+	if truncated != strings.Repeat("x", advancedCellBytes-1) {
+		t.Fatalf("truncated value = %q", truncated)
 	}
 }
 

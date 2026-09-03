@@ -756,6 +756,55 @@ result := "no";
 	}
 }
 
+// TestIfBodiesHaveChildScopes verifies conditional declarations do not escape
+// while reassignments of enclosing bindings retain their established meaning.
+func TestIfBodiesHaveChildScopes(t *testing.T) {
+	result := evalText(t, `
+value := "before";
+#if true {
+    local := "visible only in the condition";
+    value = "after";
+}
+#if false {
+    skipped := "not created";
+}
+`)
+	if result["value"] != "after" {
+		t.Fatalf("conditional reassignment did not reach the enclosing scope: %v", result)
+	}
+	if _, exists := result["local"]; exists {
+		t.Fatalf("conditional declaration escaped its scope: %v", result)
+	}
+	if _, exists := result["skipped"]; exists {
+		t.Fatalf("false conditional declaration escaped its scope: %v", result)
+	}
+	assertPanic(t, func() {
+		evalText(t, `#if false { local := "not available"; } after := local;`)
+	}, "Undefined variable 'local'")
+}
+
+// TestIfBodiesRemainScopedInAssertions verifies conditional declarations do
+// not become setup fields while assignments to a setup field still apply.
+func TestIfBodiesRemainScopedInAssertions(t *testing.T) {
+	result := evalText(t, `
+Point: setup = { value: integer; }
+#assert Point {
+    #if true {
+        local := "not a Point field";
+        value = 2;
+    }
+}
+point := Point { value = 1 };
+`)
+	point := result["point"].(map[string]any)
+	if point["value"] != 2 {
+		t.Fatalf("conditional assertion reassignment did not apply: %v", point)
+	}
+	if _, exists := point["local"]; exists {
+		t.Fatalf("conditional assertion declaration became a setup field: %v", point)
+	}
+}
+
 // TestErrorDirectivePanics verifies error directive panics.
 func TestErrorDirectivePanics(t *testing.T) {
 	assertPanic(t, func() {

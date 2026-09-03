@@ -11,49 +11,6 @@ import (
 	"strings"
 )
 
-// EntryType identifies the supported BibTeX entry categories.
-type EntryType int
-
-const (
-	EntryArticle EntryType = iota
-	EntryBook
-	EntryInProceedings
-	EntryMisc
-	EntryUnknown
-)
-
-// String returns the receiver's textual representation.
-func (e EntryType) String() string {
-	switch e {
-	case EntryArticle:
-		return "article"
-	case EntryBook:
-		return "book"
-	case EntryInProceedings:
-		return "inproceedings"
-	case EntryMisc:
-		return "misc"
-	default:
-		return "unknown"
-	}
-}
-
-// entryTypeFromString maps a case-insensitive BibTeX entry name to its category.
-func entryTypeFromString(s string) EntryType {
-	switch strings.ToLower(s) {
-	case "article":
-		return EntryArticle
-	case "book":
-		return EntryBook
-	case "inproceedings":
-		return EntryInProceedings
-	case "misc":
-		return EntryMisc
-	default:
-		return EntryUnknown
-	}
-}
-
 // Entry is a BibTeX entry represented as a map of field names to values.
 type Entry map[string]string
 
@@ -75,6 +32,9 @@ func NewParser(log *slog.Logger) *Parser {
 }
 
 // LoadFile reads and logs a BibTeX input file without parsing it.
+//
+// Deprecated: workspace ingestion reads source bytes once and calls Parse directly.
+// This method remains for external callers that use the public parser API.
 func (p *Parser) LoadFile(filepath string) (string, error) {
 	data, err := os.ReadFile(filepath)
 	if err != nil {
@@ -105,9 +65,20 @@ type token struct {
 	value string
 }
 
+// lexicalError identifies malformed constrained BibTeX input by byte position.
+type lexicalError struct {
+	position int
+	message  string
+}
+
+// Error returns the lexical diagnostic with its input byte position.
+func (e *lexicalError) Error() string {
+	return fmt.Sprintf("BibTeX lexical error at byte %d: %s", e.position, e.message)
+}
+
 // readBracedContent reads content inside balanced braces.
 // When stripBraces is true, the outermost braces are not included in the result.
-func readBracedContent(data string, i, n int, stripBraces bool) (string, int) {
+func readBracedContent(data string, i, n int, stripBraces bool) (string, int, error) {
 	depth := 1
 	var parts []byte
 	for i < n && depth > 0 {
@@ -132,7 +103,10 @@ func readBracedContent(data string, i, n int, stripBraces bool) (string, int) {
 			parts = append(parts, c)
 		}
 	}
-	return string(parts), i
+	if depth != 0 {
+		return "", i, &lexicalError{position: i, message: "unterminated braced value"}
+	}
+	return string(parts), i, nil
 }
 
 // isIdentChar reports whether a byte is accepted inside a BibTeX identifier.
@@ -142,7 +116,7 @@ func isIdentChar(c byte) bool {
 }
 
 // tokenize converts BibTeX source text into the constrained parser token stream.
-func tokenize(data string, stripBraces bool) []token {
+func tokenize(data string, stripBraces bool) ([]token, error) {
 	n := len(data)
 	i := 0
 	var tokens []token
@@ -161,7 +135,10 @@ func tokenize(data string, stripBraces bool) []token {
 		} else if c == '{' {
 			if afterEquals {
 				i++
-				content, newI := readBracedContent(data, i, n, stripBraces)
+				content, newI, err := readBracedContent(data, i, n, stripBraces)
+				if err != nil {
+					return nil, err
+				}
 				i = newI
 				tokens = append(tokens, token{typ: tokSTRING, value: content})
 			} else {
@@ -186,8 +163,10 @@ func tokenize(data string, stripBraces bool) []token {
 			i++
 			afterEquals = true
 		} else if c == '"' && afterEquals {
+			start := i
 			i++
 			var content []byte
+			terminated := false
 			for i < n {
 				if data[i] == '\\' && i+1 < n {
 					content = append(content, data[i], data[i+1])
@@ -196,10 +175,14 @@ func tokenize(data string, stripBraces bool) []token {
 				}
 				if data[i] == '"' {
 					i++
+					terminated = true
 					break
 				}
 				content = append(content, data[i])
 				i++
+			}
+			if !terminated {
+				return nil, &lexicalError{position: start, message: "unterminated quoted value"}
 			}
 			tokens = append(tokens, token{typ: tokSTRING, value: string(content)})
 			afterEquals = false
@@ -211,22 +194,26 @@ func tokenize(data string, stripBraces bool) []token {
 			tokens = append(tokens, token{typ: tokIDENTIFIER, value: data[start:i]})
 			afterEquals = false
 		} else {
-			i++
+			return nil, &lexicalError{position: i, message: fmt.Sprintf("unsupported character %q", c)}
 		}
 	}
 	tokens = append(tokens, token{typ: tokEOF})
-	return tokens
+	return tokens, nil
 }
 
 // Parse parses raw BibTeX data into a Library.
 // Only "article" entries are retained. Duplicate citation keys get a numeric suffix.
 // The source parameter is stored in the "article_source" field of each entry.
+// A leading UTF-8 byte order mark is stripped because exporters commonly prefix it.
 func (p *Parser) Parse(data, source string, stripBraces bool) (Library, error) {
-	toks := tokenize(data, stripBraces)
+	data = strings.TrimPrefix(data, "\ufeff")
+	toks, err := tokenize(data, stripBraces)
+	if err != nil {
+		return nil, err
+	}
 	pos := 0
 	n := len(toks)
 	entries := make(Library)
-	dupCounts := make(map[string]int)
 
 	peek := func() token {
 		if pos < n {
@@ -259,12 +246,10 @@ func (p *Parser) Parse(data, source string, stripBraces bool) (Library, error) {
 		if err != nil {
 			return nil, err
 		}
-		entryType := entryTypeFromString(typeTok.value)
-
-		if peek().typ != tokLBRACE {
-			continue
+		isArticle := strings.EqualFold(typeTok.value, "article")
+		if _, err := expect(tokLBRACE); err != nil {
+			return nil, fmt.Errorf("open %s entry: %w", typeTok.value, err)
 		}
-		advance()
 
 		keyTok, err := expect(tokIDENTIFIER)
 		if err != nil {
@@ -277,7 +262,7 @@ func (p *Parser) Parse(data, source string, stripBraces bool) (Library, error) {
 		}
 
 		fields := make(Entry)
-		fields["entry_type"] = entryType.String()
+		fields["entry_type"] = "article"
 
 		for peek().typ == tokIDENTIFIER {
 			nameTok := advance()
@@ -306,22 +291,23 @@ func (p *Parser) Parse(data, source string, stripBraces bool) (Library, error) {
 			}
 		}
 
-		if peek().typ == tokRBRACE {
-			advance()
+		if _, err := expect(tokRBRACE); err != nil {
+			return nil, fmt.Errorf("close entry %q: %w", key, err)
 		}
 
-		if entryType != EntryArticle {
+		if !isArticle {
 			continue
 		}
 
 		fields["article_source"] = source
-		if _, exists := entries[key]; exists {
-			dupKey := fmt.Sprintf("%s_%d", key, dupCounts[key])
-			dupCounts[key]++
-			entries[dupKey] = fields
-		} else {
-			entries[key] = fields
+		storedKey := key
+		for suffix := 0; ; suffix++ {
+			if _, exists := entries[storedKey]; !exists {
+				break
+			}
+			storedKey = fmt.Sprintf("%s_%d", key, suffix)
 		}
+		entries[storedKey] = fields
 	}
 
 	p.log.Info("Parsed BibTeX entries", "count", len(entries), "source", source)

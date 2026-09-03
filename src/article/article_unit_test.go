@@ -86,6 +86,7 @@ func TestParseInt(t *testing.T) {
 		{"", 0},
 		{"abc", 0},
 		{"  2024  ", 2024},
+		{"\n2024\n", 2024},
 	}
 	for _, tc := range tests {
 		got := ParseInt(tc.input)
@@ -97,7 +98,7 @@ func TestParseInt(t *testing.T) {
 
 // TestParseOptionalInt verifies parse optional int.
 func TestParseOptionalInt(t *testing.T) {
-	if v := ParseOptionalInt("42"); v == nil || *v != 42 {
+	if v := ParseOptionalInt("\n42\n"); v == nil || *v != 42 {
 		t.Errorf("expected 42, got %v", v)
 	}
 	if v := ParseOptionalInt(""); v != nil {
@@ -297,8 +298,13 @@ func TestNewFromMapMissingRequired(t *testing.T) {
 
 // TestCheckRequired verifies check required.
 func TestCheckRequired(t *testing.T) {
+	missing := CheckRequired(nil)
+	if !stringSliceEqual(missing, []string{"article"}) {
+		t.Fatalf("nil article missing = %v, want [article]", missing)
+	}
+
 	a := &Article{}
-	missing := CheckRequired(a)
+	missing = CheckRequired(a)
 	if len(missing) != 3 {
 		t.Errorf("expected 3 missing, got %v", missing)
 	}

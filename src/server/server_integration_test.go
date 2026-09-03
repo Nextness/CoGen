@@ -14,6 +14,26 @@ import (
 	"testing"
 )
 
+// TestOpenRejectsBoundPDFStoreSymlinkEscape verifies the viewer preserves the metadata bundle boundary.
+func TestOpenRejectsBoundPDFStoreSymlinkEscape(t *testing.T) {
+	fixture := newPDFViewerFixture(t)
+	if err := fixture.server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	storePath := filepath.Join(filepath.Dir(fixture.metadataPath), "corpus.pdf.db")
+	externalDir := t.TempDir()
+	externalPath := filepath.Join(externalDir, "corpus.pdf.db")
+	if err := os.Rename(storePath, externalPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(externalPath, storePath); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	if _, err := Open(fixture.metadataPath); err == nil || !strings.Contains(err.Error(), "escapes") {
+		t.Fatalf("symlink escape open error = %v", err)
+	}
+}
+
 // TestRunContextReturnsCanonicalAncestryAndLifecycle verifies one run determines every visible parent identifier.
 func TestRunContextReturnsCanonicalAncestryAndLifecycle(t *testing.T) {
 	path, runID, _, _ := viewerFixture(t)
@@ -132,7 +152,7 @@ func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T) {
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + stringID(runID), "/api/audit", "/api/trash", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc"} {
+	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + stringID(runID), "/api/audit", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc"} {
 		response := viewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
 			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())

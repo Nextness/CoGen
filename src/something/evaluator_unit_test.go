@@ -47,3 +47,12 @@ func TestIndexOfNotFound(t *testing.T) {
 		t.Errorf("expected -1, got %d", idx)
 	}
 }
+
+// TestNewEvaluatorNilCheckedProgram verifies a nil checked program evaluates
+// consistently with the evaluator's existing empty-result behavior.
+func TestNewEvaluatorNilCheckedProgram(t *testing.T) {
+	result := NewEvaluator(nil, "").evaluate()
+	if len(result) != 0 {
+		t.Fatalf("expected an empty result, got %v", result)
+	}
+}

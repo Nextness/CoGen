@@ -6,10 +6,14 @@ package database
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
+	"analysis/internal/pathpolicy"
 	"analysis/something"
 )
+
+var migrationFilenamePattern = regexp.MustCompile(`^V[0-9]{5}_[A-Za-z0-9][A-Za-z0-9._-]*\.sql$`)
 
 // StoreKind identifies one database in the corpus bundle registry.
 type StoreKind string
@@ -70,7 +74,10 @@ func ResolveMigrationConfig(registryPath string, kind StoreKind) (MigrationConfi
 	if filepath.IsAbs(configName) {
 		return MigrationConfig{}, fmt.Errorf("databases.%s must be relative to the registry", field)
 	}
-	configPath := filepath.Clean(filepath.Join(filepath.Dir(absRegistry), configName))
+	configPath, err := resolveContainedPath(filepath.Dir(absRegistry), configName, "database registry configuration")
+	if err != nil {
+		return MigrationConfig{}, err
+	}
 	specific, err := loadSomethingConfig(configPath)
 	if err != nil {
 		return MigrationConfig{}, err
@@ -80,7 +87,8 @@ func ResolveMigrationConfig(registryPath string, kind StoreKind) (MigrationConfi
 
 // resolveSpecificMigrationConfig resolves specific migration config from the supplied context.
 func resolveSpecificMigrationConfig(configPath string, cfg map[string]any, legacy bool) (MigrationConfig, error) {
-	migrationsDir := filepath.Join(filepath.Dir(configPath), "..", "migrations")
+	configurationRoot := filepath.Dir(filepath.Dir(configPath))
+	migrationsPath := "migrations"
 	if !legacy {
 		settings, err := something.GetStructOnce(cfg, "database_migrations")
 		if err != nil {
@@ -93,13 +101,24 @@ func resolveSpecificMigrationConfig(configPath string, cfg map[string]any, legac
 		if filepath.IsAbs(rawDir) {
 			return MigrationConfig{}, fmt.Errorf("database_migrations.migrations_dir must be relative to its config")
 		}
-		migrationsDir = filepath.Join(filepath.Dir(configPath), rawDir)
+		migrationsPath = filepath.Join(filepath.Dir(configPath), rawDir)
+	} else {
+		migrationsPath = filepath.Join(configurationRoot, "migrations")
 	}
-	absMigrations, err := filepath.Abs(filepath.Clean(migrationsDir))
+	absMigrations, err := resolveContainedPath(configurationRoot, migrationsPath, "database migrations directory")
 	if err != nil {
 		return MigrationConfig{}, fmt.Errorf("resolve migrations directory: %w", err)
 	}
 	return MigrationConfig{ConfigPath: configPath, MigrationsDir: absMigrations}, nil
+}
+
+// resolveContainedPath resolves path relative to root and rejects lexical and symbolic-link escapes.
+func resolveContainedPath(root, path, label string) (string, error) {
+	resolvedPath, err := pathpolicy.ResolveExistingWithin(root, path)
+	if err != nil {
+		return "", fmt.Errorf("resolve %s: %w", label, err)
+	}
+	return resolvedPath, nil
 }
 
 // loadSomethingConfig loads a .something file using the existing parser.
@@ -124,17 +143,11 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 
 	var entries []migrationEntry
 	for _, s := range structs {
-		e := migrationEntry{}
-
-		if v, ok := s["filename"]; ok {
-			e.filename, _ = v.(string)
+		filename, ok := s["filename"].(string)
+		if !ok || !validMigrationFilename(filename) {
+			return nil, fmt.Errorf("migration filename must be in V00001_description.sql form")
 		}
-		if v, ok := s["previous"]; ok {
-			e.previous, _ = v.(string)
-		}
-		if v, ok := s["upgrade"]; ok {
-			e.upgrade, _ = v.(string)
-		}
+		e := migrationEntry{filename: filename}
 		if raw, ok := s["supersedes"].([]any); ok {
 			for _, value := range raw {
 				filename, ok := value.(string)
@@ -148,10 +161,6 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 			}
 		}
 
-		if e.filename == "" {
-			lg.Debug("migration configuration entry validation failed", "reason", "missing_filename")
-			continue
-		}
 		entries = append(entries, e)
 	}
 	lg.Debug("migration configuration query successful", "entries", len(entries))
@@ -160,13 +169,5 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 
 // validMigrationFilename reports whether filename follows the configured VNNNNN_description.sql migration identity form.
 func validMigrationFilename(filename string) bool {
-	if len(filename) < len("V00001_a.sql") || filename[0] != 'V' || filename[6] != '_' || !strings.HasSuffix(filename, ".sql") {
-		return false
-	}
-	for _, character := range filename[1:6] {
-		if character < '0' || character > '9' {
-			return false
-		}
-	}
-	return len(strings.TrimSuffix(filename[7:], ".sql")) > 0
+	return filepath.Base(filename) == filename && !strings.ContainsAny(filename, `/\\`) && !strings.Contains(filename, "..") && migrationFilenamePattern.MatchString(filename)
 }

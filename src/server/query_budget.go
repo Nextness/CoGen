@@ -51,6 +51,8 @@ func consumeQuery(ctx context.Context) error {
 // queryBudgetDriver wraps viewer-owned SQLite connections with request-context statement accounting.
 type queryBudgetDriver struct{ inner driver.Driver }
 
+var _ driver.Driver = (*queryBudgetDriver)(nil)
+
 // Open delegates connection creation and wraps the result with request-budget accounting.
 func (d *queryBudgetDriver) Open(name string) (driver.Conn, error) {
 	connection, err := d.inner.Open(name)
@@ -62,6 +64,18 @@ func (d *queryBudgetDriver) Open(name string) (driver.Conn, error) {
 
 // queryBudgetConn preserves the wrapped driver's optional interfaces while counting SQL work.
 type queryBudgetConn struct{ driver.Conn }
+
+var (
+	_ driver.Conn               = (*queryBudgetConn)(nil)
+	_ driver.ConnPrepareContext = (*queryBudgetConn)(nil)
+	_ driver.QueryerContext     = (*queryBudgetConn)(nil)
+	_ driver.ExecerContext      = (*queryBudgetConn)(nil)
+	_ driver.ConnBeginTx        = (*queryBudgetConn)(nil)
+	_ driver.Pinger             = (*queryBudgetConn)(nil)
+	_ driver.NamedValueChecker  = (*queryBudgetConn)(nil)
+	_ driver.SessionResetter    = (*queryBudgetConn)(nil)
+	_ driver.Validator          = (*queryBudgetConn)(nil)
+)
 
 // Prepare preserves non-context statement preparation and wraps the resulting statement.
 func (c *queryBudgetConn) Prepare(query string) (driver.Stmt, error) {
@@ -151,6 +165,12 @@ func (c *queryBudgetConn) IsValid() bool {
 
 // queryBudgetStmt counts prepared statement execution through request contexts.
 type queryBudgetStmt struct{ driver.Stmt }
+
+var (
+	_ driver.Stmt             = (*queryBudgetStmt)(nil)
+	_ driver.StmtExecContext  = (*queryBudgetStmt)(nil)
+	_ driver.StmtQueryContext = (*queryBudgetStmt)(nil)
+)
 
 // ExecContext charges one SQL statement before executing a prepared statement.
 func (s *queryBudgetStmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {

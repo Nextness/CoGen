@@ -43,6 +43,30 @@ func TestLoadBuildsResolvedWorkspaceRuns(t *testing.T) {
 	}
 }
 
+// TestLoadRejectsInvalidProviderRequestBounds verifies config loading rejects unsafe provider clients.
+func TestLoadRejectsInvalidProviderRequestBounds(t *testing.T) {
+	tests := []struct {
+		name        string
+		replace     string
+		replacement string
+	}{
+		{"relative endpoint", `base_url = "https://example.test/works/",`, `base_url = "/works/",`},
+		{"zero rate", `fields = []string { "title" },`, `fields = []string { "title" }, rate_per_second = 0,`},
+		{"unbounded concurrency", `fields = []string { "title" },`, `fields = []string { "title" }, concurrency = 65,`},
+		{"unbounded timeout", `fields = []string { "title" },`, `fields = []string { "title" }, timeout_seconds = 301,`},
+		{"unbounded retries", `fields = []string { "title" },`, `fields = []string { "title" }, max_retries = 11,`},
+		{"unbounded batch size", `fields = []string { "title" },`, `fields = []string { "title" }, batch_size = 1001,`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			text := strings.Replace(testConfig(), test.replace, test.replacement, 1)
+			if _, err := Load(writeConfig(t, text)); err == nil {
+				t.Fatal("Load() unexpectedly accepted invalid provider configuration")
+			}
+		})
+	}
+}
+
 // TestLoadNormalizesReviewerWithoutChangingManifestIdentity verifies optional attribution is trimmed and excluded from plan fingerprints.
 func TestLoadNormalizesReviewerWithoutChangingManifestIdentity(t *testing.T) {
 	path := writeConfig(t, testConfig())

@@ -13,7 +13,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +21,8 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/internal/pathpolicy"
+	"analysis/internal/sqliteuri"
 	"analysis/logging"
 
 	_ "modernc.org/sqlite"
@@ -120,7 +121,10 @@ func Open(path string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"query_only(1)"},
+	})
 	db, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace database read-only: %w", err)
@@ -189,7 +193,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/context", s.runContext)
 	mux.HandleFunc("PUT /api/runs/{run_id}/visibility", s.updateRunVisibility)
 	mux.HandleFunc("GET /api/overview", s.overview)
-	mux.HandleFunc("GET /api/runs/{id}/audit", s.runAudit)
 	mux.HandleFunc("GET /api/runs/{id}/artifacts", s.runArtifacts)
 	mux.HandleFunc("GET /api/artifacts/{id}/inspect", s.artifactInspection)
 	mux.HandleFunc("GET /api/artifacts/{id}/content", s.artifactContent)
@@ -221,7 +224,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/runs/{id}/stages", s.runStages)
 	mux.HandleFunc("GET /api/audit", s.audit)
 	mux.HandleFunc("GET /api/audit/{id}/recorded-data", s.auditRecordedData)
-	mux.HandleFunc("GET /api/trash", s.trash)
 	mux.HandleFunc("GET /api/tables", s.tablesHandler)
 	mux.HandleFunc("GET /api/tables/{table}", s.tableRows)
 	mux.HandleFunc("GET /api/articles/{id}", s.articleDetail)
@@ -413,19 +415,21 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if filepath.IsAbs(relativePath) {
 		return fmt.Errorf("bound PDF store path must be relative")
 	}
-	absolute := filepath.Clean(filepath.Join(metadataDir, relativePath))
-	relative, err := filepath.Rel(metadataDir, absolute)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("bound PDF store path escapes the metadata database directory")
+	resolvedStorePath, err := pathpolicy.ResolveExistingWithin(metadataDir, relativePath)
+	if err != nil {
+		return fmt.Errorf("resolve bound PDF store: %w", err)
 	}
-	info, err := os.Stat(absolute)
+	info, err := os.Stat(resolvedStorePath)
 	if err != nil {
 		return fmt.Errorf("inspect bound PDF store: %w", err)
 	}
-	if info.IsDir() {
-		return fmt.Errorf("bound PDF store path is a directory")
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("bound PDF store path is not a regular file")
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	uri := sqliteuri.File(resolvedStorePath, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"query_only(1)"},
+	})
 	pdfDB, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
@@ -466,7 +470,7 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 			}
 		}
 	}
-	s.pdfDB, s.pdfPath = pdfDB, absolute
+	s.pdfDB, s.pdfPath = pdfDB, resolvedStorePath
 	return nil
 }
 

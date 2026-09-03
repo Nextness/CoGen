@@ -10,8 +10,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"analysis/pdfstore"
 )
 
 // TestPDFStatusEndpointsCoverEveryState verifies pdf status endpoints cover every state.
@@ -95,5 +98,43 @@ func TestViewerPDFConnectionIsReadOnly(t *testing.T) {
 	if _, err := fixture.server.pdfDB.Exec(`INSERT INTO pdf_blobs
 		(content_hash, byte_size, content, created_at) VALUES ('write-test', 1, x'00', '2026-01-01T00:00:00Z')`); err == nil {
 		t.Fatal("viewer PDF connection accepted a write")
+	}
+}
+
+// TestPDFContentRejectsSameSizeHashMismatch verifies cached PDF bytes are content-addressed.
+func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T) {
+	fixture := newPDFViewerFixture(t)
+	if err := fixture.server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := pdfstore.Open(filepath.Join(filepath.Dir(fixture.metadataPath), "corpus.pdf.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var data []byte
+	if err := store.DB.QueryRow(`SELECT b.data FROM pdf_documents d JOIN pdf_blobs b ON b.content_hash=d.content_hash WHERE d.doi='10.1000/viewer-available'`).Scan(&data); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	data[len(data)-1] ^= 1
+	if _, err := store.DB.Exec(`DROP TRIGGER pdf_blobs_abort_update`); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`UPDATE pdf_blobs SET data=? WHERE content_hash=(SELECT content_hash FROM pdf_documents WHERE doi='10.1000/viewer-available')`, data); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	viewer, err := Open(fixture.metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	response := viewerRequest(t, viewer.Handler(), fmt.Sprintf("/api/pdf/%d", fixture.availableID))
+	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "pdf_integrity_error") {
+		t.Fatalf("corrupt PDF response: status=%d body=%s", response.Code, response.Body.String())
 	}
 }

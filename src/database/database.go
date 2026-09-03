@@ -1,8 +1,7 @@
 // Package database provides a SQLite-backed storage layer for the corpus pipeline.
 //
-// All tables use INSERT OR IGNORE semantics for key conflicts: if a row with
-// the same unique key already exists, the insert is silently skipped. This
-// makes the pipeline idempotent - you can re-run without deleting the database.
+// Repository conflict handling preserves idempotency while content-addressed
+// artifacts verify that a repeated identity has identical metadata and bytes.
 package database
 
 import (
@@ -10,12 +9,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"analysis/internal/sqliteuri"
 	"analysis/logging"
 
 	_ "modernc.org/sqlite"
@@ -133,7 +132,10 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=rw&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"}).String()
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"mode":    {"rw"},
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+	})
 	conn, err := sql.Open(driverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open existing sqlite: %w", err)
@@ -167,7 +169,14 @@ func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error
 	// modernc applies _pragma values to every pooled connection. Foreign-key
 	// enforcement is connection-local in SQLite, so configuring it only with a
 	// one-time PRAGMA would leave later pooled connections unprotected.
-	conn, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	absolute, err := filepath.Abs(dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve database path: %w", err)
+	}
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+	})
+	conn, err := sql.Open("sqlite", uri)
 	if err != nil {
 		lg.Debug("database connection open failed", "database_path", dbPath, "error", err)
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -331,11 +340,6 @@ func (d *Database) runMigrations(configPath string) error {
 			lg.Debug("migration SQL extraction failed", "file", fn, "error", err)
 			return fmt.Errorf("extract SQL from %s: %w", fn, err)
 		}
-		if upSQL == "" {
-			skippedCount++
-			lg.Debug("migration validation failed", "file", fn, "reason", "missing_up_section")
-			continue
-		}
 		cs, err := fileChecksum(sqlPath)
 		if err != nil {
 			lg.Debug("migration checksum failed", "file", fn, "error", err)
@@ -436,11 +440,9 @@ func (d *Database) withMigrationLock(ctx context.Context, action func(*sql.Conn)
 	return nil
 }
 
-// migrationEntry stores one configured migration filename and its descriptive linkage fields.
+// migrationEntry stores one configured migration filename and compatible prior identities.
 type migrationEntry struct {
 	filename   string
-	previous   string
-	upgrade    string
 	supersedes []string
 }
 
@@ -471,19 +473,17 @@ func extractUpSQL(filepath string) (string, error) {
 	}
 	content := string(data)
 
-	upStart := strings.Index(content, upMarker)
-	if upStart < 0 {
-		return "", nil
+	if strings.Count(content, upMarker) != 1 || strings.Count(content, downMarker) != 1 {
+		return "", fmt.Errorf("migration must contain exactly one %s and one %s marker", upMarker, downMarker)
 	}
-
-	sectionStart := upStart + len(upMarker)
+	upStart := strings.Index(content, upMarker)
 	downStart := strings.Index(content, downMarker)
-
-	var upSQL string
-	if downStart >= 0 {
-		upSQL = strings.TrimSpace(content[sectionStart:downStart])
-	} else {
-		upSQL = strings.TrimSpace(content[sectionStart:])
+	if downStart <= upStart {
+		return "", fmt.Errorf("migration %s marker must precede %s marker", upMarker, downMarker)
+	}
+	upSQL := strings.TrimSpace(content[upStart+len(upMarker) : downStart])
+	if upSQL == "" {
+		return "", fmt.Errorf("migration %s section must not be empty", upMarker)
 	}
 	return upSQL, nil
 }

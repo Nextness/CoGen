@@ -169,6 +169,9 @@ type AuthorOccurrenceRepository struct {
 // link to a person record — the design requires a strong identity signal
 // before global merging, and an unvalidated string is not a strong signal.
 func (r *AuthorOccurrenceRepository) Create(ao *AuthorOccurrence) (int64, error) {
+	if ao == nil {
+		return 0, fmt.Errorf("create author occurrence: value is required")
+	}
 	if ao.CitationName == "" {
 		return 0, fmt.Errorf("create author occurrence: citation_name is required")
 	}
@@ -264,6 +267,9 @@ type AuthorshipRepository struct {
 // Create inserts a new authorship linking a work revision to an author
 // occurrence with the given order and optional affiliation.
 func (r *AuthorshipRepository) Create(a *Authorship) (int64, error) {
+	if a == nil {
+		return 0, fmt.Errorf("create authorship: value is required")
+	}
 	if a.WorkRevisionID == 0 {
 		return 0, fmt.Errorf("create authorship: work_revision_id is required")
 	}

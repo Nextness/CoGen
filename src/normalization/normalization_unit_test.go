@@ -385,6 +385,21 @@ func TestNormalizeJournal(t *testing.T) {
 		t.Errorf("expected '(Science)' in %q", result)
 	}
 
+	result = NormalizeJournal("journal of research (science (technical))")
+	if result != "Journal of Research (Science (Technical))" {
+		t.Errorf("nested parentheses = %q", result)
+	}
+
+	result = NormalizeJournal("journal of research (science")
+	if result != "Journal of Research (Science" {
+		t.Errorf("unmatched opening parenthesis = %q", result)
+	}
+
+	result = NormalizeJournal("journal of research science)")
+	if result != "Journal of Research Science)" {
+		t.Errorf("unmatched closing parenthesis = %q", result)
+	}
+
 	// Ampersand
 	result = NormalizeJournal("research & development journal")
 	if !contains(result, "&") {

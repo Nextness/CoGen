@@ -43,3 +43,11 @@ func TestReadProfileRejectsMalformedInput(t *testing.T) {
 		}
 	}
 }
+
+// TestCoveragePercentTreatsEmptyScopeAsComplete verifies the documented empty
+// scope policy is represented by the returned percentage.
+func TestCoveragePercentTreatsEmptyScopeAsComplete(t *testing.T) {
+	if got := (coverage{}).percent(); got != 100 {
+		t.Fatalf("empty coverage percent = %v, want 100", got)
+	}
+}

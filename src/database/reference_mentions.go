@@ -33,6 +33,9 @@ type ReferenceMentionRepository struct {
 // Create stores one ordered reference mention. A DOI is normalized and, when
 // it identifies an existing work, linked through ResolvedWorkID automatically.
 func (r *ReferenceMentionRepository) Create(mention *ReferenceMention) (int64, error) {
+	if mention == nil {
+		return 0, fmt.Errorf("create reference mention: value is required")
+	}
 	if mention.WorkRevisionID == 0 {
 		return 0, fmt.Errorf("create reference mention: work_revision_id is required")
 	}

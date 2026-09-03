@@ -333,7 +333,7 @@ func TestWorkspaceCrossrefCacheUsesSQLitePolicy(t *testing.T) {
 	defer server.Close()
 	db, first, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
-	source := enrich.SourceConfig{Name: "crossref", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1}
+	source := enrich.SourceConfig{Name: "crossref", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1, BatchSize: 1}
 	articles := []*article.Article{{DOI: "10.1000/example"}}
 	result, err := gatherCachedCrossref(context.Background(), first, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || result.Articles["10.1000/example"].Title != "Cached title" || requests != 1 {
@@ -364,7 +364,7 @@ func TestWorkspaceOpenAlexReferenceCacheUsesSQLitePolicy(t *testing.T) {
 
 	db, first, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
-	source := enrich.SourceConfig{Name: "openalex", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1}
+	source := enrich.SourceConfig{Name: "openalex", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1, BatchSize: 1}
 	articles := []*article.Article{{DOI: "10.1000/example"}}
 	result, err := gatherCachedOpenAlex(context.Background(), first, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || len(result.Articles["10.1000/example"].References) != 1 || result.Articles["10.1000/example"].References[0].DOI != "10.1000/reference" || requests != 2 {

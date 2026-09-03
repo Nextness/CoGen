@@ -675,7 +675,7 @@ Directive generation replaces an lvalue `#iteration` with the generated identifi
 ## If Directive
 
 - Directive name: `#if`;
-- Directive description: Conditionally executes its body when the condition evaluates to `true`. Supports two forms: a block form with multiple statements inside braces, and a single-statement form without braces. The condition must be a boolean expression. Variables assigned inside the body affect the current scope (reassignment with `=`) or create new bindings in the current scope (declaration with `:=`).
+- Directive description: Conditionally executes its body when the condition evaluates to `true`. Supports two forms: a block form with multiple statements inside braces, and a single-statement form without braces. The condition must be a boolean expression. The body has a child lexical scope: assignments with `=` may reassign bindings in an enclosing scope, while declarations with `:=` are visible only within the body.
 - Requires arguments to work: YES;
 - Accepts arguments: NO;
 - Directive usage:

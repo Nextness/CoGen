@@ -233,7 +233,11 @@ func (checker *TypeChecker) checkAssertDirective(assertion *AssertDirective) {
 func (checker *TypeChecker) checkIfDirective(ifDir *IfDirective) {
 	condType := checker.expressionType(ifDir.Condition, PrimBoolean)
 	checker.requireAssignable(PrimBoolean, condType, ifDir.Condition.expressionLocation(), "#if condition")
+	child := newStaticEnvironment(checker.current)
+	previous := checker.current
+	checker.current = child
 	checker.checkStatements(ifDir.Body)
+	checker.current = previous
 }
 
 // checkErrorDirective checks error directive against the current invariants.

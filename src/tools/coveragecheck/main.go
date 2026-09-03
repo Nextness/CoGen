@@ -40,7 +40,7 @@ type coverage struct {
 // percent returns a covered-line percentage, treating an empty total as complete.
 func (c coverage) percent() float64 {
 	if c.Statements == 0 {
-		return 0
+		return 100
 	}
 	return float64(c.Covered) * 100 / float64(c.Statements)
 }
@@ -146,7 +146,11 @@ func readPolicy(policyPath string) (policy, error) {
 	}
 	p.ExcludePackages = make([]string, len(excludeList))
 	for i, v := range excludeList {
-		p.ExcludePackages[i] = v.(string)
+		value, ok := v.(string)
+		if !ok {
+			return policy{}, fmt.Errorf("invalid exclude_packages[%d]: expected string, got %T", i, v)
+		}
+		p.ExcludePackages[i] = value
 	}
 
 	pkgMinMap, err := something.GetMappingOnce(policyMap, "package_minimums")

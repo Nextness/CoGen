@@ -57,7 +57,7 @@ Source exports + SOMETHING configuration
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00026. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00027. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
@@ -106,7 +106,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 `build/analysis serve` accepts `--db`, `--addr`, and requires `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and bounded-mutation connections, verifies required append-only review triggers, serves the assembled frontend assets from the given directory, and applies conservative HTTP timeouts.
 
-`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`, appending `-development` when the compile-time `dev.Mode` constant marks a development build.
+`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`.
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 
@@ -120,7 +120,7 @@ The process logger is installed as the standard `slog` default and package logge
 
 Workspace selectors are stable `search_id@search_revision` strings. Supported source file types are `csv` and `bib`. Supported reuse policies are `reuse_completed`, `fresh`, and `retry`; command-line `--fresh` forces a new attempt.
 
-Provider endpoint values, requested fields, fill policy, rate, concurrency, timeout, retries, batch size, and extra URLs are configured, but provider keys and orchestration order are implemented code: Crossref, OpenAlex metadata and references, then ORCID exact profiles and name-search evidence.
+Provider endpoint values, requested fields, fill policy, rate, concurrency, timeout, retries, batch size, and extra URLs are configured, but provider keys and orchestration order are implemented code: Crossref, OpenAlex metadata and references, then ORCID exact profiles and name-search evidence. `max_retries` counts retries after the initial request.
 
 Cache read layers are ordered and may be `active_run`, `global`, `network`, or resolved `run:N`; writes may target `active_run` and `global`. A `run_specific` declaration becomes `run:N` after requiring a positive `read_run_id`. Fresh policy cannot write global cache data, and negative TTL must be nonnegative.
 
@@ -257,7 +257,7 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00026 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
+The metadata chain is V00001-V00027 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
 
 The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
@@ -318,7 +318,7 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/hierarchy`, `/api/runs/{id}/context` | Returns bounded searchable hierarchy pages and one canonical complete run ancestry. Legacy `/api/searches`, `/api/plans`, and `/api/runs` discovery responses are explicitly deprecated and hard-bounded. |
 | `/api/runs/{id}/visibility` | Moves a terminal attempt between `active` and `trashed` in one transaction and appends the corresponding lifecycle audit event. |
 | `/api/overview` | Reports captured execution metrics and current derived coverage. |
-| `/api/runs/{id}/audit`, `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. The run-specific route is a deprecated compatibility view. |
+| `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists artifacts through numbered page and page-size metadata while retaining the bounded cursor contract for existing callers, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
 | `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
@@ -331,7 +331,6 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/articles/{id}`, `/api/authors/{id}`, `/api/references/{id}`, `/api/articles/{id}/collections/{kind}`, `/api/authors/{id}/collections/{kind}`, `/api/identity-resolutions/{id}/candidates` | Requires selected-run membership, returns bounded detail summaries, and exposes counted run-owned cursor subresources for related evidence and identity candidates. Article summary retains stored search-term coverage for its exact normalized revision. |
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
-| `/api/trash` | Returns an explicitly deprecated hard-bounded compatibility view; `/api/hierarchy?section=runs&visibility=trashed` is the supported run-management collection. |
 
 Run-scoped articles contain valid normalize-stage revisions. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
 

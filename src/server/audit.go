@@ -11,83 +11,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"analysis/internal/textlimit"
 )
 
 const maxInlineArtifactBytes = 256 * 1024
 const defaultInlineArtifactPreviewBytes = 64 * 1024
 const auditListPayloadBytes = 4 * 1024
 const auditDetailPayloadBytes = 64 * 1024
-
-// runAudit returns run-scoped and eligible global audit events with filters and facets.
-func (s *Server) runAudit(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "limit", "cursor"); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	runID, err := positiveID(r.PathValue("id"))
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	ctx, cancel := queryContext(r)
-	defer cancel()
-	var found int
-	if err := s.db.QueryRowContext(ctx, "SELECT 1 FROM pipeline_runs WHERE id=?", runID).Scan(&found); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("run not found"))
-		return
-	} else if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	limit, err := reviewLimit(r)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	cursor := int64(0)
-	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor, err = positiveID(raw)
-		if err != nil {
-			s.respond(w, r, nil, badRequest("cursor must be a positive audit event ID"))
-			return
-		}
-	}
-	query := `SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
-		before_json, after_json, metadata_json, correlation_id
-		FROM audit_events WHERE pipeline_run_id=?`
-	args := []any{runID}
-	if cursor > 0 {
-		query += " AND id<?"
-		args = append(args, cursor)
-	}
-	query += " ORDER BY id DESC LIMIT ?"
-	args = append(args, limit+1)
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	boundAuditEventPayloads(items, auditListPayloadBytes)
-	hasMore := len(items) > limit
-	if hasMore {
-		items = items[:limit]
-	}
-	var nextCursor any
-	if hasMore {
-		nextCursor = items[len(items)-1]["id"]
-	}
-	s.respond(w, r, map[string]any{
-		"run_id": runID, "events": items, "has_more": hasMore, "next_cursor": nextCursor,
-		"deprecated": true, "replacement": "/api/audit?run_id=" + strconv.FormatInt(runID, 10),
-	}, nil)
-}
 
 // audit validates filters and returns a cursor-paginated audit timeline with summary and facets.
 func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
@@ -544,36 +475,6 @@ func (s *Server) auditRows(ctx context.Context, condition string, args ...any) (
 	return rowsAsMaps(rows)
 }
 
-// trash returns a bounded compatibility view of trashed runs.
-func (s *Server) trash(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	ctx, cancel := queryContext(r)
-	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id, execution_plan_id, attempt_number, status, started_at, finished_at, trashed_at, trash_reason
-		FROM pipeline_runs WHERE visibility_state='trashed' ORDER BY trashed_at DESC, id DESC LIMIT ?`, legacyDiscoveryLimit+1)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	hasMore := len(items) > legacyDiscoveryLimit
-	if hasMore {
-		items = items[:legacyDiscoveryLimit]
-	}
-	s.respond(w, r, map[string]any{
-		"runs": items, "restore_allowed": false, "has_more": hasMore, "limit": legacyDiscoveryLimit,
-		"deprecated": true, "replacement": "/api/hierarchy?section=runs&visibility=trashed",
-	}, nil)
-}
-
 // runArtifacts returns artifact metadata linked to the selected run.
 func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 	runID, err := positiveID(r.PathValue("id"))
@@ -791,13 +692,13 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var contentType string
-	var storedSize int64
+	var contentType, role string
+	var data []byte
 	var hasBlob bool
-	err = s.db.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL,
-		COALESCE(length(CAST(ab.data AS BLOB)), 0)
+	err = s.db.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL, ab.data,
+		COALESCE((SELECT artifact_role FROM run_artifacts WHERE artifact_id=a.id ORDER BY pipeline_run_id, artifact_role LIMIT 1), '')
 		FROM artifacts a LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-		WHERE a.id=?`, artifactID).Scan(&contentType, &hasBlob, &storedSize)
+		WHERE a.id=?`, artifactID).Scan(&contentType, &hasBlob, &data, &role)
 	if err == sql.ErrNoRows {
 		s.respond(w, r, nil, notFound("artifact not found"))
 		return
@@ -810,23 +711,14 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, notFound("artifact has no blob data"))
 		return
 	}
+	storedSize := int64(len(data))
 	w.Header().Set("Content-Type", normalizedArtifactContentType(contentType))
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": s.artifactFilename(ctx, artifactID, contentType)}))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": artifactFilename(artifactID, role, contentType)}))
 	w.Header().Set("Content-Length", strconv.FormatInt(storedSize, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	const chunkBytes = 64 * 1024
-	for offset := int64(0); offset < storedSize; offset += chunkBytes {
-		var chunk []byte
-		if err := s.db.QueryRowContext(ctx, `SELECT substr(CAST(data AS BLOB), ?, ?)
-			FROM artifact_blobs WHERE artifact_id=?`, offset+1, chunkBytes, artifactID).Scan(&chunk); err != nil {
-			return
-		}
-		if _, err := w.Write(chunk); err != nil {
-			return
-		}
-	}
+	_, _ = w.Write(data)
 }
 
 // artifactInspection returns bounded metadata and preview content for one artifact.
@@ -860,10 +752,9 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("artifact is not available for inline inspection; download it instead"))
 		return
 	}
-	for trims := 0; trims < utf8.UTFMax && len(data) > 0 && !utf8.Valid(data); trims++ {
-		data = data[:len(data)-1]
-	}
-	if !utf8.Valid(data) {
+	originalLength := len(data)
+	data = textlimit.UTF8PrefixBytes(data, len(data))
+	if originalLength > 0 && len(data) == 0 {
 		s.respond(w, r, nil, badRequest("artifact preview is not valid UTF-8; download it instead"))
 		return
 	}
@@ -907,29 +798,6 @@ func (s *Server) artifactPreviewBlob(ctx context.Context, artifactID int64, prev
 	return contentType, byteSize, blobSize, data, nil
 }
 
-// artifactBlob returns the complete content-addressed blob for one run artifact.
-func (s *Server) artifactBlob(ctx context.Context, artifactID int64) (string, int64, []byte, error) {
-	var contentType string
-	var byteSize int64
-	var hasBlob bool
-	var data []byte
-	err := s.db.QueryRowContext(ctx, `SELECT a.content_type, a.byte_size,
-            ab.id IS NOT NULL, ab.data
-        FROM artifacts a
-        LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-        WHERE a.id=?`, artifactID).Scan(&contentType, &byteSize, &hasBlob, &data)
-	if err == sql.ErrNoRows {
-		return "", 0, nil, notFound("artifact not found")
-	}
-	if err != nil {
-		return "", 0, nil, err
-	}
-	if !hasBlob {
-		return "", 0, nil, notFound("artifact has no blob data")
-	}
-	return contentType, byteSize, data, nil
-}
-
 // normalizedArtifactContentType parses and lowercases an artifact media type without parameters.
 func normalizedArtifactContentType(contentType string) string {
 	mediaType, _, err := mime.ParseMediaType(contentType)
@@ -954,11 +822,8 @@ func inlineArtifactContentType(contentType string) bool {
 	return strings.HasPrefix(mediaType, "text/") || jsonArtifactContentType(mediaType) || mediaType == "application/x-something-config"
 }
 
-// artifactFilename derives a safe download filename from artifact metadata and media type.
-func (s *Server) artifactFilename(ctx context.Context, artifactID int64, contentType string) string {
-	var role string
-	_ = s.db.QueryRowContext(ctx, `SELECT artifact_role FROM run_artifacts
-        WHERE artifact_id=? ORDER BY pipeline_run_id, artifact_role LIMIT 1`, artifactID).Scan(&role)
+// artifactFilename derives a safe download filename from an artifact role and media type.
+func artifactFilename(artifactID int64, role, contentType string) string {
 	name := "artifact-" + strconv.FormatInt(artifactID, 10)
 	switch role {
 	case "workspace_config":

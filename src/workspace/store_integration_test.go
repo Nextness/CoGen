@@ -316,13 +316,14 @@ func TestApplyAuthorProfileRecordsOnlyObservedFieldChanges(t *testing.T) {
 		CitationName: "Ada Lovelace",
 		Institution:  "Analytical Society",
 	}
-	if !applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID) {
+	provenance := map[*article.Author]authorProfileProvenance{author: {DOI: "10.1000/profile", Index: 2}}
+	changed, changes := applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
+	if !changed {
 		t.Fatal("applyAuthorProfile reported no change for an empty author")
 	}
 	if author.Orcid != profile.ORCID || author.FirstName != profile.FirstName || author.LastName != profile.LastName || author.CitationName != profile.CitationName || author.Affiliation != profile.Institution {
 		t.Fatalf("author after profile = %+v", author)
 	}
-	changes := recordAuthorFieldChanges([]*article.Author{author}, profile, map[*article.Author]string{author: "10.1000/profile"})
 	if len(changes) != 5 {
 		t.Fatalf("field changes = %+v, want five populated fields", changes)
 	}
@@ -332,11 +333,18 @@ func TestApplyAuthorProfileRecordsOnlyObservedFieldChanges(t *testing.T) {
 		}
 	}
 
-	if applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID) {
+	changed, changes = applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
+	if changed {
 		t.Fatal("applyAuthorProfile changed an already populated author")
 	}
-	if changes := recordAuthorFieldChanges([]*article.Author{author}, profile, map[*article.Author]string{}); len(changes) != 0 {
-		t.Fatalf("field changes without article provenance = %+v, want none", changes)
+	if len(changes) != 0 {
+		t.Fatalf("populated author produced field changes = %+v, want none", changes)
+	}
+
+	prepopulated := &article.Author{Orcid: "different", FirstName: "Existing", LastName: "Name", CitationName: "Existing Name", Affiliation: "Existing institution"}
+	changed, changes = applyAuthorProfile([]*article.Author{prepopulated}, profile, profile.ORCID, map[*article.Author]authorProfileProvenance{prepopulated: {DOI: "10.1000/prepopulated", Index: 0}})
+	if changed || len(changes) != 0 {
+		t.Fatalf("prepopulated author produced false changes: changed=%t changes=%+v", changed, changes)
 	}
 }
 

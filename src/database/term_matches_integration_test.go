@@ -60,7 +60,7 @@ func TestTermMatchesGetRunTermsOrdered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TermMatches.ReplaceRunTerms(runID, map[string][]string{"scopus": {"z", "a", "m"}}); err != nil {
+	if err := db.TermMatches.ReplaceRunTermData(runID, map[string][]string{"scopus": {"z", "a", "m"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)
@@ -104,7 +104,7 @@ func TestTermMatchesGetRevisionMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	matches := map[int64]map[string][]string{revisionID: {"title": {"BPMN"}, "abstract": {"scheduling"}}}
-	if err := db.TermMatches.ReplaceRunMatches(runID, matches); err != nil {
+	if err := db.TermMatches.ReplaceRunTermData(runID, nil, matches); err != nil {
 		t.Fatal(err)
 	}
 	got, err := db.TermMatches.GetRevisionMatches(runID, revisionID)
@@ -150,7 +150,7 @@ func TestTermMatchesGetRevisionMatchesBulk(t *testing.T) {
 		revisionIDs[0]: {"title": {"BPMN"}},
 		revisionIDs[1]: {"keywords": {"scheduling"}},
 	}
-	if err := db.TermMatches.ReplaceRunMatches(runID, matches); err != nil {
+	if err := db.TermMatches.ReplaceRunTermData(runID, nil, matches); err != nil {
 		t.Fatal(err)
 	}
 	got, err := db.TermMatches.GetRevisionMatchesBulk(runID, revisionIDs)
@@ -175,40 +175,62 @@ func TestTermMatchesGetRevisionMatchesBulk(t *testing.T) {
 	}
 }
 
-// TestTermMatchesCountRunTermData verifies the reconciliation skip count.
-func TestTermMatchesCountRunTermData(t *testing.T) {
+// TestTermMatchesReplaceRunTermDataOrdersMatchesDeterministically verifies map iteration cannot change stored term order.
+func TestTermMatchesReplaceRunTermDataOrdersMatchesDeterministically(t *testing.T) {
+	db := openTestDB(t)
+	defer db.Close()
+	runID, err := db.PipelineRuns.StartRun("term matches ordering", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workID, err := db.Works.CreateByDOI("10.1000/term-matches-ordering")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionID, err := db.WorkRevisions.Create(&WorkRevision{WorkID: workID, PipelineRunID: runID, ProducerStage: ProducerStageNormalize})
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := map[int64]map[string][]string{revisionID: {"keywords": {"z", "a"}, "title": {"b", "a"}}}
+	for pass := 0; pass < 2; pass++ {
+		if err := db.TermMatches.ReplaceRunTermData(runID, nil, matches); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.TermMatches.GetRevisionMatches(runID, revisionID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string][]string{"keywords": {"a", "z"}, "title": {"a", "b"}}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("pass %d matches = %v, want %v", pass+1, got, want)
+		}
+	}
+}
+
+// TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult verifies reconciliation state is independent of match count.
+func TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
 	runID, err := db.PipelineRuns.StartRun("term matches count", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	count, err := db.TermMatches.CountRunTermData(runID)
+	reconciled, err := db.TermMatches.HasRunTermData(runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count != 0 {
-		t.Fatalf("CountRunTermData before = %d, want 0", count)
+	if reconciled {
+		t.Fatal("HasRunTermData before = true, want false")
 	}
-	workID, err := db.Works.CreateByDOI("10.1000/term-matches-count")
+	if err := db.TermMatches.ReplaceRunTermData(runID, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	reconciled, err = db.TermMatches.HasRunTermData(runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	revisionID, err := db.WorkRevisions.Create(&WorkRevision{
-		WorkID: workID, PipelineRunID: runID, ProducerStage: ProducerStageNormalize, Title: "Count article",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.TermMatches.ReplaceRunMatches(runID, map[int64]map[string][]string{revisionID: {"title": {"BPMN"}}}); err != nil {
-		t.Fatal(err)
-	}
-	count, err = db.TermMatches.CountRunTermData(runID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 1 {
-		t.Fatalf("CountRunTermData after = %d, want 1", count)
+	if !reconciled {
+		t.Fatal("HasRunTermData after = false, want true")
 	}
 }
 

@@ -40,6 +40,11 @@ func TestValidateFields(t *testing.T) {
 	if got := ValidateFields(invalid, 0); !reflect.DeepEqual(got, want) {
 		t.Fatalf("ValidateFields invalid = %v, want %v", got, want)
 	}
+	negativeCounts := valid
+	negativeCounts.ReferenceCount = -1
+	if got := ValidateFields(negativeCounts, -1); !reflect.DeepEqual(got, []string{"missing authors", "missing references"}) {
+		t.Fatalf("ValidateFields negative counts = %v", got)
+	}
 }
 
 // TestSortedReasons verifies sorted reasons.

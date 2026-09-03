@@ -108,7 +108,7 @@ type EnrichmentProvider struct {
 	// TimeoutSeconds is the HTTP request timeout in seconds.
 	TimeoutSeconds int `json:"timeout_seconds"`
 
-	// MaxRetries is the maximum number of retry attempts for failed requests.
+	// MaxRetries is the number of retries after the initial failed request.
 	MaxRetries int `json:"max_retries"`
 
 	// BatchSize is the number of items per batch request (e.g. OpenAlex

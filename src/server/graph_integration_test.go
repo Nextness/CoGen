@@ -184,3 +184,54 @@ func TestGraphEdgeBudgets(t *testing.T) {
 		t.Fatalf("edge budget graph edges=%d truncated=%v", len(edges), truncated)
 	}
 }
+
+// TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget verifies irrelevant citations cannot consume the renderable edge limit.
+func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+
+	createArticle := func(doi, hash, title string) (int64, int64) {
+		t.Helper()
+		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", doi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workID, _ := work.LastInsertId()
+		revision, err := viewer.writeDB.DB.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage) VALUES (?, ?, ?, ?, 'normalize')", workID, runID, hash, title)
+		if err != nil {
+			t.Fatal(err)
+		}
+		revisionID, _ := revision.LastInsertId()
+		return workID, revisionID
+	}
+	sourceWorkID, sourceRevisionID := createArticle("10.1/graph-source", "graph-source", "Graph source")
+	targetWorkID, targetRevisionID := createArticle("10.1/graph-target", "graph-target", "Graph target")
+	for index := 0; index < 3; index++ {
+		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/graph-external-"+stringID(int64(index)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		externalWorkID, _ := work.LastInsertId()
+		if _, err := viewer.writeDB.DB.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, ?)", sourceRevisionID, externalWorkID, index+1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := viewer.writeDB.DB.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, 4)", sourceRevisionID, targetWorkID); err != nil {
+		t.Fatal(err)
+	}
+	articles := []map[string]any{
+		{"id": sourceRevisionID, "work_id": sourceWorkID, "title": "Graph source", "doi": "10.1/graph-source"},
+		{"id": targetRevisionID, "work_id": targetWorkID, "title": "Graph target", "doi": "10.1/graph-target"},
+	}
+	_, edges, truncated, err := viewer.graphEdgesWithinBudget(t.Context(), "citation", articles, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if truncated || len(edges) != 1 || edges[0]["source"] != "article:"+stringID(sourceRevisionID) || edges[0]["target"] != "article:"+stringID(targetRevisionID) {
+		t.Fatalf("citation edge selection = edges=%v truncated=%v", edges, truncated)
+	}
+}

@@ -170,7 +170,11 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err
 	}
-	if err := db.Metrics.Set(runID, "enrichment_enabled", "", BoolMetric(run.Manifest.EnrichmentEnabled)); err != nil {
+	enrichmentEnabled := 0
+	if run.Manifest.EnrichmentEnabled {
+		enrichmentEnabled = 1
+	}
+	if err := db.Metrics.Set(runID, "enrichment_enabled", "", enrichmentEnabled); err != nil {
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err
 	}
@@ -315,28 +319,13 @@ func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputMan
 // persistArtifact stores content-addressed artifact metadata and bytes for a run.
 func persistArtifact(db *database.Database, runID int64, data []byte, contentType string) (int64, error) {
 	hash := contentHash(data)
-	id, err := db.Artifacts.Create(hash, contentType, int64(len(data)))
-	if err != nil {
-		return 0, err
-	}
-	if _, err := db.ArtifactBlobs.Create(id, runID, data); err != nil {
-		return 0, err
-	}
-	return id, nil
+	return db.Artifacts.CreateWithBlob(hash, contentType, int64(len(data)), runID, data)
 }
 
 // contentHash returns the lowercase hexadecimal SHA-256 digest of data.
 func contentHash(data []byte) string {
 	digest := sha256.Sum256(data)
 	return fmt.Sprintf("%x", digest)
-}
-
-// BoolMetric converts a Boolean value to the metric convention of one or zero.
-func BoolMetric(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
 }
 
 // freshReason returns the persisted reason for starting a non-reused attempt.
@@ -391,11 +380,11 @@ func loadCSVEntries(path, source string) ([]map[string]string, error) {
 // loadBibEntries loads bib entries from the supplied source.
 func loadBibEntries(path, source string) ([]map[string]string, error) {
 	p := bibtex.NewParser(nil)
-	data, err := p.LoadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("load BibTeX source %q at %q: %w", source, path, err)
+		return nil, fmt.Errorf("read BibTeX source %q at %q: %w", source, path, err)
 	}
-	lib, err := p.Parse(data, source, true)
+	lib, err := p.Parse(string(data), source, true)
 	if err != nil {
 		return nil, fmt.Errorf("parse BibTeX source %q at %q: %w", source, path, err)
 	}

@@ -1,54 +1,13 @@
-// bibtex_unit_test.go tests the BibTeX parser, entry-type constants, and
-// field extraction helpers in isolation (no I/O).
+// bibtex_unit_test.go tests the constrained BibTeX parser and field extraction
+// helpers in isolation (no I/O).
 //go:build unit
 
 package bibtex
 
 import (
+	"strings"
 	"testing"
 )
-
-// TestEntryType verifies entry type.
-func TestEntryType(t *testing.T) {
-	t.Run("values", func(t *testing.T) {
-		if EntryArticle.String() != "article" {
-			t.Fatalf("expected 'article', got %q", EntryArticle.String())
-		}
-		if EntryBook.String() != "book" {
-			t.Fatalf("expected 'book', got %q", EntryBook.String())
-		}
-		if EntryInProceedings.String() != "inproceedings" {
-			t.Fatalf("expected 'inproceedings', got %q", EntryInProceedings.String())
-		}
-		if EntryMisc.String() != "misc" {
-			t.Fatalf("expected 'misc', got %q", EntryMisc.String())
-		}
-		if EntryUnknown.String() != "unknown" {
-			t.Fatalf("expected 'unknown', got %q", EntryUnknown.String())
-		}
-	})
-
-	t.Run("parse_from_string", func(t *testing.T) {
-		tests := []struct {
-			input string
-			want  EntryType
-		}{
-			{"article", EntryArticle},
-			{"ARTICLE", EntryArticle},
-			{"book", EntryBook},
-			{"inproceedings", EntryInProceedings},
-			{"misc", EntryMisc},
-			{"foobar", EntryUnknown},
-			{"", EntryUnknown},
-		}
-		for _, tc := range tests {
-			got := entryTypeFromString(tc.input)
-			if got != tc.want {
-				t.Errorf("entryTypeFromString(%q) = %d, want %d", tc.input, got, tc.want)
-			}
-		}
-	})
-}
 
 // TestParse verifies parse.
 func TestParse(t *testing.T) {
@@ -128,6 +87,33 @@ func TestParse(t *testing.T) {
 		}
 		if lib["k_0"]["title"] != "B" {
 			t.Fatalf("expected duplicate entry title 'B', got %q", lib["k_0"]["title"])
+		}
+	})
+
+	t.Run("preserves_natural_keys_that_match_duplicate_suffixes", func(t *testing.T) {
+		bib := `@article{k, title = {A}}` + "\n" +
+			`@article{k_0, title = {Natural}}` + "\n" +
+			`@article{k, title = {Duplicate}}`
+		lib, err := p.Parse(bib, "", true)
+		if err != nil {
+			t.Fatalf("Parse failed: %v", err)
+		}
+		if len(lib) != 3 {
+			t.Fatalf("expected 3 entries, got %d", len(lib))
+		}
+		if lib["k"]["title"] != "A" || lib["k_0"]["title"] != "Natural" || lib["k_1"]["title"] != "Duplicate" {
+			t.Fatalf("duplicate collision lost or overwrote an entry: %v", lib)
+		}
+	})
+
+	t.Run("strips_leading_bom", func(t *testing.T) {
+		bib := "\ufeff" + `@article{k, title = {Test}}`
+		lib, err := p.Parse(bib, "", true)
+		if err != nil {
+			t.Fatalf("Parse failed: %v", err)
+		}
+		if len(lib) != 1 || lib["k"]["title"] != "Test" {
+			t.Fatalf("BOM-prefixed library = %v", lib)
 		}
 	})
 
@@ -274,6 +260,29 @@ func TestParse(t *testing.T) {
 		}
 		if lib["k"]["title"] != "" {
 			t.Fatalf("expected empty title, got %q", lib["k"]["title"])
+		}
+	})
+
+	t.Run("rejects_malformed_lexical_input", func(t *testing.T) {
+		tests := []struct {
+			name string
+			data string
+			want string
+		}{
+			{name: "unterminated braced value", data: `@article{k, title = {unterminated`, want: "unterminated braced value"},
+			{name: "unterminated quoted value", data: `@article{k, title = "unterminated`, want: "unterminated quoted value"},
+			{name: "unsupported character", data: `@article{k, title = $}`, want: "unsupported character"},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := p.Parse(tc.data, "", true)
+				if err == nil {
+					t.Fatal("expected Parse error")
+				}
+				if !strings.Contains(err.Error(), "byte") || !strings.Contains(err.Error(), tc.want) {
+					t.Fatalf("Parse error = %q, want byte position and %q", err, tc.want)
+				}
+			})
 		}
 	})
 }

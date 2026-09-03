@@ -164,15 +164,17 @@ func (s *Server) graphEdges(ctx context.Context, mode string, articles []map[str
 // graphEdgesWithinBudget reads no more than one sentinel row beyond the remaining response budget.
 func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error) {
 	if mode == "research_network" {
-		return s.graphResearchNetwork(ctx, articles)
+		return s.graphResearchNetwork(ctx, articles, relatedBudget, edgeBudget)
 	}
 	nodes, edges := make([]map[string]any, 0, len(articles)), make([]map[string]any, 0)
 	articleIDs := make([]int64, 0, len(articles))
+	workIDs := make([]int64, 0, len(articles))
 	revisionByWork := map[int64]map[string]any{}
 	for _, article := range articles {
 		id := article["id"].(int64)
 		workID := article["work_id"].(int64)
 		articleIDs = append(articleIDs, id)
+		workIDs = append(workIDs, workID)
 		revisionByWork[workID] = article
 		nodes = append(nodes, map[string]any{"id": "article:" + stringID(id), "type": "article", "revision_id": id, "work_id": workID, "label": article["title"], "doi": article["doi"]})
 	}
@@ -185,22 +187,43 @@ func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articl
 	if edgeBudget < 0 {
 		edgeBudget = 0
 	}
-	placeholders, args := placeholders(articleIDs)
+	articlePlaceholders, articleArgs := placeholders(articleIDs)
 	var query string
+	var args []any
+	queryLimit := edgeBudget + 1
 	switch mode {
 	case "article_author":
-		query = `SELECT a.work_revision_id, ao.id AS author_id, ao.citation_name, ao.orcid, a.author_order, a.affiliation
-            FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
-            WHERE a.work_revision_id IN (` + placeholders + `) ORDER BY a.id`
+		authorLimit := relatedBudget
+		if authorLimit == 0 {
+			authorLimit = 1
+		}
+		query = `WITH eligible_authors AS (
+            SELECT a.author_occurrence_id FROM authorships a
+            WHERE a.work_revision_id IN (` + articlePlaceholders + `)
+            GROUP BY a.author_occurrence_id ORDER BY MIN(a.id), a.author_occurrence_id LIMIT ?
+        ) SELECT a.work_revision_id, ao.id AS author_id, ao.citation_name, ao.orcid, a.author_order, a.affiliation
+            FROM authorships a JOIN eligible_authors ea ON ea.author_occurrence_id=a.author_occurrence_id
+            JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
+            WHERE a.work_revision_id IN (` + articlePlaceholders + `) ORDER BY a.id`
+		args = append(args, articleArgs...)
+		args = append(args, authorLimit)
+		args = append(args, articleArgs...)
 	case "citation":
+		workPlaceholders, workArgs := placeholders(workIDs)
 		query = `SELECT rm.work_revision_id, rm.resolved_work_id FROM reference_mentions rm
-            WHERE rm.work_revision_id IN (` + placeholders + `) AND rm.resolved_work_id IS NOT NULL ORDER BY rm.id`
+			WHERE rm.work_revision_id IN (` + articlePlaceholders + `) AND rm.resolved_work_id IN (` + workPlaceholders + `) ORDER BY rm.id`
+		args = append(args, articleArgs...)
+		args = append(args, workArgs...)
 	case "article_reference":
 		query = `SELECT rm.id AS reference_id, rm.work_revision_id, rm.doi, rm.title, rm.author, rm.year, rm.source
-            FROM reference_mentions rm WHERE rm.work_revision_id IN (` + placeholders + `) ORDER BY rm.id`
+			FROM reference_mentions rm WHERE rm.work_revision_id IN (` + articlePlaceholders + `) ORDER BY rm.id`
+		args = append(args, articleArgs...)
+		if relatedBudget < edgeBudget {
+			queryLimit = relatedBudget + 1
+		}
 	}
 	query += " LIMIT ?"
-	args = append(args, edgeBudget+1)
+	args = append(args, queryLimit)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, false, err
@@ -211,12 +234,12 @@ func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articl
 		return nil, nil, false, err
 	}
 	related := map[string]bool{}
-	truncated := len(items) > edgeBudget
+	truncated := len(items) == queryLimit
 	if len(items) > edgeBudget {
 		items = items[:edgeBudget]
 	}
 	for _, item := range items {
-		if len(edges) >= maxGraphEdges {
+		if len(edges) >= edgeBudget {
 			truncated = true
 			break
 		}
@@ -255,7 +278,13 @@ func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articl
 }
 
 // graphResearchNetwork combines authorship, reference, citation, coauthor, and bibliographic-coupling relationships.
-func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string]any) ([]map[string]any, []map[string]any, bool, error) {
+func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error) {
+	if relatedBudget < 0 {
+		relatedBudget = 0
+	}
+	if edgeBudget < 0 {
+		edgeBudget = 0
+	}
 	nodes := make([]map[string]any, 0, len(articles)*3)
 	edges := make([]map[string]any, 0, len(articles)*5)
 	nodeIDs := make(map[string]bool)
@@ -268,7 +297,7 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 		if id == "" || nodeIDs[id] {
 			return nodeIDs[id]
 		}
-		if node["type"] != "article" && relatedNodes >= maxRelatedNodes {
+		if node["type"] != "article" && relatedNodes >= relatedBudget {
 			truncated = true
 			return false
 		}
@@ -280,7 +309,7 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 		return true
 	}
 	addEdge := func(edge map[string]any) bool {
-		if len(edges) >= maxGraphEdges {
+		if len(edges) >= edgeBudget {
 			truncated = true
 			return false
 		}
@@ -304,8 +333,8 @@ func (s *Server) graphResearchNetwork(ctx context.Context, articles []map[string
 	}
 
 	for _, mode := range []string{"article_author", "article_reference", "citation"} {
-		remainingNodes := maxRelatedNodes - relatedNodes
-		remainingEdges := maxGraphEdges - len(edges)
+		remainingNodes := relatedBudget - relatedNodes
+		remainingEdges := edgeBudget - len(edges)
 		if remainingNodes <= 0 || remainingEdges <= 0 {
 			truncated = true
 			break
@@ -382,7 +411,7 @@ coauthorPairs:
 		authors := authorsByArticle[articleID]
 		for left := 0; left < len(authors); left++ {
 			for right := left + 1; right < len(authors); right++ {
-				if len(edges) >= maxGraphEdges {
+				if len(edges) >= edgeBudget {
 					truncated = true
 					break coauthorPairs
 				}
@@ -410,7 +439,7 @@ coauthorPairs:
 	}
 	pairCounts := make(map[string]int)
 	pairArticles := make(map[string][2]string)
-	pairBudget := maxGraphEdges - len(edges)
+	pairBudget := edgeBudget - len(edges)
 pairCollection:
 	for _, articlesForDOI := range articlesByDOI {
 		ids := make([]string, 0, len(articlesForDOI))
