@@ -13,7 +13,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -22,6 +21,8 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/internal/pathpolicy"
+	"analysis/internal/sqliteuri"
 	"analysis/logging"
 
 	_ "modernc.org/sqlite"
@@ -120,7 +121,10 @@ func Open(path string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"query_only(1)"},
+	})
 	db, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace database read-only: %w", err)
@@ -411,18 +415,9 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if filepath.IsAbs(relativePath) {
 		return fmt.Errorf("bound PDF store path must be relative")
 	}
-	resolvedMetadataDir, err := filepath.EvalSymlinks(metadataDir)
-	if err != nil {
-		return fmt.Errorf("resolve metadata database directory: %w", err)
-	}
-	absolute := filepath.Clean(filepath.Join(resolvedMetadataDir, relativePath))
-	resolvedStorePath, err := filepath.EvalSymlinks(absolute)
+	resolvedStorePath, err := pathpolicy.ResolveExistingWithin(metadataDir, relativePath)
 	if err != nil {
 		return fmt.Errorf("resolve bound PDF store: %w", err)
-	}
-	relative, err := filepath.Rel(resolvedMetadataDir, resolvedStorePath)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("bound PDF store path escapes the metadata database directory")
 	}
 	info, err := os.Stat(resolvedStorePath)
 	if err != nil {
@@ -431,7 +426,10 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("bound PDF store path is not a regular file")
 	}
-	uri := (&url.URL{Scheme: "file", Path: resolvedStorePath, RawQuery: "mode=ro&_pragma=query_only(1)"}).String()
+	uri := sqliteuri.File(resolvedStorePath, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"query_only(1)"},
+	})
 	pdfDB, err := sql.Open(queryBudgetDriverName, uri)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
@@ -472,7 +470,7 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 			}
 		}
 	}
-	s.pdfDB, s.pdfPath = pdfDB, absolute
+	s.pdfDB, s.pdfPath = pdfDB, resolvedStorePath
 	return nil
 }
 

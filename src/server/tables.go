@@ -10,7 +10,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"analysis/internal/textlimit"
 )
 
 var permittedPageSizes = map[int]bool{20: true, 50: true, 100: true, 200: true, 500: true}
@@ -202,17 +203,7 @@ func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {
 
 // truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit.
 func truncateUTF8Bytes(value string, limit int) string {
-	data := []byte(value)
-	if len(data) <= limit && utf8.Valid(data) {
-		return value
-	}
-	if len(data) > limit {
-		data = data[:limit]
-	}
-	for len(data) > 0 && !utf8.Valid(data) {
-		data = data[:len(data)-1]
-	}
-	return string(data)
+	return textlimit.UTF8Prefix(value, limit)
 }
 
 // safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas.

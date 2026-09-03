@@ -15,6 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"analysis/internal/textlimit"
 	"analysis/manifest"
 	"analysis/notes"
 )
@@ -45,7 +46,8 @@ func (value boundedText) optional() (*string, bool) {
 	if !value.text.Valid {
 		return nil, false
 	}
-	return &value.text.String, value.bytes > len([]byte(value.text.String))
+	text := textlimit.UTF8Prefix(value.text.String, len([]byte(value.text.String)))
+	return &text, value.bytes > len([]byte(text))
 }
 
 // ReviewConflictError reports that a context head changed after the caller read it.

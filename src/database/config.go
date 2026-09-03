@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"analysis/internal/pathpolicy"
 	"analysis/something"
 )
 
@@ -113,39 +114,11 @@ func resolveSpecificMigrationConfig(configPath string, cfg map[string]any, legac
 
 // resolveContainedPath resolves path relative to root and rejects lexical and symbolic-link escapes.
 func resolveContainedPath(root, path, label string) (string, error) {
-	absoluteRoot, err := filepath.Abs(root)
-	if err != nil {
-		return "", fmt.Errorf("resolve %s root: %w", label, err)
-	}
-	candidate := path
-	if !filepath.IsAbs(candidate) {
-		candidate = filepath.Join(absoluteRoot, candidate)
-	}
-	absolutePath, err := filepath.Abs(candidate)
+	resolvedPath, err := pathpolicy.ResolveExistingWithin(root, path)
 	if err != nil {
 		return "", fmt.Errorf("resolve %s: %w", label, err)
 	}
-	if !pathWithin(absoluteRoot, absolutePath) {
-		return "", fmt.Errorf("%s escapes its allowed root", label)
-	}
-	resolvedRoot, err := filepath.EvalSymlinks(absoluteRoot)
-	if err != nil {
-		return "", fmt.Errorf("resolve %s root symbolic links: %w", label, err)
-	}
-	resolvedPath, err := filepath.EvalSymlinks(absolutePath)
-	if err != nil {
-		return "", fmt.Errorf("resolve %s symbolic links: %w", label, err)
-	}
-	if !pathWithin(resolvedRoot, resolvedPath) {
-		return "", fmt.Errorf("%s escapes its allowed root through a symbolic link", label)
-	}
-	return absolutePath, nil
-}
-
-// pathWithin reports whether path is root itself or is contained below root.
-func pathWithin(root, path string) bool {
-	relative, err := filepath.Rel(root, path)
-	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	return resolvedPath, nil
 }
 
 // loadSomethingConfig loads a .something file using the existing parser.

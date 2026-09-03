@@ -47,7 +47,9 @@ func LoadSomethingBytes(data []byte, filepath string) (result map[string]any, er
 	return result, nil
 }
 
-// Pprint pretty-prints a resolved SOMETHING value.
+// Pprint pretty-prints a resolved SOMETHING value for diagnostic display.
+// Its JSON-like output is not a re-parseable SOMETHING serializer; the
+// something-printer tool owns that source-format contract.
 func Pprint(v any, indent int) string {
 	sp := "  "
 	switch val := v.(type) {

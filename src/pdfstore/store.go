@@ -10,13 +10,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"analysis/database"
+	"analysis/internal/pathpolicy"
 	"analysis/manifest"
 )
 
@@ -327,18 +327,12 @@ func resolveStorePath(metadataPath, relativePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve metadata database path: %w", err)
 	}
-	metadataDir, err := filepath.EvalSymlinks(filepath.Dir(metadataAbsolute))
-	if err != nil {
-		return "", fmt.Errorf("resolve metadata database directory: %w", err)
-	}
-	storePath, err := resolvePathWithExistingSymlinks(filepath.Join(metadataDir, cleanPath))
+	metadataDir := filepath.Dir(metadataAbsolute)
+	storePath, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, cleanPath)
 	if err != nil {
 		return "", fmt.Errorf("resolve PDF store path: %w", err)
 	}
-	if err := requireContainedPath(metadataDir, storePath); err != nil {
-		return "", err
-	}
-	metadataResolved, err := resolvePathWithExistingSymlinks(metadataAbsolute)
+	metadataResolved, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, metadataAbsolute)
 	if err != nil {
 		return "", fmt.Errorf("resolve metadata database path: %w", err)
 	}
@@ -346,42 +340,6 @@ func resolveStorePath(metadataPath, relativePath string) (string, error) {
 		return "", fmt.Errorf("PDF store path must differ from the metadata database path")
 	}
 	return storePath, nil
-}
-
-// resolvePathWithExistingSymlinks resolves every existing component while allowing a new final file.
-func resolvePathWithExistingSymlinks(path string) (string, error) {
-	path = filepath.Clean(path)
-	missing := make([]string, 0)
-	for {
-		resolved, err := filepath.EvalSymlinks(path)
-		if err == nil {
-			for index := len(missing) - 1; index >= 0; index-- {
-				resolved = filepath.Join(resolved, missing[index])
-			}
-			return resolved, nil
-		}
-		if !os.IsNotExist(err) {
-			return "", err
-		}
-		if _, lstatErr := os.Lstat(path); lstatErr == nil {
-			return "", fmt.Errorf("resolve symbolic link %q: %w", path, err)
-		}
-		parent := filepath.Dir(path)
-		if parent == path {
-			return "", err
-		}
-		missing = append(missing, filepath.Base(path))
-		path = parent
-	}
-}
-
-// requireContainedPath rejects paths outside the resolved metadata directory.
-func requireContainedPath(directory, path string) error {
-	relative, err := filepath.Rel(directory, path)
-	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("PDF store path must stay within the metadata database directory")
-	}
-	return nil
 }
 
 // validateRelativeStorePath rejects absolute or escaping companion-store paths and returns a clean relative path.

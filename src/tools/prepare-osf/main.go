@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,6 +17,8 @@ import (
 	"time"
 	"unicode"
 
+	"analysis/internal/pathpolicy"
+	"analysis/internal/sqliteuri"
 	"analysis/something"
 	"analysis/workspace"
 
@@ -701,20 +702,12 @@ func safeCompanionPath(metadataPath, relative string) (string, error) {
 	if relative == "" || filepath.IsAbs(relative) || filepath.Clean(relative) != relative || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("unsafe companion binding %q", relative)
 	}
-	metadataDir, err := filepath.EvalSymlinks(filepath.Dir(metadataPath))
+	companion, err := pathpolicy.ResolveExistingWithin(filepath.Dir(metadataPath), relative)
 	if err != nil {
-		return "", fmt.Errorf("resolve metadata directory: %w", err)
+		return "", fmt.Errorf("bound PDF database escapes metadata bundle: %w", err)
 	}
-	companion, err := existingFile(filepath.Join(metadataDir, relative))
-	if err != nil {
+	if _, err := existingFile(companion); err != nil {
 		return "", err
-	}
-	relativeCompanion, err := filepath.Rel(metadataDir, companion)
-	if err != nil {
-		return "", fmt.Errorf("resolve companion containment: %w", err)
-	}
-	if relativeCompanion == ".." || strings.HasPrefix(relativeCompanion, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("bound PDF database escapes metadata bundle")
 	}
 	return companion, nil
 }
@@ -751,12 +744,17 @@ func samePath(left, right string) bool {
 
 // sqliteReadURI returns an existing-only read URI with the project busy timeout.
 func sqliteReadURI(path string) string {
-	return (&url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro&_pragma=busy_timeout(5000)"}).String()
+	return sqliteuri.File(path, map[string][]string{
+		"mode":    {"ro"},
+		"_pragma": {"busy_timeout(5000)"},
+	})
 }
 
 // sqliteWritableURI returns a writable SQLite URI with the project pragmas.
 func sqliteWritableURI(path string) string {
-	return (&url.URL{Scheme: "file", Path: path, RawQuery: "_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"}).String()
+	return sqliteuri.File(path, map[string][]string{
+		"_pragma": {"foreign_keys(1)", "busy_timeout(5000)"},
+	})
 }
 
 // fileHash streams one file into a lowercase SHA-256 digest.

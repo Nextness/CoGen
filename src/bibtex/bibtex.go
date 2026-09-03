@@ -32,6 +32,9 @@ func NewParser(log *slog.Logger) *Parser {
 }
 
 // LoadFile reads and logs a BibTeX input file without parsing it.
+//
+// Deprecated: workspace ingestion reads source bytes once and calls Parse directly.
+// This method remains for external callers that use the public parser API.
 func (p *Parser) LoadFile(filepath string) (string, error) {
 	data, err := os.ReadFile(filepath)
 	if err != nil {

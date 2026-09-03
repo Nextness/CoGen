@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"unicode/utf8"
+
+	"analysis/internal/textlimit"
 )
 
 const maxInlineArtifactBytes = 256 * 1024
@@ -751,10 +752,9 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("artifact is not available for inline inspection; download it instead"))
 		return
 	}
-	for trims := 0; trims < utf8.UTFMax && len(data) > 0 && !utf8.Valid(data); trims++ {
-		data = data[:len(data)-1]
-	}
-	if !utf8.Valid(data) {
+	originalLength := len(data)
+	data = textlimit.UTF8PrefixBytes(data, len(data))
+	if originalLength > 0 && len(data) == 0 {
 		s.respond(w, r, nil, badRequest("artifact preview is not valid UTF-8; download it instead"))
 		return
 	}

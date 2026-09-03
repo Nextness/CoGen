@@ -380,11 +380,11 @@ func loadCSVEntries(path, source string) ([]map[string]string, error) {
 // loadBibEntries loads bib entries from the supplied source.
 func loadBibEntries(path, source string) ([]map[string]string, error) {
 	p := bibtex.NewParser(nil)
-	data, err := p.LoadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("load BibTeX source %q at %q: %w", source, path, err)
+		return nil, fmt.Errorf("read BibTeX source %q at %q: %w", source, path, err)
 	}
-	lib, err := p.Parse(data, source, true)
+	lib, err := p.Parse(string(data), source, true)
 	if err != nil {
 		return nil, fmt.Errorf("parse BibTeX source %q at %q: %w", source, path, err)
 	}

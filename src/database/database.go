@@ -9,12 +9,12 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"analysis/internal/sqliteuri"
 	"analysis/logging"
 
 	_ "modernc.org/sqlite"
@@ -132,7 +132,10 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "mode=rw&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"}).String()
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"mode":    {"rw"},
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+	})
 	conn, err := sql.Open(driverName, uri)
 	if err != nil {
 		return nil, fmt.Errorf("open existing sqlite: %w", err)
@@ -170,7 +173,9 @@ func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error
 	if err != nil {
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
-	uri := (&url.URL{Scheme: "file", Path: absolute, RawQuery: "_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)"}).String()
+	uri := sqliteuri.File(absolute, map[string][]string{
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+	})
 	conn, err := sql.Open("sqlite", uri)
 	if err != nil {
 		lg.Debug("database connection open failed", "database_path", dbPath, "error", err)
