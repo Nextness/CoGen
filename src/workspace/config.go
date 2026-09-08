@@ -107,8 +107,12 @@ func (c *Config) Select(selectors []string) ([]*Run, error) {
 		if selector == "" || !strings.Contains(selector, "@") {
 			return nil, fmt.Errorf("invalid workspace selector %q; use search_id@search_revision", selector)
 		}
+		if result := strings.Split(selector, "@"); len(result) > 2 {
+			return nil, fmt.Errorf("invalid workspace selector with more than one '@' %q; use search_id@search_revision", selector)
+		}
 		wanted[selector] = struct{}{}
 	}
+
 	selected := make([]*Run, 0, len(selectors))
 	for _, run := range c.Runs {
 		selector := Selector(run.Manifest.SearchID, run.Manifest.SearchRevision)
@@ -117,6 +121,7 @@ func (c *Config) Select(selectors []string) ([]*Run, error) {
 			delete(wanted, selector)
 		}
 	}
+
 	if len(wanted) != 0 {
 		unknown := make([]string, 0, len(wanted))
 		for selector := range wanted {
@@ -134,26 +139,26 @@ func parseRun(entry map[string]any, configDir string) (*Run, error) {
 	if !ok {
 		return nil, fmt.Errorf("workspace scope is required in iteration")
 	}
-	formatVersion, err := requiredInt(workspace, "format_version")
+	formatVersion, err := something.GetIntegerOnce(workspace, "format_version")
 	if err != nil {
 		return nil, err
 	}
 	if formatVersion != SupportedFormatVersion {
 		return nil, fmt.Errorf("unsupported workspace format_version %d; supported version is %d", formatVersion, SupportedFormatVersion)
 	}
-	searchID, err := requiredString(workspace, "search_id")
+	searchID, err := something.GetStringOnce(workspace, "search_id")
 	if err != nil {
 		return nil, err
 	}
-	revision, err := requiredString(workspace, "search_revision")
+	revision, err := something.GetStringOnce(workspace, "search_revision")
 	if err != nil {
 		return nil, err
 	}
-	enrichmentEnabled, err := requiredBool(workspace, "enrichment_enabled")
+	enrichmentEnabled, err := something.GetBoolOnce(workspace, "enrichment_enabled")
 	if err != nil {
 		return nil, err
 	}
-	reusePolicy, err := nestedString(workspace, "reuse_policy", "policy")
+	reusePolicy, err := something.GetStringOnce(workspace, "reuse_policy", "policy")
 	if err != nil {
 		return nil, err
 	}
@@ -201,20 +206,27 @@ func parseReviewer(workspace map[string]any) (Reviewer, error) {
 	if !ok || value == nil {
 		return Reviewer{}, nil
 	}
+
 	fields, ok := value.(map[string]any)
 	if !ok {
 		return Reviewer{}, fmt.Errorf("reviewer must be an object")
 	}
+
+	username, _ := something.GetStringOnce(fields, "username")
+	email, _ := something.GetStringOnce(fields, "email")
 	reviewer := Reviewer{
-		Username: strings.TrimSpace(optionalString(fields, "username")),
-		Email:    strings.TrimSpace(optionalString(fields, "email")),
+		Username: strings.TrimSpace(username),
+		Email:    strings.TrimSpace(email),
 	}
+
 	if utf8.RuneCountInString(reviewer.Username) > 200 {
 		return Reviewer{}, fmt.Errorf("reviewer.username exceeds 200 characters")
 	}
+
 	if utf8.RuneCountInString(reviewer.Email) > 320 {
 		return Reviewer{}, fmt.Errorf("reviewer.email exceeds 320 characters")
 	}
+
 	return reviewer, nil
 }
 
@@ -244,7 +256,7 @@ func parseCachePolicy(entry map[string]any, reusePolicy string) (manifest.CacheP
 	for i, ord := range writeOrdinals {
 		writes[i] = cacheWriteLayerNames[ord]
 	}
-	ttl, err := requiredInt(policy, "negative_ttl_days")
+	ttl, err := something.GetIntegerOnce(policy, "negative_ttl_days")
 	if err != nil {
 		return manifest.CachePolicy{}, err
 	}
@@ -254,10 +266,7 @@ func parseCachePolicy(entry map[string]any, reusePolicy string) (manifest.CacheP
 	if len(reads) == 0 || len(writes) == 0 {
 		return manifest.CachePolicy{}, fmt.Errorf("cache_policy requires at least one read and one write layer")
 	}
-	readRunID, err := optionalInt(policy, "read_run_id", -1)
-	if err != nil {
-		return manifest.CachePolicy{}, err
-	}
+	readRunID, _ := something.GetIntegerOnce(policy, "read_run_id")
 
 	// Validate read_run_id: required when run_specific is used, must be > 0
 	hasRunSpecific := false
@@ -311,7 +320,7 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 		if !ok {
 			return nil, fmt.Errorf("source declaration is not an object")
 		}
-		name, err := requiredString(source, "name")
+		name, err := something.GetStringOnce(source, "name")
 		if err != nil {
 			return nil, err
 		}
@@ -323,7 +332,7 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 		if err != nil {
 			return nil, err
 		}
-		fileType, err := requiredString(source, "file_type")
+		fileType, err := something.GetStringOnce(source, "file_type")
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +342,7 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 		if ext := strings.TrimPrefix(filepath.Ext(file), "."); ext != fileType {
 			return nil, fmt.Errorf("source %q file type %q does not match path extension %q", name, fileType, ext)
 		}
-		query, err := requiredString(source, "query")
+		query, err := something.GetStringOnce(source, "query")
 		if err != nil {
 			return nil, err
 		}
@@ -345,7 +354,7 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 		if err != nil {
 			return nil, err
 		}
-		count, err := requiredInt(source, "expected_result_count")
+		count, err := something.GetIntegerOnce(source, "expected_result_count")
 		if err != nil {
 			return nil, err
 		}
@@ -360,6 +369,8 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 		if err != nil {
 			return nil, err
 		}
+
+		date, _ := something.GetStringOnce(source, "date")
 		sources = append(sources, manifest.SourceManifest{
 			Name:                name,
 			ExpectedFile:        file,
@@ -367,7 +378,7 @@ func parseSources(entry map[string]any, configDir string) ([]manifest.SourceMani
 			Query:               query,
 			Filters:             filters,
 			ExpectedResultCount: count,
-			Date:                optionalString(source, "date"),
+			Date:                date,
 			RequestedFields:     requestedFields,
 			PatchFields:         patchFields,
 			KeepFields:          keepFields,
@@ -389,14 +400,14 @@ func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enric
 		if !ok {
 			return nil, nil, fmt.Errorf("enrichment provider is not an object")
 		}
-		name, err := requiredString(provider, "name")
+		name, err := something.GetStringOnce(provider, "name")
 		if err != nil {
 			return nil, nil, err
 		}
 		if _, exists := config.Sources[name]; exists {
 			return nil, nil, fmt.Errorf("duplicate enrichment provider %q", name)
 		}
-		baseURL, err := requiredString(provider, "base_url")
+		baseURL, err := something.GetStringOnce(provider, "base_url")
 		if err != nil {
 			return nil, nil, err
 		}
@@ -408,30 +419,20 @@ func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enric
 		if err != nil {
 			return nil, nil, err
 		}
-		rate, err := optionalInt(provider, "rate_per_second", 10)
+
+		rate, _ := something.GetIntegerOnce(provider, "rate_per_second")
+		concurrency, _ := something.GetIntegerOnce(provider, "concurrency")
+		timeout, _ := something.GetIntegerOnce(provider, "timeout_seconds")
+		retries, _ := something.GetIntegerOnce(provider, "max_retries")
+		batchSize, _ := something.GetIntegerOnce(provider, "batch_size")
+
+		// NOTE: this has no fallback. The field must exist and have a value, otherwise
+		// it is a configuration error.
+		fillMissing, err := something.GetBoolOnce(provider, "fill_missing_only")
 		if err != nil {
 			return nil, nil, err
 		}
-		concurrency, err := optionalInt(provider, "concurrency", 10)
-		if err != nil {
-			return nil, nil, err
-		}
-		timeout, err := optionalInt(provider, "timeout_seconds", 30)
-		if err != nil {
-			return nil, nil, err
-		}
-		retries, err := optionalInt(provider, "max_retries", 5)
-		if err != nil {
-			return nil, nil, err
-		}
-		batchSize, err := optionalInt(provider, "batch_size", 50)
-		if err != nil {
-			return nil, nil, err
-		}
-		fillMissing, err := optionalBool(provider, "fill_missing_only", false)
-		if err != nil {
-			return nil, nil, err
-		}
+
 		userAgent, _ := provider["user_agent"].(string)
 		contactEmail, _ := provider["contact_email"].(string)
 		source := enrich.SourceConfig{
@@ -453,80 +454,9 @@ func parseProviders(entry map[string]any) ([]manifest.EnrichmentProvider, *enric
 	return providers, config, nil
 }
 
-// requiredString returns a required non-empty string from evaluated configuration.
-func requiredString(values map[string]any, name string) (string, error) {
-	value, ok := values[name].(string)
-	if !ok || strings.TrimSpace(value) == "" {
-		return "", fmt.Errorf("%s is required", name)
-	}
-	return value, nil
-}
-
-// optionalString reads the optional string value.
-func optionalString(values map[string]any, name string) string {
-	value, ok := values[name].(string)
-	if !ok {
-		return ""
-	}
-	return value
-}
-
-// nestedString reads a required string from a required nested mapping.
-func nestedString(values map[string]any, parent, name string) (string, error) {
-	nested, ok := values[parent].(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("%s is required", parent)
-	}
-	return requiredString(nested, name)
-}
-
-// requiredBool returns a required Boolean from evaluated configuration.
-func requiredBool(values map[string]any, name string) (bool, error) {
-	value, ok := values[name].(bool)
-	if !ok {
-		return false, fmt.Errorf("%s is required", name)
-	}
-	return value, nil
-}
-
-// optionalBool reads the optional bool value.
-func optionalBool(values map[string]any, name string, fallback bool) (bool, error) {
-	value, exists := values[name]
-	if !exists {
-		return fallback, nil
-	}
-	b, ok := value.(bool)
-	if !ok {
-		return false, fmt.Errorf("%s must be a boolean", name)
-	}
-	return b, nil
-}
-
-// requiredInt returns a required integer from evaluated configuration.
-func requiredInt(values map[string]any, name string) (int, error) {
-	value, ok := values[name].(int)
-	if !ok {
-		return 0, fmt.Errorf("%s is required", name)
-	}
-	return value, nil
-}
-
-// optionalInt reads the optional int value.
-func optionalInt(values map[string]any, name string, fallback int) (int, error) {
-	value, exists := values[name]
-	if !exists {
-		return fallback, nil
-	}
-	i, ok := value.(int)
-	if !ok {
-		return 0, fmt.Errorf("%s must be an integer", name)
-	}
-	return i, nil
-}
-
 // requiredPath returns a required path resolved relative to the configuration directory.
 func requiredPath(values map[string]any, name, configDir string) (string, error) {
-	path, err := requiredString(values, name)
+	path, err := something.GetStringOnce(values, name)
 	if err != nil {
 		return "", err
 	}
@@ -669,7 +599,7 @@ func parseRawDataFilters(source map[string]any, name string) ([]manifest.RawData
 		for j, ord := range filterOrdinals {
 			filterNames[j] = availableFilterNames[ord]
 		}
-		count, err := requiredInt(filterDef, "count")
+		count, err := something.GetIntegerOnce(filterDef, "count")
 		if err != nil {
 			return nil, fmt.Errorf("%s[%d]: %w", name, i, err)
 		}
