@@ -80,18 +80,15 @@ func (r *RunSourceRepository) Create(pipelineRunID int64, sourceName, sourceType
 		pipelineRunID, sourceName, sourceType, expectedFile, nullStr(query), nullStr(requestedFields), expectedResultCount, nullStr(exportDate),
 	)
 	if err != nil {
-		lg.Debug("run source creation failed",
-			"pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
+		lg.Debug("run source creation failed", "pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
 		return 0, fmt.Errorf("create run source: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		lg.Debug("run source ID read failed",
-			"pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
+		lg.Debug("run source ID read failed", "pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
 		return 0, err
 	}
-	lg.Debug("run source creation successful",
-		"pipeline_run_id", pipelineRunID, "source", sourceName, "id", id)
+	lg.Debug("run source creation successful", "pipeline_run_id", pipelineRunID, "source", sourceName, "id", id)
 	return id, nil
 }
 
@@ -433,39 +430,33 @@ func (r *ArtifactBlobRepository) Create(artifactID, pipelineRunID int64, data []
 		artifactID, pipelineRunID, data,
 	)
 	if err != nil {
-		lg.Debug("artifact blob creation failed",
-			"artifact_id", artifactID, "pipeline_run_id", pipelineRunID, "error", err)
+		lg.Debug("artifact blob creation failed", "artifact_id", artifactID, "pipeline_run_id", pipelineRunID, "error", err)
 		return 0, fmt.Errorf("create artifact blob: %w", err)
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		lg.Debug("artifact blob creation result read failed",
-			"artifact_id", artifactID, "error", err)
+		lg.Debug("artifact blob creation result read failed", "artifact_id", artifactID, "error", err)
 		return 0, err
 	}
 	if rowsAffected > 0 {
 		id, err := res.LastInsertId()
 		if err != nil {
-			lg.Debug("artifact blob inserted ID read failed",
-				"artifact_id", artifactID, "error", err)
+			lg.Debug("artifact blob inserted ID read failed", "artifact_id", artifactID, "error", err)
 			return 0, err
 		}
-		lg.Debug("artifact blob creation successful",
-			"artifact_id", artifactID, "id", id, "result", "inserted")
+		lg.Debug("artifact blob creation successful", "artifact_id", artifactID, "id", id, "result", "inserted")
 		return id, nil
 	}
 
 	// Already exists - return existing ID
 	existing, err := r.GetByArtifactID(artifactID)
 	if err != nil {
-		lg.Debug("artifact blob existing lookup failed",
-			"artifact_id", artifactID, "error", err)
+		lg.Debug("artifact blob existing lookup failed", "artifact_id", artifactID, "error", err)
 		return 0, err
 	}
 	if existing == nil {
-		lg.Debug("artifact blob creation failed",
-			"artifact_id", artifactID, "reason", "insert_skipped_but_not_found")
+		lg.Debug("artifact blob creation failed", "artifact_id", artifactID, "reason", "insert_skipped_but_not_found")
 		return 0, fmt.Errorf("create artifact blob: insert skipped but existing row not found")
 	}
 	if !bytes.Equal(existing.Data, data) {
@@ -513,14 +504,12 @@ func (r *RunStepRepository) Create(pipelineRunID int64, stepName string) (int64,
 		pipelineRunID, stepName, runStepTimestamp(),
 	)
 	if err != nil {
-		lg.Debug("run step creation failed",
-			"pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
+		lg.Debug("run step creation failed", "pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
 		return 0, fmt.Errorf("create run step: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		lg.Debug("run step ID read failed",
-			"pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
+		lg.Debug("run step ID read failed", "pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
 		return 0, err
 	}
 	lg.Debug("run step creation successful",
@@ -686,12 +675,10 @@ func (r *SourceFilterCountRepository) SetFilterData(pipelineRunID int64, sourceN
 		pipelineRunID, sourceName, filterData,
 	)
 	if err != nil {
-		lg.Debug("source filter count upsert failed",
-			"pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
+		lg.Debug("source filter count upsert failed", "pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
 		return fmt.Errorf("set source filter count: %w", err)
 	}
-	lg.Debug("source filter count upsert successful",
-		"pipeline_run_id", pipelineRunID, "source", sourceName)
+	lg.Debug("source filter count upsert successful", "pipeline_run_id", pipelineRunID, "source", sourceName)
 	return nil
 }
 
@@ -721,8 +708,7 @@ func (r *SourceFilterCountRepository) ListByRun(pipelineRunID int64) ([]*SourceF
 		lg.Debug("source filter count iteration failed", "scanned", len(result), "error", err)
 		return nil, err
 	}
-	lg.Debug("source filter count list query successful",
-		"pipeline_run_id", pipelineRunID, "sources", len(result))
+	lg.Debug("source filter count list query successful", "pipeline_run_id", pipelineRunID, "sources", len(result))
 	return result, nil
 }
 
@@ -738,8 +724,7 @@ func (r *SourceFilterCountRepository) GetByRunAndSource(pipelineRunID int64, sou
 		return nil, nil
 	}
 	if err != nil {
-		lg.Debug("source filter count get failed",
-			"pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
+		lg.Debug("source filter count get failed", "pipeline_run_id", pipelineRunID, "source", sourceName, "error", err)
 		return nil, err
 	}
 	return &sfc, nil

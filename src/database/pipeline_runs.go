@@ -138,16 +138,14 @@ func (r *PipelineRunRepository) startAttempt(executionPlanID int64, step, search
 		})
 
 		if err == nil {
-			lg.Debug("pipeline run attempt start successful",
-				"step", step, "run_id", runID, "execution_plan_id", executionPlanID, "attempt", attemptNum)
+			lg.Debug("pipeline run attempt start successful", "step", step, "run_id", runID, "execution_plan_id", executionPlanID, "attempt", attemptNum)
 			return runID, attemptNum, nil
 		}
 
 		// Retry on transient errors with backoff.
 		if isRetryableError(err) {
 			lastErr = err
-			lg.Debug("pipeline run attempt retry",
-				"step", step, "execution_plan_id", executionPlanID, "retry", retry+1, "error", err)
+			lg.Debug("pipeline run attempt retry", "step", step, "execution_plan_id", executionPlanID, "retry", retry+1, "error", err)
 			// Small backoff to reduce contention.
 			if retry < 10 {
 				continue
@@ -156,13 +154,11 @@ func (r *PipelineRunRepository) startAttempt(executionPlanID int64, step, search
 			continue
 		}
 
-		lg.Debug("pipeline run attempt start failed",
-			"step", step, "execution_plan_id", executionPlanID, "error", err)
+		lg.Debug("pipeline run attempt start failed", "step", step, "execution_plan_id", executionPlanID, "error", err)
 		return 0, 0, err
 	}
 
-	lg.Debug("pipeline run attempt start failed after retries",
-		"step", step, "execution_plan_id", executionPlanID, "retries", maxRetries, "last_error", lastErr)
+	lg.Debug("pipeline run attempt start failed after retries", "step", step, "execution_plan_id", executionPlanID, "retries", maxRetries, "last_error", lastErr)
 	return 0, 0, fmt.Errorf("start attempt after %d retries: %w", maxRetries, lastErr)
 }
 

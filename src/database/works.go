@@ -64,8 +64,7 @@ func (r *WorkRepository) CreateByDOI(doi string) (int64, error) {
 			lg.Debug("work inserted ID read failed", "doi", doi, "error", err)
 			return 0, err
 		}
-		lg.Debug("work creation successful",
-			"doi", doi, "work_id", id, "result", "inserted")
+		lg.Debug("work creation successful", "doi", doi, "work_id", id, "result", "inserted")
 		return id, nil
 	}
 
@@ -76,12 +75,10 @@ func (r *WorkRepository) CreateByDOI(doi string) (int64, error) {
 		return 0, err
 	}
 	if existing == nil {
-		lg.Debug("work creation failed",
-			"doi", doi, "reason", "insert_skipped_but_not_found")
+		lg.Debug("work creation failed", "doi", doi, "reason", "insert_skipped_but_not_found")
 		return 0, fmt.Errorf("create work: insert skipped but existing row not found")
 	}
-	lg.Debug("work creation successful",
-		"doi", doi, "work_id", existing.ID, "result", "already_existing")
+	lg.Debug("work creation successful", "doi", doi, "work_id", existing.ID, "result", "already_existing")
 	return existing.ID, nil
 }
 
@@ -99,8 +96,7 @@ func (r *WorkRepository) CreateWithoutDOI() (int64, error) {
 		lg.Debug("work inserted ID read failed", "error", err)
 		return 0, err
 	}
-	lg.Debug("work creation successful",
-		"work_id", id, "doi", "(none)", "result", "inserted")
+	lg.Debug("work creation successful", "work_id", id, "doi", "(none)", "result", "inserted")
 	return id, nil
 }
 
@@ -236,27 +232,22 @@ func (r *WorkIdentifierRepository) Insert(workID int64, namespace, identifier st
 		workID, namespace, identifier,
 	)
 	if err != nil {
-		lg.Debug("work identifier insertion failed",
-			"work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
+		lg.Debug("work identifier insertion failed", "work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
 		return 0, fmt.Errorf("insert work identifier: %w", err)
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		lg.Debug("work identifier result read failed",
-			"work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
+		lg.Debug("work identifier result read failed", "work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
 		return 0, err
 	}
 	if rowsAffected > 0 {
 		id, err := res.LastInsertId()
 		if err != nil {
-			lg.Debug("work identifier inserted ID read failed",
-				"work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
+			lg.Debug("work identifier inserted ID read failed", "work_id", workID, "namespace", namespace, "identifier", identifier, "error", err)
 			return 0, err
 		}
-		lg.Debug("work identifier insertion successful",
-			"work_id", workID, "namespace", namespace, "identifier", identifier,
-			"id", id, "result", "inserted")
+		lg.Debug("work identifier insertion successful", "work_id", workID, "namespace", namespace, "identifier", identifier, "id", id, "result", "inserted")
 		return id, nil
 	}
 
@@ -267,17 +258,12 @@ func (r *WorkIdentifierRepository) Insert(workID int64, namespace, identifier st
 		namespace, identifier,
 	).Scan(&existingWorkID)
 	if err != nil {
-		lg.Debug("work identifier existing lookup failed",
-			"namespace", namespace, "identifier", identifier, "error", err)
+		lg.Debug("work identifier existing lookup failed", "namespace", namespace, "identifier", identifier, "error", err)
 		return 0, err
 	}
 	if existingWorkID != workID {
-		lg.Debug("work identifier ownership conflict",
-			"namespace", namespace, "identifier", identifier,
-			"requested_work_id", workID, "existing_work_id", existingWorkID)
-		return 0, fmt.Errorf(
-			"identifier %q in namespace %q already belongs to work %d, cannot reassign to work %d",
-			identifier, namespace, existingWorkID, workID)
+		lg.Debug("work identifier ownership conflict", "namespace", namespace, "identifier", identifier, "requested_work_id", workID, "existing_work_id", existingWorkID)
+		return 0, fmt.Errorf("identifier %q in namespace %q already belongs to work %d, cannot reassign to work %d", identifier, namespace, existingWorkID, workID)
 	}
 
 	// Same work — return the existing identifier ID
@@ -287,13 +273,10 @@ func (r *WorkIdentifierRepository) Insert(workID int64, namespace, identifier st
 		namespace, identifier,
 	).Scan(&existingID)
 	if err != nil {
-		lg.Debug("work identifier existing ID lookup failed",
-			"namespace", namespace, "identifier", identifier, "error", err)
+		lg.Debug("work identifier existing ID lookup failed", "namespace", namespace, "identifier", identifier, "error", err)
 		return 0, err
 	}
-	lg.Debug("work identifier insertion successful",
-		"work_id", workID, "namespace", namespace, "identifier", identifier,
-		"id", existingID, "result", "already_existing")
+	lg.Debug("work identifier insertion successful", "work_id", workID, "namespace", namespace, "identifier", identifier, "id", existingID, "result", "already_existing")
 	return existingID, nil
 }
 
@@ -356,18 +339,14 @@ func (r *WorkIdentifierRepository) GetByNamespaceAndIdentifier(namespace, identi
 		namespace, identifier,
 	).Scan(&wi.ID, &wi.WorkID, &wi.Namespace, &wi.Identifier, &wi.CreatedAt)
 	if err == sql.ErrNoRows {
-		lg.Debug("work identifier lookup successful",
-			"namespace", namespace, "identifier", identifier, "result", "not_found")
+		lg.Debug("work identifier lookup successful", "namespace", namespace, "identifier", identifier, "result", "not_found")
 		return nil, nil
 	}
 	if err != nil {
-		lg.Debug("work identifier lookup failed",
-			"namespace", namespace, "identifier", identifier, "error", err)
+		lg.Debug("work identifier lookup failed", "namespace", namespace, "identifier", identifier, "error", err)
 		return nil, err
 	}
-	lg.Debug("work identifier lookup successful",
-		"namespace", namespace, "identifier", identifier,
-		"work_id", wi.WorkID, "result", "found")
+	lg.Debug("work identifier lookup successful", "namespace", namespace, "identifier", identifier, "work_id", wi.WorkID, "result", "found")
 	return &wi, nil
 }
 
@@ -412,8 +391,8 @@ type WorkRevision struct {
 	Journal            string `json:"journal"`
 	Publisher          string `json:"publisher"`
 	Source             string `json:"source"`
-	Keywords           string `json:"keywords"`      // JSON array
-	KeywordsPlus       string `json:"keywords_plus"` // JSON array
+	Keywords           string `json:"keywords"`      //  JSON array
+	KeywordsPlus       string `json:"keywords_plus"` //  JSON array
 	CitationCount      int    `json:"citation_count"`
 	ReferenceCount     int    `json:"reference_count"`
 	ExtensionData      string `json:"extension_data"` // JSON object
@@ -526,20 +505,17 @@ func (r *WorkRevisionRepository) Create(rev *WorkRevision) (int64, error) {
 		nullStr(rev.ExtensionData),
 	)
 	if err != nil {
-		lg.Debug("work revision creation failed",
-			"work_id", rev.WorkID, "run_id", rev.PipelineRunID, "error", err)
+		lg.Debug("work revision creation failed", "work_id", rev.WorkID, "run_id", rev.PipelineRunID, "error", err)
 		return 0, fmt.Errorf("create work revision: %w", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		lg.Debug("work revision inserted ID read failed",
-			"work_id", rev.WorkID, "run_id", rev.PipelineRunID, "error", err)
+		lg.Debug("work revision inserted ID read failed", "work_id", rev.WorkID, "run_id", rev.PipelineRunID, "error", err)
 		return 0, err
 	}
 	rev.PayloadHash = h
-	lg.Debug("work revision creation successful",
-		"work_id", rev.WorkID, "run_id", rev.PipelineRunID, "revision_id", id,
+	lg.Debug("work revision creation successful", "work_id", rev.WorkID, "run_id", rev.PipelineRunID, "revision_id", id,
 		"payload_hash", h)
 	return id, nil
 }
@@ -670,13 +646,10 @@ func (r *RunWorkStageRepository) SetOutcome(runID, workID int64, stageName, outc
 		runID, workID, stageName, outcome, nullStr(reason),
 	)
 	if err != nil {
-		lg.Debug("run work stage set outcome failed",
-			"run_id", runID, "work_id", workID, "stage", stageName,
-			"outcome", outcome, "error", err)
+		lg.Debug("run work stage set outcome failed", "run_id", runID, "work_id", workID, "stage", stageName, "outcome", outcome, "error", err)
 		return fmt.Errorf("set run work stage outcome: %w", err)
 	}
-	lg.Debug("run work stage set outcome successful",
-		"run_id", runID, "work_id", workID, "stage", stageName, "outcome", outcome)
+	lg.Debug("run work stage set outcome successful", "run_id", runID, "work_id", workID, "stage", stageName, "outcome", outcome)
 	return nil
 }
 
@@ -746,10 +719,14 @@ var allowedStageOutcomes = map[string]map[string]bool{
 }
 
 // validProducerStage reports whether the supplied producer stage is supported.
-func validProducerStage(s string) bool { return validProducerStages[s] }
+func validProducerStage(s string) bool {
+	return validProducerStages[s]
+}
 
 // validStageName reports whether the supplied stage name is supported.
-func validStageName(s string) bool { return validStageNames[s] }
+func validStageName(s string) bool {
+	return validStageNames[s]
+}
 
 // validStageOutcomeForStage returns true if outcome is allowed for the given stage.
 func validStageOutcomeForStage(stageName, outcome string) bool {
@@ -834,12 +811,10 @@ func (r *RunWorkStageRepository) CountByStageAndOutcome(runID int64, stageName, 
 		runID, stageName, outcome,
 	).Scan(&n)
 	if err != nil {
-		lg.Debug("run work stage count query failed",
-			"run_id", runID, "stage", stageName, "outcome", outcome, "error", err)
+		lg.Debug("run work stage count query failed", "run_id", runID, "stage", stageName, "outcome", outcome, "error", err)
 		return 0, err
 	}
-	lg.Debug("run work stage count query successful",
-		"run_id", runID, "stage", stageName, "outcome", outcome, "count", n)
+	lg.Debug("run work stage count query successful", "run_id", runID, "stage", stageName, "outcome", outcome, "count", n)
 	return n, nil
 }
 

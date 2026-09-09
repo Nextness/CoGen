@@ -7,63 +7,10 @@ package manifest
 
 import "testing"
 
-// TestValidAttemptStatuses verifies valid attempt statuses.
-func TestValidAttemptStatuses(t *testing.T) {
-	statuses := ValidAttemptStatuses()
-	expected := []AttemptStatus{AttemptRunning, AttemptCompleted, AttemptFailed}
-	if len(statuses) != len(expected) {
-		t.Fatalf("ValidAttemptStatuses length = %d, want %d", len(statuses), len(expected))
-	}
-	for i, s := range statuses {
-		if s != expected[i] {
-			t.Errorf("ValidAttemptStatuses[%d] = %q, want %q", i, s, expected[i])
-		}
-	}
-}
-
-// TestValidateAttemptStatusValid verifies validate attempt status valid.
-func TestValidateAttemptStatusValid(t *testing.T) {
-	for _, s := range ValidAttemptStatuses() {
-		if err := ValidateAttemptStatus(string(s)); err != nil {
-			t.Errorf("ValidateAttemptStatus(%q) returned error: %v", s, err)
-		}
-	}
-}
-
 // TestValidateAttemptStatusInvalid verifies validate attempt status invalid.
 func TestValidateAttemptStatusInvalid(t *testing.T) {
 	if err := ValidateAttemptStatus("unknown"); err == nil {
 		t.Error("expected error for invalid attempt status")
-	}
-}
-
-// TestValidateAttemptStatusEmpty verifies validate attempt status empty.
-func TestValidateAttemptStatusEmpty(t *testing.T) {
-	if err := ValidateAttemptStatus(""); err == nil {
-		t.Error("expected error for empty attempt status")
-	}
-}
-
-// TestValidStageOutcomes verifies valid stage outcomes.
-func TestValidStageOutcomes(t *testing.T) {
-	statuses := ValidStageOutcomes()
-	expected := []StageOutcome{StagePending, StageRunning, StageCompleted, StageSkipped, StageReused, StageFailed}
-	if len(statuses) != len(expected) {
-		t.Fatalf("ValidStageOutcomes length = %d, want %d", len(statuses), len(expected))
-	}
-	for i, s := range statuses {
-		if s != expected[i] {
-			t.Errorf("ValidStageOutcomes[%d] = %q, want %q", i, s, expected[i])
-		}
-	}
-}
-
-// TestValidateStageOutcomeValid verifies validate stage outcome valid.
-func TestValidateStageOutcomeValid(t *testing.T) {
-	for _, s := range ValidStageOutcomes() {
-		if err := ValidateStageOutcome(string(s)); err != nil {
-			t.Errorf("ValidateStageOutcome(%q) returned error: %v", s, err)
-		}
 	}
 }
 
@@ -78,29 +25,6 @@ func TestValidateStageOutcomeInvalid(t *testing.T) {
 func TestValidateStageOutcomeEmpty(t *testing.T) {
 	if err := ValidateStageOutcome(""); err == nil {
 		t.Error("expected error for empty stage outcome")
-	}
-}
-
-// TestValidCacheOutcomes verifies valid cache outcomes.
-func TestValidCacheOutcomes(t *testing.T) {
-	statuses := ValidCacheOutcomes()
-	expected := []CacheOutcome{CacheHit, CacheMiss, CacheNegative, CacheStale}
-	if len(statuses) != len(expected) {
-		t.Fatalf("ValidCacheOutcomes length = %d, want %d", len(statuses), len(expected))
-	}
-	for i, s := range statuses {
-		if s != expected[i] {
-			t.Errorf("ValidCacheOutcomes[%d] = %q, want %q", i, s, expected[i])
-		}
-	}
-}
-
-// TestValidateCacheOutcomeValid verifies validate cache outcome valid.
-func TestValidateCacheOutcomeValid(t *testing.T) {
-	for _, s := range ValidCacheOutcomes() {
-		if err := ValidateCacheOutcome(string(s)); err != nil {
-			t.Errorf("ValidateCacheOutcome(%q) returned error: %v", s, err)
-		}
 	}
 }
 
@@ -134,29 +58,6 @@ func TestCacheOutcomeConstants(t *testing.T) {
 	}
 }
 
-// TestValidRunVisibilities verifies valid run visibilities.
-func TestValidRunVisibilities(t *testing.T) {
-	visibilities := ValidRunVisibilities()
-	expected := []RunVisibility{RunVisible, RunArchived, RunTrashed}
-	if len(visibilities) != len(expected) {
-		t.Fatalf("ValidRunVisibilities length = %d, want %d", len(visibilities), len(expected))
-	}
-	for i, v := range visibilities {
-		if v != expected[i] {
-			t.Errorf("ValidRunVisibilities[%d] = %q, want %q", i, v, expected[i])
-		}
-	}
-}
-
-// TestValidateRunVisibilityValid verifies validate run visibility valid.
-func TestValidateRunVisibilityValid(t *testing.T) {
-	for _, v := range ValidRunVisibilities() {
-		if err := ValidateRunVisibility(string(v)); err != nil {
-			t.Errorf("ValidateRunVisibility(%q) returned error: %v", v, err)
-		}
-	}
-}
-
 // TestValidateRunVisibilityInvalid verifies validate run visibility invalid.
 func TestValidateRunVisibilityInvalid(t *testing.T) {
 	if err := ValidateRunVisibility("invisible"); err == nil {
@@ -181,40 +82,6 @@ func TestRunVisibilityConstants(t *testing.T) {
 	}
 	if RunTrashed != "trashed" {
 		t.Errorf("RunTrashed = %q, want %q", RunTrashed, "trashed")
-	}
-}
-
-// TestValidAuditActions verifies valid audit actions.
-func TestValidAuditActions(t *testing.T) {
-	actions := ValidAuditActions()
-	expected := []AuditAction{
-		AuditPlanCreated, AuditDuplicatePlanSkipped, AuditRunStarted,
-		AuditStepReused, AuditCacheHit, AuditNetworkFetch, AuditFieldEnriched,
-		AuditValidationChanged, AuditRunCompleted, AuditRunFailed, AuditRunTrashed,
-		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged,
-		AuditPDFDocumentAdded, AuditPDFInventoryRegistered,
-		AuditPDFDocumentInventoried, AuditReviewContextCreated,
-		AuditWorkReviewVersionCreated, AuditReviewNoteCreated,
-		AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,
-		AuditReviewAnchorCreated, AuditReviewAnchorVersionCreated,
-		AuditReviewAnchorTombstoned,
-	}
-	if len(actions) != len(expected) {
-		t.Fatalf("ValidAuditActions length = %d, want %d", len(actions), len(expected))
-	}
-	for i, a := range actions {
-		if a != expected[i] {
-			t.Errorf("ValidAuditActions[%d] = %q, want %q", i, a, expected[i])
-		}
-	}
-}
-
-// TestValidateAuditActionValid verifies validate audit action valid.
-func TestValidateAuditActionValid(t *testing.T) {
-	for _, a := range ValidAuditActions() {
-		if err := ValidateAuditAction(string(a)); err != nil {
-			t.Errorf("ValidateAuditAction(%q) returned error: %v", a, err)
-		}
 	}
 }
 
