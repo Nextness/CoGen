@@ -77,7 +77,11 @@ func (s *Server) hierarchySummary(ctx context.Context) (map[string]any, error) {
 	}
 	return map[string]any{
 		"totals": map[string]any{
-			"searches": searches, "revisions": revisions, "plans": plans, "runs": runs, "completed_runs": completed,
+			"searches":       searches,
+			"revisions":      revisions,
+			"plans":          plans,
+			"runs":           runs,
+			"completed_runs": completed,
 		},
 		"latest_run": latest,
 	}, nil
@@ -86,12 +90,12 @@ func (s *Server) hierarchySummary(ctx context.Context) (map[string]any, error) {
 // latestHierarchyRun returns the newest run with complete ancestry when one exists.
 func (s *Server) latestHierarchyRun(ctx context.Context) (any, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT pr.id, pr.attempt_number, pr.started_at, pr.finished_at,
-        pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
+		pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
 		FROM pipeline_runs pr
 		LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
 		LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
 		LEFT JOIN searches s ON s.id=sr.search_id
-        ORDER BY pr.id DESC LIMIT 1`)
+		ORDER BY pr.id DESC LIMIT 1`)
 	item, err := scanHierarchyRun(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -115,8 +119,8 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 	if query != "" {
 		pattern := "%" + strings.ToLower(query) + "%"
 		clauses = append(clauses, `(LOWER(s.search_id) LIKE ? OR EXISTS (
-            SELECT 1 FROM search_revisions matched_sr
-            WHERE matched_sr.search_id=s.id AND LOWER(matched_sr.revision_label) LIKE ?))`)
+			SELECT 1 FROM search_revisions matched_sr
+			WHERE matched_sr.search_id=s.id AND LOWER(matched_sr.revision_label) LIKE ?))`)
 		args = append(args, pattern, pattern)
 	}
 	if cursor.ID > 0 {
@@ -124,22 +128,22 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 		args = append(args, cursor.ID)
 	}
 	sqlQuery := `SELECT s.id, s.search_id, s.created_at,
-        COUNT(DISTINCT sr.id) AS revision_count,
-        COUNT(DISTINCT ep.id) AS plan_count,
-        COUNT(DISTINCT pr.id) AS run_count,
-        MAX(pr.id) AS latest_run_id,
-        (SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
-         JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-         JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
-         WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_plan_id,
-        (SELECT latest_ep.search_revision_id FROM pipeline_runs latest_pr
-         JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-         JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
-         WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_revision_id
-        FROM searches s
-        LEFT JOIN search_revisions sr ON sr.search_id=s.id
-        LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
-        LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id`
+		COUNT(DISTINCT sr.id) AS revision_count,
+		COUNT(DISTINCT ep.id) AS plan_count,
+		COUNT(DISTINCT pr.id) AS run_count,
+		MAX(pr.id) AS latest_run_id,
+		(SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
+			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+			JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
+			WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_plan_id,
+		(SELECT latest_ep.search_revision_id FROM pipeline_runs latest_pr
+			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+			JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
+			WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_revision_id
+		FROM searches s
+		LEFT JOIN search_revisions sr ON sr.search_id=s.id
+		LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
+		LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id`
 	if len(clauses) > 0 {
 		sqlQuery += " WHERE " + strings.Join(clauses, " AND ")
 	}
@@ -159,9 +163,15 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 			return nil, err
 		}
 		items = append(items, map[string]any{
-			"id": id, "search_id": searchID, "created_at": createdAt,
-			"revision_count": revisions, "plan_count": plans, "run_count": runs,
-			"latest_run_id": nullableInt64(latestRunID), "latest_plan_id": nullableInt64(latestPlanID), "latest_revision_id": nullableInt64(latestRevisionID),
+			"id":                 id,
+			"search_id":          searchID,
+			"created_at":         createdAt,
+			"revision_count":     revisions,
+			"plan_count":         plans,
+			"run_count":          runs,
+			"latest_run_id":      nullableInt64(latestRunID),
+			"latest_plan_id":     nullableInt64(latestPlanID),
+			"latest_revision_id": nullableInt64(latestRevisionID),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -180,7 +190,11 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 			return nil, err
 		}
 		if err == nil {
-			page["selected_item"] = map[string]any{"id": id, "search_id": searchID, "created_at": createdAt}
+			page["selected_item"] = map[string]any{
+				"id":         id,
+				"search_id":  searchID,
+				"created_at": createdAt,
+			}
 		}
 	}
 	return page, nil
@@ -199,13 +213,13 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 		return nil, err
 	}
 	query := `SELECT sr.id, sr.revision_label, sr.created_at,
-        COUNT(DISTINCT ep.id), COUNT(DISTINCT pr.id), MAX(pr.id),
-        (SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
-         JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-         WHERE latest_ep.search_revision_id=sr.id ORDER BY latest_pr.id DESC LIMIT 1)
-        FROM search_revisions sr
-        LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
-        LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id
+		COUNT(DISTINCT ep.id), COUNT(DISTINCT pr.id), MAX(pr.id),
+		(SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
+			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+			WHERE latest_ep.search_revision_id=sr.id ORDER BY latest_pr.id DESC LIMIT 1)
+		FROM search_revisions sr
+		LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
+		LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id
 		WHERE sr.search_id=?`
 	args := []any{searchID}
 	if searchQuery != "" {
@@ -233,8 +247,13 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 			return nil, err
 		}
 		items = append(items, map[string]any{
-			"id": id, "label": label, "created_at": createdAt, "plan_count": plans, "run_count": runs,
-			"latest_run_id": nullableInt64(latestRunID), "latest_plan_id": nullableInt64(latestPlanID),
+			"id":             id,
+			"label":          label,
+			"created_at":     createdAt,
+			"plan_count":     plans,
+			"run_count":      runs,
+			"latest_run_id":  nullableInt64(latestRunID),
+			"latest_plan_id": nullableInt64(latestPlanID),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -253,7 +272,11 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 			return nil, err
 		}
 		if err == nil {
-			page["selected_item"] = map[string]any{"id": id, "label": label, "created_at": createdAt}
+			page["selected_item"] = map[string]any{
+				"id":         id,
+				"label":      label,
+				"created_at": createdAt,
+			}
 		}
 	}
 	return page, nil
@@ -271,8 +294,7 @@ func (s *Server) hierarchyPlans(ctx context.Context, r *http.Request) (map[strin
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT id, search_revision_id, execution_fingerprint, enrichment_enabled, created_at
-        FROM execution_plans WHERE search_revision_id=?`
+	query := `SELECT id, search_revision_id, execution_fingerprint, enrichment_enabled, created_at FROM execution_plans WHERE search_revision_id=?`
 	args := []any{revisionID}
 	if searchQuery != "" {
 		query += " AND (LOWER(execution_fingerprint) LIKE ? OR CAST(id AS TEXT) LIKE ?)"
@@ -299,8 +321,11 @@ func (s *Server) hierarchyPlans(ctx context.Context, r *http.Request) (map[strin
 			return nil, err
 		}
 		items = append(items, map[string]any{
-			"id": id, "search_revision_id": parentID, "execution_fingerprint": fingerprint,
-			"enrichment_enabled": enrichmentEnabled, "created_at": createdAt,
+			"id":                    id,
+			"search_revision_id":    parentID,
+			"execution_fingerprint": fingerprint,
+			"enrichment_enabled":    enrichmentEnabled,
+			"created_at":            createdAt,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -319,7 +344,10 @@ func (s *Server) hierarchyPlans(ctx context.Context, r *http.Request) (map[strin
 			return nil, err
 		}
 		if err == nil {
-			page["selected_item"] = map[string]any{"id": id, "execution_fingerprint": fingerprint}
+			page["selected_item"] = map[string]any{
+				"id":                    id,
+				"execution_fingerprint": fingerprint,
+			}
 		}
 	}
 	return page, nil
@@ -337,8 +365,7 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT id, execution_plan_id, attempt_number, started_at, finished_at, status, visibility_state
-        FROM pipeline_runs WHERE execution_plan_id=? AND visibility_state!='trashed'`
+	query := `SELECT id, execution_plan_id, attempt_number, started_at, finished_at, status, visibility_state FROM pipeline_runs WHERE execution_plan_id=? AND visibility_state!='trashed'`
 	args := []any{planID}
 	if searchQuery != "" {
 		query += " AND (CAST(id AS TEXT) LIKE ? OR LOWER(status) LIKE ? OR LOWER(started_at) LIKE ?)"
@@ -366,8 +393,13 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 			return nil, err
 		}
 		items = append(items, map[string]any{
-			"id": id, "execution_plan_id": parentID, "attempt_number": nullableInt64(attempt), "started_at": startedAt,
-			"finished_at": nullableString(finishedAt), "status": status, "visibility_state": visibility,
+			"id":                id,
+			"execution_plan_id": parentID,
+			"attempt_number":    nullableInt64(attempt),
+			"started_at":        startedAt,
+			"finished_at":       nullableString(finishedAt),
+			"status":            status,
+			"visibility_state":  visibility,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -382,15 +414,17 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 		var id int64
 		var attempt sql.NullInt64
 		var startedAt, status, visibility string
-		err := s.db.QueryRowContext(ctx, `SELECT id, attempt_number, started_at, status, visibility_state
-            FROM pipeline_runs WHERE id=? AND execution_plan_id=? AND visibility_state!='trashed'`, selectedID, planID).Scan(&id, &attempt, &startedAt, &status, &visibility)
+		err := s.db.QueryRowContext(ctx, `SELECT id, attempt_number, started_at, status, visibility_state FROM pipeline_runs WHERE id=? AND execution_plan_id=? AND visibility_state!='trashed'`, selectedID, planID).Scan(&id, &attempt, &startedAt, &status, &visibility)
 		if err != nil && err != sql.ErrNoRows {
 			return nil, err
 		}
 		if err == nil {
 			page["selected_item"] = map[string]any{
-				"id": id, "attempt_number": nullableInt64(attempt), "started_at": startedAt,
-				"status": status, "visibility_state": visibility,
+				"id":               id,
+				"attempt_number":   nullableInt64(attempt),
+				"started_at":       startedAt,
+				"status":           status,
+				"visibility_state": visibility,
 			}
 		}
 	}
@@ -455,7 +489,7 @@ func (s *Server) hierarchyRuns(ctx context.Context, r *http.Request) (map[string
 		args = append(args, cursor.ID)
 	}
 	sqlQuery := `SELECT pr.id, pr.attempt_number, pr.started_at, pr.finished_at,
-        pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
+		pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
 		FROM pipeline_runs pr
 		LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
 		LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
@@ -502,9 +536,17 @@ func scanHierarchyRun(scanner hierarchyScanner) (map[string]any, error) {
 	searchName = nullableSearchName.String
 	revisionLabel = nullableRevisionLabel.String
 	return map[string]any{
-		"id": id, "attempt_number": nullableInt64(attempt), "started_at": startedAt, "finished_at": nullableString(finishedAt),
-		"status": status, "visibility_state": visibility,
-		"search_id": nullableInt64(searchID), "search_name": searchName, "search_revision_id": nullableInt64(revisionID), "revision_label": revisionLabel, "execution_plan_id": nullableInt64(planID),
+		"id":                 id,
+		"attempt_number":     nullableInt64(attempt),
+		"started_at":         startedAt,
+		"finished_at":        nullableString(finishedAt),
+		"status":             status,
+		"visibility_state":   visibility,
+		"search_id":          nullableInt64(searchID),
+		"search_name":        searchName,
+		"search_revision_id": nullableInt64(revisionID),
+		"revision_label":     revisionLabel,
+		"execution_plan_id":  nullableInt64(planID),
 	}, nil
 }
 
@@ -517,9 +559,17 @@ func hierarchyPage(kind, scope string, items []map[string]any) map[string]any {
 	nextCursor := ""
 	if hasMore {
 		id, _ := items[len(items)-1]["id"].(int64)
-		nextCursor = encodeHierarchyCursor(hierarchyCursor{Kind: kind, Scope: scope, ID: id})
+		nextCursor = encodeHierarchyCursor(hierarchyCursor{
+			Kind:  kind,
+			Scope: scope,
+			ID:    id,
+		})
 	}
-	return map[string]any{"items": items, "has_more": hasMore, "next_cursor": nextCursor, "limit": hierarchyPageLimit}
+	return map[string]any{"items": items,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+		"limit":       hierarchyPageLimit,
+	}
 }
 
 // hierarchyDate validates one inclusive-from or exclusive-before calendar boundary.

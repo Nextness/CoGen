@@ -41,7 +41,12 @@ func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writable := run.Status == "completed" && run.Visibility != "trashed"
-	response := map[string]any{"run_id": runID, "context_initialized": contextRecord != nil, "context": contextRecord, "run_writable": writable}
+	response := map[string]any{
+		"run_id":              runID,
+		"context_initialized": contextRecord != nil,
+		"context":             contextRecord,
+		"run_writable":        writable,
+	}
 	if contextRecord == nil && writable {
 		response["proposed_parent"], err = s.writeDB.Reviews.ProposeParent(ctx, runID)
 	}
@@ -94,7 +99,13 @@ func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request)
 		value := encodeReviewCursor(reviewCursor{Kind: "parent_candidates", StartedAt: items[len(items)-1].StartedAt, ID: items[len(items)-1].PipelineRunID})
 		nextCursor = &value
 	}
-	s.respond(w, r, map[string]any{"items": items, "rows": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	s.respond(w, r, map[string]any{
+		"items":       items,
+		"rows":        items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // createReviewContext explicitly initializes a completed run's review context.
@@ -130,7 +141,10 @@ func (s *Server) createReviewContext(w http.ResponseWriter, r *http.Request) {
 	if wasCreated {
 		status = http.StatusCreated
 	}
-	writeJSON(w, status, map[string]any{"context_initialized": true, "context": created})
+	writeJSON(w, status, map[string]any{
+		"context_initialized": true,
+		"context":             created,
+	})
 }
 
 // articleReview returns current review state or an uninitialized default without manufacturing a head.
@@ -163,10 +177,23 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	base := map[string]any{
-		"run_id": runID, "work_id": workID, "work_revision_id": workRevisionID,
-		"context_initialized": contextRecord != nil, "editable": false, "pdf_status": pdfStatus,
-		"editability": map[string]any{"decision": false, "notes": false, "anchors": false},
-		"state":       map[string]any{"status": "not_evaluated", "sub_statuses": []string{}, "reason": nil, "version": nil},
+		"run_id":              runID,
+		"work_id":             workID,
+		"work_revision_id":    workRevisionID,
+		"context_initialized": contextRecord != nil,
+		"editable":            false,
+		"pdf_status":          pdfStatus,
+		"editability": map[string]any{
+			"decision": false,
+			"notes":    false,
+			"anchors":  false,
+		},
+		"state": map[string]any{
+			"status":       "not_evaluated",
+			"sub_statuses": []string{},
+			"reason":       nil,
+			"version":      nil,
+		},
 	}
 	if contextRecord == nil {
 		s.respond(w, r, base, nil)
@@ -181,7 +208,11 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 	base["review"] = state
 	writable := run.Status == "completed" && run.Visibility != "trashed"
 	base["editable"] = writable
-	base["editability"] = map[string]any{"decision": writable, "notes": writable, "anchors": writable && pdfStatus["status"] == "available"}
+	base["editability"] = map[string]any{
+		"decision": writable,
+		"notes":    writable,
+		"anchors":  writable && pdfStatus["status"] == "available",
+	}
 	counts, err := s.reviewSummaryCounts(ctx, contextRecord.ID, workID)
 	if err == nil {
 		base["summary_counts"] = counts
@@ -219,7 +250,10 @@ func (s *Server) updateArticleReview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"review": state, "changed": changed})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"review":  state,
+		"changed": changed,
+	})
 }
 
 // articleReviewVersions returns bounded immutable ancestors from the selected context head.
@@ -251,8 +285,16 @@ func (s *Server) articleReviewVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "review_versions", func(item database.WorkReviewVersion) int64 { return item.ID })
-	s.respond(w, r, map[string]any{"items": items, "versions": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "review_versions", func(item database.WorkReviewVersion) int64 {
+		return item.ID
+	})
+	s.respond(w, r, map[string]any{
+		"items":       items,
+		"versions":    items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // articleReviewVersion returns one full immutable decision version from the selected ancestry.
@@ -315,8 +357,16 @@ func (s *Server) articleNotes(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(notes, limit, "notes", func(item database.ReviewNote) int64 { return item.ID })
-	s.respond(w, r, map[string]any{"items": items, "notes": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	items, hasMore, nextCursor := reviewIDItems(notes, limit, "notes", func(item database.ReviewNote) int64 {
+		return item.ID
+	})
+	s.respond(w, r, map[string]any{
+		"items":       items,
+		"notes":       items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // runNotes returns a searchable run-scoped index of active and removed note heads.
@@ -352,8 +402,16 @@ func (s *Server) runNotes(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(notes, limit, "run_notes", func(item database.ReviewNote) int64 { return item.ID })
-	s.respond(w, r, map[string]any{"items": items, "notes": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	items, hasMore, nextCursor := reviewIDItems(notes, limit, "run_notes", func(item database.ReviewNote) int64 {
+		return item.ID
+	})
+	s.respond(w, r, map[string]any{
+		"items":       items,
+		"notes":       items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // createArticleNote creates a logical note and first immutable version.
@@ -402,7 +460,10 @@ func (s *Server) note(w http.ResponseWriter, r *http.Request) {
 	if err == nil && note == nil {
 		err = notFound("review note not found in selected context")
 	}
-	s.respond(w, r, map[string]any{"run_id": runID, "note": note}, mapReviewError(err))
+	s.respond(w, r, map[string]any{
+		"run_id": runID,
+		"note":   note,
+	}, mapReviewError(err))
 }
 
 // noteVersions returns bounded immutable note ancestors.
@@ -428,8 +489,17 @@ func (s *Server) noteVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "note_versions", func(item database.ReviewNoteVersion) int64 { return item.ID })
-	s.respond(w, r, map[string]any{"run_id": runID, "items": items, "versions": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "note_versions", func(item database.ReviewNoteVersion) int64 {
+		return item.ID
+	})
+	s.respond(w, r, map[string]any{
+		"run_id":      runID,
+		"items":       items,
+		"versions":    items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // noteVersion returns one full immutable note body and resolved link set from the selected ancestry.
@@ -450,7 +520,10 @@ func (s *Server) noteVersion(w http.ResponseWriter, r *http.Request) {
 	if err == nil && version == nil {
 		err = notFound("note version not found in selected context")
 	}
-	s.respond(w, r, map[string]any{"run_id": runID, "version": version}, mapReviewError(err))
+	s.respond(w, r, map[string]any{
+		"run_id":  runID,
+		"version": version,
+	}, mapReviewError(err))
 }
 
 // createNoteVersion creates an active edit or deletion tombstone.
@@ -489,7 +562,10 @@ func (s *Server) createNoteVersion(w http.ResponseWriter, r *http.Request) {
 	if !changed {
 		status = http.StatusOK
 	}
-	writeJSON(w, status, map[string]any{"note": note, "changed": changed})
+	writeJSON(w, status, map[string]any{
+		"note":    note,
+		"changed": changed,
+	})
 }
 
 // articleAnchors returns bounded current active PDF anchors.
@@ -532,10 +608,19 @@ func (s *Server) articleAnchors(w http.ResponseWriter, r *http.Request) {
 	}
 	var nextCursor *string
 	if hasMore {
-		value := encodeReviewCursor(reviewCursor{Kind: "anchors", Text: anchors[len(anchors)-1].ID})
+		value := encodeReviewCursor(reviewCursor{
+			Kind: "anchors",
+			Text: anchors[len(anchors)-1].ID,
+		})
 		nextCursor = &value
 	}
-	s.respond(w, r, map[string]any{"items": anchors, "anchors": anchors, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	s.respond(w, r, map[string]any{
+		"items":       anchors,
+		"anchors":     anchors,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // createArticleAnchor creates a logical anchor and its first immutable geometry version.
@@ -599,7 +684,9 @@ func (s *Server) anchorVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "anchor_versions", func(item database.ReviewAnchorVersion) int64 { return item.ID })
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "anchor_versions", func(item database.ReviewAnchorVersion) int64 {
+		return item.ID
+	})
 	anchor, err := s.writeDB.Reviews.GetAnchor(ctx, contextRecord.ID, anchorID)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
@@ -609,7 +696,15 @@ func (s *Server) anchorVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, notFound("review anchor not found in selected context"))
 		return
 	}
-	s.respond(w, r, map[string]any{"run_id": runID, "anchor": anchor, "items": items, "versions": items, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	s.respond(w, r, map[string]any{
+		"run_id":      runID,
+		"anchor":      anchor,
+		"items":       items,
+		"versions":    items,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // anchorVersion returns one full immutable anchor version from the selected ancestry.
@@ -630,7 +725,10 @@ func (s *Server) anchorVersion(w http.ResponseWriter, r *http.Request) {
 	if err == nil && version == nil {
 		err = notFound("anchor version not found in selected context")
 	}
-	s.respond(w, r, map[string]any{"run_id": runID, "version": version}, mapReviewError(err))
+	s.respond(w, r, map[string]any{
+		"run_id":  runID,
+		"version": version,
+	}, mapReviewError(err))
 }
 
 // createAnchorVersion creates a replacement anchor version or tombstone using the currently selected PDF hash.
@@ -688,7 +786,11 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if restoredHash != contentHash {
-			s.respond(w, r, nil, &apiProblem{Status: http.StatusConflict, Code: "anchor_pdf_changed", Message: "the selected anchor version belongs to different PDF content"})
+			s.respond(w, r, nil, &apiProblem{
+				Status:  http.StatusConflict,
+				Code:    "anchor_pdf_changed",
+				Message: "the selected anchor version belongs to different PDF content",
+			})
 			return
 		}
 		if err := json.Unmarshal([]byte(rectanglesJSON), &request.Rectangles); err != nil {
@@ -706,7 +808,10 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 	if !changed {
 		status = http.StatusOK
 	}
-	writeJSON(w, status, map[string]any{"anchor": anchor, "changed": changed})
+	writeJSON(w, status, map[string]any{
+		"anchor":  anchor,
+		"changed": changed,
+	})
 }
 
 // reviewBacklinks returns bounded current-version backlinks.
@@ -722,6 +827,8 @@ func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetType, targetID := r.URL.Query().Get("target_type"), r.URL.Query().Get("target_id")
+	// What the actual fuck is this? This looks awful.
+	// TODO: actually have a good implementation because this is atroxious
 	if !map[string]bool{"note": true, "article": true, "pdf_page": true, "anchor": true, "ext": true}[targetType] || targetID == "" {
 		s.respond(w, r, nil, badRequest("target_type and target_id are required"))
 		return
@@ -760,8 +867,16 @@ func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	pageItems, hasMore, nextCursor := reviewIDItems(items, limit, "backlinks", func(item database.ReviewNote) int64 { return item.ID })
-	s.respond(w, r, map[string]any{"items": pageItems, "backlinks": pageItems, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil)
+	pageItems, hasMore, nextCursor := reviewIDItems(items, limit, "backlinks", func(item database.ReviewNote) int64 {
+		return item.ID
+	})
+	s.respond(w, r, map[string]any{
+		"items":       pageItems,
+		"backlinks":   pageItems,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil)
 }
 
 // reviewRunRecord contains the lifecycle fields that gate local review.
@@ -784,7 +899,11 @@ func (s *Server) requireReviewableRun(ctx context.Context, runID int64) (reviewR
 		return run, err
 	}
 	if run.Status != "completed" || run.Visibility == "trashed" {
-		return run, &apiProblem{Status: http.StatusConflict, Code: "run_not_reviewable", Message: "only completed non-trashed runs can be reviewed"}
+		return run, &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "run_not_reviewable",
+			Message: "only completed non-trashed runs can be reviewed",
+		}
 	}
 	return run, nil
 }
@@ -799,7 +918,11 @@ func (s *Server) requireContextForRead(ctx context.Context, runID int64) (*datab
 		return nil, err
 	}
 	if contextRecord == nil {
-		return nil, &apiProblem{Status: http.StatusConflict, Code: "review_context_required", Message: "start review for this run before reading review history"}
+		return nil, &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "review_context_required",
+			Message: "start review for this run before reading review history",
+		}
 	}
 	return contextRecord, nil
 }
@@ -814,7 +937,11 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*d
 		return nil, err
 	}
 	if contextRecord == nil {
-		return nil, &apiProblem{Status: http.StatusConflict, Code: "review_context_required", Message: "start review for this run before saving"}
+		return nil, &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "review_context_required",
+			Message: "start review for this run before saving",
+		}
 	}
 	return contextRecord, nil
 }
@@ -841,7 +968,11 @@ func (s *Server) requireAvailableArticlePDF(ctx context.Context, runID, workRevi
 		return 0, "", err
 	}
 	if status["status"] != "available" {
-		return 0, "", &apiProblem{Status: http.StatusConflict, Code: "pdf_unavailable", Message: "an available PDF is required for anchor changes"}
+		return 0, "", &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "pdf_unavailable",
+			Message: "an available PDF is required for anchor changes",
+		}
 	}
 	hash, _ := status["content_hash"].(string)
 	return workID, hash, nil
@@ -862,7 +993,11 @@ func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int6
 		return 0, "", err
 	}
 	if status["status"] != "available" {
-		return 0, "", &apiProblem{Status: http.StatusConflict, Code: "pdf_unavailable", Message: "an available PDF is required for anchor changes"}
+		return 0, "", &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "pdf_unavailable",
+			Message: "an available PDF is required for anchor changes",
+		}
 	}
 	hash, _ := status["content_hash"].(string)
 	return workID, hash, nil
@@ -1009,10 +1144,18 @@ func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any)
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
-		return &apiProblem{Status: http.StatusUnsupportedMediaType, Code: "unsupported_media_type", Message: "Content-Type must be application/json"}
+		return &apiProblem{
+			Status:  http.StatusUnsupportedMediaType,
+			Code:    "unsupported_media_type",
+			Message: "Content-Type must be application/json",
+		}
 	}
 	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-		return &apiProblem{Status: http.StatusForbidden, Code: "origin_rejected", Message: "request Origin must match the local viewer origin"}
+		return &apiProblem{
+			Status:  http.StatusForbidden,
+			Code:    "origin_rejected",
+			Message: "request Origin must match the local viewer origin",
+		}
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, reviewMutationBodyLimit)
 	decoder := json.NewDecoder(r.Body)
@@ -1020,7 +1163,12 @@ func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any)
 	if err := decoder.Decode(destination); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			return &apiProblem{Status: http.StatusRequestEntityTooLarge, Code: "request_too_large", Message: "request body exceeds 524288 bytes"}
+			return &apiProblem{
+				Status: http.StatusRequestEntityTooLarge,
+				Code:   "request_too_large",
+				// TODO: Use the actual variable storing this value instead of hardcoding it
+				Message: "request body exceeds 524288 bytes",
+			}
 		}
 		return badRequest("request body must be one valid JSON object with known fields")
 	}
@@ -1038,33 +1186,77 @@ func mapReviewError(err error) error {
 	}
 	var conflict *database.ReviewConflictError
 	if errors.As(err, &conflict) {
-		return &apiProblem{Status: http.StatusConflict, Code: "version_conflict", Message: conflict.Error(), Details: map[string]any{"expected_version_id": conflict.Expected, "current_version_id": conflict.Current}}
+		return &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "version_conflict",
+			Message: conflict.Error(),
+			Details: map[string]any{
+				"expected_version_id": conflict.Expected,
+				"current_version_id":  conflict.Current,
+			},
+		}
 	}
 	var parentConflict *database.ReviewContextParentConflictError
 	if errors.As(err, &parentConflict) {
-		return &apiProblem{Status: http.StatusConflict, Code: "context_parent_conflict", Message: parentConflict.Error(), Details: map[string]any{"requested_parent_context_id": parentConflict.Requested, "existing_parent_context_id": parentConflict.Existing}}
+		return &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "context_parent_conflict",
+			Message: parentConflict.Error(),
+			Details: map[string]any{
+				"requested_parent_context_id": parentConflict.Requested,
+				"existing_parent_context_id":  parentConflict.Existing,
+			},
+		}
 	}
 	var labelConflict *database.ReviewAnchorLabelConflictError
 	if errors.As(err, &labelConflict) {
-		return &apiProblem{Status: http.StatusConflict, Code: "anchor_label_conflict", Message: labelConflict.Error(), Details: map[string]any{"label": labelConflict.Label}}
+		return &apiProblem{
+			Status:  http.StatusConflict,
+			Code:    "anchor_label_conflict",
+			Message: labelConflict.Error(),
+			Details: map[string]any{
+				"label": labelConflict.Label,
+			},
+		}
 	}
 	var syntax *database.NoteSyntaxError
 	if errors.As(err, &syntax) {
-		return &apiProblem{Status: http.StatusBadRequest, Code: "note_syntax_error", Message: syntax.Error(), Details: map[string]any{"syntax_errors": syntax.Errors}}
+		return &apiProblem{
+			Status:  http.StatusBadRequest,
+			Code:    "note_syntax_error",
+			Message: syntax.Error(),
+			Details: map[string]any{
+				"syntax_errors": syntax.Errors,
+			},
+		}
 	}
 	var repositoryError *database.ReviewError
 	if errors.As(err, &repositoryError) {
 		switch repositoryError.Kind {
 		case "validation":
-			return &apiProblem{Status: http.StatusBadRequest, Code: "invalid_review_request", Message: repositoryError.Message}
+			return &apiProblem{
+				Status:  http.StatusBadRequest,
+				Code:    "invalid_review_request",
+				Message: repositoryError.Message,
+			}
 		case "not_found":
-			return &apiProblem{Status: http.StatusNotFound, Code: "review_record_not_found", Message: repositoryError.Message}
+			return &apiProblem{
+				Status:  http.StatusNotFound,
+				Code:    "review_record_not_found",
+				Message: repositoryError.Message,
+			}
 		case "lifecycle":
-			return &apiProblem{Status: http.StatusConflict, Code: "review_read_only", Message: repositoryError.Message}
+			return &apiProblem{
+				Status:  http.StatusConflict,
+				Code:    "review_read_only",
+				Message: repositoryError.Message,
+			}
 		}
 	}
 	return err
 }
 
 // setMutableResponseHeaders prevents caching context-sensitive review responses.
-func setMutableResponseHeaders(w http.ResponseWriter) { w.Header().Set("Cache-Control", "no-store") }
+func setMutableResponseHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+}

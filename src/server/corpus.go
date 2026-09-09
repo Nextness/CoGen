@@ -26,9 +26,9 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	"articles": {
 		columns: []string{"id", "work_id", "title", "year", "journal", "publisher", "source", "doi", "validation_status", "citation_count", "reference_count", "producer_stage", "created_at", "abstract", "keywords", "keywords_plus", "authors"},
 		from: `FROM work_revisions wr
-            JOIN works w ON w.id=wr.work_id
-            LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
-                AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
+			JOIN works w ON w.id=wr.work_id
+			LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
+				AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
 		where:  "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
 		search: "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
 		sortFields: map[string]string{
@@ -38,8 +38,8 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	"authors": {
 		columns: []string{"id", "citation_name", "first_name", "last_name", "orcid", "person_id", "article_count", "affiliation_count", "created_at"},
 		from: `FROM author_occurrences ao
-            JOIN authorships a ON a.author_occurrence_id=ao.id
-            JOIN work_revisions wr ON wr.id=a.work_revision_id`,
+			JOIN authorships a ON a.author_occurrence_id=ao.id
+			JOIN work_revisions wr ON wr.id=a.work_revision_id`,
 		where:   "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
 		groupBy: "ao.id",
 		search:  "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
@@ -49,10 +49,9 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	},
 	"references": {
 		columns: []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
-		from: `FROM reference_mentions rm
-            JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
-		where:  "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		search: "rm.doi, rm.title, rm.author, rm.source, wr.title",
+		from:    `FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
+		where:   "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
+		search:  "rm.doi, rm.title, rm.author, rm.source, wr.title",
 		sortFields: map[string]string{
 			"id": "rm.id", "work_revision_id": "rm.work_revision_id", "mention_order": "rm.mention_order", "doi": "rm.doi", "title": "rm.title", "author": "rm.author", "year": "rm.year", "source": "rm.source", "resolved_work_id": "rm.resolved_work_id", "created_at": "rm.created_at",
 		},
@@ -107,7 +106,13 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 	if definition.groupBy != "" {
 		querySQL += " GROUP BY " + definition.groupBy
 	}
-	uniqueOrder := map[string]string{"articles": "wr.id", "authors": "ao.id", "references": "rm.id", "sources": "sr.id"}[r.PathValue("kind")]
+	// TODO: This is looks awful, we need to rework this later.
+	uniqueOrder := map[string]string{
+		"articles":   "wr.id",
+		"authors":    "ao.id",
+		"references": "rm.id",
+		"sources":    "sr.id",
+	}[r.PathValue("kind")]
 	querySQL += " ORDER BY " + stableScopedOrder(definition.sortFields[sort], uniqueOrder, order) + " LIMIT ? OFFSET ?"
 	args = append(args, perPage, (page-1)*perPage)
 	rows, err := s.db.QueryContext(ctx, querySQL, args...)
@@ -184,7 +189,15 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	fields := map[string]string{"id": "rws.id", "work_id": "rws.work_id", "stage_name": "rws.stage_name", "outcome": "rws.outcome", "reason": "rws.reason", "created_at": "rws.created_at", "updated_at": "rws.updated_at"}
+	fields := map[string]string{
+		"id":         "rws.id",
+		"work_id":    "rws.work_id",
+		"stage_name": "rws.stage_name",
+		"outcome":    "rws.outcome",
+		"reason":     "rws.reason",
+		"created_at": "rws.created_at",
+		"updated_at": "rws.updated_at",
+	}
 	page, perPage, sort, order, query, err := scopedRowsRequest(r, fields, "id")
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -259,8 +272,11 @@ func (s *Server) runStageSummaries(ctx context.Context, runID int64) ([]map[stri
 		summary := byStage[stage]
 		if summary == nil {
 			summary = map[string]any{
-				"stage_name": stage, "total_records": int64(0), "outcomes": map[string]int64{},
-				"first_recorded_at": record["first_recorded_at"], "last_recorded_at": record["last_recorded_at"],
+				"stage_name":        stage,
+				"total_records":     int64(0),
+				"outcomes":          map[string]int64{},
+				"first_recorded_at": record["first_recorded_at"],
+				"last_recorded_at":  record["last_recorded_at"],
 			}
 			byStage[stage] = summary
 		}
@@ -354,9 +370,13 @@ func scopedWhere(base, searchable string, runID int64, query string) (string, []
 // scopedPagination returns validated page, page-size, offset, and limit values.
 func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any {
 	return map[string]any{
-		"page": page, "per_page": perPage, "total_rows": total,
+		"page":        page,
+		"per_page":    perPage,
+		"total_rows":  total,
 		"total_pages": (total + int64(perPage) - 1) / int64(perPage),
-		"has_next":    int64(page*perPage) < total, "sort": sort, "order": strings.ToLower(order),
+		"has_next":    int64(page*perPage) < total,
+		"sort":        sort,
+		"order":       strings.ToLower(order),
 	}
 }
 

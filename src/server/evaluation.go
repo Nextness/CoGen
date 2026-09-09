@@ -17,13 +17,24 @@ var evaluationSortFields = map[string]string{
 }
 
 var evaluationReviewStatuses = map[string]bool{
-	"not_evaluated": true, "in_progress": true, "approved": true, "not_approved": true, "removed": true,
+	"not_evaluated": true,
+	"in_progress":   true,
+	"approved":      true,
+	"not_approved":  true,
+	"removed":       true,
 }
 
 var evaluationReviewQualifiers = map[string]bool{
-	"redacted": true, "unrelated": true, "out_of_scope": true, "duplicate": true,
-	"retracted": true, "withdrawn": true, "superseded": true, "predatory_low_quality": true,
-	"copyright_licensing": true, "not_peer_reviewed": true,
+	"redacted":              true,
+	"unrelated":             true,
+	"out_of_scope":          true,
+	"duplicate":             true,
+	"retracted":             true,
+	"withdrawn":             true,
+	"superseded":            true,
+	"predatory_low_quality": true,
+	"copyright_licensing":   true,
+	"not_peer_reviewed":     true,
 }
 
 // runEvaluation lists the selected run's normalized articles and overlays
