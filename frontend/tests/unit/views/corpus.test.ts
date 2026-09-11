@@ -23,7 +23,7 @@ describe('corpus.tsx — corpusView', function() {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); },
+          json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'] }] } }); },
         } as unknown as Response);
       }
       if (String(url).includes('/api/runs')) {
@@ -33,8 +33,8 @@ describe('corpus.tsx — corpusView', function() {
           json: function() {
             return Promise.resolve({
               data: {
-                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
-                rows: [{ id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'],
+                rows: [{ id: 1, work_revision_id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
                 pagination: { page: 1, total_pages: 1, total_rows: 1 },
               },
             });
@@ -55,7 +55,7 @@ describe('corpus.tsx — corpusView', function() {
     assert.ok(document.querySelector('#corpus-section-select'));
     assert.equal(document.querySelector(`[data-table-owner="work_revisions"] .ui.tabular.menu`), null);
     assert.deepEqual(Array.from(document.querySelectorAll('.rw-corpus-table thead th'), function(cell) { return cell.textContent.trim(); }).filter(Boolean), [
-      'DOI', 'Title', 'Year', 'Journal', 'Source'
+      'DOI', 'Title', 'Year', 'Journal', 'Source', 'PDF', 'Review status', 'Review source'
     ]);
     assert.ok(!app.innerHTML.includes('<th scope="col" class="col-id"'));
 
@@ -67,7 +67,7 @@ describe('corpus.tsx — corpusView', function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function(url) {
       if (String(url).includes('/api/tables')) {
-        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); } } as unknown as Response);
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'] }] } }); } } as unknown as Response);
       }
       if (String(url).includes('/api/runs')) {
         return Promise.resolve({
@@ -76,9 +76,9 @@ describe('corpus.tsx — corpusView', function() {
           json: function() {
             return Promise.resolve({
               data: {
-                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'],
                 rows: [{
-                  id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus',
+                  id: 1, work_revision_id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus',
                   term_matches: { title: ['BPMN'], abstract: [], keywords: ['scheduling'], keywords_plus: [], matched_total: 2, term_total: 5, sources: ['scopus'] },
                 }],
                 pagination: { page: 1, total_pages: 1, total_rows: 1 },
@@ -107,7 +107,7 @@ describe('corpus.tsx — corpusView', function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function(url) {
       if (String(url).includes('/api/tables')) {
-        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'] }] } }); } } as unknown as Response);
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: { tables: [{ name: 'work_revisions', columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'] }] } }); } } as unknown as Response);
       }
       if (String(url).includes('/api/runs')) {
         return Promise.resolve({
@@ -116,8 +116,8 @@ describe('corpus.tsx — corpusView', function() {
           json: function() {
             return Promise.resolve({
               data: {
-                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source'],
-                rows: [{ id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
+                columns: ['id', 'work_id', 'doi', 'title', 'year', 'journal', 'source', 'inventory_status', 'review_status', 'review_inherited'],
+                rows: [{ id: 1, work_revision_id: 1, work_id: 2, doi: '10.1000/test', title: 'Test Article', year: 2024, journal: 'Journal', source: 'scopus' }],
                 pagination: { page: 1, total_pages: 1, total_rows: 1 },
               },
             });
@@ -176,6 +176,9 @@ describe('corpus.tsx — corpusView', function() {
     assert.equal((document.querySelector('.ui.orange.label') as HTMLElement).textContent, 'orcid_is_unclear');
     assert.ok(!app.innerHTML.includes('must-not-render'));
     assert.ok(!app.innerHTML.includes('Candidate evidence'));
+    const identityOwner = document.querySelector(`[aria-label="Author identity evidence table"]`)!.closest(`[data-table-owner="author_identity_resolutions"]`);
+    assert.ok(identityOwner, "Identity evidence must own its shared table controls");
+    assert.ok(identityOwner.querySelector(`[aria-label="Result pages"]`));
 
     globalThis.fetch = originalFetch;
     state.tables = [];

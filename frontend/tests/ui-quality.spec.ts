@@ -38,13 +38,48 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Research-context and responsive behavior', () => {
+  test("audit rows align compact times and inline records without loading raw payloads", async ({ page }) => {
+    const recordedRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/recorded-data")) recordedRequests.push(request.url());
+    });
+    await page.setViewportSize({ width: 1700, height: 1000 });
+    await visitQuality(page, { view: "provenance", section: "audit" });
+    const events = page.locator(".rw-audit-event");
+    await expect(events.first()).toBeVisible();
+    const dimensions = await events.first().evaluate((event) => {
+      const clock = event.querySelector("time")!.getBoundingClientRect();
+      const heading = event.querySelector(".rw-audit-event__heading")!.getBoundingClientRect();
+      const record = event.querySelector(".rw-audit-event__entity")!;
+      const disclosure = event.querySelector("summary")!.getBoundingClientRect();
+      return {
+        clockWidth: clock.width,
+        alignment: Math.abs(clock.top - heading.top),
+        inlineRecord: Boolean(record.closest(".rw-audit-event__heading")),
+        disclosureWidth: disclosure.width,
+        rowHeight: event.getBoundingClientRect().height,
+      };
+    });
+    expect(dimensions.clockWidth).toBeLessThanOrEqual(90);
+    expect(dimensions.alignment).toBeLessThanOrEqual(4);
+    expect(dimensions.inlineRecord).toBe(true);
+    expect(dimensions.disclosureWidth).toBeLessThan(200);
+    expect(dimensions.rowHeight).toBeLessThan(115);
+    expect(recordedRequests).toHaveLength(0);
+    await events.first().locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(events.first().locator("details")).toHaveAttribute("open", "");
+    await expect.poll(() => recordedRequests.length).toBe(1);
+    await expectNoPageOverflow(page);
+  });
+
   test('detail breadcrumbs remain concise and identify the parent collection', async ({ page }) => {
     await visitQuality(page, { view: 'article', article_id: '1' });
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(breadcrumb).toContainText('Home');
     await expect(breadcrumb).toContainText('Deepdive');
     await expect(breadcrumb).toContainText('Corpus');
-    await expect(breadcrumb).toContainText('Analysis-ready articles');
+    await expect(breadcrumb).toContainText('Articles');
     await expect(breadcrumb).toContainText('10.1000/1');
     await expect(breadcrumb).not.toContainText('deep-learning-nlp');
     await expect(page.getByRole('link', { name: 'Back to Corpus' })).toHaveCount(0);
@@ -115,7 +150,7 @@ test.describe('Research-context and responsive behavior', () => {
     await page.setViewportSize({ width: 320, height: 568 });
     const responsiveStates: ViewState[] = [
       { view: 'home' },
-      { view: 'evaluation' },
+      { view: 'corpus', section: 'articles' },
       { view: 'provenance', section: 'audit' },
       { view: 'article', article_id: '1' },
     ];
@@ -135,7 +170,7 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('200 percent reflow, text spacing, and focused-input viewport changes preserve actions', async ({ page }) => {
     await page.setViewportSize({ width: 640, height: 800 });
-    await visitQuality(page, { view: 'evaluation' });
+    await visitQuality(page, { view: 'corpus', section: 'articles' });
     await page.evaluate(function() { document.documentElement.style.zoom = '2'; });
     await expectNoPageOverflow(page);
     await expect(page.locator('[data-evaluation-filters]').getByRole('button', { name: 'Apply filters' })).toBeVisible();
@@ -205,7 +240,6 @@ test.describe('Automated accessibility checks', () => {
     ['provenance cache', { view: 'provenance', section: 'cache' }],
     ['provenance stages', { view: 'provenance', section: 'stages' }],
     ['provenance run', { view: 'provenance', section: 'run' }],
-    ['evaluation', { view: 'evaluation' }],
     ['advanced', { view: 'advanced' }],
     ['author detail', { view: 'author', author_id: '1' }],
     ['reference detail', { view: 'reference', reference_id: '1' }],
@@ -308,7 +342,6 @@ test.describe('Visual regression', () => {
     ['relationships', { view: 'relationships' }],
     ['provenance-audit', { view: 'provenance', section: 'audit' }],
     ['provenance-stages', { view: 'provenance', section: 'stages' }],
-    ['evaluation', { view: 'evaluation' }],
   ];
   for (const [name, overrides] of visualStates) {
     test(`${name} light`, async ({ page }) => {

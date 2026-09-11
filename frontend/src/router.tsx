@@ -7,7 +7,6 @@ import { overviewView } from "./views/overview.tsx";
 import { corpusView } from "./views/corpus.tsx";
 import { relationshipsView } from "./views/relationships.tsx";
 import { provenanceView } from "./views/provenance.tsx";
-import { evaluationView } from "./views/evaluation.tsx";
 import { advancedView } from "./views/advanced.tsx";
 import { detailView, destroyActiveArticleReview } from "./views/detail.tsx";
 import { destroyGraph } from "./components/graph.tsx";
@@ -89,7 +88,7 @@ function syncShell(current: string): void {
     corpus: "Corpus",
     relationships: "Relationships",
     provenance: "Provenance",
-    evaluation: "Evaluation",
+    evaluation: "Corpus",
     advanced: "Advanced",
     article: "Article",
     author: "Author",
@@ -127,7 +126,7 @@ async function renderView(): Promise<void> {
   if (current === "corpus") return corpusView();
   if (current === "relationships") return relationshipsView();
   if (current === "provenance") return provenanceView();
-  if (current === "evaluation") return evaluationView();
+  if (current === "evaluation") return corpusView();
   if (current === "advanced") return advancedView();
   if (current === "article" || current === "author" || current === "reference") return detailView(current);
 

@@ -245,7 +245,7 @@ deduplicate revision
 
 People represent confirmed identity and require a nonblank ORCID. Author occurrences preserve observed citation names and provider profile fields; authorships attach ordered occurrences and affiliations to immutable revisions. Prerequisite checks remain before join inserts because SQLite foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 
-Author identity resolution statuses are `matched`, `no_match`, `unclear`, and `provider_error`. Candidates retain provider rank, ORCID, display name, raw payload artifact, and evidence context. A name-search candidate remains review evidence and does not silently change confirmed identity.
+Author identity resolution statuses are `orcid_is_unclear`, `no_orcid_candidate`, `provider_failed`, `confirmed`, and `rejected`. Candidates retain provider rank, ORCID, display name, raw payload artifact, and evidence context. A name-search candidate remains review evidence and does not silently change confirmed identity.
 
 Validation checks title, authors, year, DOI, publisher, and reference-count conditions in `src/validation/validation.go`. Discarded work remains visible through stage and provenance records but receives no normalized revision.
 
@@ -321,8 +321,8 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/audit`, `/api/audit/{id}/recorded-data` | Returns bounded cursor audit pages, first-page facets, structured review filters, and lazy privacy-scrubbed recorded data. |
 | `/api/runs/{id}/artifacts`, `/api/artifacts/{id}/inspect`, `/api/artifacts/{id}/content` | Lists artifacts through numbered page and page-size metadata while retaining the bounded cursor contract for existing callers, previews a bounded text prefix, or downloads stored artifacts. |
 | `/api/runs/{id}/cache-uses` | Returns cache evidence for one run. |
-| `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include stored per-revision search-term matches. |
-| `/api/runs/{id}/evaluation`, `/api/runs/{id}/identity-evidence`, `/api/runs/{id}/stages` | Returns evaluation, uncertain identity evidence, or stage outcomes. |
+| `/api/runs/{id}/corpus/{kind}` | Returns bounded articles, authors, references, or sources for the selected run; article rows include metadata, stored search-term matches, PDF inventory, review state, filter facets, progress, and adjacent unreviewed navigation through the same projection as `/evaluation`. |
+| `/api/runs/{id}/evaluation`, `/api/runs/{id}/identity-evidence`, `/api/runs/{id}/stages` | Returns the same article/review projection as Corpus, uncertain identity evidence, or stage outcomes. |
 | `/api/runs/{id}/review-context`, `/api/runs/{id}/review-context-candidates` | Returns, proposes, explicitly initializes, or lists bounded eligible parents for one completed non-trashed run. |
 | `/api/runs/{id}/articles/{revision}/review`, `/api/runs/{id}/articles/{revision}/review/versions` | Reads or appends complete review state and returns bounded immutable ancestry with optimistic concurrency. |
 | `/api/runs/{id}/articles/{revision}/notes`, `/api/runs/{id}/notes/{note}`, `/api/runs/{id}/notes/{note}/versions` | Creates, reads, edits, tombstones, restores, and lists bounded immutable note versions and resolved links. |
@@ -332,7 +332,7 @@ The server accepts GET and HEAD for evidence reads and narrowly routed POST and 
 | `/api/works/{work_id}/pdf-status`, `/api/pdf/{work_id}` | Reports inventory status or delivers validated available PDF bytes. |
 | `/api/graph` | Returns one bounded graph model with explicit truncation evidence. |
 
-Run-scoped articles contain valid normalize-stage revisions. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
+Run-scoped articles contain valid normalize-stage revisions. Article browsing remains available for historical runs without execution-plan lineage, with review initialization unavailable. Identity evidence projects one title/DOI pair per resolution and work, chooses the current normalized article when available, and retains the captured revision and producer stage. Author detail follows earlier same-run, same-work snapshots only when author order, recorded names, and observed ORCID are identical; candidate evidence never creates a confirmed identity. Author and reference collections include relationships attached to revisions produced during the run, so consumers use revision and producer-stage identity when uniqueness matters.
 
 Audit supports run context, text search, category, action, actor, entity, stage, outcome, review status, review reason, and review substatus filters. Categories accepted by the server are pipeline, enrichment, validation, PDF, and review. Run-scoped PDF history includes only works that belong to that run, while workspace-global PDF history is an explicit scope. The frontend presents UTC date-grouped timeline cards and cursor-based loading without discarding already-loaded evidence; Recorded data loads separately under fixed privacy and byte budgets. Artifact preview defaults to 64 KiB and caps at 256 KiB; only recognized text, JSON, and SOMETHING media are previewed.
 
@@ -400,7 +400,7 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, headers, loaders, and segments. |
 | `styles/collections.css` | Navigation, selectors, grids, forms, tables, pagination, breadcrumbs, and responsive collections. |
-| `styles/views.css` | Overview, details, provenance, audit, artifacts, evaluation, and stage presentation. |
+| `styles/views.css` | Overview, details, provenance, audit, artifacts, article review, and stage presentation. |
 | `styles/graph.css` | Relationship layout, controls, canvas, overview, legend, selection, and edge table. |
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; it is changed only through `make frontend-vendor`. |
 | `vendor/pdfjs/` | Generated PDF.js 4.2.67 core, matching worker, CMaps, standard fonts, and license assets; it is changed only through `make frontend-pdfjs-vendor`. |
@@ -418,9 +418,9 @@ generated *.html -> app.tsx
   |     +-- home.tsx --------------+-- state.tsx, api.tsx, router.tsx
   |     +-- overview.tsx ----------+-- state.tsx, api.tsx, router.tsx
   |     +-- corpus.tsx ------------+-- state.tsx, api.tsx, data-table.tsx, pagination.tsx
+  |     |   +-- evaluation.tsx ----+-- state.tsx, api.tsx, article-table.tsx, data-table.tsx
   |     +-- relationships.tsx -----+-- state.tsx, api.tsx, graph.tsx, router.tsx
   |     +-- provenance.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
-  |     +-- evaluation.tsx --------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
   |     +-- advanced.tsx ----------+-- state.tsx, api.tsx, data-table.tsx, router.tsx
   |     +-- detail.tsx ------------+-- state.tsx, api.tsx, pagination.tsx, review-panel.tsx, pdf-fullscreen.tsx
   +-- api.tsx
@@ -436,7 +436,7 @@ note-editor.tsx -> api.tsx, state.tsx, note-parser.tsx
 
 `state.tsx` is the shared leaf and imports only the project-owned JSX runtime. Components do not import views. `router.tsx` and `context-selector.tsx` form one intentional ES-module cycle because selector interactions call `setURL` while rendering calls `hydrateSelectors`; bindings run only after module initialization, and new modules must not expand the cycle. Every generated HTML document loads CSS in tokens, base, elements, collections, views, and graph order inherited from the authoritative `index.html` template.
 
-Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs; article rows expand to show the stored search-term coverage for the run. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. Evaluation covers normalized DOI, PDF inventory, and current review status and can explicitly start a run review context. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, content-hash-bound anchors, and a search term coverage panel; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
+Home summarizes the search/revision/plan/run hierarchy, establishes complete Deepdive context, and owns reversible run-visibility actions. Overview separates captured execution metrics from current derived coverage. Corpus selects articles, authors, references, source records, or identity evidence without nested tabs; article rows expand to show the stored search-term coverage for the run. Relationships provides four bounded graph models plus a table equivalent. Provenance covers audit, artifacts, cache, stages, and run detail. The Corpus article collection also owns PDF inventory, current review state, review initialization, filtered unreviewed navigation, and the run Notes index. `/evaluation` navigation normalizes to `/corpus` while preserving saved article filters. Article detail provides a side-by-side PDF/review workspace, complete status history, note and link versions, content-hash-bound anchors, and a search term coverage panel; author detail owns candidate ORCID evidence. Advanced exposes discovered tables, and detail views remain within Corpus navigation.
 
 The graph uses the generated checked-in D3-force bundle without a CDN. Canvas rendering is supplemental to DOM controls, legend, cluster overview, search, selection details, paginated edge table, fit, zoom, drag, expansion, and PNG export. Shape encodes entity type and color encodes connected component.
 

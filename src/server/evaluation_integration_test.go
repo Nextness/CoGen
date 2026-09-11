@@ -8,8 +8,66 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"testing"
 )
+
+// TestCorpusArticleReviewProjection verifies one article projection, combined filters, and numeric queue ordering.
+func TestCorpusArticleReviewProjection(t *testing.T) {
+	fixture := newPDFViewerFixture(t)
+	handler := fixture.server.Handler()
+	base := fmt.Sprintf("/api/runs/%d/", fixture.runID)
+	code, corpus := requestJSON(t, handler, base+"corpus/articles?pdf_status=available&sort=title")
+	if code != http.StatusOK {
+		t.Fatalf("corpus response status=%d body=%v", code, corpus)
+	}
+	code, evaluation := requestJSON(t, handler, base+"evaluation?pdf_status=available&sort=title")
+	if code != http.StatusOK || !reflect.DeepEqual(corpus, evaluation) {
+		t.Fatalf("article projections differ: status=%d", code)
+	}
+	rows := corpus["rows"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("PDF filter returned %d rows", len(rows))
+	}
+	row := rows[0].(map[string]any)
+	for _, key := range []string{"id", "work_revision_id", "year", "journal", "source", "abstract", "authors", "term_matches", "inventory_status", "review_status"} {
+		if _, found := row[key]; !found {
+			t.Errorf("unified article row is missing %s", key)
+		}
+	}
+	for index, count := range []int{2, 10, 5} {
+		workID, err := fixture.server.writeDB.Works.CreateByDOI(fmt.Sprintf("10.numeric/%d", index))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = fixture.server.writeDB.DB.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title, source, citation_count) VALUES (?, ?, ?, 'normalize', 'Numeric article', 'numeric', ?)", workID, fixture.runID, fmt.Sprint(index), count)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = fixture.server.writeDB.DB.Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", fixture.runID, workID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	code, ordered := requestJSON(t, handler, base+"corpus/articles?q=numeric&sort=citation_count&order=asc")
+	if code != http.StatusOK {
+		t.Fatalf("numeric queue status=%d body=%v", code, ordered)
+	}
+	rows = ordered["rows"].([]any)
+	if len(rows) != 3 {
+		t.Fatalf("source search returned %d rows", len(rows))
+	}
+	for index, count := range []float64{2, 5, 10} {
+		if rows[index].(map[string]any)["citation_count"] != count {
+			t.Fatalf("numeric sort order is incorrect: %v", rows)
+		}
+	}
+	firstID := int64(rows[0].(map[string]any)["work_revision_id"].(float64))
+	code, adjacent := requestJSON(t, handler, base+fmt.Sprintf("corpus/articles?source=numeric&sort=citation_count&order=asc&current_revision_id=%d", firstID))
+	if code != http.StatusOK || adjacent["queue_navigation"].(map[string]any)["next_work_revision_id"] != rows[1].(map[string]any)["work_revision_id"] {
+		t.Fatalf("numeric queue navigation differs from article order: status=%d body=%v", code, adjacent)
+	}
+}
 
 // TestEvaluationListsOnlyNormalizedArticlesWithInventoryState verifies evaluation lists only normalized articles with inventory state.
 func TestEvaluationListsOnlyNormalizedArticlesWithInventoryState(t *testing.T) {

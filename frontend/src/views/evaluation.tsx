@@ -1,11 +1,10 @@
-// Evaluation: a filtered, progress-aware queue of normalized articles.
+// Corpus articles: metadata, PDF inventory, and review in one collection.
 import {
   app,
   value,
   linkTargetFor,
   detailLinkFor,
   pageSizes,
-  PageHeader,
   EmptyState,
   FilterChips,
   humanLabel,
@@ -16,6 +15,7 @@ import {
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
 import type { EvaluationFacet, EvaluationResponse, EvaluationRow, WireRecord } from "../api/types.ts";
+import { articlesColumns, articlesExpandFields } from "../components/article-table.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import {
@@ -41,7 +41,7 @@ const classNames = {
   uiVioletLabel: cx("ui", "violet", "label"),
 };
 
-const evaluationSortFields = ["title", "doi"];
+const evaluationSortFields = ["id", "title", "doi", "year", "journal", "publisher", "source", "validation_status", "citation_count", "reference_count", "created_at"];
 const evaluationFilterKeys = ["q", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"];
 
 /** Renders a queue-preserving article link for an evaluation row. */
@@ -84,14 +84,14 @@ function facetOptions(items: EvaluationFacet[], selected: string): JSX.Element[]
   });
 }
 
-/** Asynchronously implements the Evaluation review queue. */
-export async function evaluationView(): Promise<void> {
+/** Renders the Corpus article collection with metadata, PDF inventory, and review controls. */
+export async function articleCollectionView(heading: JSX.Element, refresh: () => Promise<void>): Promise<void> {
   const runID = value("run_id");
   if (!runID) {
     const emptyAction = <button type="button" className={classNames.uiPrimaryButton} data-focus-context>Select a run attempt</button>;
     const emptyStateMarkup = (
       <EmptyState
-        title="Evaluation"
+        title="Corpus"
         detail="Select a run attempt to evaluate its normalized article inventory."
         action={emptyAction}
       />
@@ -115,7 +115,7 @@ export async function evaluationView(): Promise<void> {
   evaluationFilterKeys.forEach((key) => {
     filters[key] = value(key);
   });
-  const data = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(runID)}/evaluation`, {
+  const data = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(runID)}/corpus/articles`, {
     page: page,
     per_page: perPage,
     sort: sort,
@@ -165,7 +165,7 @@ export async function evaluationView(): Promise<void> {
         <label className="rw-evaluation-filters__search">
           <span>Search normalized articles</span>
           <span className={classNames.uiInput}>
-            <input id="evaluation-query" name="q" type="search" value={filters.q} placeholder="Title or DOI" />
+            <input id="evaluation-query" name="q" type="search" value={filters.q} placeholder="Title, DOI, journal, publisher, or source" />
           </span>
         </label>
         <label className="rw-evaluation-filters__size">
@@ -233,6 +233,18 @@ export async function evaluationView(): Promise<void> {
   );
 
   const columnConfig: DataTableContext["columnConfig"] = {
+    year: {
+      label: "Year",
+      className: "col-year",
+    },
+    journal: {
+      label: "Journal",
+      className: "col-journal",
+    },
+    source: {
+      label: "Source",
+      className: "col-source",
+    },
     title: {
       label: "Title",
       className: "col-title",
@@ -248,11 +260,6 @@ export async function evaluationView(): Promise<void> {
       render: (row) => {
         return <StatusChip raw={humanLabel(row.inventory_status)} />;
       },
-    },
-    inventoried_at: {
-      label: "Inventoried at",
-      className: "col-inventoried-date",
-      render: inventoriedDate,
     },
     review_status: {
       label: "Review status",
@@ -276,18 +283,28 @@ export async function evaluationView(): Promise<void> {
     sortFields: evaluationSortFields,
     rowKey: "work_revision_id",
     itemLabel: "normalized articles",
-    tableClasses: ["rw-evaluation-table"],
+    tableClasses: ["rw-corpus-table", "rw-evaluation-table"],
     columnConfig: columnConfig,
-    columnsWhitelist: ["title", "doi", "inventory_status", "inventoried_at", "review_status", "review_inherited"],
+    columnsWhitelist: [...articlesColumns, "inventory_status", "review_status", "review_inherited"],
+    expandableFields: [
+      ...articlesExpandFields,
+      {
+        f: "inventoried_at",
+        w: 5,
+        label: "Inventoried at",
+        render: inventoriedDate,
+      },
+    ],
     perPageSelector: "#evaluation-per-page",
   };
-  const table = <DataTable tableName="evaluation" result={data} context={tableContext} />;
+  const table = <DataTable tableName="work_revisions" result={data} context={tableContext} />;
 
   var contextAction: JSX.Element | null = null;
   if (!data.review_context_initialized && data.run_writable) {
     contextAction = <button type="button" className={classNames.uiPrimaryButton} data-start-review>Start review</button>;
   }
   var contextStatus: JSX.Element = <span className={classNames.uiOrangeLabel}>Not started</span>;
+  if (!data.run_writable && !data.review_context_initialized) contextStatus = <span className={classNames.uiNeutralLabel}>Review unavailable for this run</span>;
   if (data.review_context_initialized) contextStatus = <span className={classNames.uiVioletLabel}>Review initialized</span>;
   const progressWidth = Math.max(0, Math.min(100, Number(summary.percent_reviewed) || 0));
   const navigation = data.queue_navigation || {};
@@ -332,22 +349,18 @@ export async function evaluationView(): Promise<void> {
 
   const pageMarkup = (
     <Fragment>
-      <PageHeader
-        kicker="Review queue"
-        title="Evaluation"
-        description="Review normalized articles with explicit PDF, decision, lineage, and progress filters."
-      />
+      {heading}
       {progressMarkup}
       <section className={classNames.uiSegment}>
         <div className={classNames.uiTopAttachedHeader}>
           <div>
-            <h3>Normalized article queue</h3>
-            <p>The queue and its return links preserve the selected filters, sorting, and page.</p>
+            <h3>Articles</h3>
+            <p>Valid normalized articles with PDF and review status. Discarded works remain in stage outcomes and provenance.</p>
           </div>
           {contextAction}
         </div>
         <div className="content">
-          <div className="rw-content-stack" data-table-scope="evaluation">
+          <div className="rw-content-stack" data-table-scope="work_revisions">
             {controls}
             {table}
           </div>
@@ -365,7 +378,7 @@ export async function evaluationView(): Promise<void> {
   );
   renderTree(pageMarkup, app);
 
-  bindTableControls("evaluation", tableContext);
+  bindTableControls("work_revisions", tableContext);
   app.querySelector<HTMLFormElement>("[data-evaluation-filters]")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const formElement = event.currentTarget as HTMLFormElement;
@@ -379,7 +392,7 @@ export async function evaluationView(): Promise<void> {
   bindReviewContextInitializer(app, {
     runID: Number(runID),
     proposed: data.proposed_parent || null,
-    onInitialized: evaluationView,
+    onInitialized: refresh,
   });
   app.querySelector<HTMLButtonElement>("[data-run-notes-open]")?.addEventListener("click", async (event) => {
     const button = event.currentTarget as HTMLButtonElement;

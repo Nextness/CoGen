@@ -115,9 +115,9 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
   await expect(audit).toContainText('Pdf Inventory Registered');
   await expect(audit).toContainText('Run Completed');
 
-  await visitGenerated(page, context, { view: 'evaluation' });
+  await visitGenerated(page, context, { view: 'corpus', section: 'articles' });
   await page.waitForLoadState('networkidle');
-  const evaluation = page.locator('.rw-evaluation-table');
+  const evaluation = page.locator('.rw-corpus-table');
   await expect(evaluation).toBeVisible();
   await expect(evaluation).toContainText('Offline Complete One');
   await expect(evaluation).toContainText('Offline Complete Two');

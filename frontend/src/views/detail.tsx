@@ -818,7 +818,7 @@ function AuthorIdentityEvidence(props: { evidence: IdentityResolution[] }): JSX.
   });
 
   const evidenceBody = <Fragment>{body}</Fragment>;
-  return <Panel title="ORCID candidate evidence" description="Review provider candidates here without treating a name-search match as confirmed identity." body={evidenceBody} />;
+  return <Panel title="ORCID candidate evidence" description="Evidence includes earlier snapshots of the same work in this run when author position, recorded names, and observed ORCID match. Name-search candidates remain unconfirmed." body={evidenceBody} />;
 }
 
 /** Renders one cursor page of author identity resolutions with local continuation status. */
@@ -1079,7 +1079,7 @@ export async function detailView(kind: string): Promise<void> {
   const origin = detailOrigin();
   var evaluationNavigation: EvaluationNavigation | null = null;
   var evaluationNavigationError = "";
-  if (kind === "article" && origin?.view === "evaluation") {
+  if (kind === "article" && value("run_id") && origin?.view === "corpus" && (!origin.params.get("section") || origin.params.get("section") === "articles")) {
     const navigationQuery: APIQuery = { current_revision_id: id };
     routeOwnedKeys.evaluation.forEach((key) => {
       if (key !== "page" && key !== "per_page") navigationQuery[key] = origin.params.get(key) || "";
@@ -1090,7 +1090,7 @@ export async function detailView(kind: string): Promise<void> {
       const queue = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery);
       evaluationNavigation = queue.queue_navigation;
     } catch (error) {
-      evaluationNavigationError = errorMessage(error, "Unable to load evaluation navigation.");
+      evaluationNavigationError = errorMessage(error, "Unable to load article navigation.");
     }
   }
 
@@ -1139,7 +1139,7 @@ export async function detailView(kind: string): Promise<void> {
   } else if (kind === "article") {
     crumbs.push({ label: "Corpus", href: corpusTarget.href, state: corpusTarget.state });
     crumbs.push({
-      label: "Analysis-ready articles",
+      label: "Articles",
       href: articlesTarget.href,
       state: articlesTarget.state,
     });

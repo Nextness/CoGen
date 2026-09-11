@@ -458,8 +458,24 @@ func (s *Server) authorDetailCollectionData(ctx context.Context, authorID, runID
 		fromWhere = `FROM (SELECT r.id AS resolution_id, r.id, r.pipeline_run_id, r.status, r.provider, r.queried_citation_name,
 			r.error_message, r.resolved_at, COUNT(c.id) AS candidate_count
 			FROM author_identity_resolutions r LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id
-			WHERE r.author_occurrence_id=? AND r.pipeline_run_id=? GROUP BY r.id)`
-		orderID, args, descending = "id", []any{authorID, runID}, true
+			WHERE r.pipeline_run_id=? AND (r.author_occurrence_id=? OR EXISTS (
+				SELECT 1 FROM authorships target_authorship
+				JOIN author_occurrences target_author ON target_author.id=target_authorship.author_occurrence_id
+				JOIN work_revisions target_revision ON target_revision.id=target_authorship.work_revision_id
+				JOIN work_revisions evidence_revision ON evidence_revision.work_id=target_revision.work_id
+					AND evidence_revision.pipeline_run_id=target_revision.pipeline_run_id
+					AND evidence_revision.id<=target_revision.id
+				JOIN authorships evidence_authorship ON evidence_authorship.work_revision_id=evidence_revision.id
+					AND evidence_authorship.author_order=target_authorship.author_order
+				JOIN author_occurrences evidence_author ON evidence_author.id=evidence_authorship.author_occurrence_id
+				WHERE target_author.id=? AND target_revision.pipeline_run_id=r.pipeline_run_id
+					AND evidence_author.id=r.author_occurrence_id
+					AND evidence_author.citation_name IS target_author.citation_name
+					AND evidence_author.first_name IS target_author.first_name
+					AND evidence_author.last_name IS target_author.last_name
+					AND evidence_author.orcid IS target_author.orcid
+			)) GROUP BY r.id)`
+		orderID, args, descending = "id", []any{runID, authorID, authorID}, true
 	default:
 		return nil, notFound("author detail collection not found")
 	}

@@ -57,7 +57,7 @@ Messages contain explanatory text and may include a short title. Information, su
 
 ### 3.10 Navigation and disclosure
 
-Home is the application entry point. The six URL-backed Deepdive destinations use one tabular menu and mark the current link with `aria-current`; view-specific collections such as Corpus use a labeled selector rather than another competing tab row. Mutually exclusive content inside one panel, such as Decision, Notes, and PDF anchors, uses a keyboard-operable tab list with selected tab and tab-panel semantics. A radio-like model selector uses a segmented control with `aria-pressed`. Progressive or optional content uses native disclosure semantics with a consistent chevron, focus, hover, and open treatment; table-row detail uses the table expansion contract rather than a standalone tab or an unrelated disclosure style.
+Home is the application entry point. The five URL-backed Deepdive destinations use one tabular menu and mark the current link with `aria-current`; view-specific collections such as Corpus use a labeled selector rather than another competing tab row. Mutually exclusive content inside one panel, such as Decision, Notes, and PDF anchors, uses a keyboard-operable tab list with selected tab and tab-panel semantics. A radio-like model selector uses a segmented control with `aria-pressed`. Progressive or optional content uses native disclosure semantics with a consistent chevron, focus, hover, and open treatment; table-row detail uses the table expansion contract rather than a standalone tab or an unrelated disclosure style.
 
 ### 3.11 Forms and filters
 
@@ -79,16 +79,15 @@ Normal text selection uses the soft accent color, links retain accent color afte
 
 ## 4. Information architecture
 
-Home is the context-independent entry point. Selecting Explore opens the Deepdive workspace, whose tab order is Overview, Corpus, Relationships, Provenance, Evaluation, and Advanced. Article, author, and reference detail routes are contextual descendants of Corpus and keep Corpus marked as the current Deepdive destination.
+Home is the context-independent entry point. Selecting Explore opens the Deepdive workspace, whose tab order is Overview, Corpus, Relationships, Provenance, and Advanced. Article, author, and reference detail routes are contextual descendants of Corpus and keep Corpus marked as the current Deepdive destination.
 
 | View | Primary question | Required context |
 |---|---|---|
 | Home | Which searches, revisions, plans, and attempts exist, and which run should be explored or moved through the reversible visibility lifecycle? | Database required; run is not required. |
 | Overview | What happened in this run, and what does its current stored corpus contain? | Run required. |
-| Corpus | Which normalized articles, observed authors, references, identity evidence, and source records belong to this run? | Run preferred; limited schema-backed fallback exists where supported. |
+| Corpus | Which articles belong to this run, what are their PDF and review states, and what authors, references, identity evidence, and sources support them? | Run preferred; limited schema-backed fallback exists where supported. |
 | Relationships | How are valid normalized articles connected to authors, citations, and references? | Run required. |
 | Provenance | What audit events, artifacts, cache decisions, stages, and attempt metadata explain this run? | Audit may span runs; other sections require a run. |
-| Evaluation | Which normalized articles have a PDF, what is their current run-context review status, and has review been initialized? | Run required. |
 | Advanced | What values exist in each discovered metadata table? | Database required; run is not required. |
 
 ## 5. Application shell
@@ -97,7 +96,7 @@ The shell begins with a skip link, then a site header containing Local research 
 
 The compact context surface contains only dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls. It has no separate title or Clear context action. Each control presents a bounded server-searchable page eligible under its current parent, supports keyboard listbox navigation, preserves an exact selected option outside the current page, selects a sole available child automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
 
-The main region contains an alert notice, a polite live loading indicator, and the view container. One authoritative shell template generates the Home, six Deepdive, and three detail HTML documents with a static `rw-page` marker and initial title. Rendered view titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
+The main region contains an alert notice, a polite live loading indicator, and the view container. One authoritative shell template generates the Home, five Deepdive, and three detail HTML documents, plus the `/evaluation` entry that normalizes to Corpus with a static `rw-page` marker and initial title. Rendered view titles update `document.title` to `<page title> · Research workspace`. Global health, loading, and error states must remain understandable without inspecting developer tools.
 
 ## 6. URL and navigation behavior
 
@@ -107,7 +106,7 @@ Every application-generated URL is a clean per-view path such as `/overview`, `/
 
 Each render aborts the previous request controller and receives a monotonically increasing sequence number. Only the newest sequence may display errors, change the title, or clear the loading state. Aborted requests are silent.
 
-View-specific URL keys must be namespaced when multiple tables coexist. Provenance uses keys such as `cache_page`, `stage_page`, and `audit_category`; graph state uses `mode`, filters, `article_limit`, and `node`; Corpus and Evaluation use `section`, `q`, `page`, `per_page`, `sort`, `order`, and expansion state as applicable; article review links use `note_id`, `anchor_id`, and `pdf_page`.
+View-specific URL keys must be namespaced when multiple tables coexist. Provenance uses keys such as `cache_page`, `stage_page`, and `audit_category`; graph state uses `mode`, filters, `article_limit`, and `node`; Corpus uses `section`, `q`, `page`, `per_page`, `sort`, `order`, and expansion state as applicable; article review links use `note_id`, `anchor_id`, and `pdf_page`.
 
 ## 7. Overview
 
@@ -121,15 +120,15 @@ Retention stages that correspond to inspectable record sets navigate with a boun
 
 ## 8. Corpus
 
-Corpus uses one labeled collection selector for Analysis-ready articles, Authors, References, Author identity / ORCID evidence, and Source records, avoiding a second tab hierarchy beneath Deepdive. The section description must identify the underlying entity semantics, especially that author occurrences do not imply global person identity and name-search candidates do not imply confirmed ORCID assignment.
+Corpus uses one labeled collection selector for Articles, Authors, References, Author identity / ORCID evidence, and Source records, avoiding a second tab hierarchy beneath Deepdive. The section description must identify the underlying entity semantics, especially that author occurrences do not imply global person identity and name-search candidates do not imply confirmed ORCID assignment.
 
-Articles are valid normalized revisions for the selected run and present DOI, title, year, journal, and source in that order, with identifiers and further metadata available through expansion. A message explains that discarded works remain in stage and provenance evidence rather than this analysis-ready list. Article row expansion includes a Matched search terms block that summarizes how many of the run's recorded search terms matched the article and lists the matched terms per field (Title, Abstract, Keywords, Keywords plus); a run without stored term data shows No search terms recorded. The matches are derived data stored by the pipeline, not captured pipeline evidence, and matching is deterministic: every word in the term and field value is stemmed before whole-word matching so inflected forms match their base term.
+Articles are valid normalized revisions for the selected run and present DOI, title, year, journal, source, PDF availability, review status, and review source in that order, with identifiers and further metadata available through expansion. A message explains that discarded works remain in stage and provenance evidence rather than this analysis-ready list. Article row expansion includes a Matched search terms block that summarizes how many of the run's recorded search terms matched the article and lists the matched terms per field (Title, Abstract, Keywords, Keywords plus); a run without stored term data shows No search terms recorded. The matches are derived data stored by the pipeline, not captured pipeline evidence, and matching is deterministic: every word in the term and field value is stemmed before whole-word matching so inflected forms match their base term.
 
 Authors are observed occurrence records linked through run revisions. The table omits internal IDs and exposes citation name, parsed names, observed ORCID, person link, article count, affiliation count, and captured time. It must not label same-name rows as one person unless repository identity evidence confirms that relationship.
 
 References are ordered mentions attached to immutable revisions. Rows expose citing context, DOI, title, author string, year, source, and resolved-work identity when present. Article and reference links preserve the selected run so detail resolution remains historical.
 
-Identity evidence summarizes resolutions, unclear matches, provider failures, and candidate counts without embedding candidate payloads in the collection table. Candidate rows move to the relevant author detail page, where rank, ORCID, display name, and preserved provider evidence remain visibly uncertain rather than accepted identity. `no_orcid_candidate` uses a neutral status treatment while `orcid_is_unclear` uses warning treatment so the outcomes remain distinguishable without relying only on wording.
+Identity evidence shows one coherent article title/DOI pair per resolution and work, links to the current normalized article when available, and identifies the captured search stage. Summary counts count each resolution once even when an occurrence belongs to several works. Author detail can follow earlier snapshots only within the same run and work, with identical author position, recorded names, and observed ORCID. Identity evidence summarizes resolutions, unclear matches, provider failures, and candidate counts without embedding candidate payloads in the collection table. Candidate rows move to the relevant author detail page, where rank, ORCID, display name, and preserved provider evidence remain visibly uncertain rather than accepted identity. `no_orcid_candidate` uses a neutral status treatment while `orcid_is_unclear` uses warning treatment so the outcomes remain distinguishable without relying only on wording.
 
 Source records expose source name/type, record index, parse outcome, reject reason, content hash, and capture time. When source-level result counts are available, they appear above the table to connect configured retrieval and parsed evidence.
 
@@ -137,7 +136,7 @@ Corpus search is server-backed for scoped endpoints. Page size choices are 20, 5
 
 ## 9. Detail views
 
-Article detail uses the breadcrumb Home / Deepdive / Corpus / Analysis-ready articles / DOI instead of a redundant back control. It presents the revision title and summary, a full-width PDF status strip, then a responsive equal-width Document reader and Article review workspace with a defined gap. Full-width Provenance summary and Bibliographic metadata panels follow, then a Search term coverage panel, before authorships, reference mentions, stage outcomes, the article-scoped audit timeline, and advanced raw data. The displayed revision remains anchored to the selected run context; audit may aggregate the selected work's related revisions inside that run.
+Article detail uses the breadcrumb Home / Deepdive / Corpus / Articles / DOI and provides Return to Corpus with the original filters, sorting, page, and expansion state. Adjacent unreviewed navigation uses the same article filters. It presents the revision title and summary, a full-width PDF status strip, then a responsive equal-width Document reader and Article review workspace with a defined gap. Full-width Provenance summary and Bibliographic metadata panels follow, then a Search term coverage panel, before authorships, reference mentions, stage outcomes, the article-scoped audit timeline, and advanced raw data. The displayed revision remains anchored to the selected run context; audit may aggregate the selected work's related revisions inside that run.
 
 The Search term coverage panel is derived from the run's recorded queries and the revision's stored fields. It shows a summary line of how many of the run's search terms matched the article, one row per field (Title, Abstract, Keywords, Keywords plus) with matched terms as chips, and an All search terms disclosure listing matched and unmatched terms with their source badges. A field with no recorded value shows Not recorded, a recorded field with no matches shows No matched terms, and a run without stored term data shows No search terms recorded. The panel states that matching is deterministic and stems every word before whole-word matching.
 
@@ -179,7 +178,7 @@ Provenance subnavigation contains Audit timeline, Artifacts, Cache uses, Stage o
 
 Audit provides server-backed text search plus multi-select category, action, actor, and entity filters and optional stage/outcome fields. Active filters appear as removable chips in URL state. The newest 25 events load first, and Load 25 older events follows the cursor without replacing already visible evidence.
 
-Audit is a top-to-bottom chronology grouped by date with one continuous rail, category marker, and event card. Each card keeps action, category, actor/source, affected entity, time, run context, and outcome visible while event identifiers, correlation identifiers, recorded metadata, and before/after values remain in a Recorded data disclosure. PDF events use the same event language but may be global to a work rather than owned by one pipeline attempt. Review events identify context and old or new version IDs without duplicating note bodies, selected PDF text, reviewer email, or browser drafts. Loading older events appends and deduplicates cards, preserves open disclosures, reports the loaded count in a live region, and replaces the action with a persistent beginning-of-history state only when the cursor is exhausted.
+Audit is a compact top-to-bottom chronology grouped by UTC day with one continuous rail, category marker, and event card. A narrow tabular time column aligns with the action heading; the affected record sits inline with the action and outcome instead of occupying a separate column. Source, scope, and recorded stage, provider, or duration use a wrapping facts row. Validation results, rejection reasons, and run lifecycle outcomes appear in the summary; unknown events do not invent a result or repeat generic audit filler. A compact Recorded data disclosure retains event identifiers, correlation identifiers, and lazily loaded metadata and before/after values. Result totals use an inline summary strip. PDF events may be global to a work rather than owned by one pipeline attempt. Review-decision events compare the complete previous and new status, optional reason, and every sub-status without duplicating note bodies, selected text, reviewer email, or browser drafts. Loading older events appends and deduplicates cards, preserves open disclosures, and reports the loaded count or beginning of history in a live region.
 
 Artifacts show run context, role, producing/consuming steps, media type, byte size, content hash, time, preview availability, and download. The inventory uses the shared rows-per-page selector and complete First, Previous, numbered, Next, and Last pagination controls. Inspection requests 65,536 bytes, identifies truncation, formats complete JSON when possible, supports raw/formatted modes, line wrapping, clipboard copy, and original download. Binary or unsafe media remain download-only.
 
@@ -189,13 +188,13 @@ Stage outcomes begin with an ordered run-level progression that reconciles run s
 
 Run details show attempt identity, status, visibility, timestamps, duration, plan fingerprints, enrichment policy, summary, and exact configuration/manifest snapshot downloads. Legacy attempts may explicitly lack snapshot payloads.
 
-## 12. Evaluation
+## 12. Review within Corpus articles
 
-Evaluation combines reading inventory and current selected-context review state; neither is an intrinsic quality score. Its queue lists every normalize-stage article in the selected run with title, DOI, inventory status, inventory calendar date, review status, and current-context or inherited lineage. Source and qualifier remain advanced server filters and article-detail evidence rather than queue columns.
+The Corpus article collection combines bibliographic metadata, reading inventory, and selected-context review state. Review progress, Start review, adjacent unreviewed navigation, the run Notes index, and PDF, status, lineage, qualifier, source, and progress filters appear in the same collection. Inventory calendar dates appear in article row expansion. Review values remain contextual interpretations rather than intrinsic quality scores.
 
-Search is server-backed over title and DOI. Sorting is limited to title and DOI, and table controls use the shared page-size and pagination behavior. Article titles link to the selected revision detail while retaining research context.
+Search is server-backed over title, DOI, journal, publisher, and source. Sorting uses the allowlisted article metadata fields with numeric ordering for numeric fields, and table controls use the shared page-size and pagination behavior. Article titles link to the selected revision detail while retaining research context.
 
-Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically and provides no PDF add action. A completed run without a context presents Start review; after initialization, article rows link to the detail review workspace. Articles without an available PDF remain readable and permit review-decision and Note mutations when the active-run context and work membership are valid; only PDF anchor creation or restoration remains unavailable.
+Available means a PDF was manually validated and inserted into the bound companion store. Not Available means no selected PDF bytes exist for the registered DOI. The view does not imply that a missing PDF was searched for automatically and provides no PDF add action. A completed non-trashed run with execution-plan lineage and no context presents Start review; after initialization, article rows link to the detail review workspace. Articles without an available PDF remain readable and permit review-decision and Note mutations when the active-run context and work membership are valid; only PDF anchor creation or restoration remains unavailable.
 
 ## 13. Home lifecycle and Advanced
 
@@ -289,7 +288,7 @@ The interface must not render credentials, tokens, private keys, raw environment
 | `styles/base.css` | Reset, document layout, typography, links, landmarks, and reduced motion. |
 | `styles/elements.css` | Buttons, labels, messages, loaders, headers, and segment primitives. |
 | `styles/collections.css` | Navigation, selectors, grids, forms, tables, pagination, breadcrumbs, and responsive collections. |
-| `styles/views.css` | Overview, details, provenance, audit, artifacts, evaluation, and stage-specific presentation. |
+| `styles/views.css` | Overview, details, provenance, audit, artifacts, article review, and stage-specific presentation. |
 | `styles/graph.css` | Relationship layout, controls, canvas, overview, legend, selection, and edge table. |
 | `vendor/d3-force.js` | Generated pinned force-simulation implementation; never edit it manually. |
 | `vendor/pdfjs/` | Generated pinned PDF.js core, exact worker, CMaps, standard fonts, and license assets; never edit them manually. |
@@ -300,7 +299,7 @@ Components may import shared state, API, router helpers, the JSX runtime, pagina
 
 Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifies URL state, API reads and mutations, routing and cleanup, selectors, tables, pagination, graph transformation and interactions, note parser conformance and safe rendering, draft and comparison helpers, PDF geometry projection and one-activation pagination, shell behavior, shared render helpers, and every view module; counts are derived from source rather than maintained here.
 
-The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, evaluation, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for the canonical Home root and clean per-view paths plus reviewed screenshots for core views.
+The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, article review, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for the canonical Home root and clean per-view paths plus reviewed screenshots for core views.
 
 Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 

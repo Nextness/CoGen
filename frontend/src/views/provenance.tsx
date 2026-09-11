@@ -31,6 +31,7 @@ import type { AuditEventRecord } from "../components/audit-events.tsx";
 
 /** Typed compound class names used by this module. */
 const classNames = {
+  rwSummaryStripRwAuditSummary: cx("rw-summary-strip", "rw-audit-summary"),
   rwFilterPanelFieldsRwFilterFieldGrid: cx("rw-filter-panel__fields", "rw-filter-field-grid"),
   rwFilterPanelFieldsRwFilterFieldGridRwFilterFieldGridAdvanced: cx("rw-filter-panel__fields", "rw-filter-field-grid", "rw-filter-field-grid--advanced"),
   rwPropertyGridRwPropertyGridCompact: cx("rw-property-grid", "rw-property-grid--compact"),
@@ -252,7 +253,7 @@ function AuditSummary(props: { data: AuditResponse }): JSX.Element {
     scope = `Run ${value("run_id")}${scopeSuffix}`;
   }
   return (
-    <dl className="rw-summary-strip">
+    <dl className={classNames.rwSummaryStripRwAuditSummary}>
       <div>
         <dt>Matching events</dt>
         <dd>{formatNumber(summary?.total_events || auditEvents.length)}</dd>
@@ -287,7 +288,7 @@ function AuditView(props: { data: AuditResponse }): JSX.Element {
         <div className={classNames.uiTopAttachedHeader}>
           <div>
             <h3>Audit timeline</h3>
-            <p>Newest evidence appears first. Open Recorded data only when identifiers or payload changes are needed.</p>
+            <p>Newest first · Times in UTC. Outcomes and reasons appear inline; open Recorded data for the full evidence.</p>
           </div>
         </div>
         <div className="content">

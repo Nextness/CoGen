@@ -13,10 +13,7 @@ import (
 	"analysis/database"
 )
 
-var evaluationSortFields = map[string]string{
-	"title": "wr.title",
-	"doi":   "w.doi",
-}
+var evaluationSortFields = runCorpusDefinitions["articles"].sortFields
 
 var evaluationReviewStatuses = map[string]bool{
 	"not_evaluated": true,
@@ -74,7 +71,12 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	runWritable := run.Status == "completed" && run.Visibility != "trashed"
+	var hasPlan bool
+	if err := s.db.QueryRowContext(ctx, "SELECT execution_plan_id IS NOT NULL FROM pipeline_runs WHERE id=?", runID).Scan(&hasPlan); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	runWritable := run.Status == "completed" && run.Visibility != "trashed" && hasPlan
 	var proposedParent any
 	if contextRecord == nil && runWritable {
 		proposedParent, err = s.writeDB.Reviews.ProposeParent(ctx, runID)
@@ -84,14 +86,16 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	from := `FROM work_revisions wr JOIN works w ON w.id=wr.work_id
+		LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
+			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
 		LEFT JOIN review_context_work_heads review_head ON review_head.review_context_id=? AND review_head.work_id=wr.work_id
 		LEFT JOIN work_review_versions review ON review.id=review_head.review_version_id`
 	clauses := []string{"wr.pipeline_run_id=?", database.CurrentNormalizedRevisionPredicate("wr")}
 	args := []any{contextID, runID}
 	if query != "" {
-		clauses = append(clauses, "(LOWER(COALESCE(wr.title, '')) LIKE ? OR LOWER(COALESCE(w.doi, '')) LIKE ?)")
+		clauses = append(clauses, "(LOWER(COALESCE(wr.title, '')) LIKE ? OR LOWER(COALESCE(w.doi, '')) LIKE ? OR LOWER(COALESCE(wr.journal, '')) LIKE ? OR LOWER(COALESCE(wr.publisher, '')) LIKE ? OR LOWER(COALESCE(wr.source, '')) LIKE ?)")
 		needle := "%" + strings.ToLower(query) + "%"
-		args = append(args, needle, needle)
+		args = append(args, needle, needle, needle, needle, needle)
 	}
 	if source := strings.TrimSpace(r.URL.Query().Get("source")); source != "" {
 		if source == "not_recorded" {
@@ -180,13 +184,13 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	page = clampScopedPage(page, perPage, total)
 
 	queryArgs := append(append([]any(nil), args...), perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, `SELECT wr.work_id, wr.id AS work_revision_id,
-		wr.title, w.doi, wr.source, COALESCE(review.status, 'not_evaluated') AS review_status,
+	rows, err := s.db.QueryContext(ctx, `SELECT `+corpusSelectColumns("articles")+`, wr.id AS work_revision_id,
+		COALESCE(review.status, 'not_evaluated') AS review_status,
 		CASE WHEN review.id IS NOT NULL AND review.created_in_context_id!=? THEN 1 ELSE 0 END AS review_inherited,
 		review.id AS review_version_id, review.created_in_context_id AS review_created_in_context_id,
 		COALESCE((SELECT json_group_array(sub_status) FROM (
 			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=review.id ORDER BY sub_status)), '[]') AS review_sub_statuses
-		`+from+` WHERE `+where+` ORDER BY `+evaluationSortFields[sortField]+` `+order+`, wr.id `+order+` LIMIT ? OFFSET ?`,
+		`+from+` WHERE `+where+` ORDER BY COALESCE(`+evaluationSortFields[sortField]+`, '') `+order+`, wr.id `+order+` LIMIT ? OFFSET ?`,
 		append([]any{contextID}, queryArgs...)...)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -199,6 +203,9 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil {
 		err = s.overlayPDFInventory(ctx, items)
+	}
+	if err == nil {
+		err = s.attachArticleTermMatches(ctx, runID, items)
 	}
 	summary, summaryErr := s.evaluationReviewSummary(ctx, runID, contextID, string(availableJSON))
 	if err == nil {
@@ -231,8 +238,9 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "review_context_initialized": contextRecord != nil, "review_context": contextRecord,
 		"review_summary": summary, "queue_navigation": navigation, "proposed_parent": proposedParent, "run_writable": runWritable,
-		"columns": []string{"title", "doi", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"},
-		"rows":    items,
+		"collection": "articles",
+		"columns":    append(append([]string(nil), runCorpusDefinitions["articles"].columns...), "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"),
+		"rows":       items,
 		"pagination": scopedPagination(
 			page, perPage, total, sortField, order,
 		),
@@ -242,7 +250,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 // evaluationQueueNavigation returns adjacent unreviewed revisions within the active queue filters.
 func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRevisionID int64, from, where string, args []any, sortField, order string) (map[string]any, error) {
 	unreviewedWhere := where + " AND (review.id IS NULL OR review.status='not_evaluated')"
-	sortExpression := "COALESCE(CAST(" + evaluationSortFields[sortField] + " AS TEXT), '')"
+	sortExpression := "COALESCE(" + evaluationSortFields[sortField] + ", '')"
 	queryID := func(predicate, queryOrder string, extraArgs ...any) (any, error) {
 		queryArgs := append(append([]any(nil), args...), extraArgs...)
 		var revisionID int64
@@ -269,8 +277,10 @@ func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRe
 		return map[string]any{"previous_work_revision_id": previous, "next_work_revision_id": next}, err
 	}
 
-	var currentSortValue string
+	var currentSortValue any
 	err := s.db.QueryRowContext(ctx, `SELECT `+sortExpression+` FROM work_revisions wr JOIN works w ON w.id=wr.work_id
+		LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
+			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
 		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
 	if err == sql.ErrNoRows {
 		return nil, notFound("current evaluation revision is not part of the selected run")

@@ -59,6 +59,9 @@ function auditOutcome(event: AuditEventRecord, metadata: WireRecord, after: Wire
   if (recorded) return String(recorded);
 
   const action = String(event.action || "").toLocaleLowerCase();
+  if (action === "run_completed" || action === "pipeline_completed") return "completed";
+  if (action === "run_started" || action === "pipeline_started") return "running";
+  if (action === "validation_discarded") return "discarded";
 
   const check_failed = action.includes("failed") || action.includes("error");
   if (check_failed) return "failed";
@@ -95,6 +98,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
     const updates = {
       view: "provenance",
       section: "run",
+      run_id: String(id || props.event.pipeline_run_id || value("run_id")),
     };
     const target = linkTargetFor(updates);
     href = target.href;
@@ -133,7 +137,7 @@ function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: Wir
   if (check_reasons) {
     var reasons = [metadata.reasons];
     if (Array.isArray(metadata.reasons)) reasons = metadata.reasons;
-    return reasons.join("; ");
+    if (reasons.length) return reasons.join("; ");
   }
 
   const check_error = metadata.error;
@@ -141,6 +145,25 @@ function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: Wir
 
   const check_reason = metadata.reason;
   if (check_reason) return String(metadata.reason);
+
+  if (action === "validation_changed") {
+    if (before.status && after.status) return `Validation changed from ${humanLabel(before.status)} to ${humanLabel(after.status)}.`;
+    if (after.status) return `Validation result: ${humanLabel(after.status)}.`;
+    return "Validation was evaluated; the result was not recorded in this event.";
+  }
+
+  const lifecycleSummaries: Record<string, string> = {
+    run_started: "Pipeline execution started.",
+    run_completed: "Pipeline execution finished successfully.",
+    pipeline_completed: "Pipeline execution finished successfully.",
+    run_failed: "Pipeline execution stopped with a failure.",
+    run_trashed: "This run was moved to trash; its evidence is retained.",
+    run_restored: "This run was restored from trash.",
+    step_reused: "Previously recorded step results were reused.",
+    duplicate_plan_skipped: "Execution was skipped because this plan was already completed.",
+    network_fetch: "A provider response was fetched and recorded.",
+  };
+  if (lifecycleSummaries[action]) return lifecycleSummaries[action];
 
   const check_search_id = metadata.search_id;
   if (check_search_id) {
@@ -164,7 +187,21 @@ function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: Wir
   const check_review = action.startsWith("review_") || action.startsWith("work_review_");
   if (check_review) return "An immutable local review version was recorded.";
 
-  return "Recorded append-only audit event.";
+  if (before.status && after.status) return `Status changed from ${humanLabel(before.status)} to ${humanLabel(after.status)}.`;
+  return "";
+}
+
+/** Formats the time within a UTC date group without repeating the full date on every row. */
+function auditClock(timestamp: string | undefined): string {
+  const date = new Date(timestamp || "");
+  if (Number.isNaN(date.getTime())) return "Time not recorded";
+  return date.toLocaleTimeString("en-US", {
+    timeZone: "UTC",
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 /** Renders one complete previous or new review-decision state. */
@@ -333,6 +370,13 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   const source = props.event.actor || metadata.provider || "Not recorded";
   const stage = metadata.stage || metadata.stage_name;
   const eventID = String(props.event.id || "unrecorded");
+  const clock = auditClock(timestamp);
+  const fullTimestamp = `${formatTime(timestamp)} (UTC)`;
+  const actionLabel = humanLabel(props.event.action || "event");
+  const categoryLabel = humanLabel(category);
+  const summary = eventSummary(props.event, metadata, before, after);
+  var summaryMarkup: JSX.Element | null = null;
+  if (summary) summaryMarkup = <p>{summary}</p>;
 
   var runContext = "Run not recorded";
   if (props.event.pipeline_run_id) {
@@ -341,33 +385,39 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
     runContext = "Global PDF evidence";
   }
   const eventClass = cx("rw-audit-event", auditCategoryClasses[category]);
-  var stageMarkup: JSX.Element | null = null;
-  if (stage) {
-    const stage_content = String(stage);
-    stageMarkup = <span>Stage: <strong>{stage_content}</strong></span>;
-  }
+  const contextFacts: Array<[string, unknown]> = [["Source", source], ["Scope", runContext]];
+  if (stage) contextFacts.push(["Stage", humanLabel(stage)]);
+  if (metadata.provider && metadata.provider !== source) contextFacts.push(["Provider", metadata.provider]);
+  if (metadata.duration_seconds != null) contextFacts.push(["Duration", `${metadata.duration_seconds} s`]);
+  else if (metadata.duration != null) contextFacts.push(["Duration", metadata.duration]);
+  const contextMarkup = contextFacts.map(([label, fact]) => {
+    return (
+      <div>
+        <dt>{label}</dt>
+        <dd>{String(fact)}</dd>
+      </div>
+    );
+  });
 
   return (
     <article className={eventClass} data-audit-event-id={eventID}>
-      <time dateTime={timestamp || ""}><span>{formatTime(timestamp)}</span></time>
+      <time dateTime={timestamp || ""} title={fullTimestamp}>
+        <span>{clock}</span>
+        <small>UTC</small>
+      </time>
       <div className="rw-audit-event__main">
         <div className="rw-audit-event__heading">
-          <h5>{humanLabel(props.event.action || "event")}</h5>
-          <span className={classNames.uiLabel}>{humanLabel(category)}</span>
+          <h5>{actionLabel}</h5>
+          <span className={classNames.uiLabel}>{categoryLabel}</span>
           <StatusChip raw={outcome} />
+          <div className="rw-audit-event__entity" title="Affected record">
+            <AuditEntity event={props.event} />
+          </div>
         </div>
-        <p>{eventSummary(props.event, metadata, before, after)}</p>
+        {summaryMarkup}
         <ReviewDecisionChange event={props.event} before={before} after={after} />
-        <div className="rw-audit-event__context">
-          <span>Source: <strong>{String(source)}</strong></span>
-          <span>Scope: <strong>{runContext}</strong></span>
-          {stageMarkup}
-        </div>
+        <dl className="rw-audit-event__context">{contextMarkup}</dl>
         <EventDetails event={props.event} metadata={metadata} before={before} after={after} />
-      </div>
-      <div className="rw-audit-event__entity">
-        <small>Affected record</small>
-        <AuditEntity event={props.event} />
       </div>
     </article>
   );
