@@ -93,6 +93,7 @@ export const classTokens = [
   "rw-audit-events",
   "rw-audit-filters",
   "rw-audit-layout",
+  "rw-audit-summary",
   "rw-breadcrumb",
   "rw-capability-status",
   "rw-capability-unavailable",

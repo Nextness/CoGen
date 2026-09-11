@@ -38,6 +38,41 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Research-context and responsive behavior', () => {
+  test("audit rows align compact times and inline records without loading raw payloads", async ({ page }) => {
+    const recordedRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/recorded-data")) recordedRequests.push(request.url());
+    });
+    await page.setViewportSize({ width: 1700, height: 1000 });
+    await visitQuality(page, { view: "provenance", section: "audit" });
+    const events = page.locator(".rw-audit-event");
+    await expect(events.first()).toBeVisible();
+    const dimensions = await events.first().evaluate((event) => {
+      const clock = event.querySelector("time")!.getBoundingClientRect();
+      const heading = event.querySelector(".rw-audit-event__heading")!.getBoundingClientRect();
+      const record = event.querySelector(".rw-audit-event__entity")!;
+      const disclosure = event.querySelector("summary")!.getBoundingClientRect();
+      return {
+        clockWidth: clock.width,
+        alignment: Math.abs(clock.top - heading.top),
+        inlineRecord: Boolean(record.closest(".rw-audit-event__heading")),
+        disclosureWidth: disclosure.width,
+        rowHeight: event.getBoundingClientRect().height,
+      };
+    });
+    expect(dimensions.clockWidth).toBeLessThanOrEqual(90);
+    expect(dimensions.alignment).toBeLessThanOrEqual(4);
+    expect(dimensions.inlineRecord).toBe(true);
+    expect(dimensions.disclosureWidth).toBeLessThan(200);
+    expect(dimensions.rowHeight).toBeLessThan(115);
+    expect(recordedRequests).toHaveLength(0);
+    await events.first().locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(events.first().locator("details")).toHaveAttribute("open", "");
+    await expect.poll(() => recordedRequests.length).toBe(1);
+    await expectNoPageOverflow(page);
+  });
+
   test('detail breadcrumbs remain concise and identify the parent collection', async ({ page }) => {
     await visitQuality(page, { view: 'article', article_id: '1' });
     const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
