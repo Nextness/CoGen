@@ -7,10 +7,12 @@ import {
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, tables } from "../api.tsx";
-import type { CorpusResponse, IdentityEvidenceResponse, IdentityEvidenceRow, TableInfo, TableRowsResponse, TermMatchSummary, WireRecord } from "../api/types.ts";
+import type { CorpusResponse, IdentityEvidenceResponse, IdentityEvidenceRow, TableInfo, TableRowsResponse, WireRecord } from "../api/types.ts";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
 import type { DataTableContext } from "../components/data-table.tsx";
 import { Pagination } from "../components/pagination.tsx";
+import { articlesColumns, articlesExpandFields } from "../components/article-table.tsx";
+import { articleCollectionView } from "./evaluation.tsx";
 import { setURL } from "../router.tsx";
 
 /** Typed compound class names used by this module. */
@@ -28,73 +30,7 @@ const classNames = {
   uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
 };
 
-// Core columns shown in the articles table; extra fields appear in expandable rows.
-const articlesColumns = ["doi", "title", "year", "journal", "source"];
 const authorColumns = ["citation_name", "orcid", "first_name", "last_name", "article_count", "affiliation_count"];
-const articlesExpandFields = [
-  {
-    f: "title",
-    w: "full" as const,
-  },
-  {
-    f: "authors",
-    w: "full" as const,
-  },
-  {
-    f: "journal",
-    w: 10,
-  },
-  {
-    f: "publisher",
-    w: 10,
-  },
-  {
-    f: "abstract",
-    w: "full" as const,
-  },
-  {
-    f: "term_matches",
-    w: "full" as const,
-    label: "Matched search terms",
-    render: termMatchMarkup,
-  },
-  {
-    f: "work_id",
-    w: 4,
-  },
-  {
-    f: "year",
-    w: 4,
-  },
-  {
-    f: "source",
-    w: 4,
-  },
-  {
-    f: "doi",
-    w: 4,
-  },
-  {
-    f: "validation_status",
-    w: 4,
-  },
-  {
-    f: "citation_count",
-    w: 5,
-  },
-  {
-    f: "reference_count",
-    w: 5,
-  },
-  {
-    f: "producer_stage",
-    w: 5,
-  },
-  {
-    f: "created_at",
-    w: 5,
-  },
-];
 
 const referenceColumns = ["mention_order", "title", "author", "year", "doi", "citing_title"];
 const referenceExpandFields = [
@@ -215,6 +151,13 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
       var errorHtml: JSX.Element | null = null;
       if (row.error_message) errorHtml = <p className={classNames.uiFadedText}>{row.error_message}</p>;
       const authorTarget = detailLinkFor("author", row.author_occurrence_id);
+      var authorLink: JSX.Element = <span>{row.queried_citation_name}</span>;
+      if (row.evidence_revision_id !== null) authorLink = <a href={authorTarget.href} data-state={JSON.stringify(authorTarget.state)}>{row.queried_citation_name}</a>;
+      var articleLink: JSX.Element = <span>{row.article_title || "Not recorded"}</span>;
+      if (row.work_revision_id) articleLink = clippedRecordLink("article", row.work_revision_id, row.article_title);
+      const stageLabel = humanLabelState(row.evidence_stage);
+      var evidenceStage: JSX.Element | null = null;
+      if (row.evidence_stage) evidenceStage = <small className={classNames.uiFadedText}>Search captured during {stageLabel}</small>;
       return (
         <tr>
           <td>
@@ -222,9 +165,12 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
             {errorHtml}
           </td>
           <td>
-            <a href={authorTarget.href} data-state={JSON.stringify(authorTarget.state)}>{row.queried_citation_name}</a>
+            {authorLink}
           </td>
-          <td>{row.article_title || "Not recorded"}</td>
+          <td>
+            {articleLink}
+            {evidenceStage}
+          </td>
           <td>{row.doi || "Not recorded"}</td>
         </tr>
       );
@@ -235,12 +181,12 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
   const paginationOptions = {
     page: props.context.page,
     perPage: props.context.perPage,
-    itemLabel: "author records",
+    itemLabel: "article evidence records",
   };
   const paginationMarkup = <Pagination result={paginationData} options={paginationOptions} />;
 
   return (
-    <Fragment>
+    <section data-table-owner={corpusSections.identity_evidence.table}>
       {metrics}
       <div className="table-wrap" aria-label="Author identity evidence table">
         <table className={classNames.uiTable}>
@@ -256,7 +202,7 @@ function IdentityEvidenceTable(props: { data: IdentityEvidenceResponse; context:
         </table>
       </div>
       {paginationMarkup}
-    </Fragment>
+    </section>
   );
 }
 
@@ -274,56 +220,6 @@ function clippedRecordLink(kind: string, id: unknown, title: unknown): JSX.Eleme
 /** Renders escaped record text clipped to the requested length. */
 function clippedRecordText(title: unknown): JSX.Element {
   return <span className="rw-table-title" title={String(title || "Not recorded")}>{clippedLabel(title)}</span>;
-}
-
-/** Renders the stored search-term coverage for one article row. */
-function termMatchMarkup(row: WireRecord): JSX.Element {
-  if (row.term_matches === null || row.term_matches === undefined) {
-    return <span className={classNames.uiFadedText}>No search terms recorded</span>;
-  }
-  const termMatches = row.term_matches as TermMatchSummary;
-  const fields = [
-    {
-      key: "title",
-      label: "Title",
-    },
-    {
-      key: "abstract",
-      label: "Abstract",
-    },
-    {
-      key: "keywords",
-      label: "Keywords",
-    },
-    {
-      key: "keywords_plus",
-      label: "Keywords plus",
-    },
-  ];
-  const fieldElements: JSX.Element[] = fields.map(({ key, label }) => {
-    const terms = termMatches[key] as string[] | undefined || [];
-    var content: JSX.Element = <span className={classNames.uiFadedText}>No matched terms</span>;
-    if (terms.length) {
-      const termTags: JSX.Element[] = terms.map((term: string) => {
-        return <span className={classNames.uiLabel}>{term}</span>;
-      });
-      content = <span className="rw-keyword-tags">{termTags}</span>;
-    }
-    return (
-      <div className="rw-term-field">
-        <span className="rw-term-field__label">{label}</span>
-        {content}
-      </div>
-    );
-  });
-  const matchedTotal = termMatches.matched_total;
-  const termTotal = termMatches.term_total;
-  return (
-    <Fragment>
-      <p className={classNames.uiFadedText}>{matchedTotal} of {termTotal} search terms matched</p>
-      <div className="rw-term-fields">{fieldElements}</div>
-    </Fragment>
-  );
 }
 
 /** Returns section-specific labels and renderers for corpus columns. */
@@ -439,6 +335,33 @@ export async function corpusView(): Promise<void> {
   var current = "articles";
   if (corpusSections[requestedSection]) current = requestedSection;
 
+  const collectionOptions = Object.entries(corpusSections).map(([id, item]) => {
+    var label = item.title;
+    if (id === "sources") label = "Source records";
+    return <option value={id} selected={id === current}>{label}</option>;
+  });
+  const collectionChooser = (
+    <div className="rw-corpus-collection">
+      <label htmlFor="corpus-section-select">
+        <span>Corpus collection</span>
+        <select id="corpus-section-select">{collectionOptions}</select>
+      </label>
+      <p>Choose the evidence collection displayed below.</p>
+    </div>
+  );
+
+  const heading = (
+    <Fragment>
+      <PageHeader kicker="Articles and research evidence" title="Corpus" description="Browse articles, review PDFs and decisions, and inspect their authors, references, and source evidence." />
+      {collectionChooser}
+    </Fragment>
+  );
+  if (current === "articles" && value("run_id")) {
+    await articleCollectionView(heading, corpusView);
+    bindCorpusCollection();
+    return;
+  }
+
   const definition = corpusSections[current];
   const allTables = await tables();
   const knownTable = allTables.find((item) => {
@@ -513,27 +436,12 @@ export async function corpusView(): Promise<void> {
     </form>
   );
 
-  const collectionOptions = Object.entries(corpusSections).map(([id, item]) => {
-    var label = item.title;
-    if (id === "sources") label = "Source records";
-    return <option value={id} selected={id === current}>{label}</option>;
-  });
-  const collectionChooser = (
-    <div className="rw-corpus-collection">
-      <label htmlFor="corpus-section-select">
-        <span>Corpus collection</span>
-        <select id="corpus-section-select">{collectionOptions}</select>
-      </label>
-      <p>Choose the evidence collection displayed below.</p>
-    </div>
-  );
-
   var explanation: JSX.Element = <p className={classNames.uiInfoMessage}>Select a run to make this list run-scoped. Without one, Advanced-style workspace records remain bounded and paginated.</p>;
   if (scoped) {
     if (current === "articles") {
       explanation = <p className={classNames.uiInfoMessage}>This analysis-ready corpus contains only valid normalized work revisions. Discarded works remain available through validation stage outcomes and provenance.</p>;
     } else if (current === "identity_evidence") {
-      explanation = <p className={classNames.uiInfoMessage}>An ORCID returned by a name search is not assigned to this author or a person record. Review candidates and raw provider payloads before any future confirmation. A provider failure means the name search stopped before all configured queries completed.</p>;
+      explanation = <p className={classNames.uiInfoMessage}>Searches describe the author occurrence captured at the recorded pipeline stage; article links open the normalized revision when available. An ORCID returned by a name search is not assigned to this author or a person record. Review candidates and raw provider payloads before any future confirmation. A provider failure means the name search stopped before all configured queries completed.</p>;
     } else {
       explanation = <p className={classNames.uiInfoMessage}>This bounded, paginated list contains only records attached to the selected historical run.</p>;
     }
@@ -592,8 +500,7 @@ export async function corpusView(): Promise<void> {
 
   const pageMarkup = (
     <Fragment>
-      <PageHeader kicker="Immutable research corpus" title="Corpus" description="Browse immutable revisions, observed authors, reference mentions, and captured source records." />
-      {collectionChooser}
+      {heading}
       {sourceCounts}
       <section className={classNames.uiSegment}>
         <div className={classNames.uiTopAttachedHeader}>
@@ -615,6 +522,12 @@ export async function corpusView(): Promise<void> {
   );
   renderTree(pageMarkup, app);
 
+  bindCorpusCollection();
+  bindTableControls(definition.table);
+}
+
+/** Binds the collection selector and clears filters owned by the previous collection. */
+function bindCorpusCollection(): void {
   const sectionSelect = document.querySelector("#corpus-section-select")!;
   sectionSelect.addEventListener("change", (event) => {
     setURL({
@@ -624,7 +537,12 @@ export async function corpusView(): Promise<void> {
       sort: "",
       order: "",
       expanded: "",
+      pdf_status: "",
+      review_status: "",
+      review_source: "",
+      qualifier: "",
+      source: "",
+      reviewed: "",
     }, false);
   });
-  bindTableControls(definition.table);
 }

@@ -16,7 +16,6 @@ export const classTokens = [
   "col-doi",
   "col-format",
   "col-id",
-  "col-inventoried-date",
   "col-inventory-status",
   "col-journal",
   "col-parse-status",

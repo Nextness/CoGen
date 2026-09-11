@@ -44,7 +44,7 @@ test.describe('Research-context and responsive behavior', () => {
     await expect(breadcrumb).toContainText('Home');
     await expect(breadcrumb).toContainText('Deepdive');
     await expect(breadcrumb).toContainText('Corpus');
-    await expect(breadcrumb).toContainText('Analysis-ready articles');
+    await expect(breadcrumb).toContainText('Articles');
     await expect(breadcrumb).toContainText('10.1000/1');
     await expect(breadcrumb).not.toContainText('deep-learning-nlp');
     await expect(page.getByRole('link', { name: 'Back to Corpus' })).toHaveCount(0);
@@ -115,7 +115,7 @@ test.describe('Research-context and responsive behavior', () => {
     await page.setViewportSize({ width: 320, height: 568 });
     const responsiveStates: ViewState[] = [
       { view: 'home' },
-      { view: 'evaluation' },
+      { view: 'corpus', section: 'articles' },
       { view: 'provenance', section: 'audit' },
       { view: 'article', article_id: '1' },
     ];
@@ -135,7 +135,7 @@ test.describe('Research-context and responsive behavior', () => {
 
   test('200 percent reflow, text spacing, and focused-input viewport changes preserve actions', async ({ page }) => {
     await page.setViewportSize({ width: 640, height: 800 });
-    await visitQuality(page, { view: 'evaluation' });
+    await visitQuality(page, { view: 'corpus', section: 'articles' });
     await page.evaluate(function() { document.documentElement.style.zoom = '2'; });
     await expectNoPageOverflow(page);
     await expect(page.locator('[data-evaluation-filters]').getByRole('button', { name: 'Apply filters' })).toBeVisible();
@@ -205,7 +205,6 @@ test.describe('Automated accessibility checks', () => {
     ['provenance cache', { view: 'provenance', section: 'cache' }],
     ['provenance stages', { view: 'provenance', section: 'stages' }],
     ['provenance run', { view: 'provenance', section: 'run' }],
-    ['evaluation', { view: 'evaluation' }],
     ['advanced', { view: 'advanced' }],
     ['author detail', { view: 'author', author_id: '1' }],
     ['reference detail', { view: 'reference', reference_id: '1' }],
@@ -308,7 +307,6 @@ test.describe('Visual regression', () => {
     ['relationships', { view: 'relationships' }],
     ['provenance-audit', { view: 'provenance', section: 'audit' }],
     ['provenance-stages', { view: 'provenance', section: 'stages' }],
-    ['evaluation', { view: 'evaluation' }],
   ];
   for (const [name, overrides] of visualStates) {
     test(`${name} light`, async ({ page }) => {

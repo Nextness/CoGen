@@ -4,12 +4,12 @@ import assert from "node:assert/strict";
 import "../setup.ts";
 import { apiResponse } from "../helpers/fetch.ts";
 import { seedViewerState } from "../seed.ts";
-import { evaluationView } from "../../../src/views/evaluation.tsx";
+import { articleCollectionView } from "../../../src/views/evaluation.tsx";
 import { app, state, value } from "../../../src/state.tsx";
 
 /** Sets the Evaluation viewer state used by one unit test. */
 function setLocation(values: Record<string, string>): void {
-  seedViewerState({ view: "evaluation", ...values });
+  seedViewerState({ view: "corpus", ...values });
 }
 
 /** Builds one invariant Evaluation response with optional overrides. */
@@ -35,7 +35,7 @@ function evaluationResponse(overrides: Record<string, any> = {}): Record<string,
         source: [{ value: "crossref", count: 2 }],
       },
     },
-    columns: ["title", "doi", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"],
+    columns: ["title", "doi", "year", "journal", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"],
     rows: [
       { work_revision_id: 1, title: "Available article", doi: "10.1000/available", source: "crossref", inventory_status: "available", inventoried_at: "2026-07-29T12:00:00Z", review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
       { work_revision_id: 2, title: "Missing article", doi: "10.1000/missing", source: "crossref", inventory_status: "not_available", inventoried_at: null, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
@@ -59,9 +59,9 @@ describe("evaluation.tsx - evaluationView", function() {
       requested = true;
       return apiResponse([]);
     } as typeof fetch;
-    setLocation({ view: "evaluation" });
+    setLocation({ view: "corpus" });
 
-    await evaluationView();
+    await articleCollectionView(document.createElement("div"), async () => {});
 
     assert.equal(requested, false);
     assert.match(app.textContent || "", /Select a run attempt/);
@@ -75,27 +75,27 @@ describe("evaluation.tsx - evaluationView", function() {
       requested = String(input);
       return apiResponse(evaluationResponse());
     } as typeof fetch;
-    setLocation({ view: "evaluation", run_id: "7" });
+    setLocation({ view: "corpus", run_id: "7" });
 
-    await evaluationView();
+    await articleCollectionView(document.createElement("div"), async () => {});
 
-    assert.match(requested, /\/api\/runs\/7\/evaluation/);
+    assert.match(requested, /\/api\/runs\/7\/corpus\/articles/);
     assert.match(app.textContent || "", /Review progress/);
     assert.match(app.textContent || "", /PDF/);
     assert.equal(app.querySelectorAll(".ui.green.label").length, 1);
     assert.equal(app.querySelectorAll(".ui.orange.label").length >= 3, true);
     assert.match(app.querySelector(".ui.green.label")?.textContent || "", /Available/);
-    assert.match(app.querySelector(".rw-evaluation-table")?.textContent || "", /Not started/);
-    assert.deepEqual(Array.from(app.querySelectorAll(".rw-evaluation-table thead th"), (cell) => {
+    assert.match(app.querySelector(".rw-corpus-table")?.textContent || "", /Not started/);
+    assert.deepEqual(Array.from(app.querySelectorAll(".rw-corpus-table thead th"), (cell) => {
       return cell.textContent?.trim();
-    }), ["Title", "DOI", "PDF", "Inventoried at", "Review status", "Review source"]);
-    assert.equal(app.querySelector(".rw-evaluation-table time")?.textContent, "Jul 29, 2026");
+    }), ["", "DOI", "Title", "Year", "Journal", "Source", "PDF", "Review status", "Review source"]);
+    assert.equal(app.querySelector(".rw-corpus-table time")?.textContent, "Jul 29, 2026");
     assert.ok(app.querySelector(".rw-evaluation-filters__advanced"));
     assert.ok(app.querySelector("[data-start-review]"));
     const nextUnreviewed = Array.from(app.querySelectorAll<HTMLAnchorElement>("a")).find((anchor) => {
       return anchor.textContent?.includes("Next unreviewed");
     });
-    assert.match(nextUnreviewed?.dataset.state || "", /origin.*view=evaluation/);
+    assert.match(nextUnreviewed?.dataset.state || "", /origin.*view=corpus/);
     globalThis.fetch = originalFetch;
   });
 
@@ -109,9 +109,9 @@ describe("evaluation.tsx - evaluationView", function() {
         pagination: { page: 9, per_page: 50, total_rows: 0, total_pages: 0 },
       }));
     } as typeof fetch;
-    setLocation({ view: "evaluation", run_id: "7", q: "no match", page: "9" });
+    setLocation({ view: "corpus", run_id: "7", q: "no match", page: "9" });
 
-    await evaluationView();
+    await articleCollectionView(document.createElement("div"), async () => {});
 
     assert.match(app.textContent || "", /Review initialized/);
     assert.equal(app.querySelector("[data-start-review]"), null);
@@ -123,8 +123,8 @@ describe("evaluation.tsx - evaluationView", function() {
     globalThis.fetch = function() {
       return apiResponse(evaluationResponse());
     } as typeof fetch;
-    setLocation({ view: "evaluation", run_id: "7" });
-    await evaluationView();
+    setLocation({ view: "corpus", run_id: "7" });
+    await articleCollectionView(document.createElement("div"), async () => {});
 
     const form = app.querySelector<HTMLFormElement>("[data-evaluation-filters]")!;
     form.querySelector<HTMLInputElement>("[name=q]")!.value = "methods";

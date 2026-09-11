@@ -315,7 +315,7 @@ export interface TermMatchSummary extends WireRecord {
 export interface CorpusRow extends WireRecord {
   id?: number;
   work_id?: number;
-  work_revision_id?: number;
+  work_revision_id?: number | null;
   title?: string | null;
   doi?: string | null;
   year?: number | string | null;
@@ -348,6 +348,9 @@ export interface IdentityEvidenceRow extends CorpusRow {
   candidate_count?: number;
   queried_citation_name?: string;
   article_title?: string | null;
+  work_revision_id?: number | null;
+  evidence_revision_id?: number | null;
+  evidence_stage?: string | null;
   observed_orcid?: string | null;
   candidates?: IdentityCandidate[];
 }
@@ -371,7 +374,7 @@ export interface EvaluationFacet {
 }
 
 /** One article in the evaluation queue. */
-export interface EvaluationRow extends WireRecord {
+export interface EvaluationRow extends CorpusRow {
   work_id: number;
   work_revision_id: number;
   title: string | null;

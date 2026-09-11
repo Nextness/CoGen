@@ -28,6 +28,86 @@ func TestRunScopedIdentityEvidence(t *testing.T) {
 	}
 }
 
+// TestIdentityEvidenceRevisionLinks verifies coherent article pairs and bounded author evidence across immutable snapshots.
+func TestIdentityEvidenceRevisionLinks(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	insert := func(query string, args ...any) int64 {
+		result, err := viewer.writeDB.DB.Exec(query, args...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	workA := insert("INSERT INTO works (doi) VALUES ('10.identity/a')")
+	workZ := insert("INSERT INTO works (doi) VALUES ('10.identity/z')")
+	otherWork := insert("INSERT INTO works (doi) VALUES ('10.identity/unrelated')")
+	author := insert("INSERT INTO author_occurrences (citation_name) VALUES ('Revision Author')")
+	resolution := insert("INSERT INTO author_identity_resolutions (pipeline_run_id, author_occurrence_id, status, provider, queried_citation_name, resolved_at) VALUES (?, ?, 'orcid_is_unclear', 'orcid', 'Revision Author', '2026-01-01')", runID, author)
+	insert("INSERT INTO author_identity_candidates (identity_resolution_id, candidate_orcid, query_url, provider_rank) VALUES (?, '0000-0001-2345-6789', 'https://orcid.example/search', 1)", resolution)
+	revision := func(workID int64, stage, title string) int64 {
+		return insert("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title) VALUES (?, ?, ?, ?, ?)", workID, runID, title, stage, title)
+	}
+	sourceA := revision(workA, "enrich_metadata", "Z old title")
+	sourceZ := revision(workZ, "enrich_metadata", "A other article")
+	insert("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1), (?, ?, 1)", sourceA, author, sourceZ, author)
+	normalized := revision(workA, "normalize", "Z corrected title")
+	insert("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", runID, workA)
+	currentAuthor := insert("INSERT INTO author_occurrences (citation_name) VALUES ('Revision Author')")
+	wrongPosition := insert("INSERT INTO author_occurrences (citation_name) VALUES ('Revision Author')")
+	insert("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1), (?, ?, 2)", normalized, currentAuthor, normalized, wrongPosition)
+	unrelatedRevision := revision(otherWork, "normalize", "Unrelated article")
+	unrelatedAuthor := insert("INSERT INTO author_occurrences (citation_name) VALUES ('Revision Author')")
+	insert("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1)", unrelatedRevision, unrelatedAuthor)
+	changedRevision := revision(workA, "normalize", "Z changed author")
+	changedAuthor := insert("INSERT INTO author_occurrences (citation_name, orcid) VALUES ('Revision Author', '0000-0002-1825-0097')")
+	insert("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1)", changedRevision, changedAuthor)
+
+	handler := viewer.Handler()
+	code, body := requestJSON(t, handler, "/api/runs/"+stringID(runID)+"/identity-evidence?q=Revision+Author&per_page=20")
+	if code != http.StatusOK {
+		t.Fatalf("identity response status=%d body=%v", code, body)
+	}
+	rows := body["rows"].([]any)
+	if len(rows) != 2 || body["pagination"].(map[string]any)["total_rows"] != float64(2) {
+		t.Fatalf("expected one coherent row per article, got %v", body)
+	}
+	pairs := map[string]string{"10.identity/a": "Z changed author", "10.identity/z": "A other article"}
+	for _, raw := range rows {
+		row := raw.(map[string]any)
+		if row["article_title"] != pairs[row["doi"].(string)] || row["candidate_count"] != float64(1) || len(row["candidates"].([]any)) != 1 {
+			t.Fatalf("mismatched article or multiplied candidate count: %v", row)
+		}
+		if row["evidence_stage"] != "enrich_metadata" {
+			t.Fatalf("captured stage was lost: %v", row)
+		}
+		if row["doi"] == "10.identity/a" && row["work_revision_id"] != float64(changedRevision) {
+			t.Fatalf("article link did not select the current normalized revision: %v", row)
+		}
+	}
+	for _, test := range []struct {
+		authorID int64
+		want     int
+	}{{author, 1}, {currentAuthor, 1}, {wrongPosition, 0}, {unrelatedAuthor, 0}, {changedAuthor, 0}} {
+		code, detail := requestJSON(t, handler, "/api/authors/"+stringID(test.authorID)+"?run_id="+stringID(runID))
+		if code != http.StatusOK {
+			t.Fatalf("author detail status=%d body=%v", code, detail)
+		}
+		evidence := detail["identity_evidence"].(map[string]any)
+		if len(evidence["items"].([]any)) != test.want {
+			t.Fatalf("author %d evidence=%v, want %d resolutions", test.authorID, evidence, test.want)
+		}
+	}
+}
+
 // TestIdentityCandidatePages verifies bounded previews, stable cursor traversal,
 // run ownership, and collection-bound cursor validation.
 func TestIdentityCandidatePages(t *testing.T) {

@@ -167,7 +167,7 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. O
 | Disclosure | `.rw-disclosure`, `.rw-filter-disclosure`, `.rw-event-details`, `.rw-query-row`, `.rw-note-history`, `.rw-keyword-details` | Keyboard-accessible expandable record, filter, event, query, history, and raw-value content with one chevron language. |
 | Audit | `.rw-audit-layout`, `.rw-audit-filter`, `.rw-audit-stream`, `.rw-audit-day`, `.rw-audit-events`, `.rw-audit-event*`, `.rw-review-audit-change`, `.rw-review-audit-state`, `.rw-review-audit-substatuses`, `.rw-audit-load`, `.rw-record-audit*` | Full-width filters, date-grouped vertical timeline, continuous rail, category markers, visible review-decision comparisons, safe recorded-data disclosure, append status, and compact record investigation. |
 | Artifacts | `.rw-artifact-*`, `.artifact-actions`, `.artifact-inspector-toolbar` | Artifact lists, bounded inspection, copy, and download actions. |
-| Evaluation | `.rw-evaluation-filters*`, `.rw-evaluation-queue`, `.rw-evaluation-table` | Compact common queue controls, optional advanced filters, layout-owned filter-to-table spacing, bounded columns, and table-owned horizontal overflow. |
+| Corpus article review | `.rw-evaluation-filters*`, `.rw-evaluation-queue`, `.rw-evaluation-table` | Compact common queue controls, optional advanced filters, layout-owned filter-to-table spacing, bibliographic and review columns, and table-owned horizontal overflow. |
 | Stages | `.rw-stage-*` | Ordered run progression, status, metrics, and artifact evidence. |
 
 Status classes reuse the semantic token families. New statuses must include readable text and not depend on background color alone.

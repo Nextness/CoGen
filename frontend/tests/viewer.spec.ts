@@ -101,7 +101,7 @@ test.describe('Health and page load', () => {
   test('primary navigation links are present', async ({ page }) => {
     await visit(page, contextState());
     const nav = page.getByRole('navigation', { name: 'Deepdive navigation' });
-    const links = ['Overview', 'Corpus', 'Relationships', 'Provenance', 'Evaluation', 'Advanced'];
+    const links = ['Overview', 'Corpus', 'Relationships', 'Provenance', 'Advanced'];
     for (const text of links) {
       await expect(nav.getByText(text).first()).toBeAttached();
     }
@@ -415,9 +415,89 @@ test.describe('Corpus view', () => {
     await expect(body).toContainText(/Charles Babbage|orcid_is_unclear/i);
     await expect(body).not.toContainText('0000-0001-2345-6789');
     await expect(page.getByRole('columnheader', { name: /Candidate evidence/i })).toHaveCount(0);
-    await page.getByRole('link', { name: 'Charles Babbage' }).click();
+    await page.getByRole('link', { name: 'Charles Babbage' }).first().click();
     await expect(page).toHaveURL(/\/author/);
     await expect(page.locator('body')).toContainText(/ORCID candidate evidence|0000-0001-2345-6789|Provider query/i);
+  });
+
+  test("identity evidence supports page selection, page size, sorting, and search", async ({ page }) => {
+    const evidenceRows = Array.from({ length: 45 }, (_, index) => {
+      const id = index + 1;
+      const label = String(id).padStart(2, "0");
+      return {
+        resolution_id: id,
+        author_occurrence_id: id,
+        status: "no_orcid_candidate",
+        queried_citation_name: `Observed author ${label}`,
+        article_title: `Evidence paper ${label}`,
+        doi: `10.1000/evidence-${label}`,
+      };
+    });
+    await page.route("**/api/runs/1/identity-evidence?*", async (route) => {
+      const params = new URL(route.request().url()).searchParams;
+      const currentPage = Number(params.get("page") || 1);
+      const perPage = Number(params.get("per_page") || 50);
+      const query = (params.get("q") || "").toLowerCase();
+      const rows = evidenceRows.filter((row) => row.queried_citation_name.toLowerCase().includes(query));
+      if (params.get("order") === "desc") rows.reverse();
+      await route.fulfill({
+        json: {
+          data: {
+            stats: { resolutions: 45, unclear: 0, provider_failed: 0, candidates: 0 },
+            rows: rows.slice((currentPage - 1) * perPage, currentPage * perPage),
+            pagination: { page: currentPage, per_page: perPage, total_rows: rows.length, total_pages: Math.ceil(rows.length / perPage) },
+          },
+        },
+      });
+    });
+    await visit(page, contextState({ view: "corpus", section: "identity_evidence", per_page: "20" }));
+    const pagination = page.getByRole("navigation", { name: "Result pages" });
+    const rows = page.locator(`[aria-label="Author identity evidence table"] tbody tr`);
+    await expect(rows).toHaveCount(20);
+    await expect(pagination).toContainText("Page 1 of 3");
+    await expect(pagination.getByRole("button", { name: "Previous page" })).toBeDisabled();
+
+    await pagination.getByRole("button", { name: "2", exact: true }).click();
+    await expect(pagination).toContainText("Page 2 of 3");
+    await expect(rows.first()).toContainText("Observed author 21");
+    await pagination.getByRole("button", { name: "Next page" }).click();
+    await expect(pagination).toContainText("Page 3 of 3");
+    await expect(rows).toHaveCount(5);
+    await expect(pagination.getByRole("button", { name: "Next page" })).toBeDisabled();
+    await pagination.getByRole("button", { name: "Previous page" }).click();
+    await expect(pagination).toContainText("Page 2 of 3");
+    await pagination.getByRole("button", { name: "First page" }).click();
+    await expect(pagination).toContainText("Page 1 of 3");
+    await pagination.getByRole("button", { name: "Last page" }).click();
+    await expect(pagination).toContainText("Page 3 of 3");
+
+    await page.getByLabel("Rows per page").selectOption("50");
+    await expect(pagination).toContainText("Page 1 of 1");
+    await expect(rows).toHaveCount(45);
+    await expect.poll(async () => (await viewerState(page)).per_page).toBe("50");
+
+    await page.getByRole("button", { name: "Observed author", exact: true }).click();
+    await expect.poll(async () => (await viewerState(page)).sort).toBe("citation_name");
+    await expect(page.locator("#loading")).toBeHidden();
+    await page.getByRole("button", { name: "Observed author", exact: true }).click();
+    await expect(rows.first()).toContainText("Observed author 45");
+    await expect.poll(async () => (await viewerState(page)).order).toBe("desc");
+
+    await page.locator("#corpus-query").fill("Observed author 23");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Observed author 23");
+    await page.reload();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("Observed author 23");
+    await page.getByRole("button", { name: "Clear search", exact: true }).click();
+    await expect(rows).toHaveCount(45);
+
+    const selectedState = await viewerState(page);
+    expect(selectedState).toMatchObject(contextState({ view: "corpus", section: "identity_evidence", page: "1", per_page: "50" }));
+    await page.locator("#corpus-section-select").selectOption("authors");
+    await expect(page.locator(".rw-corpus-table")).toBeVisible();
+    await expect.poll(async () => (await viewerState(page)).section).toBe("authors");
   });
 
   test('corpus supports pagination', async ({ page }) => {
@@ -682,31 +762,74 @@ test.describe('Provenance view', () => {
 
 // ── 6. Evaluation inventory ───────────────────────────────────────────
 
-test.describe('Evaluation view', () => {
+test.describe('Corpus review inventory', () => {
+  test("keeps review filters, expansion, and article return navigation in Corpus", async ({ page }) => {
+    await visit(page, contextState({
+      view: "corpus",
+      section: "articles",
+      pdf_status: "available",
+      reviewed: "unreviewed",
+      sort: "year",
+      order: "desc",
+      per_page: "20",
+      expanded: "1",
+    }));
+    await expect(page.locator("[data-view-link=evaluation]")).toHaveCount(0);
+    await expect(page.locator(".rw-corpus-table tr[data-row-key]:not(.expansion-row)")).toHaveCount(1);
+    await expect(page.locator(".rw-corpus-table .expansion-row").first()).toBeVisible();
+    await page.locator(".rw-corpus-table a.rw-table-title").first().click();
+    await expect(page).toHaveURL(/\/article$/);
+    await expect(page.getByText("Queue navigation is unavailable", { exact: false })).toHaveCount(0);
+    await page.getByRole("link", { name: "Return to Corpus", exact: true }).click();
+    await expect(page).toHaveURL(/\/corpus$/);
+    const restored = await viewerState(page);
+    expect(restored.pdf_status).toBe("available");
+    expect(restored.reviewed).toBe("unreviewed");
+    expect(restored.sort).toBe("year");
+    expect(restored.order).toBe("desc");
+    expect(restored.expanded).toBe("1");
+    await page.locator("#corpus-section-select").selectOption("authors");
+    await expect(page.locator("#corpus-section-select")).toHaveValue("authors");
+    const authors = await viewerState(page);
+    expect(authors.pdf_status).toBeUndefined();
+    expect(authors.reviewed).toBeUndefined();
+    await page.locator("#corpus-section-select").selectOption("articles");
+    await expect(page.locator(".rw-corpus-table tr[data-row-key]:not(.expansion-row)")).toHaveCount(9);
+  });
+
+  test("opens an existing Evaluation route as the Corpus article collection", async ({ page }) => {
+    await visit(page, contextState({ view: "evaluation", pdf_status: "available" }));
+    await expect(page).toHaveURL(/\/corpus$/);
+    await expect(page.locator("#corpus-section-select")).toHaveValue("articles");
+    await expect(page.locator(".rw-corpus-table tr[data-row-key]:not(.expansion-row)")).toHaveCount(1);
+    await expect(page.locator('[data-view-link="corpus"]')).toHaveAttribute("aria-current", "page");
+  });
+
   test('lists only normalized articles with manual inventory status', async ({ page }) => {
-    await visit(page, contextState({ view: 'evaluation' }));
-    const table = page.locator('.rw-evaluation-table');
+    await visit(page, contextState({ view: 'corpus', section: 'articles' }));
+    const table = page.locator('.rw-corpus-table');
     await expect(table).toBeVisible();
     await expect(table.locator('thead')).toContainText('Title');
     await expect(table.locator('thead')).toContainText('DOI');
     await expect(table.locator('thead')).toContainText('PDF');
-    await expect(table.locator('thead')).toContainText('Inventoried at');
-    await expect(table.getByRole('columnheader', { name: 'Source', exact: true })).toHaveCount(0);
+    await table.locator('.expand-toggle').first().click();
+    await expect(table.locator('.expansion-row').first()).toContainText('Inventoried at');
+    await expect(table.getByRole('columnheader', { name: 'Source', exact: true })).toHaveCount(1);
     await expect(table.getByRole('columnheader', { name: 'Qualifiers', exact: true })).toHaveCount(0);
-    await expect(table.locator('tbody time').first()).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    await expect(table.locator('.expansion-row time').first()).toHaveText(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
     await expect(table.locator('xpath=ancestor::div[contains(@class, "table-wrap")]')).toHaveCSS('overflow-x', 'auto');
     await expect(table.locator('.ui.green.label', { hasText: 'Available' })).toHaveCount(1);
     await expect(table.locator('.ui.orange.label', { hasText: 'Not Available' }).first()).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Result pages' })).toContainText(/9 normalized articles/i);
   });
 
-  test('preserves research context in the Evaluation navigation link', async ({ page }) => {
+  test('preserves research context in the Corpus navigation link', async ({ page }) => {
     await visit(page, contextState({ view: 'provenance' }));
-    const evaluation = page.getByRole('link', { name: 'Evaluation', exact: true });
+    const evaluation = page.getByRole('link', { name: 'Corpus', exact: true });
     const href = await evaluation.getAttribute('href');
-    if (!href) throw new Error('Evaluation navigation link has no href');
+    if (!href) throw new Error('Corpus navigation link has no href');
     const target = new URL(href, page.url());
-    expect(target.pathname).toBe('/evaluation');
+    expect(target.pathname).toBe('/corpus');
     expect(target.search).toBe('');
     const state = await viewerState(page);
     expect(state.run_id).toBe(RUN_1_COMPLETED);
@@ -778,7 +901,7 @@ test.describe('Detail views', () => {
     const body = page.locator('body');
     await expect(body).toContainText(/Attention Mechanisms in Transformer Models/i);
     await expect(body).toContainText(/2024/i);
-    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Corpus.*Analysis-ready articles.*10\.1000\/1/i);
+    await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home.*Deepdive.*Corpus.*Articles.*10\.1000\/1/i);
     await expect(page.getByRole('link', { name: 'Back to Corpus' })).toHaveCount(0);
     await expect(page.locator('[data-record-audit-search]')).toHaveCSS('height', '38px');
     await expect(page.locator('[data-record-audit-category]')).toHaveCSS('height', '38px');

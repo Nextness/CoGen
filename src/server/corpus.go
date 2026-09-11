@@ -76,6 +76,10 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 
 // runCorpus returns one context-scoped corpus section for the selected run.
 func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("kind") == "articles" {
+		s.runEvaluation(w, r)
+		return
+	}
 	runID, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -137,33 +141,37 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 			payload["source_result_counts"] = sourceResultCounts
 		}
 	}
-	if err == nil && r.PathValue("kind") == "articles" {
-		termRows, termTotal, termErr := s.runSearchTerms(ctx, runID)
-		if termErr != nil {
-			err = termErr
-		} else if len(termRows) > 0 {
-			revisionIDs := make([]int64, 0, len(items))
-			for _, item := range items {
-				if id, ok := item["id"].(int64); ok {
-					revisionIDs = append(revisionIDs, id)
-				}
-			}
-			matches, matchErr := s.revisionTermMatchesBulk(ctx, runID, revisionIDs)
-			if matchErr != nil {
-				err = matchErr
-			} else {
-				for _, item := range items {
-					id, _ := item["id"].(int64)
-					item["term_matches"] = rowTermMatches(termRows, termTotal, matches[id])
-				}
-			}
-		} else {
-			for _, item := range items {
-				item["term_matches"] = nil
-			}
+
+	s.respond(w, r, payload, err)
+}
+
+// attachArticleTermMatches adds bounded stored search-term evidence to article collection rows.
+func (s *Server) attachArticleTermMatches(ctx context.Context, runID int64, items []map[string]any) error {
+	termRows, termTotal, err := s.runSearchTerms(ctx, runID)
+	if err != nil {
+		return err
+	}
+	if len(termRows) == 0 {
+		for _, item := range items {
+			item["term_matches"] = nil
+		}
+		return nil
+	}
+	revisionIDs := make([]int64, 0, len(items))
+	for _, item := range items {
+		if id, ok := item["id"].(int64); ok {
+			revisionIDs = append(revisionIDs, id)
 		}
 	}
-	s.respond(w, r, payload, err)
+	matches, err := s.revisionTermMatchesBulk(ctx, runID, revisionIDs)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		id, _ := item["id"].(int64)
+		item["term_matches"] = rowTermMatches(termRows, termTotal, matches[id])
+	}
+	return nil
 }
 
 // corpusSelectColumns returns the fixed safe projection for a browsable corpus section.

@@ -1620,12 +1620,12 @@
   table-layout: fixed;
 }
 
-.rw-evaluation-table .col-title { width: 31%; }
-.rw-evaluation-table .col-doi { width: 20%; }
-.rw-evaluation-table .col-inventory-status { width: 12%; }
-.rw-evaluation-table .col-inventoried-date { width: 13%; }
-.rw-evaluation-table .col-review-status { width: 13%; }
-.rw-evaluation-table .col-review-source { width: 11%; }
+.rw-evaluation-table .col-title { width: 280px; }
+.rw-evaluation-table .col-doi { width: 190px; }
+.rw-evaluation-table .col-journal { width: 180px; }
+.rw-evaluation-table .col-inventory-status { width: 120px; }
+.rw-evaluation-table .col-review-status { width: 130px; }
+.rw-evaluation-table .col-review-source { width: 120px; }
 
 /* Metric grid. */
 .rw-metric-grid {

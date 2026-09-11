@@ -66,7 +66,7 @@ export const pageSizes = [20, 50, 100, 200, 500];
 export const corpusSections: Record<string, { table: string; title: string; description: string }> = {
   articles: {
     table: "work_revisions",
-    title: "Analysis-ready articles",
+    title: "Articles",
     description: "Valid normalized work revisions captured by the selected run.",
   },
   authors: {
@@ -122,7 +122,7 @@ export const routeOwnedKeys: Record<string, string[]> = {
   home: ["home_q", "home_visibility", "home_status", "home_started_after", "home_started_before", "home_search_cursor", "home_run_cursor"],
   trash: [],
   overview: [],
-  corpus: ["section", "q", "sort", "order", "page", "per_page", "expanded"],
+  corpus: ["section", "q", "sort", "order", "page", "per_page", "expanded", "pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed"],
   relationships: [...graphFilters, "node"],
   provenance: [
     "section", "artifact_id", "artifact_q", "artifact_role", "artifact_page", "artifact_per_page",
@@ -146,7 +146,7 @@ export const viewPage: Record<string, string> = {
   corpus: "/corpus",
   relationships: "/relationships",
   provenance: "/provenance",
-  evaluation: "/evaluation",
+  evaluation: "/corpus",
   advanced: "/advanced",
   article: "/article",
   author: "/author",
@@ -182,6 +182,7 @@ export function pathView(pathname?: string): string {
   var viewName = raw.replace(/^\/+/, "").replace(/\/+$/, "");
   if (viewName.endsWith(".html")) viewName = viewName.slice(0, -5);
   if (!viewName) return "home";
+  if (viewName === "evaluation") return "corpus";
   return viewName;
 }
 
@@ -274,6 +275,11 @@ export function stateFor(updates?: Record<string, unknown>): Record<string, stri
     next.view = "home";
   }
 
+  if (next.view === "evaluation") {
+    next.view = "corpus";
+    next.section = "articles";
+  }
+  if (next.view === "corpus" && next.section && !corpusSections[next.section]) delete next.section;
   const destination = next.view;
   if (destination === "article" && Object.hasOwn(updates, "article_id") && next.article_id !== previousArticleID) {
     delete next.note_id;
@@ -315,7 +321,9 @@ export function initViewerState(): void {
   // assignment is the only path by which the adopted state reaches stateFor().
   // Removing it drops all adopted context (the three initViewerState tests fail).
   viewerState = adopted;
-  viewerState = stateFor({ view: pathView() });
+  var bootUpdates: Record<string, string> = { view: pathView() };
+  if (/^\/evaluation(?:\.html)?\/?$/.test(location.pathname)) bootUpdates.section = "articles";
+  viewerState = stateFor(bootUpdates);
   saveState();
   history.replaceState(viewerState, "", pathFor(viewerState));
 }
@@ -336,7 +344,12 @@ export function detailOrigin(): DetailOrigin | null {
   const raw = value("origin");
   if (!raw) return null;
   const origin = new URLSearchParams(raw);
-  const originView = origin.get("view") || "";
+  var originView = origin.get("view") || "";
+  if (originView === "evaluation") {
+    originView = "corpus";
+    origin.set("view", "corpus");
+    origin.set("section", "articles");
+  }
   if (!detailOriginViews.has(originView)) return null;
   for (const key of canonicalContextKeys) {
     if ((origin.get(key) || "") !== value(key)) return null;

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"analysis/database"
 )
 
 const identityCandidatePreviewLimit = 3
@@ -43,13 +45,23 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	from := `FROM author_identity_resolutions r
         JOIN author_occurrences ao ON ao.id=r.author_occurrence_id
-        JOIN authorships a ON a.author_occurrence_id=ao.id
-        JOIN work_revisions wr ON wr.id=a.work_revision_id AND wr.pipeline_run_id=r.pipeline_run_id
-        JOIN works w ON w.id=wr.work_id
+        LEFT JOIN (
+            SELECT a.author_occurrence_id, source.pipeline_run_id, source.work_id, MAX(source.id) AS revision_id
+            FROM authorships a JOIN work_revisions source ON source.id=a.work_revision_id
+            WHERE source.pipeline_run_id=?
+            GROUP BY a.author_occurrence_id, source.pipeline_run_id, source.work_id
+        ) evidence ON evidence.author_occurrence_id=ao.id AND evidence.pipeline_run_id=r.pipeline_run_id
+        LEFT JOIN work_revisions captured ON captured.id=evidence.revision_id
+        LEFT JOIN work_revisions wr ON wr.id=COALESCE((
+            SELECT current.id FROM work_revisions current
+            WHERE current.work_id=evidence.work_id AND current.pipeline_run_id=r.pipeline_run_id
+            AND ` + database.CurrentNormalizedRevisionPredicate("current") + `), captured.id)
+        LEFT JOIN works w ON w.id=wr.work_id
         LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id`
 	where, args := scopedWhere("r.pipeline_run_id=?", "r.queried_citation_name, ao.citation_name, wr.title, w.doi", runID, query)
+	args = append([]any{runID}, args...)
 	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(DISTINCT r.id) "+from+" WHERE "+where, args...).Scan(&total); err != nil {
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM (SELECT r.id "+from+" WHERE "+where+" GROUP BY r.id, evidence.work_id)", args...).Scan(&total); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -63,11 +75,13 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 	if fields[sort] != "r.id" {
 		orderSQL += ", r.id " + order
 	}
+	orderSQL += ", evidence.work_id " + order
 	rows, err := s.db.QueryContext(ctx, `SELECT r.id AS resolution_id, r.status, r.provider, r.queried_citation_name,
         r.error_message, r.resolved_at, ao.id AS author_occurrence_id, ao.orcid AS observed_orcid,
-        ao.person_id, MIN(wr.title) AS article_title, MIN(w.doi) AS doi,
+        ao.person_id, wr.title AS article_title, w.doi, wr.id AS work_revision_id,
+        captured.id AS evidence_revision_id, captured.producer_stage AS evidence_stage,
         COUNT(DISTINCT c.id) AS candidate_count
-		`+from+" WHERE "+where+" GROUP BY r.id ORDER BY "+orderSQL+" LIMIT ? OFFSET ?", append(args, perPage, (page-1)*perPage)...)
+		`+from+" WHERE "+where+" GROUP BY r.id, evidence.work_id ORDER BY "+orderSQL+" LIMIT ? OFFSET ?", append(args, perPage, (page-1)*perPage)...)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -125,8 +139,10 @@ func (s *Server) attachIdentityCandidatePreviews(ctx context.Context, resolution
 		if !ok {
 			return &apiProblem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "identity evidence has an invalid resolution identifier"}
 		}
-		ids = append(ids, resolutionID)
-		byID[resolutionID] = resolution
+		if _, exists := byID[resolutionID]; !exists {
+			ids = append(ids, resolutionID)
+			byID[resolutionID] = resolution
+		}
 		resolution["candidates"] = []map[string]any{}
 	}
 	markers := make([]string, len(ids))
@@ -166,6 +182,8 @@ func (s *Server) attachIdentityCandidatePreviews(ctx context.Context, resolution
 		return err
 	}
 	for _, resolution := range resolutions {
+		resolutionID := resolution["resolution_id"].(int64)
+		resolution["candidates"] = byID[resolutionID]["candidates"]
 		count, _ := resolution["candidate_count"].(int64)
 		resolution["candidate_preview_limit"] = identityCandidatePreviewLimit
 		resolution["candidates_truncated"] = count > int64(len(resolution["candidates"].([]map[string]any)))
