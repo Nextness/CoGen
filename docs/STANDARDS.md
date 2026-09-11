@@ -59,7 +59,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Do not lower a coverage floor merely to accept a regression.
 - Raise a floor only when meaningful tests justify the durable threshold.
 - Inspection tools excluded by the policy do not become exempt from their focused unit suites.
-- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, and `make vet` or `make check`.
+- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, `make vet` or `make check`, and the `make gitleaks` secret scan that `make check` and the CI merge gate run.
 
 ## 7. SOMETHING standards
 

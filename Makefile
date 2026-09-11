@@ -4,6 +4,8 @@ PDF_STORE        ?= build/pdf-store
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
 PREPARE_OSF      ?= build/prepare-osf
+GITLEAKS        ?= build/gitleaks
+GITLEAKS_VERSION ?= v8.30.1
 GO               ?= go
 GOWD             := src
 DB               ?= corpus.metadata.db
@@ -28,7 +30,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -52,6 +54,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.ts'
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'
+	@printf '%s\n' '  make gitleaks'
 
 all: build ## Build build/analysis; the binary contains no frontend assets.
 
@@ -100,10 +103,16 @@ format-check: ## Fail if any Go source file needs gofmt.
 vet: ## Run go vet across the module.
 	cd $(GOWD) && $(GO) vet ./...
 
-check: format-check vet check-docs ## Run local Go and documentation checks.
+check: format-check vet check-docs gitleaks ## Run local Go, documentation, and secret checks.
 
 check-docs: doccheck ## Validate documentation links, format, catalog, migrations, and acknowledged state.
 	./$(DOC_CHECK) check
+
+gitleaks-install: ## Install gitleaks to build/gitleaks for local secret scanning.
+	@test -x "$(GITLEAKS)" || { mkdir -p "$(dir $(GITLEAKS))"; cd $(GOWD) && GOBIN="$(abspath $(dir $(GITLEAKS)))" $(GO) install github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION); }
+
+gitleaks: gitleaks-install ## Run the gitleaks secret scan over the repository.
+	"$(GITLEAKS)" detect --source . --no-banner --redact
 
 test: test-go ## Run all Go tests without test-result caching.
 

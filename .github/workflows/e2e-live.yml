@@ -7,10 +7,28 @@ permissions:
   contents: read
 
 jobs:
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Install gitleaks
+        run: make gitleaks-install
+      - name: Run gitleaks secret scan
+        run: make gitleaks
+
   live-providers:
     name: Live enrichment provider checks
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    needs: gitleaks
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
