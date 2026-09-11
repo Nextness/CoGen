@@ -14,21 +14,12 @@ import (
 // DecodeOpenAlexAuthorResponse converts an OpenAlex author response for an
 // exact ORCID lookup.
 func DecodeOpenAlexAuthorResponse(body []byte, orcid string) *EnrichedAuthor {
-	entry := decodeOpenAlexAuthor(body)
+	entry := decodeJSONObject(body)
 	if entry == nil {
 		return nil
 	}
 	entry["_source"] = "openalex"
 	return orcidEntryToAuthor(entry, orcid)
-}
-
-// decodeOpenAlexAuthor decodes open alex author from the supplied payload.
-func decodeOpenAlexAuthor(body []byte) map[string]any {
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil
-	}
-	return raw
 }
 
 // DecodeORCIDRecordResponse converts an ORCID person record for an exact

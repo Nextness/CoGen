@@ -1,6 +1,5 @@
 // D3 force layout and canvas rendering for the bounded relationship explorer.
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation } from "../../vendor/d3-force.js";
-import type { SimulationNode, SimulationLink } from "../../vendor/d3-force.js";
 import { graphFilters, humanLabel, detailLinkFor, list, value } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";

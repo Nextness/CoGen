@@ -14,6 +14,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
+	"analysis/internal/textlimit"
 	"modernc.org/sqlite"
 )
 
@@ -67,7 +68,7 @@ func TestAPIResponseByteBudgets(t *testing.T) {
 // TestTruncateUTF8BytesPreservesByteLimitAndEncoding verifies table-cell truncation uses bytes safely.
 func TestTruncateUTF8BytesPreservesByteLimitAndEncoding(t *testing.T) {
 	value := strings.Repeat("x", advancedCellBytes-1) + "😀"
-	truncated := truncateUTF8Bytes(value, advancedCellBytes)
+	truncated := textlimit.UTF8Prefix(value, advancedCellBytes)
 	if len(truncated) > advancedCellBytes || !utf8.ValidString(truncated) {
 		t.Fatalf("truncated value length=%d valid=%v", len(truncated), utf8.ValidString(truncated))
 	}
@@ -297,13 +298,13 @@ func TestHelper_nullableValue(t *testing.T) {
 		{sql.NullString{Valid: false}, nil},
 	}
 	for _, tc := range tests {
-		got := nullableValue(tc.input)
+		got := nullableString(tc.input)
 		if tc.want == nil {
 			if got != nil {
-				t.Errorf("nullableValue(%+v) = %v, want nil", tc.input, got)
+				t.Errorf("nullableString(%+v) = %v, want nil", tc.input, got)
 			}
 		} else if got != tc.want {
-			t.Errorf("nullableValue(%+v) = %v, want %v", tc.input, got, tc.want)
+			t.Errorf("nullableString(%+v) = %v, want %v", tc.input, got, tc.want)
 		}
 	}
 }

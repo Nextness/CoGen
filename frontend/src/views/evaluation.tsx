@@ -2,8 +2,7 @@
 import {
   app,
   value,
-  link,
-  stateFor,
+  linkTargetFor,
   detailLinkFor,
   pageSizes,
   PageHeader,
@@ -122,9 +121,6 @@ export async function evaluationView(): Promise<void> {
     sort: sort,
     order: order,
     ...filters,
-  }, {
-    method: "GET",
-    headers: { Accept: "application/json" },
   });
 
   const summary = data.review_summary || {};
@@ -162,8 +158,7 @@ export async function evaluationView(): Promise<void> {
   const advancedOpen = advancedFilterCount > 0;
   var advancedSummary = "Any PDF, review, source, or progress state";
   if (advancedFilterCount) advancedSummary = `${advancedFilterCount} additional filters applied`;
-  const clearFilterHref = link(clearUpdates);
-  const clearFilterState = stateFor(clearUpdates);
+  const clearFilterTarget = linkTargetFor(clearUpdates);
   const controls = (
     <form className={classNames.uiFormRwFilterPanel} data-evaluation-filters>
       <div className="rw-evaluation-filters__primary">
@@ -179,7 +174,7 @@ export async function evaluationView(): Promise<void> {
         </label>
         <div className="rw-filter-panel__actions">
           <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
-          <a className={classNames.uiBasicButton} href={clearFilterHref} data-state={JSON.stringify(clearFilterState)}>Clear filters</a>
+          <a className={classNames.uiBasicButton} href={clearFilterTarget.href} data-state={JSON.stringify(clearFilterTarget.state)}>Clear filters</a>
         </div>
       </div>
       <details className={classNames.rwFilterDisclosureRwEvaluationFiltersAdvanced} open={advancedOpen}>
@@ -370,7 +365,7 @@ export async function evaluationView(): Promise<void> {
   );
   renderTree(pageMarkup, app);
 
-  bindTableControls("evaluation", page, tableContext);
+  bindTableControls("evaluation", tableContext);
   app.querySelector<HTMLFormElement>("[data-evaluation-filters]")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const formElement = event.currentTarget as HTMLFormElement;

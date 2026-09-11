@@ -25,7 +25,7 @@ function tsxFiles(directory: string): string[] {
 
 /** Adds required names to the module's existing JSX runtime import. */
 function addRuntimeImports(source: string, required: readonly string[]): string {
-  return source.replace(/import \{([^}]*)\} from ((?:"[^"\n]*jsx-runtime\.ts"|'[^'\n]*jsx-runtime\.ts'));/, (statement, imports: string, specifier: string) => {
+  return source.replace(/import \{([^}]*)\} from ((?:"[^"\n]*jsx-runtime\.ts"|'[^'\n]*jsx-runtime\.ts'));/, (_statement, imports: string, specifier: string) => {
     const importParts = imports.split(",");
     const names = importParts.map((name) => name.trim());
     for (const requiredName of required) {
@@ -130,13 +130,13 @@ export function rewriteClassNames(source: string, file: string): { source: strin
     replacements += 1;
     return `className={${reference(tokens)}}`;
   });
-  rewritten = rewritten.replace(/className=\{cx\(((?:"[^"]*"\s*,?\s*)+)\)\}/g, (attribute, argumentsList: string) => {
+  rewritten = rewritten.replace(/className=\{cx\(((?:"[^"]*"\s*,?\s*)+)\)\}/g, (_attribute, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `className=${JSON.stringify(tokens[0])}`;
     return `className={${reference(tokens)}}`;
   });
-  rewritten = rewritten.replace(/className:\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (property, argumentsList: string) => {
+  rewritten = rewritten.replace(/className:\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (_property, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `className: ${JSON.stringify(tokens[0])}`;
@@ -153,7 +153,7 @@ export function rewriteClassNames(source: string, file: string): { source: strin
     replacements += 1;
     return `.className = ${reference(tokens)}`;
   });
-  rewritten = rewritten.replace(/\.className\s*=\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (assignment, argumentsList: string) => {
+  rewritten = rewritten.replace(/\.className\s*=\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (_assignment, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `.className = ${JSON.stringify(tokens[0])}`;

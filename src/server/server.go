@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,12 @@ const (
 )
 
 var log = logging.Logger("viewer")
+
+// encodeCursor serializes one endpoint-bound keyset without exposing its structure.
+func encodeCursor(cursor any) string {
+	encoded, _ := json.Marshal(cursor)
+	return base64.RawURLEncoding.EncodeToString(encoded)
+}
 
 // viewPages maps extensionless view paths to the HTML documents that own
 // their navigation entries. The trash view shares the Home document.

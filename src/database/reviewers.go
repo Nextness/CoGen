@@ -31,8 +31,7 @@ func (r *PipelineRunReviewerRepository) Insert(runID int64, username, email stri
 	if utf8.RuneCountInString(email) > 320 {
 		return fmt.Errorf("reviewer email exceeds 320 characters")
 	}
-	_, err := r.db.DB.Exec(`INSERT INTO pipeline_run_reviewers
-		(pipeline_run_id, username, email, created_at) VALUES (?, ?, ?, ?)`, runID, username, email, timestamp())
+	_, err := r.db.DB.Exec(`INSERT INTO pipeline_run_reviewers (pipeline_run_id, username, email, created_at) VALUES (?, ?, ?, ?)`, runID, username, email, timestamp())
 	if err != nil {
 		return fmt.Errorf("insert pipeline run reviewer: %w", err)
 	}

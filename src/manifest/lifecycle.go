@@ -22,11 +22,6 @@ const (
 	AttemptFailed AttemptStatus = "failed"
 )
 
-// ValidAttemptStatuses returns all valid attempt status values.
-func ValidAttemptStatuses() []AttemptStatus {
-	return []AttemptStatus{AttemptRunning, AttemptCompleted, AttemptFailed}
-}
-
 // ValidateAttemptStatus returns an error if s is not a valid attempt status.
 func ValidateAttemptStatus(s string) error {
 	switch AttemptStatus(s) {
@@ -56,11 +51,6 @@ const (
 	StageFailed StageOutcome = "failed"
 )
 
-// ValidStageOutcomes returns all valid stage outcome values.
-func ValidStageOutcomes() []StageOutcome {
-	return []StageOutcome{StagePending, StageRunning, StageCompleted, StageSkipped, StageReused, StageFailed}
-}
-
 // ValidateStageOutcome returns an error if s is not a valid stage outcome.
 func ValidateStageOutcome(s string) error {
 	switch StageOutcome(s) {
@@ -88,11 +78,6 @@ const (
 	CacheStale CacheOutcome = "stale"
 )
 
-// ValidCacheOutcomes returns all valid cache outcome values.
-func ValidCacheOutcomes() []CacheOutcome {
-	return []CacheOutcome{CacheHit, CacheMiss, CacheNegative, CacheStale}
-}
-
 // ValidateCacheOutcome returns an error if s is not a valid cache outcome.
 func ValidateCacheOutcome(s string) error {
 	switch CacheOutcome(s) {
@@ -116,11 +101,6 @@ const (
 	// queries. Trashed runs can be restored.
 	RunTrashed RunVisibility = "trashed"
 )
-
-// ValidRunVisibilities returns all valid run visibility values.
-func ValidRunVisibilities() []RunVisibility {
-	return []RunVisibility{RunVisible, RunArchived, RunTrashed}
-}
 
 // ValidateRunVisibility returns an error if s is not a valid run visibility.
 func ValidateRunVisibility(s string) error {
@@ -190,22 +170,6 @@ const (
 	// AuditReviewAnchorTombstoned records an immutable PDF-anchor deletion marker.
 	AuditReviewAnchorTombstoned AuditAction = "review_anchor_tombstoned"
 )
-
-// ValidAuditActions returns all valid audit action values.
-func ValidAuditActions() []AuditAction {
-	return []AuditAction{
-		AuditPlanCreated, AuditDuplicatePlanSkipped, AuditRunStarted,
-		AuditStepReused, AuditCacheHit, AuditNetworkFetch, AuditFieldEnriched,
-		AuditValidationChanged, AuditRunCompleted, AuditRunFailed, AuditRunTrashed,
-		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged,
-		AuditPDFDocumentAdded, AuditPDFInventoryRegistered,
-		AuditPDFDocumentInventoried, AuditReviewContextCreated,
-		AuditWorkReviewVersionCreated, AuditReviewNoteCreated,
-		AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,
-		AuditReviewAnchorCreated, AuditReviewAnchorVersionCreated,
-		AuditReviewAnchorTombstoned,
-	}
-}
 
 // ValidateAuditAction returns an error if s is not a valid audit action.
 func ValidateAuditAction(s string) error {

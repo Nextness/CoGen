@@ -63,9 +63,6 @@ export async function advancedView(): Promise<void> {
       per_page: perPage,
       sort: sort,
       order: order,
-    }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
     });
   } catch (failure) {
     tableError = errorMessage(failure, "The selected table could not be loaded.");
@@ -154,5 +151,5 @@ export async function advancedView(): Promise<void> {
     }, false);
   });
 
-  if (data) bindTableControls(current, Number(data.pagination?.page || page));
+  if (data) bindTableControls(current);
 }

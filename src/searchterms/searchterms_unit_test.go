@@ -6,6 +6,7 @@ package searchterms
 
 import (
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -20,12 +21,12 @@ func TestParseScopusQuery(t *testing.T) {
 		t.Fatalf("first term = %q, want BPMN", terms[0])
 	}
 	for _, want := range []string{"BPMN 2.0", "Business Process Model and Notation", "scheduling", "genetic algorithm", "MILP", "constraint programming", "multi-objective", "QoS", "Petri net", "state space"} {
-		if !contains(terms, want) {
+		if !slices.Contains(terms, want) {
 			t.Errorf("missing term %q in %v", want, terms)
 		}
 	}
 	for _, unwanted := range []string{"TITLE-ABS-KEY", "AND", "OR"} {
-		if contains(terms, unwanted) {
+		if slices.Contains(terms, unwanted) {
 			t.Errorf("unexpected term %q in %v", unwanted, terms)
 		}
 	}
@@ -38,7 +39,7 @@ func TestParseWOSQuery(t *testing.T) {
 	if len(terms) != 8 {
 		t.Fatalf("Parse(wos) = %d terms, want 8: %v", len(terms), terms)
 	}
-	if contains(terms, "TS") {
+	if slices.Contains(terms, "TS") {
 		t.Fatalf("field prefix TS kept: %v", terms)
 	}
 }
@@ -48,7 +49,7 @@ func TestParseIEEEXploreQuery(t *testing.T) {
 	query := `("Document Title": ("BPMN" OR "BPMN 2.0") AND ("scheduling" OR "resource allocation")) OR ("documentAbstract": ("BPMN" OR "scheduling")) OR ("authorTerms": ("BPMN" OR "genetic algorithm"))`
 	terms := Parse(query)
 	for _, unwanted := range []string{"Document Title", "documentAbstract", "authorTerms"} {
-		if contains(terms, unwanted) {
+		if slices.Contains(terms, unwanted) {
 			t.Errorf("quoted field label %q kept: %v", unwanted, terms)
 		}
 	}
@@ -62,7 +63,7 @@ func TestParseWildcardQuery(t *testing.T) {
 	query := `TS=(("BPMN" OR "BPMN 2.0" OR "Business Process Model and Notation" OR "Business Process Modeling Notation" OR "Business Process Modelling Notation") AND ("mathematical model*" OR "mathematical formulation*" OR "optimization model*" OR "formal model*" OR "state space" OR "state-space model*" OR "Petri net*" OR "queueing model*" OR "Markov chain*") OR (optimi* OR "mathematical optimization" OR ILP OR MILP OR MINLP OR "constraint programming" OR "Pareto optim*") OR (heuristic* OR metaheuristic* OR matheuristic* OR "local search" OR "genetic algorithm*" OR "particle swarm" OR "ant colony" OR "simulated annealing" OR "tabu search"))`
 	terms := Parse(query)
 	for _, want := range []string{"mathematical model*", "state-space model*", "Petri net*", "optimi*", "ILP", "MILP", "MINLP", "Pareto optim*", "heuristic*", "metaheuristic*", "genetic algorithm*"} {
-		if !contains(terms, want) {
+		if !slices.Contains(terms, want) {
 			t.Errorf("missing wildcard term %q in %v", want, terms)
 		}
 	}
@@ -296,14 +297,4 @@ func TestMatchFieldsEmpty(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("MatchFields(empty) = %v, want %v", got, want)
 	}
-}
-
-// contains reports whether a string slice contains an exact target.
-func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }

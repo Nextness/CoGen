@@ -838,7 +838,7 @@ func (generator *DirectiveGenerator) expressionFromRuntime(value any, location *
 		return &MappingExpression{Entries: entries, Location: location}
 	case *runtimeObject:
 		fields := []*FieldAssignment{}
-		for _, name := range sortedRuntimeBindingKeys(value.environment.bindings) {
+		for _, name := range sortedKeys(value.environment.bindings) {
 			binding := value.environment.bindings[name]
 			fields = append(fields, &FieldAssignment{Name: name, Value: generator.expressionFromRuntime(binding.value, location), Location: location})
 		}

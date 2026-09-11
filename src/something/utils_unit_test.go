@@ -9,6 +9,29 @@ import (
 	"testing"
 )
 
+// walkOnce returns the single value reached by the test path.
+func walkOnce(data map[string]any, segments []string) (any, error) {
+	values, err := walkFrom(data, segments, walkOne, 0)
+	if err != nil {
+		return nil, err
+	}
+	return values[0], nil
+}
+
+// walkIndex returns the indexed value reached by the test path.
+func walkIndex(data map[string]any, index int, segments []string) (any, error) {
+	values, err := walkFrom(data, segments, walkAtIndex, index)
+	if err != nil {
+		return nil, err
+	}
+	return values[0], nil
+}
+
+// walkAll returns every value reached by the test path.
+func walkAll(data map[string]any, segments []string) ([]any, error) {
+	return walkFrom(data, segments, walkEvery, 0)
+}
+
 // TestMatchIterationKeysPlain verifies match iteration keys plain.
 func TestMatchIterationKeysPlain(t *testing.T) {
 	data := testData()

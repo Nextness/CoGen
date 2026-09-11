@@ -68,13 +68,6 @@ function contextState(overrides: Record<string, string> = {}): Record<string, st
   return state;
 }
 
-/**
- * Navigate to a fully selected context state.
- */
-async function selectRun(page: Page, searchId: string, revisionId: string, planId: string, runId: string): Promise<void> {
-  await visit(page, contextState({ search_id: searchId, search_revision_id: revisionId, plan_id: planId, run_id: runId }));
-}
-
 // ── Setup ─────────────────────────────────────────────────────────────
 // Each test navigates explicitly through visit() or goto(); no shared
 // beforeEach navigation exists because a booted page writes viewer state to

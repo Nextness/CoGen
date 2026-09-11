@@ -69,10 +69,7 @@ let reviewHealthPromise: Promise<HealthResponse> | null = null;
 /** Loads immutable viewer capability data once per page and retries after a failed request. */
 async function reviewHealth(): Promise<HealthResponse> {
   if (!reviewHealthPromise) {
-    reviewHealthPromise = api<HealthResponse>("/api/health", {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    reviewHealthPromise = api<HealthResponse>("/api/health");
   }
   try {
     return await reviewHealthPromise;
@@ -137,10 +134,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   var context: ReviewContextResponse;
   try {
-    context = await api<ReviewContextResponse>(`/api/runs/${runID}/review-context`, {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    context = await api<ReviewContextResponse>(`/api/runs/${runID}/review-context`);
   } catch (error) {
     const contextErrorMarkup = (
       <section className={classNames.uiErrorMessage} role="alert">
@@ -210,10 +204,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Loads and binds complete status state, history, notes, PDF, and anchors. */
   async function renderReview(): Promise<void> {
-    const data = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`);
     reviewEditable = data.editability?.decision ?? data.editable;
     notesEditable = data.editability?.notes ?? data.editable;
     anchorsEditable = data.editability?.anchors ?? (data.editable && detailData.pdf_status?.status === "available");
@@ -505,10 +496,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         saveButton.disabled = false;
         classRemove(saveButton, "loading");
         host.querySelector<HTMLButtonElement>("[data-review-load-latest]")?.addEventListener("click", async () => {
-          const latest = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`, {}, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          });
+          const latest = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`);
           expectedVersionID = latest.review?.version?.id || null;
           message.className = classNames.uiWarningMessageRwReviewFeedback;
           const latestStatus = humanLabel(latest.review?.version?.status || "not_evaluated");
@@ -615,10 +603,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       for (const button of Array.from(target.querySelectorAll<HTMLButtonElement>("[data-review-full-version]"))) {
         button.addEventListener("click", async () => {
           const versionID = button.dataset.reviewFullVersion as string;
-          const data = await api<WorkReviewVersionResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions/${versionID}`, {}, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          });
+          const data = await api<WorkReviewVersionResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions/${versionID}`);
           const quote = target.querySelector(`[data-review-reason-version="${CSS.escape(versionID)}"]`) as HTMLElement;
           quote.textContent = data.version.reason || "";
           button.remove();
@@ -627,10 +612,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     }
     /** Appends one opaque decision-history page without replacing prior rows. */
     async function loadDecisionHistoryPage(): Promise<void> {
-      const historyData = await api<WorkReviewVersionsResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 25, cursor: decisionCursor }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+      const historyData = await api<WorkReviewVersionsResponse>(`/api/runs/${runID}/articles/${revisionID}/review/versions`, { limit: 25, cursor: decisionCursor });
       appendUnique(decisionVersions, historyData.items || historyData.versions || [], (item) => item.id);
       decisionCursor = historyData.next_cursor || "";
       decisionHasMore = Boolean(historyData.has_more);
@@ -753,10 +735,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       anchorCursor = "";
       anchorHasMore = false;
     }
-    const data = await api<ReviewAnchorsResponse>(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 25, cursor: anchorCursor }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<ReviewAnchorsResponse>(`/api/runs/${runID}/articles/${revisionID}/anchors`, { limit: 25, cursor: anchorCursor });
     appendUnique(loadedAnchors, data.items || data.anchors || [], (anchor) => anchor.id);
     anchorCursor = data.next_cursor || "";
     anchorHasMore = Boolean(data.has_more);
@@ -982,10 +961,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     }
     /** Appends one anchor-version cursor page without duplicating existing history. */
     async function loadHistoryPage(): Promise<void> {
-      const data = await api<ReviewAnchorVersionsResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 25, cursor: cursor }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+      const data = await api<ReviewAnchorVersionsResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, { limit: 25, cursor: cursor });
       anchorLabel ||= data.anchor?.label;
       appendUnique(versions, data.items || data.versions || [], (version) => version.id);
       cursor = data.next_cursor || "";

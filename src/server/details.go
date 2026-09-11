@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"net/http"
 	"strconv"
+
+	"analysis/database"
 )
 
 const detailCollectionPreviewLimit = 25
@@ -55,7 +57,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	revision, err := s.oneRow(ctx, `SELECT wr.*, w.doi FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+currentNormalizedRevisionPredicate("wr")+`))`, id, runID)
+		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+database.CurrentNormalizedRevisionPredicate("wr")+`))`, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -116,7 +118,18 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 			termMatches = detailTermMatches(termRows, termTotal, revisionMatches)
 		}
 	}
-	s.respond(w, r, map[string]any{"article": revision, "authors": authors, "references": references, "stage_outcomes": stageOutcomes, "audit_events": audit, "enrichment_summary": enrichmentSummary, "pdf_status": pdfStatus, "review_context": reviewContext, "review_context_initialized": reviewContext != nil, "term_matches": termMatches}, nil)
+	s.respond(w, r, map[string]any{
+		"article":                    revision,
+		"authors":                    authors,
+		"references":                 references,
+		"stage_outcomes":             stageOutcomes,
+		"audit_events":               audit,
+		"enrichment_summary":         enrichmentSummary,
+		"pdf_status":                 pdfStatus,
+		"review_context":             reviewContext,
+		"review_context_initialized": reviewContext != nil,
+		"term_matches":               termMatches,
+	}, nil)
 }
 
 // authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates.
@@ -189,11 +202,11 @@ func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	mention, err := s.oneRow(ctx, `SELECT rm.*, wr.work_id, wr.title AS citing_title, wr.pipeline_run_id,
-        target.id AS resolved_revision_id, target.title AS resolved_title
-        FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id
+	target.id AS resolved_revision_id, target.title AS resolved_title
+	FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id
 		LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
 			WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=wr.pipeline_run_id
-			AND `+currentNormalizedRevisionPredicate("candidate")+` LIMIT 1)
+			AND `+database.CurrentNormalizedRevisionPredicate("candidate")+` LIMIT 1)
 		WHERE rm.id=? AND wr.pipeline_run_id=?`, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -244,7 +257,12 @@ func (s *Server) articleEnrichmentSummary(ctx context.Context, workID, runID int
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	return map[string]any{"providers": providers, "fields": fields, "truncated": truncated, "pair_limit": 100}, nil
+	return map[string]any{
+		"providers":  providers,
+		"fields":     fields,
+		"truncated":  truncated,
+		"pair_limit": 100,
+	}, nil
 }
 
 // articleDetailCollection returns one bounded page of a large article relationship or event collection.
@@ -324,7 +342,7 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 func (s *Server) articleDetailWorkID(ctx context.Context, revisionID, runID int64) (int64, error) {
 	var workID int64
 	err := s.db.QueryRowContext(ctx, `SELECT wr.work_id FROM work_revisions wr
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+currentNormalizedRevisionPredicate("wr")+`))`, revisionID, runID).Scan(&workID)
+		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+database.CurrentNormalizedRevisionPredicate("wr")+`))`, revisionID, runID).Scan(&workID)
 	if err == sql.ErrNoRows {
 		return 0, notFound("article revision not found")
 	}
@@ -363,13 +381,19 @@ func (s *Server) detailCollectionEnvelope(ctx context.Context, kind, fromWhere, 
 		if !ok || cursor < 1 {
 			return nil, &apiProblem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "detail collection has an invalid cursor"}
 		}
-		nextCursor = encodeReviewCursor(reviewCursor{Kind: kind, ID: cursor})
+		nextCursor = encodeCursor(reviewCursor{Kind: kind, ID: cursor})
 	}
 	for _, item := range items {
 		delete(item, "collection_cursor_id")
 		delete(item, "relation_id")
 	}
-	return map[string]any{"items": items, "total": total, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}, nil
+	return map[string]any{
+		"items":       items,
+		"total":       total,
+		"limit":       limit,
+		"has_more":    hasMore,
+		"next_cursor": nextCursor,
+	}, nil
 }
 
 // articleDetailCollectionData defines the fixed projections for article detail subresources.
@@ -389,7 +413,7 @@ func (s *Server) articleDetailCollectionData(ctx context.Context, revisionID, wo
 			FROM reference_mentions rm JOIN work_revisions source ON source.id=rm.work_revision_id
 			LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
 				WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=source.pipeline_run_id
-				AND ` + currentNormalizedRevisionPredicate("candidate") + ` LIMIT 1)
+				AND ` + database.CurrentNormalizedRevisionPredicate("candidate") + ` LIMIT 1)
 			WHERE rm.work_revision_id=?)`
 		orderID, args = "id", []any{revisionID}
 	case "stages":

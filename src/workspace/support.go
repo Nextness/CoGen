@@ -147,9 +147,12 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		if len(runs) > 0 && runs[len(runs)-1].Status == string(manifest.AttemptCompleted) && !forceFresh {
 			metadata, _ := json.Marshal(map[string]any{"reason": "matching_completed_plan", "execution_fingerprint": fingerprint})
 			_, err := db.AuditEvents.Insert(&manifest.AuditEvent{
-				OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline",
-				EntityType: "execution_plan", EntityID: strconv.FormatInt(existingPlan.ID, 10),
-				Action: manifest.AuditDuplicatePlanSkipped, MetadataJSON: string(metadata),
+				OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
+				Actor:         "pipeline",
+				EntityType:    "execution_plan",
+				EntityID:      strconv.FormatInt(existingPlan.ID, 10),
+				Action:        manifest.AuditDuplicatePlanSkipped,
+				MetadataJSON:  string(metadata),
 				CorrelationID: "plan-reuse-" + strconv.FormatInt(existingPlan.ID, 10),
 			})
 			return 0, err
@@ -188,9 +191,13 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		return 0, fmt.Errorf("marshal run audit metadata: %w", err)
 	}
 	if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{
-		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID,
-		EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunStarted,
-		MetadataJSON: string(metadata), CorrelationID: "run-start-" + strconv.FormatInt(runID, 10),
+		OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
+		Actor:         "pipeline",
+		PipelineRunID: runID,
+		EntityType:    "pipeline_run",
+		EntityID:      strconv.FormatInt(runID, 10),
+		Action:        manifest.AuditRunStarted,
+		MetadataJSON:  string(metadata), CorrelationID: "run-start-" + strconv.FormatInt(runID, 10),
 	}); err != nil {
 		finishPipelineRun(db, runID, "failed", err.Error())
 		return 0, err
@@ -283,9 +290,14 @@ func recordPreflightStep(db *database.Database, runID, configArtifactID, inputMa
 		return fmt.Errorf("marshal preflight reuse audit metadata: %w", err)
 	}
 	_, err = db.AuditEvents.Insert(&manifest.AuditEvent{
-		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID,
-		EntityType: "run_step", EntityID: strconv.FormatInt(stepID, 10), Action: manifest.AuditStepReused,
-		MetadataJSON: string(metadata), CorrelationID: "preflight-reuse-" + strconv.FormatInt(runID, 10),
+		OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
+		Actor:         "pipeline",
+		PipelineRunID: runID,
+		EntityType:    "run_step",
+		EntityID:      strconv.FormatInt(stepID, 10),
+		Action:        manifest.AuditStepReused,
+		MetadataJSON:  string(metadata),
+		CorrelationID: "preflight-reuse-" + strconv.FormatInt(runID, 10),
 	})
 	if err != nil {
 		return fmt.Errorf("record preflight reuse audit: %w", err)

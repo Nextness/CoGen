@@ -1,5 +1,5 @@
 // Unit tests for components/data-table.tsx — row filter, data table rendering, controls.
-import { describe, it, before, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
@@ -7,7 +7,7 @@ import { seedViewerState } from '../seed.ts';
 import { rowFilter, DataTable, bindTableControls } from '../../../src/components/data-table.tsx';
 import { h } from '../../../src/jsx/jsx-runtime.ts';
 import { renderToString } from '../helpers/jsx-render.ts';
-import { state, value } from '../../../src/state.tsx';
+import { value } from '../../../src/state.tsx';
 
 const dataTable = (tableName: string, result: any, context?: any): string => renderToString(DataTable({ tableName: tableName, result: result, context: context }));
 
@@ -212,7 +212,7 @@ describe("data-table.tsx - bindTableControls", function() {
       + dataTable("second", { columns: ["id", "name"], rows: [{ id: 2, name: "B" }], pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 } });
     seedViewerState({ view: "advanced", table: "first" });
 
-    bindTableControls("second", 1);
+    bindTableControls("second");
 
     const roots = host.querySelectorAll<HTMLElement>("[data-table-owner]");
     const firstButton = roots[0].querySelector<HTMLButtonElement>(`[data-sort="name"]`)!;
@@ -231,7 +231,7 @@ describe("data-table.tsx - bindTableControls", function() {
     host.innerHTML = dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 2, total_pages: 2 } });
     seedViewerState({ view: "advanced", table: "test", page: "1" });
 
-    bindTableControls("test", 1);
+    bindTableControls("test");
 
     const button = host.querySelector<HTMLButtonElement>(`[data-page="2"]`)!;
     button.click();
@@ -245,7 +245,7 @@ describe("data-table.tsx - bindTableControls", function() {
     host.innerHTML = `<div data-table-scope="test"><form><input id="scoped-query" value="openalex"><button type="submit">Search</button></form>${dataTable("test", { columns: ["id"], rows: [{ id: 1 }], pagination: { page: 1, per_page: 1, total_rows: 1, total_pages: 1 } })}</div>`;
     seedViewerState({ view: "provenance", section: "cache", run_id: "1" });
 
-    bindTableControls("test", 1, {
+    bindTableControls("test", {
       queryKey: "cache_q",
       querySelector: "#scoped-query",
     });

@@ -1,7 +1,7 @@
 // Searchable run-scoped Notes index for the Evaluation queue.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewNote, ReviewNotesResponse } from "../api/types.ts";
-import { currentDetailOrigin, link, stateFor, appendUnique } from "../state.tsx";
+import { currentDetailOrigin, linkTargetFor, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -31,13 +31,12 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
         note_id: note.id,
         origin: currentDetailOrigin(),
       };
-      const href = link(updates);
-      const state = stateFor(updates);
+      const target = linkTargetFor(updates);
       const title = note.version?.title || `Note ${note.id}`;
       const excerpt = note.version?.excerpt || "No excerpt recorded.";
       return (
         <li>
-          <a href={href} data-state={JSON.stringify(state)}>{title}</a>
+          <a href={target.href} data-state={JSON.stringify(target.state)}>{title}</a>
           <p>{excerpt}</p>
           <span className={classNames.uiNeutralLabel}>{note.version?.state || "unknown"}</span>
         </li>
@@ -95,9 +94,6 @@ export async function mountRunNotesIndex(host: HTMLElement, runID: number): Prom
         limit: 25,
         state: state,
         q: query,
-      }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
       });
       appendUnique(notes, data.items || data.notes || [], (note) => note.id);
       cursor = data.next_cursor || "";

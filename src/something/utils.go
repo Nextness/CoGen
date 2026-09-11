@@ -129,10 +129,14 @@ const (
 	walkEvery
 )
 
-// walk traverses one path according to mode. It is the shared primitive for
-// the public Once, Index, and All accessor families.
-func walk(data map[string]any, segments []string, mode walkMode, index int) ([]any, error) {
-	return walkFrom(data, segments, mode, index)
+// sortedKeys returns string-keyed map keys in deterministic order.
+func sortedKeys[T any](values map[string]T) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // walkFrom continues a traversal from the current value while preserving the
@@ -194,29 +198,6 @@ func walkFrom(current any, segments []string, mode walkMode, index int) ([]any, 
 	}
 }
 
-// walkOnce returns the one value selected by a Once traversal.
-func walkOnce(data map[string]any, segments []string) (any, error) {
-	values, err := walk(data, segments, walkOne, 0)
-	if err != nil {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-// walkIndex returns the one value selected by an Index traversal.
-func walkIndex(data map[string]any, index int, segments []string) (any, error) {
-	values, err := walk(data, segments, walkAtIndex, index)
-	if err != nil {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-// walkAll returns every value selected by an All traversal.
-func walkAll(data map[string]any, segments []string) ([]any, error) {
-	return walk(data, segments, walkEvery, 0)
-}
-
 // checkType checks type against the current invariants.
 func checkType(val any, expected string, path []string) error {
 	pathStr := strings.Join(path, ".")
@@ -257,7 +238,7 @@ func checkType(val any, expected string, path []string) error {
 
 // valueAt selects and checks one typed value for the Once and Index accessors.
 func valueAt(data map[string]any, path []string, mode walkMode, index int, expected string) (any, error) {
-	values, err := walk(data, path, mode, index)
+	values, err := walkFrom(data, path, mode, index)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +251,7 @@ func valueAt(data map[string]any, path []string, mode walkMode, index int, expec
 
 // valuesAt selects and checks every typed value for the All accessors.
 func valuesAt(data map[string]any, path []string, expected string) ([]any, error) {
-	values, err := walk(data, path, walkEvery, 0)
+	values, err := walkFrom(data, path, walkEvery, 0)
 	if err != nil {
 		return nil, err
 	}

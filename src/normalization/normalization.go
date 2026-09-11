@@ -69,16 +69,10 @@ func isInitials(word string) bool {
 	if w == "" {
 		return false
 	}
-	if initialsWordRE.MatchString(w) {
+	if initialsWordRE.MatchString(w) || initialsCapsRE.MatchString(w) {
 		return true
 	}
-	if initialsCapsRE.MatchString(w) {
-		return true
-	}
-	if isUpperAlpha(w) && len(w) >= 1 && len(w) <= 3 && !lowerPrefixes[strings.ToLower(w)] {
-		return true
-	}
-	return false
+	return isUpperAlpha(w) && len(w) >= 1 && len(w) <= 3 && !lowerPrefixes[strings.ToLower(w)]
 }
 
 // isUpperAlpha reports whether a non-empty string contains only ASCII uppercase letters.

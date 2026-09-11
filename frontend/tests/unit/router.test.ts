@@ -1,11 +1,11 @@
 // Unit tests for router.tsx — URL state, view routing, render orchestrator.
-import { describe, it, before, beforeEach, mock } from 'node:test';
+import { describe, it, before, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
 import { seedViewerState } from './seed.ts';
 import { setURL, bindFocusContext, render, replaceState } from '../../src/router.tsx';
-import { state, app, viewerState, initViewerState } from '../../src/state.tsx';
+import { state, app, viewerState } from '../../src/state.tsx';
 
 describe('router.tsx — setURL', function() {
 

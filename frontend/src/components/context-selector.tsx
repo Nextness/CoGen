@@ -79,9 +79,11 @@ function renderDropdownOptions(key: string): void {
   const dropdown = dropdowns[key];
   const select = selects[key as keyof ContextSelects];
   if (!dropdown || !select) return;
+
   const nativeOptions = Array.from(select.options).filter((option) => {
     return Boolean(option.value);
   });
+
   const optionButtons = nativeOptions.map((option) => {
     const selected = option.value === select.value;
     const optionClass = cx("rw-search-dropdown__option", selected && "selected");
@@ -190,10 +192,7 @@ async function fetchOptionPage(config: DropdownConfig, query: string, cursor: st
   const cacheKey = endpoint("/api/hierarchy", requestQuery);
   const cached = hierarchyCache.get(cacheKey);
   if (cached) return cached;
-  const page = await api<HierarchyPage<HierarchyItem>>("/api/hierarchy", requestQuery, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  const page = await api<HierarchyPage<HierarchyItem>>("/api/hierarchy", requestQuery);
   hierarchyCache.set(cacheKey, page);
   return page;
 }
@@ -391,10 +390,7 @@ async function reconcileSelectedRun(): Promise<RunContextResponse | null> {
   const selectedRunID = value("run_id");
   if (!selectedRunID) return null;
   try {
-    const context = await api<RunContextResponse>(`/api/runs/${encodeURIComponent(selectedRunID)}/context`, {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const context = await api<RunContextResponse>(`/api/runs/${encodeURIComponent(selectedRunID)}/context`);
     const canonical = {
       search_id: String(context.search.id),
       search_revision_id: String(context.revision.id),

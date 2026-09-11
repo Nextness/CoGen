@@ -67,22 +67,14 @@ func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string
 		return nil, err
 	}
 	base["status"] = "available"
-	base["content_hash"] = nullableValue(contentHash)
-	base["inventoried_at"] = nullableValue(inventoriedAt)
+	base["content_hash"] = nullableString(contentHash)
+	base["inventoried_at"] = nullableString(inventoriedAt)
 	if byteSize.Valid {
 		base["byte_size"] = byteSize.Int64
 	} else {
 		base["byte_size"] = nil
 	}
 	return base, nil
-}
-
-// nullableValue converts a nullable SQL string to either its value or nil.
-func nullableValue(value sql.NullString) any {
-	if value.Valid {
-		return value.String
-	}
-	return nil
 }
 
 // workPDF streams the validated PDF associated with the requested work revision.

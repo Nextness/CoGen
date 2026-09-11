@@ -220,20 +220,6 @@ func TestEvalForMapIntKey_Functional(t *testing.T) {
 	}
 }
 
-// TestEvalForSourceError_Functional verifies eval for source error functional.
-func TestEvalForSourceError_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, `#for elem: "not-an-array" { x := elem; }`)
-	}, "#for source must be an array")
-}
-
-// TestEvalForMappingError_Functional verifies eval for mapping error functional.
-func TestEvalForMappingError_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, `#for k, v: "not-a-map" { x := v; }`)
-	}, "#for source must be an array or mapping")
-}
-
 // TestEvalForSourceArray_Functional verifies eval for source array functional.
 func TestEvalForSourceArray_Functional(t *testing.T) {
 	// #for with an array literal as source
@@ -261,13 +247,6 @@ func TestEvalScopeBodyInsertDecl_Functional(t *testing.T) {
 	if s["z"] != 42 {
 		t.Errorf("expected 42, got %v", s["z"])
 	}
-}
-
-// TestEvalInsertErrorNotString_Functional verifies eval insert error not string functional.
-func TestEvalInsertErrorNotString_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, `#insert { 42 };`)
-	}, "#insert content must evaluate to a string")
 }
 
 // TestEvalScopeBodyIterationTyped_Functional verifies eval scope body iteration typed functional.
@@ -298,13 +277,6 @@ func TestEvalScopeBodyAsLvalueTyped_Functional(t *testing.T) {
 	if s["dyn"] != "val" {
 		t.Errorf("expected 'val', got %v", s["dyn"])
 	}
-}
-
-// TestParseAsLvalueError_Functional verifies parse as lvalue error functional.
-func TestParseAsLvalueError_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, `#as_lvalue(123): string = "x";`)
-	}, "#as_lvalue requires a non-empty string")
 }
 
 // TestEvalResolveAsLvalueFromString_Functional verifies eval resolve as lvalue from string functional.

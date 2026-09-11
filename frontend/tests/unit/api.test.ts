@@ -1,5 +1,5 @@
 // Unit tests for api.tsx — endpoint builder and fetch helpers.
-import { describe, it, before, mock } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import './setup.ts';
@@ -35,7 +35,9 @@ describe('api.tsx — api', function() {
 
   it('fetches and returns data from a successful response', async function() {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    var request: RequestInit | undefined;
+    globalThis.fetch = function(_url: RequestInfo | URL, options?: RequestInit) {
+      request = options;
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -43,8 +45,10 @@ describe('api.tsx — api', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const result = await api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+    const result = await api('/api/test');
     assert.deepEqual(result, ['a', 'b']);
+    assert.equal(request?.method, 'GET');
+    assert.equal((request?.headers as Record<string, string> | undefined)?.Accept, 'application/json');
 
     globalThis.fetch = originalFetch;
   });
@@ -59,7 +63,7 @@ describe('api.tsx — api', function() {
       } as unknown as Response);
     } as typeof fetch;
 
-    const result = await api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+    const result = await api('/api/test');
     assert.deepEqual(result, { message: 'ok' });
 
     globalThis.fetch = originalFetch;
@@ -76,7 +80,7 @@ describe('api.tsx — api', function() {
     } as typeof fetch;
 
     await assert.rejects(function() {
-      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+      return api('/api/test');
     }, /Not found/);
 
     globalThis.fetch = originalFetch;
@@ -93,7 +97,7 @@ describe('api.tsx — api', function() {
     } as typeof fetch;
 
     await assert.rejects(function() {
-      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+      return api('/api/test');
     }, /Request failed \(500\)/);
 
     globalThis.fetch = originalFetch;
@@ -110,7 +114,7 @@ describe('api.tsx — api', function() {
     } as typeof fetch;
 
     await assert.rejects(function() {
-      return api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+      return api('/api/test');
     }, /invalid JSON/);
 
     globalThis.fetch = originalFetch;
@@ -125,7 +129,7 @@ describe('api.tsx — api', function() {
     } as typeof fetch;
 
     state.controller = new AbortController();
-    const promise = api('/api/test', {}, { method: 'GET', headers: { Accept: 'application/json' } });
+    void api('/api/test');
     state.controller.abort();
 
     assert.ok(signal);

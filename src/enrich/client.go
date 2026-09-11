@@ -190,10 +190,7 @@ func (c *Client) FetchAll(ctx context.Context, urls []string) map[string]*FetchR
 		case r, ok := <-results:
 			if !ok {
 				if completed < len(urls) {
-					log.Warn(
-						"http batch ended before every request completed",
-						"source", source, "completed", completed, "total", len(urls),
-					)
+					log.Warn("http batch ended before every request completed", "source", source, "completed", completed, "total", len(urls))
 				}
 				return out
 			}
@@ -208,16 +205,10 @@ func (c *Client) FetchAll(ctx context.Context, urls []string) map[string]*FetchR
 				failed++
 			}
 			if completed == 1 || completed == len(urls) || completed%progressEvery == 0 {
-				logFetchProgress(
-					"http fetch progress",
-					source, started, completed, len(urls), succeeded, notFound, failed,
-				)
+				logFetchProgress("http fetch progress", source, started, completed, len(urls), succeeded, notFound, failed)
 			}
 		case <-heartbeat.C:
-			logFetchProgress(
-				"http fetch heartbeat",
-				source, started, completed, len(urls), succeeded, notFound, failed,
-			)
+			logFetchProgress("http fetch heartbeat", source, started, completed, len(urls), succeeded, notFound, failed)
 		}
 	}
 	return out
@@ -268,10 +259,7 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 		resp, err := c.client.Do(req)
 		if err != nil {
 			slowTimer.Stop()
-			log.Warn(
-				"http request failed",
-				"source", c.sourceName(), "attempt", currentAttempt, "host", host, "path", path,
-			)
+			log.Warn("http request failed", "source", c.sourceName(), "attempt", currentAttempt, "host", host, "path", path)
 			return &FetchResult{Err: fmt.Errorf("request failed: %w", err)}
 		}
 
@@ -287,10 +275,7 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 			err = closeErr
 		}
 		if err != nil {
-			log.Warn(
-				"http response read failed",
-				"source", c.sourceName(), "attempt", currentAttempt, "error", err,
-			)
+			log.Warn("http response read failed", "source", c.sourceName(), "attempt", currentAttempt, "error", err)
 			return &FetchResult{Err: fmt.Errorf("read body: %w", err)}
 		}
 
@@ -320,10 +305,7 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 			}
 
 		default:
-			log.Warn(
-				"http request returned unexpected status",
-				"source", c.sourceName(), "attempt", currentAttempt, "status", resp.StatusCode,
-			)
+			log.Warn("http request returned unexpected status", "source", c.sourceName(), "attempt", currentAttempt, "status", resp.StatusCode)
 			return &FetchResult{
 				Body:       body,
 				StatusCode: resp.StatusCode,

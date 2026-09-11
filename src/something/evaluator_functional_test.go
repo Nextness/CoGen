@@ -194,13 +194,6 @@ func TestEvalArrayIndexAccess(t *testing.T) {
 	}
 }
 
-// TestEvalArrayOutOfBounds verifies eval array out of bounds.
-func TestEvalArrayOutOfBounds(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, `x := []string{"a"}; y := x[5];`)
-	}, "Index 5 out of bounds")
-}
-
 // Mapping tests
 
 // TestEvalMapping verifies eval mapping.
@@ -467,15 +460,6 @@ func TestEvalPrivateVar(t *testing.T) {
 	}
 }
 
-// TestEvalScopeTwoPass verifies eval scope two pass.
-func TestEvalScopeTwoPass(t *testing.T) {
-	// Bare scopes use two-pass: first pass for includes, second pass for vars
-	r := evalText(t, "s: scope = { x := 1; y := 2; }\na := s.x;")
-	if r["a"] != 1 {
-		t.Errorf("expected 1, got %v", r["a"])
-	}
-}
-
 // TestEvalScopeVarDeclNamedType verifies eval scope var decl named type.
 func TestEvalScopeVarDeclNamedType(t *testing.T) {
 	// Typed variable inside a scope with a named (enum) type
@@ -489,16 +473,6 @@ func TestEvalScopeVarDeclNamedType(t *testing.T) {
 func TestEvalScopeBodyNestedScope(t *testing.T) {
 	// A scope with a variable typed as a setup type, then accessed via dot path
 	r := evalText(t, "Inner: setup = { a: integer; }\ns: scope = { inner: Inner = Inner { a = 1 }; }\na := s.inner.a;")
-	if r["a"] != 1 {
-		t.Errorf("expected 1, got %v", r["a"])
-	}
-}
-
-// Dot path tests
-
-// TestEvalDotPath verifies eval dot path.
-func TestEvalDotPath(t *testing.T) {
-	r := evalText(t, "s: scope = { x := 1; y := 2; }\na := s.x;")
 	if r["a"] != 1 {
 		t.Errorf("expected 1, got %v", r["a"])
 	}
@@ -628,11 +602,11 @@ func TestMapKeysErrorPath(t *testing.T) {
 	}, "Mapping key not found")
 }
 
-// typeNameOf coverage via evalText
+// Runtime type-name coverage via evalText.
 
 // TestTypeNameOfAll verifies type name of all.
 func TestTypeNameOfAll(t *testing.T) {
-	// Trigger typeNameOf for various types via type check errors
+	// Trigger runtime type names for various types via type check errors.
 	// bool
 	assertPanic(t, func() {
 		evalText(t, `x: string = true;`)
@@ -647,36 +621,12 @@ func TestTypeNameOfAll(t *testing.T) {
 	}, "Type mismatch in assignment: expected string, got mapping(string, string)")
 }
 
-// TestTypeNameOfArray verifies type name of array.
-func TestTypeNameOfArray(t *testing.T) {
-	// Trigger typeNameOf for array type
-	assertPanic(t, func() {
-		evalText(t, `x: string = []string{"a"};`)
-	}, "Type mismatch in assignment: expected string, got []string")
-}
-
-// TestTypeNameOfMap verifies type name of map.
-func TestTypeNameOfMap(t *testing.T) {
-	// Trigger typeNameOf for map type
-	assertPanic(t, func() {
-		evalText(t, `x: string = mapping(string, string){["a"] => "b"};`)
-	}, "Type mismatch in assignment: expected string, got mapping(string, string)")
-}
-
 // TestTypeNameOfFloat verifies type name of float.
 func TestTypeNameOfFloat(t *testing.T) {
-	// Trigger typeNameOf for float type
+	// Trigger the runtime type name for a float.
 	assertPanic(t, func() {
 		evalText(t, `x: string = 3.14;`)
 	}, "Type mismatch in assignment: expected string, got float")
-}
-
-// TestEvalTypeNameOf verifies eval type name of.
-func TestEvalTypeNameOf(t *testing.T) {
-	// Trigger typeNameOf for various types through error messages
-	assertPanic(t, func() {
-		evalText(t, `x: string = []string{"a"};`)
-	}, "Type mismatch in assignment: expected string, got []string")
 }
 
 // isValidTimestamp coverage

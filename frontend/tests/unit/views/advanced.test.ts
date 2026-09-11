@@ -3,22 +3,12 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { apiResponse } from "../helpers/fetch.ts";
 import { seedViewerState } from "../seed.ts";
 import { advancedView } from "../../../src/views/advanced.tsx";
 import { app, state, value } from "../../../src/state.tsx";
 
 const originalFetch = globalThis.fetch;
-
-/** Returns one successful JSON fetch response for unit-view fixtures. */
-function response(data: any): Promise<Response> {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: function() {
-      return Promise.resolve({ data: data });
-    },
-  } as unknown as Response);
-}
 
 describe("advanced.tsx advancedView", function() {
   beforeEach(function() {
@@ -39,9 +29,9 @@ describe("advanced.tsx advancedView", function() {
     globalThis.fetch = function(url) {
       fetchCount += 1;
       if (String(url).endsWith("/api/tables")) {
-        return response({ tables: [{ name: "works", columns: [{ name: "id" }, { name: "title" }] }] });
+        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }, { name: "title" }] }] });
       }
-      return response({
+      return apiResponse({
         table: { name: "works", columns: [{ name: "id" }, { name: "title" }] },
         rows: [{ id: 1, title: "Test" }],
         truncated_fields: {},
@@ -62,9 +52,9 @@ describe("advanced.tsx advancedView", function() {
     seedViewerState({'table': 'missing_table', 'view': 'advanced'});
     globalThis.fetch = function(url) {
       if (String(url).endsWith("/api/tables")) {
-        return response({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
+        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
       }
-      return response({
+      return apiResponse({
         table: { name: "works", columns: [{ name: "id" }] },
         rows: [{ id: 1 }],
         truncated_fields: {},
@@ -81,7 +71,7 @@ describe("advanced.tsx advancedView", function() {
   it("keeps the Advanced shell visible when the selected table request fails", async function() {
     globalThis.fetch = function(url) {
       if (String(url).endsWith("/api/tables")) {
-        return response({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
+        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
       }
       return Promise.resolve({
         ok: false,
