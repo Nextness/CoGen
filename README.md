@@ -16,7 +16,7 @@ Install locked frontend dependencies and browser binaries when frontend work req
 
 ```sh
 make frontend-install
-make frontend-browsers BROWSERS="chromium firefox webkit"
+make frontend-browsers BROWSERS="chromium firefox"
 ```
 
 Build the pipeline binary and the maintained tools:

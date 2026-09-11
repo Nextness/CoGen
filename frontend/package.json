@@ -16,7 +16,7 @@
     "check:classes": "node scripts/generate-classes.ts --check && node scripts/check-classes.ts",
     "rewrite:classes": "node scripts/rewrite-class-names.ts",
     "report": "playwright show-report",
-    "install:browsers": "playwright install --with-deps chromium firefox webkit",
+    "install:browsers": "playwright install --with-deps chromium firefox",
     "codegen": "playwright codegen http://localhost:8080",
     "build": "node scripts/build.ts",
     "build:graph-vendor": "esbuild scripts/graph-vendor.entry.ts --bundle --format=esm --target=es2022 --minify --outfile=./vendor/d3-force.js",
