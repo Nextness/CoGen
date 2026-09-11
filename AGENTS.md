@@ -63,7 +63,7 @@ Run built tools from the repository root:
 ./build/prepare-osf --db ./corpus.metadata.db --config ./config/workspace.something --out ./build/osf-export
 ```
 
-There is no separate lint, pre-commit, or CI target. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes.
+There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes.
 
 ## 4. Runtime and configuration essentials
 

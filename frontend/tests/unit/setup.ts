@@ -41,6 +41,7 @@ globalThis.window = window;
 globalThis.document = document;
 globalThis.location = window.location;
 globalThis.history = window.history;
+globalThis.sessionStorage = window.sessionStorage;
 globalThis.getComputedStyle = window.getComputedStyle.bind(window);
 globalThis.HTMLElement = window.HTMLElement;
 globalThis.Node = window.Node;

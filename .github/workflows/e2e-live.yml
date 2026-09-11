@@ -1,0 +1,25 @@
+name: e2e-live
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-providers:
+    name: Live enrichment provider checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Build build/analysis
+        run: make build
+      - name: Build something-printer
+        run: make something-printer
+      - name: Run live E2E checks against real enrichment providers
+        run: make test-e2e-live E2E_LIVE=1

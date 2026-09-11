@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 /** Current generated viewer-fixture data contract version. */
 export const viewerFixtureContractVersion = 1;
 
-const metadataSchemaVersion = "V00026_review_anchor_labels.sql";
+const metadataSchemaVersion = "V00027_run_term_match_reconciliations.sql";
 const pdfSchemaVersion = "V00002_normalized_inventory.sql";
 
 /** Validates the generated metadata and PDF fixture pair before a browser server starts. */

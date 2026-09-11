@@ -134,6 +134,7 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 	}
 	uri := sqliteuri.File(absolute, map[string][]string{
 		"mode":    {"rw"},
+		"_txlock": {"immediate"},
 		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
 	})
 	conn, err := sql.Open(driverName, uri)
@@ -174,6 +175,7 @@ func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error
 		return nil, fmt.Errorf("resolve database path: %w", err)
 	}
 	uri := sqliteuri.File(absolute, map[string][]string{
+		"_txlock": {"immediate"},
 		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
 	})
 	conn, err := sql.Open("sqlite", uri)

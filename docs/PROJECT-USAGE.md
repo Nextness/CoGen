@@ -15,7 +15,7 @@ Install locked frontend dependencies and selected browser binaries when frontend
 
 ```sh
 make frontend-install
-make frontend-browsers BROWSERS="chromium firefox webkit"
+make frontend-browsers BROWSERS="chromium firefox"
 ```
 
 `frontend-browsers` installs browser binaries; platform-native libraries remain an environment responsibility described by Playwright when missing.

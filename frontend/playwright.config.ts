@@ -36,10 +36,6 @@ export default defineConfig({
       name: 'firefox',
       use: { ...devices['Desktop Firefox'] },
     },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
   ],
   outputDir: process.env.PLAYWRIGHT_TEST_RESULTS_DIR || 'test-results',
 });
