@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -301,7 +302,7 @@ func parseCachePolicy(entry map[string]any, reusePolicy string) (manifest.CacheP
 	if err := validateCacheLayers(writes, true); err != nil {
 		return manifest.CachePolicy{}, err
 	}
-	if reusePolicy == "fresh" && contains(writes, "global") {
+	if reusePolicy == "fresh" && slices.Contains(writes, "global") {
 		return manifest.CachePolicy{}, fmt.Errorf("fresh reuse policy must not write to the global cache")
 	}
 	return manifest.CachePolicy{Reads: reads, Writes: writes, ReadRunID: readRunID, NegativeTTLDays: ttl}, nil
@@ -609,14 +610,4 @@ func parseRawDataFilters(source map[string]any, name string) ([]manifest.RawData
 		result[i] = manifest.RawDataFilter{Filters: filterNames, Count: count}
 	}
 	return result, nil
-}
-
-// contains reports whether a string slice contains an exact target.
-func contains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }

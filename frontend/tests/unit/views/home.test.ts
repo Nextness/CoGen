@@ -3,29 +3,19 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { apiResponse } from "../helpers/fetch.ts";
 import { seedViewerState } from "../seed.ts";
 import { homeView } from "../../../src/views/home.tsx";
 import { app } from "../../../src/state.tsx";
 
 const originalFetch = globalThis.fetch;
 
-/** Returns a JSON response compatible with the frontend API helper. */
-function response(data: unknown): Promise<Response> {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: function() {
-      return Promise.resolve({ data: data });
-    },
-  } as unknown as Response);
-}
-
 /** Returns the hierarchy fixture section selected by one request URL. */
 function hierarchyResponse(rawURL: string): Promise<Response> {
   const url = new URL(rawURL, location.origin);
   const section = url.searchParams.get("section");
   if (section === "summary") {
-    return response({
+    return apiResponse({
       version: "1",
       totals: { searches: 140, revisions: 280, plans: 400, runs: 650, completed_runs: 600 },
       latest_run: {
@@ -42,7 +32,7 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
     });
   }
   if (section === "searches") {
-    return response({
+    return apiResponse({
       version: "1",
       items: [{
         id: 1,
@@ -60,14 +50,14 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
     });
   }
   if (section === "revisions") {
-    return response({
+    return apiResponse({
       version: "1",
       items: [{ id: 11, label: "Revision 1", plan_count: 2, run_count: 3, latest_plan_id: 21, latest_run_id: 31 }],
       has_more: true,
       next_cursor: "next-revisions",
     });
   }
-  return response({
+  return apiResponse({
     version: "1",
     items: [{
       id: 31,

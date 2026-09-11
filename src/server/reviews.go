@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -15,6 +16,15 @@ import (
 )
 
 const reviewMutationBodyLimit int64 = 524288
+
+// reviewBacklinkTargetTypes limits backlinks to supported review entities.
+var reviewBacklinkTargetTypes = map[string]bool{
+	"note":     true,
+	"article":  true,
+	"pdf_page": true,
+	"anchor":   true,
+	"ext":      true,
+}
 
 // runReviewContext returns the initialized context or the deterministic proposed parent.
 func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +106,7 @@ func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request)
 	}
 	var nextCursor *string
 	if hasMore {
-		value := encodeReviewCursor(reviewCursor{Kind: "parent_candidates", StartedAt: items[len(items)-1].StartedAt, ID: items[len(items)-1].PipelineRunID})
+		value := encodeCursor(reviewCursor{Kind: "parent_candidates", StartedAt: items[len(items)-1].StartedAt, ID: items[len(items)-1].PipelineRunID})
 		nextCursor = &value
 	}
 	s.respond(w, r, map[string]any{
@@ -608,7 +618,7 @@ func (s *Server) articleAnchors(w http.ResponseWriter, r *http.Request) {
 	}
 	var nextCursor *string
 	if hasMore {
-		value := encodeReviewCursor(reviewCursor{
+		value := encodeCursor(reviewCursor{
 			Kind: "anchors",
 			Text: anchors[len(anchors)-1].ID,
 		})
@@ -827,9 +837,7 @@ func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetType, targetID := r.URL.Query().Get("target_type"), r.URL.Query().Get("target_id")
-	// What the actual fuck is this? This looks awful.
-	// TODO: actually have a good implementation because this is atroxious
-	if !map[string]bool{"note": true, "article": true, "pdf_page": true, "anchor": true, "ext": true}[targetType] || targetID == "" {
+	if !reviewBacklinkTargetTypes[targetType] || targetID == "" {
 		s.respond(w, r, nil, badRequest("target_type and target_id are required"))
 		return
 	}
@@ -950,7 +958,7 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*d
 func (s *Server) reviewArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, map[string]any, error) {
 	var workID int64
 	err := s.db.QueryRowContext(ctx, `SELECT revision.work_id FROM work_revisions revision
-		WHERE revision.id=? AND revision.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("revision"), workRevisionID, runID).Scan(&workID)
+		WHERE revision.id=? AND revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), workRevisionID, runID).Scan(&workID)
 	if err == sql.ErrNoRows {
 		return 0, nil, notFound("article revision does not belong to selected run")
 	}
@@ -982,7 +990,7 @@ func (s *Server) requireAvailableArticlePDF(ctx context.Context, runID, workRevi
 func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int64) (int64, string, error) {
 	var count int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM work_revisions revision
-		WHERE revision.pipeline_run_id=? AND revision.work_id=? AND `+currentNormalizedRevisionPredicate("revision"), runID, workID).Scan(&count); err != nil {
+		WHERE revision.pipeline_run_id=? AND revision.work_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), runID, workID).Scan(&count); err != nil {
 		return 0, "", err
 	}
 	if count == 0 {
@@ -1118,12 +1126,6 @@ func decodeReviewCursor(raw, kind string) (reviewCursor, error) {
 	return cursor, nil
 }
 
-// encodeReviewCursor serializes one endpoint-bound keyset without exposing its structure.
-func encodeReviewCursor(cursor reviewCursor) string {
-	encoded, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(encoded)
-}
-
 // reviewIDItems trims a limit-plus-one result and encodes the last visible numeric key.
 func reviewIDItems[T any](items []T, limit int, kind string, id func(T) int64) ([]T, bool, *string) {
 	hasMore := len(items) > limit
@@ -1133,7 +1135,7 @@ func reviewIDItems[T any](items []T, limit int, kind string, id func(T) int64) (
 	if !hasMore {
 		return items, false, nil
 	}
-	value := encodeReviewCursor(reviewCursor{Kind: kind, ID: id(items[len(items)-1])})
+	value := encodeCursor(reviewCursor{Kind: kind, ID: id(items[len(items)-1])})
 	return items, true, &value
 }
 
@@ -1164,10 +1166,9 @@ func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any)
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			return &apiProblem{
-				Status: http.StatusRequestEntityTooLarge,
-				Code:   "request_too_large",
-				// TODO: Use the actual variable storing this value instead of hardcoding it
-				Message: "request body exceeds 524288 bytes",
+				Status:  http.StatusRequestEntityTooLarge,
+				Code:    "request_too_large",
+				Message: fmt.Sprintf("request body exceeds %d bytes", reviewMutationBodyLimit),
 			}
 		}
 		return badRequest("request body must be one valid JSON object with known fields")

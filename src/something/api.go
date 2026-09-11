@@ -71,7 +71,7 @@ func Pprint(v any, indent int) string {
 			return "{}"
 		}
 		items := []string{}
-		keys := sortedMapKeys(val)
+		keys := sortedKeys(val)
 		for _, k := range keys {
 			items = append(items, strings.Repeat(sp, indent+1)+`"`+k+`": `+Pprint(val[k], indent+1))
 		}

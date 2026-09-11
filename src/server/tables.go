@@ -150,9 +150,9 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 				if value != nil && value != int64(0) {
 					switch text := item[column.Name].(type) {
 					case string:
-						item[column.Name] = truncateUTF8Bytes(text, advancedCellBytes)
+						item[column.Name] = textlimit.UTF8Prefix(text, advancedCellBytes)
 					case []byte:
-						item[column.Name] = truncateUTF8Bytes(string(text), advancedCellBytes)
+						item[column.Name] = textlimit.UTF8Prefix(string(text), advancedCellBytes)
 					}
 					truncatedFields[column.Name] = appendUnique(truncatedFields[column.Name], "cell_byte_limit")
 				}
@@ -199,11 +199,6 @@ func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {
 		items = append(items, item)
 	}
 	return items, rows.Err()
-}
-
-// truncateUTF8Bytes returns a valid UTF-8 prefix that fits within the byte limit.
-func truncateUTF8Bytes(value string, limit int) string {
-	return textlimit.UTF8Prefix(value, limit)
 }
 
 // safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas.

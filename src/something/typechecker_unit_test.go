@@ -313,14 +313,14 @@ func TestEnumHasMemberEmptyEnum(t *testing.T) {
 	}
 }
 
-// TestSortedBindingTypeKeys verifies sorted binding type keys.
-func TestSortedBindingTypeKeys(t *testing.T) {
+// TestSortedKeys verifies deterministic string-keyed map ordering.
+func TestSortedKeys(t *testing.T) {
 	fields := map[string]*BindingType{
 		"z": {Type: PrimString},
 		"a": {Type: PrimInteger},
 		"m": {Type: PrimFloat},
 	}
-	result := sortedBindingTypeKeys(fields)
+	result := sortedKeys(fields)
 	expected := []string{"a", "m", "z"}
 	if !reflect.DeepEqual(result, expected) {
 		t.Errorf("expected %v, got %v", expected, result)
@@ -330,17 +330,17 @@ func TestSortedBindingTypeKeys(t *testing.T) {
 	}
 }
 
-// TestSortedBindingTypeKeysEmpty verifies sorted binding type keys empty.
-func TestSortedBindingTypeKeysEmpty(t *testing.T) {
-	result := sortedBindingTypeKeys(map[string]*BindingType{})
+// TestSortedKeysEmpty verifies sorting an empty map.
+func TestSortedKeysEmpty(t *testing.T) {
+	result := sortedKeys(map[string]*BindingType{})
 	if len(result) != 0 {
 		t.Errorf("expected empty slice, got %v", result)
 	}
 }
 
-// TestSortedBindingTypeKeysNil verifies sorted binding type keys nil.
-func TestSortedBindingTypeKeysNil(t *testing.T) {
-	result := sortedBindingTypeKeys(nil)
+// TestSortedKeysNil verifies sorting a nil map.
+func TestSortedKeysNil(t *testing.T) {
+	result := sortedKeys(map[string]*BindingType(nil))
 	if len(result) != 0 {
 		t.Errorf("expected empty slice for nil map, got %v", result)
 	}

@@ -2,6 +2,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
+import { apiResponse } from '../helpers/fetch.ts';
 import { seedViewerState } from '../seed.ts';
 import { appendAuditEvents, auditVisibleEventLimit, boundAuditWindow, provenanceView } from '../../../src/views/provenance.tsx';
 import { app, state, value } from '../../../src/state.tsx';
@@ -10,11 +11,6 @@ import type { HierarchyRun } from '../../../src/api/types.ts';
 /** Sets viewer state. */
 function setLocation(values: Record<string, string>) {
   seedViewerState({ view: 'provenance', ...values });
-}
-
-/** Builds a mock fetch response. */
-function response(data: unknown) {
-  return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ data: data }); } } as unknown as Response);
 }
 
 describe('provenance.tsx — provenanceView', function() {
@@ -36,7 +32,7 @@ describe('provenance.tsx — provenanceView', function() {
     var requested = '';
     globalThis.fetch = function(input) {
       requested = String(input);
-      return response({
+      return apiResponse({
         events: [{ id: 3, action: 'field_enriched', actor: 'crossref', entity_type: 'work_revision', entity_id: '1', occurred_at: '2024-01-01T00:01:00Z', metadata_json: { field: 'title', provider: 'crossref' } }],
         summary: { total_events: 1, actions: [{ action: 'field_enriched', count: 1 }] },
         facets: { actors: ['crossref'], actions: ['field_enriched'], entity_types: ['work_revision'] },
@@ -59,7 +55,7 @@ describe('provenance.tsx — provenanceView', function() {
   it('updates URL state when audit filters are submitted', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
-      return response({ events: [], summary: { total_events: 0, actions: [] }, facets: { actors: [], actions: [], entity_types: [] } });
+      return apiResponse({ events: [], summary: { total_events: 0, actions: [] }, facets: { actors: [], actions: [], entity_types: [] } });
     } as typeof fetch;
     setLocation({ section: 'audit', run_id: '1' });
 
@@ -81,7 +77,7 @@ describe('provenance.tsx — provenanceView', function() {
     globalThis.fetch = function() {
       calls += 1;
       if (calls === 1) {
-        return response({
+        return apiResponse({
           events: [{ id: 3, action: 'validation_changed', actor: 'pipeline', entity_type: 'work_revision', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-02T00:01:00Z', metadata_json: { reason: 'Recorded reason', detail: 'visible' } }],
           summary: { total_events: 2, actions: [{ action: 'validation_changed', count: 2 }] },
           facets: { actors: ['pipeline'], actions: ['validation_changed'], entity_types: ['work_revision'] },
@@ -89,7 +85,7 @@ describe('provenance.tsx — provenanceView', function() {
           has_more: true
         });
       }
-      return response({
+      return apiResponse({
         events: [
           { id: 3, action: 'validation_changed', actor: 'pipeline', entity_type: 'work_revision', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-02T00:01:00Z' },
           { id: 2, action: 'pipeline_completed', actor: 'pipeline', entity_type: 'pipeline_run', entity_id: '1', pipeline_run_id: 1, occurred_at: '2024-01-01T00:01:00Z' }
@@ -136,9 +132,9 @@ describe('provenance.tsx — provenanceView', function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function(input) {
       if (String(input).includes('/inspect')) {
-        return response({ artifact_id: 9, content_type: 'text/plain', byte_size: 90000, stored_byte_size: 90000, preview_byte_size: 65536, truncated: true, format: 'text', content: 'safe prefix' });
+        return apiResponse({ artifact_id: 9, content_type: 'text/plain', byte_size: 90000, stored_byte_size: 90000, preview_byte_size: 65536, truncated: true, format: 'text', content: 'safe prefix' });
       }
-      return response({
+      return apiResponse({
         context: { run_id: 1, attempt_number: 1 },
         artifacts: [{ id: 9, artifact_roles: 'input_manifest', content_hash: 'hash', byte_size: 90000, content_type: 'text/plain', created_at: '2024-01-01T00:00:00Z', has_blob: 1, preview_available: true }],
         pagination: { page: 2, per_page: 20, total_rows: 61, total_pages: 4 },
@@ -165,7 +161,7 @@ describe('provenance.tsx — provenanceView', function() {
   it('renders cache search and complete pagination controls', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
-      return response({
+      return apiResponse({
         columns: ['id', 'provider', 'outcome'],
         rows: [{ id: 1, provider: 'crossref', outcome: 'hit' }],
         pagination: { page: 2, per_page: 20, total_rows: 41, total_pages: 3 }
@@ -186,7 +182,7 @@ describe('provenance.tsx — provenanceView', function() {
   it('renders stage progression before paginated details', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
-      return response({
+      return apiResponse({
         columns: ['id', 'work_id', 'stage_name', 'outcome'],
         rows: [{ id: 1, work_id: 2, stage_name: 'validate', outcome: 'valid' }],
         pagination: { page: 1, per_page: 20, total_rows: 1, total_pages: 1 },
@@ -208,7 +204,7 @@ describe('provenance.tsx — provenanceView', function() {
 
   it('renders run identity and configuration snapshots', async function() {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() { return response({ artifacts: [] }); } as typeof fetch;
+    globalThis.fetch = function() { return apiResponse({ artifacts: [] }); } as typeof fetch;
     setLocation({ section: 'run', run_id: '1' });
     state.runs = [{ id: '1', attempt_number: 1, status: 'completed' } as unknown as HierarchyRun];
 

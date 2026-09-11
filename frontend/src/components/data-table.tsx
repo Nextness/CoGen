@@ -4,7 +4,7 @@ import { setURL, replaceState } from "../router.tsx";
 import { h, Fragment, cx, classToggle, classHas } from "../jsx/jsx-runtime.ts";
 import type { ClassNames } from "../jsx/jsx-runtime.ts";
 import { Pagination } from "./pagination.tsx";
-import type { ColumnInfo, DataTableContext, ScopedPagination, TabularResponse, WireRecord } from "../api/types.ts";
+import type { ColumnInfo, DataTableContext, TabularResponse, WireRecord } from "../api/types.ts";
 
 /** Typed compound class names used by this module. */
 const classNames = {
@@ -219,7 +219,7 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
 }
 
 /** Binds DOM behavior for table controls. */
-export function bindTableControls(tableName: string, page: number, context?: DataTableContext): void {
+export function bindTableControls(tableName: string, context?: DataTableContext): void {
   if (!context) context = {};
   const root = Array.from(document.querySelectorAll<HTMLElement>("[data-table-owner]")).find((candidate) => {
     return candidate.dataset.tableOwner === tableName;

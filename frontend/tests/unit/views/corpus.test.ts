@@ -1,11 +1,11 @@
 // Unit tests for views/corpus.tsx — corpus view, columnNames, identityEvidenceTable.
-import { describe, it, before, mock } from 'node:test';
+import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { seedViewerState } from '../seed.ts';
 import { corpusView } from '../../../src/views/corpus.tsx';
-import { app, state, value } from '../../../src/state.tsx';
+import { app, state } from '../../../src/state.tsx';
 
 describe('corpus.tsx — corpusView', function() {
 

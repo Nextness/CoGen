@@ -1,6 +1,6 @@
 // Read-only execution evidence: audit events, artifacts, cache uses, stages, and run details.
 import {
-  app, value, link, stateFor, state, provenanceSections, section,
+  app, value, linkTargetFor, state, provenanceSections, section,
   Cell, list, selectedRun, pickID, formatTime, formatBytes,
   formatNumber, humanLabel, pageSizes, PageHeader, Subnav, EmptyPanel, Panel, StatusChip, FilterChips,
 } from "../state.tsx";
@@ -92,7 +92,7 @@ let auditHasMore = false;
 export const auditVisibleEventLimit = 200;
 
 /** Renders a formatted timestamp cell for a data-table column. */
-function renderTime(row: WireRecord, raw: unknown): JSX.Element {
+function renderTime(_row: WireRecord, raw: unknown): JSX.Element {
   return <>{formatTime(raw)}</>;
 }
 
@@ -184,8 +184,7 @@ function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
   const resetUpdates = Object.fromEntries(Object.keys(auditFilterKeys).map((key) => {
     return [key, ""];
   }));
-  const resetLink = link(resetUpdates);
-  const resetState = stateFor(resetUpdates);
+  const resetTarget = linkTargetFor(resetUpdates);
   return (
     <aside className={classNames.uiSegmentRwAuditFilters}>
       <div className={classNames.uiTopAttachedHeader}>
@@ -234,7 +233,7 @@ function AuditFilters(props: { facets: AuditResponse["facets"] }): JSX.Element {
           <AuditFilterSummary />
           <div className="rw-filter-panel__actions">
             <button type="submit" className={classNames.uiPrimaryButton}>Apply filters</button>
-            <a className={classNames.uiBasicButton} href={resetLink} data-state={JSON.stringify(resetState)}>Reset</a>
+            <a className={classNames.uiBasicButton} href={resetTarget.href} data-state={JSON.stringify(resetTarget.state)}>Reset</a>
           </div>
         </form>
       </div>
@@ -580,7 +579,7 @@ function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
     namespace: { label: "Namespace" },
     outcome: {
       label: "Outcome",
-      render: (row, raw) => {
+      render: (_row, raw) => {
         return <StatusChip raw={raw} />;
       },
     },
@@ -596,9 +595,10 @@ function CacheView(props: { data: CacheUsesResponse }): JSX.Element {
     },
     payload_artifact_id: {
       label: "Payload artifact",
-      render: (row, raw) => {
+      render: (_row, raw) => {
         if (raw) {
-          return <a href={link({ section: "artifacts", artifact_id: raw, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: raw, artifact_page: 1 }))}>Artifact {String(raw)}</a>;
+          const target = linkTargetFor({ section: "artifacts", artifact_id: raw, artifact_page: 1 });
+          return <a href={target.href} data-state={JSON.stringify(target.state)}>Artifact {String(raw)}</a>;
         }
         return <span className={classNames.uiFadedText}>None</span>;
       },
@@ -692,10 +692,12 @@ function StageFlow(props: { summaries: StageSummary[]; steps: RunStep[] }): JSX.
     const outcomeDisplay = outcomeText || outcomeFallback;
     const artifacts: JSX.Element[] = [];
     if (step?.input_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 }))}>Input artifact {step.input_artifact_id}</a>);
+      const target = linkTargetFor({ section: "artifacts", artifact_id: step.input_artifact_id, artifact_page: 1 });
+      artifacts.push(<a href={target.href} data-state={JSON.stringify(target.state)}>Input artifact {step.input_artifact_id}</a>);
     }
     if (step?.output_artifact_id) {
-      artifacts.push(<a href={link({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 })} data-state={JSON.stringify(stateFor({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 }))}>Output artifact {step.output_artifact_id}</a>);
+      const target = linkTargetFor({ section: "artifacts", artifact_id: step.output_artifact_id, artifact_page: 1 });
+      artifacts.push(<a href={target.href} data-state={JSON.stringify(target.state)}>Output artifact {step.output_artifact_id}</a>);
     }
     var duration = "Not recorded";
     if (step?.duration_seconds != null) {
@@ -788,7 +790,7 @@ function StagesView(props: { data: StagesResponse }): JSX.Element {
     stage_name: { label: "Stage" },
     outcome: {
       label: "Outcome",
-      render: (row, raw) => {
+      render: (_row, raw) => {
         return <StatusChip raw={raw} />;
       },
     },
@@ -956,7 +958,7 @@ export async function provenanceView(): Promise<void> {
 
   var content: JSX.Element;
   if (current === "audit") {
-    content = <AuditView data={await api<AuditResponse>("/api/audit", auditQuery(""), { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <AuditView data={await api<AuditResponse>("/api/audit", auditQuery(""))} />;
   } else if (current === "artifacts") {
     content = <ArtifactsView data={await api<ArtifactsResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, {
       q: value("artifact_q"),
@@ -964,7 +966,7 @@ export async function provenanceView(): Promise<void> {
       page: value("artifact_page") || 1,
       per_page: value("artifact_per_page") || 50,
       artifact_id: value("artifact_id"),
-    }, { method: "GET", headers: { Accept: "application/json" } })} />;
+    })} />;
   } else if (current === "cache") {
     content = <CacheView data={await api<CacheUsesResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/cache-uses`, {
       page: value("cache_page") || 1,
@@ -972,7 +974,7 @@ export async function provenanceView(): Promise<void> {
       sort: value("cache_sort") || "id",
       order: value("cache_order") || "asc",
       q: value("cache_q"),
-    }, { method: "GET", headers: { Accept: "application/json" } })} />;
+    })} />;
   } else if (current === "stages") {
     content = <StagesView data={await api<StagesResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/stages`, {
       page: value("stage_page") || 1,
@@ -980,9 +982,9 @@ export async function provenanceView(): Promise<void> {
       sort: value("stage_sort") || "id",
       order: value("stage_order") || "asc",
       q: value("stage_q"),
-    }, { method: "GET", headers: { Accept: "application/json" } })} />;
+    })} />;
   } else {
-    content = <RunView artifactData={await api<ArtifactsResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, { role: "run_role", limit: 100 }, { method: "GET", headers: { Accept: "application/json" } })} />;
+    content = <RunView artifactData={await api<ArtifactsResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/artifacts`, { role: "run_role", limit: 100 })} />;
   }
 
   const pageMarkup = (
@@ -999,7 +1001,7 @@ export async function provenanceView(): Promise<void> {
   } else if (current === "artifacts") {
     bindArtifactInspection();
   } else if (current === "cache") {
-    bindTableControls("Cache uses", Number(value("cache_page") || 1), {
+    bindTableControls("Cache uses", {
       pageKey: "cache_page",
       perPageKey: "cache_per_page",
       sortKey: "cache_sort",
@@ -1011,7 +1013,7 @@ export async function provenanceView(): Promise<void> {
       searchButtonSelector: "[data-cache-search]",
     });
   } else if (current === "stages") {
-    bindTableControls("Detailed stage outcomes", Number(value("stage_page") || 1), {
+    bindTableControls("Detailed stage outcomes", {
       pageKey: "stage_page",
       perPageKey: "stage_per_page",
       sortKey: "stage_sort",
@@ -1091,10 +1093,7 @@ function bindAuditControls(): void {
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        const data = await api<AuditResponse>("/api/audit", auditQuery(auditCursor), {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
+        const data = await api<AuditResponse>("/api/audit", auditQuery(auditCursor));
         const newEvents = list(data, ["events", "items"]).filter((event) => {
           const id = String(event.id);
           if (auditKnownEventIDs.has(id)) return false;
@@ -1165,10 +1164,7 @@ function bindArtifactInspection(): void {
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
-        const payload = await api<ArtifactInspectionResponse>(`/api/artifacts/${encodeURIComponent(id)}/inspect`, { preview_bytes: 65536 }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
+        const payload = await api<ArtifactInspectionResponse>(`/api/artifacts/${encodeURIComponent(id)}/inspect`, { preview_bytes: 65536 });
         if (sequence !== artifactInspectionSequence) return;
         const raw = payload.content || "";
         var formatted = raw;

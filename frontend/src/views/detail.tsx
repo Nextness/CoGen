@@ -1,8 +1,8 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
-  app, value, link, stateFor, list,
+  app, value, link, list,
   setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
-  PageHeader, EmptyState, Panel, StatusChip, Cell, detailOrigin, routeOwnedKeys, detailLinkFor,
+  PageHeader, EmptyState, Panel, StatusChip, Cell, detailOrigin, routeOwnedKeys, detailLinkFor, linkTargetFor,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
@@ -16,7 +16,6 @@ import type {
   DetailCollectionPage,
   EvaluationNavigation,
   EvaluationResponse,
-  Identifier,
   IdentityCandidate,
   IdentityCandidatesResponse,
   IdentityResolution,
@@ -90,11 +89,6 @@ interface LinkTarget {
   state: Record<string, string>;
 }
 
-/** Returns a context-preserving link to a related detail record. */
-function detailLink(kind: string, id: unknown): LinkTarget {
-  return detailLinkFor(kind as "article" | "author" | "reference", id);
-}
-
 /** Returns the context-preserving corpus return target for a detail view. */
 function backToCorpus(kind: string): LinkTarget {
   var section = "articles";
@@ -109,7 +103,7 @@ function backToCorpus(kind: string): LinkTarget {
     reference_id: "",
     table: "",
   };
-  return { href: link(updates), state: stateFor(updates) };
+  return linkTargetFor(updates);
 }
 
 /** Renders a recorded value or its unavailable presentation. */
@@ -369,10 +363,7 @@ async function loadCollectionPage(key: string, cursor: string, rememberCurrent: 
   state.error = "";
   renderCollection(key);
   try {
-    const data = await api<DetailCollectionPage<WireRecord>>(state.endpoint, { run_id: value("run_id"), limit: 25, cursor: cursor }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<DetailCollectionPage<WireRecord>>(state.endpoint, { run_id: value("run_id"), limit: 25, cursor: cursor });
     if (sequence !== state.request) return;
     if (rememberCurrent) state.previousCursors.push(state.currentCursor);
     state.rows = list(data, ["rows", "items"]);
@@ -759,11 +750,12 @@ function IdentityCandidateList(props: { candidates: IdentityCandidate[] }): JSX.
   const candidateItems = props.candidates.map((candidate) => {
     var links = <a href={candidate.query_url} target="_blank" rel="noreferrer">Provider query</a>;
     if (candidate.payload_artifact_id) {
+      const target = linkTargetFor({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id });
       links = (
         <Fragment>
           {links}
           <span aria-hidden="true">·</span>
-          <a href={link({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id })} data-state={JSON.stringify(stateFor({ view: "provenance", section: "artifacts", artifact_id: candidate.payload_artifact_id }))}>Raw payload artifact</a>
+          <a href={target.href} data-state={JSON.stringify(target.state)}>Raw payload artifact</a>
         </Fragment>
       );
     }
@@ -859,9 +851,6 @@ function bindIdentityCandidatePages(runID: string): void {
           run_id: runID,
           limit: 25,
           cursor: cursor,
-        }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
         });
         const candidateMarkup = <IdentityCandidateList candidates={list(page, ["items"])} />;
         renderTree(candidateMarkup, host);
@@ -961,8 +950,8 @@ function ReferenceView(props: { record: ReferenceRecord }): JSX.Element {
   const resolved = Boolean(props.record.resolved_revision_id);
   var resolutionLabel = "Unresolved";
   if (resolved) resolutionLabel = "Resolved internally";
-  const citingRevisionLink = detailLink("article", props.record.work_revision_id);
-  const resolvedRevisionLink = detailLink("article", props.record.resolved_revision_id);
+  const citingRevisionLink = detailLinkFor("article", props.record.work_revision_id);
+  const resolvedRevisionLink = detailLinkFor("article", props.record.resolved_revision_id);
 
   const summary = summaryStrip([
     {
@@ -1075,15 +1064,15 @@ export async function detailView(kind: string): Promise<void> {
   let data: ArticleDetailResponse | AuthorDetailResponse | ReferenceDetailResponse;
   let record: RenderableDetailRecord;
   if (kind === "article") {
-    const articleData = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    const articleData = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(id)}`, apiOptions);
     data = articleData;
     record = articleData.article;
   } else if (kind === "author") {
-    const authorData = await api<AuthorDetailResponse>(`/api/authors/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    const authorData = await api<AuthorDetailResponse>(`/api/authors/${encodeURIComponent(id)}`, apiOptions);
     data = authorData;
     record = authorData.author;
   } else {
-    const referenceData = await api<ReferenceDetailResponse>(`/api/references/${encodeURIComponent(id)}`, apiOptions, { method: "GET", headers: { Accept: "application/json" } });
+    const referenceData = await api<ReferenceDetailResponse>(`/api/references/${encodeURIComponent(id)}`, apiOptions);
     data = referenceData;
     record = referenceData.reference;
   }
@@ -1098,10 +1087,7 @@ export async function detailView(kind: string): Promise<void> {
     navigationQuery.page = 1;
     navigationQuery.per_page = 20;
     try {
-      const queue = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+      const queue = await api<EvaluationResponse>(`/api/runs/${encodeURIComponent(value("run_id"))}/evaluation`, navigationQuery);
       evaluationNavigation = queue.queue_navigation;
     } catch (error) {
       evaluationNavigationError = errorMessage(error, "Unable to load evaluation navigation.");
@@ -1178,11 +1164,13 @@ export async function detailView(kind: string): Promise<void> {
     var nextAction: JSX.Element | null = null;
     if (evaluationNavigation?.previous_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.previous_work_revision_id };
-      previousAction = <a className={classNames.uiBasicButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Previous unreviewed</a>;
+      const target = linkTargetFor(updates);
+      previousAction = <a className={classNames.uiBasicButton} href={target.href} data-state={JSON.stringify(target.state)}>Previous unreviewed</a>;
     }
     if (evaluationNavigation?.next_work_revision_id) {
       const updates = { view: "article", article_id: evaluationNavigation.next_work_revision_id };
-      nextAction = <a className={classNames.uiPrimaryButton} href={link(updates)} data-state={JSON.stringify(stateFor(updates))}>Next unreviewed</a>;
+      const target = linkTargetFor(updates);
+      nextAction = <a className={classNames.uiPrimaryButton} href={target.href} data-state={JSON.stringify(target.state)}>Next unreviewed</a>;
     }
     var navigationError: JSX.Element | null = null;
     if (evaluationNavigationError) navigationError = <span className={classNames.uiWarningMessage}>Queue navigation is unavailable: {evaluationNavigationError}</span>;
@@ -1214,7 +1202,10 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Author occurrence",
-        render: (row) => <a href={detailLink("author", row.id).href} data-state={JSON.stringify(detailLink("author", row.id).state)}>{String(row.citation_name || "Not recorded")}</a>,
+        render: (row) => {
+          const target = detailLinkFor("author", row.id);
+          return <a href={target.href} data-state={JSON.stringify(target.state)}>{String(row.citation_name || "Not recorded")}</a>;
+        },
       },
       {
         label: "ORCID",
@@ -1239,7 +1230,10 @@ export async function detailView(kind: string): Promise<void> {
       },
       {
         label: "Reference mention",
-        render: (row) => <a href={detailLink("reference", row.id).href} data-state={JSON.stringify(detailLink("reference", row.id).state)}>{String(row.title || row.doi || `Reference ${row.id}`)}</a>,
+        render: (row) => {
+          const target = detailLinkFor("reference", row.id);
+          return <a href={target.href} data-state={JSON.stringify(target.state)}>{String(row.title || row.doi || `Reference ${row.id}`)}</a>;
+        },
       },
       {
         label: "Author",
@@ -1253,7 +1247,8 @@ export async function detailView(kind: string): Promise<void> {
         label: "Resolution",
         render: (row) => {
           if (row.resolved_revision_id) {
-            return <a href={detailLink("article", row.resolved_revision_id).href} data-state={JSON.stringify(detailLink("article", row.resolved_revision_id).state)}><StatusChip raw="Resolved internally" /></a>;
+            const target = detailLinkFor("article", row.resolved_revision_id);
+            return <a href={target.href} data-state={JSON.stringify(target.state)}><StatusChip raw="Resolved internally" /></a>;
           }
           return <StatusChip raw="Unresolved" />;
         },
@@ -1288,12 +1283,7 @@ export async function detailView(kind: string): Promise<void> {
         record as ArticleRecord,
         articleData,
         async () => {
-          const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") }, {
-            method: "GET",
-            headers: {
-              Accept: "application/json",
-            },
-          });
+          const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") });
           const events = list(refreshed.audit_events, ["events", "items"]);
           const auditHost = document.querySelector("[data-article-audit-host]") as HTMLElement | null;
           if (!auditHost) return;
@@ -1313,7 +1303,10 @@ export async function detailView(kind: string): Promise<void> {
     mountCollection("author-articles", "Linked article revisions", "Articles that contain this observed author occurrence.", [
       {
         label: "Article revision",
-        render: (row) => <a href={detailLink("article", row.work_revision_id).href} data-state={JSON.stringify(detailLink("article", row.work_revision_id).state)}>{String(row.title || "Not recorded")}</a>,
+        render: (row) => {
+          const target = detailLinkFor("article", row.work_revision_id);
+          return <a href={target.href} data-state={JSON.stringify(target.state)}>{String(row.title || "Not recorded")}</a>;
+        },
       },
       {
         label: "Year",

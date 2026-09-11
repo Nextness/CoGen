@@ -2,18 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { apiResponse } from "../helpers/fetch.ts";
 import { mountBacklinks } from "../../../src/components/backlinks.tsx";
-
-/** Builds one successful mock API response. */
-function response(data: unknown): Promise<Response> {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => {
-      return Promise.resolve({ data: data });
-    },
-  } as unknown as Response);
-}
 
 describe("backlinks.tsx - mountBacklinks", function() {
   it("traverses more than one hundred inbound notes without duplicates", async function() {
@@ -36,7 +26,7 @@ describe("backlinks.tsx - mountBacklinks", function() {
           version: { title: `Source note ${id}` },
         };
       });
-      return response({
+      return apiResponse({
         items: items,
         has_more: page < 4,
         next_cursor: page < 4 ? `page-${page + 1}` : null,

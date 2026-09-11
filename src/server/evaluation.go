@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"analysis/database"
 )
 
 var evaluationSortFields = map[string]string{
@@ -84,7 +86,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	from := `FROM work_revisions wr JOIN works w ON w.id=wr.work_id
 		LEFT JOIN review_context_work_heads review_head ON review_head.review_context_id=? AND review_head.work_id=wr.work_id
 		LEFT JOIN work_review_versions review ON review.id=review_head.review_version_id`
-	clauses := []string{"wr.pipeline_run_id=?", currentNormalizedRevisionPredicate("wr")}
+	clauses := []string{"wr.pipeline_run_id=?", database.CurrentNormalizedRevisionPredicate("wr")}
 	args := []any{contextID, runID}
 	if query != "" {
 		clauses = append(clauses, "(LOWER(COALESCE(wr.title, '')) LIKE ? OR LOWER(COALESCE(w.doi, '')) LIKE ?)")
@@ -269,7 +271,7 @@ func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRe
 
 	var currentSortValue string
 	err := s.db.QueryRowContext(ctx, `SELECT `+sortExpression+` FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
+		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
 	if err == sql.ErrNoRows {
 		return nil, notFound("current evaluation revision is not part of the selected run")
 	}
@@ -329,7 +331,7 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 		JOIN works work ON work.id=revision.work_id
 		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("revision"), availableDOIsJSON, contextID, runID).
+		WHERE revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), availableDOIsJSON, contextID, runID).
 		Scan(&total, &reviewed, &unreviewed, &availablePDFs)
 	if err != nil {
 		return nil, err
@@ -337,18 +339,18 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 	baseFrom := `FROM work_revisions revision JOIN works work ON work.id=revision.work_id
 		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND ` + currentNormalizedRevisionPredicate("revision")
-	statusFacets, err := s.evaluationFacet(ctx, `SELECT COALESCE(review.status, 'not_evaluated') AS value, COUNT(*) AS count `+baseFrom+`
+		WHERE revision.pipeline_run_id=? AND ` + database.CurrentNormalizedRevisionPredicate("revision")
+	statusFacets, err := s.rows(ctx, `SELECT COALESCE(review.status, 'not_evaluated') AS value, COUNT(*) AS count `+baseFrom+`
 		GROUP BY COALESCE(review.status, 'not_evaluated') ORDER BY value`, contextID, runID)
 	if err != nil {
 		return nil, err
 	}
-	sourceFacets, err := s.evaluationFacet(ctx, `SELECT COALESCE(NULLIF(revision.source, ''), 'not_recorded') AS value, COUNT(*) AS count `+baseFrom+`
+	sourceFacets, err := s.rows(ctx, `SELECT COALESCE(NULLIF(revision.source, ''), 'not_recorded') AS value, COUNT(*) AS count `+baseFrom+`
 		GROUP BY COALESCE(NULLIF(revision.source, ''), 'not_recorded') ORDER BY value`, contextID, runID)
 	if err != nil {
 		return nil, err
 	}
-	reviewSourceFacets, err := s.evaluationFacet(ctx, `SELECT CASE
+	reviewSourceFacets, err := s.rows(ctx, `SELECT CASE
 		WHEN review.id IS NULL THEN 'not_started'
 		WHEN review.created_in_context_id=? THEN 'this_context'
 		ELSE 'inherited' END AS value, COUNT(*) AS count `+baseFrom+`
@@ -356,11 +358,11 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 	if err != nil {
 		return nil, err
 	}
-	qualifierFacets, err := s.evaluationFacet(ctx, `SELECT sub.sub_status AS value, COUNT(*) AS count
+	qualifierFacets, err := s.rows(ctx, `SELECT sub.sub_status AS value, COUNT(*) AS count
 		FROM work_revisions revision
 		JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		JOIN work_review_version_substatuses sub ON sub.review_version_id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("revision")+`
+		WHERE revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision")+`
 		GROUP BY sub.sub_status ORDER BY sub.sub_status`, contextID, runID)
 	if err != nil {
 		return nil, err
@@ -375,16 +377,6 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 			"pdf_status": []map[string]any{{"value": "available", "count": availablePDFs}, {"value": "not_available", "count": total - availablePDFs}},
 		},
 	}, nil
-}
-
-// evaluationFacet executes one bounded aggregate projection for queue filter choices.
-func (s *Server) evaluationFacet(ctx context.Context, query string, args ...any) ([]map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return rowsAsMaps(rows)
 }
 
 // overlayPDFInventory overlays companion PDF availability onto evaluation rows by normalized DOI.

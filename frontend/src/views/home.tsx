@@ -6,8 +6,7 @@ import {
   formatTime,
   formatDuration,
   StatusChip,
-  link,
-  stateFor,
+  linkTargetFor,
   params,
   PageHeader,
   Panel,
@@ -58,7 +57,7 @@ function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Iden
     plan_id: planID,
     run_id: runID,
   };
-  return { href: link(destination), state: stateFor(destination) };
+  return linkTargetFor(destination);
 }
 
 /** Returns whether one hierarchy item contains a complete planned-run context. */
@@ -375,9 +374,6 @@ async function loadRevisions(searchID: string, cursor: string, host: HTMLElement
       section: "revisions",
       search_id: searchID,
       cursor: cursor,
-    }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
     });
     const rows = result.items.map((revision) => {
       return (
@@ -587,9 +583,9 @@ export async function homeView(lifecycleMessage = ""): Promise<void> {
     started_before: value("home_started_before"),
   };
   const results = await Promise.allSettled([
-    api<HierarchySummaryResponse>("/api/hierarchy", { section: "summary" }, { method: "GET", headers: { Accept: "application/json" } }),
-    api<HierarchyPage<HierarchySearch>>("/api/hierarchy", { section: "searches", q: query, cursor: value("home_search_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
-    api<HierarchyPage<HierarchyRun>>("/api/hierarchy", { section: "runs", ...dateQuery, cursor: value("home_run_cursor") }, { method: "GET", headers: { Accept: "application/json" } }),
+    api<HierarchySummaryResponse>("/api/hierarchy", { section: "summary" }),
+    api<HierarchyPage<HierarchySearch>>("/api/hierarchy", { section: "searches", q: query, cursor: value("home_search_cursor") }),
+    api<HierarchyPage<HierarchyRun>>("/api/hierarchy", { section: "runs", ...dateQuery, cursor: value("home_run_cursor") }),
   ]);
   const summaryResult = results[0];
   const searchesResult = results[1];

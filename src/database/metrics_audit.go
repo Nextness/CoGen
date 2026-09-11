@@ -48,12 +48,10 @@ func (r *MetricsRepository) Set(runID int64, metric, source string, value int) e
 		runID, metric, source, value,
 	)
 	if err != nil {
-		lg.Debug("metric set failed",
-			"run_id", runID, "metric", metric, "source", source, "value", value, "error", err)
+		lg.Debug("metric set failed", "run_id", runID, "metric", metric, "source", source, "value", value, "error", err)
 		return fmt.Errorf("set metric: %w", err)
 	}
-	lg.Debug("metric set successful",
-		"run_id", runID, "metric", metric, "source", source, "value", value)
+	lg.Debug("metric set successful", "run_id", runID, "metric", metric, "source", source, "value", value)
 	return nil
 }
 
@@ -67,17 +65,14 @@ func (r *MetricsRepository) Get(runID int64, metric, source string) (*PipelineRu
 		runID, metric, source,
 	).Scan(&m.PipelineRunID, &m.Metric, &m.Source, &m.Value)
 	if err == sql.ErrNoRows {
-		lg.Debug("metric get successful",
-			"run_id", runID, "metric", metric, "source", source, "result", "not_found")
+		lg.Debug("metric get successful", "run_id", runID, "metric", metric, "source", source, "result", "not_found")
 		return nil, nil
 	}
 	if err != nil {
-		lg.Debug("metric get failed",
-			"run_id", runID, "metric", metric, "source", source, "error", err)
+		lg.Debug("metric get failed", "run_id", runID, "metric", metric, "source", source, "error", err)
 		return nil, err
 	}
-	lg.Debug("metric get successful",
-		"run_id", runID, "metric", metric, "source", source, "value", m.Value)
+	lg.Debug("metric get successful", "run_id", runID, "metric", metric, "source", source, "value", m.Value)
 	return &m, nil
 }
 
@@ -85,7 +80,7 @@ func (r *MetricsRepository) Get(runID int64, metric, source string) (*PipelineRu
 func (r *MetricsRepository) ListByRun(runID int64) ([]*PipelineRunMetric, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT pipeline_run_id, metric, source, value
-		 FROM pipeline_run_metrics WHERE pipeline_run_id = ? ORDER BY metric, source`,
+		FROM pipeline_run_metrics WHERE pipeline_run_id = ? ORDER BY metric, source`,
 		runID,
 	)
 	if err != nil {
@@ -143,18 +138,15 @@ func (r *AuditEventRepository) Insert(event *manifest.AuditEvent) (int64, error)
 		nullStr(event.MetadataJSON), nullStr(event.CorrelationID),
 	)
 	if err != nil {
-		lg.Debug("audit event insert failed",
-			"action", event.Action, "entity", event.EntityType, "id", event.EntityID, "error", err)
+		lg.Debug("audit event insert failed", "action", event.Action, "entity", event.EntityType, "id", event.EntityID, "error", err)
 		return 0, fmt.Errorf("insert audit event: %w", err)
 	}
 	id, err := res.LastInsertId()
 	if err != nil {
-		lg.Debug("audit event ID read failed",
-			"action", event.Action, "entity", event.EntityType, "error", err)
+		lg.Debug("audit event ID read failed", "action", event.Action, "entity", event.EntityType, "error", err)
 		return 0, err
 	}
-	lg.Debug("audit event insert successful",
-		"id", id, "action", event.Action, "entity", event.EntityType, "entity_id", event.EntityID)
+	lg.Debug("audit event insert successful", "id", id, "action", event.Action, "entity", event.EntityType, "entity_id", event.EntityID)
 	return id, nil
 }
 
@@ -162,8 +154,8 @@ func (r *AuditEventRepository) Insert(event *manifest.AuditEvent) (int64, error)
 func (r *AuditEventRepository) ListByRun(runID int64) ([]*AuditEventRecord, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id,
-		        action, before_json, after_json, metadata_json, correlation_id
-		 FROM audit_events WHERE pipeline_run_id = ? ORDER BY id`,
+			action, before_json, after_json, metadata_json, correlation_id
+		FROM audit_events WHERE pipeline_run_id = ? ORDER BY id`,
 		runID,
 	)
 	if err != nil {
@@ -178,8 +170,8 @@ func (r *AuditEventRepository) ListByRun(runID int64) ([]*AuditEventRecord, erro
 func (r *AuditEventRepository) ListByEntity(entityType, entityID string) ([]*AuditEventRecord, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id,
-		        action, before_json, after_json, metadata_json, correlation_id
-		 FROM audit_events WHERE entity_type = ? AND entity_id = ? ORDER BY id`,
+			action, before_json, after_json, metadata_json, correlation_id
+		FROM audit_events WHERE entity_type = ? AND entity_id = ? ORDER BY id`,
 		entityType, entityID,
 	)
 	if err != nil {
@@ -270,14 +262,14 @@ func (r *PipelineRunRepository) CheckPurgeEligibility(runID int64) (*PurgeEligib
 	var sharedArtifactCount int
 	err = r.db.DB.QueryRow(
 		`SELECT COUNT(DISTINCT artifact_id)
-		 FROM (
-		     SELECT input_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id != ?
-		     UNION ALL
-		     SELECT output_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id != ?
+		FROM (
+			SELECT input_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id != ?
+			UNION ALL
+			SELECT output_artifact_id AS artifact_id FROM run_steps WHERE pipeline_run_id != ?
 		 ) other
 		 WHERE artifact_id IN (
-		     SELECT output_artifact_id FROM run_steps WHERE pipeline_run_id = ?
-		 )`,
+			SELECT output_artifact_id FROM run_steps WHERE pipeline_run_id = ?
+		)`,
 		runID, runID, runID,
 	).Scan(&sharedArtifactCount)
 	if err != nil {
@@ -319,8 +311,6 @@ func (r *PipelineRunRepository) CheckPurgeEligibility(runID int64) (*PurgeEligib
 		OwnedReviewContextCount:     ownedReviewContexts,
 		DependentReviewContextCount: dependentReviewContexts,
 	}
-	lg.Debug("purge eligibility check successful",
-		"run_id", runID, "eligible", eligible,
-		"shared_artifacts", sharedArtifactCount, "reused_by", reusedByCount)
+	lg.Debug("purge eligibility check successful", "run_id", runID, "eligible", eligible, "shared_artifacts", sharedArtifactCount, "reused_by", reusedByCount)
 	return pe, nil
 }

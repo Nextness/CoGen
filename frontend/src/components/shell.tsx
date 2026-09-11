@@ -23,10 +23,7 @@ function setUnavailable(): void {
 
 /** Initializes health check. */
 export function initHealthCheck(): void {
-  api<HealthResponse>("/api/health", {}, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  }).then((health) => {
+  api<HealthResponse>("/api/health").then((health) => {
     const unavailable = health?.readable === false;
     if (unavailable) {
       setUnavailable();

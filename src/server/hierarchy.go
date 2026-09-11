@@ -559,7 +559,7 @@ func hierarchyPage(kind, scope string, items []map[string]any) map[string]any {
 	nextCursor := ""
 	if hasMore {
 		id, _ := items[len(items)-1]["id"].(int64)
-		nextCursor = encodeHierarchyCursor(hierarchyCursor{
+		nextCursor = encodeCursor(hierarchyCursor{
 			Kind:  kind,
 			Scope: scope,
 			ID:    id,
@@ -625,12 +625,6 @@ func decodeHierarchyCursor(raw, kind, scope string) (hierarchyCursor, error) {
 		return hierarchyCursor{}, badRequest("cursor is invalid for this hierarchy query")
 	}
 	return cursor, nil
-}
-
-// encodeHierarchyCursor serializes one endpoint-bound keyset without exposing its structure.
-func encodeHierarchyCursor(cursor hierarchyCursor) string {
-	encoded, _ := json.Marshal(cursor)
-	return base64.RawURLEncoding.EncodeToString(encoded)
 }
 
 // nullableInt64 converts a nullable identifier to the invariant JSON null-or-number shape.

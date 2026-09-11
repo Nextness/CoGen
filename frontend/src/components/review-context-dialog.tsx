@@ -143,9 +143,6 @@ export function bindReviewContextInitializer(host: HTMLElement, options: ReviewC
         scope: scope,
         limit: 25,
         cursor: candidateCursors[scope],
-      }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
       });
       const select = host.querySelector<HTMLSelectElement>("[data-review-parent]")!;
       candidateCursors[scope] = candidates.next_cursor || "";

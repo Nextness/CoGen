@@ -383,7 +383,7 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 		}
 		createdAt := timestamp()
 		result, err := tx.ExecContext(ctx, `INSERT INTO review_contexts
-			(pipeline_run_id, parent_context_id, created_at) VALUES (?, ?, ?)`, runID, nullableInt64(parentContextID), createdAt)
+			(pipeline_run_id, parent_context_id, created_at) VALUES (?, ?, ?)`, runID, nullablePointer(parentContextID), createdAt)
 		if err != nil {
 			return fmt.Errorf("insert review context: %w", err)
 		}
@@ -397,7 +397,7 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 			FROM work_revisions latest
 			LEFT JOIN review_context_work_heads parent
 			  ON parent.review_context_id=? AND parent.work_id=latest.work_id
-			WHERE latest.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("latest"), contextID, nullableInt64(parentContextID), runID)
+			WHERE latest.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("latest"), contextID, nullablePointer(parentContextID), runID)
 		if err != nil {
 			return fmt.Errorf("initialize review work heads: %w", err)
 		}
@@ -500,7 +500,7 @@ func (r *ReviewRepository) AppendWorkReview(ctx context.Context, contextID, work
 		}
 		inserted, err := tx.ExecContext(ctx, `INSERT INTO work_review_versions
 			(work_id, work_revision_id, created_in_context_id, parent_version_id, status, reason, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`, workID, workRevisionID, contextID, nullableInt64(current), status, nullableString(normalizedReason), timestamp())
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, workID, workRevisionID, contextID, nullablePointer(current), status, nullablePointer(normalizedReason), timestamp())
 		if err != nil {
 			return fmt.Errorf("insert work review version: %w", err)
 		}
@@ -517,7 +517,7 @@ func (r *ReviewRepository) AppendWorkReview(ctx context.Context, contextID, work
 		updated, err := tx.ExecContext(ctx, `UPDATE review_context_work_heads SET review_version_id=?
 			WHERE review_context_id=? AND work_revision_id=?
 			AND ((review_version_id IS NULL AND ? IS NULL) OR review_version_id=?)`,
-			versionID, contextID, workRevisionID, nullableInt64(current), nullableInt64(current))
+			versionID, contextID, workRevisionID, nullablePointer(current), nullablePointer(current))
 		if err != nil {
 			return err
 		}
@@ -748,16 +748,8 @@ func marshalReviewAuditValue(name string, value any) (any, error) {
 	return string(encoded), nil
 }
 
-// nullableInt64 converts an optional integer into a SQL parameter.
-func nullableInt64(value *int64) any {
-	if value == nil {
-		return nil
-	}
-	return *value
-}
-
-// nullableString converts an optional string into a SQL parameter.
-func nullableString(value *string) any {
+// nullablePointer converts an optional value into a SQL parameter.
+func nullablePointer[T any](value *T) any {
 	if value == nil {
 		return nil
 	}
@@ -1199,7 +1191,7 @@ func insertNoteLinks(ctx context.Context, tx *sql.Tx, versionID int64, links []n
 		if _, err := tx.ExecContext(ctx, `INSERT INTO review_note_links
 			(note_version_id, ordinal, target_type, raw_target, display_text, utf16_position, utf16_length, created_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, versionID, index+1, link.TargetType, link.RawTarget,
-			nullableString(link.DisplayText), link.Position, link.Length, timestamp()); err != nil {
+			nullablePointer(link.DisplayText), link.Position, link.Length, timestamp()); err != nil {
 			return fmt.Errorf("insert review note link: %w", err)
 		}
 	}

@@ -1,5 +1,5 @@
 // Bounded relationship exploration with common and advanced graph filters.
-import { app, value, graphFilters, PageHeader, EmptyState, FilterChips, list, formatNumber, humanLabel } from "../state.tsx";
+import { app, value, graphFilters, PageHeader, EmptyState, FilterChips, list, formatNumber } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import { api } from "../api.tsx";
 import type { APIQuery, GraphResponse } from "../api/types.ts";
@@ -145,10 +145,7 @@ export async function relationshipsView(): Promise<void> {
   queryParams.run_id = value("run_id");
   queryParams.mode = mode;
   if (!queryParams.article_limit) queryParams.article_limit = 2000;
-  const data = await api<GraphResponse>("/api/graph", queryParams, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+  const data = await api<GraphResponse>("/api/graph", queryParams);
   const modeDefinition = graphModes[mode];
   const appliedFilterMarkup = <AppliedFilters />;
   const edgeCount = formatNumber(list(data, ["edges"]).length);

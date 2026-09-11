@@ -2,6 +2,7 @@ import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 
 import "../setup.ts";
+import { apiResponse } from "../helpers/fetch.ts";
 import { seedViewerState } from "../seed.ts";
 import { evaluationView } from "../../../src/views/evaluation.tsx";
 import { app, state, value } from "../../../src/state.tsx";
@@ -9,17 +10,6 @@ import { app, state, value } from "../../../src/state.tsx";
 /** Sets the Evaluation viewer state used by one unit test. */
 function setLocation(values: Record<string, string>): void {
   seedViewerState({ view: "evaluation", ...values });
-}
-
-/** Builds a successful mock API response. */
-function response(data: unknown): Promise<Response> {
-  return Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () => {
-      return Promise.resolve({ data: data });
-    },
-  } as unknown as Response);
 }
 
 /** Builds one invariant Evaluation response with optional overrides. */
@@ -67,7 +57,7 @@ describe("evaluation.tsx - evaluationView", function() {
     var requested = false;
     globalThis.fetch = function() {
       requested = true;
-      return response([]);
+      return apiResponse([]);
     } as typeof fetch;
     setLocation({ view: "evaluation" });
 
@@ -83,7 +73,7 @@ describe("evaluation.tsx - evaluationView", function() {
     var requested = "";
     globalThis.fetch = function(input) {
       requested = String(input);
-      return response(evaluationResponse());
+      return apiResponse(evaluationResponse());
     } as typeof fetch;
     setLocation({ view: "evaluation", run_id: "7" });
 
@@ -112,7 +102,7 @@ describe("evaluation.tsx - evaluationView", function() {
   it("uses top-level initialized state when a filtered page has no rows", async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
-      return response(evaluationResponse({
+      return apiResponse(evaluationResponse({
         review_context_initialized: true,
         review_context: { id: 11, pipeline_run_id: 7 },
         rows: [],
@@ -131,7 +121,7 @@ describe("evaluation.tsx - evaluationView", function() {
   it("submits every queue filter as destination-owned URL state", async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
-      return response(evaluationResponse());
+      return apiResponse(evaluationResponse());
     } as typeof fetch;
     setLocation({ view: "evaluation", run_id: "7" });
     await evaluationView();

@@ -25,7 +25,7 @@ The interface must state whether a number was recorded by the pipeline or derive
 
 ### 3.2 Context is persistent state
 
-The canonical research context is `search_id`, `search_revision_id`, `plan_id`, and `run_id` in the URL. Navigation, filters, pagination, sorting, selected graph nodes, provenance sections, focused `note_id`, focused `anchor_id`, and `pdf_page` also use URL state when that makes a view reloadable or shareable. Every internal link uses the shared `link()` helper.
+The canonical research context is `search_id`, `search_revision_id`, `plan_id`, and `run_id` in the URL. Navigation, filters, pagination, sorting, selected graph nodes, provenance sections, focused `note_id`, focused `anchor_id`, and `pdf_page` also use URL state when that makes a view reloadable or shareable. Every internal link uses the shared `link()` or `linkTargetFor()` helper.
 
 ### 3.3 Bounded detail with progressive disclosure
 

@@ -1,5 +1,5 @@
 // View routing, URL state, and render orchestrator.
-import { state, app, view, link, stateFor, pathFor, restoreState, viewerState, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
+import { state, app, view, link, stateFor, pathFor, restoreState, showError, clearError, busy, setBreadcrumb } from "./state.tsx";
 import { render as renderTree, classToggle } from "./jsx/jsx-runtime.ts";
 import { focusContextSelector, hydrateSelectors } from "./components/context-selector.tsx";
 import { homeView } from "./views/home.tsx";

@@ -386,17 +386,11 @@ func isRetryableError(err error) bool {
 		return false
 	}
 	msg := err.Error()
-	// modernc.org/sqlite reports UNIQUE constraint violations as
-	// "UNIQUE constraint failed: <table>.<column>"
+	// modernc.org/sqlite reports constraint and lock failures through these messages.
 	if strings.Contains(msg, "UNIQUE constraint failed") {
 		return true
 	}
-	// modernc.org/sqlite reports database lock as "database is locked" or
-	// "SQLITE_BUSY".
-	if strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY") {
-		return true
-	}
-	return false
+	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY")
 }
 
 // withTx runs fn inside a transaction, rolling back on error and committing on success.

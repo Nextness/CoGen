@@ -10,16 +10,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"analysis/database"
 )
 
 // scopedRowsDefinition defines the safe projection, joins, filters, and sorting for one corpus section.
 type scopedRowsDefinition struct {
-	columns    []string
-	from       string
-	where      string
-	groupBy    string
-	search     string
-	sortFields map[string]string
+	columns     []string
+	from        string
+	where       string
+	groupBy     string
+	search      string
+	sortFields  map[string]string
+	uniqueOrder string
 }
 
 var runCorpusDefinitions = map[string]scopedRowsDefinition{
@@ -29,8 +32,9 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 			JOIN works w ON w.id=wr.work_id
 			LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
 				AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
-		where:  "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		search: "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
+		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		search:      "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
+		uniqueOrder: "wr.id",
 		sortFields: map[string]string{
 			"id": "wr.id", "title": "wr.title", "year": "wr.year", "journal": "wr.journal", "publisher": "wr.publisher", "source": "wr.source", "doi": "w.doi", "validation_status": "validation.outcome", "citation_count": "wr.citation_count", "reference_count": "wr.reference_count", "created_at": "wr.created_at",
 		},
@@ -40,27 +44,30 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 		from: `FROM author_occurrences ao
 			JOIN authorships a ON a.author_occurrence_id=ao.id
 			JOIN work_revisions wr ON wr.id=a.work_revision_id`,
-		where:   "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		groupBy: "ao.id",
-		search:  "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
+		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		groupBy:     "ao.id",
+		search:      "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
+		uniqueOrder: "ao.id",
 		sortFields: map[string]string{
 			"id": "ao.id", "citation_name": "ao.citation_name", "first_name": "ao.first_name", "last_name": "ao.last_name", "orcid": "ao.orcid", "article_count": "article_count", "affiliation_count": "affiliation_count", "created_at": "ao.created_at",
 		},
 	},
 	"references": {
-		columns: []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
-		from:    `FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
-		where:   "wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		search:  "rm.doi, rm.title, rm.author, rm.source, wr.title",
+		columns:     []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
+		from:        `FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
+		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		search:      "rm.doi, rm.title, rm.author, rm.source, wr.title",
+		uniqueOrder: "rm.id",
 		sortFields: map[string]string{
 			"id": "rm.id", "work_revision_id": "rm.work_revision_id", "mention_order": "rm.mention_order", "doi": "rm.doi", "title": "rm.title", "author": "rm.author", "year": "rm.year", "source": "rm.source", "resolved_work_id": "rm.resolved_work_id", "created_at": "rm.created_at",
 		},
 	},
 	"sources": {
-		columns: []string{"id", "run_source_id", "source_name", "source_type", "record_index", "parse_status", "reject_reason", "content_hash", "created_at"},
-		from:    "FROM source_records sr JOIN run_sources rs ON rs.id=sr.run_source_id",
-		where:   "rs.pipeline_run_id=?",
-		search:  "rs.source_name, rs.source_type, sr.parse_status, sr.reject_reason, sr.content_hash",
+		columns:     []string{"id", "run_source_id", "source_name", "source_type", "record_index", "parse_status", "reject_reason", "content_hash", "created_at"},
+		from:        "FROM source_records sr JOIN run_sources rs ON rs.id=sr.run_source_id",
+		where:       "rs.pipeline_run_id=?",
+		search:      "rs.source_name, rs.source_type, sr.parse_status, sr.reject_reason, sr.content_hash",
+		uniqueOrder: "sr.id",
 		sortFields: map[string]string{
 			"id": "sr.id", "run_source_id": "sr.run_source_id", "source_name": "rs.source_name", "source_type": "rs.source_type", "record_index": "sr.record_index", "parse_status": "sr.parse_status", "reject_reason": "sr.reject_reason", "content_hash": "sr.content_hash", "created_at": "sr.created_at",
 		},
@@ -106,14 +113,7 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 	if definition.groupBy != "" {
 		querySQL += " GROUP BY " + definition.groupBy
 	}
-	// TODO: This is looks awful, we need to rework this later.
-	uniqueOrder := map[string]string{
-		"articles":   "wr.id",
-		"authors":    "ao.id",
-		"references": "rm.id",
-		"sources":    "sr.id",
-	}[r.PathValue("kind")]
-	querySQL += " ORDER BY " + stableScopedOrder(definition.sortFields[sort], uniqueOrder, order) + " LIMIT ? OFFSET ?"
+	querySQL += " ORDER BY " + stableScopedOrder(definition.sortFields[sort], definition.uniqueOrder, order) + " LIMIT ? OFFSET ?"
 	args = append(args, perPage, (page-1)*perPage)
 	rows, err := s.db.QueryContext(ctx, querySQL, args...)
 	if err != nil {

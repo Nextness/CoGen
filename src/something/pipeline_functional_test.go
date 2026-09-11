@@ -428,7 +428,7 @@ func TestRuntimeDiagnosticTypeNamesAndKeyEquality(t *testing.T) {
 		t.Fatal("different runtime keys compared equal")
 	}
 
-	keys := sortedBindingTypeKeys(map[string]*BindingType{"z": {}, "a": {}})
+	keys := sortedKeys(map[string]*BindingType{"z": {}, "a": {}})
 	if strings.Join(keys, ",") != "a,z" {
 		t.Fatalf("binding type keys are not sorted: %v", keys)
 	}

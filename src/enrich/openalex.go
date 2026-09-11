@@ -14,7 +14,7 @@ import (
 // populated separately by DecodeOpenAlexReferenceResponse so the workspace can
 // cache work and reference lookups independently.
 func DecodeOpenAlexResponse(body []byte, doi string) (*ArticleEnrichment, []string) {
-	entry := extractOpenAlexEntry(body)
+	entry := decodeJSONObject(body)
 	if entry == nil {
 		return nil, nil
 	}
@@ -47,15 +47,6 @@ func DecodeOpenAlexReferenceResponse(body []byte) map[string]EnrichedReference {
 		result[id] = reference
 	}
 	return result
-}
-
-// extractOpenAlexEntry decodes an OpenAlex work payload, returning nil for malformed JSON.
-func extractOpenAlexEntry(body []byte) map[string]any {
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil
-	}
-	return raw
 }
 
 // openalexEntryToArticle converts an OpenAlex work object to article enrichment fields.

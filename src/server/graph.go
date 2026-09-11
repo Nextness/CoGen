@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"analysis/database"
 )
 
 const (
@@ -96,7 +98,7 @@ func (s *Server) graph(w http.ResponseWriter, r *http.Request) {
 func (s *Server) graphArticles(ctx context.Context, r *http.Request, runID int64, limit int) ([]map[string]any, int, error) {
 	clauses, args := []string{
 		"wr.pipeline_run_id=?",
-		currentNormalizedRevisionPredicate("wr"),
+		database.CurrentNormalizedRevisionPredicate("wr"),
 	}, []any{runID}
 	query := r.URL.Query()
 	if value := query.Get("q"); value != "" {

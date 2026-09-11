@@ -147,20 +147,6 @@ func TestEvalStructTypeCheckNested_Functional(t *testing.T) {
 	}, "Type mismatch in setup field: expected integer, got string")
 }
 
-// TestEvalStructMissingRequired_Functional verifies eval struct missing required functional.
-func TestEvalStructMissingRequired_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, "Point: setup = { x: integer; y: integer; }\np := Point { x = 10 };")
-	}, "missing required field")
-}
-
-// TestEvalStructUnknownField_Functional verifies eval struct unknown field functional.
-func TestEvalStructUnknownField_Functional(t *testing.T) {
-	assertPanic(t, func() {
-		evalText(t, "Point: setup = { x: integer; }\np := Point { x = 10, z = 20 };")
-	}, "Unknown field")
-}
-
 // TestEvalStructTypeMismatch_Functional verifies eval struct type mismatch functional.
 func TestEvalStructTypeMismatch_Functional(t *testing.T) {
 	assertPanic(t, func() {

@@ -1,5 +1,5 @@
 // evaluator_unit_test.go contains unit tests for evaluator.go functions
-// (typeNameOf, indexOf, typeRefDisplayName) called directly without going
+// (runtimeTypeName, indexOf, typeRefDisplayName) called directly without going
 // through the SOMETHING pipeline.
 //go:build unit
 
@@ -30,10 +30,9 @@ func TestTypeRefDisplayNameTypeName(t *testing.T) {
 	}
 }
 
-// TestTypeNameOfDefault verifies type name of default.
-func TestTypeNameOfDefault(t *testing.T) {
-	// Trigger the default case in typeNameOf (unexpected Go type)
-	result := typeNameOf(struct{}{})
+// TestRuntimeTypeNameDefault verifies the runtime type name default.
+func TestRuntimeTypeNameDefault(t *testing.T) {
+	result := runtimeTypeName(struct{}{})
 	if !strings.Contains(result, "struct") {
 		t.Errorf("expected struct type name, got %q", result)
 	}

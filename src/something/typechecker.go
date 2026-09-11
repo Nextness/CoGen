@@ -646,19 +646,19 @@ func (checker *TypeChecker) accessType(base TypeRef, access Access, location *So
 		case *ScopeType:
 			field, ok := typeRef.Fields[access.Name]
 			if !ok {
-				checker.err("Undefined scope member '"+access.Name+"'", access.Location, "Known members: "+strings.Join(sortedBindingTypeKeys(typeRef.Fields), ", "))
+				checker.err("Undefined scope member '"+access.Name+"'", access.Location, "Known members: "+strings.Join(sortedKeys(typeRef.Fields), ", "))
 			}
 			return field.Type
 		case *NamespaceType:
 			field, ok := typeRef.Fields[access.Name]
 			if !ok {
-				checker.err("Undefined namespace member '"+access.Name+"'", access.Location, "Known members: "+strings.Join(sortedBindingTypeKeys(typeRef.Fields), ", "))
+				checker.err("Undefined namespace member '"+access.Name+"'", access.Location, "Known members: "+strings.Join(sortedKeys(typeRef.Fields), ", "))
 			}
 			return field.Type
 		case *SetupType:
 			field, ok := typeRef.Fields[access.Name]
 			if !ok {
-				checker.err("Undefined setup field '"+access.Name+"'", access.Location, "Known fields: "+strings.Join(sortedFieldDefinitionKeys(typeRef.Fields), ", "))
+				checker.err("Undefined setup field '"+access.Name+"'", access.Location, "Known fields: "+strings.Join(sortedKeys(typeRef.Fields), ", "))
 			}
 			return field.DeclaredType
 		case *EnumType:
@@ -818,7 +818,7 @@ func (checker *TypeChecker) structExpressionType(expression *StructExpression, e
 		}
 		definition, ok := setup.Fields[field.Name]
 		if !ok {
-			checker.err("Unknown field '"+field.Name+"' in setup '"+setup.Name+"'", field.Location, "Known fields: "+strings.Join(sortedFieldDefinitionKeys(setup.Fields), ", "))
+			checker.err("Unknown field '"+field.Name+"' in setup '"+setup.Name+"'", field.Location, "Known fields: "+strings.Join(sortedKeys(setup.Fields), ", "))
 		}
 		provided[field.Name] = true
 		actual := checker.expressionType(field.Value, definition.DeclaredType)
@@ -942,16 +942,6 @@ func enumHasMember(enumType *EnumType, name string) bool {
 		}
 	}
 	return false
-}
-
-// sortedBindingTypeKeys returns binding type keys in deterministic order.
-func sortedBindingTypeKeys(values map[string]*BindingType) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // detectDependencyCycles reports direct and indirect value or type cycles before

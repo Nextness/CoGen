@@ -524,10 +524,10 @@ func (r *WorkRevisionRepository) Create(rev *WorkRevision) (int64, error) {
 func (r *WorkRevisionRepository) GetByID(id int64) (*WorkRevision, error) {
 	return scanWorkRevision(r.db.DB.QueryRow(
 		`SELECT id, work_id, pipeline_run_id, producer_stage,
-		        field_schema_version, payload_hash,
-		        title, abstract, year, journal, publisher, source,
-		        keywords, keywords_plus, citation_count, reference_count,
-		        extension_data, created_at
+				field_schema_version, payload_hash,
+				title, abstract, year, journal, publisher, source,
+				keywords, keywords_plus, citation_count, reference_count,
+				extension_data, created_at
 		 FROM work_revisions WHERE id = ?`, id))
 }
 
@@ -536,10 +536,10 @@ func (r *WorkRevisionRepository) GetByID(id int64) (*WorkRevision, error) {
 func (r *WorkRevisionRepository) GetByWorkID(workID int64) ([]*WorkRevision, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, work_id, pipeline_run_id, producer_stage,
-		        field_schema_version, payload_hash,
-		        title, abstract, year, journal, publisher, source,
-		        keywords, keywords_plus, citation_count, reference_count,
-		        extension_data, created_at
+				field_schema_version, payload_hash,
+				title, abstract, year, journal, publisher, source,
+				keywords, keywords_plus, citation_count, reference_count,
+				extension_data, created_at
 		 FROM work_revisions WHERE work_id = ? ORDER BY id`, workID)
 	if err != nil {
 		lg.Debug("work revision list query failed", "work_id", workID, "error", err)
@@ -568,10 +568,10 @@ func (r *WorkRevisionRepository) GetByWorkID(workID int64) ([]*WorkRevision, err
 func (r *WorkRevisionRepository) GetByRunID(runID int64) ([]*WorkRevision, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, work_id, pipeline_run_id, producer_stage,
-		        field_schema_version, payload_hash,
-		        title, abstract, year, journal, publisher, source,
-		        keywords, keywords_plus, citation_count, reference_count,
-		        extension_data, created_at
+				field_schema_version, payload_hash,
+				title, abstract, year, journal, publisher, source,
+				keywords, keywords_plus, citation_count, reference_count,
+				extension_data, created_at
 		 FROM work_revisions WHERE pipeline_run_id = ? ORDER BY id`, runID)
 	if err != nil {
 		lg.Debug("work revision list by run query failed", "run_id", runID, "error", err)
@@ -742,8 +742,8 @@ func validStageOutcomeForStage(stageName, outcome string) bool {
 func (r *RunWorkStageRepository) GetByRunAndWork(runID, workID int64, stageName string) (*RunWorkStage, error) {
 	return scanRunWorkStage(r.db.DB.QueryRow(
 		`SELECT id, pipeline_run_id, work_id, stage_name, outcome, reason, created_at, updated_at
-		 FROM run_work_stages
-		 WHERE pipeline_run_id = ? AND work_id = ? AND stage_name = ?`,
+		FROM run_work_stages
+		WHERE pipeline_run_id = ? AND work_id = ? AND stage_name = ?`,
 		runID, workID, stageName))
 }
 
@@ -751,7 +751,7 @@ func (r *RunWorkStageRepository) GetByRunAndWork(runID, workID int64, stageName 
 func (r *RunWorkStageRepository) GetByRunID(runID int64) ([]*RunWorkStage, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, pipeline_run_id, work_id, stage_name, outcome, reason, created_at, updated_at
-		 FROM run_work_stages WHERE pipeline_run_id = ? ORDER BY id`, runID)
+		FROM run_work_stages WHERE pipeline_run_id = ? ORDER BY id`, runID)
 	if err != nil {
 		lg.Debug("run work stage list by run query failed", "run_id", runID, "error", err)
 		return nil, err
@@ -778,7 +778,7 @@ func (r *RunWorkStageRepository) GetByRunID(runID int64) ([]*RunWorkStage, error
 func (r *RunWorkStageRepository) GetByWorkID(workID int64) ([]*RunWorkStage, error) {
 	rows, err := r.db.DB.Query(
 		`SELECT id, pipeline_run_id, work_id, stage_name, outcome, reason, created_at, updated_at
-		 FROM run_work_stages WHERE work_id = ? ORDER BY id`, workID)
+		FROM run_work_stages WHERE work_id = ? ORDER BY id`, workID)
 	if err != nil {
 		lg.Debug("run work stage list by work query failed", "work_id", workID, "error", err)
 		return nil, err
@@ -807,7 +807,7 @@ func (r *RunWorkStageRepository) CountByStageAndOutcome(runID int64, stageName, 
 	var n int
 	err := r.db.DB.QueryRow(
 		`SELECT COUNT(*) FROM run_work_stages
-		 WHERE pipeline_run_id = ? AND stage_name = ? AND outcome = ?`,
+		WHERE pipeline_run_id = ? AND stage_name = ? AND outcome = ?`,
 		runID, stageName, outcome,
 	).Scan(&n)
 	if err != nil {

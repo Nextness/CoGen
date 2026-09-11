@@ -1,5 +1,5 @@
 // Unit tests for state.tsx: shared state, DOM references, and utility components.
-import { describe, it, before, beforeEach, mock } from 'node:test';
+import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 // Setup DOM before importing the module under test
@@ -10,7 +10,7 @@ import {
   app, notice, loading, state, pageSizes, corpusSections, provenanceSections, graphFilters,
   params, value, view, section, detailOrigin, viewPage, asJSON, list, pickID, text, numericEvidence, number, formatNumber,
   percent, formatTime, formatDate, formatDuration, formatBytes, humanLabel, parseObject, statusClass, StatusChip, metricEntries, selectedRun, showError,
-  clearError, busy, link, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
+  clearError, busy, link, linkTargetFor, contextChange, PageHeader, Breadcrumb, setBreadcrumb, EmptyState, Table, Subnav,
   FilterChips, MetricCard, FlowStage, RetentionFlow, Breakdown, SourceResultCountSummary,
   Cell, bindCopyButtons,
   initViewerState, pathView, pathFor, stateFor,
@@ -562,6 +562,13 @@ describe('state.tsx — link', function() {
     seedViewerState({ view: 'overview' });
     const result = link({ view: 'corpus', section: 'articles' });
     assert.equal(result, '/corpus');
+  });
+
+  it('builds matching path and serialized state from one update', function() {
+    seedViewerState({ view: 'overview', run_id: '12' });
+    const target = linkTargetFor({ view: 'corpus', section: 'authors' });
+    assert.equal(target.href, '/corpus');
+    assert.deepEqual(target.state, { view: 'corpus', run_id: '12', section: 'authors' });
   });
 
   it('removes keys with empty values but keeps the Home default', function() {

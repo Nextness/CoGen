@@ -1,5 +1,5 @@
 // Shared audit-event presentation for Provenance and immutable record details.
-import { formatDate, formatTime, humanLabel, link, stateFor, list, parseObject, StatusChip, value, detailLinkFor } from "../state.tsx";
+import { formatDate, formatTime, humanLabel, linkTargetFor, list, parseObject, StatusChip, value, detailLinkFor } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { api, errorMessage } from "../api.tsx";
@@ -37,30 +37,38 @@ const auditCategoryClasses: Record<AuditCategory, ClassName> = {
 /** Classifies an audit event into its presentation category. */
 export function auditCategory(event: AuditEventRecord): AuditCategory {
   const action = String(event.action || "");
-  if (action.startsWith("review_") || action.startsWith("work_review_") || action.startsWith("note_") || action.startsWith("anchor_")) {
-    return "review";
-  }
-  if (action.startsWith("pdf_")) return "pdf";
-  if (action === "field_enriched" || action.startsWith("cache_") || action === "network_fetch") {
-    return "enrichment";
-  }
-  if (action.startsWith("validation_")) return "validation";
-  return "pipeline";
-}
 
-/** Parses an audit event's stored metadata object. */
-function eventMetadata(event: AuditEventRecord): WireRecord {
-  return parseObject(event.metadata_json);
+  const check_review = action.startsWith("review_") || action.startsWith("work_review_") || action.startsWith("note_") || action.startsWith("anchor_");
+  if (check_review) return "review";
+
+  const check_pdf = action.startsWith("pdf_");
+  if (check_pdf) return "pdf";
+
+  const check_enrichment = action === "field_enriched" || action.startsWith("cache_") || action === "network_fetch";
+  if (check_enrichment) return "enrichment";
+
+  const check_validation = action.startsWith("validation_");
+  if (check_validation) return "validation";
+
+  return "pipeline";
 }
 
 /** Derives the display outcome from recorded metadata and action semantics. */
 function auditOutcome(event: AuditEventRecord, metadata: WireRecord, after: WireRecord): string {
   const recorded = metadata.outcome || metadata.status || metadata.cache_outcome || after.status;
   if (recorded) return String(recorded);
+
   const action = String(event.action || "").toLocaleLowerCase();
-  if (action.includes("failed") || action.includes("error")) return "failed";
-  if (action.includes("discarded") || action.includes("trashed")) return "warning";
-  if (action.includes("skipped")) return "skipped";
+
+  const check_failed = action.includes("failed") || action.includes("error");
+  if (check_failed) return "failed";
+
+  const check_warning = action.includes("discarded") || action.includes("trashed");
+  if (check_warning) return "warning";
+
+  const check_skipped = action.includes("skipped");
+  if (check_skipped) return "skipped";
+
   return "recorded";
 }
 
@@ -70,6 +78,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
   const id = props.event.entity_id;
   var href = "";
   var state: Record<string, string> | null = null;
+
   if (id && type === "work_revision") {
     const target = detailLinkFor("article", id);
     href = target.href;
@@ -87,53 +96,74 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
       view: "provenance",
       section: "run",
     };
-    href = link(updates);
-    state = stateFor(updates);
+    const target = linkTargetFor(updates);
+    href = target.href;
+    state = target.state;
   }
+
   var label = humanLabel(type);
   if (id) label += ` #${id}`;
   if (href) {
-    return <a href={href} data-state={JSON.stringify(state)}>{label}</a>;
+    return (
+      <a href={href} data-state={JSON.stringify(state)}>{label}</a>
+    );
   }
+
   return <span>{label}</span>;
 }
 
 /** Returns a concise human-readable summary of an audit event. */
 function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: WireRecord, after: WireRecord): string {
   const action = String(event.action || "").toLocaleLowerCase();
-  if (action === "work_review_version_created" && before.status && after.status) {
-    return `Review decision changed from ${humanLabel(before.status || "not_evaluated")} to ${humanLabel(after.status || "not_evaluated")}.`;
+
+  const check_decision = action === "work_review_version_created" && before.status && after.status;
+  if (check_decision) {
+    const before_status = humanLabel(before.status || "not_evaluated");
+    const after_status = humanLabel(after.status || "not_evaluated");
+    return `Review decision changed from ${before_status} to ${after_status}.`;
   }
-  if (metadata.field && metadata.provider) {
-    return `${humanLabel(metadata.field)} enriched by ${metadata.provider}.`;
+
+  const check_enrichment = metadata.field && metadata.provider;
+  if (check_enrichment) {
+    const metadata_field = humanLabel(metadata.field);
+    return `${metadata_field} enriched by ${metadata.provider}.`;
   }
-  if (metadata.reasons) {
+
+  const check_reasons = metadata.reasons;
+  if (check_reasons) {
     var reasons = [metadata.reasons];
     if (Array.isArray(metadata.reasons)) reasons = metadata.reasons;
     return reasons.join("; ");
   }
-  if (metadata.error) return String(metadata.error);
-  if (metadata.reason) return String(metadata.reason);
-  if (metadata.search_id) {
+
+  const check_error = metadata.error;
+  if (check_error) return String(metadata.error);
+
+  const check_reason = metadata.reason;
+  if (check_reason) return String(metadata.reason);
+
+  const check_search_id = metadata.search_id;
+  if (check_search_id) {
     var revisionSuffix = ".";
     if (metadata.revision) revisionSuffix = `, revision ${metadata.revision}.`;
     return `Search ${metadata.search_id}${revisionSuffix}`;
   }
-  if (action.startsWith("pdf_inventory")) {
-    return "The PDF inventory state was recorded for this work.";
-  }
-  if (action.startsWith("pdf_document")) {
-    return "A validated PDF document was recorded in the companion store.";
-  }
-  if (action.startsWith("pipeline_")) {
-    return "The selected pipeline run changed lifecycle state.";
-  }
-  if (action.startsWith("cache_")) {
-    return "A provider cache decision was recorded with its request evidence.";
-  }
-  if (action.startsWith("review_") || action.startsWith("work_review_")) {
-    return "An immutable local review version was recorded.";
-  }
+
+  const check_pdf_inventory = action.startsWith("pdf_inventory");
+  if (check_pdf_inventory) return "The PDF inventory state was recorded for this work.";
+
+  const check_pdf_document = action.startsWith("pdf_document");
+  if (check_pdf_document) return "A validated PDF document was recorded in the companion store.";
+
+  const check_pipeline = action.startsWith("pipeline_");
+  if (check_pipeline) return "The selected pipeline run changed lifecycle state.";
+
+  const check_cache = action.startsWith("cache_");
+  if (check_cache) return "A provider cache decision was recorded with its request evidence.";
+
+  const check_review = action.startsWith("review_") || action.startsWith("work_review_");
+  if (check_review) return "An immutable local review version was recorded.";
+
   return "Recorded append-only audit event.";
 }
 
@@ -141,13 +171,16 @@ function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: Wir
 function ReviewDecisionState(props: { label: string; state: WireRecord }): JSX.Element {
   var substatuses: unknown[] = [];
   if (Array.isArray(props.state.sub_statuses)) substatuses = props.state.sub_statuses;
+
   var substatusMarkup: JSX.Element = <span className={classNames.uiFadedText}>None</span>;
   if (substatuses.length) {
     const substatusLabels = substatuses.map((substatus) => {
-      return <span className={classNames.uiNeutralLabel}>{humanLabel(substatus)}</span>;
+      const human_label = humanLabel(substatus);
+      return <span className={classNames.uiNeutralLabel}>{human_label}</span>;
     });
     substatusMarkup = <div className="rw-review-audit-substatuses">{substatusLabels}</div>;
   }
+
   var reasonMarkup: JSX.Element = <span className={classNames.uiFadedText}>Not recorded</span>;
   if (props.state.reason) reasonMarkup = <>{String(props.state.reason)}</>;
   return (
@@ -173,7 +206,8 @@ function ReviewDecisionState(props: { label: string; state: WireRecord }): JSX.E
 
 /** Renders the visible before-and-after decision comparison for review audit events. */
 function ReviewDecisionChange(props: { event: AuditEventRecord; before: WireRecord; after: WireRecord }): JSX.Element | null {
-  if (String(props.event.action || "") !== "work_review_version_created" || !props.before.status || !props.after.status) return null;
+  const checkReviewChange = String(props.event.action || "") !== "work_review_version_created" || !props.before.status || !props.after.status;
+  if (checkReviewChange) return null;
   return (
     <div className="rw-review-audit-change" aria-label="Review decision change">
       <ReviewDecisionState label="Previous decision" state={props.before} />
@@ -186,24 +220,30 @@ function ReviewDecisionChange(props: { event: AuditEventRecord; before: WireReco
 function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; before: WireRecord; after: WireRecord }): JSX.Element | null {
   var duration = props.metadata.duration;
   if (props.metadata.duration_seconds != null) duration = `${props.metadata.duration_seconds} seconds`;
-  const facts = [
+
+  const event_facts = [
     ["Event ID", props.event.id],
     ["Correlation ID", props.event.correlation_id],
     ["Duration", duration],
     ["Input artifact", props.metadata.input_artifact_id],
     ["Output artifact", props.metadata.output_artifact_id],
-  ].filter(([, value]) => {
+  ]
+
+  const facts = event_facts.filter(([, value]) => {
     return value !== null && value !== undefined && value !== "";
   }) as Array<[string, unknown]>;
-  if (!facts.length && !props.event.id) {
-    return null;
-  }
+
+  if (!facts.length && !props.event.id) return null;
+
   var factsMarkup: JSX.Element | null = null;
   if (facts.length) {
     const factRows = facts.map(([label, value]) => {
       var shown: JSX.Element = <>{String(value)}</>;
-      if ((label === "Input artifact" || label === "Output artifact") && value) {
-        shown = <a href={link({ section: "artifacts" })} data-state={JSON.stringify(stateFor({ section: "artifacts" }))}>Artifact {String(value)}</a>;
+      const check_artifacts_input = (label === "Input artifact" || label === "Output artifact") && value;
+      if (check_artifacts_input) {
+        const target = linkTargetFor({ section: "artifacts" });
+        const content = `Artifact ${String(value)}`;
+        shown = <a href={target.href} data-state={JSON.stringify(target.state)}>{content}</a>;
       }
       return (
         <div>
@@ -214,6 +254,7 @@ function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; be
     });
     factsMarkup = <dl className="rw-event-facts">{factRows}</dl>;
   }
+
   return (
     <details className="rw-event-details" data-audit-recorded-details={props.event.id}>
       <summary>Recorded data</summary>
@@ -227,17 +268,32 @@ function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; be
 
 /** Renders one lazy audit recorded-data response. */
 function RecordedData(props: { data: AuditRecordedData }): JSX.Element {
-  const candidates: Array<[string, WireRecord | null | undefined]> = [["Metadata", props.data.metadata], ["Before", props.data.before], ["After", props.data.after]];
-  const sections = candidates.filter(([, item]) => {
+  const candidates: Array<[string, WireRecord | null | undefined]> = [
+    ["Metadata", props.data.metadata],
+    ["Before", props.data.before],
+    ["After", props.data.after]
+  ];
+
+  const availableCandidates = candidates.filter(([, item]) => {
     return item && Object.keys(item).length > 0;
-  }).map(([label, item]) => {
+  });
+  const sections = availableCandidates.map(([label, item]) => {
     return <div><h5>{label}</h5><pre>{JSON.stringify(item, null, 2)}</pre></div>;
   });
+
   var truncation: JSX.Element | null = null;
   if (props.data.truncated_fields?.length) {
-    truncation = <p className={classNames.uiWarningMessage}>The {props.data.truncated_fields.join(", ")} payload exceeded the {props.data.byte_limit.toLocaleString()} byte inspection budget and was not loaded.</p>;
+    const truncated_fields = props.data.truncated_fields.join(", ");
+    const byte_limit = props.data.byte_limit.toLocaleString();
+    const content = `The ${truncated_fields} payload exceeded the ${byte_limit} byte inspection budget and was not loaded.`;
+    truncation = <p className={classNames.uiWarningMessage}>{content}</p>;
   }
-  if (!sections.length && !truncation) return <p className={classNames.uiFadedText}>No recorded JSON fields are available for this event.</p>;
+
+  if (!sections.length && !truncation) {
+    const content = "No recorded JSON fields are available for this event.";
+    return <p className={classNames.uiFadedText}>{content}</p>;
+  }
+
   return <Fragment>{truncation}{sections}</Fragment>;
 }
 
@@ -246,16 +302,15 @@ export function bindAuditRecordedData(root: ParentNode = document): void {
   root.querySelectorAll<HTMLDetailsElement>("[data-audit-recorded-details]").forEach((details) => {
     if (details.dataset.auditRecordedBound) return;
     details.dataset.auditRecordedBound = "true";
+
     details.addEventListener("toggle", async () => {
       if (!details.open || details.dataset.auditRecordedLoaded) return;
       const host = details.querySelector<HTMLElement>("[data-audit-recorded-host]")!;
       const eventID = details.dataset.auditRecordedDetails || "";
       host.textContent = "Loading recorded data…";
       try {
-        const data = await api<AuditRecordedData>(`/api/audit/${encodeURIComponent(eventID)}/recorded-data`, { run_id: value("run_id") }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
+        const url = `/api/audit/${encodeURIComponent(eventID)}/recorded-data`;
+        const data = await api<AuditRecordedData>(url, { run_id: value("run_id") });
         const recordedDataMarkup = <RecordedData data={data} />;
         renderTree(recordedDataMarkup, host);
         details.dataset.auditRecordedLoaded = "true";
@@ -269,7 +324,7 @@ export function bindAuditRecordedData(root: ParentNode = document): void {
 
 /** Renders the complete escaped markup for one audit event. */
 export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Element {
-  const metadata = eventMetadata(props.event);
+  const metadata = parseObject(props.event.metadata_json);
   const before = parseObject(props.event.before_json);
   const after = parseObject(props.event.after_json);
   const category = auditCategory(props.event);
@@ -278,6 +333,7 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   const source = props.event.actor || metadata.provider || "Not recorded";
   const stage = metadata.stage || metadata.stage_name;
   const eventID = String(props.event.id || "unrecorded");
+
   var runContext = "Run not recorded";
   if (props.event.pipeline_run_id) {
     runContext = `Run ${props.event.pipeline_run_id}`;
@@ -287,8 +343,10 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   const eventClass = cx("rw-audit-event", auditCategoryClasses[category]);
   var stageMarkup: JSX.Element | null = null;
   if (stage) {
-    stageMarkup = <span>Stage: <strong>{String(stage)}</strong></span>;
+    const stage_content = String(stage);
+    stageMarkup = <span>Stage: <strong>{stage_content}</strong></span>;
   }
+
   return (
     <article className={eventClass} data-audit-event-id={eventID}>
       <time dateTime={timestamp || ""}><span>{formatTime(timestamp)}</span></time>
@@ -325,6 +383,7 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
       </div>
     );
   }
+
   const groups = new Map<string, AuditEventRecord[]>();
   props.events.forEach((event) => {
     const timestamp = event.occurred_at || event.created_at;
@@ -332,11 +391,10 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
     if (timestamp) parsed = new Date(timestamp);
     var key = "Date not recorded";
     if (parsed && !Number.isNaN(parsed.getTime())) key = formatDate(parsed);
-    if (!groups.has(key)) {
-      groups.set(key, []);
-    }
+    if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(event);
   });
+
   const daySections = Array.from(groups.entries()).map(([date, events]) => {
     const firstEventID = String(events[0]?.id || "unrecorded").replace(/[^a-zA-Z0-9_-]/g, "-");
     const headingID = `audit-day-${firstEventID}`;
@@ -358,6 +416,7 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; co
   const actionNames = props.events.map((event) => {
     return String(event.action || "event");
   });
+
   const actionSet = new Set(actionNames);
   const actions = Array.from(actionSet).sort();
   const initialEvents = props.events.slice(0, recordAuditBatchSize);
@@ -367,10 +426,12 @@ export function RecordAuditInvestigation(props: { events: AuditEventRecord[]; co
   const actionOptionElements = actions.map((action) => {
     return <option value={action}>{humanLabel(action)}</option>;
   });
+
   const actionOptions = [
     <option value="">All event types</option>,
     ...actionOptionElements,
   ];
+
   return (
     <div data-record-audit data-record-audit-endpoint={props.endpoint || ""} data-record-audit-cursor-key={props.cursorKey || ""} data-record-audit-next-cursor={nextCursor}>
       <div className={classNames.rwFilterBarRwRecordAuditControls}>
@@ -419,24 +480,22 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
     const matches = root.querySelector("[data-record-audit-matches]") as HTMLElement;
     const more = root.querySelector("[data-record-audit-more]") as HTMLButtonElement;
     const pageStatus = root.querySelector("[data-record-audit-page-status]") as HTMLElement;
+
     var visibleLimit = recordAuditBatchSize;
     var nextCursor = (root as HTMLElement).dataset.recordAuditNextCursor || "";
+
     /** Applies the current filter controls to the visible event batch. */
     function apply(): void {
       const needle = search.value.trim().toLocaleLowerCase();
       const matching = events.filter((event) => {
-        if (category.value && auditCategory(event) !== category.value) {
-          return false;
-        }
-        if (action.value && String(event.action || "") !== action.value) {
-          return false;
-        }
-        if (!needle) {
-          return true;
-        }
+        if (category.value && auditCategory(event) !== category.value) return false;
+        if (action.value && String(event.action || "") !== action.value) return false;
+        if (!needle) return true;
+
         const serialized = JSON.stringify(event).toLocaleLowerCase();
         return serialized.includes(needle);
       });
+
       const visible = matching.slice(0, visibleLimit);
       count.textContent = visible.length.toLocaleString();
       var availableCount = matching.length;
@@ -449,11 +508,13 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
       renderTree(streamMarkup, stream);
       bindAuditRecordedData(stream);
     }
+
     /** Resets the visible batch limit and reapplies the filters. */
     function resetAndApply(): void {
       visibleLimit = recordAuditBatchSize;
       apply();
     }
+
     search.addEventListener("input", resetAndApply);
     category.addEventListener("change", resetAndApply);
     action.addEventListener("change", resetAndApply);
@@ -463,16 +524,15 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
         apply();
         return;
       }
+
       const endpoint = (root as HTMLElement).dataset.recordAuditEndpoint || "";
       if (!endpoint || !nextCursor) return;
       more.disabled = true;
       pageStatus.textContent = "Loading older audit events…";
+
       try {
         const cursor = nextCursor;
-        const data = await api<AuditResponse | DetailCollectionPage<AuditEventRecord>>(endpoint, { run_id: value("run_id"), limit: recordAuditBatchSize, cursor: cursor }, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
+        const data = await api<AuditResponse | DetailCollectionPage<AuditEventRecord>>(endpoint, { run_id: value("run_id"), limit: recordAuditBatchSize, cursor: cursor });
         const known = new Set(events.map((event) => String(event.id)));
         list(data, ["events", "items"]).forEach((event) => {
           if (!known.has(String(event.id))) {
@@ -480,6 +540,7 @@ export function bindRecordAuditInvestigation(events: AuditEventRecord[]): void {
             events.push(event);
           }
         });
+
         nextCursor = String(data.next_cursor || "");
         const cursorKey = (root as HTMLElement).dataset.recordAuditCursorKey || "";
         if (cursorKey) replaceState({ [cursorKey]: cursor });

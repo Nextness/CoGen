@@ -289,7 +289,13 @@ export function stateFor(updates?: Record<string, unknown>): Record<string, stri
 
 /** Builds an internal path-only URL from canonical context and destination-owned state only. */
 export function link(updates?: Record<string, unknown>): string {
-  return pathFor(stateFor(updates));
+  return linkTargetFor(updates).href;
+}
+
+/** Builds an internal URL and its matching serialized navigation state. */
+export function linkTargetFor(updates?: Record<string, unknown>): { href: string; state: Record<string, string> } {
+  const state = stateFor(updates);
+  return { href: pathFor(state), state: state };
 }
 
 /** Returns a context-preserving detail link target for one record kind. */
@@ -299,7 +305,7 @@ export function detailLinkFor(kind: "article" | "author" | "reference", id: unkn
     [`${kind}_id`]: id,
     origin: currentDetailOrigin(),
   };
-  return { href: link(updates), state: stateFor(updates) };
+  return linkTargetFor(updates);
 }
 
 /** Adopts persisted state at boot, corrects the view from the pathname, and attaches it to the initial entry. */
@@ -734,13 +740,12 @@ export function Table(props: { title: string; description: string; columns: Tabl
 export function Subnav(props: { items: Array<[string, string]>; current: string; key: string }): JSX.Element {
   const links = props.items.map(([id, label]) => {
     const updates = { [props.key]: id };
-    const href = link(updates);
-    const state = stateFor(updates);
+    const target = linkTargetFor(updates);
     const active = id === props.current;
     var ariaCurrent: string | undefined;
     if (active) ariaCurrent = "page";
     const itemClass = cx("item", active && "active");
-    return <a href={href} className={itemClass} aria-current={ariaCurrent} data-state={JSON.stringify(state)}>{label}</a>;
+    return <a href={target.href} className={itemClass} aria-current={ariaCurrent} data-state={JSON.stringify(target.state)}>{label}</a>;
   });
   return <nav className={classNames.uiTabularMenu} aria-label="Section navigation">{links}</nav>;
 }
@@ -772,10 +777,9 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
         }).join(",");
       }
       const updates = { ...(options.removeUpdates || { page: 1 }), [key]: remaining };
-      const href = link(updates);
-      const state = stateFor(updates);
+      const target = linkTargetFor(updates);
       return (
-        <a className="rw-filter-chip" href={href} title="Remove filter" data-state={JSON.stringify(state)}>
+        <a className="rw-filter-chip" href={target.href} title="Remove filter" data-state={JSON.stringify(target.state)}>
           <span>{props.labels?.[key] || humanLabel(key)}:</span>
           {" "}
           {String(item)}
@@ -787,9 +791,8 @@ export function FilterChips(props: { filters: Record<string, unknown> | null; la
   });
   var clear: JSX.Element | null = null;
   if (options.clearUpdates) {
-    const clearHref = link(options.clearUpdates);
-    const clearState = stateFor(options.clearUpdates);
-    clear = <a className="rw-filter-clear" href={clearHref} data-state={JSON.stringify(clearState)}>Clear all</a>;
+    const clearTarget = linkTargetFor(options.clearUpdates);
+    clear = <a className="rw-filter-clear" href={clearTarget.href} data-state={JSON.stringify(clearTarget.state)}>Clear all</a>;
   }
   return (
     <div className="rw-filter-summary">
@@ -1168,10 +1171,10 @@ export function RetentionFlow(props: { overview: OverviewResponse }): JSX.Elemen
   const stageHref = (stage: string): { href: string; state: Record<string, string> } => {
     if (stage === "input") {
       const updates = { view: "corpus", section: "sources", q: "", page: 1 };
-      return { href: link(updates), state: stateFor(updates) };
+      return linkTargetFor(updates);
     }
     const updates = { view: "provenance", section: "stages", stage_q: stage, stage_page: 1 };
-    return { href: link(updates), state: stateFor(updates) };
+    return linkTargetFor(updates);
   };
   const stageOptions = (description: string, target: { href: string; state: Record<string, string> }): FlowStageOptions => {
     return {

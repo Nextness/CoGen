@@ -470,9 +470,6 @@ export async function corpusView(): Promise<void> {
         sort: sort,
         order: order,
         q: query,
-      }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
       });
     } else {
       data = await api<CorpusResponse>(`/api/runs/${runID}/corpus/${current}`, {
@@ -481,9 +478,6 @@ export async function corpusView(): Promise<void> {
         sort: sort,
         order: order,
         q: query,
-      }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
       });
     }
   } else if (knownTable) {
@@ -492,9 +486,6 @@ export async function corpusView(): Promise<void> {
       per_page: perPage,
       sort: sort,
       order: order,
-    }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
     });
   }
 
@@ -635,5 +626,5 @@ export async function corpusView(): Promise<void> {
       expanded: "",
     }, false);
   });
-  bindTableControls(definition.table, page);
+  bindTableControls(definition.table);
 }

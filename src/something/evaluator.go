@@ -6,7 +6,6 @@ package something
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -818,7 +817,7 @@ func (state *runtimeState) resolveTypedAccess(current any, currentType TypeRef, 
 		case *runtimeObject:
 			binding, ok := value.environment.bindings[access.Name]
 			if !ok {
-				state.err("Undefined field '"+access.Name+"'", access.Location, "Known fields: "+strings.Join(sortedRuntimeBindingKeys(value.environment.bindings), ", "))
+				state.err("Undefined field '"+access.Name+"'", access.Location, "Known fields: "+strings.Join(sortedKeys(value.environment.bindings), ", "))
 			}
 			return binding.value, binding.typeRef
 		case *EnumValue:
@@ -997,13 +996,13 @@ func (state *runtimeState) evaluateStruct(expression *StructExpression, expected
 	for _, field := range expression.Fields {
 		definition, ok := setup.Fields[field.Name]
 		if !ok {
-			state.err("Unknown field '"+field.Name+"' in setup '"+setup.Name+"'", field.Location, "Known fields: "+strings.Join(sortedFieldDefinitionKeys(setup.Fields), ", "))
+			state.err("Unknown field '"+field.Name+"' in setup '"+setup.Name+"'", field.Location, "Known fields: "+strings.Join(sortedKeys(setup.Fields), ", "))
 		}
 		provided[field.Name] = true
 		fieldType := state.resolveType(definition.DeclaredType, definition.Location)
 		environment.bindings[field.Name] = &runtimeBinding{value: state.evaluateExpression(field.Value, fieldType), typeRef: fieldType}
 	}
-	for _, name := range sortedFieldDefinitionKeys(setup.Fields) {
+	for _, name := range sortedKeys(setup.Fields) {
 		if provided[name] {
 			continue
 		}
@@ -1197,39 +1196,12 @@ func runtimeTypeName(value any) string {
 	}
 }
 
-// sortedRuntimeBindingKeys returns runtime binding keys in deterministic order.
-func sortedRuntimeBindingKeys(values map[string]*runtimeBinding) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// sortedMapKeys returns map keys in deterministic order.
-func sortedMapKeys(values map[string]any) []string {
-	keys := mapKeys(values)
-	sort.Strings(keys)
-	return keys
-}
-
 // mapKeys returns all keys from a string-keyed runtime map.
 func mapKeys(values map[string]any) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
 	}
-	return keys
-}
-
-// sortedFieldDefinitionKeys returns field definition keys in deterministic order.
-func sortedFieldDefinitionKeys(values map[string]*FieldDefinition) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
 	return keys
 }
 
@@ -1257,11 +1229,6 @@ func isValidTimestamp(value string) bool {
 		}
 	}
 	return true
-}
-
-// typeNameOf returns the SOMETHING runtime type name for a value.
-func typeNameOf(value any) string {
-	return runtimeTypeName(value)
 }
 
 // typeRefDisplayName returns a diagnostic name for a type reference.

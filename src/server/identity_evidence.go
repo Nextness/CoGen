@@ -247,7 +247,7 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 		last := items[len(items)-1]
 		rank, _ := last["provider_rank"].(int64)
 		id, _ := last["id"].(int64)
-		nextCursor = encodeReviewCursor(reviewCursor{Kind: kind, ID: id, Text: strconv.FormatInt(rank, 10)})
+		nextCursor = encodeCursor(reviewCursor{Kind: kind, ID: id, Text: strconv.FormatInt(rank, 10)})
 	}
 	s.respond(w, r, map[string]any{
 		"resolution_id": resolutionID, "items": items, "has_more": hasMore, "next_cursor": nextCursor, "limit": limit,

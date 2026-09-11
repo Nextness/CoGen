@@ -23,8 +23,8 @@ export interface APIErrorEnvelope {
 
 /** One API request option set forwarded to fetch. */
 export interface APIRequestOptions {
-  method: string;
-  headers: Record<string, string>;
+  method?: string;
+  headers?: Record<string, string>;
   body?: string;
   signal?: AbortSignal | null;
 }
@@ -53,12 +53,15 @@ export function errorMessage(error: unknown, fallback: string): string {
 }
 
 /** Fetches and decodes one JSON API response. */
-export async function api<T>(path: string, query: APIQuery = {}, options: APIRequestOptions): Promise<T> {
+export async function api<T>(path: string, query: APIQuery = {}, options: APIRequestOptions = {}): Promise<T> {
   var signal = options.signal;
   if (signal === undefined) signal = state.controller?.signal;
+
+  const method = options.method || "GET";
+  const headers = { Accept: "application/json", ...options.headers };
   const response = await fetch(endpoint(path, query), {
-    method: options.method,
-    headers: options.headers,
+    method: method,
+    headers: headers,
     body: options.body,
     signal: signal ?? undefined,
   });
@@ -101,10 +104,7 @@ export function mutate<T>(path: string, method: string, body: unknown): Promise<
 /** Loads and caches the discovered database table list. */
 export async function tables(): Promise<TableInfo[]> {
   if (!state.tables.length) {
-    const data = await api<TablesResponse>("/api/tables", {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<TablesResponse>("/api/tables");
     state.tables = list(data, ["tables", "items"]);
   }
   return state.tables;

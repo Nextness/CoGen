@@ -16,7 +16,6 @@ import { formatTime, value, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 import type { ClassName } from "../jsx/classes.ts";
 import { parseNote, NoteDocument } from "./note-parser.tsx";
-import type { NoteLink, ResolvedNoteLink } from "./note-parser.tsx";
 import { mountBacklinks } from "./backlinks.tsx";
 import { installNavigationGuard } from "./navigation-guard.ts";
 import { replaceState } from "../router.tsx";
@@ -425,10 +424,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   /** Loads one complete current note head only when an action needs its body and resolved links. */
   async function loadFullNote(note: ReviewNoteRecord): Promise<ReviewNoteRecord> {
     if (!note.version.body_truncated && note.version.links?.length === note.version.link_count) return note;
-    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${note.id}`, {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${note.id}`);
     return data.note;
   }
   /** Renders loaded note pages and binds body, edit, history, removal, and backlink controls. */
@@ -532,9 +528,6 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       cursor: noteCursor,
       state: noteState,
       q: noteQuery,
-    }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
     });
     appendUnique(loadedNotes, data.items || data.notes || [], (note) => note.id);
     noteCursor = data.next_cursor || "";
@@ -597,18 +590,12 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
           const versionID = disclosure.dataset.noteVersion as string;
           const content = disclosure.querySelector("[data-note-version-content]") as HTMLElement;
           try {
-            const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${versionID}`, {}, {
-              method: "GET",
-              headers: { Accept: "application/json" },
-            });
+            const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${versionID}`);
             const position = versions.findIndex((item) => String(item.id) === versionID);
             var previousBody = "";
             const previous = versions[position + 1];
             if (previous) {
-              const previousData = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${previous.id}`, {}, {
-                method: "GET",
-                headers: { Accept: "application/json" },
-              });
+              const previousData = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${previous.id}`);
               previousBody = previousData.version?.body || "";
             }
             renderTree(versionComparisonMarkup(previousBody, data.version), content);
@@ -631,10 +618,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
         button.disabled = true;
         classAdd(button, ["loading"]);
         try {
-          const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${latestActive.id}`, {}, {
-            method: "GET",
-            headers: { Accept: "application/json" },
-          });
+          const data = await api<ReviewNoteVersionResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions/${latestActive.id}`);
           await mutate<ReviewNoteMutationResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, "POST", {
             expected_version_id: note.version.id,
             state: "active",
@@ -667,10 +651,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     }
     /** Appends one version-summary page while preserving already loaded ancestry. */
     async function loadHistoryPage(): Promise<void> {
-      const data = await api<ReviewNoteVersionsResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 25, cursor: cursor }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
+      const data = await api<ReviewNoteVersionsResponse>(`/api/runs/${options.runID}/notes/${note.id}/versions`, { limit: 25, cursor: cursor });
       appendUnique(versions, data.items || data.versions || [], (version) => version.id);
       cursor = data.next_cursor || "";
       hasMore = Boolean(data.has_more);
@@ -680,10 +661,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
   }
   /** Resolves a URL-focused active or deleted note and exposes its history. */
   async function focusNote(noteID: Identifier): Promise<void> {
-    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`, {}, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    });
+    const data = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${encodeURIComponent(noteID)}`);
     if (!data.note) return;
     await showHistory(data.note);
     const row = host.querySelector<HTMLElement>(`[data-note-id="${CSS.escape(String(noteID))}"]`);
@@ -737,9 +715,6 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
     const data = await api<ReviewAnchorsResponse>(`/api/runs/${options.runID}/articles/${options.workRevisionID}/anchors`, {
       cursor: anchorChoiceCursor,
       limit: 25,
-    }, {
-      method: "GET",
-      headers: { Accept: "application/json" },
     });
     for (const anchor of data.items || data.anchors || []) {
       if (anchorChoices.has(String(anchor.id))) continue;
@@ -844,10 +819,7 @@ export async function mountNoteEditor(host: HTMLElement, options: NoteEditorOpti
       host.querySelector<HTMLButtonElement>("[data-note-load-latest]")?.addEventListener("click", async () => {
         if (!currentNote) return;
         const localDraft = body.value;
-        const latest = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${currentNote.id}`, {}, {
-          method: "GET",
-          headers: { Accept: "application/json" },
-        });
+        const latest = await api<ReviewNoteResponse>(`/api/runs/${options.runID}/notes/${currentNote.id}`);
         currentNote = latest.note;
         savedEditorBody = currentNote?.version.body || "";
         body.value = localDraft;

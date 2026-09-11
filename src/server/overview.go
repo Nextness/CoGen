@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"analysis/database"
 )
 
 var knownRunMetrics = []string{
@@ -762,10 +764,10 @@ func (s *Server) currentCoverage(ctx context.Context, runID int64) (map[string]a
 func (s *Server) relationshipTotals(ctx context.Context, runID int64) (map[string]any, error) {
 	queries := map[string]string{
 		"work_revisions":          "SELECT COUNT(*) FROM work_revisions WHERE pipeline_run_id=?",
-		"analysis_ready_articles": "SELECT COUNT(*) FROM work_revisions wr WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		"authorships":             "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		"reference_mentions":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND " + currentNormalizedRevisionPredicate("wr"),
-		"internal_citations":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL AND " + currentNormalizedRevisionPredicate("wr"),
+		"analysis_ready_articles": "SELECT COUNT(*) FROM work_revisions wr WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		"authorships":             "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		"reference_mentions":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		"internal_citations":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL AND " + database.CurrentNormalizedRevisionPredicate("wr"),
 	}
 	result := map[string]any{}
 	for name, query := range queries {

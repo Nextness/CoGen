@@ -8,6 +8,15 @@ import (
 	"fmt"
 )
 
+// decodeJSONObject decodes one JSON object and returns nil for malformed input.
+func decodeJSONObject(body []byte) map[string]any {
+	var object map[string]any
+	if err := json.Unmarshal(body, &object); err != nil {
+		return nil
+	}
+	return object
+}
+
 // ValidateProviderPayload verifies that a successful provider response has the
 // envelope expected by the workspace decoder. It deliberately validates only
 // transport envelopes, not optional bibliographic fields: a valid provider

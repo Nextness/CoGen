@@ -1,7 +1,7 @@
 // Paged inbound note-link evidence shared by review targets.
 import { api, errorMessage } from "../api.tsx";
 import type { ReviewBacklinksResponse, ReviewNote } from "../api/types.ts";
-import { link, stateFor, appendUnique } from "../state.tsx";
+import { linkTargetFor, appendUnique } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd } from "../jsx/jsx-runtime.ts";
 
 /** Typed compound class names used by this module. */
@@ -29,10 +29,9 @@ function noteLinkMarkup(source: ReviewNote): JSX.Element {
     anchor_id: "",
     pdf_page: "",
   };
-  const href = link(updates);
-  const state = stateFor(updates);
+  const target = linkTargetFor(updates);
   const title = source.version?.title || `Note ${source.id}`;
-  return <li><a href={href} data-state={JSON.stringify(state)}>{title}</a></li>;
+  return <li><a href={target.href} data-state={JSON.stringify(target.state)}>{title}</a></li>;
 }
 
 /** Loads and renders every requested backlink page without discarding prior rows. */
@@ -79,9 +78,6 @@ export async function mountBacklinks(host: HTMLElement, options: BacklinkOptions
         work_revision_id: options.workRevisionID,
         cursor: cursor,
         limit: 25,
-      }, {
-        method: "GET",
-        headers: { Accept: "application/json" },
       });
       appendUnique(loaded, data.items || data.backlinks || [], (source) => source.id);
       cursor = data.next_cursor || "";

@@ -1,11 +1,10 @@
 // Unit tests for components/graph.tsx — graph field, query, link, result, and pure internal functions.
-import { describe, it, before, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import '../setup.ts';
 import { GraphField, graphQuery, graphLink, GraphResult, graphClusters, zoomViewAt, destroyGraph, mountGraph } from '../../../src/components/graph.tsx';
 import { renderToString } from '../helpers/jsx-render.ts';
-import { state, value } from '../../../src/state.tsx';
 
 const graphField = (name: string, label: string, type?: JSX.RWInputType): string => renderToString(GraphField({ name: name, label: label, type: type }));
 const graphResult = (data: any): string => renderToString(GraphResult({ data: data }));

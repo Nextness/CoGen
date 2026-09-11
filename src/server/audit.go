@@ -661,7 +661,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 	}
 	var nextCursor any
 	if !pageMode && hasMore {
-		value := encodeReviewCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: items[len(items)-1]["id"].(int64)})
+		value := encodeCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: items[len(items)-1]["id"].(int64)})
 		nextCursor = value
 	}
 	payload := map[string]any{
