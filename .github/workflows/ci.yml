@@ -1,4 +1,4 @@
-name: ci
+name: CoGen Workflow
 
 on:
   pull_request:
