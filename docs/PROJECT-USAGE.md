@@ -48,6 +48,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/prepare-osf` | `make prepare-osf` or `make tools` | Creates one sanitized copy-only metadata, PDF, and optional configuration export. |
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
+| `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
 | `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, and preserved review mutation evidence for pipeline-to-viewer verification. |
 | `build/playwright/run-*/` | Browser test targets | Isolated traces, screenshots, results, and HTML reports. |
@@ -174,7 +175,7 @@ make check
 
 `make coverage` writes `build/coverage/coverage.out` and enforces [config/coverage_policy.something](../config/coverage_policy.something). The checker merges duplicate source ranges using the highest hit count and reports current, required, and delta coverage for tracked packages and high-risk files.
 
-`make check` runs the Go formatting check, `go vet`, and the complete non-mutating documentation check. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests.
+`make check` runs the Go formatting check, `go vet`, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
 
 ## 11. End-to-end verification
 
