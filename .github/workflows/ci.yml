@@ -1,0 +1,162 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend build, checks, and Go tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Build build/analysis
+        run: make build
+      - name: Build maintained Go tools
+        run: make tools
+      - name: Format check
+        run: make format-check
+      - name: Vet
+        run: make vet
+      - name: Unit tests
+        run: make test-unit
+      - name: Functional tests
+        run: make test-functional
+      - name: Integration tests
+        run: make test-integration
+      - name: Documentation tool tests
+        run: make test-docs
+
+  race:
+    name: Race detector
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Run all Go tests with the race detector
+        run: make test-race
+
+  coverage:
+    name: Coverage policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Write atomic whole-module coverage and enforce the policy
+        run: make coverage
+
+  docs:
+    name: Documentation checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Validate documentation links, format, catalog, migrations, and acknowledged state
+        run: make check-docs
+
+  frontend:
+    name: Frontend build, checks, and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: make frontend-install
+      - name: Assemble frontend/dist
+        run: make frontend-build
+      - name: Class registry and TypeScript checks
+        run: make check-frontend
+      - name: Verify checked-in PDF.js assets
+        run: make frontend-pdfjs-vendor-check
+      - name: Frontend unit tests
+        run: make test-frontend-unit
+
+  frontend-browser:
+    name: Playwright ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Install frontend dependencies
+        run: make frontend-install
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+        working-directory: frontend
+      - name: Generate viewer fixture databases
+        run: make fixture
+      - name: Run viewer, review, and API-shape Playwright suites
+        run: make test-frontend BROWSER=${{ matrix.browser }} TEST_FILE="tests/viewer.spec.ts tests/review.spec.ts tests/api-shapes.spec.ts"
+
+  e2e:
+    name: Offline pipeline-to-viewer end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: true
+      - name: Install frontend dependencies
+        run: make frontend-install
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('frontend/package-lock.json') }}
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Run deterministic and mocked-provider E2E tests
+        run: make test-e2e
