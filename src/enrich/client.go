@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -79,6 +80,16 @@ func ValidateSourceConfig(cfg SourceConfig) error {
 	}
 	if cfg.BatchSize < 1 || cfg.BatchSize > maxProviderBatchSize {
 		return fmt.Errorf("provider batch_size must be between 1 and %d", maxProviderBatchSize)
+	}
+	allowed := map[string][]string{
+		"crossref": {"title", "authors", "publisher", "references", "reference"},
+		"openalex": {"title", "abstract", "authors", "publisher", "references", "reference", "citation_count", "reference_count"},
+		"orcid":    {"orcid", "display_name", "institution", "works_count", "cited_by_count", "h_index", "i10_index"},
+	}
+	for _, field := range cfg.Fields {
+		if !slices.Contains(allowed[cfg.Name], field) {
+			return fmt.Errorf("unsupported %s provider field %q", cfg.Name, field)
+		}
 	}
 	return nil
 }
@@ -287,6 +298,9 @@ func (c *Client) fetchOne(ctx context.Context, url string) *FetchResult {
 			return &FetchResult{StatusCode: 404}
 
 		case resp.StatusCode == 429:
+			if currentAttempt == maxAttempts {
+				return &FetchResult{StatusCode: 429, Err: fmt.Errorf("max retries (%d) exceeded", c.cfg.MaxRetries)}
+			}
 			// Exponential backoff: 2^attempt seconds
 			wait := time.Duration(1<<attempt) * time.Second
 			log.Warn(

@@ -39,7 +39,7 @@
     "body": "| A | B |\n| - | --- |\n| 1 | 2 |",
     "blocks": [{ "type": "paragraph", "text": "| A | B |\n| - | --- |\n| 1 | 2 |" }],
     "links": [],
-    "errors": [{ "position": 0, "length": 9, "message": "malformed table" }]
+    "errors": []
   },
   {
     "name": "wrong table row shape",
@@ -64,5 +64,8 @@
     "blocks": [{ "type": "paragraph", "text": "before" }, { "type": "code", "text": "[[note:99]]" }],
     "links": [],
     "errors": [{ "position": 8, "length": 3, "message": "unclosed code fence" }]
-  }
+  },
+  {"name": "pipe prose", "body": "First line with | pipe\nSecond line also | has pipe", "blocks": [{"type": "paragraph", "text": "First line with | pipe\nSecond line also | has pipe"}], "links": [], "errors": []},
+  {"name": "single column table", "body": "| Status |\n| --- |\n| Good |", "blocks": [{"type": "table", "header": ["Status"], "rows": [["Good"]]}], "links": [], "errors": []},
+  {"name": "single column without pipes", "body": "Status\n---\nGood", "blocks": [{"type": "table", "header": ["Status"], "rows": [["Good"]]}], "links": [], "errors": []}
 ]

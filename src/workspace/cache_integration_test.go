@@ -160,7 +160,12 @@ func TestWorkspaceCacheStaleNegativeRelooksUp(t *testing.T) {
 	if err != nil || entry == nil {
 		t.Fatalf("negative entry = %+v, %v", entry, err)
 	}
-	if _, err := db.DB.Exec("UPDATE cache_entries SET expires_at='2000-01-01T00:00:00Z' WHERE id=?", entry.ID); err != nil {
+	entry.ExpiresAt = "2000-01-01T00:00:00Z"
+	staleID, err := db.CacheEntries.Upsert(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.recordUse(staleID, "global", manifest.CacheNegative); err != nil {
 		t.Fatal(err)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"global"}, NegativeTTLDays: 1})
@@ -386,4 +391,37 @@ func openWorkspaceCacheTestForDB(t *testing.T, db *database.Database, policy man
 		t.Fatal(err)
 	}
 	return db, &workspaceCache{db: db, runID: runID, policy: policy}, runID
+}
+
+// TestWorkspaceGlobalRefreshPreservesConsumedResponses verifies global-only hits and negative responses remain stable in named-run replay.
+func TestWorkspaceGlobalRefreshPreservesConsumedResponses(t *testing.T) {
+	for _, negative := range []bool{false, true} {
+		t.Run(strconv.FormatBool(negative), func(t *testing.T) {
+			db, first, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}, NegativeTTLDays: 1})
+			defer db.Close()
+			status, body := 200, testCachePayload("original")
+			if negative {
+				status, body = 404, nil
+			}
+			original, err := first.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult { return &enrich.FetchResult{StatusCode: status, Body: body} }, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, reader, readerID := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global"}})
+			if _, err := reader.resolve(context.Background(), testCacheRequest(), nil, nil); err != nil {
+				t.Fatal(err)
+			}
+			_, refresher, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run", "global"}, NegativeTTLDays: 1})
+			if _, err := refresher.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
+				return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("replacement")}
+			}, nil); err != nil {
+				t.Fatal(err)
+			}
+			_, replay, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"run:" + strconv.FormatInt(readerID, 10)}})
+			got, err := replay.resolve(context.Background(), testCacheRequest(), nil, nil)
+			if err != nil || got.Status != original.Status || string(got.Body) != string(original.Body) {
+				t.Fatalf("historical response changed: %+v %v", got, err)
+			}
+		})
+	}
 }

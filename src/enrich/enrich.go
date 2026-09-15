@@ -3,7 +3,10 @@
 // policy belong to the workspace pipeline.
 package enrich
 
-import "analysis/logging"
+import (
+	"analysis/logging"
+	"slices"
+)
 
 var log = logging.Logger("enrich")
 
@@ -47,6 +50,7 @@ type EnrichedAuthor struct {
 
 // EnrichedReference is enriched metadata for one cited reference.
 type EnrichedReference struct {
+	Raw    string `json:"raw"`
 	DOI    string `json:"doi"`
 	Title  string `json:"title"`
 	Author string `json:"author"`
@@ -74,4 +78,12 @@ type GatherResult struct {
 	Authors         map[string]*EnrichedAuthor
 	AuthorMatches   map[string]string
 	DOINotFound     []string
+}
+
+// AllowsField reports whether the configured field selection permits a canonical field; an omitted list preserves all-field behavior.
+func (source SourceConfig) AllowsField(field string) bool {
+	if len(source.Fields) == 0 || slices.Contains(source.Fields, field) {
+		return true
+	}
+	return field == "references" && slices.Contains(source.Fields, "reference")
 }

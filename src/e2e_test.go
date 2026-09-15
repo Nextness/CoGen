@@ -399,7 +399,7 @@ func e2eProviderConfig(mode e2eMode) string {
                 name = "openalex", base_url = %q,
                 user_agent = "research-analysis-e2e/1.0", contact_email = "e2e@example.invalid",
                 rate_per_second = %d, concurrency = 1, timeout_seconds = 20, max_retries = 1,
-                fields = []string { "abstract", "citation_count" }, fill_missing_only = true,
+                fields = []string { "abstract", "citation_count", "references", "authors" }, fill_missing_only = true,
                 extra_urls = mapping(string, string) { ["author"] => %q }, batch_size = 50,
             },
             enrichment_provider_config {

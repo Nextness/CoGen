@@ -4,13 +4,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io/fs"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"analysis/database"
 	"analysis/logging"
@@ -58,6 +61,10 @@ Commands:
                                Without this flag every declared iteration
                                runs in declaration order.
 
+  recover Mark an abandoned running attempt failed, with an audit record.
+          Requires exclusive pipeline ownership; refuses an active writer.
+          Flags: --db <path> --run-id <positive integer>
+
   migrate Apply pending metadata migrations to an existing database
           without running a workspace.
 
@@ -103,13 +110,15 @@ func main() {
 		fmt.Println(version())
 		return
 	}
-	if command != "run" && command != "serve" && command != "migrate" {
-		fmt.Fprintf(os.Stderr, "unknown command %q; expected run, migrate, serve, or version\n", command)
+	if command != "run" && command != "serve" && command != "migrate" && command != "recover" {
+		fmt.Fprintf(os.Stderr, "unknown command %q; expected run, recover, migrate, serve, or version\n", command)
 		os.Exit(2)
 	}
 	os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
 	if command == "run" {
 		runPipelineMain()
+	} else if command == "recover" {
+		recoverMain()
 	} else if command == "migrate" {
 		migrateMain()
 	} else {
@@ -227,8 +236,10 @@ func runPipelineMain() {
 		log.Error("select workspace iterations", "error", err)
 		os.Exit(1)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	for _, run := range runs {
-		if err := workspace.RunPipeline(*dbPath, config.OriginalBytes, run, *fresh); err != nil {
+		if err := workspace.RunPipelineContext(ctx, *dbPath, config.OriginalBytes, run, *fresh); err != nil {
 			log.Error("workspace pipeline failed", "workspace", workspace.Selector(run.Manifest.SearchID, run.Manifest.SearchRevision), "error", err)
 			os.Exit(1)
 		}
@@ -242,4 +253,21 @@ func changeToRepositoryRoot() {
 			log.Debug("changed working directory to project root")
 		}
 	}
+}
+
+// recoverMain recovers one abandoned attempt without migrating or executing a workspace.
+func recoverMain() {
+	dbPath := flag.String("db", "", "existing metadata database")
+	runID := flag.Int64("run-id", 0, "abandoned running attempt ID")
+	flag.Parse()
+	if *dbPath == "" || *runID <= 0 || flag.NArg() != 0 {
+		fmt.Fprintln(os.Stderr, "recover requires --db and a positive --run-id")
+		os.Exit(2)
+	}
+	changeToRepositoryRoot()
+	if err := workspace.RecoverAbandonedRun(context.Background(), *dbPath, *runID); err != nil {
+		log.Error("recover abandoned attempt", "error", err)
+		os.Exit(1)
+	}
+	log.Info("abandoned attempt recovered", "run_id", *runID)
 }

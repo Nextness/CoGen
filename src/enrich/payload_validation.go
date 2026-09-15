@@ -4,6 +4,7 @@
 package enrich
 
 import (
+	"analysis/article"
 	"encoding/json"
 	"fmt"
 )
@@ -110,6 +111,23 @@ func requireString(object map[string]json.RawMessage, key string) error {
 	var value string
 	if err := json.Unmarshal(raw, &value); err != nil || value == "" {
 		return fmt.Errorf("%q envelope is not a non-empty string", key)
+	}
+	return nil
+}
+
+// ValidateWorkIdentity rejects metadata carrying a different structured DOI while permitting omitted optional identity.
+func ValidateWorkIdentity(provider string, body []byte, doi string) error {
+	entry := decodeJSONObject(body)
+	field := "doi"
+	if provider == "crossref" {
+		entry = extractCrossrefEntry(body)
+		field = "DOI"
+	}
+	if provider != "crossref" && provider != "openalex" {
+		return nil
+	}
+	if returned, ok := entry[field].(string); ok && returned != "" && article.NormalizeDOI(returned) != article.NormalizeDOI(doi) {
+		return fmt.Errorf("provider response DOI does not match the requested identity")
 	}
 	return nil
 }

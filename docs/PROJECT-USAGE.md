@@ -78,6 +78,10 @@ Without `WORKSPACE` or `--workspace`, every declared workspace runs in declarati
 
 `config/workspace.something` is the normal workspace entry and includes `config/baseline.something`. Each workspace may provide optional `reviewer = reviewer_config { username = "...", email = "..." }`; omitted values default to empty, are trimmed and bounded, are captured for each attempt, and do not affect manifests or execution fingerprints. `config/database.something` independently selects metadata and PDF migration chains. Paths supplied in source declarations must resolve in the repository-root runtime context.
 
+If a process crashes or is killed while an attempt is running, stop any older pipeline binaries and recover that attempt with `make recover DB=corpus.metadata.db RUN_ID=123` or `./build/analysis recover --db ./corpus.metadata.db --run-id 123`, then retry the original run command. Recovery requires exclusive ownership of the metadata file and records an operator `run_failed` event. `--fresh` never bypasses an active attempt. SIGINT and SIGTERM cancel the current pipeline and finalize failure automatically. Pipeline execution and recovery require Linux, macOS, or a BSD system with `flock`; older binaries do not participate in this ownership lock.
+
+Provider `fields` restricts enrichment application and dependent lookups; an omitted or empty list retains all-field behavior. Crossref supports `title`, `authors`, `publisher`, and `references` (`reference` is also accepted). OpenAlex additionally supports `abstract`, `citation_count`, and `reference_count`. ORCID supports `orcid`, `display_name`, `institution`, `works_count`, `cited_by_count`, `h_index`, and `i10_index`; name searches require `orcid`, name updates require `display_name`, and affiliation updates require `institution`. Invalid names are rejected before requests. Raw provider payloads remain complete provenance evidence.
+
 ## 6. Viewer operation and development
 
 Apply pending metadata migrations to an existing database before serving it:
@@ -295,3 +299,5 @@ Catalog update changes only the generated region in [PROJECT_CATALOG.md](PROJECT
 `corpus/`, `cache/`, `intermidiate/`, SQLite databases, and `build/` are ignored but may contain real inputs, expensive state, or generated evidence. Inspect them read-only by default and do not clear, migrate, rename, or regenerate them unless the task explicitly requires it. The `intermidiate` spelling is intentional current behavior.
 
 Do not commit, push, merge, publish, deploy, release, change remote state, or run destructive Git or filesystem operations without explicit authorization.
+
+OSF export rewrites configuration links in run artifacts, search revisions, and preflight steps, including artifact fingerprints. Only direct literal reviewer fields can be redacted; variable references, macros, expressions, and interpolation fail closed without publishing an output bundle.

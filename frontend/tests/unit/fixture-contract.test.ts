@@ -14,7 +14,7 @@ function createFixturePair(directory: string, contractVersion = viewerFixtureCon
   const metadata = new DatabaseSync(metadataPath);
   metadata.exec(`
     CREATE TABLE schema_migrations (filename TEXT NOT NULL);
-    INSERT INTO schema_migrations VALUES ('V00027_run_term_match_reconciliations.sql');
+    INSERT INTO schema_migrations VALUES ('V00028_immutable_cache_responses.sql');
     CREATE TABLE searches (search_id TEXT NOT NULL);
     INSERT INTO searches VALUES ('deep-learning-nlp');
     CREATE TABLE run_search_terms (pipeline_run_id INTEGER NOT NULL, term TEXT NOT NULL);

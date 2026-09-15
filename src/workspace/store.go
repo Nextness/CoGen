@@ -15,9 +15,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -46,7 +48,20 @@ func databaseRegistryPath() string {
 
 // RunPipeline is the immutable workspace pipeline. It does
 // not use the deprecated mutable corpus repositories.
-func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (runErr error) {
+func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) error {
+	return RunPipelineContext(context.Background(), dbPath, originalConfig, run, fresh)
+}
+
+// RunPipelineContext executes one attempt under an exclusive process lock and finalizes cancellation as failure.
+func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byte, run *Run, fresh bool) (runErr error) {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	lock, err := lockPipelineDatabase(dbPath, true)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
 	db, err := database.Open(dbPath, databaseRegistryPath())
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
@@ -57,7 +72,7 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		return err
 	}
 	if runID == 0 {
-		if _, _, err := syncNormalizedPDFInventory(context.Background(), db, dbPath, databaseRegistryPath()); err != nil {
+		if _, _, err := syncNormalizedPDFInventory(ctx, db, dbPath, databaseRegistryPath()); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
 		reconcileStoredTermMatchesBestEffort(db)
@@ -78,6 +93,9 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 	parsed := make([]*article.Article, 0)
 	inputRecords := 0
 	for _, source := range run.Manifest.Sources {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		fields, err := json.Marshal(source.RequestedFields)
 		if err != nil {
 			return fmt.Errorf("marshal requested fields for %s: %w", source.Name, err)
@@ -112,6 +130,15 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 			}
 			return err
 		}
+		if source.FileType == "csv" && len(entries) > 0 {
+			headers := cloneStringMap(entries[0])
+			article.RenameFields(headers, source.PatchFields)
+			for _, required := range []string{"doi", "title", "year"} {
+				if _, ok := headers[required]; !ok {
+					return fmt.Errorf("CSV source %q is missing required mapped header %q", source.Name, required)
+				}
+			}
+		}
 		comparison := resultCountComparison(source.ExpectedResultCount, len(entries))
 		if err := db.RunSources.SetObservedResultCount(runSourceID, len(entries), comparison); err != nil {
 			return fmt.Errorf("record source result count for %s: %w", source.Name, err)
@@ -125,6 +152,9 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		inputRecords += len(entries)
 		accepted := make([]*article.Article, 0, len(entries))
 		for index, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			raw, err := json.Marshal(entry)
 			if err != nil {
 				return fmt.Errorf("marshal source record %s[%d]: %w", source.Name, index, err)
@@ -179,11 +209,12 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 	log.Info("deduplication completed", "run_id", runID, "unique", len(unique), "duplicates", len(duplicates))
 
 	if run.Manifest.EnrichmentEnabled {
-		metadataUpdated, metadataChanges, err := enrichWorkspaceMetadata(db, runID, run, unique)
+		metadataInput := snapshotArticles(unique)
+		metadataUpdated, metadataChanges, err := enrichWorkspaceMetadata(ctx, db, runID, run, unique)
 		if err != nil {
 			return err
 		}
-		if err := recordWorkspaceStage(db, run, runID, "enrich_metadata", unique, unique); err != nil {
+		if err := recordWorkspaceStage(db, run, runID, "enrich_metadata", metadataInput, unique); err != nil {
 			return err
 		}
 		_, metadataRevisionIDs, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageEnrichMetadata, database.StageNameEnrichMetadata, database.OutcomeEnriched, nil)
@@ -197,7 +228,8 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		updated := metadataUpdated
 		allChanges := metadataChanges
 		if _, hasORCID := run.Enrichment.Sources["orcid"]; hasORCID {
-			identityUpdated, identityChanges, uncertainORCIDEvidence, err := enrichWorkspaceIdentity(db, runID, run, unique)
+			identityInput := snapshotArticles(unique)
+			identityUpdated, identityChanges, uncertainORCIDEvidence, err := enrichWorkspaceIdentity(ctx, db, runID, run, unique)
 			if err != nil {
 				if persistErr := persistUncertainORCIDEvidence(db, runID, metadataRevisionIDs, uncertainORCIDEvidence); persistErr != nil {
 					return fmt.Errorf("identity enrichment failed: %v; persist partial ORCID evidence: %w", err, persistErr)
@@ -207,7 +239,7 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 				}
 				return err
 			}
-			if err := recordWorkspaceStage(db, run, runID, "enrich_identity", unique, unique); err != nil {
+			if err := recordWorkspaceStage(db, run, runID, "enrich_identity", identityInput, unique); err != nil {
 				return err
 			}
 			_, identityRevisionIDs, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageEnrichIdentity, database.StageNameEnrichIdentity, database.OutcomeEnriched, nil)
@@ -250,6 +282,9 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 		log.Info("enrichment skipped", "run_id", runID, "reason", "disabled by workspace configuration")
 	}
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	valid, discarded, reasons := validateWorkspaceArticles(unique)
 	if err := recordWorkspaceStage(db, run, runID, "validate", unique, unique); err != nil {
 		return err
@@ -265,11 +300,12 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 	}
 	log.Info("validation completed", "run_id", runID, "valid", len(valid), "discarded", len(discarded))
 
+	normalizeInput := snapshotArticles(valid)
 	normalizationResults := normalizeWorkspaceArticles(valid)
 	if err := recordNormalizationMetrics(db, runID, len(valid), normalizationResults); err != nil {
 		return err
 	}
-	if err := recordWorkspaceStage(db, run, runID, "normalize", valid, valid); err != nil {
+	if err := recordWorkspaceStage(db, run, runID, "normalize", normalizeInput, valid); err != nil {
 		return err
 	}
 	_, normalizeRevisionIDs, err := persistWorkspaceStage(db, runID, valid, database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, nil)
@@ -280,12 +316,15 @@ func RunPipeline(dbPath string, originalConfig []byte, run *Run, fresh bool) (ru
 	if err := persistRunTermMatches(db, runID, termsBySource, termMatches); err != nil {
 		return err
 	}
-	registered, auditEventsFlushed, err := syncNormalizedPDFInventory(context.Background(), db, dbPath, databaseRegistryPath())
+	registered, auditEventsFlushed, err := syncNormalizedPDFInventory(ctx, db, dbPath, databaseRegistryPath())
 	if err != nil {
 		return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 	}
 	log.Info("normalization completed", "run_id", runID, "articles", len(valid), "fields_processed", len(normalizationResults))
 	log.Info("PDF inventory synchronized", "run_id", runID, "registered", registered, "audit_events_flushed", auditEventsFlushed)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := completePipelineRun(db, runID); err != nil {
 		return err
 	}
@@ -483,6 +522,23 @@ func setRunMetrics(db *database.Database, runID int64, metrics ...any) error {
 		}
 	}
 	return nil
+}
+
+// snapshotArticles preserves the complete stage input before in-place article and relationship mutations.
+func snapshotArticles(articles []*article.Article) []*article.Article {
+	result := make([]*article.Article, len(articles))
+	for i, a := range articles {
+		if a == nil {
+			continue
+		}
+		copy := *a
+		copy.Authors = slices.Clone(a.Authors)
+		copy.CitedReferences = slices.Clone(a.CitedReferences)
+		copy.Keywords = slices.Clone(a.Keywords)
+		copy.KeywordsAdditional = slices.Clone(a.KeywordsAdditional)
+		result[i] = &copy
+	}
+	return result
 }
 
 // recordWorkspaceStage records workspace stage.
@@ -703,7 +759,7 @@ func sumNormalizationOutcomes(outcomes map[string]int) int {
 // enrichWorkspaceMetadata applies article-level providers. Its output is
 // persisted before identity enrichment so an ORCID provider failure cannot
 // erase the metadata and authorship evidence already gathered for the run.
-func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, error) {
+func enrichWorkspaceMetadata(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, error) {
 	if !run.Manifest.EnrichmentEnabled {
 		return 0, nil, nil
 	}
@@ -718,7 +774,7 @@ func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, artic
 	updated := 0
 	var allChanges []fieldChange
 	if source, ok := run.Enrichment.Sources["crossref"]; ok {
-		result, err := gatherCachedCrossref(context.Background(), cache, source, articles)
+		result, err := gatherCachedCrossref(ctx, cache, source, articles)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -727,7 +783,7 @@ func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, artic
 		allChanges = append(allChanges, changes...)
 	}
 	if source, ok := run.Enrichment.Sources["openalex"]; ok {
-		result, err := gatherCachedOpenAlex(context.Background(), cache, source, articles)
+		result, err := gatherCachedOpenAlex(ctx, cache, source, articles)
 		if err != nil {
 			return 0, nil, err
 		}
@@ -741,7 +797,7 @@ func enrichWorkspaceMetadata(db *database.Database, runID int64, run *Run, artic
 // enrichWorkspaceIdentity applies exact observed-ORCID profiles and records
 // name-search evidence. The caller persists this evidence against the prior
 // enrich_metadata snapshot, including when this function returns an error.
-func enrichWorkspaceIdentity(db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error) {
+func enrichWorkspaceIdentity(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error) {
 	if !run.Manifest.EnrichmentEnabled || run.Enrichment == nil {
 		return 0, nil, nil, nil
 	}
@@ -751,7 +807,8 @@ func enrichWorkspaceIdentity(db *database.Database, runID int64, run *Run, artic
 	}
 	cache := &workspaceCache{db: db, runID: runID, policy: run.Manifest.CachePolicy}
 	openAlexSource, hasOpenAlex := run.Enrichment.Sources["openalex"]
-	return enrichCachedORCID(context.Background(), cache, source, openAlexSource, hasOpenAlex, articles)
+	hasOpenAlex = hasOpenAlex && openAlexSource.AllowsField("authors")
+	return enrichCachedORCID(ctx, cache, source, openAlexSource, hasOpenAlex, articles)
 }
 
 // gatherCachedCrossref gathers cached crossref from the supplied inputs.
@@ -766,8 +823,8 @@ func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enr
 		if a.DOI == "" {
 			continue
 		}
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "crossref", Namespace: "work_by_doi", Identity: strings.ToLower(a.DOI), URL: source.BaseURL + a.DOI}, func(ctx context.Context) *enrich.FetchResult {
-			return client.Fetch(ctx, source.BaseURL+a.DOI)
+		response, err := cache.resolve(ctx, cacheRequest{Provider: "crossref", Namespace: "work_by_doi", Identity: strings.ToLower(a.DOI), URL: source.BaseURL + url.PathEscape(a.DOI)}, func(ctx context.Context) *enrich.FetchResult {
+			return client.Fetch(ctx, source.BaseURL+url.PathEscape(a.DOI))
 		}, nil)
 		if err != nil {
 			return nil, fmt.Errorf("resolve crossref DOI %q: %w", a.DOI, err)
@@ -796,7 +853,7 @@ func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enr
 		if a.DOI == "" {
 			continue
 		}
-		url := source.BaseURL + "doi:" + a.DOI
+		url := source.BaseURL + "doi:" + url.PathEscape(a.DOI)
 		response, err := cache.resolve(ctx, cacheRequest{Provider: "openalex", Namespace: "work_by_doi", Identity: strings.ToLower(a.DOI), URL: url}, func(ctx context.Context) *enrich.FetchResult {
 			return client.Fetch(ctx, url)
 		}, nil)
@@ -809,7 +866,9 @@ func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enr
 		}
 		if enrichment, referenceIDs := enrich.DecodeOpenAlexResponse(response.Body, a.DOI); enrichment != nil {
 			result.Articles[a.DOI] = enrichment
-			refIDsByDOI[a.DOI] = referenceIDs
+			if source.AllowsField("references") {
+				refIDsByDOI[a.DOI] = referenceIDs
+			}
 		}
 	}
 	references, err := resolveCachedOpenAlexReferences(ctx, cache, client, source, refIDsByDOI)
@@ -932,6 +991,12 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 			return 0, nil, nil, err
 		}
 		if profile != nil {
+			if !orcidSource.AllowsField("display_name") {
+				profile.FirstName, profile.LastName, profile.CitationName, profile.DisplayName = "", "", "", ""
+			}
+			if !orcidSource.AllowsField("institution") {
+				profile.Institution, profile.Affiliation = "", ""
+			}
 			changed, observedChanges := applyAuthorProfile(authors, profile, "", authorProvenance)
 			if changed {
 				updated++
@@ -943,7 +1008,7 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 	for _, a := range articles {
 		for authorIndex := range a.Authors {
 			author := &a.Authors[authorIndex]
-			if author.Orcid != "" || author.CitationName == "" {
+			if !orcidSource.AllowsField("orcid") || author.Orcid != "" || author.CitationName == "" {
 				continue
 			}
 			candidates, err := resolveCachedORCIDNameCandidates(ctx, cache, orcidSource, orcidClient, author.CitationName)
@@ -1159,7 +1224,7 @@ func applyArticleEnrichment(articles map[string]*article.Article, result *enrich
 		if len(enrichment.References) > 0 && (!result.FillMissingOnly || len(a.CitedReferences) == 0) {
 			a.CitedReferences = make([]article.Reference, len(enrichment.References))
 			for i, ref := range enrichment.References {
-				a.CitedReferences[i] = article.Reference{DOI: ref.DOI, Title: ref.Title, Author: ref.Author, Year: ref.Year, Source: ref.Source}
+				a.CitedReferences[i] = article.Reference{Raw: ref.Raw, DOI: ref.DOI, Title: ref.Title, Author: ref.Author, Year: ref.Year, Source: ref.Source}
 			}
 			changed = true
 			changes = append(changes, fieldChange{DOI: doi, Field: "references", Provider: result.Source})
@@ -1199,6 +1264,32 @@ func usableEnrichedAuthors(enriched []enrich.EnrichedAuthor) []article.Author {
 func applyConfiguredArticleEnrichment(articles map[string]*article.Article, source enrich.SourceConfig, result *enrich.GatherResult) (int, []fieldChange) {
 	if result != nil {
 		result.FillMissingOnly = source.FillMissingOnly
+		for _, value := range result.Articles {
+			if value == nil {
+				continue
+			}
+			if !source.AllowsField("title") {
+				value.Title = ""
+			}
+			if !source.AllowsField("abstract") {
+				value.Abstract = ""
+			}
+			if !source.AllowsField("publisher") {
+				value.Publisher = ""
+			}
+			if !source.AllowsField("citation_count") {
+				value.CitationCount = 0
+			}
+			if !source.AllowsField("reference_count") {
+				value.ReferenceCount = 0
+			}
+			if !source.AllowsField("references") {
+				value.References = nil
+			}
+			if !source.AllowsField("authors") {
+				value.Authors = nil
+			}
+		}
 	}
 	return applyArticleEnrichment(articles, result)
 }

@@ -14,7 +14,7 @@ In the column summaries below, `NULL` means the column is nullable, and a defaul
 
 | Database | Normal filename | Migration chain | Owner | Current role |
 |---|---|---|---|---|
-| Metadata | `corpus.metadata.db` | V00001-V00027 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
+| Metadata | `corpus.metadata.db` | V00001-V00028 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
 | PDF | `corpus.pdf.db` | V00001-V00002 under `migrations/corpus.pdf/` | `src/pdfstore/` | Portable companion inventory for normalized DOIs, content-addressed validated PDF bytes, and cross-database audit delivery. |
 
 `config/database.something` selects the two migration configurations independently. Writable opening creates the parent directory, enables WAL, sets a 5,000 millisecond busy timeout, enables foreign keys on every pooled connection, and applies configured migrations in SOMETHING declaration order. Tracking-table creation and each individual migration use `BEGIN IMMEDIATE` to serialize concurrent schema changes.
@@ -209,8 +209,8 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 #### `cache_entries`
 
 - Purpose: Stores a versioned provider-response cache entry shared across attempts.
-- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `provider TEXT NOT NULL`; `namespace TEXT NOT NULL`; `request_fingerprint TEXT NOT NULL`; `response_status INTEGER NOT NULL`; `payload_artifact_id INTEGER NULL FK artifacts.id`; `fetched_at TEXT NOT NULL`; `expires_at TEXT NULL`; `extractor_version TEXT NOT NULL`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; `updated_at TEXT NOT NULL DEFAULT datetime('now')`; `UNIQUE(provider, namespace, request_fingerprint, extractor_version)`.
-- Relationships and expectations: Upsert updates the response in place so `run_cache_uses` retains a stable row ID. Repository validation requires nonblank identity fields and an HTTP status from 100 through 599. A missing payload artifact is valid for negative responses such as 404; cache policy, not SQL, interprets expiry and reusability.
+- Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `provider TEXT NOT NULL`; `namespace TEXT NOT NULL`; `request_fingerprint TEXT NOT NULL`; `response_status INTEGER NOT NULL`; `payload_artifact_id INTEGER NULL FK artifacts.id`; `fetched_at TEXT NOT NULL`; `expires_at TEXT NULL`; `extractor_version TEXT NOT NULL`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; `updated_at TEXT NOT NULL DEFAULT datetime('now')`.
+- Relationships and expectations: Upsert appends an immutable response version so each `run_cache_uses` row retains the exact response consumed. An update trigger prevents response mutation; global reads select the latest response version with a recorded global use. Repository validation requires nonblank identity fields and an HTTP status from 100 through 599. A missing payload artifact is valid for negative responses such as 404; cache policy, not SQL, interprets expiry and reusability.
 
 #### `run_cache_uses`
 
@@ -463,7 +463,7 @@ Primary keys and `UNIQUE` constraints create SQLite autoindexes. The following t
 | Metadata `author_identity_resolutions` | `pipeline_run_id`, `author_occurrence_id` | None |
 | Metadata `author_identity_candidates` | `identity_resolution_id`, `candidate_orcid` | None |
 | Metadata `reference_mentions` | `work_revision_id`, `resolved_work_id` | Reject update and delete |
-| Metadata `cache_entries` | `expires_at`, `payload_artifact_id` | None |
+| Metadata `cache_entries` | `expires_at`, `payload_artifact_id`, `(provider, namespace, request_fingerprint, extractor_version, id)` | Updates are rejected. |
 | Metadata `run_cache_uses` | `pipeline_run_id`, `cache_entry_id` | None |
 | Metadata `review_contexts` | `parent_context_id` | Reject update and delete |
 | Metadata `work_review_versions` | `(work_id, id)`, `parent_version_id`, `(created_in_context_id, id)` | Reject update and delete |
@@ -501,3 +501,5 @@ Tables omitted from this index table have no explicit named secondary index and 
 - Put table constraints at the database boundary when they are universally true, and retain repository validation when the rule requires project logic such as DOI normalization, ORCID checksum validation, lifecycle pairing, content hashing, or cross-file path safety.
 - Preserve foreign keys, append-only triggers, content identity, immutable revision semantics, audit delivery idempotence, and bundle-relative PDF path validation.
 - Update this document, review related architecture and standards, run the focused database tests, run `make docs-state-update`, and then run `make check`, which includes the read-only documentation consistency check.
+
+V00028 preserves all existing cache and use IDs while removing request-key uniqueness. It cannot reconstruct responses overwritten before migration. Retained response history has no lossless downgrade to the former unique-key schema; the project provides no downgrade runner.
