@@ -65,7 +65,7 @@ function existingClassNames(source: string): Map<string, readonly string[]> {
   const declaration = source.match(classNamesDeclaration);
   if (!declaration?.groups) return entries;
 
-  const entryPattern = /^  ([A-Za-z][A-Za-z0-9]*): cx\(((?:"[^"]*"\s*,?\s*)+)\),$/gm;
+  const entryPattern = /^  ([A-Za-z][A-Za-z0-9]*): cx\(("[^"]*"(?:(?:\s*,\s*|\s+)"[^"]*")*\s*,?\s*)\),$/gm;
   const matches = declaration.groups.body.matchAll(entryPattern);
   for (const match of matches) {
     const tokens = Array.from(match[2].matchAll(/"([^"]*)"/g), (tokenMatch) => tokenMatch[1]);
@@ -130,13 +130,13 @@ export function rewriteClassNames(source: string, file: string): { source: strin
     replacements += 1;
     return `className={${reference(tokens)}}`;
   });
-  rewritten = rewritten.replace(/className=\{cx\(((?:"[^"]*"\s*,?\s*)+)\)\}/g, (_attribute, argumentsList: string) => {
+  rewritten = rewritten.replace(/className=\{cx\(("[^"]*"(?:(?:\s*,\s*|\s+)"[^"]*")*\s*,?\s*)\)\}/g, (_attribute, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `className=${JSON.stringify(tokens[0])}`;
     return `className={${reference(tokens)}}`;
   });
-  rewritten = rewritten.replace(/className:\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (_property, argumentsList: string) => {
+  rewritten = rewritten.replace(/className:\s*cx\(("[^"]*"(?:(?:\s*,\s*|\s+)"[^"]*")*\s*,?\s*)\)/g, (_property, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `className: ${JSON.stringify(tokens[0])}`;
@@ -153,7 +153,7 @@ export function rewriteClassNames(source: string, file: string): { source: strin
     replacements += 1;
     return `.className = ${reference(tokens)}`;
   });
-  rewritten = rewritten.replace(/\.className\s*=\s*cx\(((?:"[^"]*"\s*,?\s*)+)\)/g, (_assignment, argumentsList: string) => {
+  rewritten = rewritten.replace(/\.className\s*=\s*cx\(("[^"]*"(?:(?:\s*,\s*|\s+)"[^"]*")*\s*,?\s*)\)/g, (_assignment, argumentsList: string) => {
     const tokens = Array.from(argumentsList.matchAll(/"([^"]*)"/g), (match) => match[1]);
     replacements += 1;
     if (tokens.length === 1) return `.className = ${JSON.stringify(tokens[0])}`;

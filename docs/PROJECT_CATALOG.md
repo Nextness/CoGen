@@ -946,8 +946,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`openAlexReferenceIDs`](../src/enrich/openalex.go#L167) | function | 167-183 | `func openAlexReferenceIDs(entry map[string]any) []string` | openAlexReferenceIDs returns unique OpenAlex work identifiers from referenced-work URLs. |
 | [`extractOpenAlexReferences`](../src/enrich/openalex.go#L186) | function | 186-198 | `func extractOpenAlexReferences(references []any) []EnrichedReference` | extractOpenAlexReferences converts referenced-work DOI URLs to enriched references. |
 | [`normalizeOpenAlexDOI`](../src/enrich/openalex.go#L201) | function | 201-203 | `func normalizeOpenAlexDOI(value string) string` | normalizeOpenAlexDOI returns a lowercase DOI extracted from a URL or prefixed value. |
-| [`extractOpenAlexID`](../src/enrich/openalex.go#L210) | function | 210-219 | `func extractOpenAlexID(url string) string` | extractOpenAlexID returns a work identifier from an OpenAlex URL or bare identifier. |
-| [`extractDOIFromURL`](../src/enrich/openalex.go#L222) | function | 222-227 | `func extractDOIFromURL(url string) string` | extractDOIFromURL returns a lowercase DOI embedded in a DOI URL. |
+| [`extractOpenAlexID`](../src/enrich/openalex.go#L213) | function | 213-222 | `func extractOpenAlexID(url string) string` | extractOpenAlexID returns a work identifier from an OpenAlex URL or bare identifier. |
+| [`extractDOIFromURL`](../src/enrich/openalex.go#L225) | function | 225-230 | `func extractDOIFromURL(url string) string` | extractDOIFromURL returns a lowercase DOI embedded in a DOI URL. |
 
 ### [`src/enrich/openalex_unit_test.go`](../src/enrich/openalex_unit_test.go)
 
@@ -1494,8 +1494,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`scopedWhere`](../src/server/corpus.go#L363) | function | 363-376 | `func scopedWhere(base, searchable string, runID int64, query string) (string, []any)` | scopedWhere builds the SQL predicate and arguments for a scoped corpus request. |
 | [`scopedPagination`](../src/server/corpus.go#L379) | function | 379-389 | `func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any` | scopedPagination returns validated page, page-size, offset, and limit values. |
 | [`clampScopedPage`](../src/server/corpus.go#L392) | function | 392-401 | `func clampScopedPage(page, perPage int, total int64) int` | clampScopedPage maps an offset request past the end to the final populated page. |
-| [`stableScopedOrder`](../src/server/corpus.go#L404) | function | 404-410 | `func stableScopedOrder(expression, uniqueExpression, order string) string` | stableScopedOrder appends a unique key in the requested direction when needed. |
-| [`(*Server).requireRun`](../src/server/corpus.go#L413) | method | 413-422 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
+| [`sqlOrderKeyword`](../src/server/corpus.go#L406) | function | 406-411 | `func sqlOrderKeyword(order string) string` | sqlOrderKeyword returns the validated ascending/descending SQL keyword for a request direction. Request parsing already restricts order to ASC or DESC; the default is defensive and keeps request input out of the SQL text. |
+| [`stableScopedOrder`](../src/server/corpus.go#L414) | function | 414-421 | `func stableScopedOrder(expression, uniqueExpression, order string) string` | stableScopedOrder appends a unique key in the requested direction when needed. |
+| [`(*Server).requireRun`](../src/server/corpus.go#L424) | method | 424-433 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
 
 ### [`src/server/corpus_integration_test.go`](../src/server/corpus_integration_test.go)
 
@@ -1912,7 +1913,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`advancedSensitiveColumn`](../src/server/tables.go#L228) | function | 228-236 | `func advancedSensitiveColumn(name string) bool` | advancedSensitiveColumn reports whether a generic cell may contain private or large research evidence. |
 | [`boundAdvancedRows`](../src/server/tables.go#L239) | function | 239-256 | `func boundAdvancedRows(rows []map[string]any, columns []columnInfo, truncated map[string][]string)` | boundAdvancedRows enforces a deterministic total value budget without dropping page rows. |
 | [`appendUnique`](../src/server/tables.go#L259) | function | 259-266 | `func appendUnique(values []string, value string) []string` | appendUnique adds one truncation reason at most once per projected field. |
-| [`tableRequest`](../src/server/tables.go#L269) | function | 269-307 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
+| [`tableRequest`](../src/server/tables.go#L269) | function | 269-302 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
 
 ### [`src/server/tables_integration_test.go`](../src/server/tables_integration_test.go)
 

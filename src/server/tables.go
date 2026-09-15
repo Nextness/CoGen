@@ -99,16 +99,16 @@ func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
 		truncationColumns = append(truncationColumns, fmt.Sprintf("CASE WHEN typeof(%s)='text' AND length(CAST(%s AS BLOB))>? THEN 1 ELSE 0 END AS %s", quoted, quoted, quoteIdentifier(fmt.Sprintf("__truncated_%d", index))))
 	}
 	selectColumns = append(selectColumns, truncationColumns...)
-	orderColumns := []string{quoteIdentifier(sort) + " " + order}
+	orderColumns := []string{quoteIdentifier(sort) + " " + sqlOrderKeyword(order)}
 	for _, column := range projection.Columns {
 		if column.PrimaryKey && column.Name != sort {
-			orderColumns = append(orderColumns, quoteIdentifier(column.Name)+" "+order)
+			orderColumns = append(orderColumns, quoteIdentifier(column.Name)+" "+sqlOrderKeyword(order))
 		}
 	}
 	if len(orderColumns) == 1 {
 		for _, column := range projection.Columns {
 			if column.Name != sort {
-				orderColumns = append(orderColumns, quoteIdentifier(column.Name)+" "+order)
+				orderColumns = append(orderColumns, quoteIdentifier(column.Name)+" "+sqlOrderKeyword(order))
 			}
 		}
 	}
@@ -286,16 +286,6 @@ func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, er
 	if sort == "" {
 		sort = info.Columns[0].Name
 	}
-	valid := false
-	for _, column := range info.Columns {
-		if column.Name == sort {
-			valid = true
-			break
-		}
-	}
-	if !valid {
-		return 0, 0, "", "", badRequest("sort must be a column in the selected table")
-	}
 	order := strings.ToUpper(r.URL.Query().Get("order"))
 	if order == "" {
 		order = "ASC"
@@ -303,5 +293,10 @@ func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, er
 	if order != "ASC" && order != "DESC" {
 		return 0, 0, "", "", badRequest("order must be asc or desc")
 	}
-	return page, perPage, sort, order, nil
+	for _, column := range info.Columns {
+		if column.Name == sort {
+			return page, perPage, column.Name, order, nil
+		}
+	}
+	return 0, 0, "", "", badRequest("sort must be a column in the selected table")
 }

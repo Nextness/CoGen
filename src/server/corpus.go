@@ -400,11 +400,22 @@ func clampScopedPage(page, perPage int, total int64) int {
 	return page
 }
 
+// sqlOrderKeyword returns the validated ascending/descending SQL keyword for a
+// request direction. Request parsing already restricts order to ASC or DESC;
+// the default is defensive and keeps request input out of the SQL text.
+func sqlOrderKeyword(order string) string {
+	if order == "DESC" {
+		return "DESC"
+	}
+	return "ASC"
+}
+
 // stableScopedOrder appends a unique key in the requested direction when needed.
 func stableScopedOrder(expression, uniqueExpression, order string) string {
-	result := expression + " " + order
+	direction := sqlOrderKeyword(order)
+	result := expression + " " + direction
 	if expression != uniqueExpression {
-		result += ", " + uniqueExpression + " " + order
+		result += ", " + uniqueExpression + " " + direction
 	}
 	return result
 }
