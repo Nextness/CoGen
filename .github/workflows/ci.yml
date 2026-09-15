@@ -29,7 +29,7 @@ jobs:
         run: make gitleaks
 
   changes:
-    name: Detect changed paths
+    name: Detect which workflow should run
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -46,9 +46,6 @@ jobs:
             base="${{ github.event.pull_request.base.sha }}"
           else
             base="${{ github.event.before }}"
-          fi
-          if [ "$base" = "0000000000000000000000000000000000000000" ]; then
-            base="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
           fi
           backend="false"
           frontend="false"
