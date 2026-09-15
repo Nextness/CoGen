@@ -203,7 +203,10 @@ func normalizeOpenAlexDOI(value string) string {
 }
 
 var (
-	openalexIDRe = regexp.MustCompile(`openalex\.org/(W\d+)`)
+	// openalexIDRe matches an OpenAlex work URL whose host is exactly
+	// openalex.org; anchoring at the start prevents other hosts from being
+	// accepted as an OpenAlex identifier.
+	openalexIDRe = regexp.MustCompile(`^(?:https?://)?openalex\.org/(W\d+)`)
 )
 
 // extractOpenAlexID returns a work identifier from an OpenAlex URL or bare identifier.

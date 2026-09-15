@@ -627,7 +627,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		args = append(args, focusID)
 	}
 	query += ` GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
-		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + order + ` LIMIT ?`
+		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + sqlOrderKeyword(order) + ` LIMIT ?`
 	args = append(args, focusID)
 	if pageMode {
 		args = append(args, perPage, (page-1)*perPage)

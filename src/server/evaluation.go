@@ -190,7 +190,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		review.id AS review_version_id, review.created_in_context_id AS review_created_in_context_id,
 		COALESCE((SELECT json_group_array(sub_status) FROM (
 			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=review.id ORDER BY sub_status)), '[]') AS review_sub_statuses
-		`+from+` WHERE `+where+` ORDER BY COALESCE(`+evaluationSortFields[sortField]+`, '') `+order+`, wr.id `+order+` LIMIT ? OFFSET ?`,
+		`+from+` WHERE `+where+` ORDER BY COALESCE(`+evaluationSortFields[sortField]+`, '') `+sqlOrderKeyword(order)+`, wr.id `+sqlOrderKeyword(order)+` LIMIT ? OFFSET ?`,
 		append([]any{contextID}, queryArgs...)...)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -255,7 +255,7 @@ func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRe
 		queryArgs := append(append([]any(nil), args...), extraArgs...)
 		var revisionID int64
 		err := s.db.QueryRowContext(ctx, `SELECT wr.id `+from+` WHERE `+unreviewedWhere+predicate+`
-			ORDER BY `+sortExpression+` `+queryOrder+`, wr.id `+queryOrder+` LIMIT 1`, queryArgs...).Scan(&revisionID)
+			ORDER BY `+sortExpression+` `+sqlOrderKeyword(queryOrder)+`, wr.id `+sqlOrderKeyword(queryOrder)+` LIMIT 1`, queryArgs...).Scan(&revisionID)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

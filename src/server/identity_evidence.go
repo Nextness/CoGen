@@ -71,11 +71,11 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 	} else if int64(page) > totalPages {
 		page = int(totalPages)
 	}
-	orderSQL := fields[sort] + " " + order
+	orderSQL := fields[sort] + " " + sqlOrderKeyword(order)
 	if fields[sort] != "r.id" {
-		orderSQL += ", r.id " + order
+		orderSQL += ", r.id " + sqlOrderKeyword(order)
 	}
-	orderSQL += ", evidence.work_id " + order
+	orderSQL += ", evidence.work_id " + sqlOrderKeyword(order)
 	rows, err := s.db.QueryContext(ctx, `SELECT r.id AS resolution_id, r.status, r.provider, r.queried_citation_name,
         r.error_message, r.resolved_at, ao.id AS author_occurrence_id, ao.orcid AS observed_orcid,
         ao.person_id, wr.title AS article_title, w.doi, wr.id AS work_revision_id,
