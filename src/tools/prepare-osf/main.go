@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -256,7 +257,7 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 		if err != nil {
 			return nil, "", fmt.Errorf("sanitize workspace configuration artifact %s: %w", item.hash, err)
 		}
-		if !changed {
+		if !changed || bytes.Equal(sanitized, item.data) {
 			continue
 		}
 		digest := sha256.Sum256(sanitized)
@@ -278,10 +279,16 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 		} else if err != nil {
 			return nil, "", err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE run_artifacts SET artifact_id=? WHERE artifact_id=? AND artifact_role='workspace_config'", newID, item.id); err != nil {
+		if _, err := tx.ExecContext(ctx, "UPDATE run_artifacts SET artifact_id=? WHERE artifact_id=?", newID, item.id); err != nil {
 			return nil, "", err
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE search_revisions SET config_artifact_hash=? WHERE config_artifact_hash=?", newHash, item.hash); err != nil {
+			return nil, "", err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE run_steps SET input_artifact_id=?, input_fingerprint=? WHERE input_artifact_id=?", newID, newHash, item.id); err != nil {
+			return nil, "", err
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE run_steps SET output_artifact_id=?, output_fingerprint=? WHERE output_artifact_id=?", newID, newHash, item.id); err != nil {
 			return nil, "", err
 		}
 		var references int
@@ -291,6 +298,9 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 			(SELECT COUNT(*) FROM cache_entries WHERE payload_artifact_id=?)+
 			(SELECT COUNT(*) FROM author_identity_candidates WHERE payload_artifact_id=?)`, item.id, item.id, item.id, item.id, item.id).Scan(&references); err != nil {
 			return nil, "", err
+		}
+		if references != 0 {
+			return nil, "", fmt.Errorf("original reviewer configuration artifact remains referenced")
 		}
 		if references == 0 {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM artifact_blobs WHERE artifact_id=?", item.id); err != nil {
@@ -390,6 +400,13 @@ func sanitizeReviewerAssignments(source []byte) ([]byte, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
+		if err := validateReviewerLiterals(text[open+1 : end]); err != nil {
+			return nil, false, err
+		}
+		after := skipTrivia(text, end+1)
+		if after < len(text) && text[after] != ',' && text[after] != ';' && text[after] != '}' {
+			return nil, false, fmt.Errorf("reviewer assignment must be a complete inline literal")
+		}
 		replacements = append(replacements, replacement{start: start, end: end + 1})
 		index = end + 1
 	}
@@ -405,6 +422,44 @@ func sanitizeReviewerAssignments(source []byte) ([]byte, bool, error) {
 	}
 	output.WriteString(text[previous:])
 	return []byte(output.String()), true, nil
+}
+
+// validateReviewerLiterals accepts only direct identity strings whose complete source is inside the redacted object.
+func validateReviewerLiterals(text string) error {
+	for cursor := skipTrivia(text, 0); cursor < len(text); {
+		end := cursor
+		for end < len(text) && isIdentifierByte(text[end]) {
+			end++
+		}
+		field := text[cursor:end]
+		if field != "username" && field != "email" {
+			return fmt.Errorf("reviewer fields must be literal username or email assignments")
+		}
+		cursor = skipTrivia(text, end)
+		if cursor >= len(text) || text[cursor] != '=' {
+			return fmt.Errorf("reviewer field must use a literal string")
+		}
+		cursor = skipTrivia(text, cursor+1)
+		if cursor >= len(text) || (text[cursor] != '"' && text[cursor] != '\'') {
+			return fmt.Errorf("indirect reviewer field values cannot be safely redacted")
+		}
+		end, err := quotedEnd(text, cursor)
+		if err != nil {
+			return err
+		}
+		if strings.ContainsAny(text[cursor+1:end-1], "{}") {
+			return fmt.Errorf("interpolated reviewer values cannot be safely redacted")
+		}
+		cursor = skipTrivia(text, end)
+		if cursor == len(text) {
+			break
+		}
+		if text[cursor] != ',' && text[cursor] != ';' {
+			return fmt.Errorf("reviewer fields must use complete literal strings")
+		}
+		cursor = skipTrivia(text, cursor+1)
+	}
+	return nil
 }
 
 // tokenKind distinguishes source identifiers from skipped strings, comments, multiline data, and punctuation.

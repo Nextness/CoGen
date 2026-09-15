@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf16"
 	"unicode/utf8"
 )
 
@@ -89,7 +88,7 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 	for i, text := range raw {
 		text = strings.TrimSuffix(text, "\r")
 		lines[i] = line{text: text, start: offset}
-		offset += len(raw[i]) + 1
+		offset += utf16Length(raw[i]) + 1
 	}
 	blocks := make([]Block, 0)
 	for i := 0; i < len(lines); {
@@ -107,7 +106,7 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 				i++
 			}
 			if i == len(lines) {
-				problems = append(problems, SyntaxError{Position: utf16Offset(body, start), Length: 3, Message: "unclosed code fence"})
+				problems = append(problems, SyntaxError{Position: start, Length: 3, Message: "unclosed code fence"})
 				blocks = append(blocks, Block{Type: "code", Text: strings.Join(contents, "\n")})
 				continue
 			}
@@ -143,17 +142,14 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 			blocks = append(blocks, Block{Type: "list", Ordered: kind == "ordered", Items: items})
 			continue
 		}
-		if hasUnescapedPipe(current.text) && i+1 < len(lines) && hasUnescapedPipe(lines[i+1].text) {
+		if i+1 < len(lines) && isTableDelimiter(lines[i+1].text) {
 			header := splitTableRow(current.text)
 			delimiter := splitTableRow(lines[i+1].text)
-			valid := len(header) >= 2 && len(delimiter) == len(header)
-			for _, cell := range delimiter {
-				valid = valid && regexp.MustCompile(`^-{3,}$`).MatchString(strings.TrimSpace(cell))
-			}
+			valid := len(delimiter) == len(header)
 			if !valid || i+2 >= len(lines) || lines[i+2].text == "" || len(splitTableRow(lines[i+2].text)) != len(header) {
 				start := i
-				problems = append(problems, SyntaxError{Position: utf16Offset(body, current.start), Length: utf16Length(current.text), Message: "malformed table"})
-				for i < len(lines) && lines[i].text != "" && hasUnescapedPipe(lines[i].text) {
+				problems = append(problems, SyntaxError{Position: current.start, Length: utf16Length(current.text), Message: "malformed table"})
+				for i < len(lines) && lines[i].text != "" && (len(header) == 1 || hasUnescapedPipe(lines[i].text)) {
 					i++
 				}
 				paragraph := make([]string, 0, i-start)
@@ -165,10 +161,10 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 			}
 			rows := make([][]string, 0)
 			i += 2
-			for i < len(lines) && lines[i].text != "" && hasUnescapedPipe(lines[i].text) {
+			for i < len(lines) && lines[i].text != "" && (len(header) == 1 || hasUnescapedPipe(lines[i].text)) {
 				row := splitTableRow(lines[i].text)
 				if len(row) != len(header) {
-					problems = append(problems, SyntaxError{Position: utf16Offset(body, lines[i].start), Length: utf16Length(lines[i].text), Message: "table row has the wrong number of cells"})
+					problems = append(problems, SyntaxError{Position: lines[i].start, Length: utf16Length(lines[i].text), Message: "table row has the wrong number of cells"})
 					i++
 					continue
 				}
@@ -188,6 +184,9 @@ func parseBlocks(body string, problems []SyntaxError) ([]Block, []SyntaxError) {
 				break
 			}
 			if _, _, ok := listItem(lines[i].text); ok {
+				break
+			}
+			if i+1 < len(lines) && isTableDelimiter(lines[i+1].text) {
 				break
 			}
 			paragraph = append(paragraph, lines[i].text)
@@ -218,6 +217,16 @@ func listItem(line string) (string, string, bool) {
 		return "ordered", strings.TrimPrefix(line, "1. "), true
 	}
 	return "", "", false
+}
+
+// isTableDelimiter recognizes the complete delimiter grammar before interpreting pipe-bearing prose as a table.
+func isTableDelimiter(line string) bool {
+	for _, cell := range splitTableRow(line) {
+		if len(cell) < 3 || strings.Trim(cell, "-") != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // hasUnescapedPipe reports whether a line may begin the simple table grammar.
@@ -278,6 +287,7 @@ func parseLinks(body string, problems []SyntaxError) ([]Link, []SyntaxError) {
 	links := make([]Link, 0)
 	inFence := false
 	lineStart := 0
+	linePosition := 0
 	for lineStart <= len(body) {
 		lineEnd := strings.IndexByte(body[lineStart:], '\n')
 		if lineEnd < 0 {
@@ -290,7 +300,7 @@ func parseLinks(body string, problems []SyntaxError) ([]Link, []SyntaxError) {
 			inFence = !inFence
 		} else if !inFence {
 			var lineLinks []Link
-			lineLinks, problems = parseLineLinks(body, line, lineStart, problems)
+			lineLinks, problems = parseLineLinks(line, linePosition, problems)
 			for index := range lineLinks {
 				lineLinks[index].Ordinal = len(links) + index + 1
 			}
@@ -299,29 +309,31 @@ func parseLinks(body string, problems []SyntaxError) ([]Link, []SyntaxError) {
 		if lineEnd == len(body) {
 			break
 		}
+		linePosition += utf16Length(body[lineStart:lineEnd]) + 1
 		lineStart = lineEnd + 1
 	}
 	return links, problems
 }
 
 // parseLineLinks extracts and validates each custom link from one source line.
-func parseLineLinks(body, line string, base int, problems []SyntaxError) ([]Link, []SyntaxError) {
+func parseLineLinks(line string, base int, problems []SyntaxError) ([]Link, []SyntaxError) {
 	links := make([]Link, 0)
+	position := base
 	for cursor := 0; cursor < len(line); {
 		open := strings.Index(line[cursor:], "[[")
 		if open < 0 {
 			break
 		}
 		open += cursor
+		position += utf16Length(line[cursor:open])
 		close := findLinkEnd(line, open+2)
 		if close < 0 {
-			problems = append(problems, SyntaxError{Position: utf16Offset(body, base+open), Length: utf16Length(line[open:]), Message: "unclosed custom link"})
+			problems = append(problems, SyntaxError{Position: position, Length: utf16Length(line[open:]), Message: "unclosed custom link"})
 			break
 		}
 		whole := line[open : close+2]
 		inside := line[open+2 : close]
 		link, message := decodeLink(inside)
-		position := utf16Offset(body, base+open)
 		length := utf16Length(whole)
 		if message != "" {
 			problems = append(problems, SyntaxError{Position: position, Length: length, Message: message})
@@ -330,6 +342,7 @@ func parseLineLinks(body, line string, base int, problems []SyntaxError) ([]Link
 			link.Length = length
 			links = append(links, link)
 		}
+		position += length
 		cursor = close + 2
 	}
 	return links, problems
@@ -415,31 +428,42 @@ func decodeLink(input string) (Link, string) {
 
 // splitEscaped separates link fields while preserving supported escaped delimiters.
 func splitEscaped(input string) ([]string, error) {
-	parts := []string{""}
+	parts := make([]string, 0, 2)
+	var field strings.Builder
 	escaped := false
 	for _, r := range input {
 		if escaped {
 			if r != ']' && r != '|' && r != '\\' {
 				return nil, fmt.Errorf("malformed custom link escape")
 			}
-			parts[len(parts)-1] += string(r)
 			escaped = false
-			continue
-		}
-		if r == '\\' {
+		} else if r == '\\' {
 			escaped = true
 			continue
-		}
-		if r == '|' {
-			parts = append(parts, "")
+		} else if r == '|' {
+			if len(parts) == 1 {
+				return nil, fmt.Errorf("custom link contains more than one display separator")
+			}
+			parts = append(parts, field.String())
+			field.Reset()
 			continue
 		}
-		parts[len(parts)-1] += string(r)
+		limit := MaxTargetBytes + len("article:")
+		if len(parts) == 1 {
+			limit = MaxDisplayBytes
+		}
+		if field.Len()+utf8.RuneLen(r) > limit {
+			if len(parts) == 1 {
+				return nil, fmt.Errorf("custom link display text exceeds %d bytes", MaxDisplayBytes)
+			}
+			return nil, fmt.Errorf("custom link target exceeds %d bytes", MaxTargetBytes)
+		}
+		field.WriteRune(r)
 	}
 	if escaped {
 		return nil, fmt.Errorf("malformed custom link escape")
 	}
-	return parts, nil
+	return append(parts, field.String()), nil
 }
 
 // normalizeDOI canonicalizes article-link DOI targets without database access.
@@ -451,16 +475,14 @@ func normalizeDOI(value string) string {
 	return strings.TrimSpace(value)
 }
 
-// utf16Offset converts a UTF-8 byte position into a browser-compatible code-unit offset.
-func utf16Offset(body string, byteOffset int) int {
-	if byteOffset < 0 {
-		return 0
-	}
-	if byteOffset > len(body) {
-		byteOffset = len(body)
-	}
-	return utf16Length(body[:byteOffset])
-}
-
 // utf16Length returns the browser-compatible code-unit length of a string.
-func utf16Length(value string) int { return len(utf16.Encode([]rune(value))) }
+func utf16Length(value string) int {
+	length := 0
+	for _, r := range value {
+		length++
+		if r > 0xffff {
+			length++
+		}
+	}
+	return length
+}

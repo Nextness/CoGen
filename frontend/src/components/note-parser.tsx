@@ -140,15 +140,15 @@ export function parseNote(body: unknown): { blocks: NoteBlock[]; links: NoteLink
       continue;
     }
 
-    if (hasUnescapedPipe(current.text) && index + 1 < lines.length && hasUnescapedPipe(lines[index + 1].text)) {
+    if (index + 1 < lines.length && isTableDelimiter(lines[index + 1].text)) {
       const header = splitTableRow(current.text);
       const delimiter = splitTableRow(lines[index + 1].text);
-      const delimiterValid = header.length >= 2 && delimiter.length === header.length && delimiter.every((cell) => /^-{3,}$/.test(cell.trim()));
+      const delimiterValid = delimiter.length === header.length;
       const firstRowValid = index + 2 < lines.length && lines[index + 2].text !== "" && splitTableRow(lines[index + 2].text).length === header.length;
       if (!delimiterValid || !firstRowValid) {
         const paragraphLines: string[] = [];
         errors.push({ position: current.start, length: current.text.length, message: "malformed table" });
-        while (index < lines.length && lines[index].text !== "" && hasUnescapedPipe(lines[index].text)) {
+        while (index < lines.length && lines[index].text !== "" && (header.length === 1 || hasUnescapedPipe(lines[index].text))) {
           paragraphLines.push(lines[index].text);
           index += 1;
         }
@@ -156,7 +156,7 @@ export function parseNote(body: unknown): { blocks: NoteBlock[]; links: NoteLink
       } else {
         const rows: string[][] = [];
         index += 2;
-        while (index < lines.length && lines[index].text !== "" && hasUnescapedPipe(lines[index].text)) {
+        while (index < lines.length && lines[index].text !== "" && (header.length === 1 || hasUnescapedPipe(lines[index].text))) {
           const row = splitTableRow(lines[index].text);
           if (row.length !== header.length) {
             errors.push({
@@ -180,6 +180,7 @@ export function parseNote(body: unknown): { blocks: NoteBlock[]; links: NoteLink
       if (/^#{1,4} /.test(lines[index].text)) break;
       if (lines[index].text.startsWith("> ")) break;
       if (parseListItem(lines[index].text)) break;
+      if (index + 1 < lines.length && isTableDelimiter(lines[index + 1].text)) break;
       paragraphLines.push(lines[index].text);
       index += 1;
     }
@@ -360,6 +361,11 @@ function splitTableRow(line: string): string[] {
   if (escaped) cell += "\\";
   cells.push(cell.trim());
   return cells;
+}
+
+/** Recognizes the complete delimiter row before interpreting prose as a table. */
+function isTableDelimiter(line: string): boolean {
+  return splitTableRow(line).every((cell) => /^-{3,}$/.test(cell));
 }
 
 /** Reports whether a line contains an unescaped table separator. */

@@ -132,6 +132,17 @@ func ParseOptionalInt(value string) *int {
 	return &n
 }
 
+// NormalizeDOI normalizes a complete structured identifier without citation-boundary or HTML heuristics.
+func NormalizeDOI(value string) string {
+	value = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(value, "\ufeff")))
+	for _, prefix := range []string{"https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:"} {
+		if strings.HasPrefix(value, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(value, prefix))
+		}
+	}
+	return value
+}
+
 // ExtractDOI returns the first DOI found in text, or empty string.
 func ExtractDOI(text string) string {
 	m := doiInlineRe.FindStringSubmatch(text)
@@ -280,13 +291,19 @@ func CheckRequired(a *Article) []string {
 }
 
 // NewFromMap builds an Article from a canonical-field map[string]string.
-// All text values are sanitised automatically.
+// Text values are sanitized; structured DOI punctuation is preserved.
 // Returns nil + *RequiredFieldError if required fields are missing.
 func NewFromMap(entry map[string]string, source string) (*Article, error) {
-	doi := strings.TrimSpace(SanitizeText(entry["doi"]))
-	if extracted := ExtractDOI(doi); extracted != "" {
-		doi = extracted
+	canonical := make(map[string]string, len(entry))
+	for key, value := range entry {
+		if key == "doi" {
+			canonical[key] = NormalizeDOI(value)
+		} else {
+			canonical[key] = strings.TrimSpace(SanitizeText(value))
+		}
 	}
+	entry = canonical
+	doi := entry["doi"]
 	a := &Article{
 		DOI:           strings.ToLower(doi),
 		Title:         SanitizeText(entry["title"]),

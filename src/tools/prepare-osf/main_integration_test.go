@@ -3,11 +3,15 @@
 package main
 
 import (
+	"analysis/manifest"
+	"analysis/workspace"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -189,5 +193,76 @@ func TestSafeCompanionPathRejectsSymlinkEscape(t *testing.T) {
 	}
 	if _, err := safeCompanionPath(metadataPath, "corpus.pdf.db"); err == nil || !strings.Contains(err.Error(), "escapes metadata bundle") {
 		t.Fatalf("safeCompanionPath() error = %v, want symlink escape rejection", err)
+	}
+}
+
+// TestPrepareRealPipelineReviewerEvidence verifies preflight references, hashes, and exported file bytes are sanitized together.
+func TestPrepareRealPipelineReviewerEvidence(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", "..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	for _, indirect := range []bool{false, true} {
+		t.Run(fmt.Sprint(indirect), func(t *testing.T) {
+			dir := t.TempDir()
+			csvPath := filepath.Join(dir, "source.csv")
+			if err := os.WriteFile(csvPath, []byte("doi,title,year,publisher,authors,cited_references\n10.1000/example,Synthetic article,2024,IEEE,Example Author,A reference\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			raw := []byte(`workspace = { reviewer = reviewer_config { username = "SyntheticExportMarker", email = "", }, };`)
+			if indirect {
+				raw = []byte(`identity := "SyntheticExportMarker"; workspace = { reviewer = reviewer_config { username = identity, email = "", }, };`)
+			}
+			run := &workspace.Run{Reviewer: workspace.Reviewer{Username: "SyntheticExportMarker"}, Manifest: &manifest.ResolvedManifest{
+				FormatVersion: 2, SearchID: "export", SearchRevision: "r1", ReusePolicy: "reuse_completed",
+				Sources: []manifest.SourceManifest{{Name: "synthetic", FileType: "csv", ExpectedFile: csvPath, ExpectedResultCount: 1, KeepFields: []string{"doi", "title", "year", "publisher", "authors", "cited_references"}}},
+			}}
+			path := filepath.Join(dir, "corpus.metadata.db")
+			if err := workspace.RunPipeline(path, raw, run, false); err != nil {
+				t.Fatal(err)
+			}
+			out := filepath.Join(dir, "export")
+			err = prepare(context.Background(), options{DB: path, Out: out})
+			if indirect {
+				if err == nil || !strings.Contains(err.Error(), "indirect reviewer") {
+					t.Fatalf("expected fail-closed redaction: %v", err)
+				}
+				if _, err := os.Stat(out); !os.IsNotExist(err) {
+					t.Fatalf("failed export published output: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			exportedPath := filepath.Join(out, "corpus.metadata.db")
+			exported, err := database.OpenExisting(exportedPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer exported.Close()
+			var invalid int
+			if err := exported.DB.QueryRow(`SELECT COUNT(*) FROM run_steps step JOIN artifacts artifact ON artifact.id=step.input_artifact_id WHERE step.step_name='preflight' AND step.input_fingerprint != artifact.content_hash`).Scan(&invalid); err != nil || invalid != 0 {
+				t.Fatalf("preflight hash mismatch: %d %v", invalid, err)
+			}
+			if err := exported.DB.QueryRow("SELECT COUNT(*) FROM artifact_blobs WHERE instr(CAST(data AS TEXT), 'SyntheticExportMarker') > 0").Scan(&invalid); err != nil || invalid != 0 {
+				t.Fatalf("live identity blobs: %d %v", invalid, err)
+			}
+			data, err := os.ReadFile(exportedPath)
+			if err != nil || bytes.Contains(data, []byte("SyntheticExportMarker")) {
+				t.Fatalf("exported file contains identity: %v", err)
+			}
+		})
+	}
+}
+
+// TestSanitizeRejectsIndirectFieldExpressions verifies references and interpolation fail closed without publishing identity declarations.
+func TestSanitizeRejectsIndirectFieldExpressions(t *testing.T) {
+	for _, value := range []string{"identity", `"{identity}"`, `"prefix" + identity`, "make_identity!()"} {
+		_, _, err := sanitizeReviewerAssignments([]byte(`reviewer = reviewer_config { username = ` + value + `, email = "", };`))
+		if err == nil {
+			t.Errorf("accepted indirect reviewer expression %s", value)
+		}
 	}
 }

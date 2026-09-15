@@ -147,3 +147,5 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 - Cross-view navigation repeats shell and view requests and discards in-memory graph layout, zoom, pan, and appended audit pages; URL-backed state remains restorable.
 - String-template rendering relies on deliberate escaping for each new dynamic value.
 - Visual snapshots and fixtures represent controlled data and tested browser environments, not every platform.
+
+Review-note tables accept one or more columns, including a single-column table without outer pipes. A table begins only when the next line consists of delimiter cells with at least three hyphens each; ordinary pipe-bearing prose remains paragraph text.

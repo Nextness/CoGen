@@ -4,6 +4,7 @@
 package enrich
 
 import (
+	"analysis/article"
 	"encoding/json"
 	"regexp"
 	"sort"
@@ -16,6 +17,9 @@ import (
 func DecodeOpenAlexResponse(body []byte, doi string) (*ArticleEnrichment, []string) {
 	entry := decodeJSONObject(body)
 	if entry == nil {
+		return nil, nil
+	}
+	if returned, ok := entry["doi"].(string); ok && returned != "" && article.NormalizeDOI(returned) != article.NormalizeDOI(doi) {
 		return nil, nil
 	}
 	return openalexEntryToArticle(entry, doi), openAlexReferenceIDs(entry)
@@ -43,6 +47,9 @@ func DecodeOpenAlexReferenceResponse(body []byte) map[string]EnrichedReference {
 		reference.Title, _ = work["title"].(string)
 		if year, ok := work["publication_year"].(float64); ok {
 			reference.Year = int(year)
+		}
+		if reference.DOI == "" && strings.TrimSpace(reference.Title) == "" && reference.Year == 0 {
+			continue
 		}
 		result[id] = reference
 	}
@@ -112,9 +119,6 @@ func extractOpenAlexPublisher(entry map[string]any) string {
 		if source, ok := location["source"].(map[string]any); ok {
 			if publisher, ok := source["publisher"].(string); ok && publisher != "" {
 				return publisher
-			}
-			if name, ok := source["display_name"].(string); ok && name != "" {
-				return name
 			}
 		}
 	}
@@ -195,16 +199,11 @@ func extractOpenAlexReferences(references []any) []EnrichedReference {
 
 // normalizeOpenAlexDOI returns a lowercase DOI extracted from a URL or prefixed value.
 func normalizeOpenAlexDOI(value string) string {
-	value = strings.TrimSpace(value)
-	if doi := extractDOIFromURL(value); doi != "" {
-		return doi
-	}
-	return strings.ToLower(strings.TrimPrefix(value, "doi:"))
+	return article.NormalizeDOI(value)
 }
 
 var (
 	openalexIDRe = regexp.MustCompile(`openalex\.org/(W\d+)`)
-	doiURLRe     = regexp.MustCompile(`doi\.org/(10\.\d{4,}/[^\s,;]+)`)
 )
 
 // extractOpenAlexID returns a work identifier from an OpenAlex URL or bare identifier.
@@ -221,9 +220,8 @@ func extractOpenAlexID(url string) string {
 
 // extractDOIFromURL returns a lowercase DOI embedded in a DOI URL.
 func extractDOIFromURL(url string) string {
-	matches := doiURLRe.FindStringSubmatch(url)
-	if len(matches) >= 2 {
-		return strings.ToLower(strings.TrimSpace(matches[1]))
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(url)), "https://doi.org/") || strings.HasPrefix(strings.ToLower(strings.TrimSpace(url)), "http://doi.org/") {
+		return article.NormalizeDOI(url)
 	}
 	return ""
 }

@@ -30,7 +30,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -156,6 +156,9 @@ fixture: ## Regenerate ignored viewer fixture databases from authoritative fixtu
 
 run: build ## Run the workspace pipeline. Override DB, CONFIG, WORKSPACE, and FRESH=1.
 	./$(BIN) run --config "$(CONFIG)" --db "$(DB)" $(if $(WORKSPACE),--workspace "$(WORKSPACE)") $(if $(FRESH),--fresh)
+
+recover: build ## Mark one abandoned running attempt failed. Requires DB and RUN_ID.
+	./$(BIN) recover --db "$(DB)" --run-id "$(RUN_ID)"
 
 migrate: build ## Apply pending metadata migrations to an existing DB without running a workspace.
 	./$(BIN) migrate --db "$(DB)"

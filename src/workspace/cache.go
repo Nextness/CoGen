@@ -105,7 +105,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		if err != nil {
 			return nil, err
 		}
-		if err := enrich.ValidateProviderPayload(request.Provider, request.Namespace, body); err != nil {
+		if err := validateCachePayload(request, body); err != nil {
 			log.Warn("cached provider payload is not reusable", "cache_entry_id", entry.ID, "provider", request.Provider, "namespace", request.Namespace, "error", err)
 			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
@@ -146,7 +146,7 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 		return nil, fmt.Errorf("network fetch %s/%s returned status %d", request.Provider, request.Identity, status)
 	}
 	if status == 200 {
-		if err := enrich.ValidateProviderPayload(request.Provider, request.Namespace, response.Body); err != nil {
+		if err := validateCachePayload(request, response.Body); err != nil {
 			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
 			}
@@ -295,4 +295,15 @@ func cacheEntryExpired(entry *database.CacheEntry, now time.Time) bool {
 	}
 	// An unparseable expiry cannot safely be treated as reusable.
 	return true
+}
+
+// validateCachePayload checks both the transport envelope and any provider-supplied work identity before caching or replay.
+func validateCachePayload(request cacheRequest, body []byte) error {
+	if err := enrich.ValidateProviderPayload(request.Provider, request.Namespace, body); err != nil {
+		return err
+	}
+	if request.Namespace == "work_by_doi" {
+		return enrich.ValidateWorkIdentity(request.Provider, body, request.Identity)
+	}
+	return nil
 }

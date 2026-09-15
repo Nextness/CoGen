@@ -4,6 +4,7 @@
 package enrich
 
 import (
+	"analysis/article"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -30,6 +31,9 @@ func extractCrossrefEntry(body []byte) map[string]any {
 func DecodeCrossrefResponse(body []byte, doi string) *ArticleEnrichment {
 	entry := extractCrossrefEntry(body)
 	if entry == nil {
+		return nil
+	}
+	if returned, ok := entry["DOI"].(string); ok && returned != "" && article.NormalizeDOI(returned) != article.NormalizeDOI(doi) {
 		return nil
 	}
 	return crossrefEntryToArticle(entry, doi)
@@ -121,8 +125,9 @@ func extractCrossrefReferences(refs []any) []EnrichedReference {
 		}
 
 		er := EnrichedReference{}
+		er.Raw, _ = rm["unstructured"].(string)
 		if doi, ok := rm["DOI"].(string); ok {
-			er.DOI = strings.ToLower(strings.TrimSpace(doi))
+			er.DOI = article.NormalizeDOI(doi)
 		}
 		if t, ok := rm["article-title"].(string); ok {
 			er.Title = t
@@ -148,6 +153,9 @@ func extractCrossrefReferences(refs []any) []EnrichedReference {
 			er.Source = s
 		}
 
+		if strings.TrimSpace(er.Raw+er.DOI+er.Title+er.Author+er.Source) == "" && er.Year == 0 {
+			continue
+		}
 		result = append(result, er)
 	}
 	return result

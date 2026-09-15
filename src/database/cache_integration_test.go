@@ -4,6 +4,8 @@
 package database
 
 import (
+	"context"
+	"database/sql"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -11,7 +13,7 @@ import (
 	"analysis/manifest"
 )
 
-// TestCacheEntryUpsertAndKeySeparation verifies upsert identity preservation
+// TestCacheEntryUpsertAndKeySeparation verifies immutable response history
 // and key separation across provider/request/version.
 func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	db := openTestDB(t)
@@ -33,8 +35,16 @@ func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updatedID != id {
-		t.Fatalf("upsert changed row identity: got %d, want %d", updatedID, id)
+	if updatedID == id {
+		t.Fatal("refresh reused an immutable response ID")
+	}
+	var oldStatus int
+	var oldPayload int64
+	if err := db.DB.QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", id).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
+		t.Fatalf("original response changed: %d %d %v", oldStatus, oldPayload, err)
+	}
+	if _, err := db.DB.Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", id); err == nil {
+		t.Fatal("immutable response update was accepted")
 	}
 	got, err := db.CacheEntries.Get("crossref", "works", "request-a", "1")
 	if err != nil || got == nil {
@@ -85,8 +95,8 @@ func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries WHERE provider='crossref' AND namespace='works' AND request_fingerprint='same-request' AND extractor_version='1'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 {
-		t.Fatalf("concurrent upsert created %d rows, want 1", count)
+	if count != writers {
+		t.Fatalf("concurrent refresh retained %d responses, want %d", count, writers)
 	}
 	entry, err := db.CacheEntries.Get("crossref", "works", "same-request", "1")
 	if err != nil || entry == nil {
@@ -191,7 +201,64 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 	if err := first.DB.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyProblems); err != nil {
 		t.Fatal(err)
 	}
-	if entries != 1 || uses != workers || foreignKeyProblems != 0 {
+	if entries != workers || uses != workers || foreignKeyProblems != 0 {
 		t.Fatalf("concurrent integrity entries=%d uses=%d foreign_key_problems=%d", entries, uses, foreignKeyProblems)
+	}
+}
+
+// TestImmutableCacheMigrationPreservesHistory verifies V00028 preserves legacy IDs, payloads, and foreign keys during a real upgrade.
+func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
+	conn, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "upgrade.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetMaxOpenConns(1)
+	if _, err := conn.Exec("PRAGMA foreign_keys=ON"); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := loadMigrationChain(filepath.Join("..", "..", "config", "database.corpus.metadata.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries[:len(entries)-1] {
+		up, err := extractUpSQL(filepath.Join("..", "..", "migrations", "corpus.metadata", entry.filename))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := conn.Exec(up); err != nil {
+			t.Fatalf("%s: %v", entry.filename, err)
+		}
+	}
+	db := &Database{DB: conn}
+	db.initRepositories()
+	runID, err := db.PipelineRuns.StartRun("legacy", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := conn.Exec("INSERT INTO cache_entries (id,provider,namespace,request_fingerprint,response_status,fetched_at,extractor_version) VALUES (42,'crossref','work_by_doi','key',404,'2026-01-01','v1')"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RunCacheUses.Create(&RunCacheUse{PipelineRunID: runID, CacheEntryID: 42, CacheLayer: "global", Outcome: "negative"}); err != nil {
+		t.Fatal(err)
+	}
+	up, err := extractUpSQL(filepath.Join("..", "..", "migrations", "corpus.metadata", "V00028_immutable_cache_responses.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.withTx(context.Background(), func(tx *sql.Tx) error { _, err := tx.Exec(up); return err }); err != nil {
+		t.Fatal(err)
+	}
+	id, err := db.CacheEntries.Upsert(&CacheEntry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ResponseStatus: 200, FetchedAt: "2026-01-02", ExtractorVersion: "v1"})
+	if err != nil || id <= 42 {
+		t.Fatalf("new response ID=%d err=%v", id, err)
+	}
+	old, err := db.RunCacheUses.FindAnyEntry(runID, "crossref", "work_by_doi", "key", "v1")
+	if err != nil || old == nil || old.ID != 42 || old.ResponseStatus != 404 {
+		t.Fatalf("legacy use changed: %+v %v", old, err)
+	}
+	var failures int
+	if err := conn.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&failures); err != nil || failures != 0 {
+		t.Fatalf("foreign key failures=%d err=%v", failures, err)
 	}
 }

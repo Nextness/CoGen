@@ -63,8 +63,7 @@ func validateCacheEntry(entry *CacheEntry) error {
 	return nil
 }
 
-// Upsert atomically replaces the response for one provider request and
-// extractor version. The stable row ID preserves references from run_cache_uses.
+// Upsert appends an immutable response version; existing run uses retain the exact response they observed.
 func (r *CacheEntryRepository) Upsert(entry *CacheEntry) (int64, error) {
 	if err := validateCacheEntry(entry); err != nil {
 		return 0, err
@@ -73,37 +72,24 @@ func (r *CacheEntryRepository) Upsert(entry *CacheEntry) (int64, error) {
 	if entry.PayloadArtifactID != nil {
 		payload = *entry.PayloadArtifactID
 	}
-	_, err := r.db.DB.Exec(`INSERT INTO cache_entries
-        (provider, namespace, request_fingerprint, response_status, payload_artifact_id, fetched_at, expires_at, extractor_version, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-        ON CONFLICT(provider, namespace, request_fingerprint, extractor_version) DO UPDATE SET
-          response_status=excluded.response_status,
-          payload_artifact_id=excluded.payload_artifact_id,
-          fetched_at=excluded.fetched_at,
-          expires_at=excluded.expires_at,
-          updated_at=datetime('now')`,
+	result, err := r.db.DB.Exec(`INSERT INTO cache_entries
+        (provider, namespace, request_fingerprint, response_status, payload_artifact_id, fetched_at, expires_at, extractor_version)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.Provider, entry.Namespace, entry.RequestFingerprint, entry.ResponseStatus,
 		payload, entry.FetchedAt, nullStr(entry.ExpiresAt), entry.ExtractorVersion)
 	if err != nil {
 		return 0, fmt.Errorf("upsert cache entry: %w", err)
 	}
-	var id int64
-	err = r.db.DB.QueryRow(`SELECT id FROM cache_entries
-        WHERE provider=? AND namespace=? AND request_fingerprint=? AND extractor_version=?`,
-		entry.Provider, entry.Namespace, entry.RequestFingerprint, entry.ExtractorVersion).Scan(&id)
-	if err != nil {
-		return 0, fmt.Errorf("find upserted cache entry: %w", err)
-	}
-	return id, nil
+	return result.LastInsertId()
 }
 
-// Get returns the exact versioned cache entry, regardless of expiry. Policy
+// Get returns the latest response for an exact request and extractor, regardless of expiry. Policy
 // execution decides whether an expired entry is stale or may be reused.
 func (r *CacheEntryRepository) Get(provider, namespace, fingerprint, extractorVersion string) (*CacheEntry, error) {
 	return r.get(`SELECT id, provider, namespace, request_fingerprint,
         response_status, payload_artifact_id, fetched_at, expires_at,
         extractor_version, created_at, updated_at FROM cache_entries
-        WHERE provider=? AND namespace=? AND request_fingerprint=? AND extractor_version=?`,
+        WHERE provider=? AND namespace=? AND request_fingerprint=? AND extractor_version=? ORDER BY id DESC LIMIT 1`,
 		provider, namespace, fingerprint, extractorVersion)
 }
 
@@ -116,7 +102,7 @@ func (r *CacheEntryRepository) GetGlobal(provider, namespace, fingerprint, extra
         FROM cache_entries ce JOIN run_cache_uses rcu ON rcu.cache_entry_id=ce.id
         WHERE rcu.cache_layer='global' AND ce.provider=? AND ce.namespace=?
           AND ce.request_fingerprint=? AND ce.extractor_version=?
-        ORDER BY rcu.id DESC LIMIT 1`, provider, namespace, fingerprint, extractorVersion)
+        ORDER BY ce.id DESC, rcu.id DESC LIMIT 1`, provider, namespace, fingerprint, extractorVersion)
 }
 
 // get executes a cache-entry query and returns its nullable payload and expiry fields.

@@ -420,3 +420,29 @@ func nullStrPtr(s *string) any {
 	}
 	return *s
 }
+
+// RecoverAbandoned atomically fails a running attempt and records recovery audit; the caller must hold exclusive pipeline ownership.
+func (r *PipelineRunRepository) RecoverAbandoned(ctx context.Context, runID int64) error {
+	if runID <= 0 {
+		return fmt.Errorf("recovery requires a positive run ID")
+	}
+	return r.db.withTx(ctx, func(tx *sql.Tx) error {
+		result, err := tx.ExecContext(ctx, "UPDATE pipeline_runs SET status='failed', finished_at=?, summary='abandoned attempt recovered by operator' WHERE id=? AND status='running'", timestamp(), runID)
+		if err != nil {
+			return err
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			return fmt.Errorf("run %d is not a running attempt", runID)
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE run_steps SET step_status='failed', finished_at=? WHERE pipeline_run_id=? AND step_status IN ('pending','running')", timestamp(), runID); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO audit_events (occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
+		VALUES (?, 'operator', ?, 'pipeline_run', ?, ?, '{"reason":"abandoned_attempt_recovery"}', ?)`, timestamp(), runID, fmt.Sprint(runID), manifest.AuditRunFailed, fmt.Sprintf("run-recovered-%d", runID))
+		return err
+	})
+}

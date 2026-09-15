@@ -5,6 +5,7 @@
 package workspace
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
@@ -15,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"analysis/article"
 	"analysis/bibtex"
 	"analysis/database"
 	"analysis/logging"
@@ -141,7 +141,7 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		}
 		for _, previous := range runs {
 			if previous.Status == string(manifest.AttemptRunning) {
-				return 0, fmt.Errorf("matching plan %d already has running attempt %d", existingPlan.ID, previous.ID)
+				return 0, fmt.Errorf("matching plan %d already has running attempt %d; after the writer stops, use analysis recover --db <path> --run-id <id>", existingPlan.ID, previous.ID)
 			}
 		}
 		if len(runs) > 0 && runs[len(runs)-1].Status == string(manifest.AttemptCompleted) && !forceFresh {
@@ -359,7 +359,13 @@ func loadCSVEntries(path, source string) ([]map[string]string, error) {
 	}
 	defer f.Close()
 
-	r := csv.NewReader(f)
+	reader := bufio.NewReader(f)
+	if prefix, _ := reader.Peek(3); string(prefix) == "\xef\xbb\xbf" {
+		if _, err := reader.Discard(3); err != nil {
+			return nil, err
+		}
+	}
+	r := csv.NewReader(reader)
 	r.LazyQuotes = true
 	records, err := r.ReadAll()
 	if err != nil {
@@ -380,7 +386,7 @@ func loadCSVEntries(path, source string) ([]map[string]string, error) {
 		entry := make(map[string]string, len(headers)+1)
 		for i, h := range headers {
 			if i < len(row) {
-				entry[h] = article.SanitizeText(strings.TrimSpace(row[i]))
+				entry[h] = row[i]
 			}
 		}
 		entry["article_source"] = source
@@ -407,7 +413,7 @@ func loadBibEntries(path, source string) ([]map[string]string, error) {
 	for _, entry := range lib {
 		m := make(map[string]string, len(entry))
 		for k, v := range entry {
-			m[k] = article.SanitizeText(v)
+			m[k] = v
 		}
 		entries = append(entries, m)
 	}

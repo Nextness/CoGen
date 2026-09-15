@@ -57,7 +57,7 @@ Source exports + SOMETHING configuration
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
-| `migrations/corpus.metadata/` | Metadata migrations V00001-V00027. |
+| `migrations/corpus.metadata/` | Metadata migrations V00001-V00028. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
@@ -96,7 +96,7 @@ The internal production import direction is intentionally narrow: foundation pac
 
 SQLite is the sole persisted pipeline record. Immutable `work_revisions`, ordered `authorships`, and ordered `reference_mentions` are the canonical corpus representation. `run_work_stages` records per-run, per-work outcomes independently from revision rows, so rejected work remains inspectable even though only valid normalized revisions enter the analysis-ready corpus.
 
-Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; global cache identity and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only bounded-mutation mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
+Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; immutable response versions, request identity, and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only bounded-mutation mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
 
 ## 5. Executable boundaries
 
@@ -257,7 +257,7 @@ Reference mentions are immutable and ordered within a revision. DOI resolution t
 
 Writable database opening creates the parent directory, configures SQLite foreign keys and a five-second busy timeout on every connection, enables WAL, and applies the configured chain. Tracking-table creation and each migration run behind `BEGIN IMMEDIATE`, which serializes schema changes across independent processes.
 
-The metadata chain is V00001-V00027 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
+The metadata chain is V00001-V00028 and the PDF chain is V00001-V00002. Migration execution follows SOMETHING iteration order, skips applied filenames, records checksums without later revalidation, does not use `previous` or `upgrade` to order execution, and has no downgrade runner even though files retain `-- ==DOWN==` sections. A migration may declare a verified equivalent earlier filename in `supersedes`; when that filename is already recorded, opening adopts the canonical filename in the same migration transaction without rerunning the SQL and retains both history rows.
 
 The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
@@ -515,3 +515,5 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 [AGENTS.md](../AGENTS.md) is the entry point, this document owns system architecture, [STANDARDS.md](STANDARDS.md) owns normative change rules, [DESIGN.md](DESIGN.md) owns frontend behavior and visual contracts, [CSS-REFERENCE.md](CSS-REFERENCE.md) owns active styles, [FRONTEND-CODE-STYLE-GUIDE.md](FRONTEND-CODE-STYLE-GUIDE.md) owns frontend code style and naming, [APP-USAGE.md](APP-USAGE.md) owns user experience and operating expectations, [PROJECT-USAGE.md](PROJECT-USAGE.md) owns developer and operator workflows, [PROJECT_CATALOG.md](PROJECT_CATALOG.md) is generated source navigation, [something.spec.md](something.spec.md) owns the language, and [DOC-STATE.md](DOC-STATE.md) records reviewed documentation hashes and dependency guidance.
 
 `doccheck check` validates local links, exact obsolete references, migration configuration and documented boundaries, single-line Markdown, catalog freshness, complete maintained declaration descriptions, and acknowledged documentation state. `doccheck catalog update` changes only the generated project-catalog region. `doccheck state update` changes only the generated hash region and is run after affected documents have been reviewed.
+
+Pipeline execution holds an exclusive operating-system lock on the metadata file, released automatically on process exit. SIGINT and SIGTERM cancel provider requests and finalize the attempt as failed. `analysis recover --db <path> --run-id <id>` acquires the same lock and atomically marks an abandoned running attempt failed with operator audit evidence; it refuses active pipeline ownership and does not migrate the database. Pipeline execution and recovery support Linux, macOS, and BSD systems with `flock`.

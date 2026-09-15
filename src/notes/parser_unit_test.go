@@ -37,7 +37,7 @@ func TestParseReportsUTF16Diagnostics(t *testing.T) {
 
 // TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable.
 func TestParseRejectsUnsafeAndMalformedInput(t *testing.T) {
-	for _, body := range []string{"[[ext:javascript:alert(1)]]", "[[pdf:page=0]]", "[[unknown:value]]", "[[note:1\\q]]", "```\nunclosed", "| a | b |\n| wrong | shape |"} {
+	for _, body := range []string{"[[ext:javascript:alert(1)]]", "[[pdf:page=0]]", "[[unknown:value]]", "[[note:1\\q]]", "```\nunclosed", "| a | b |\n| --- | --- |\n| missing |"} {
 		if document := Parse(body); len(document.Errors) == 0 {
 			t.Errorf("Parse(%q) accepted malformed input", body)
 		}
