@@ -313,6 +313,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity`](../src/database/cache_integration_test.go#L126) | test | 126-207 | `func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.T)` | TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity verifies concurrent database instances preserve cache and attempt integrity. |
 | [`TestImmutableCacheMigrationPreservesHistory`](../src/database/cache_integration_test.go#L210) | test | 210-264 | `func TestImmutableCacheMigrationPreservesHistory(t *testing.T)` | TestImmutableCacheMigrationPreservesHistory verifies V00028 preserves legacy IDs, payloads, and foreign keys during a real upgrade. |
 
+### [`src/database/characterization_integration_test.go`](../src/database/characterization_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L20) | test | 20-109 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
+| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L114) | test | 114-224 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
+| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L228) | test | 228-355 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
+| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L359) | test | 359-561 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
+| [`TestCharacterizationReviewCompareAndSwapAndReplay`](../src/database/characterization_integration_test.go#L566) | test | 566-634 | `func TestCharacterizationReviewCompareAndSwapAndReplay(t *testing.T)` | TestCharacterizationReviewCompareAndSwapAndReplay verifies stale expected versions conflict, identical writes report no change, and heads move only through the affected-row compare-and-swap. |
+| [`TestCharacterizationContextCancellation`](../src/database/characterization_integration_test.go#L638) | test | 638-672 | `func TestCharacterizationContextCancellation(t *testing.T)` | TestCharacterizationContextCancellation verifies repository reads and transaction-owned writes propagate a canceled context and leave no partial rows. |
+| [`TestCharacterizationTransactionRollback`](../src/database/characterization_integration_test.go#L676) | test | 676-737 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
+| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L741) | test | 741-793 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
+
 ### [`src/database/config.go`](../src/database/config.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1479,6 +1492,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact`](../src/server/audit_integration_test.go#L145) | test | 145-187 | `func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *testing.T)` | TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact verifies the complete bounded inventory contract. |
 | [`TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence`](../src/server/audit_integration_test.go#L190) | test | 190-243 | `func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T)` | TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence verifies category support, first-page metadata, and PDF membership isolation. |
 | [`TestAuditRecordedDataIsLazyBoundedAndPrivate`](../src/server/audit_integration_test.go#L246) | test | 246-301 | `func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T)` | TestAuditRecordedDataIsLazyBoundedAndPrivate verifies structured review filtering and the explicit payload endpoint. |
+
+### [`src/server/characterization_integration_test.go`](../src/server/characterization_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestCharacterizationRequestContextCancellationDoesNotMutate`](../src/server/characterization_integration_test.go#L18) | test | 18-38 | `func TestCharacterizationRequestContextCancellationDoesNotMutate(t *testing.T)` | TestCharacterizationRequestContextCancellationDoesNotMutate verifies a canceled request context fails the mutation before any row is committed. |
+
+### [`src/server/characterization_unit_test.go`](../src/server/characterization_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestCharacterizationQueryBudgetUnattachedAndDisabledContext`](../src/server/characterization_unit_test.go#L14) | test | 14-30 | `func TestCharacterizationQueryBudgetUnattachedAndDisabledContext(t *testing.T)` | TestCharacterizationQueryBudgetUnattachedAndDisabledContext verifies a missing budget context is free and a zero limit disables accounting entirely. |
 
 ### [`src/server/corpus.go`](../src/server/corpus.go)
 
