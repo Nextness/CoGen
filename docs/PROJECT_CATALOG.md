@@ -760,6 +760,34 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestNullStr`](../src/database/sql_helpers_unit_test.go#L11) | test | 11-18 | `func TestNullStr(t *testing.T)` | TestNullStr verifies null str. |
 | [`TestNullInt`](../src/database/sql_helpers_unit_test.go#L21) | test | 21-28 | `func TestNullInt(t *testing.T)` | TestNullInt verifies null int. |
 
+### [`src/database/sqlcprobe/probe.go`](../src/database/sqlcprobe/probe.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Record`](../src/database/sqlcprobe/probe.go#L16) | struct | 16-26 | `type Record struct { ID int64 Provider string Namespace string RequestFingerprint string ResponseStatus int PayloadArtifactID *int64 FetchedAt string ExpiresAt string ExtractorVersion string }` | Record is one probe cache-entry projection mapped from generated rows. |
+| [`Entry`](../src/database/sqlcprobe/probe.go#L29) | struct | 29-38 | `type Entry struct { Provider string Namespace string RequestFingerprint string ResponseStatus int PayloadArtifactID *int64 ExpiresAt string FetchedAt string ExtractorVersion string }` | Entry is one probe cache-entry write with nullable payload and expiry input. |
+| [`InsertResult`](../src/database/sqlcprobe/probe.go#L41) | struct | 41-44 | `type InsertResult struct { ID int64 RowsAffected int64 }` | InsertResult reports the identifier and affected-row count of one generated insert. |
+| [`Probe`](../src/database/sqlcprobe/probe.go#L47) | struct | 47-50 | `type Probe struct { db *sql.DB queries *generated.Queries }` | Probe exercises generated query features against one configured connection. |
+| [`New`](../src/database/sqlcprobe/probe.go#L53) | function | 53-55 | `func New(db *sql.DB) *Probe` | New returns a probe over an already configured connection. |
+| [`(*Probe).InsertEntry`](../src/database/sqlcprobe/probe.go#L58) | method | 58-72 | `func (*Probe).InsertEntry(ctx context.Context, entry Entry) (InsertResult, error)` | InsertEntry inserts one probe entry and inspects the generated insert result. |
+| [`(*Probe).LatestEntry`](../src/database/sqlcprobe/probe.go#L75) | method | 75-85 | `func (*Probe).LatestEntry(ctx context.Context, provider, namespace string) (*Record, error)` | LatestEntry returns the latest probe entry for an exact provider and namespace. |
+| [`(*Probe).ListEntries`](../src/database/sqlcprobe/probe.go#L88) | method | 88-98 | `func (*Probe).ListEntries(ctx context.Context, provider string) ([]Record, error)` | ListEntries returns probe entries for a provider in explicit identifier order. |
+| [`(*Probe).InsertPair`](../src/database/sqlcprobe/probe.go#L101) | method | 101-118 | `func (*Probe).InsertPair(ctx context.Context, first, second Entry) error` | InsertPair commits two probe entries in one generated transaction. |
+| [`insertParams`](../src/database/sqlcprobe/probe.go#L121) | function | 121-132 | `func insertParams(entry Entry) generated.InsertProbeEntryParams` | insertParams maps one probe entry into generated insert parameters. |
+| [`recordFromGenerated`](../src/database/sqlcprobe/probe.go#L135) | function | 135-152 | `func recordFromGenerated(row generated.CacheEntry) Record` | recordFromGenerated maps one generated probe row into an application record. |
+| [`nullableInt64`](../src/database/sqlcprobe/probe.go#L155) | function | 155-160 | `func nullableInt64(value *int64) sql.NullInt64` | nullableInt64 maps an optional artifact identifier into a generated null wrapper. |
+| [`nullableString`](../src/database/sqlcprobe/probe.go#L163) | function | 163-168 | `func nullableString(value string) sql.NullString` | nullableString maps optional text into a generated null wrapper. |
+
+### [`src/database/sqlcprobe/probe_integration_test.go`](../src/database/sqlcprobe/probe_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`openProbe`](../src/database/sqlcprobe/probe_integration_test.go#L19) | function | 19-28 | `func openProbe(t *testing.T) (*sqlcprobe.Probe, *database.Database)` | openProbe returns a probe over a database created by the production migration runner. |
+| [`probeEntry`](../src/database/sqlcprobe/probe_integration_test.go#L31) | function | 31-40 | `func probeEntry(fingerprint string) sqlcprobe.Entry` | probeEntry returns one complete probe entry for a request fingerprint. |
+| [`TestProbeInsertReportsResultAndMapsNullableOutput`](../src/database/sqlcprobe/probe_integration_test.go#L43) | test | 43-82 | `func TestProbeInsertReportsResultAndMapsNullableOutput(t *testing.T)` | TestProbeInsertReportsResultAndMapsNullableOutput verifies named parameters, nullable input and output, and the inspected insert result. |
+| [`TestProbeListEntriesReturnsDeterministicOrder`](../src/database/sqlcprobe/probe_integration_test.go#L85) | test | 85-110 | `func TestProbeListEntriesReturnsDeterministicOrder(t *testing.T)` | TestProbeListEntriesReturnsDeterministicOrder verifies the generated many-row result follows explicit ordering and preserves an empty slice. |
+| [`TestProbeInsertPairCommitsAndRollsBack`](../src/database/sqlcprobe/probe_integration_test.go#L113) | test | 113-139 | `func TestProbeInsertPairCommitsAndRollsBack(t *testing.T)` | TestProbeInsertPairCommitsAndRollsBack verifies Queries.WithTx executes on a transaction and rolls back a failed pair. |
+
 ### [`src/database/term_matches.go`](../src/database/term_matches.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
