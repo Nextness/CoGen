@@ -10,6 +10,7 @@ sql:
     schema: "../src/database/cache/schema/definitions.sql"
     queries:
       - "../src/database/cache/schema/cache.sql"
+      - "../src/database/cache/schema/cache_use.sql"
     gen:
       go:
         package: "sql"
