@@ -1,0 +1,22 @@
+# Family-local sqlc inputs for typed query generation.
+# This configuration is code generation only: it never feeds runtime migrations
+# or SOMETHING database versioning. Paths resolve relative to this file, so run
+# every command from the repository root with -f config/sqlc.yaml.
+# Add one SQLite generation block per table family as its schema and query
+# files land under src/database/<family>/schema/.
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "../src/database/cache/schema/definitions.sql"
+    queries:
+      - "../src/database/cache/schema/cache.sql"
+    gen:
+      go:
+        package: "sql"
+        out: "../src/database/cache/internal/sql"
+        sql_package: "database/sql"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_exported_queries: false
+        emit_interface: false
+        omit_unused_structs: true
