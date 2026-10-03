@@ -17,7 +17,10 @@ type Store struct {
 	queries *generated.Queries
 }
 
-// New returns a cache family store over an already configured connection.
+// New returns a cache family store over an already configured connection. It
+// only binds the generated queries to db; it does not build a SQLite URI,
+// alter pragmas, open or close the connection, load migration configuration,
+// or run migrations.
 func New(db *sql.DB) *Store {
 	return &Store{queries: generated.New(db)}
 }

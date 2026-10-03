@@ -309,14 +309,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`Store`](../src/database/cache/cache.go#L16) | struct | 16-18 | `type Store struct { queries *generated.Queries }` | Store binds the generated cache queries to one already configured connection. |
-| [`New`](../src/database/cache/cache.go#L21) | function | 21-23 | `func New(db *sql.DB) *Store` | New returns a cache family store over an already configured connection. |
-| [`(*Store).AppendEntry`](../src/database/cache/cache.go#L27) | method | 27-45 | `func (*Store).AppendEntry(ctx context.Context, entry *Entry) (int64, error)` | AppendEntry validates and appends one immutable response version; existing run uses retain the exact response they observed. |
-| [`(*Store).LatestEntry`](../src/database/cache/cache.go#L50) | method | 50-64 | `func (*Store).LatestEntry(ctx context.Context, key Key) (*Entry, error)` | LatestEntry returns the latest response for an exact request and extractor, regardless of expiry. Policy execution decides whether an expired entry is stale or may be reused. |
-| [`(*Store).GlobalEntry`](../src/database/cache/cache.go#L68) | method | 68-82 | `func (*Store).GlobalEntry(ctx context.Context, key Key) (*Entry, error)` | GlobalEntry returns an entry only after a run explicitly published it to the global layer. Entries written only to active_run remain private to that run. |
-| [`validateEntry`](../src/database/cache/cache.go#L87) | function | 87-109 | `func validateEntry(entry *Entry) error` | validateEntry enforces provider, namespace, fingerprint, status, and payload invariants before persistence. Fields are checked in a fixed order so the reported missing field is deterministic. |
-| [`entryFromGenerated`](../src/database/cache/cache.go#L112) | function | 112-131 | `func entryFromGenerated(row generated.CacheEntry) *Entry` | entryFromGenerated maps one generated cache row into an application entry. |
-| [`nullableInt64`](../src/database/cache/cache.go#L134) | function | 134-139 | `func nullableInt64(value *int64) sql.NullInt64` | nullableInt64 maps an optional artifact identifier into a generated null wrapper. |
-| [`nullableString`](../src/database/cache/cache.go#L142) | function | 142-147 | `func nullableString(value string) sql.NullString` | nullableString maps optional text into a generated null wrapper. |
+| [`New`](../src/database/cache/cache.go#L24) | function | 24-26 | `func New(db *sql.DB) *Store` | New returns a cache family store over an already configured connection. It only binds the generated queries to db; it does not build a SQLite URI, alter pragmas, open or close the connection, load migration configuration, or run migrations. |
+| [`(*Store).AppendEntry`](../src/database/cache/cache.go#L30) | method | 30-48 | `func (*Store).AppendEntry(ctx context.Context, entry *Entry) (int64, error)` | AppendEntry validates and appends one immutable response version; existing run uses retain the exact response they observed. |
+| [`(*Store).LatestEntry`](../src/database/cache/cache.go#L53) | method | 53-67 | `func (*Store).LatestEntry(ctx context.Context, key Key) (*Entry, error)` | LatestEntry returns the latest response for an exact request and extractor, regardless of expiry. Policy execution decides whether an expired entry is stale or may be reused. |
+| [`(*Store).GlobalEntry`](../src/database/cache/cache.go#L71) | method | 71-85 | `func (*Store).GlobalEntry(ctx context.Context, key Key) (*Entry, error)` | GlobalEntry returns an entry only after a run explicitly published it to the global layer. Entries written only to active_run remain private to that run. |
+| [`validateEntry`](../src/database/cache/cache.go#L90) | function | 90-112 | `func validateEntry(entry *Entry) error` | validateEntry enforces provider, namespace, fingerprint, status, and payload invariants before persistence. Fields are checked in a fixed order so the reported missing field is deterministic. |
+| [`entryFromGenerated`](../src/database/cache/cache.go#L115) | function | 115-134 | `func entryFromGenerated(row generated.CacheEntry) *Entry` | entryFromGenerated maps one generated cache row into an application entry. |
+| [`nullableInt64`](../src/database/cache/cache.go#L137) | function | 137-142 | `func nullableInt64(value *int64) sql.NullInt64` | nullableInt64 maps an optional artifact identifier into a generated null wrapper. |
+| [`nullableString`](../src/database/cache/cache.go#L145) | function | 145-150 | `func nullableString(value string) sql.NullString` | nullableString maps optional text into a generated null wrapper. |
 
 ### [`src/database/cache/cache_integration_test.go`](../src/database/cache/cache_integration_test.go)
 
@@ -353,6 +353,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Store).FindAnyEntry`](../src/database/cache/cache_use.go#L71) | method | 71-87 | `func (*Store).FindAnyEntry(ctx context.Context, runID int64, key Key) (*Entry, error)` | FindAnyEntry returns the latest exact cache key used by a prior run. Named prior-run policy reads use this because their source layer is provenance, not a restriction on how the source run originally obtained the response. |
 | [`validateUse`](../src/database/cache/cache_use.go#L90) | function | 90-95 | `func validateUse(use *Use) error` | validateUse enforces run, entry, layer, and outcome invariants before persistence. |
 | [`useFromGenerated`](../src/database/cache/cache_use.go#L98) | function | 98-107 | `func useFromGenerated(row generated.RunCacheUse) *Use` | useFromGenerated maps one generated run-cache-use row into an application use. |
+
+### [`src/database/cache/constructor_integration_test.go`](../src/database/cache/constructor_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/cache/constructor_integration_test.go#L19) | test | 19-79 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
 
 ### [`src/database/cache/parity_integration_test.go`](../src/database/cache/parity_integration_test.go)
 
