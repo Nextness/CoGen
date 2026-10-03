@@ -136,9 +136,8 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	corpusID := ""
 	reviewWritable := false
 	if metadataReadable && s.writeDB != nil {
-		var queryOnly int
-		if err := s.writeDB.DB.PingContext(ctx); err == nil {
-			if err := s.writeDB.DB.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err == nil && queryOnly == 0 {
+		if err := s.writeDB.PingContext(ctx); err == nil {
+			if writable, err := s.writeDB.Writable(ctx); err == nil && writable {
 				var reviewErr error
 				corpusID, reviewErr = s.writeDB.Reviews.CorpusID(ctx)
 				reviewWritable = reviewErr == nil

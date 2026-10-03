@@ -8,6 +8,11 @@ cache/
 artifacts/
 intermidiate/
 
+# The sqlc cache table family lives under src/database/cache/; keep it tracked
+# while the runtime cache/ directory stays ignored.
+!src/database/cache/
+!src/database/cache/**
+
 # Build artifacts
 build/
 src/analysis

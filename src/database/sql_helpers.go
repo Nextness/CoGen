@@ -1,7 +1,8 @@
-// sql_helpers.go provides shared nullable-value helpers (nullStr, nullInt)
-// and JSON marshalling utilities used consistently across all database
-// repositories.
+// sql_helpers.go provides shared nullable-value and timestamp helpers used
+// consistently across all database repositories.
 package database
+
+import "time"
 
 // nullStr represents optional text consistently across workspace repositories.
 func nullStr(value string) *string {
@@ -17,4 +18,9 @@ func nullInt(value int64) any {
 		return nil
 	}
 	return value
+}
+
+// timestamp returns the current UTC time in the repository's persisted format.
+func timestamp() string {
+	return time.Now().UTC().Format("2006-01-02 15:04:05")
 }
