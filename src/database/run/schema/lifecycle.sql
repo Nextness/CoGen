@@ -52,6 +52,13 @@ SET
     trash_reason = NULL
 WHERE id = sqlc.arg(id);
 
+-- name: GetRunVisibility :one
+SELECT
+    status,
+    visibility_state
+FROM pipeline_runs
+WHERE id = sqlc.arg(id);
+
 -- name: RecoverRun :execresult
 UPDATE pipeline_runs
 SET

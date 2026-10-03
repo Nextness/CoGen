@@ -71,6 +71,26 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) error {
 	return err
 }
 
+const getRunVisibility = `-- name: GetRunVisibility :one
+SELECT
+    status,
+    visibility_state
+FROM pipeline_runs
+WHERE id = ?1
+`
+
+type GetRunVisibilityRow struct {
+	Status          string
+	VisibilityState string
+}
+
+func (q *Queries) GetRunVisibility(ctx context.Context, id int64) (GetRunVisibilityRow, error) {
+	row := q.db.QueryRowContext(ctx, getRunVisibility, id)
+	var i GetRunVisibilityRow
+	err := row.Scan(&i.Status, &i.VisibilityState)
+	return i, err
+}
+
 const insertAttempt = `-- name: InsertAttempt :execresult
 INSERT INTO pipeline_runs (
     step,

@@ -50,3 +50,50 @@ func (q *Queries) InsertRunRecoveryAudit(ctx context.Context, arg InsertRunRecov
 	)
 	return err
 }
+
+const insertRunVisibilityAudit = `-- name: InsertRunVisibilityAudit :exec
+INSERT INTO audit_events (
+    occurred_at,
+    actor,
+    pipeline_run_id,
+    entity_type,
+    entity_id,
+    action,
+    before_json,
+    after_json,
+    metadata_json
+) VALUES (
+    ?1,
+    'local_user',
+    ?2,
+    'pipeline_run',
+    ?3,
+    ?4,
+    ?5,
+    ?6,
+    ?7
+)
+`
+
+type InsertRunVisibilityAuditParams struct {
+	OccurredAt    string
+	PipelineRunID sql.NullInt64
+	EntityID      string
+	Action        string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
+	MetadataJson  sql.NullString
+}
+
+func (q *Queries) InsertRunVisibilityAudit(ctx context.Context, arg InsertRunVisibilityAuditParams) error {
+	_, err := q.db.ExecContext(ctx, insertRunVisibilityAudit,
+		arg.OccurredAt,
+		arg.PipelineRunID,
+		arg.EntityID,
+		arg.Action,
+		arg.BeforeJson,
+		arg.AfterJson,
+		arg.MetadataJson,
+	)
+	return err
+}

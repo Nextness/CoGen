@@ -5,8 +5,12 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"testing"
 )
+
+// nanoTimestampPattern matches RFC3339Nano text with an optional fractional second.
+var nanoTimestampPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$`)
 
 // TestRunVisibilityLifecycle verifies that Home can trash and restore terminal runs without deleting their immutable evidence.
 func TestRunVisibilityLifecycle(t *testing.T) {
@@ -89,6 +93,46 @@ func TestRunVisibilityValidation(t *testing.T) {
 	status, body := mutationJSON(t, handler, http.MethodPut, endpoint, `{"visibility_state":"trashed","reason":"test"}`, "")
 	if status != http.StatusConflict || body["error"].(map[string]any)["code"] != "run_active" {
 		t.Fatalf("running run lifecycle: status=%d body=%v", status, body)
+	}
+}
+
+// TestRunVisibilityAuditEvidence verifies the endpoint persists exact audit evidence with nanosecond timestamp precision.
+func TestRunVisibilityAuditEvidence(t *testing.T) {
+	path, runID, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	handler := viewer.Handler()
+	endpoint := fmt.Sprintf("/api/runs/%d/visibility", runID)
+
+	status, _ := mutationJSON(t, handler, http.MethodPut, endpoint, `{"visibility_state":"trashed","reason":"Evidence check"}`, "")
+	if status != http.StatusOK {
+		t.Fatalf("trash run status=%d", status)
+	}
+	var trashedAt string
+	if err := viewer.writeDB.DB.QueryRow("SELECT trashed_at FROM pipeline_runs WHERE id=?", runID).Scan(&trashedAt); err != nil {
+		t.Fatal(err)
+	}
+	var occurredAt, actor, entityType, entityID, action, beforeJSON, afterJSON, metadataJSON string
+	if err := viewer.writeDB.DB.QueryRow(`SELECT occurred_at, actor, entity_type, entity_id, action,
+		before_json, after_json, metadata_json
+		FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'`, runID).Scan(
+		&occurredAt, &actor, &entityType, &entityID, &action, &beforeJSON, &afterJSON, &metadataJSON); err != nil {
+		t.Fatal(err)
+	}
+	if occurredAt != trashedAt {
+		t.Fatalf("audit occurred_at %q != trashed_at %q", occurredAt, trashedAt)
+	}
+	if !nanoTimestampPattern.MatchString(trashedAt) {
+		t.Fatalf("trashed_at %q does not use RFC3339Nano precision", trashedAt)
+	}
+	if actor != "local_user" || entityType != "pipeline_run" || entityID != fmt.Sprint(runID) || action != "run_trashed" {
+		t.Fatalf("audit identity = %q %q %q %q", actor, entityType, entityID, action)
+	}
+	if beforeJSON != `{"visibility_state":"active"}` || afterJSON != `{"visibility_state":"trashed"}` || metadataJSON != `{"source":"local_viewer"}` {
+		t.Fatalf("audit state = %q %q %q", beforeJSON, afterJSON, metadataJSON)
 	}
 }
 

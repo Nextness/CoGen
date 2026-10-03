@@ -5,6 +5,12 @@ package run
 
 import "fmt"
 
+// Visibility state values for the reversible run lifecycle.
+const (
+	VisibilityActive  = "active"
+	VisibilityTrashed = "trashed"
+)
+
 // Run represents one pipeline_runs row: the lifecycle, plan linkage, and
 // visibility state of a single pipeline attempt.
 type Run struct {
@@ -122,4 +128,17 @@ type StepArtifactInput struct {
 type StepReuseInput struct {
 	StepID          int64
 	ReusedFromRunID int64
+}
+
+// VisibilityInput requests one reversible visibility transition for a run.
+type VisibilityInput struct {
+	RunID           int64
+	VisibilityState string
+	Reason          string
+}
+
+// VisibilityResult reports the committed visibility state and whether it changed.
+type VisibilityResult struct {
+	VisibilityState string
+	Changed         bool
 }

@@ -7,6 +7,7 @@ package run
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,12 @@ import (
 	generated "analysis/database/run/internal/sql"
 	"analysis/manifest"
 )
+
+// visibilityReasonLimit bounds locally supplied lifecycle explanations.
+const visibilityReasonLimit = 1000
+
+// ErrRunActive reports that a running attempt cannot change visibility.
+var ErrRunActive = errors.New("a running attempt cannot be moved to or restored from trash")
 
 // StartAttempt records the start of a pipeline run attempt linked to an
 // execution plan. It atomically computes the next attempt_number for the given
@@ -132,6 +139,73 @@ func (s *Store) Trash(ctx context.Context, runID int64, reason string) error {
 // Restore sets a trashed pipeline run back to active visibility.
 func (s *Store) Restore(ctx context.Context, runID int64) error {
 	return s.queries.RestoreRun(ctx, runID)
+}
+
+// UpdateVisibility validates the requested state, rejects a running attempt,
+// updates the run, and appends matching audit evidence in one transaction. A
+// run already in the requested state reports Changed=false without writing.
+// An absent run returns nil, nil.
+func (s *Store) UpdateVisibility(ctx context.Context, input VisibilityInput) (*VisibilityResult, error) {
+	if input.VisibilityState != VisibilityActive && input.VisibilityState != VisibilityTrashed {
+		return nil, fmt.Errorf("visibility_state must be active or trashed")
+	}
+	if len([]byte(input.Reason)) > visibilityReasonLimit {
+		return nil, fmt.Errorf("reason must not exceed 1000 UTF-8 bytes")
+	}
+
+	var result *VisibilityResult
+	err := s.withTx(ctx, func(queries *generated.Queries) error {
+		current, err := queries.GetRunVisibility(ctx, input.RunID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if current.VisibilityState == input.VisibilityState {
+			result = &VisibilityResult{VisibilityState: current.VisibilityState, Changed: false}
+			return nil
+		}
+		if current.Status == string(manifest.AttemptRunning) {
+			return ErrRunActive
+		}
+
+		occurredAt := time.Now().UTC().Format(time.RFC3339Nano)
+		action := manifest.AuditRunRestored
+		if input.VisibilityState == VisibilityTrashed {
+			action = manifest.AuditRunTrashed
+			if err := queries.TrashRun(ctx, generated.TrashRunParams{
+				TrashedAt:   sql.NullString{String: occurredAt, Valid: true},
+				TrashReason: sql.NullString{String: input.Reason, Valid: true},
+				ID:          input.RunID,
+			}); err != nil {
+				return err
+			}
+		} else if err := queries.RestoreRun(ctx, input.RunID); err != nil {
+			return err
+		}
+
+		beforeJSON, _ := json.Marshal(map[string]any{"visibility_state": current.VisibilityState})
+		afterJSON, _ := json.Marshal(map[string]any{"visibility_state": input.VisibilityState})
+		metadataJSON, _ := json.Marshal(map[string]any{"source": "local_viewer"})
+		if err := queries.InsertRunVisibilityAudit(ctx, generated.InsertRunVisibilityAuditParams{
+			OccurredAt:    occurredAt,
+			PipelineRunID: nullableInt64(input.RunID),
+			EntityID:      fmt.Sprint(input.RunID),
+			Action:        string(action),
+			BeforeJson:    sql.NullString{String: string(beforeJSON), Valid: true},
+			AfterJson:     sql.NullString{String: string(afterJSON), Valid: true},
+			MetadataJson:  sql.NullString{String: string(metadataJSON), Valid: true},
+		}); err != nil {
+			return err
+		}
+		result = &VisibilityResult{VisibilityState: input.VisibilityState, Changed: true}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // RecoverAbandoned atomically fails a running attempt and records recovery
