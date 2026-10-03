@@ -603,6 +603,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestPurgeEligibilityNonexistentRun`](../src/database/pipeline_runs_integration_test.go#L533) | test | 533-544 | `func TestPurgeEligibilityNonexistentRun(t *testing.T)` | TestPurgeEligibilityNonexistentRun verifies that checking eligibility for a non-existent run returns an error. |
 | [`TestPurgeEligibilitySelfReuseDoesNotBlock`](../src/database/pipeline_runs_integration_test.go#L548) | test | 548-568 | `func TestPurgeEligibilitySelfReuseDoesNotBlock(t *testing.T)` | TestPurgeEligibilitySelfReuseDoesNotBlock verifies that a self-reuse record (a step reusing from the same run) does not falsely make the run ineligible. |
 
+### [`src/database/platform_contract_integration_test.go`](../src/database/platform_contract_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`metadataMigrationEntries`](../src/database/platform_contract_integration_test.go#L16) | function | 16-27 | `func metadataMigrationEntries(t *testing.T) []migrationEntry` | metadataMigrationEntries resolves the production metadata migration chain used by the platform contract tests. |
+| [`TestOpenConfiguredConnectionPragmas`](../src/database/platform_contract_integration_test.go#L30) | test | 30-55 | `func TestOpenConfiguredConnectionPragmas(t *testing.T)` | TestOpenConfiguredConnectionPragmas verifies writable connections retain WAL, foreign-key, and busy-timeout settings. |
+| [`TestOpenExistingConnectionContract`](../src/database/platform_contract_integration_test.go#L58) | test | 58-86 | `func TestOpenExistingConnectionContract(t *testing.T)` | TestOpenExistingConnectionContract verifies existing-only connections stay writable with the shared foreign-key and busy-timeout pragmas. |
+| [`TestOpenExistingWithDriverRejectsMissingDatabase`](../src/database/platform_contract_integration_test.go#L89) | test | 89-100 | `func TestOpenExistingWithDriverRejectsMissingDatabase(t *testing.T)` | TestOpenExistingWithDriverRejectsMissingDatabase verifies driver-selectable existing-only opens never create databases or accept invalid paths. |
+| [`TestSchemaVersionContract`](../src/database/platform_contract_integration_test.go#L103) | test | 103-163 | `func TestSchemaVersionContract(t *testing.T)` | TestSchemaVersionContract verifies schema-version reporting returns the last applied migration and an empty version without error when none has been recorded. |
+| [`TestConcurrentOpenAppliesMigrationsOnce`](../src/database/platform_contract_integration_test.go#L166) | test | 166-197 | `func TestConcurrentOpenAppliesMigrationsOnce(t *testing.T)` | TestConcurrentOpenAppliesMigrationsOnce verifies the migration lock keeps simultaneous openers from applying or recording migrations twice. |
+
 ### [`src/database/reference_mentions.go`](../src/database/reference_mentions.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1996,9 +2007,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestRunContextReturnsCanonicalAncestryAndLifecycle`](../src/server/server_integration_test.go#L38) | test | 38-94 | `func TestRunContextReturnsCanonicalAncestryAndLifecycle(t *testing.T)` | TestRunContextReturnsCanonicalAncestryAndLifecycle verifies one run determines every visible parent identifier. |
 | [`TestHealthReportsIndependentCapabilities`](../src/server/server_integration_test.go#L97) | test | 97-120 | `func TestHealthReportsIndependentCapabilities(t *testing.T)` | TestHealthReportsIndependentCapabilities verifies absent PDF storage is not reported as readable. |
 | [`TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase`](../src/server/server_integration_test.go#L123) | test | 123-144 | `func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T)` | TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase verifies open is read only and does not create missing database. |
-| [`TestAPIWorkspaceDiscoveryAndSafePagination`](../src/server/server_integration_test.go#L147) | test | 147-170 | `func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T)` | TestAPIWorkspaceDiscoveryAndSafePagination verifies api workspace discovery and safe pagination. |
-| [`TestDiskServedFrontendContract`](../src/server/server_integration_test.go#L173) | test | 173-355 | `func TestDiskServedFrontendContract(t *testing.T)` | TestDiskServedFrontendContract verifies frontend assets served from a filesystem directory. |
-| [`TestHandlerServesFilesystemAssets`](../src/server/server_integration_test.go#L358) | test | 358-375 | `func TestHandlerServesFilesystemAssets(t *testing.T)` | TestHandlerServesFilesystemAssets verifies handler serves filesystem assets. |
+| [`TestReviewWriteConnectionIsWritableWithExistingPragmas`](../src/server/server_integration_test.go#L147) | test | 147-170 | `func TestReviewWriteConnectionIsWritableWithExistingPragmas(t *testing.T)` | TestReviewWriteConnectionIsWritableWithExistingPragmas verifies the viewer's review-write connection keeps the existing-only mode and shared pragmas. |
+| [`TestAPIWorkspaceDiscoveryAndSafePagination`](../src/server/server_integration_test.go#L173) | test | 173-196 | `func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T)` | TestAPIWorkspaceDiscoveryAndSafePagination verifies api workspace discovery and safe pagination. |
+| [`TestDiskServedFrontendContract`](../src/server/server_integration_test.go#L199) | test | 199-381 | `func TestDiskServedFrontendContract(t *testing.T)` | TestDiskServedFrontendContract verifies frontend assets served from a filesystem directory. |
+| [`TestHandlerServesFilesystemAssets`](../src/server/server_integration_test.go#L384) | test | 384-401 | `func TestHandlerServesFilesystemAssets(t *testing.T)` | TestHandlerServesFilesystemAssets verifies handler serves filesystem assets. |
 
 ### [`src/server/server_unit_test.go`](../src/server/server_unit_test.go)
 

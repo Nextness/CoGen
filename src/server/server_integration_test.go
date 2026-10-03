@@ -143,6 +143,32 @@ func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T) {
 	}
 }
 
+// TestReviewWriteConnectionIsWritableWithExistingPragmas verifies the viewer's review-write connection keeps the existing-only mode and shared pragmas.
+func TestReviewWriteConnectionIsWritableWithExistingPragmas(t *testing.T) {
+	path, _, _, _ := viewerFixture(t)
+	viewer, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	if _, err := viewer.writeDB.DB.Exec("CREATE TABLE contract_probe (id INTEGER)"); err != nil {
+		t.Fatalf("review-write connection rejected a schema write: %v", err)
+	}
+	if _, err := viewer.writeDB.DB.Exec("DROP TABLE contract_probe"); err != nil {
+		t.Fatal(err)
+	}
+	var foreignKeys, busyTimeout int
+	if err := viewer.writeDB.DB.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		t.Fatal(err)
+	}
+	if err := viewer.writeDB.DB.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+		t.Fatal(err)
+	}
+	if foreignKeys != 1 || busyTimeout != 5000 {
+		t.Fatalf("review-write pragmas foreign_keys=%d busy_timeout=%d, want 1 and 5000", foreignKeys, busyTimeout)
+	}
+}
+
 // TestAPIWorkspaceDiscoveryAndSafePagination verifies api workspace discovery and safe pagination.
 func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T) {
 	path, runID, _, _ := viewerFixture(t)
