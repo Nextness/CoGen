@@ -51,6 +51,11 @@ coverage_policy: coverage_policy_config = {
             minimum = 80.0,
             rationale = "Generated run queries are exercised through the handwritten family integration, concurrency, and lifecycle tests."
         },
+        ["analysis/database/source"] => { minimum =  90.0 },
+        ["analysis/database/source/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated source queries are exercised through the handwritten family integration and parity tests."
+        },
         ["analysis/database/sqlcprobe"] => { minimum =  80.0 },
         ["analysis/database/sqlcprobe/internal/sql"] => { minimum =  75.0 },
         ["analysis/enrich"]            => { minimum =  70.0 },

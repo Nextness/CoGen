@@ -13,6 +13,7 @@ import (
 	"analysis/database/cache"
 	"analysis/database/run"
 	"analysis/database/search"
+	"analysis/database/source"
 	"analysis/logging"
 )
 
@@ -24,6 +25,7 @@ type Database struct {
 	PipelineRuns         *PipelineRunRepository
 	Run                  *run.Store
 	Search               *search.Store
+	Source               *source.Store
 	Searches             *SearchRepository
 	Revisions            *SearchRevisionRepository
 	Plans                *ExecutionPlanRepository
@@ -102,6 +104,7 @@ func (d *Database) initRepositories() {
 	d.PipelineRuns = &PipelineRunRepository{db: d}
 	d.Run = run.New(d.DB)
 	d.Search = search.New(d.DB)
+	d.Source = source.New(d.DB)
 	d.Searches = &SearchRepository{db: d}
 	d.Revisions = &SearchRevisionRepository{db: d}
 	d.Plans = &ExecutionPlanRepository{db: d}
