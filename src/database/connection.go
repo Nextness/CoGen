@@ -173,3 +173,24 @@ func (d *Database) Close() error {
 	lg.Debug("database close successful", "database_path", d.dbPath)
 	return nil
 }
+
+// PingContext verifies the wrapped connection is reachable.
+func (d *Database) PingContext(ctx context.Context) error {
+	return d.DB.PingContext(ctx)
+}
+
+// Writable reports whether the wrapped connection accepts writes by checking
+// the connection-local query_only pragma.
+func (d *Database) Writable(ctx context.Context) (bool, error) {
+	var queryOnly int
+	if err := d.DB.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err != nil {
+		return false, fmt.Errorf("check database writability: %w", err)
+	}
+	return queryOnly == 0, nil
+}
+
+// BeginTx starts a transaction on the wrapped connection for approved
+// coordinators that must keep related writes atomic.
+func (d *Database) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
+	return d.DB.BeginTx(ctx, opts)
+}

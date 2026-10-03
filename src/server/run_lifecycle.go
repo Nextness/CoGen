@@ -46,7 +46,7 @@ func (s *Server) updateRunVisibility(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	tx, err := s.writeDB.DB.BeginTx(ctx, nil)
+	tx, err := s.writeDB.BeginTx(ctx, nil)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
