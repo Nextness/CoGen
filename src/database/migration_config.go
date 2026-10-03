@@ -1,6 +1,6 @@
-// config.go provides the database registry that resolves independent
-// migration chains (corpus metadata and PDF) from the SOMETHING
-// database configuration file.
+// migration_config.go provides the database registry that resolves independent
+// migration chains (corpus metadata and PDF) from the SOMETHING database
+// configuration file and loads each chain's declared entries.
 package database
 
 import (
@@ -170,4 +170,26 @@ func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error) {
 // validMigrationFilename reports whether filename follows the configured VNNNNN_description.sql migration identity form.
 func validMigrationFilename(filename string) bool {
 	return filepath.Base(filename) == filename && !strings.ContainsAny(filename, `/\\`) && !strings.Contains(filename, "..") && migrationFilenamePattern.MatchString(filename)
+}
+
+// migrationEntry stores one configured migration filename and compatible prior identities.
+type migrationEntry struct {
+	filename   string
+	supersedes []string
+}
+
+// loadMigrationChain evaluates the database registry and returns its migrations in declaration order.
+func loadMigrationChain(configPath string) ([]migrationEntry, error) {
+	cfg, err := loadSomethingConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := getMigrationStructs(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// Sort by iteration counter (already in order from getMigrationStructs)
+	return entries, nil
 }

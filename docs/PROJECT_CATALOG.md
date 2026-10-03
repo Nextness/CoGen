@@ -401,19 +401,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestCharacterizationTransactionRollback`](../src/database/characterization_integration_test.go#L676) | test | 676-737 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
 | [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L741) | test | 741-793 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
 
-### [`src/database/config.go`](../src/database/config.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`StoreKind`](../src/database/config.go#L19) | type | 19 | `type StoreKind string` | StoreKind identifies one database in the corpus bundle registry. |
-| [`MigrationConfig`](../src/database/config.go#L29) | struct | 29-32 | `type MigrationConfig struct { ConfigPath string MigrationsDir string }` | MigrationConfig is one fully resolved database-specific migration source. ConfigPath and MigrationsDir are absolute so callers do not depend on their current working directory after configuration has been loaded. |
-| [`ResolveMigrationConfig`](../src/database/config.go#L36) | function | 36-86 | `func ResolveMigrationConfig(registryPath string, kind StoreKind) (MigrationConfig, error)` | ResolveMigrationConfig loads the database registry and resolves the database-specific configuration and migration directory for kind. |
-| [`resolveSpecificMigrationConfig`](../src/database/config.go#L89) | function | 89-113 | `func resolveSpecificMigrationConfig(configPath string, cfg map[string]any, legacy bool) (MigrationConfig, error)` | resolveSpecificMigrationConfig resolves specific migration config from the supplied context. |
-| [`resolveContainedPath`](../src/database/config.go#L116) | function | 116-122 | `func resolveContainedPath(root, path, label string) (string, error)` | resolveContainedPath resolves path relative to root and rejects lexical and symbolic-link escapes. |
-| [`loadSomethingConfig`](../src/database/config.go#L125) | function | 125-133 | `func loadSomethingConfig(path string) (map[string]any, error)` | loadSomethingConfig loads a .something file using the existing parser. |
-| [`getMigrationStructs`](../src/database/config.go#L137) | function | 137-168 | `func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error)` | getMigrationStructs reads #iteration("_db_migration") entries from the config. Returns them in iteration-counter order (as they appear in the file). |
-| [`validMigrationFilename`](../src/database/config.go#L171) | function | 171-173 | `func validMigrationFilename(filename string) bool` | validMigrationFilename reports whether filename follows the configured VNNNNN_description.sql migration identity form. |
-
 ### [`src/database/config_integration_test.go`](../src/database/config_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -444,29 +431,26 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestValidMigrationFilename`](../src/database/config_unit_test.go#L9) | test | 9-32 | `func TestValidMigrationFilename(t *testing.T)` | TestValidMigrationFilename verifies canonical and malformed migration identities are distinguished without accepting paths or empty descriptions. |
 | [`TestGetMigrationStructsRejectsMissingOrNonStringFilename`](../src/database/config_unit_test.go#L35) | test | 35-50 | `func TestGetMigrationStructsRejectsMissingOrNonStringFilename(t *testing.T)` | TestGetMigrationStructsRejectsMissingOrNonStringFilename verifies every configured iteration has a usable filename. |
 
+### [`src/database/connection.go`](../src/database/connection.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`OpenExisting`](../src/database/connection.go#L21) | function | 21-23 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
+| [`OpenExistingWithDriver`](../src/database/connection.go#L27) | function | 27-32 | `func OpenExistingWithDriver(dbPath, driverName string) (*Database, error)` | OpenExistingWithDriver opens an existing metadata database through a caller-provided registered SQL driver. It exists so the viewer can enforce request-scoped query budgets without changing pipeline connections. |
+| [`openExistingWithDriver`](../src/database/connection.go#L35) | function | 35-73 | `func openExistingWithDriver(dbPath, driverName string) (*Database, error)` | openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers. |
+| [`OpenConfigured`](../src/database/connection.go#L79) | function | 79-135 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
+| [`configurePragma`](../src/database/connection.go#L141) | function | 141-155 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
+| [`sqliteBusy`](../src/database/connection.go#L158) | function | 158-164 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
+| [`(*Database).Close`](../src/database/connection.go#L167) | method | 167-175 | `func (*Database).Close() error` | Close closes the database connection. |
+
 ### [`src/database/database.go`](../src/database/database.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Database`](../src/database/database.go#L26) | struct | 26-59 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository TermMatches *TermMatchesRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
-| [`Open`](../src/database/database.go#L63) | function | 63-77 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
-| [`MigrateExisting`](../src/database/database.go#L80) | function | 80-99 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
-| [`OpenExisting`](../src/database/database.go#L103) | function | 103-105 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
-| [`OpenExistingWithDriver`](../src/database/database.go#L109) | function | 109-114 | `func OpenExistingWithDriver(dbPath, driverName string) (*Database, error)` | OpenExistingWithDriver opens an existing metadata database through a caller-provided registered SQL driver. It exists so the viewer can enforce request-scoped query budgets without changing pipeline connections. |
-| [`openExistingWithDriver`](../src/database/database.go#L117) | function | 117-155 | `func openExistingWithDriver(dbPath, driverName string) (*Database, error)` | openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers. |
-| [`OpenConfigured`](../src/database/database.go#L161) | function | 161-217 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
-| [`(*Database).initRepositories`](../src/database/database.go#L220) | method | 220-249 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
-| [`configurePragma`](../src/database/database.go#L255) | function | 255-269 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
-| [`sqliteBusy`](../src/database/database.go#L272) | function | 272-278 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
-| [`(*Database).Close`](../src/database/database.go#L281) | method | 281-289 | `func (*Database).Close() error` | Close closes the database connection. |
-| [`(*Database).SchemaVersion`](../src/database/database.go#L294) | method | 294-304 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
-| [`(*Database).runMigrations`](../src/database/database.go#L309) | method | 309-414 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
-| [`(*Database).withMigrationLock`](../src/database/database.go#L420) | method | 420-443 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
-| [`migrationEntry`](../src/database/database.go#L446) | struct | 446-449 | `type migrationEntry struct { filename string supersedes []string }` | migrationEntry stores one configured migration filename and compatible prior identities. |
-| [`loadMigrationChain`](../src/database/database.go#L452) | function | 452-465 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
-| [`extractUpSQL`](../src/database/database.go#L471) | function | 471-491 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
-| [`fileChecksum`](../src/database/database.go#L494) | function | 494-501 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
-| [`timestamp`](../src/database/database.go#L504) | function | 504-506 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
+| [`Database`](../src/database/database.go#L19) | struct | 19-52 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository TermMatches *TermMatchesRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
+| [`Open`](../src/database/database.go#L56) | function | 56-70 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
+| [`MigrateExisting`](../src/database/database.go#L73) | function | 73-92 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
+| [`(*Database).initRepositories`](../src/database/database.go#L95) | method | 95-124 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
 
 ### [`src/database/database_integration_test.go`](../src/database/database_integration_test.go)
 
@@ -522,6 +506,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAuditEventRejectsUpdate`](../src/database/metrics_audit_integration_test.go#L260) | test | 260-275 | `func TestAuditEventRejectsUpdate(t *testing.T)` | TestAuditEventRejectsUpdate verifies that UPDATE on audit_events is rejected by the append-only trigger. |
 | [`TestAuditEventRejectsDelete`](../src/database/metrics_audit_integration_test.go#L279) | test | 279-308 | `func TestAuditEventRejectsDelete(t *testing.T)` | TestAuditEventRejectsDelete verifies that DELETE on audit_events is rejected by the append-only trigger. |
 
+### [`src/database/migration_config.go`](../src/database/migration_config.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`StoreKind`](../src/database/migration_config.go#L19) | type | 19 | `type StoreKind string` | StoreKind identifies one database in the corpus bundle registry. |
+| [`MigrationConfig`](../src/database/migration_config.go#L29) | struct | 29-32 | `type MigrationConfig struct { ConfigPath string MigrationsDir string }` | MigrationConfig is one fully resolved database-specific migration source. ConfigPath and MigrationsDir are absolute so callers do not depend on their current working directory after configuration has been loaded. |
+| [`ResolveMigrationConfig`](../src/database/migration_config.go#L36) | function | 36-86 | `func ResolveMigrationConfig(registryPath string, kind StoreKind) (MigrationConfig, error)` | ResolveMigrationConfig loads the database registry and resolves the database-specific configuration and migration directory for kind. |
+| [`resolveSpecificMigrationConfig`](../src/database/migration_config.go#L89) | function | 89-113 | `func resolveSpecificMigrationConfig(configPath string, cfg map[string]any, legacy bool) (MigrationConfig, error)` | resolveSpecificMigrationConfig resolves specific migration config from the supplied context. |
+| [`resolveContainedPath`](../src/database/migration_config.go#L116) | function | 116-122 | `func resolveContainedPath(root, path, label string) (string, error)` | resolveContainedPath resolves path relative to root and rejects lexical and symbolic-link escapes. |
+| [`loadSomethingConfig`](../src/database/migration_config.go#L125) | function | 125-133 | `func loadSomethingConfig(path string) (map[string]any, error)` | loadSomethingConfig loads a .something file using the existing parser. |
+| [`getMigrationStructs`](../src/database/migration_config.go#L137) | function | 137-168 | `func getMigrationStructs(cfg map[string]any) ([]migrationEntry, error)` | getMigrationStructs reads #iteration("_db_migration") entries from the config. Returns them in iteration-counter order (as they appear in the file). |
+| [`validMigrationFilename`](../src/database/migration_config.go#L171) | function | 171-173 | `func validMigrationFilename(filename string) bool` | validMigrationFilename reports whether filename follows the configured VNNNNN_description.sql migration identity form. |
+| [`migrationEntry`](../src/database/migration_config.go#L176) | struct | 176-179 | `type migrationEntry struct { filename string supersedes []string }` | migrationEntry stores one configured migration filename and compatible prior identities. |
+| [`loadMigrationChain`](../src/database/migration_config.go#L182) | function | 182-195 | `func loadMigrationChain(configPath string) ([]migrationEntry, error)` | loadMigrationChain evaluates the database registry and returns its migrations in declaration order. |
+
 ### [`src/database/migration_sql_integration_test.go`](../src/database/migration_sql_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -534,6 +533,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestExtractUpSQLRejectsInvalidMarkerLayouts`](../src/database/migration_sql_unit_test.go#L14) | test | 14-32 | `func TestExtractUpSQLRejectsInvalidMarkerLayouts(t *testing.T)` | TestExtractUpSQLRejectsInvalidMarkerLayouts verifies malformed migration files are rejected before execution. |
+
+### [`src/database/migrations.go`](../src/database/migrations.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Database).SchemaVersion`](../src/database/migrations.go#L18) | method | 18-28 | `func (*Database).SchemaVersion() (string, error)` | SchemaVersion returns the most recently applied migration filename. It is recorded in each resolved manifest so plan fingerprints describe the schema that interpreted the input. |
+| [`(*Database).runMigrations`](../src/database/migrations.go#L33) | method | 33-138 | `func (*Database).runMigrations(configPath string) error` | runMigrations applies unapplied configured migrations in declaration order and records their checksums. |
+| [`(*Database).withMigrationLock`](../src/database/migrations.go#L144) | method | 144-167 | `func (*Database).withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
+| [`extractUpSQL`](../src/database/migrations.go#L173) | function | 173-193 | `func extractUpSQL(filepath string) (string, error)` | extractUpSQL returns the SQL between a migration's required UP and DOWN markers. |
+| [`fileChecksum`](../src/database/migrations.go#L196) | function | 196-203 | `func fileChecksum(path string) (string, error)` | fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file. |
 
 ### [`src/database/normalized.go`](../src/database/normalized.go)
 
@@ -750,8 +759,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`nullStr`](../src/database/sql_helpers.go#L7) | function | 7-12 | `func nullStr(value string) *string` | nullStr represents optional text consistently across workspace repositories. |
-| [`nullInt`](../src/database/sql_helpers.go#L15) | function | 15-20 | `func nullInt(value int64) any` | nullInt represents optional integer values consistently across workspace repositories. |
+| [`nullStr`](../src/database/sql_helpers.go#L8) | function | 8-13 | `func nullStr(value string) *string` | nullStr represents optional text consistently across workspace repositories. |
+| [`nullInt`](../src/database/sql_helpers.go#L16) | function | 16-21 | `func nullInt(value int64) any` | nullInt represents optional integer values consistently across workspace repositories. |
+| [`timestamp`](../src/database/sql_helpers.go#L24) | function | 24-26 | `func timestamp() string` | timestamp returns the current UTC time in the repository's persisted format. |
 
 ### [`src/database/sql_helpers_unit_test.go`](../src/database/sql_helpers_unit_test.go)
 
