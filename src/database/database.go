@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"analysis/database/cache"
 	"analysis/logging"
 )
 
@@ -38,6 +39,7 @@ type Database struct {
 	IdentityResolutions  *AuthorIdentityResolutionRepository
 	IdentityCandidates   *AuthorIdentityCandidateRepository
 	ReferenceMentions    *ReferenceMentionRepository
+	Cache                *cache.Store
 	CacheEntries         *CacheEntryRepository
 	RunCacheUses         *RunCacheUseRepository
 	ArtifactBlobs        *ArtifactBlobRepository
@@ -113,6 +115,7 @@ func (d *Database) initRepositories() {
 	d.IdentityResolutions = &AuthorIdentityResolutionRepository{db: d}
 	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
 	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
+	d.Cache = cache.New(d.DB)
 	d.CacheEntries = &CacheEntryRepository{db: d}
 	d.RunCacheUses = &RunCacheUseRepository{db: d}
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
