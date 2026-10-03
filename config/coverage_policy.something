@@ -41,6 +41,11 @@ coverage_policy: coverage_policy_config = {
             minimum = 80.0,
             rationale = "Generated cache queries are exercised through the handwritten family integration and parity tests."
         },
+        ["analysis/database/search"] => { minimum =  90.0 },
+        ["analysis/database/search/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated search queries are exercised through the handwritten family integration and characterization tests."
+        },
         ["analysis/database/sqlcprobe"] => { minimum =  80.0 },
         ["analysis/database/sqlcprobe/internal/sql"] => { minimum =  75.0 },
         ["analysis/enrich"]            => { minimum =  70.0 },

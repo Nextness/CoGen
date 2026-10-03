@@ -22,6 +22,22 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
+    schema: "../src/database/search/schema/definitions.sql"
+    queries:
+      - "../src/database/search/schema/search.sql"
+      - "../src/database/search/schema/revisions.sql"
+      - "../src/database/search/schema/plans.sql"
+    gen:
+      go:
+        package: "sql"
+        out: "../src/database/search/internal/sql"
+        sql_package: "database/sql"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_exported_queries: false
+        emit_interface: false
+        omit_unused_structs: true
+  - engine: "sqlite"
     schema: "../src/database/sqlcprobe/schema/definitions.sql"
     queries:
       - "../src/database/sqlcprobe/schema/probe.sql"

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"analysis/database/cache"
+	"analysis/database/search"
 	"analysis/logging"
 )
 
@@ -20,6 +21,7 @@ var lg = logging.Logger("database")
 type Database struct {
 	DB                   *sql.DB
 	PipelineRuns         *PipelineRunRepository
+	Search               *search.Store
 	Searches             *SearchRepository
 	Revisions            *SearchRevisionRepository
 	Plans                *ExecutionPlanRepository
@@ -96,6 +98,7 @@ func MigrateExisting(dbPath, configPath string) error {
 // initRepositories binds every repository facade to the opened database.
 func (d *Database) initRepositories() {
 	d.PipelineRuns = &PipelineRunRepository{db: d}
+	d.Search = search.New(d.DB)
 	d.Searches = &SearchRepository{db: d}
 	d.Revisions = &SearchRevisionRepository{db: d}
 	d.Plans = &ExecutionPlanRepository{db: d}
