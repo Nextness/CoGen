@@ -1,6 +1,6 @@
 // attempts.go provides the repository for pipeline-run source records,
-// run steps, execution plans, and search revisions that track the
-// per-attempt lifecycle of workspace iterations.
+// source filter counts, and artifact blobs that track the per-attempt
+// lifecycle of workspace iterations.
 package database
 
 import (
@@ -8,9 +8,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
-
-	"analysis/manifest"
 )
 
 // RunSource links a pipeline run to one of its declared sources.
@@ -48,22 +45,6 @@ type Artifact struct {
 	ByteSize    int64  `json:"byte_size"`
 	ContentType string `json:"content_type"`
 	CreatedAt   string `json:"created_at"`
-}
-
-// RunStep records a stage's execution within a pipeline run, including its
-// input/output artifacts and optional reuse from a prior run.
-type RunStep struct {
-	ID                int64  `json:"id"`
-	PipelineRunID     int64  `json:"pipeline_run_id"`
-	StepName          string `json:"step_name"`
-	StepStatus        string `json:"step_status"`
-	InputArtifactID   *int64 `json:"input_artifact_id,omitempty"`
-	OutputArtifactID  *int64 `json:"output_artifact_id,omitempty"`
-	ReusedFromRunID   *int64 `json:"reused_from_run_id,omitempty"`
-	InputFingerprint  string `json:"input_fingerprint,omitempty"`
-	OutputFingerprint string `json:"output_fingerprint,omitempty"`
-	StartedAt         string `json:"started_at,omitempty"`
-	FinishedAt        string `json:"finished_at,omitempty"`
 }
 
 // RunSourceRepository provides CRUD for the run_sources table.
@@ -484,173 +465,6 @@ func (r *ArtifactBlobRepository) GetByArtifactID(artifactID int64) (*ArtifactBlo
 	}
 	lg.Debug("artifact blob query successful", "artifact_id", artifactID, "id", b.ID, "result", "found")
 	return &b, nil
-}
-
-// RunStepRepository provides CRUD for the run_steps table.
-type RunStepRepository struct {
-	db *Database
-}
-
-// runStepTimestamp returns a microsecond-precision UTC timestamp for persisted stage timing.
-func runStepTimestamp() string {
-	return time.Now().UTC().Format("2006-01-02T15:04:05.000000Z")
-}
-
-// Create inserts a new run step record. Returns the step ID.
-func (r *RunStepRepository) Create(pipelineRunID int64, stepName string) (int64, error) {
-	res, err := r.db.DB.Exec(
-		`INSERT INTO run_steps (pipeline_run_id, step_name, started_at)
-		 VALUES (?, ?, ?)`,
-		pipelineRunID, stepName, runStepTimestamp(),
-	)
-	if err != nil {
-		lg.Debug("run step creation failed", "pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
-		return 0, fmt.Errorf("create run step: %w", err)
-	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		lg.Debug("run step ID read failed", "pipeline_run_id", pipelineRunID, "step", stepName, "error", err)
-		return 0, err
-	}
-	lg.Debug("run step creation successful",
-		"pipeline_run_id", pipelineRunID, "step", stepName, "id", id)
-	return id, nil
-}
-
-// UpdateStatus updates the status and optional finish time of a run step.
-// The status must be a valid manifest.StageOutcome value. finished_at is only
-// set for terminal statuses (completed, skipped, reused, failed).
-func (r *RunStepRepository) UpdateStatus(stepID int64, status string) error {
-	if err := manifest.ValidateStageOutcome(status); err != nil {
-		lg.Debug("run step status update rejected", "step_id", stepID, "status", status, "error", err)
-		return err
-	}
-
-	// Only set finished_at for terminal statuses.
-	now := runStepTimestamp()
-	finishedAt := &now
-	if status == string(manifest.StagePending) || status == string(manifest.StageRunning) {
-		finishedAt = nil
-	}
-
-	_, err := r.db.DB.Exec(
-		"UPDATE run_steps SET step_status = ?, finished_at = ? WHERE id = ?",
-		status, nullStrPtr(finishedAt), stepID,
-	)
-	if err != nil {
-		lg.Debug("run step status update failed", "step_id", stepID, "status", status, "error", err)
-		return err
-	}
-	lg.Debug("run step status update successful", "step_id", stepID, "status", status)
-	return nil
-}
-
-// LinkReuse records that a step reused output from a prior run.
-// It sets both the status to "reused" and the finished_at timestamp since
-// reuse is a terminal stage outcome.
-func (r *RunStepRepository) LinkReuse(stepID int64, reusedFromRunID int64) error {
-	_, err := r.db.DB.Exec(
-		"UPDATE run_steps SET reused_from_run_id = ?, step_status = 'reused', finished_at = ? WHERE id = ?",
-		reusedFromRunID, runStepTimestamp(), stepID,
-	)
-	if err != nil {
-		lg.Debug("run step reuse link failed", "step_id", stepID, "reused_from_run_id", reusedFromRunID, "error", err)
-		return err
-	}
-	lg.Debug("run step reuse link successful", "step_id", stepID, "reused_from_run_id", reusedFromRunID)
-	return nil
-}
-
-// LinkInputArtifact records that a step consumed a specific artifact as input.
-func (r *RunStepRepository) LinkInputArtifact(stepID, artifactID int64) error {
-	_, err := r.db.DB.Exec(
-		"UPDATE run_steps SET input_artifact_id = ? WHERE id = ?",
-		artifactID, stepID,
-	)
-	if err != nil {
-		lg.Debug("run step input artifact link failed", "step_id", stepID, "artifact_id", artifactID, "error", err)
-		return err
-	}
-	lg.Debug("run step input artifact link successful", "step_id", stepID, "artifact_id", artifactID)
-	return nil
-}
-
-// LinkOutputArtifact records that a step produced a specific artifact as output.
-func (r *RunStepRepository) LinkOutputArtifact(stepID, artifactID int64) error {
-	_, err := r.db.DB.Exec(
-		"UPDATE run_steps SET output_artifact_id = ? WHERE id = ?",
-		artifactID, stepID,
-	)
-	if err != nil {
-		lg.Debug("run step output artifact link failed", "step_id", stepID, "artifact_id", artifactID, "error", err)
-		return err
-	}
-	lg.Debug("run step output artifact link successful", "step_id", stepID, "artifact_id", artifactID)
-	return nil
-}
-
-// SetFingerprints records the immutable stage input and output fingerprints
-// used to decide whether this stage may be reused by a later attempt.
-func (r *RunStepRepository) SetFingerprints(stepID int64, inputFingerprint, outputFingerprint string) error {
-	_, err := r.db.DB.Exec(
-		"UPDATE run_steps SET input_fingerprint = ?, output_fingerprint = ? WHERE id = ?",
-		inputFingerprint, outputFingerprint, stepID,
-	)
-	if err != nil {
-		return fmt.Errorf("set run step fingerprints: %w", err)
-	}
-	return nil
-}
-
-// ListByRun returns all steps for a given pipeline run, ordered by ID.
-func (r *RunStepRepository) ListByRun(pipelineRunID int64) ([]*RunStep, error) {
-	rows, err := r.db.DB.Query(
-		`SELECT id, pipeline_run_id, step_name, step_status,
-		        input_artifact_id, output_artifact_id, reused_from_run_id, input_fingerprint, output_fingerprint,
-		        started_at, finished_at
-		 FROM run_steps WHERE pipeline_run_id = ? ORDER BY id`,
-		pipelineRunID,
-	)
-	if err != nil {
-		lg.Debug("run step list query failed", "pipeline_run_id", pipelineRunID, "error", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	var result []*RunStep
-	for rows.Next() {
-		var rs RunStep
-		var inputArtifactID, outputArtifactID, reusedFromRunID sql.NullInt64
-		var startedAt, finishedAt sql.NullString
-		if err := rows.Scan(&rs.ID, &rs.PipelineRunID, &rs.StepName, &rs.StepStatus,
-			&inputArtifactID, &outputArtifactID, &reusedFromRunID, &rs.InputFingerprint, &rs.OutputFingerprint,
-			&startedAt, &finishedAt); err != nil {
-			lg.Debug("run step scan failed", "scanned", len(result), "error", err)
-			return nil, err
-		}
-		if inputArtifactID.Valid {
-			rs.InputArtifactID = &inputArtifactID.Int64
-		}
-		if outputArtifactID.Valid {
-			rs.OutputArtifactID = &outputArtifactID.Int64
-		}
-		if reusedFromRunID.Valid {
-			rs.ReusedFromRunID = &reusedFromRunID.Int64
-		}
-		if startedAt.Valid {
-			rs.StartedAt = startedAt.String
-		}
-		if finishedAt.Valid {
-			rs.FinishedAt = finishedAt.String
-		}
-		result = append(result, &rs)
-	}
-	if err := rows.Err(); err != nil {
-		lg.Debug("run step iteration failed", "scanned", len(result), "error", err)
-		return nil, err
-	}
-	lg.Debug("run step list query successful", "pipeline_run_id", pipelineRunID, "steps", len(result))
-	return result, nil
 }
 
 // SourceFilterCount holds per-source filter stage article counts for a run.
