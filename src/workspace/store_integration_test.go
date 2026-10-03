@@ -184,7 +184,7 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := recordNormalizationMetrics(db, runID, 1, results); err != nil {
+	if err := recordNormalizationMetrics(context.Background(), db, runID, 1, results); err != nil {
 		t.Fatal(err)
 	}
 	for _, check := range []struct {
@@ -413,7 +413,7 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 		{DOI: "10.1000/two", Field: "authors", Provider: "openalex"},
 	}
-	if err := recordFieldEnrichmentMetrics(db, runID, changes); err != nil {
+	if err := recordFieldEnrichmentMetrics(context.Background(), db, runID, changes); err != nil {
 		t.Fatal(err)
 	}
 	checkMetric := func(name, source string, want int) {

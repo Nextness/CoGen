@@ -3,6 +3,7 @@
 package workspace
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -63,8 +64,8 @@ func persistRunTermMatches(db *database.Database, runID int64, termsBySource map
 // reconcileStoredTermMatchesBestEffort runs the reconciliation pass and logs
 // failures without propagating them, so a backfill problem never fails the run
 // or the invocation.
-func reconcileStoredTermMatchesBestEffort(db *database.Database) {
-	if err := reconcileStoredTermMatches(db); err != nil {
+func reconcileStoredTermMatchesBestEffort(ctx context.Context, db *database.Database) {
+	if err := reconcileStoredTermMatches(ctx, db); err != nil {
 		log.Error("term match reconciliation failed", "error", err)
 	}
 }
@@ -72,7 +73,7 @@ func reconcileStoredTermMatchesBestEffort(db *database.Database) {
 // reconcileStoredTermMatches backfills term data for every completed run that
 // lacks stored match rows. It reads only stored queries and normalize
 // revisions and never reruns pipeline stages.
-func reconcileStoredTermMatches(db *database.Database) error {
+func reconcileStoredTermMatches(ctx context.Context, db *database.Database) error {
 	rows, err := db.DB.Query(`SELECT id FROM pipeline_runs WHERE status='completed' ORDER BY id`)
 	if err != nil {
 		return fmt.Errorf("list completed runs for term reconciliation: %w", err)
@@ -102,7 +103,7 @@ func reconcileStoredTermMatches(db *database.Database) error {
 		if reconciled {
 			continue
 		}
-		termsBySource, matches, err := computeStoredRunTermMatches(db, runID)
+		termsBySource, matches, err := computeStoredRunTermMatches(ctx, db, runID)
 		if err != nil {
 			return fmt.Errorf("compute term matches for run %d: %w", runID, err)
 		}
@@ -119,8 +120,8 @@ func reconcileStoredTermMatches(db *database.Database) error {
 }
 
 // computeStoredRunTermMatches derives term data for one run from stored rows.
-func computeStoredRunTermMatches(db *database.Database, runID int64) (map[string][]string, map[int64]map[string][]string, error) {
-	sources, err := db.RunSources.ListByRun(runID)
+func computeStoredRunTermMatches(ctx context.Context, db *database.Database, runID int64) (map[string][]string, map[int64]map[string][]string, error) {
+	sources, err := db.Source.ListSourcesByRun(ctx, runID)
 	if err != nil {
 		return nil, nil, err
 	}

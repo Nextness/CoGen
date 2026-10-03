@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"analysis/database"
+	dbrun "analysis/database/run"
 	"analysis/enrich"
 	"analysis/manifest"
 )
@@ -75,7 +76,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 			return nil, err
 		}
 		if entry == nil {
-			if err := c.incrementMetric("cache_misses", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_misses", request.Provider); err != nil {
 				return nil, err
 			}
 			continue
@@ -84,7 +85,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 			if err := c.recordUse(entry.ID, layer, manifest.CacheStale); err != nil {
 				return nil, err
 			}
-			if err := c.incrementMetric("cache_stale", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_stale", request.Provider); err != nil {
 				return nil, err
 			}
 			continue
@@ -93,7 +94,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 			if err := c.recordUse(entry.ID, layer, manifest.CacheNegative); err != nil {
 				return nil, err
 			}
-			if err := c.incrementMetric("cache_negative", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_negative", request.Provider); err != nil {
 				return nil, err
 			}
 			return &cacheResponse{Status: entry.ResponseStatus, Layer: layer, Outcome: manifest.CacheNegative}, nil
@@ -107,7 +108,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		}
 		if err := validateCachePayload(request, body); err != nil {
 			log.Warn("cached provider payload is not reusable", "cache_entry_id", entry.ID, "provider", request.Provider, "namespace", request.Namespace, "error", err)
-			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
+			if metricErr := c.incrementMetric(ctx, "cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
 			}
 			continue
@@ -115,7 +116,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		if err := c.recordUse(entry.ID, layer, manifest.CacheHit); err != nil {
 			return nil, err
 		}
-		if err := c.incrementMetric("cache_hits", request.Provider); err != nil {
+		if err := c.incrementMetric(ctx, "cache_hits", request.Provider); err != nil {
 			return nil, err
 		}
 		if err := c.recordAudit(manifest.AuditCacheHit, request, layer, manifest.CacheHit, entry.ID); err != nil {
@@ -128,7 +129,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 
 // fetchAndRecord validates a network result, persists cacheable evidence, and records cache metrics and audit.
 func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheRequest, fingerprint, layer string, fetch func(context.Context) *enrich.FetchResult, negative func([]byte) bool) (*cacheResponse, error) {
-	if err := c.incrementMetric("cache_network_fetches", request.Provider); err != nil {
+	if err := c.incrementMetric(ctx, "cache_network_fetches", request.Provider); err != nil {
 		return nil, err
 	}
 	response := fetch(ctx)
@@ -147,7 +148,7 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	}
 	if status == 200 {
 		if err := validateCachePayload(request, response.Body); err != nil {
-			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
+			if metricErr := c.incrementMetric(ctx, "cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
 			}
 			return nil, fmt.Errorf("network fetch %s/%s returned invalid provider payload: %w", request.Provider, request.Identity, err)
@@ -223,9 +224,9 @@ func (c *workspaceCache) extractorVersion(layer string) string {
 }
 
 // incrementMetric increments a cache metric at both run-wide and provider scope.
-func (c *workspaceCache) incrementMetric(metric, provider string) error {
+func (c *workspaceCache) incrementMetric(ctx context.Context, metric, provider string) error {
 	for _, source := range []string{"", provider} {
-		current, err := c.db.Metrics.Get(c.runID, metric, source)
+		current, err := c.db.Run.GetMetric(ctx, c.runID, metric, source)
 		if err != nil {
 			return err
 		}
@@ -233,7 +234,7 @@ func (c *workspaceCache) incrementMetric(metric, provider string) error {
 		if current != nil {
 			value += current.Value
 		}
-		if err := c.db.Metrics.Set(c.runID, metric, source, value); err != nil {
+		if err := c.db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: c.runID, Metric: metric, Source: source, Value: value}); err != nil {
 			return err
 		}
 	}

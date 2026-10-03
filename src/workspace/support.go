@@ -6,6 +6,7 @@ package workspace
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/csv"
 	"encoding/json"
@@ -18,15 +19,19 @@ import (
 
 	"analysis/bibtex"
 	"analysis/database"
+	dbrun "analysis/database/run"
+	dbsearch "analysis/database/search"
 	"analysis/logging"
 	"analysis/manifest"
 )
 
 var log = logging.Logger("workspace")
 
-// finishPipelineRun finishes pipeline run and records its terminal state.
-func finishPipelineRun(db *database.Database, runID int64, status, summary string) {
-	if err := db.PipelineRuns.FinishRun(runID, status, summary); err != nil {
+// finishPipelineRun finishes pipeline run and records its terminal state. The
+// terminal write detaches cancellation because a cancelled attempt must still
+// be persisted as failed for recovery.
+func finishPipelineRun(ctx context.Context, db *database.Database, runID int64, status, summary string) {
+	if err := db.Run.FinishRun(context.WithoutCancel(ctx), runID, status, summary); err != nil {
 		log.Error("finish pipeline run", "status", status, "error", err)
 		return
 	}
@@ -82,6 +87,11 @@ func observedCountFromLoadError(err error) (int, bool) {
 
 // StartWorkspaceAttempt snapshots configuration and inputs, reuses or creates a plan, and starts an eligible pipeline attempt.
 func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Run, fresh bool) (int64, error) {
+	return StartWorkspaceAttemptContext(context.Background(), db, originalConfig, run, fresh)
+}
+
+// StartWorkspaceAttemptContext snapshots configuration and inputs, reuses or creates a plan, and starts an eligible pipeline attempt under the supplied context.
+func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, originalConfig []byte, run *Run, fresh bool) (int64, error) {
 	schemaVersion, err := db.SchemaVersion()
 	if err != nil {
 		return 0, err
@@ -101,11 +111,16 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 	if err != nil {
 		return 0, fmt.Errorf("marshal input manifest: %w", err)
 	}
-	searchID, err := db.Searches.Create(run.Manifest.SearchID)
+	searchID, err := db.Search.FindOrCreateSearch(ctx, run.Manifest.SearchID)
 	if err != nil {
 		return 0, err
 	}
-	revisionID, hashesUpdated, err := db.Revisions.Create(searchID, run.Manifest.SearchRevision, configHash, manifestHash)
+	revisionID, hashesUpdated, err := db.Search.UpsertRevision(ctx, dbsearch.RevisionInput{
+		SearchID:             searchID,
+		RevisionLabel:        run.Manifest.SearchRevision,
+		ConfigArtifactHash:   configHash,
+		ResolvedManifestHash: manifestHash,
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -128,14 +143,14 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		}
 	}
 	inputManifestHash := contentHash(inputManifestBytes)
-	existingPlan, err := db.Plans.GetByFingerprint(revisionID, string(fingerprint))
+	existingPlan, err := db.Search.GetPlanByFingerprint(ctx, revisionID, string(fingerprint))
 	if err != nil {
 		return 0, err
 	}
 	forceFresh := fresh || run.Manifest.ReusePolicy == "fresh"
 	var reusedPreflightFromRunID *int64
 	if existingPlan != nil {
-		runs, err := db.PipelineRuns.ListByPlan(existingPlan.ID)
+		runs, err := db.Run.ListByPlan(ctx, existingPlan.ID)
 		if err != nil {
 			return 0, err
 		}
@@ -161,24 +176,30 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 			reusedPreflightFromRunID = &runs[len(runs)-1].ID
 		}
 	}
-	planID, err := db.Plans.CreateWithInputManifest(revisionID, string(fingerprint), manifestHash, inputManifestHash, run.Manifest.EnrichmentEnabled)
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, dbsearch.PlanInput{
+		SearchRevisionID:     revisionID,
+		ExecutionFingerprint: string(fingerprint),
+		ResolvedManifestHash: manifestHash,
+		InputManifestHash:    inputManifestHash,
+		EnrichmentEnabled:    run.Manifest.EnrichmentEnabled,
+	})
 	if err != nil {
 		return 0, err
 	}
-	runID, _, err := db.PipelineRuns.StartAttemptIfIdle(planID, "parse+enrich", "")
+	runID, _, err := db.Run.StartAttemptIfIdle(ctx, dbrun.StartAttemptInput{ExecutionPlanID: planID, Step: "parse+enrich"})
 	if err != nil {
 		return 0, err
 	}
-	if err := db.PipelineRunReviewers.Insert(runID, run.Reviewer.Username, run.Reviewer.Email); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+	if err := db.Run.InsertReviewer(ctx, dbrun.ReviewerInput{RunID: runID, Username: run.Reviewer.Username, Email: run.Reviewer.Email}); err != nil {
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	enrichmentEnabled := 0
 	if run.Manifest.EnrichmentEnabled {
 		enrichmentEnabled = 1
 	}
-	if err := db.Metrics.Set(runID, "enrichment_enabled", "", enrichmentEnabled); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+	if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enrichment_enabled", Value: enrichmentEnabled}); err != nil {
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	metadata, err := json.Marshal(map[string]any{
@@ -187,7 +208,7 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		"reason":             freshReason(fresh, run.Manifest.ReusePolicy),
 	})
 	if err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, fmt.Errorf("marshal run audit metadata: %w", err)
 	}
 	if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{
@@ -199,85 +220,89 @@ func StartWorkspaceAttempt(db *database.Database, originalConfig []byte, run *Ru
 		Action:        manifest.AuditRunStarted,
 		MetadataJSON:  string(metadata), CorrelationID: "run-start-" + strconv.FormatInt(runID, 10),
 	}); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	configArtifactID, err := persistArtifact(db, runID, originalConfig, "application/x-something-config")
 	if err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	if err := db.RunArtifacts.Link(runID, configArtifactID, database.RunArtifactWorkspaceConfig); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	resolvedBytes, err := json.Marshal(run.Manifest)
 	if err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, fmt.Errorf("marshal resolved manifest: %w", err)
 	}
 	resolvedManifestArtifactID, err := persistArtifact(db, runID, resolvedBytes, "application/json")
 	if err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	if err := db.RunArtifacts.Link(runID, resolvedManifestArtifactID, database.RunArtifactResolvedManifest); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	inputManifestArtifactID, err := persistArtifact(db, runID, inputManifestBytes, "application/json")
 	if err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	if err := db.RunArtifacts.Link(runID, inputManifestArtifactID, database.RunArtifactInputManifest); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	if inputErr != nil {
-		if err := recordPreflightStep(db, runID, configArtifactID, inputManifestArtifactID, string(fingerprint), inputManifestHash, nil, inputErr.Error()); err != nil {
-			finishPipelineRun(db, runID, "failed", err.Error())
+		if err := recordPreflightStep(ctx, db, runID, configArtifactID, inputManifestArtifactID, string(fingerprint), inputManifestHash, nil, inputErr.Error()); err != nil {
+			finishPipelineRun(ctx, db, runID, "failed", err.Error())
 			return 0, err
 		}
-		finishPipelineRun(db, runID, "failed", inputErr.Error())
+		finishPipelineRun(ctx, db, runID, "failed", inputErr.Error())
 		log.Warn("configured source input preflight failed", "run_id", runID, "error", inputErr)
 		return 0, inputErr
 	}
-	if err := recordPreflightStep(db, runID, configArtifactID, inputManifestArtifactID, string(fingerprint), inputManifestHash, reusedPreflightFromRunID, ""); err != nil {
-		finishPipelineRun(db, runID, "failed", err.Error())
+	if err := recordPreflightStep(ctx, db, runID, configArtifactID, inputManifestArtifactID, string(fingerprint), inputManifestHash, reusedPreflightFromRunID, ""); err != nil {
+		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
 	return runID, nil
 }
 
 // recordPreflightStep records preflight step.
-func recordPreflightStep(db *database.Database, runID, configArtifactID, inputManifestArtifactID int64, inputFingerprint, outputFingerprint string, reusedFromRunID *int64, failureSummary string) error {
-	stepID, err := db.RunSteps.Create(runID, "preflight")
+func recordPreflightStep(ctx context.Context, db *database.Database, runID, configArtifactID, inputManifestArtifactID int64, inputFingerprint, outputFingerprint string, reusedFromRunID *int64, failureSummary string) error {
+	stepID, err := db.Run.CreateStep(ctx, runID, "preflight")
 	if err != nil {
 		return fmt.Errorf("create preflight step: %w", err)
 	}
-	if err := db.RunSteps.LinkInputArtifact(stepID, configArtifactID); err != nil {
+	if err := db.Run.LinkStepInputArtifact(ctx, dbrun.StepArtifactInput{StepID: stepID, ArtifactID: configArtifactID}); err != nil {
 		return fmt.Errorf("link preflight input artifact: %w", err)
 	}
-	if err := db.RunSteps.LinkOutputArtifact(stepID, inputManifestArtifactID); err != nil {
+	if err := db.Run.LinkStepOutputArtifact(ctx, dbrun.StepArtifactInput{StepID: stepID, ArtifactID: inputManifestArtifactID}); err != nil {
 		return fmt.Errorf("link preflight output artifact: %w", err)
 	}
-	if err := db.RunSteps.SetFingerprints(stepID, inputFingerprint, outputFingerprint); err != nil {
+	if err := db.Run.SetStepFingerprints(ctx, dbrun.StepFingerprintInput{
+		StepID:            stepID,
+		InputFingerprint:  inputFingerprint,
+		OutputFingerprint: outputFingerprint,
+	}); err != nil {
 		return fmt.Errorf("set preflight fingerprints: %w", err)
 	}
 	if failureSummary != "" {
-		if err := db.RunSteps.UpdateStatus(stepID, string(manifest.StageFailed)); err != nil {
+		if err := db.Run.UpdateStepStatus(ctx, stepID, string(manifest.StageFailed)); err != nil {
 			return fmt.Errorf("fail preflight step: %w", err)
 		}
 		return nil
 	}
 	if reusedFromRunID == nil {
-		if err := db.RunSteps.UpdateStatus(stepID, string(manifest.StageCompleted)); err != nil {
+		if err := db.Run.UpdateStepStatus(ctx, stepID, string(manifest.StageCompleted)); err != nil {
 			return fmt.Errorf("complete preflight step: %w", err)
 		}
 		return nil
 	}
-	if err := db.RunSteps.LinkReuse(stepID, *reusedFromRunID); err != nil {
+	if err := db.Run.LinkStepReuse(ctx, dbrun.StepReuseInput{StepID: stepID, ReusedFromRunID: *reusedFromRunID}); err != nil {
 		return fmt.Errorf("link preflight reuse: %w", err)
 	}
 	metadata, err := json.Marshal(map[string]any{

@@ -7,6 +7,8 @@ package workspace
 import (
 	"analysis/article"
 	"analysis/database"
+	dbrun "analysis/database/run"
+	dbsource "analysis/database/source"
 	"analysis/enrich"
 	"analysis/manifest"
 	"analysis/normalization"
@@ -67,7 +69,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return fmt.Errorf("open database: %w", err)
 	}
 	defer db.Close()
-	runID, err := StartWorkspaceAttempt(db, originalConfig, run, fresh)
+	runID, err := StartWorkspaceAttemptContext(ctx, db, originalConfig, run, fresh)
 	if err != nil {
 		return err
 	}
@@ -75,7 +77,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if _, _, err := syncNormalizedPDFInventory(ctx, db, dbPath, databaseRegistryPath()); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
-		reconcileStoredTermMatchesBestEffort(db)
+		reconcileStoredTermMatchesBestEffort(ctx, db)
 		log.Info("reused completed execution plan", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision))
 		return nil
 	}
@@ -84,7 +86,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	defer func() {
 		if !completed && runErr != nil {
 			if db != nil {
-				finishPipelineRun(db, runID, "failed", runErr.Error())
+				finishPipelineRun(ctx, db, runID, "failed", runErr.Error())
 			}
 		}
 	}()
@@ -100,11 +102,20 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err != nil {
 			return fmt.Errorf("marshal requested fields for %s: %w", source.Name, err)
 		}
-		runSourceID, err := db.RunSources.Create(runID, source.Name, source.FileType, source.ExpectedFile, source.Query, string(fields), source.ExpectedResultCount, source.Date)
+		runSourceID, err := db.Source.CreateSource(ctx, dbsource.CreateSourceInput{
+			RunID:           runID,
+			Name:            source.Name,
+			Type:            source.FileType,
+			ExpectedFile:    source.ExpectedFile,
+			Query:           source.Query,
+			RequestedFields: string(fields),
+			ExpectedCount:   source.ExpectedResultCount,
+			ExportDate:      source.Date,
+		})
 		if err != nil {
 			return fmt.Errorf("create run source %s: %w", source.Name, err)
 		}
-		if err := db.Metrics.Set(runID, "expected_result_count", source.Name, source.ExpectedResultCount); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "expected_result_count", Source: source.Name, Value: source.ExpectedResultCount}); err != nil {
 			return err
 		}
 		// Persist source filter data
@@ -113,7 +124,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err != nil {
 				return fmt.Errorf("marshal filter data for %s: %w", source.Name, err)
 			}
-			if err := db.SourceFilterCounts.SetFilterData(runID, source.Name, string(filterJSON)); err != nil {
+			if err := db.Source.SetFilterData(ctx, dbsource.FilterCountInput{RunID: runID, SourceName: source.Name, FilterData: string(filterJSON)}); err != nil {
 				return fmt.Errorf("persist filter data for %s: %w", source.Name, err)
 			}
 		}
@@ -121,10 +132,10 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err != nil {
 			if observedCount, known := observedCountFromLoadError(err); known {
 				comparison := resultCountComparison(source.ExpectedResultCount, observedCount)
-				if updateErr := db.RunSources.SetObservedResultCount(runSourceID, observedCount, comparison); updateErr != nil {
+				if updateErr := db.Source.SetObservedResultCount(ctx, dbsource.ObservedResultCountInput{RunSourceID: runSourceID, ObservedResultCount: observedCount, Comparison: comparison}); updateErr != nil {
 					return fmt.Errorf("record empty source result count for %s: %w", source.Name, updateErr)
 				}
-				if metricErr := db.Metrics.Set(runID, "observed_result_count", source.Name, observedCount); metricErr != nil {
+				if metricErr := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "observed_result_count", Source: source.Name, Value: observedCount}); metricErr != nil {
 					return metricErr
 				}
 			}
@@ -140,13 +151,13 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			}
 		}
 		comparison := resultCountComparison(source.ExpectedResultCount, len(entries))
-		if err := db.RunSources.SetObservedResultCount(runSourceID, len(entries), comparison); err != nil {
+		if err := db.Source.SetObservedResultCount(ctx, dbsource.ObservedResultCountInput{RunSourceID: runSourceID, ObservedResultCount: len(entries), Comparison: comparison}); err != nil {
 			return fmt.Errorf("record source result count for %s: %w", source.Name, err)
 		}
-		if err := db.Metrics.Set(runID, "observed_result_count", source.Name, len(entries)); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "observed_result_count", Source: source.Name, Value: len(entries)}); err != nil {
 			return err
 		}
-		if err := db.Metrics.Set(runID, "input_records", source.Name, len(entries)); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "input_records", Source: source.Name, Value: len(entries)}); err != nil {
 			return err
 		}
 		inputRecords += len(entries)
@@ -159,7 +170,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err != nil {
 				return fmt.Errorf("marshal source record %s[%d]: %w", source.Name, index, err)
 			}
-			recordID, err := db.SourceRecords.Create(runSourceID, index, string(raw), contentHash(raw))
+			recordID, err := db.Source.CreateRecord(ctx, dbsource.CreateRecordInput{RunSourceID: runSourceID, RecordIndex: index, RawPayload: string(raw), ContentHash: contentHash(raw)})
 			if err != nil {
 				return fmt.Errorf("create source record %s[%d]: %w", source.Name, index, err)
 			}
@@ -168,38 +179,38 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			article.KeepFields(canonical, source.KeepFields)
 			a, err := article.NewFromMap(canonical, source.Name)
 			if err != nil {
-				if updateErr := db.SourceRecords.UpdateParseStatus(recordID, "rejected", err.Error()); updateErr != nil {
+				if updateErr := db.Source.UpdateRecordStatus(ctx, dbsource.RecordStatusInput{RecordID: recordID, Status: "rejected", RejectReason: err.Error()}); updateErr != nil {
 					return fmt.Errorf("record rejected source record %s[%d]: %w", source.Name, index, updateErr)
 				}
 				continue
 			}
-			if err := db.SourceRecords.UpdateParseStatus(recordID, "parsed", ""); err != nil {
+			if err := db.Source.UpdateRecordStatus(ctx, dbsource.RecordStatusInput{RecordID: recordID, Status: "parsed"}); err != nil {
 				return fmt.Errorf("mark parsed source record %s[%d]: %w", source.Name, index, err)
 			}
 			accepted = append(accepted, a)
 			parsed = append(parsed, a)
 		}
 		bySource[source.Name] = accepted
-		if err := db.Metrics.Set(runID, "parsed_articles", source.Name, len(accepted)); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "parsed_articles", Source: source.Name, Value: len(accepted)}); err != nil {
 			return err
 		}
 	}
 	log.Info("sources loaded", "run_id", runID, "records", inputRecords, "parsed", len(parsed), "sources", len(run.Manifest.Sources))
 
-	if err := recordWorkspaceStage(db, run, runID, "parse", nil, parsed); err != nil {
+	if err := recordWorkspaceStage(ctx, db, run, runID, "parse", nil, parsed); err != nil {
 		return err
 	}
 	if _, _, err := persistWorkspaceStage(db, runID, parsed, database.ProducerStageParse, database.StageNameParse, database.OutcomeParsed, nil); err != nil {
 		return fmt.Errorf("persist parsed works: %w", err)
 	}
 	unique, duplicates := article.MergeBySource(bySource)
-	if err := recordWorkspaceStage(db, run, runID, "deduplicate", parsed, unique); err != nil {
+	if err := recordWorkspaceStage(ctx, db, run, runID, "deduplicate", parsed, unique); err != nil {
 		return err
 	}
 	if _, _, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageDeduplicate, database.StageNameDeduplicate, database.OutcomeDeduplicated, nil); err != nil {
 		return fmt.Errorf("persist deduplicated works: %w", err)
 	}
-	if err := setRunMetrics(db, runID,
+	if err := setRunMetrics(ctx, db, runID,
 		"input_records", inputRecords,
 		"parsed_articles", len(parsed),
 		"deduplicated_articles", len(unique),
@@ -214,7 +225,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err != nil {
 			return err
 		}
-		if err := recordWorkspaceStage(db, run, runID, "enrich_metadata", metadataInput, unique); err != nil {
+		if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_metadata", metadataInput, unique); err != nil {
 			return err
 		}
 		_, metadataRevisionIDs, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageEnrichMetadata, database.StageNameEnrichMetadata, database.OutcomeEnriched, nil)
@@ -239,7 +250,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 				}
 				return err
 			}
-			if err := recordWorkspaceStage(db, run, runID, "enrich_identity", identityInput, unique); err != nil {
+			if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_identity", identityInput, unique); err != nil {
 				return err
 			}
 			_, identityRevisionIDs, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageEnrichIdentity, database.StageNameEnrichIdentity, database.OutcomeEnriched, nil)
@@ -257,10 +268,10 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		} else if err := setWorkspaceStageOutcome(db, runID, unique, database.StageNameEnrichIdentity, database.OutcomeSkipped, "ORCID provider is not configured"); err != nil {
 			return err
 		}
-		if err := recordFieldEnrichmentMetrics(db, runID, allChanges); err != nil {
+		if err := recordFieldEnrichmentMetrics(ctx, db, runID, allChanges); err != nil {
 			return err
 		}
-		if err := setRunMetrics(db, runID,
+		if err := setRunMetrics(ctx, db, runID,
 			"enrichment_skipped", 0,
 			"enrichment_candidates", len(unique),
 			"enriched_article_updates", updated); err != nil {
@@ -273,7 +284,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 				return err
 			}
 		}
-		if err := setRunMetrics(db, runID,
+		if err := setRunMetrics(ctx, db, runID,
 			"enrichment_skipped", 1,
 			"enrichment_candidates", len(unique),
 			"enriched_article_updates", 0); err != nil {
@@ -286,7 +297,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return err
 	}
 	valid, discarded, reasons := validateWorkspaceArticles(unique)
-	if err := recordWorkspaceStage(db, run, runID, "validate", unique, unique); err != nil {
+	if err := recordWorkspaceStage(ctx, db, run, runID, "validate", unique, unique); err != nil {
 		return err
 	}
 	if _, _, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageValidate, database.StageNameValidate, database.OutcomeValid, reasons); err != nil {
@@ -295,17 +306,17 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := recordValidationAudit(db, runID, unique, reasons); err != nil {
 		return err
 	}
-	if err := setRunMetrics(db, runID, "valid_articles", len(valid), "discarded_articles", len(discarded)); err != nil {
+	if err := setRunMetrics(ctx, db, runID, "valid_articles", len(valid), "discarded_articles", len(discarded)); err != nil {
 		return err
 	}
 	log.Info("validation completed", "run_id", runID, "valid", len(valid), "discarded", len(discarded))
 
 	normalizeInput := snapshotArticles(valid)
 	normalizationResults := normalizeWorkspaceArticles(valid)
-	if err := recordNormalizationMetrics(db, runID, len(valid), normalizationResults); err != nil {
+	if err := recordNormalizationMetrics(ctx, db, runID, len(valid), normalizationResults); err != nil {
 		return err
 	}
-	if err := recordWorkspaceStage(db, run, runID, "normalize", normalizeInput, valid); err != nil {
+	if err := recordWorkspaceStage(ctx, db, run, runID, "normalize", normalizeInput, valid); err != nil {
 		return err
 	}
 	_, normalizeRevisionIDs, err := persistWorkspaceStage(db, runID, valid, database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, nil)
@@ -325,11 +336,11 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := completePipelineRun(db, runID); err != nil {
+	if err := completePipelineRun(ctx, db, runID); err != nil {
 		return err
 	}
 	completed = true
-	reconcileStoredTermMatchesBestEffort(db)
+	reconcileStoredTermMatchesBestEffort(ctx, db)
 	log.Info("workspace pipeline completed", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision), "run_id", runID)
 	return nil
 }
@@ -515,9 +526,9 @@ func setWorkspaceStageOutcome(db *database.Database, runID int64, articles []*ar
 }
 
 // setRunMetrics sets run metrics using the supplied values.
-func setRunMetrics(db *database.Database, runID int64, metrics ...any) error {
+func setRunMetrics(ctx context.Context, db *database.Database, runID int64, metrics ...any) error {
 	for i := 0; i < len(metrics); i += 2 {
-		if err := db.Metrics.Set(runID, metrics[i].(string), "", metrics[i+1].(int)); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: metrics[i].(string), Value: metrics[i+1].(int)}); err != nil {
 			return err
 		}
 	}
@@ -542,7 +553,7 @@ func snapshotArticles(articles []*article.Article) []*article.Article {
 }
 
 // recordWorkspaceStage records workspace stage.
-func recordWorkspaceStage(db *database.Database, run *Run, runID int64, name string, input any, output any) error {
+func recordWorkspaceStage(ctx context.Context, db *database.Database, run *Run, runID int64, name string, input any, output any) error {
 	inputBytes, err := json.Marshal(input)
 	if err != nil {
 		return fmt.Errorf("marshal %s input: %w", name, err)
@@ -559,20 +570,20 @@ func recordWorkspaceStage(db *database.Database, run *Run, runID int64, name str
 	if err != nil {
 		return err
 	}
-	stepID, err := db.RunSteps.Create(runID, name)
+	stepID, err := db.Run.CreateStep(ctx, runID, name)
 	if err != nil {
 		return err
 	}
-	if err := db.RunSteps.LinkInputArtifact(stepID, inputArtifactID); err != nil {
+	if err := db.Run.LinkStepInputArtifact(ctx, dbrun.StepArtifactInput{StepID: stepID, ArtifactID: inputArtifactID}); err != nil {
 		return err
 	}
-	if err := db.RunSteps.LinkOutputArtifact(stepID, outputArtifactID); err != nil {
+	if err := db.Run.LinkStepOutputArtifact(ctx, dbrun.StepArtifactInput{StepID: stepID, ArtifactID: outputArtifactID}); err != nil {
 		return err
 	}
-	if err := db.RunSteps.SetFingerprints(stepID, contentHash(inputBytes), contentHash(outputBytes)); err != nil {
+	if err := db.Run.SetStepFingerprints(ctx, dbrun.StepFingerprintInput{StepID: stepID, InputFingerprint: contentHash(inputBytes), OutputFingerprint: contentHash(outputBytes)}); err != nil {
 		return err
 	}
-	return db.RunSteps.UpdateStatus(stepID, string(manifest.StageCompleted))
+	return db.Run.UpdateStepStatus(ctx, stepID, string(manifest.StageCompleted))
 }
 
 // persistWorkSnapshot persists work snapshot through the owning repository.
@@ -716,7 +727,7 @@ func normalizationResult(doi, field, input, output string) normalizationFieldRes
 // checked field. No per-field audit events are emitted: the immutable
 // normalized revision already records the output, and the prior revision is
 // retained as the corresponding input evidence.
-func recordNormalizationMetrics(db *database.Database, runID int64, processedArticles int, results []normalizationFieldResult) error {
+func recordNormalizationMetrics(ctx context.Context, db *database.Database, runID int64, processedArticles int, results []normalizationFieldResult) error {
 	totals := make(map[string]int, len(normalizationOutcomes))
 	byField := make(map[string]map[string]int, len(normalizationFields))
 	for _, field := range normalizationFields {
@@ -726,7 +737,7 @@ func recordNormalizationMetrics(db *database.Database, runID int64, processedArt
 		totals[result.Outcome]++
 		byField[result.Field][result.Outcome]++
 	}
-	if err := setRunMetrics(db, runID,
+	if err := setRunMetrics(ctx, db, runID,
 		"normalized_articles_processed", processedArticles,
 		"normalization_fields_processed", len(results),
 		"normalization_fields_changed", totals[normalizationOutcomeChanged],
@@ -735,11 +746,11 @@ func recordNormalizationMetrics(db *database.Database, runID int64, processedArt
 		return err
 	}
 	for _, field := range normalizationFields {
-		if err := db.Metrics.Set(runID, "normalization_fields_processed", field, sumNormalizationOutcomes(byField[field])); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "normalization_fields_processed", Source: field, Value: sumNormalizationOutcomes(byField[field])}); err != nil {
 			return err
 		}
 		for _, outcome := range normalizationOutcomes {
-			if err := db.Metrics.Set(runID, "normalization_fields_"+outcome, field, byField[field][outcome]); err != nil {
+			if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "normalization_fields_" + outcome, Source: field, Value: byField[field][outcome]}); err != nil {
 				return err
 			}
 		}
@@ -1330,7 +1341,7 @@ func emitFieldEnrichedAuditEvents(db *database.Database, runID int64, revisionID
 // metrics to pipeline_run_metrics. Per-author-index fields (e.g.
 // author_orcid_0, author_first_name_1) are aggregated into a single count
 // per field type (author_orcid, author_first_name, etc.).
-func recordFieldEnrichmentMetrics(db *database.Database, runID int64, changes []fieldChange) error {
+func recordFieldEnrichmentMetrics(ctx context.Context, db *database.Database, runID int64, changes []fieldChange) error {
 	fieldCounts := make(map[string]int)
 	providerCounts := make(map[string]int)
 	authorFieldSuffix := regexp.MustCompile(`_\d+$`)
@@ -1340,16 +1351,16 @@ func recordFieldEnrichmentMetrics(db *database.Database, runID int64, changes []
 		fieldCounts[field]++
 		providerCounts[c.Provider]++
 	}
-	if err := db.Metrics.Set(runID, "enriched_fields_total", "", len(changes)); err != nil {
+	if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields_total", Value: len(changes)}); err != nil {
 		return err
 	}
 	for field, count := range fieldCounts {
-		if err := db.Metrics.Set(runID, "enriched_fields_"+field, "", count); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields_" + field, Value: count}); err != nil {
 			return err
 		}
 	}
 	for provider, count := range providerCounts {
-		if err := db.Metrics.Set(runID, "enriched_fields", provider, count); err != nil {
+		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields", Source: provider, Value: count}); err != nil {
 			return err
 		}
 	}
@@ -1357,8 +1368,8 @@ func recordFieldEnrichmentMetrics(db *database.Database, runID int64, changes []
 }
 
 // completePipelineRun completes pipeline run and records its terminal state.
-func completePipelineRun(db *database.Database, runID int64) error {
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+func completePipelineRun(ctx context.Context, db *database.Database, runID int64) error {
+	if err := db.Run.FinishRun(ctx, runID, "completed", ""); err != nil {
 		return err
 	}
 	_, err := db.AuditEvents.Insert(&manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunCompleted, CorrelationID: "run-complete-" + strconv.FormatInt(runID, 10)})
