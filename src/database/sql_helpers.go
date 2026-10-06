@@ -48,3 +48,16 @@ func (d *Database) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
 	}
 	return tx.Commit()
 }
+
+// scannable defines the behavior required of scannable implementations.
+type scannable interface {
+	Scan(dest ...any) error
+}
+
+// nullStrPtrVal returns a nullable SQL string's value or an empty string.
+func nullStrPtrVal(ns sql.NullString) string {
+	if ns.Valid {
+		return ns.String
+	}
+	return ""
+}

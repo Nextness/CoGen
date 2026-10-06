@@ -1,7 +1,7 @@
 // Unit tests for work revision payload hash computation.
 //go:build unit
 
-package database
+package work
 
 import (
 	"testing"
@@ -9,22 +9,22 @@ import (
 
 // TestRevisionPayloadHashDeterminism verifies revision payload hash determinism.
 func TestRevisionPayloadHashDeterminism(t *testing.T) {
-	base := &WorkRevision{
+	base := &Revision{
 		Title:    "Same Title",
 		Year:     2023,
 		Journal:  "Same Journal",
 		Keywords: `["kw1"]`,
 	}
 
-	// Same inputs → same hash
+	// Same inputs -> same hash
 	h1 := computeRevisionPayloadHash(base)
 	h2 := computeRevisionPayloadHash(base)
 	if h1 != h2 {
 		t.Fatal("identical revisions must produce the same hash")
 	}
 
-	// Changed metadata → different hash
-	diff := &WorkRevision{
+	// Changed metadata -> different hash
+	diff := &Revision{
 		Title:    "Same Title",
 		Year:     2024, // different
 		Journal:  "Same Journal",
@@ -35,14 +35,14 @@ func TestRevisionPayloadHashDeterminism(t *testing.T) {
 		t.Fatal("different year must produce a different hash")
 	}
 
-	// producer_stage is provenance → must NOT affect hash
-	stageA := &WorkRevision{
+	// producer_stage is provenance -> must NOT affect hash
+	stageA := &Revision{
 		Title:         "Same Title",
 		Year:          2023,
 		Journal:       "Same Journal",
 		ProducerStage: "parse",
 	}
-	stageB := &WorkRevision{
+	stageB := &Revision{
 		Title:         "Same Title",
 		Year:          2023,
 		Journal:       "Same Journal",
@@ -55,11 +55,11 @@ func TestRevisionPayloadHashDeterminism(t *testing.T) {
 	}
 
 	// field_schema_version IS part of the payload interpretation
-	verA := &WorkRevision{
+	verA := &Revision{
 		Title:              "Version test",
 		FieldSchemaVersion: "1",
 	}
-	verB := &WorkRevision{
+	verB := &Revision{
 		Title:              "Version test",
 		FieldSchemaVersion: "2",
 	}

@@ -106,6 +106,24 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
+    schema: "../src/database/work/schema/definitions.sql"
+    queries:
+      - "../src/database/work/schema/work.sql"
+      - "../src/database/work/schema/revision.sql"
+      - "../src/database/work/schema/stage.sql"
+      - "../src/database/work/schema/reference.sql"
+      - "../src/database/work/schema/term_match.sql"
+    gen:
+      go:
+        package: "sql"
+        out: "../src/database/work/internal/sql"
+        sql_package: "database/sql"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_exported_queries: false
+        emit_interface: false
+        omit_unused_structs: true
+  - engine: "sqlite"
     schema: "../src/database/sqlcprobe/schema/definitions.sql"
     queries:
       - "../src/database/sqlcprobe/schema/probe.sql"
