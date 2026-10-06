@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"analysis/database/cache"
 	"analysis/manifest"
 )
 
@@ -23,15 +24,15 @@ func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry := &CacheEntry{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"}
-	id, err := db.CacheEntries.Upsert(entry)
+	entry := &cache.Entry{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"}
+	id, err := db.Cache.AppendEntry(context.Background(), entry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	entry.ResponseStatus = 404
 	entry.PayloadArtifactID = nil
 	entry.ExpiresAt = "2026-07-23T00:00:00Z"
-	updatedID, err := db.CacheEntries.Upsert(entry)
+	updatedID, err := db.Cache.AppendEntry(context.Background(), entry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	if _, err := db.DB.Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", id); err == nil {
 		t.Fatal("immutable response update was accepted")
 	}
-	got, err := db.CacheEntries.Get("crossref", "works", "request-a", "1")
+	got, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
 	if err != nil || got == nil {
 		t.Fatalf("get cache entry: %v, %+v", err, got)
 	}
@@ -56,14 +57,14 @@ func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	for _, key := range []struct{ provider, request, version string }{
 		{"openalex", "request-a", "1"}, {"crossref", "request-b", "1"}, {"crossref", "request-a", "2"},
 	} {
-		if _, err := db.CacheEntries.Upsert(&CacheEntry{Provider: key.provider, Namespace: "works", RequestFingerprint: key.request, ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: key.version}); err != nil {
+		if _, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: key.provider, Namespace: "works", RequestFingerprint: key.request, ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: key.version}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	for _, key := range []struct{ provider, request, version string }{
 		{"openalex", "request-a", "1"}, {"crossref", "request-b", "1"}, {"crossref", "request-a", "2"},
 	} {
-		if got, err := db.CacheEntries.Get(key.provider, "works", key.request, key.version); err != nil || got == nil {
+		if got, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: key.provider, Namespace: "works", RequestFingerprint: key.request, ExtractorVersion: key.version}); err != nil || got == nil {
 			t.Fatalf("separate cache key missing: %v, %+v", err, got)
 		}
 	}
@@ -80,7 +81,7 @@ func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := db.CacheEntries.Upsert(&CacheEntry{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"})
+			_, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"})
 			errs <- err
 		}()
 	}
@@ -98,7 +99,7 @@ func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
 	if count != writers {
 		t.Fatalf("concurrent refresh retained %d responses, want %d", count, writers)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "works", "same-request", "1")
+	entry, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ExtractorVersion: "1"})
 	if err != nil || entry == nil {
 		t.Fatalf("get concurrent entry: %v, %+v", err, entry)
 	}
@@ -106,18 +107,18 @@ func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunCacheUses.Create(&RunCacheUse{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
+	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
 		t.Fatal(err)
 	}
-	uses, err := db.RunCacheUses.ListByRun(runID)
+	uses, err := db.Cache.ListUsesByRun(context.Background(), runID)
 	if err != nil || len(uses) != 1 || uses[0].CacheEntryID != entry.ID {
 		t.Fatalf("run cache uses: %v, %+v", err, uses)
 	}
-	fromRun, err := db.RunCacheUses.FindEntry(runID, "global", "crossref", "works", "same-request", "1")
+	fromRun, err := db.Cache.FindEntry(context.Background(), runID, "global", cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ExtractorVersion: "1"})
 	if err != nil || fromRun == nil || fromRun.ID != entry.ID {
 		t.Fatalf("find run cache entry: %v, %+v", err, fromRun)
 	}
-	if _, err := db.RunCacheUses.Create(&RunCacheUse{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: "invalid"}); err == nil {
+	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: "invalid"}); err == nil {
 		t.Fatal("invalid cache outcome was accepted")
 	}
 }
@@ -169,7 +170,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 				errs <- err
 				return
 			}
-			entryID, err := db.CacheEntries.Upsert(&CacheEntry{
+			entryID, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{
 				Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "same-request",
 				ResponseStatus: 200, FetchedAt: "2026-07-27T00:00:00Z", ExtractorVersion: "concurrency-test",
 			})
@@ -177,7 +178,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 				errs <- err
 				return
 			}
-			_, err = db.RunCacheUses.Create(&RunCacheUse{PipelineRunID: runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)})
+			_, err = db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)})
 			errs <- err
 		}(db)
 	}
@@ -239,7 +240,7 @@ func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
 	if _, err := conn.Exec("INSERT INTO cache_entries (id,provider,namespace,request_fingerprint,response_status,fetched_at,extractor_version) VALUES (42,'crossref','work_by_doi','key',404,'2026-01-01','v1')"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunCacheUses.Create(&RunCacheUse{PipelineRunID: runID, CacheEntryID: 42, CacheLayer: "global", Outcome: "negative"}); err != nil {
+	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: 42, CacheLayer: "global", Outcome: "negative"}); err != nil {
 		t.Fatal(err)
 	}
 	up, err := extractUpSQL(filepath.Join("..", "..", "migrations", "corpus.metadata", "V00028_immutable_cache_responses.sql"))
@@ -249,11 +250,11 @@ func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
 	if err := db.withTx(context.Background(), func(tx *sql.Tx) error { _, err := tx.Exec(up); return err }); err != nil {
 		t.Fatal(err)
 	}
-	id, err := db.CacheEntries.Upsert(&CacheEntry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ResponseStatus: 200, FetchedAt: "2026-01-02", ExtractorVersion: "v1"})
+	id, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ResponseStatus: 200, FetchedAt: "2026-01-02", ExtractorVersion: "v1"})
 	if err != nil || id <= 42 {
 		t.Fatalf("new response ID=%d err=%v", id, err)
 	}
-	old, err := db.RunCacheUses.FindAnyEntry(runID, "crossref", "work_by_doi", "key", "v1")
+	old, err := db.Cache.FindAnyEntry(context.Background(), runID, cache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ExtractorVersion: "v1"})
 	if err != nil || old == nil || old.ID != 42 || old.ResponseStatus != 404 {
 		t.Fatalf("legacy use changed: %+v %v", old, err)
 	}

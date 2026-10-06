@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"analysis/database/cache"
 	"analysis/manifest"
 )
 
@@ -44,20 +45,20 @@ func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T) {
 		{"ArtifactRepository.GetByID", func() (bool, error) { value, err := db.Artifacts.GetByID(999); return value == nil, err }},
 		{"ArtifactRepository.GetByHash", func() (bool, error) { value, err := db.Artifacts.GetByHash("absent"); return value == nil, err }},
 		{"ArtifactBlobRepository.GetByArtifactID", func() (bool, error) { value, err := db.ArtifactBlobs.GetByArtifactID(999); return value == nil, err }},
-		{"CacheEntryRepository.Get", func() (bool, error) {
-			value, err := db.CacheEntries.Get("absent", "absent", "absent", "absent")
+		{"CacheStore.LatestEntry", func() (bool, error) {
+			value, err := db.Cache.LatestEntry(ctx, cache.Key{Provider: "absent", Namespace: "absent", RequestFingerprint: "absent", ExtractorVersion: "absent"})
 			return value == nil, err
 		}},
-		{"CacheEntryRepository.GetGlobal", func() (bool, error) {
-			value, err := db.CacheEntries.GetGlobal("absent", "absent", "absent", "absent")
+		{"CacheStore.GlobalEntry", func() (bool, error) {
+			value, err := db.Cache.GlobalEntry(ctx, cache.Key{Provider: "absent", Namespace: "absent", RequestFingerprint: "absent", ExtractorVersion: "absent"})
 			return value == nil, err
 		}},
-		{"RunCacheUseRepository.FindEntry", func() (bool, error) {
-			value, err := db.RunCacheUses.FindEntry(999, "global", "absent", "absent", "absent", "absent")
+		{"CacheStore.FindEntry", func() (bool, error) {
+			value, err := db.Cache.FindEntry(ctx, 999, "global", cache.Key{Provider: "absent", Namespace: "absent", RequestFingerprint: "absent", ExtractorVersion: "absent"})
 			return value == nil, err
 		}},
-		{"RunCacheUseRepository.FindAnyEntry", func() (bool, error) {
-			value, err := db.RunCacheUses.FindAnyEntry(999, "absent", "absent", "absent", "absent")
+		{"CacheStore.FindAnyEntry", func() (bool, error) {
+			value, err := db.Cache.FindAnyEntry(ctx, 999, cache.Key{Provider: "absent", Namespace: "absent", RequestFingerprint: "absent", ExtractorVersion: "absent"})
 			return value == nil, err
 		}},
 		{"WorkRepository.GetByID", func() (bool, error) { value, err := db.Works.GetByID(999); return value == nil, err }},
@@ -176,7 +177,7 @@ func TestCharacterizationEmptyListSliceIdentity(t *testing.T) {
 			return value == nil, err
 		}},
 		{"TermMatchesRepository.GetRunTerms", true, func() (bool, error) { value, err := db.TermMatches.GetRunTerms(999); return value == nil, err }},
-		{"RunCacheUseRepository.ListByRun", false, func() (bool, error) { value, err := db.RunCacheUses.ListByRun(999); return value == nil, err }},
+		{"CacheStore.ListUsesByRun", false, func() (bool, error) { value, err := db.Cache.ListUsesByRun(ctx, 999); return value == nil, err }},
 		{"ReferenceMentionRepository.GetByRevisionID", false, func() (bool, error) {
 			value, err := db.ReferenceMentions.GetByRevisionID(999)
 			return value == nil, err
@@ -226,6 +227,7 @@ func TestCharacterizationEmptyListSliceIdentity(t *testing.T) {
 // TestCharacterizationNullableScanningRoundTrip verifies nullable text and
 // integer columns scan into the documented zero values and pointers.
 func TestCharacterizationNullableScanningRoundTrip(t *testing.T) {
+	ctx := context.Background()
 	t.Run("run source optional fields", func(t *testing.T) {
 		db := openTestDB(t)
 		defer db.Close()
@@ -254,13 +256,13 @@ func TestCharacterizationNullableScanningRoundTrip(t *testing.T) {
 	t.Run("cache entry payload and expiry", func(t *testing.T) {
 		db := openTestDB(t)
 		defer db.Close()
-		if _, err := db.CacheEntries.Upsert(&CacheEntry{
+		if _, err := db.Cache.AppendEntry(ctx, &cache.Entry{
 			Provider: "crossref", Namespace: "works", RequestFingerprint: "nullable-negative",
 			ResponseStatus: 404, FetchedAt: "2026-01-01T00:00:00Z", ExtractorVersion: "1",
 		}); err != nil {
 			t.Fatal(err)
 		}
-		negative, err := db.CacheEntries.Get("crossref", "works", "nullable-negative", "1")
+		negative, err := db.Cache.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "nullable-negative", ExtractorVersion: "1"})
 		if err != nil || negative == nil {
 			t.Fatalf("negative entry=%+v err=%v", negative, err)
 		}
@@ -271,14 +273,14 @@ func TestCharacterizationNullableScanningRoundTrip(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.CacheEntries.Upsert(&CacheEntry{
+		if _, err := db.Cache.AppendEntry(ctx, &cache.Entry{
 			Provider: "crossref", Namespace: "works", RequestFingerprint: "nullable-positive",
 			ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: "2026-01-01T00:00:00Z",
 			ExpiresAt: "2026-02-01T00:00:00Z", ExtractorVersion: "1",
 		}); err != nil {
 			t.Fatal(err)
 		}
-		positive, err := db.CacheEntries.Get("crossref", "works", "nullable-positive", "1")
+		positive, err := db.Cache.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "nullable-positive", ExtractorVersion: "1"})
 		if err != nil || positive == nil {
 			t.Fatalf("positive entry=%+v err=%v", positive, err)
 		}
@@ -739,6 +741,7 @@ func TestCharacterizationTransactionRollback(t *testing.T) {
 // TestCharacterizationCacheReplayIdentity verifies replay returns the exact
 // immutable response recorded for a run even after a newer version exists.
 func TestCharacterizationCacheReplayIdentity(t *testing.T) {
+	ctx := context.Background()
 	db := openTestDB(t)
 	defer db.Close()
 	runID, err := db.PipelineRuns.StartRun("characterization cache replay", "")
@@ -749,7 +752,7 @@ func TestCharacterizationCacheReplayIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstID, err := db.CacheEntries.Upsert(&CacheEntry{
+	firstID, err := db.Cache.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "replay-key",
 		ResponseStatus: 200, PayloadArtifactID: &artifactID,
 		FetchedAt: "2026-01-01T00:00:00Z", ExtractorVersion: "1",
@@ -757,12 +760,12 @@ func TestCharacterizationCacheReplayIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunCacheUses.Create(&RunCacheUse{
+	if _, err := db.Cache.AppendUse(ctx, &cache.Use{
 		PipelineRunID: runID, CacheEntryID: firstID, CacheLayer: "global", Outcome: "hit",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	secondID, err := db.CacheEntries.Upsert(&CacheEntry{
+	secondID, err := db.Cache.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "replay-key",
 		ResponseStatus: 404, FetchedAt: "2026-01-02T00:00:00Z", ExtractorVersion: "1",
 	})
@@ -773,20 +776,20 @@ func TestCharacterizationCacheReplayIdentity(t *testing.T) {
 		t.Fatal("new cache version reused the immutable response ID")
 	}
 	for attempt := 0; attempt < 2; attempt++ {
-		recorded, err := db.RunCacheUses.FindEntry(runID, "global", "crossref", "works", "replay-key", "1")
+		recorded, err := db.Cache.FindEntry(ctx, runID, "global", cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "replay-key", ExtractorVersion: "1"})
 		if err != nil || recorded == nil || recorded.ID != firstID || recorded.ResponseStatus != 200 {
 			t.Fatalf("replayed FindEntry = %+v err=%v, want original entry %d", recorded, err, firstID)
 		}
-		anyEntry, err := db.RunCacheUses.FindAnyEntry(runID, "crossref", "works", "replay-key", "1")
+		anyEntry, err := db.Cache.FindAnyEntry(ctx, runID, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "replay-key", ExtractorVersion: "1"})
 		if err != nil || anyEntry == nil || anyEntry.ID != firstID {
 			t.Fatalf("replayed FindAnyEntry = %+v err=%v, want original entry %d", anyEntry, err, firstID)
 		}
 	}
-	latest, err := db.CacheEntries.Get("crossref", "works", "replay-key", "1")
+	latest, err := db.Cache.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "replay-key", ExtractorVersion: "1"})
 	if err != nil || latest == nil || latest.ID != secondID || latest.ResponseStatus != 404 {
 		t.Fatalf("latest cache entry = %+v err=%v, want %d", latest, err, secondID)
 	}
-	uses, err := db.RunCacheUses.ListByRun(runID)
+	uses, err := db.Cache.ListUsesByRun(ctx, runID)
 	if err != nil || len(uses) != 1 || uses[0].CacheEntryID != firstID {
 		t.Fatalf("run cache uses = %+v err=%v, want one original use", uses, err)
 	}

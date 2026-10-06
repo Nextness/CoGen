@@ -48,8 +48,6 @@ type Database struct {
 	IdentityCandidates   *AuthorIdentityCandidateRepository
 	ReferenceMentions    *ReferenceMentionRepository
 	Cache                *cache.Store
-	CacheEntries         *CacheEntryRepository
-	RunCacheUses         *RunCacheUseRepository
 	ArtifactBlobs        *ArtifactBlobRepository
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
@@ -128,8 +126,6 @@ func (d *Database) initRepositories() {
 	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
 	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
 	d.Cache = cache.New(d.DB)
-	d.CacheEntries = &CacheEntryRepository{db: d}
-	d.RunCacheUses = &RunCacheUseRepository{db: d}
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
