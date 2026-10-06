@@ -232,7 +232,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err != nil {
 			return fmt.Errorf("persist metadata-enriched works: %w", err)
 		}
-		if err := emitFieldEnrichedAuditEvents(db, runID, metadataRevisionIDs, metadataChanges); err != nil {
+		if err := emitFieldEnrichedAuditEvents(ctx, db, runID, metadataRevisionIDs, metadataChanges); err != nil {
 			return err
 		}
 
@@ -257,7 +257,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err != nil {
 				return fmt.Errorf("persist identity-enriched works: %w", err)
 			}
-			if err := emitFieldEnrichedAuditEvents(db, runID, identityRevisionIDs, identityChanges); err != nil {
+			if err := emitFieldEnrichedAuditEvents(ctx, db, runID, identityRevisionIDs, identityChanges); err != nil {
 				return err
 			}
 			if err := persistUncertainORCIDEvidence(db, runID, metadataRevisionIDs, uncertainORCIDEvidence); err != nil {
@@ -303,7 +303,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if _, _, err := persistWorkspaceStage(db, runID, unique, database.ProducerStageValidate, database.StageNameValidate, database.OutcomeValid, reasons); err != nil {
 		return fmt.Errorf("persist validated works: %w", err)
 	}
-	if err := recordValidationAudit(db, runID, unique, reasons); err != nil {
+	if err := recordValidationAudit(ctx, db, runID, unique, reasons); err != nil {
 		return err
 	}
 	if err := setRunMetrics(ctx, db, runID, "valid_articles", len(valid), "discarded_articles", len(discarded)); err != nil {
@@ -1307,7 +1307,7 @@ func applyConfiguredArticleEnrichment(articles map[string]*article.Article, sour
 
 // emitFieldEnrichedAuditEvents records one field_enriched audit event per field
 // change. revisionIDs maps DOI -> work_revision ID.
-func emitFieldEnrichedAuditEvents(db *database.Database, runID int64, revisionIDs map[string]int64, changes []fieldChange) error {
+func emitFieldEnrichedAuditEvents(ctx context.Context, db *database.Database, runID int64, revisionIDs map[string]int64, changes []fieldChange) error {
 	for _, c := range changes {
 		revID, ok := revisionIDs[c.DOI]
 		if !ok {
@@ -1321,7 +1321,7 @@ func emitFieldEnrichedAuditEvents(db *database.Database, runID int64, revisionID
 			return err
 		}
 		correlationID := fmt.Sprintf("enrich-%d-%d-%s", runID, revID, c.Field)
-		if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{
+		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
 			OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
 			Actor:         c.Provider,
 			PipelineRunID: runID,
@@ -1372,12 +1372,12 @@ func completePipelineRun(ctx context.Context, db *database.Database, runID int64
 	if err := db.Run.FinishRun(ctx, runID, "completed", ""); err != nil {
 		return err
 	}
-	_, err := db.AuditEvents.Insert(&manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunCompleted, CorrelationID: "run-complete-" + strconv.FormatInt(runID, 10)})
+	_, err := db.Audit.Insert(ctx, &manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunCompleted, CorrelationID: "run-complete-" + strconv.FormatInt(runID, 10)})
 	return err
 }
 
 // recordValidationAudit records validation audit.
-func recordValidationAudit(db *database.Database, runID int64, articles []*article.Article, reasons map[string][]string) error {
+func recordValidationAudit(ctx context.Context, db *database.Database, runID int64, articles []*article.Article, reasons map[string][]string) error {
 	for _, a := range articles {
 		work, err := db.Works.GetByDOI(a.DOI)
 		if err != nil {
@@ -1396,7 +1396,7 @@ func recordValidationAudit(db *database.Database, runID int64, articles []*artic
 			}
 			metadata = string(data)
 		}
-		if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "work", EntityID: strconv.FormatInt(work.ID, 10), Action: manifest.AuditValidationChanged, AfterJSON: fmt.Sprintf(`{"status":%q}`, status), MetadataJSON: metadata, CorrelationID: "validation-" + strconv.FormatInt(runID, 10)}); err != nil {
+		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "work", EntityID: strconv.FormatInt(work.ID, 10), Action: manifest.AuditValidationChanged, AfterJSON: fmt.Sprintf(`{"status":%q}`, status), MetadataJSON: metadata, CorrelationID: "validation-" + strconv.FormatInt(runID, 10)}); err != nil {
 			return err
 		}
 	}

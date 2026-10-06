@@ -364,7 +364,7 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		{DOI: "10.1000/one", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 	}
-	if err := emitFieldEnrichedAuditEvents(db, runID, revisionIDs, changes); err != nil {
+	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
 	events, err := db.AuditEvents.ListByRun(runID)
@@ -446,7 +446,7 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		{DOI: "10.1000/known", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/unknown", Field: "abstract", Provider: "crossref"},
 	}
-	if err := emitFieldEnrichedAuditEvents(db, runID, revisionIDs, changes); err != nil {
+	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
 	events, err := db.AuditEvents.ListByRun(runID)

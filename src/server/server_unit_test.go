@@ -798,62 +798,6 @@ func TestHelper_auditMultiValues(t *testing.T) {
 	})
 }
 
-// TestHelper_auditInClause verifies helper audit in clause.
-func TestHelper_auditInClause(t *testing.T) {
-	t.Run("single value", func(t *testing.T) {
-		clause, args := auditInClause("col", []string{"val1"})
-		if clause != "col IN (?)" {
-			t.Errorf("clause = %q, want %q", clause, "col IN (?)")
-		}
-		if len(args) != 1 || args[0] != "val1" {
-			t.Errorf("args = %v, want [val1]", args)
-		}
-	})
-	t.Run("multiple values", func(t *testing.T) {
-		clause, args := auditInClause("actor", []string{"a", "b", "c"})
-		if clause != "actor IN (?,?,?)" {
-			t.Errorf("clause = %q, want %q", clause, "actor IN (?,?,?)")
-		}
-		if len(args) != 3 {
-			t.Fatalf("len(args) = %d, want 3", len(args))
-		}
-		for i, want := range []string{"a", "b", "c"} {
-			if args[i] != want {
-				t.Errorf("args[%d] = %v, want %v", i, args[i], want)
-			}
-		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		clause, args := auditInClause("col", []string{})
-		if clause != "col IN ()" {
-			t.Errorf("clause = %q, want %q", clause, "col IN ()")
-		}
-		if len(args) != 0 {
-			t.Errorf("args = %v, want empty", args)
-		}
-	})
-}
-
-// TestHelper_auditWhere verifies helper audit where.
-func TestHelper_auditWhere(t *testing.T) {
-	tests := []struct {
-		clauses []string
-		want    string
-	}{
-		{nil, ""},
-		{[]string{}, ""},
-		{[]string{"a = 1"}, " WHERE a = 1"},
-		{[]string{"a = 1", "b = 2"}, " WHERE a = 1 AND b = 2"},
-		{[]string{"x IN (?,?,?)", "y IS NULL"}, " WHERE x IN (?,?,?) AND y IS NULL"},
-	}
-	for _, tc := range tests {
-		got := auditWhere(tc.clauses)
-		if got != tc.want {
-			t.Errorf("auditWhere(%v) = %q, want %q", tc.clauses, got, tc.want)
-		}
-	}
-}
-
 // TestHelper_corpusSelectColumns verifies helper corpus select columns.
 func TestHelper_corpusSelectColumns(t *testing.T) {
 	tests := []struct {

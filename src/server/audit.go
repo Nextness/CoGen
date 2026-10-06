@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"analysis/database/artifact"
+	"analysis/database/audit"
 	"analysis/internal/textlimit"
 )
 
@@ -28,103 +29,64 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	clauses, args := make([]string, 0, 10), make([]any, 0, 10)
-	if value := r.URL.Query().Get("entity_id"); value != "" {
-		clauses = append(clauses, "entity_id=?")
-		args = append(args, value)
+	filter := audit.Filter{EntityID: r.URL.Query().Get("entity_id")}
+	var err error
+	if filter.EntityTypes, err = auditMultiValues(r.URL.Query().Get("entity_type"), "entity_type"); err != nil {
+		s.respond(w, r, nil, err)
+		return
 	}
-	for _, filter := range []struct{ parameter, column string }{
-		{"entity_type", "entity_type"}, {"action", "action"}, {"actor", "actor"},
-	} {
-		values, err := auditMultiValues(r.URL.Query().Get(filter.parameter), filter.parameter)
-		if err != nil {
-			s.respond(w, r, nil, err)
+	if filter.Actions, err = auditMultiValues(r.URL.Query().Get("action"), "action"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if filter.Actors, err = auditMultiValues(r.URL.Query().Get("actor"), "actor"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if filter.Categories, err = auditMultiValues(r.URL.Query().Get("category"), "category"); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	for _, category := range filter.Categories {
+		switch category {
+		case "pipeline", "enrichment", "validation", "pdf", "review":
+		default:
+			s.respond(w, r, nil, badRequest("category values must be pipeline, enrichment, validation, review, or pdf"))
 			return
 		}
-		if len(values) > 0 {
-			clause, valueArgs := auditInClause(filter.column, values)
-			clauses = append(clauses, clause)
-			args = append(args, valueArgs...)
+		if category == "pdf" {
+			filter.PDFSelected = true
 		}
 	}
-	pdfSelected := false
-	if category := r.URL.Query().Get("category"); category != "" {
-		categories, err := auditMultiValues(category, "category")
-		if err != nil {
-			s.respond(w, r, nil, err)
-			return
-		}
-		categoryClauses := make([]string, 0, len(categories))
-		for _, selected := range categories {
-			switch selected {
-			case "pipeline":
-				categoryClauses = append(categoryClauses, "(action LIKE 'pipeline_%' OR action IN ('plan_created','duplicate_plan_skipped','run_started','step_reused','run_completed','run_failed','run_trashed','run_restored','run_purged','revision_config_changed'))")
-			case "enrichment":
-				categoryClauses = append(categoryClauses, "action IN ('field_enriched','cache_hit','network_fetch')")
-			case "validation":
-				categoryClauses = append(categoryClauses, "action LIKE 'validation_%'")
-			case "pdf":
-				pdfSelected = true
-				categoryClauses = append(categoryClauses, "action LIKE 'pdf_%'")
-			case "review":
-				categoryClauses = append(categoryClauses, "(action LIKE 'review_%' OR action LIKE 'work_review_%')")
-			default:
-				s.respond(w, r, nil, badRequest("category values must be pipeline, enrichment, validation, review, or pdf"))
-				return
-			}
-		}
-		clauses = append(clauses, "("+strings.Join(categoryClauses, " OR ")+")")
+	filter.Stage = r.URL.Query().Get("stage")
+	filter.Outcome = r.URL.Query().Get("outcome")
+	filter.ReviewStatus = strings.TrimSpace(r.URL.Query().Get("review_status"))
+	if len(filter.ReviewStatus) > 100 {
+		s.respond(w, r, nil, badRequest("review_status is too long"))
+		return
 	}
-	if stage := r.URL.Query().Get("stage"); stage != "" {
-		clauses = append(clauses, "CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.stage'), json_extract(metadata_json, '$.stage_name'), '') ELSE '' END=?")
-		args = append(args, stage)
+	filter.ReviewReason = strings.TrimSpace(r.URL.Query().Get("review_reason"))
+	if len(filter.ReviewReason) > 1000 {
+		s.respond(w, r, nil, badRequest("review_reason is too long"))
+		return
 	}
-	if outcome := r.URL.Query().Get("outcome"); outcome != "" {
-		clauses = append(clauses, "CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.outcome'), json_extract(metadata_json, '$.status'), '') ELSE '' END=?")
-		args = append(args, outcome)
+	filter.ReviewSubstatus = strings.TrimSpace(r.URL.Query().Get("review_substatus"))
+	if len(filter.ReviewSubstatus) > 100 {
+		s.respond(w, r, nil, badRequest("review_substatus is too long"))
+		return
 	}
-	if status := strings.TrimSpace(r.URL.Query().Get("review_status")); status != "" {
-		if len(status) > 100 {
-			s.respond(w, r, nil, badRequest("review_status is too long"))
-			return
-		}
-		clauses = append(clauses, "CASE WHEN json_valid(after_json) THEN COALESCE(json_extract(after_json, '$.status'), '') ELSE '' END=?")
-		args = append(args, status)
-	}
-	if reason := strings.TrimSpace(r.URL.Query().Get("review_reason")); reason != "" {
-		if len(reason) > 1000 {
-			s.respond(w, r, nil, badRequest("review_reason is too long"))
-			return
-		}
-		clauses = append(clauses, "CASE WHEN json_valid(after_json) THEN COALESCE(json_extract(after_json, '$.reason'), '') ELSE '' END=?")
-		args = append(args, reason)
-	}
-	if substatus := strings.TrimSpace(r.URL.Query().Get("review_substatus")); substatus != "" {
-		if len(substatus) > 100 {
-			s.respond(w, r, nil, badRequest("review_substatus is too long"))
-			return
-		}
-		clauses = append(clauses, "json_valid(after_json) AND EXISTS (SELECT 1 FROM json_each(after_json, '$.sub_statuses') WHERE value=?)")
-		args = append(args, substatus)
-	}
-	if query := strings.TrimSpace(r.URL.Query().Get("q")); query != "" {
-		clauses = append(clauses, "(LOWER(actor) LIKE ? OR LOWER(entity_type) LIKE ? OR LOWER(entity_id) LIKE ? OR LOWER(action) LIKE ?)")
-		needle := "%" + strings.ToLower(query) + "%"
-		args = append(args, needle, needle, needle, needle)
-	}
+	filter.Query = strings.TrimSpace(r.URL.Query().Get("q"))
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var scopeClause string
-	var scopeArgs []any
-	pdfScope := r.URL.Query().Get("pdf_scope")
-	if pdfScope == "" {
-		pdfScope = "run"
+	filter.PDFScope = r.URL.Query().Get("pdf_scope")
+	if filter.PDFScope == "" {
+		filter.PDFScope = "run"
 	}
-	if pdfScope != "run" && pdfScope != "workspace" {
+	if filter.PDFScope != "run" && filter.PDFScope != "workspace" {
 		s.respond(w, r, nil, badRequest("pdf_scope must be run or workspace"))
 		return
 	}
-	if pdfScope == "workspace" && !pdfSelected {
+	if filter.PDFScope == "workspace" && !filter.PDFSelected {
 		s.respond(w, r, nil, badRequest("pdf_scope=workspace requires the PDF category"))
 		return
 	}
@@ -134,100 +96,62 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 			s.respond(w, r, nil, err)
 			return
 		}
-		if pdfSelected && pdfScope == "workspace" {
-			scopeClause = "(pipeline_run_id=? OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%'))"
-			scopeArgs = []any{runID}
-		} else if pdfSelected {
-			scopeClause = `(pipeline_run_id=? OR (
-				pipeline_run_id IS NULL AND action LIKE 'pdf_%' AND entity_type='work'
-				AND EXISTS (SELECT 1 FROM work_revisions scoped_revision
-					WHERE scoped_revision.pipeline_run_id=?
-					AND CAST(scoped_revision.work_id AS TEXT)=audit_events.entity_id)))`
-			scopeArgs = []any{runID, runID}
-		} else {
-			scopeClause = "pipeline_run_id=?"
-			scopeArgs = []any{runID}
-		}
-		clauses = append(clauses, scopeClause)
-		args = append(args, scopeArgs...)
+		filter.RunID = runID
 		if err := s.requireRun(ctx, runID); err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
 	}
-	limit := 100
+	filter.Limit = 100
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		parsed, err := parseOptionalInt(raw, "limit")
 		if err != nil || parsed < 1 || parsed > 100 {
 			s.respond(w, r, nil, badRequest("limit must be between 1 and 100"))
 			return
 		}
-		limit = int(parsed)
+		filter.Limit = int(parsed)
 	}
-	where := auditWhere(clauses)
-	var summary any
-	var facets any
-	if r.URL.Query().Get("cursor") == "" {
-		var summaryErr error
-		summary, summaryErr = s.auditSummary(ctx, where, args)
-		if summaryErr != nil {
-			s.respond(w, r, nil, summaryErr)
-			return
-		}
-		actorFacets, facetErr := s.auditFacet(ctx, "actor", scopeClause, scopeArgs)
-		if facetErr != nil {
-			s.respond(w, r, nil, facetErr)
-			return
-		}
-		actionFacets, facetErr := s.auditFacet(ctx, "action", scopeClause, scopeArgs)
-		if facetErr != nil {
-			s.respond(w, r, nil, facetErr)
-			return
-		}
-		entityFacets, facetErr := s.auditFacet(ctx, "entity_type", scopeClause, scopeArgs)
-		if facetErr != nil {
-			s.respond(w, r, nil, facetErr)
-			return
-		}
-		facets = map[string]any{"actors": actorFacets, "actions": actionFacets, "entity_types": entityFacets}
-	}
-	queryClauses := append([]string(nil), clauses...)
-	queryArgs := append([]any(nil), args...)
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
 		cursor, err := positiveID(raw)
 		if err != nil {
 			s.respond(w, r, nil, badRequest("cursor must be a positive audit event ID"))
 			return
 		}
-		var occurredAt string
-		if err := s.db.QueryRowContext(ctx, "SELECT occurred_at FROM audit_events WHERE id=?", cursor).Scan(&occurredAt); err != nil {
-			if err == sql.ErrNoRows {
-				s.respond(w, r, nil, badRequest("cursor must identify an audit event"))
-			} else {
-				s.respond(w, r, nil, err)
-			}
+		filter.Cursor = cursor
+	}
+	var summary any
+	var facets any
+	if filter.Cursor == 0 {
+		summaryResult, err := s.auditStore.Summary(ctx, filter)
+		if err != nil {
+			s.respond(w, r, nil, err)
 			return
 		}
-		queryClauses = append(queryClauses, "(COALESCE(julianday(occurred_at), 0)<COALESCE(julianday(?), 0) OR (COALESCE(julianday(occurred_at), 0)=COALESCE(julianday(?), 0) AND id<?))")
-		queryArgs = append(queryArgs, occurredAt, occurredAt, cursor)
+		summary = auditSummaryPayload(summaryResult)
+		facetResult, err := s.auditStore.Facets(ctx, filter)
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+		facets = map[string]any{"actors": facetResult.Actors, "actions": facetResult.Actions, "entity_types": facetResult.EntityTypes}
 	}
-	query := "SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json, correlation_id FROM audit_events" + auditWhere(queryClauses) + " ORDER BY COALESCE(julianday(occurred_at), 0) DESC, id DESC LIMIT ?"
-	queryArgs = append(queryArgs, limit+1)
-	rows, err := s.db.QueryContext(ctx, query, queryArgs...)
+	events, err := s.auditStore.List(ctx, filter)
+	if errors.Is(err, audit.ErrCursorNotFound) {
+		s.respond(w, r, nil, badRequest("cursor must identify an audit event"))
+		return
+	}
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	items := make([]map[string]any, 0, len(events))
+	for _, event := range events {
+		items = append(items, auditEventMap(event))
 	}
 	boundAuditEventPayloads(items, auditListPayloadBytes)
-	hasMore := len(items) > limit
+	hasMore := len(items) > filter.Limit
 	if hasMore {
-		items = items[:limit]
+		items = items[:filter.Limit]
 	}
 	var nextCursor any
 	if hasMore && len(items) > 0 {
@@ -237,8 +161,45 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		"events": items, "has_more": hasMore, "next_cursor": nextCursor,
 		"summary": summary,
 		"facets":  facets,
-		"scope":   map[string]any{"run_id": nullableRunScope(r.URL.Query().Get("run_id")), "pdf_scope": pdfScope},
+		"scope":   map[string]any{"run_id": nullableRunScope(r.URL.Query().Get("run_id")), "pdf_scope": filter.PDFScope},
 	}, nil)
+}
+
+// auditEventMap renders one audit family event as the viewer's JSON row shape.
+func auditEventMap(event *audit.Event) map[string]any {
+	item := map[string]any{
+		"id":          event.ID,
+		"occurred_at": event.OccurredAt,
+		"actor":       event.Actor,
+		"entity_type": event.EntityType,
+		"entity_id":   event.EntityID,
+		"action":      event.Action,
+	}
+	if event.PipelineRunID != nil {
+		item["pipeline_run_id"] = *event.PipelineRunID
+	} else {
+		item["pipeline_run_id"] = nil
+	}
+	for key, value := range map[string]string{
+		"before_json": event.BeforeJSON, "after_json": event.AfterJSON,
+		"metadata_json": event.MetadataJSON, "correlation_id": event.CorrelationID,
+	} {
+		if value != "" {
+			item[key] = value
+		} else {
+			item[key] = nil
+		}
+	}
+	return item
+}
+
+// auditSummaryPayload renders the family summary as the viewer's JSON shape.
+func auditSummaryPayload(summary *audit.Summary) map[string]any {
+	actions := make([]map[string]any, 0, len(summary.Actions))
+	for _, action := range summary.Actions {
+		actions = append(actions, map[string]any{"action": action.Action, "count": action.Count})
+	}
+	return map[string]any{"total_events": summary.TotalEvents, "actions": actions}
 }
 
 // auditRecordedData returns one privacy-scrubbed, byte-bounded payload only after explicit expansion.
@@ -263,32 +224,28 @@ func (s *Server) auditRecordedData(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	row, err := s.oneRow(ctx, `SELECT id, before_json, after_json, metadata_json FROM audit_events
-		WHERE id=? AND (pipeline_run_id=? OR (
-			pipeline_run_id IS NULL AND action LIKE 'pdf_%' AND entity_type='work'
-			AND EXISTS (SELECT 1 FROM work_revisions scoped_revision
-				WHERE scoped_revision.pipeline_run_id=?
-				AND CAST(scoped_revision.work_id AS TEXT)=audit_events.entity_id)))`, eventID, runID, runID)
+	data, err := s.auditStore.RecordedData(ctx, eventID, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if row == nil {
+	if data == nil {
 		s.respond(w, r, nil, notFound("audit event not found"))
 		return
 	}
 	payload := map[string]any{"event_id": eventID, "byte_limit": auditDetailPayloadBytes}
 	truncated := make([]string, 0)
 	remaining := auditDetailPayloadBytes
-	for _, field := range []string{"metadata_json", "before_json", "after_json"} {
-		label := strings.TrimSuffix(field, "_json")
-		value, size, wasTruncated := safeAuditJSON(row[field], remaining)
+	for _, field := range []struct{ label, value string }{
+		{"metadata", data.MetadataJSON}, {"before", data.BeforeJSON}, {"after", data.AfterJSON},
+	} {
+		value, size, wasTruncated := safeAuditJSON(field.value, remaining)
 		if wasTruncated {
-			truncated = append(truncated, label)
-			payload[label] = nil
+			truncated = append(truncated, field.label)
+			payload[field.label] = nil
 			continue
 		}
-		payload[label] = value
+		payload[field.label] = value
 		remaining -= size
 	}
 	payload["truncated_fields"] = truncated
@@ -394,87 +351,12 @@ func auditMultiValues(raw, parameter string) ([]string, error) {
 	return values, nil
 }
 
-// auditInClause builds a parameterized SQL IN clause for validated audit facet values.
-func auditInClause(column string, values []string) (string, []any) {
-	markers := make([]string, len(values))
-	args := make([]any, len(values))
-	for index, value := range values {
-		markers[index] = "?"
-		args[index] = value
-	}
-	return column + " IN (" + strings.Join(markers, ",") + ")", args
-}
-
-// auditWhere joins audit predicates into an optional SQL WHERE clause.
-func auditWhere(clauses []string) string {
-	if len(clauses) == 0 {
-		return ""
-	}
-	return " WHERE " + strings.Join(clauses, " AND ")
-}
-
-// auditSummary counts filtered audit events by presentation category.
-func (s *Server) auditSummary(ctx context.Context, where string, args []any) (map[string]any, error) {
-	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM audit_events"+where, args...).Scan(&total); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.QueryContext(ctx, "SELECT action, COUNT(*) AS count FROM audit_events"+where+" GROUP BY action ORDER BY count DESC, action", args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	actions, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{"total_events": total, "actions": actions}, nil
-}
-
-// auditFacet returns distinct non-empty values for an allowlisted audit column and run scope.
-func (s *Server) auditFacet(ctx context.Context, column, scopeClause string, scopeArgs []any) ([]string, error) {
-	query := "SELECT DISTINCT COALESCE(" + column + ", '') FROM audit_events"
-	if scopeClause != "" {
-		query += " WHERE " + scopeClause
-	}
-	query += " ORDER BY " + column + " LIMIT 101"
-	rows, err := s.db.QueryContext(ctx, query, scopeArgs...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	values := make([]string, 0)
-	for rows.Next() {
-		var value string
-		if err := rows.Scan(&value); err != nil {
-			return nil, err
-		}
-		if value != "" {
-			values = append(values, value)
-		}
-		if len(values) == 100 {
-			break
-		}
-	}
-	return values, rows.Err()
-}
-
 // nullableRunScope preserves an invariant null-or-string scope value in audit responses.
 func nullableRunScope(raw string) any {
 	if raw == "" {
 		return nil
 	}
 	return raw
-}
-
-// auditRows returns audit event rows matching a caller-supplied parameterized condition.
-func (s *Server) auditRows(ctx context.Context, condition string, args ...any) ([]map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE "+condition+" ORDER BY COALESCE(julianday(occurred_at), 0) DESC, id DESC", args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return rowsAsMaps(rows)
 }
 
 // runArtifacts returns artifact metadata linked to the selected run.

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"analysis/database/artifact"
+	"analysis/database/audit"
 	"analysis/database/cache"
 	"analysis/database/run"
 	"analysis/database/search"
@@ -48,6 +49,7 @@ type Database struct {
 	IdentityCandidates   *AuthorIdentityCandidateRepository
 	ReferenceMentions    *ReferenceMentionRepository
 	Cache                *cache.Store
+	Audit                *audit.Store
 	ArtifactBlobs        *ArtifactBlobRepository
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
@@ -126,6 +128,7 @@ func (d *Database) initRepositories() {
 	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
 	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
 	d.Cache = cache.New(d.DB)
+	d.Audit = audit.New(d.DB)
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}

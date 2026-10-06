@@ -42,7 +42,7 @@ func finishPipelineRun(ctx context.Context, db *database.Database, runID int64, 
 			log.Error("marshal failed run audit", "error", err)
 			return
 		}
-		if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunFailed, MetadataJSON: string(metadata), CorrelationID: "run-failed-" + strconv.FormatInt(runID, 10)}); err != nil {
+		if _, err := db.Audit.Insert(context.WithoutCancel(ctx), &manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunFailed, MetadataJSON: string(metadata), CorrelationID: "run-failed-" + strconv.FormatInt(runID, 10)}); err != nil {
 			log.Error("record failed run audit", "error", err)
 		}
 	}
@@ -131,7 +131,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 			"config_hash":     configHash,
 			"manifest_hash":   manifestHash,
 		})
-		if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{
+		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
 			OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
 			Actor:         "pipeline",
 			EntityType:    "search_revision",
@@ -162,7 +162,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		}
 		if len(runs) > 0 && runs[len(runs)-1].Status == string(manifest.AttemptCompleted) && !forceFresh {
 			metadata, _ := json.Marshal(map[string]any{"reason": "matching_completed_plan", "execution_fingerprint": fingerprint})
-			_, err := db.AuditEvents.Insert(&manifest.AuditEvent{
+			_, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
 				OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
 				Actor:         "pipeline",
 				EntityType:    "execution_plan",
@@ -212,7 +212,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, fmt.Errorf("marshal run audit metadata: %w", err)
 	}
-	if _, err := db.AuditEvents.Insert(&manifest.AuditEvent{
+	if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
 		OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
 		Actor:         "pipeline",
 		PipelineRunID: runID,
@@ -315,7 +315,7 @@ func recordPreflightStep(ctx context.Context, db *database.Database, runID, conf
 	if err != nil {
 		return fmt.Errorf("marshal preflight reuse audit metadata: %w", err)
 	}
-	_, err = db.AuditEvents.Insert(&manifest.AuditEvent{
+	_, err = db.Audit.Insert(ctx, &manifest.AuditEvent{
 		OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
 		Actor:         "pipeline",
 		PipelineRunID: runID,

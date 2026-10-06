@@ -221,46 +221,14 @@ func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
 
 // articleEnrichmentSummary returns a bounded set of provider and field labels without transferring event payloads.
 func (s *Server) articleEnrichmentSummary(ctx context.Context, workID, runID int64) (map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT
-		CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.provider'), '') ELSE '' END AS provider,
-		CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.field'), '') ELSE '' END AS field
-		FROM audit_events WHERE entity_type='work_revision' AND action='field_enriched'
-		AND entity_id IN (`+articleWorkRunRevisionIDsSQL+`)
-		ORDER BY provider, field LIMIT 101`, workID, runID)
+	summary, err := s.auditStore.EnrichmentSummary(ctx, workID, runID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	providers, fields := make([]string, 0), make([]string, 0)
-	providerSeen, fieldSeen := make(map[string]bool), make(map[string]bool)
-	truncated := false
-	count := 0
-	for rows.Next() {
-		count++
-		if count > 100 {
-			truncated = true
-			break
-		}
-		var provider, field string
-		if err := rows.Scan(&provider, &field); err != nil {
-			return nil, err
-		}
-		if provider != "" && !providerSeen[provider] {
-			providerSeen[provider] = true
-			providers = append(providers, provider)
-		}
-		if field != "" && !fieldSeen[field] {
-			fieldSeen[field] = true
-			fields = append(fields, field)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	return map[string]any{
-		"providers":  providers,
-		"fields":     fields,
-		"truncated":  truncated,
+		"providers":  summary.Providers,
+		"fields":     summary.Fields,
+		"truncated":  summary.Truncated,
 		"pair_limit": 100,
 	}, nil
 }

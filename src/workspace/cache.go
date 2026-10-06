@@ -129,7 +129,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		if err := c.incrementMetric(ctx, "cache_hits", request.Provider); err != nil {
 			return nil, err
 		}
-		if err := c.recordAudit(manifest.AuditCacheHit, request, layer, manifest.CacheHit, entry.ID); err != nil {
+		if err := c.recordAudit(ctx, manifest.AuditCacheHit, request, layer, manifest.CacheHit, entry.ID); err != nil {
 			return nil, err
 		}
 		return &cacheResponse{Body: body, Status: entry.ResponseStatus, Layer: layer, Outcome: manifest.CacheHit, PayloadArtifactID: *entry.PayloadArtifactID}, nil
@@ -146,7 +146,7 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	if response == nil {
 		return nil, fmt.Errorf("network fetch %s/%s returned no result", request.Provider, request.Identity)
 	}
-	if err := c.recordAudit(manifest.AuditNetworkFetch, request, layer, manifest.CacheMiss, 0); err != nil {
+	if err := c.recordAudit(ctx, manifest.AuditNetworkFetch, request, layer, manifest.CacheMiss, 0); err != nil {
 		return nil, err
 	}
 	if response.Err != nil {
@@ -270,7 +270,7 @@ func (c *workspaceCache) readPayload(ctx context.Context, artifactID int64) ([]b
 }
 
 // recordAudit appends cache decision evidence for one provider request.
-func (c *workspaceCache) recordAudit(action manifest.AuditAction, request cacheRequest, layer string, outcome manifest.CacheOutcome, entryID int64) error {
+func (c *workspaceCache) recordAudit(ctx context.Context, action manifest.AuditAction, request cacheRequest, layer string, outcome manifest.CacheOutcome, entryID int64) error {
 	metadata, err := json.Marshal(map[string]any{
 		"provider": request.Provider, "namespace": request.Namespace, "identity": request.Identity,
 		"cache_layer": layer, "cache_outcome": outcome, "cache_entry_id": entryID,
@@ -278,7 +278,7 @@ func (c *workspaceCache) recordAudit(action manifest.AuditAction, request cacheR
 	if err != nil {
 		return err
 	}
-	_, err = c.db.AuditEvents.Insert(&manifest.AuditEvent{
+	_, err = c.db.Audit.Insert(ctx, &manifest.AuditEvent{
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: c.runID,
 		EntityType: "cache_request", EntityID: cacheFingerprint(request), Action: action,
 		MetadataJSON: string(metadata), CorrelationID: "cache-" + strconv.FormatInt(c.runID, 10),

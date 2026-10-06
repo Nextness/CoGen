@@ -41,6 +41,11 @@ coverage_policy: coverage_policy_config = {
             minimum = 80.0,
             rationale = "Generated artifact queries are exercised through the handwritten family integration and parity tests."
         },
+        ["analysis/database/audit"] => { minimum =  90.0 },
+        ["analysis/database/audit/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated audit queries are exercised through the handwritten family integration and parity tests."
+        },
         ["analysis/database/cache"]    => { minimum =  90.0 },
         ["analysis/database/cache/internal/sql"] => {
             minimum = 80.0,
