@@ -113,6 +113,10 @@ sql:
       - "../src/database/work/schema/stage.sql"
       - "../src/database/work/schema/reference.sql"
       - "../src/database/work/schema/term_match.sql"
+      - "../src/database/work/schema/authorship.sql"
+      - "../src/database/work/schema/details.sql"
+      - "../src/database/work/schema/evaluation.sql"
+      - "../src/database/work/schema/corpus.sql"
     gen:
       go:
         package: "sql"

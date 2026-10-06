@@ -81,6 +81,60 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		{"ListRunTerms", func() error { _, err := store.ListRunTerms(ctx, 1); return err }},
 		{"GetRevisionMatches", func() error { _, err := store.GetRevisionMatches(ctx, 1, 1); return err }},
 		{"GetRevisionMatchesBulk", func() error { _, err := store.GetRevisionMatchesBulk(ctx, 1, []int64{1}); return err }},
+		{"ListArticleAuthors", func() error {
+			_, err := store.ListArticleAuthors(ctx, work.ArticleAuthorPageInput{RevisionID: 1, Limit: 10})
+			return err
+		}},
+		{"GetArticleRevision", func() error { _, err := store.GetArticleRevision(ctx, 1, 1); return err }},
+		{"GetArticleDetailWorkID", func() error { _, err := store.GetArticleDetailWorkID(ctx, 1, 1); return err }},
+		{"ListArticleReferences", func() error {
+			_, err := store.ListArticleReferences(ctx, work.ArticleReferencePageInput{RevisionID: 1, Limit: 10})
+			return err
+		}},
+		{"ListArticleStages", func() error {
+			_, err := store.ListArticleStages(ctx, work.ArticleStagePageInput{RunID: 1, WorkID: 1, Limit: 10})
+			return err
+		}},
+		{"GetReferenceDetail", func() error { _, err := store.GetReferenceDetail(ctx, 1, 1); return err }},
+		{"EvaluationReviewSummary", func() error {
+			_, err := store.EvaluationReviewSummary(ctx, work.EvaluationFilter{RunID: 1, ContextID: 1})
+			return err
+		}},
+		{"ListEvaluation", func() error {
+			_, err := store.ListEvaluation(ctx, work.EvaluationFilter{RunID: 1, ContextID: 1, SortField: "id", Order: "ASC", Page: 1, PerPage: 10})
+			return err
+		}},
+		{"EvaluationQueueNavigation", func() error {
+			_, err := store.EvaluationQueueNavigation(ctx, work.EvaluationFilter{RunID: 1, ContextID: 1, SortField: "id", Order: "ASC"})
+			return err
+		}},
+		{"ListGraphArticles", func() error {
+			_, _, err := store.ListGraphArticles(ctx, work.GraphFilter{RunID: 1, Limit: 10})
+			return err
+		}},
+		{"ListGraphAuthorships", func() error {
+			_, err := store.ListGraphAuthorships(ctx, []int64{1}, 10, 10)
+			return err
+		}},
+		{"ListGraphCitations", func() error {
+			_, err := store.ListGraphCitations(ctx, []int64{1}, []int64{1}, 10)
+			return err
+		}},
+		{"ListGraphReferences", func() error {
+			_, err := store.ListGraphReferences(ctx, []int64{1}, 10)
+			return err
+		}},
+		{"CurrentCoverage", func() error { _, err := store.CurrentCoverage(ctx, 1); return err }},
+		{"RelationshipTotals", func() error { _, err := store.RelationshipTotals(ctx, 1); return err }},
+		{"RunStageSummaries", func() error { _, err := store.RunStageSummaries(ctx, 1); return err }},
+		{"ListCorpusReferences", func() error {
+			_, err := store.ListCorpusReferences(ctx, work.CorpusReferenceFilter{RunID: 1, Sort: "id", Order: "ASC", Page: 1, PerPage: 10})
+			return err
+		}},
+		{"ListRunStages", func() error {
+			_, err := store.ListRunStages(ctx, work.RunStageFilter{RunID: 1, Sort: "id", Order: "ASC", Page: 1, PerPage: 10})
+			return err
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

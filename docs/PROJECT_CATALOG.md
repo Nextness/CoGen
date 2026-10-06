@@ -1381,11 +1381,98 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult`](../src/database/term_matches_integration_test.go#L211) | test | 211-235 | `func TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult(t *testing.T)` | TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult verifies reconciliation state is independent of match count. |
 | [`TestTermMatchesSchemaConstraints`](../src/database/term_matches_integration_test.go#L238) | test | 238-264 | `func TestTermMatchesSchemaConstraints(t *testing.T)` | TestTermMatchesSchemaConstraints verifies foreign keys and the field vocabulary check. |
 
+### [`src/database/work/authorship.go`](../src/database/work/authorship.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).ListArticleAuthors`](../src/database/work/authorship.go#L15) | method | 15-44 | `func (*Store).ListArticleAuthors(ctx context.Context, input ArticleAuthorPageInput) (*ArticleAuthorPage, error)` | ListArticleAuthors returns one bounded page of ordered authorships for an immutable revision, with the exact total and a keyset continuation cursor. |
+| [`articleAuthorFromGenerated`](../src/database/work/authorship.go#L48) | function | 48-72 | `func articleAuthorFromGenerated(row generated.ListArticleAuthorsRow) *ArticleAuthor` | articleAuthorFromGenerated maps one generated authorship row into an application author and makes every nullable field explicit. |
+
+### [`src/database/work/corpus.go`](../src/database/work/corpus.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).CurrentCoverage`](../src/database/work/corpus.go#L13) | method | 13-19 | `func (*Store).CurrentCoverage(ctx context.Context, runID int64) (*Coverage, error)` | CurrentCoverage returns work-revision and journal coverage for one run. |
+| [`(*Store).RelationshipTotals`](../src/database/work/corpus.go#L23) | method | 23-42 | `func (*Store).RelationshipTotals(ctx context.Context, runID int64) (*RelationshipTotals, error)` | RelationshipTotals counts canonical works, authorships, references, and resolved citations for one run. |
+| [`(*Store).RunStageSummaries`](../src/database/work/corpus.go#L46) | method | 46-97 | `func (*Store).RunStageSummaries(ctx context.Context, runID int64) ([]*StageSummary, error)` | RunStageSummaries returns aggregate outcome counts by pipeline stage in the canonical stage order, with unknown stages sorted after the known ones. |
+| [`(*Store).ListCorpusReferences`](../src/database/work/corpus.go#L101) | method | 101-123 | `func (*Store).ListCorpusReferences(ctx context.Context, filter CorpusReferenceFilter) (*CorpusReferencePage, error)` | ListCorpusReferences returns one bounded page of run-scoped reference mentions with their citing titles. |
+| [`(*Store).ListRunStages`](../src/database/work/corpus.go#L126) | method | 126-148 | `func (*Store).ListRunStages(ctx context.Context, filter RunStageFilter) (*RunStagePage, error)` | ListRunStages returns one bounded page of run stage outcomes. |
+| [`(*Store).countQuery`](../src/database/work/corpus.go#L151) | method | 151-157 | `func (*Store).countQuery(ctx context.Context, query string, args []any) (int64, error)` | countQuery runs one scalar count query. |
+| [`(*Store).queryRows`](../src/database/work/corpus.go#L160) | method | 160-190 | `func (*Store).queryRows(ctx context.Context, query string, args []any) ([]map[string]any, error)` | queryRows runs one read query and returns every row as a string-keyed map. |
+| [`corpusReferenceFromRow`](../src/database/work/corpus.go#L193) | function | 193-210 | `func corpusReferenceFromRow(row map[string]any) *CorpusReference` | corpusReferenceFromRow maps one dynamic corpus reference row into an application reference. |
+| [`stageOutcomeFromRow`](../src/database/work/corpus.go#L213) | function | 213-224 | `func stageOutcomeFromRow(row map[string]any) *StageOutcome` | stageOutcomeFromRow maps one dynamic stage row into an application stage outcome. |
+| [`int64Value`](../src/database/work/corpus.go#L227) | function | 227-236 | `func int64Value(value any) int64` | int64Value converts one scanned SQLite integer into int64. |
+| [`stringValue`](../src/database/work/corpus.go#L239) | function | 239-248 | `func stringValue(value any) string` | stringValue converts one scanned SQLite text value into a string. |
+
+### [`src/database/work/corpus_dynamic.go`](../src/database/work/corpus_dynamic.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`corpusReferenceWhere`](../src/database/work/corpus_dynamic.go#L43) | function | 43-49 | `func corpusReferenceWhere(filter CorpusReferenceFilter) (string, []any, error)` | corpusReferenceWhere builds the parameterized predicate for a reference page. |
+| [`corpusReferenceSortExpression`](../src/database/work/corpus_dynamic.go#L52) | function | 52-54 | `func corpusReferenceSortExpression(sort string) string` | corpusReferenceSortExpression returns the allowlisted sort expression. |
+| [`runStageWhere`](../src/database/work/corpus_dynamic.go#L57) | function | 57-63 | `func runStageWhere(filter RunStageFilter) (string, []any, error)` | runStageWhere builds the parameterized predicate for a run-stage page. |
+| [`runStageSortExpression`](../src/database/work/corpus_dynamic.go#L66) | function | 66-68 | `func runStageSortExpression(sort string) string` | runStageSortExpression returns the allowlisted sort expression. |
+| [`scopedSearch`](../src/database/work/corpus_dynamic.go#L71) | function | 71-83 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
+| [`sqlDirection`](../src/database/work/corpus_dynamic.go#L86) | function | 86-91 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
+
+### [`src/database/work/details.go`](../src/database/work/details.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).GetArticleRevision`](../src/database/work/details.go#L20) | method | 20-32 | `func (*Store).GetArticleRevision(ctx context.Context, revisionID, runID int64) (*ArticleRevision, error)` | GetArticleRevision returns the full immutable revision projection for one article detail, or nil when the revision is not visible in the selected run. |
+| [`(*Store).GetArticleDetailWorkID`](../src/database/work/details.go#L37) | method | 37-49 | `func (*Store).GetArticleDetailWorkID(ctx context.Context, revisionID, runID int64) (int64, error)` | GetArticleDetailWorkID validates one visible article revision and returns its owning work. It returns ErrArticleRevisionNotFound when the revision is not visible in the selected run. |
+| [`(*Store).ListArticleReferences`](../src/database/work/details.go#L53) | method | 53-82 | `func (*Store).ListArticleReferences(ctx context.Context, input ArticleReferencePageInput) (*ArticleReferencePage, error)` | ListArticleReferences returns one bounded page of cited references for an immutable revision, with the exact total and a keyset continuation cursor. |
+| [`(*Store).ListArticleStages`](../src/database/work/details.go#L86) | method | 86-119 | `func (*Store).ListArticleStages(ctx context.Context, input ArticleStagePageInput) (*ArticleStagePage, error)` | ListArticleStages returns one bounded page of stage outcomes for one work in one run, with the exact total and a keyset continuation cursor. |
+| [`(*Store).GetReferenceDetail`](../src/database/work/details.go#L123) | method | 123-135 | `func (*Store).GetReferenceDetail(ctx context.Context, referenceID, runID int64) (*ReferenceDetail, error)` | GetReferenceDetail returns one reference mention with its citing and resolved-work context, or nil when it is not visible in the selected run. |
+| [`articleRevisionFromGenerated`](../src/database/work/details.go#L139) | function | 139-186 | `func articleRevisionFromGenerated(row generated.GetArticleRevisionRow) *ArticleRevision` | articleRevisionFromGenerated maps one generated article revision row into an application revision and makes every nullable field explicit. |
+| [`articleReferenceFromGenerated`](../src/database/work/details.go#L190) | function | 190-224 | `func articleReferenceFromGenerated(row generated.ListArticleReferencesRow) *ArticleReference` | articleReferenceFromGenerated maps one generated reference row into an application reference and makes every nullable field explicit. |
+| [`referenceDetailFromGenerated`](../src/database/work/details.go#L228) | function | 228-271 | `func referenceDetailFromGenerated(row generated.GetReferenceDetailRow) *ReferenceDetail` | referenceDetailFromGenerated maps one generated reference-detail row into an application reference detail and makes every nullable field explicit. |
+
 ### [`src/database/work/errors_integration_test.go`](../src/database/work/errors_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreOperationsPropagateConnectionErrors`](../src/database/work/errors_integration_test.go#L16) | test | 16-92 | `func TestStoreOperationsPropagateConnectionErrors(t *testing.T)` | TestStoreOperationsPropagateConnectionErrors verifies every public store operation reports a closed connection as an error rather than a value. |
+| [`TestStoreOperationsPropagateConnectionErrors`](../src/database/work/errors_integration_test.go#L16) | test | 16-146 | `func TestStoreOperationsPropagateConnectionErrors(t *testing.T)` | TestStoreOperationsPropagateConnectionErrors verifies every public store operation reports a closed connection as an error rather than a value. |
+
+### [`src/database/work/evaluation.go`](../src/database/work/evaluation.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).EvaluationReviewSummary`](../src/database/work/evaluation.go#L22) | method | 22-78 | `func (*Store).EvaluationReviewSummary(ctx context.Context, filter EvaluationFilter) (*EvaluationSummary, error)` | EvaluationReviewSummary returns invariant queue progress independently of page rows and filters. |
+| [`(*Store).ListEvaluation`](../src/database/work/evaluation.go#L82) | method | 82-113 | `func (*Store).ListEvaluation(ctx context.Context, filter EvaluationFilter) (*EvaluationPage, error)` | ListEvaluation returns one bounded page of analysis-ready articles with their review and validation state. |
+| [`(*Store).EvaluationQueueNavigation`](../src/database/work/evaluation.go#L117) | method | 117-182 | `func (*Store).EvaluationQueueNavigation(ctx context.Context, filter EvaluationFilter) (*QueueNavigation, error)` | EvaluationQueueNavigation returns adjacent unreviewed revisions within the active queue filters. |
+| [`evaluationRowFromMap`](../src/database/work/evaluation.go#L185) | function | 185-222 | `func evaluationRowFromMap(row map[string]any) (*EvaluationRow, error)` | evaluationRowFromMap maps one dynamic evaluation row into an application row. |
+| [`facetCountsFromStatus`](../src/database/work/evaluation.go#L225) | function | 225-231 | `func facetCountsFromStatus(rows []generated.EvaluationStatusFacetsRow) []*FacetCount` | facetCountsFromStatus maps generated status facet rows. |
+| [`facetCountsFromSource`](../src/database/work/evaluation.go#L234) | function | 234-240 | `func facetCountsFromSource(rows []generated.EvaluationSourceFacetsRow) []*FacetCount` | facetCountsFromSource maps generated source facet rows. |
+| [`facetCountsFromReviewSource`](../src/database/work/evaluation.go#L243) | function | 243-249 | `func facetCountsFromReviewSource(rows []generated.EvaluationReviewSourceFacetsRow) []*FacetCount` | facetCountsFromReviewSource maps generated review-source facet rows. |
+| [`facetCountsFromQualifier`](../src/database/work/evaluation.go#L252) | function | 252-258 | `func facetCountsFromQualifier(rows []generated.EvaluationQualifierFacetsRow) []*FacetCount` | facetCountsFromQualifier maps generated qualifier facet rows. |
+| [`percent`](../src/database/work/evaluation.go#L261) | function | 261-267 | `func percent(value, denominator int64) *float64` | percent returns value as a percentage of denominator, or nil when denominator is zero. |
+
+### [`src/database/work/evaluation_dynamic.go`](../src/database/work/evaluation_dynamic.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`evaluationQueryScope`](../src/database/work/evaluation_dynamic.go#L38) | struct | 38-43 | `type evaluationQueryScope struct { from string where string args []any sortExpression string }` | evaluationQueryScope is one built evaluation predicate and its bound arguments. |
+| [`evaluationScope`](../src/database/work/evaluation_dynamic.go#L46) | function | 46-110 | `func evaluationScope(filter EvaluationFilter) (*evaluationQueryScope, error)` | evaluationScope builds the parameterized evaluation predicate from a filter. |
+
+### [`src/database/work/graph.go`](../src/database/work/graph.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).ListGraphArticles`](../src/database/work/graph.go#L13) | method | 13-39 | `func (*Store).ListGraphArticles(ctx context.Context, filter GraphFilter) ([]*GraphArticle, int, error)` | ListGraphArticles returns the bounded article nodes matching the graph filters plus the exact match count. |
+| [`(*Store).ListGraphAuthorships`](../src/database/work/graph.go#L43) | method | 43-67 | `func (*Store).ListGraphAuthorships(ctx context.Context, revisionIDs []int64, authorLimit, rowLimit int) ([]*GraphAuthorship, error)` | ListGraphAuthorships returns the bounded article-author relationship rows for the selected revisions. |
+| [`(*Store).ListGraphCitations`](../src/database/work/graph.go#L71) | method | 71-91 | `func (*Store).ListGraphCitations(ctx context.Context, revisionIDs, workIDs []int64, rowLimit int) ([]*GraphCitation, error)` | ListGraphCitations returns the bounded resolved citation relationship rows for the selected revisions and works. |
+| [`(*Store).ListGraphReferences`](../src/database/work/graph.go#L95) | method | 95-120 | `func (*Store).ListGraphReferences(ctx context.Context, revisionIDs []int64, rowLimit int) ([]*GraphReference, error)` | ListGraphReferences returns the bounded article-reference relationship rows for the selected revisions. |
+
+### [`src/database/work/graph_dynamic.go`](../src/database/work/graph_dynamic.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`graphArticleWhere`](../src/database/work/graph_dynamic.go#L12) | function | 12-61 | `func graphArticleWhere(filter GraphFilter) (string, []any, error)` | graphArticleWhere builds the parameterized graph article predicate. |
+| [`graphAuthorshipQuery`](../src/database/work/graph_dynamic.go#L64) | function | 64-83 | `func graphAuthorshipQuery(revisionIDs []int64, authorLimit, rowLimit int) (string, []any, error)` | graphAuthorshipQuery builds the bounded article-author relationship query. |
+| [`graphCitationQuery`](../src/database/work/graph_dynamic.go#L86) | function | 86-99 | `func graphCitationQuery(revisionIDs, workIDs []int64, rowLimit int) (string, []any, error)` | graphCitationQuery builds the bounded resolved citation relationship query. |
+| [`graphReferenceQuery`](../src/database/work/graph_dynamic.go#L102) | function | 102-113 | `func graphReferenceQuery(revisionIDs []int64, rowLimit int) (string, []any, error)` | graphReferenceQuery builds the bounded article-reference relationship query. |
+| [`placeholders`](../src/database/work/graph_dynamic.go#L116) | function | 116-123 | `func placeholders(ids []int64) (string, []any)` | placeholders returns a comma-separated SQL placeholder list and matching identifier arguments. |
 
 ### [`src/database/work/parity_integration_test.go`](../src/database/work/parity_integration_test.go)
 
@@ -1409,6 +1496,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`formatDatabaseValue`](../src/database/work/parity_integration_test.go#L456) | function | 456-467 | `func formatDatabaseValue(value any) string` | formatDatabaseValue renders one scanned SQLite value as comparable text. |
 | [`assertErrorParity`](../src/database/work/parity_integration_test.go#L470) | function | 470-478 | `func assertErrorParity(t *testing.T, operation string, legacyErr, familyErr error)` | assertErrorParity verifies legacy and family operations reject input with the same error text. |
 
+### [`src/database/work/predicate.go`](../src/database/work/predicate.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`normalizedRevisionPredicate`](../src/database/work/predicate.go#L11) | function | 11-20 | `func normalizedRevisionPredicate(alias string) string` | normalizedRevisionPredicate returns SQL selecting the latest valid normalize revision for each run and work. |
+
 ### [`src/database/work/reference.go`](../src/database/work/reference.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1426,6 +1519,32 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreCreateReferenceNormalizesAndResolvesDOI`](../src/database/work/reference_integration_test.go#L16) | test | 16-82 | `func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T)` | TestStoreCreateReferenceNormalizesAndResolvesDOI verifies DOI normalization, best-effort resolution to a known work, and source ordering. |
 | [`TestStoreCreateReferenceValidatesInput`](../src/database/work/reference_integration_test.go#L86) | test | 86-109 | `func TestStoreCreateReferenceValidatesInput(t *testing.T)` | TestStoreCreateReferenceValidatesInput verifies required identity and order are enforced before any write. |
 | [`TestStoreReferencesAreAppendOnly`](../src/database/work/reference_integration_test.go#L113) | test | 113-136 | `func TestStoreReferencesAreAppendOnly(t *testing.T)` | TestStoreReferencesAreAppendOnly verifies the database trigger rejects mutation of an immutable reference snapshot. |
+
+### [`src/database/work/relationships_integration_test.go`](../src/database/work/relationships_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`relationshipFixture`](../src/database/work/relationships_integration_test.go#L17) | struct | 17-31 | `type relationshipFixture struct { store *work.Store db *database.Database runID int64 workID int64 parseRevisionID int64 supersededRevisionID int64 normalizeRevisionID int64 discardedWorkID int64 discardedRevisionID int64 secondWorkID int64 secondNormalizeRevisionID int64 contextID int64 referenceID int64 }` | relationshipFixture is one migrated run with works, revisions, stages, authorships, references, and a review context. |
+| [`seedRelationshipFixture`](../src/database/work/relationships_integration_test.go#L34) | function | 34-157 | `func seedRelationshipFixture(t *testing.T) *relationshipFixture` | seedRelationshipFixture creates one completed planned run with relationship evidence. |
+| [`TestStoreListArticleAuthorsOrdersAndPaginates`](../src/database/work/relationships_integration_test.go#L161) | test | 161-205 | `func TestStoreListArticleAuthorsOrdersAndPaginates(t *testing.T)` | TestStoreListArticleAuthorsOrdersAndPaginates verifies ordered authorship pages, nullable fields, and the keyset continuation cursor. |
+| [`TestStoreGetArticleRevisionHonorsNormalizedVisibility`](../src/database/work/relationships_integration_test.go#L209) | test | 209-247 | `func TestStoreGetArticleRevisionHonorsNormalizedVisibility(t *testing.T)` | TestStoreGetArticleRevisionHonorsNormalizedVisibility verifies the normalized-revision rule and nullable field mapping. |
+| [`TestStoreGetArticleDetailWorkIDReportsVisibility`](../src/database/work/relationships_integration_test.go#L251) | test | 251-268 | `func TestStoreGetArticleDetailWorkIDReportsVisibility(t *testing.T)` | TestStoreGetArticleDetailWorkIDReportsVisibility verifies the detail guard returns the owning work or the typed not-found error. |
+| [`TestStoreListArticleReferencesResolvesTargetAndPaginates`](../src/database/work/relationships_integration_test.go#L272) | test | 272-304 | `func TestStoreListArticleReferencesResolvesTargetAndPaginates(t *testing.T)` | TestStoreListArticleReferencesResolvesTargetAndPaginates verifies ordered reference pages with resolved-work context. |
+| [`TestStoreListArticleStagesPaginates`](../src/database/work/relationships_integration_test.go#L307) | test | 307-335 | `func TestStoreListArticleStagesPaginates(t *testing.T)` | TestStoreListArticleStagesPaginates verifies ordered stage pages for one work. |
+| [`TestStoreGetReferenceDetailResolvesTarget`](../src/database/work/relationships_integration_test.go#L339) | test | 339-363 | `func TestStoreGetReferenceDetailResolvesTarget(t *testing.T)` | TestStoreGetReferenceDetailResolvesTarget verifies the reference detail projection and its not-found contract. |
+| [`TestStoreEvaluationSummaryAndFacets`](../src/database/work/relationships_integration_test.go#L366) | test | 366-394 | `func TestStoreEvaluationSummaryAndFacets(t *testing.T)` | TestStoreEvaluationSummaryAndFacets verifies invariant queue progress and facets. |
+| [`TestStoreListEvaluationFiltersAndOrders`](../src/database/work/relationships_integration_test.go#L397) | test | 397-444 | `func TestStoreListEvaluationFiltersAndOrders(t *testing.T)` | TestStoreListEvaluationFiltersAndOrders verifies the dynamic evaluation list. |
+| [`TestStoreEvaluationQueueNavigation`](../src/database/work/relationships_integration_test.go#L447) | test | 447-480 | `func TestStoreEvaluationQueueNavigation(t *testing.T)` | TestStoreEvaluationQueueNavigation verifies adjacent unreviewed revisions. |
+| [`TestStoreGraphArticlesFilters`](../src/database/work/relationships_integration_test.go#L483) | test | 483-517 | `func TestStoreGraphArticlesFilters(t *testing.T)` | TestStoreGraphArticlesFilters verifies bounded graph article selection. |
+| [`TestStoreGraphRelationshipRows`](../src/database/work/relationships_integration_test.go#L521) | test | 521-556 | `func TestStoreGraphRelationshipRows(t *testing.T)` | TestStoreGraphRelationshipRows verifies bounded authorship, citation, and reference relationship rows. |
+| [`TestStoreCurrentCoverageAndRelationshipTotals`](../src/database/work/relationships_integration_test.go#L559) | test | 559-581 | `func TestStoreCurrentCoverageAndRelationshipTotals(t *testing.T)` | TestStoreCurrentCoverageAndRelationshipTotals verifies run coverage and totals. |
+| [`TestStoreRunStageSummaries`](../src/database/work/relationships_integration_test.go#L584) | test | 584-604 | `func TestStoreRunStageSummaries(t *testing.T)` | TestStoreRunStageSummaries verifies canonical stage ordering and outcome counts. |
+| [`TestStoreListCorpusReferencesSortsAndSearches`](../src/database/work/relationships_integration_test.go#L607) | test | 607-638 | `func TestStoreListCorpusReferencesSortsAndSearches(t *testing.T)` | TestStoreListCorpusReferencesSortsAndSearches verifies the dynamic reference page. |
+| [`TestStoreListRunStagesSortsAndSearches`](../src/database/work/relationships_integration_test.go#L641) | test | 641-672 | `func TestStoreListRunStagesSortsAndSearches(t *testing.T)` | TestStoreListRunStagesSortsAndSearches verifies the dynamic run-stage page. |
+| [`TestStoreListEvaluationFilterVariants`](../src/database/work/relationships_integration_test.go#L676) | test | 676-734 | `func TestStoreListEvaluationFilterVariants(t *testing.T)` | TestStoreListEvaluationFilterVariants verifies every supported evaluation filter branch and the rejected enum values. |
+| [`TestStoreGraphArticleFilterVariants`](../src/database/work/relationships_integration_test.go#L737) | test | 737-770 | `func TestStoreGraphArticleFilterVariants(t *testing.T)` | TestStoreGraphArticleFilterVariants verifies every supported graph filter branch. |
+| [`TestStoreRelationshipReadLimits`](../src/database/work/relationships_integration_test.go#L773) | test | 773-795 | `func TestStoreRelationshipReadLimits(t *testing.T)` | TestStoreRelationshipReadLimits verifies the page reads reject non-positive limits. |
+| [`TestStoreEvaluationSummaryEmptyRun`](../src/database/work/relationships_integration_test.go#L798) | test | 798-810 | `func TestStoreEvaluationSummaryEmptyRun(t *testing.T)` | TestStoreEvaluationSummaryEmptyRun verifies the zero-denominator percentage contract. |
 
 ### [`src/database/work/revision.go`](../src/database/work/revision.go)
 
@@ -1504,6 +1623,36 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`InsertIdentifierInput`](../src/database/work/types.go#L134) | struct | 134-138 | `type InsertIdentifierInput struct { WorkID int64 Namespace string Identifier string }` | InsertIdentifierInput identifies one alternate identifier to attach to a work. |
 | [`StageOutcomeInput`](../src/database/work/types.go#L141) | struct | 141-147 | `type StageOutcomeInput struct { RunID int64 WorkID int64 StageName string Outcome string Reason string }` | StageOutcomeInput identifies one stage outcome to insert or update. |
 | [`ReplaceTermDataInput`](../src/database/work/types.go#L150) | struct | 150-154 | `type ReplaceTermDataInput struct { RunID int64 TermsBySource map[string][]string Matches map[int64]map[string][]string }` | ReplaceTermDataInput replaces one run's term inventory and revision matches. |
+| [`ArticleAuthor`](../src/database/work/types.go#L157) | struct | 157-167 | `type ArticleAuthor struct { RelationID int64 ID int64 PersonID *int64 CitationName string FirstName string LastName string ORCID string AuthorOrder int Affiliation string }` | ArticleAuthor is one ordered authorship attached to an immutable revision. |
+| [`ArticleAuthorPageInput`](../src/database/work/types.go#L170) | struct | 170-174 | `type ArticleAuthorPageInput struct { RevisionID int64 CursorID int64 Limit int }` | ArticleAuthorPageInput selects one bounded page of article authors. |
+| [`ArticleAuthorPage`](../src/database/work/types.go#L177) | struct | 177-182 | `type ArticleAuthorPage struct { Items []*ArticleAuthor Total int64 HasMore bool NextCursorID int64 }` | ArticleAuthorPage is one bounded page of article authors with its exact total. |
+| [`ArticleRevision`](../src/database/work/types.go#L185) | struct | 185-205 | `type ArticleRevision struct { ID int64 WorkID int64 PipelineRunID int64 FieldSchemaVersion string PayloadHash string Title string Abstract string Year int Journal string Publisher string Source string Keywords string KeywordsPlus string CitationCount int ReferenceCount int ExtensionData string ProducerStage string CreatedAt string DOI string }` | ArticleRevision is the full immutable revision projection for one article detail. |
+| [`ArticleReference`](../src/database/work/types.go#L208) | struct | 208-221 | `type ArticleReference struct { ID int64 WorkRevisionID int64 ResolvedWorkID *int64 MentionOrder int DOI string Title string Author string Year int Source string CreatedAt string ResolvedRevisionID *int64 ResolvedTitle string }` | ArticleReference is one cited reference with its resolved-work context. |
+| [`ArticleReferencePageInput`](../src/database/work/types.go#L224) | struct | 224-228 | `type ArticleReferencePageInput struct { RevisionID int64 CursorID int64 Limit int }` | ArticleReferencePageInput selects one bounded page of article references. |
+| [`ArticleReferencePage`](../src/database/work/types.go#L231) | struct | 231-236 | `type ArticleReferencePage struct { Items []*ArticleReference Total int64 HasMore bool NextCursorID int64 }` | ArticleReferencePage is one bounded page of article references with its exact total. |
+| [`ArticleStagePageInput`](../src/database/work/types.go#L239) | struct | 239-244 | `type ArticleStagePageInput struct { RunID int64 WorkID int64 CursorID int64 Limit int }` | ArticleStagePageInput selects one bounded page of article stage outcomes. |
+| [`ArticleStagePage`](../src/database/work/types.go#L247) | struct | 247-252 | `type ArticleStagePage struct { Items []*StageOutcome Total int64 HasMore bool NextCursorID int64 }` | ArticleStagePage is one bounded page of article stage outcomes with its exact total. |
+| [`ReferenceDetail`](../src/database/work/types.go#L255) | struct | 255-262 | `type ReferenceDetail struct { Reference WorkID int64 CitingTitle string PipelineRunID int64 ResolvedRevisionID *int64 ResolvedTitle string }` | ReferenceDetail is one reference mention with its citing and resolved-work context. |
+| [`EvaluationFilter`](../src/database/work/types.go#L265) | struct | 265-281 | `type EvaluationFilter struct { RunID int64 ContextID int64 CurrentRevisionID int64 Query string Source string ReviewStatus string Qualifier string ReviewSource string Reviewed string PDFStatus string AvailableDOIsJSON string SortField string Order string Page int PerPage int }` | EvaluationFilter selects one bounded evaluation page and its review facets. |
+| [`EvaluationRow`](../src/database/work/types.go#L284) | struct | 284-308 | `type EvaluationRow struct { ID int64 WorkID int64 Title string Year int Journal string Publisher string Source string DOI string ValidationStatus string CitationCount int ReferenceCount int ProducerStage string CreatedAt string Abstract string Keywords string KeywordsPlus string Authors string WorkRevisionID int64 ReviewStatus string ReviewInherited bool ReviewVersionID *int64 ReviewCreatedInContextID *int64 ReviewSubStatuses []string }` | EvaluationRow is one analysis-ready article with its review and validation state. |
+| [`EvaluationPage`](../src/database/work/types.go#L311) | struct | 311-314 | `type EvaluationPage struct { Items []*EvaluationRow Total int64 }` | EvaluationPage is one bounded evaluation page with its exact total. |
+| [`FacetCount`](../src/database/work/types.go#L317) | struct | 317-320 | `type FacetCount struct { Value string Count int64 }` | FacetCount is one facet value and its count. |
+| [`EvaluationFacets`](../src/database/work/types.go#L323) | struct | 323-329 | `type EvaluationFacets struct { ReviewStatus []*FacetCount Source []*FacetCount ReviewSource []*FacetCount Qualifier []*FacetCount PDFStatus []*FacetCount }` | EvaluationFacets groups the invariant evaluation facet counts. |
+| [`EvaluationSummary`](../src/database/work/types.go#L332) | struct | 332-340 | `type EvaluationSummary struct { Total int64 Reviewed int64 Unreviewed int64 PDFAvailable int64 PDFNotAvailable int64 PercentReviewed *float64 Facets EvaluationFacets }` | EvaluationSummary is the invariant queue progress for one evaluation context. |
+| [`QueueNavigation`](../src/database/work/types.go#L343) | struct | 343-346 | `type QueueNavigation struct { PreviousWorkRevisionID *int64 NextWorkRevisionID *int64 }` | QueueNavigation is the adjacent unreviewed revision pair for one evaluation queue. |
+| [`GraphFilter`](../src/database/work/types.go#L349) | struct | 349-363 | `type GraphFilter struct { RunID int64 Query string Source string YearMin *int64 YearMax *int64 CitationMin *int64 CitationMax *int64 ReferenceMin *int64 ReferenceMax *int64 Author string ORCID string Reference string Limit int }` | GraphFilter selects the bounded graph article nodes for one run. |
+| [`GraphArticle`](../src/database/work/types.go#L366) | struct | 366-373 | `type GraphArticle struct { ID int64 WorkID int64 Title string Year int Source string DOI string }` | GraphArticle is one selected article node. |
+| [`GraphAuthorship`](../src/database/work/types.go#L376) | struct | 376-383 | `type GraphAuthorship struct { WorkRevisionID int64 AuthorID int64 CitationName string ORCID string AuthorOrder int Affiliation string }` | GraphAuthorship is one article-author relationship row. |
+| [`GraphCitation`](../src/database/work/types.go#L386) | struct | 386-389 | `type GraphCitation struct { WorkRevisionID int64 ResolvedWorkID int64 }` | GraphCitation is one resolved citation relationship row. |
+| [`GraphReference`](../src/database/work/types.go#L392) | struct | 392-400 | `type GraphReference struct { ID int64 WorkRevisionID int64 DOI string Title string Author string Year int Source string }` | GraphReference is one article-reference relationship row. |
+| [`Coverage`](../src/database/work/types.go#L403) | struct | 403-406 | `type Coverage struct { WorkRevisions int64 JournalCoverage int64 }` | Coverage is the work-revision and journal coverage for one run. |
+| [`RelationshipTotals`](../src/database/work/types.go#L409) | struct | 409-415 | `type RelationshipTotals struct { WorkRevisions int64 AnalysisReadyArticles int64 Authorships int64 ReferenceMentions int64 InternalCitations int64 }` | RelationshipTotals counts canonical works, authorships, references, and resolved citations for a run. |
+| [`CorpusReference`](../src/database/work/types.go#L418) | struct | 418-430 | `type CorpusReference struct { ID int64 WorkRevisionID int64 MentionOrder int DOI string Title string Author string Year int Source string ResolvedWorkID *int64 CitingTitle string CreatedAt string }` | CorpusReference is one run-scoped reference mention with its citing title. |
+| [`CorpusReferenceFilter`](../src/database/work/types.go#L433) | struct | 433-440 | `type CorpusReferenceFilter struct { RunID int64 Query string Sort string Order string Page int PerPage int }` | CorpusReferenceFilter selects one bounded page of run-scoped references. |
+| [`CorpusReferencePage`](../src/database/work/types.go#L443) | struct | 443-446 | `type CorpusReferencePage struct { Items []*CorpusReference Total int64 }` | CorpusReferencePage is one bounded page of run-scoped references with its exact total. |
+| [`RunStageFilter`](../src/database/work/types.go#L449) | struct | 449-456 | `type RunStageFilter struct { RunID int64 Query string Sort string Order string Page int PerPage int }` | RunStageFilter selects one bounded page of run stage outcomes. |
+| [`RunStagePage`](../src/database/work/types.go#L459) | struct | 459-462 | `type RunStagePage struct { Items []*StageOutcome Total int64 }` | RunStagePage is one bounded page of run stage outcomes with its exact total. |
+| [`StageSummary`](../src/database/work/types.go#L465) | struct | 465-471 | `type StageSummary struct { StageName string TotalRecords int64 Outcomes map[string]int64 FirstRecordedAt string LastRecordedAt string }` | StageSummary aggregates one run stage's outcome counts and time bounds. |
 
 ### [`src/database/work/work.go`](../src/database/work/work.go)
 
