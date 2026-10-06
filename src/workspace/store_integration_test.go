@@ -397,6 +397,75 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 	}
 }
 
+// TestRecordValidationAuditPreservesStateAndReasons verifies the validation
+// workflow records standalone audit evidence with the current actor, state,
+// reason metadata, run linkage, and correlation identity.
+func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
+	ctx := context.Background()
+	db, err := database.Open(filepath.Join(t.TempDir(), "workspace.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := db.Run.StartRun(ctx, "validation-audit", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	validWorkID, err := db.Works.CreateByDOI("10.1000/valid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	discardedWorkID, err := db.Works.CreateByDOI("10.1000/discarded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles := []*article.Article{{DOI: "10.1000/valid"}, {DOI: "10.1000/discarded"}}
+	reasons := map[string][]string{"10.1000/discarded": {"missing title", "invalid year"}}
+	if err := recordValidationAudit(ctx, db, runID, articles, reasons); err != nil {
+		t.Fatal(err)
+	}
+	events, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("validation audit events = %d, want 2", len(events))
+	}
+	valid, discarded := events[0], events[1]
+	if valid.EntityType != "work" || valid.EntityID != strconv.FormatInt(validWorkID, 10) ||
+		valid.Actor != "pipeline" || valid.Action != string(manifest.AuditValidationChanged) {
+		t.Fatalf("valid event identity = %+v", valid)
+	}
+	if valid.AfterJSON != `{"status":"valid"}` || valid.MetadataJSON != "{}" {
+		t.Fatalf("valid event state = after %q metadata %q", valid.AfterJSON, valid.MetadataJSON)
+	}
+	if discarded.EntityID != strconv.FormatInt(discardedWorkID, 10) ||
+		discarded.AfterJSON != `{"status":"discarded"}` ||
+		discarded.MetadataJSON != `{"reasons":["missing title","invalid year"]}` {
+		t.Fatalf("discarded event = %+v", discarded)
+	}
+	for index, event := range events {
+		if event.PipelineRunID == nil || *event.PipelineRunID != runID {
+			t.Fatalf("event[%d] run linkage = %v, want %d", index, event.PipelineRunID, runID)
+		}
+		if event.CorrelationID != "validation-"+strconv.FormatInt(runID, 10) {
+			t.Fatalf("event[%d] correlation = %q", index, event.CorrelationID)
+		}
+	}
+
+	missing := []*article.Article{{DOI: "10.1000/missing"}}
+	if err := recordValidationAudit(ctx, db, runID, missing, nil); err == nil || !strings.Contains(err.Error(), "work missing for validation audit") {
+		t.Fatalf("missing work error = %v", err)
+	}
+	after, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("missing work wrote %d additional events", len(after)-2)
+	}
+}
+
 // TestRecordFieldEnrichmentMetrics verifies record field enrichment metrics.
 func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "workspace.db"), filepath.Join("..", "..", "config", "database.something"))

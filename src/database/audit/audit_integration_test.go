@@ -7,6 +7,7 @@ package audit_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"analysis/database"
@@ -106,6 +107,31 @@ func TestStoreInsertRejectsInvalidAction(t *testing.T) {
 	}
 	if _, err := store.Insert(ctx, &manifest.AuditEvent{Action: "not_an_action"}); err == nil {
 		t.Fatal("expected invalid action to fail")
+	}
+}
+
+// TestStoreInsertPropagatesAppendOnlyFailure verifies a rejected insert reports
+// the wrapped database failure and leaves no audit row behind.
+func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	if _, err := db.DB.Exec(`CREATE TRIGGER reject_audit_insert BEFORE INSERT ON audit_events
+		BEGIN SELECT RAISE(ABORT, 'audit insert rejected'); END`); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.Insert(ctx, &manifest.AuditEvent{
+		OccurredAt: "2026-01-02T03:04:05Z", Actor: "pipeline",
+		EntityType: "work", EntityID: "1", Action: manifest.AuditValidationChanged,
+	})
+	if err == nil || !strings.Contains(err.Error(), "audit insert rejected") {
+		t.Fatalf("insert error = %v, want injected append-only failure", err)
+	}
+	var count int
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("rejected insert left %d audit rows", count)
 	}
 }
 

@@ -257,6 +257,66 @@ func TestFlushAuditOutboxContinuesAfterOneBadEvent(t *testing.T) {
 	}
 }
 
+// TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails verifies the metadata
+// audit row and its delivery link commit or roll back together and remain
+// retryable after a failed delivery.
+func TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+		(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+		VALUES ('link-failure', '2026-01-01T00:00:00Z', 'pipeline', 'work', '1', 'pdf_inventory_registered', '{}', 'link-failure')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := metadata.DB.Exec(`CREATE TRIGGER reject_pdf_audit_link BEFORE INSERT ON pdf_audit_links
+		BEGIN SELECT RAISE(ABORT, 'injected link failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+
+	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	if flushed != 0 || err == nil || !strings.Contains(err.Error(), "injected link failure") {
+		t.Fatalf("link-failure flush=%d err=%v", flushed, err)
+	}
+	var events, links, remaining int
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 0 || links != 0 || remaining != 1 {
+		t.Fatalf("failed delivery events=%d links=%d remaining=%d, want 0, 0, 1", events, links, remaining)
+	}
+
+	if _, err := metadata.DB.Exec("DROP TRIGGER reject_pdf_audit_link"); err != nil {
+		t.Fatal(err)
+	}
+	flushed, err = store.FlushAuditOutbox(ctx, metadata.DB)
+	if err != nil || flushed != 1 {
+		t.Fatalf("retry flush=%d err=%v, want one delivered event", flushed, err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 || remaining != 0 {
+		t.Fatalf("retried delivery events=%d links=%d remaining=%d, want 1, 1, 0", events, links, remaining)
+	}
+}
+
 // TestAddRollsBackWhenAuditOutboxWriteFails verifies add rolls back when audit outbox write fails.
 func TestAddRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
 	ctx := context.Background()

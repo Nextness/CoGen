@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"analysis/database"
@@ -430,6 +431,57 @@ func TestStoreRecoverAbandonedFailsRunAndStepsWithAudit(t *testing.T) {
 	}
 	if err := store.RecoverAbandoned(ctx, 0); err == nil {
 		t.Fatal("non-positive run ID was accepted")
+	}
+}
+
+// TestStoreRecoverAbandonedRollsBackWhenAuditFails verifies the run, step, and
+// local run-owned audit writes of one recovery transaction roll back together.
+func TestStoreRecoverAbandonedRollsBackWhenAuditFails(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	planID := createTestPlan(t, db, "recovery-rollback")
+
+	runID, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stepID, err := store.CreateStep(ctx, runID, "running-step")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateStepStatus(ctx, stepID, "running"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`CREATE TRIGGER recovery_audit_abort BEFORE INSERT ON audit_events
+		WHEN NEW.action='run_failed' BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END`); err != nil {
+		t.Fatal(err)
+	}
+	defer db.DB.Exec("DROP TRIGGER IF EXISTS recovery_audit_abort")
+
+	if err := store.RecoverAbandoned(ctx, runID); err == nil || !strings.Contains(err.Error(), "audit unavailable") {
+		t.Fatalf("recovery error = %v, want injected audit failure", err)
+	}
+	stored, err := store.GetByID(ctx, runID)
+	if err != nil || stored == nil {
+		t.Fatalf("get rolled-back run = %+v err=%v", stored, err)
+	}
+	if stored.Status != "running" || stored.FinishedAt != nil {
+		t.Fatalf("run mutated despite audit failure: %+v", stored)
+	}
+	var stepStatus string
+	var stepFinished sql.NullString
+	if err := db.DB.QueryRow("SELECT step_status, finished_at FROM run_steps WHERE id=?", stepID).Scan(&stepStatus, &stepFinished); err != nil {
+		t.Fatal(err)
+	}
+	if stepStatus != "running" || stepFinished.Valid {
+		t.Fatalf("step mutated despite audit failure: status=%q finished=%v", stepStatus, stepFinished)
+	}
+	var auditCount int
+	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != 0 {
+		t.Fatalf("failed recovery left %d audit rows", auditCount)
 	}
 }
 

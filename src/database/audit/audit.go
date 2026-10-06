@@ -1,7 +1,14 @@
 // audit.go provides the handwritten audit-event data access layer over the
 // generated queries in this family's private internal/sql package. It owns
-// append-only insertion and ordered run or entity reads; the viewer evidence
-// reads and the dynamic filter builder live in their specifically named files.
+// standalone append-only insertion and ordered run or entity reads; the viewer
+// evidence reads and the dynamic filter builder live in their specifically
+// named files.
+//
+// Transaction ownership stays with the workflow that appends evidence. A
+// workflow that must write an audit row atomically with its own transaction
+// keeps a local insert bound to that transaction, so the run, review, and
+// delivered-PDF workflows do not call Insert and never open a second
+// transaction around their work.
 package audit
 
 import (
@@ -28,8 +35,11 @@ func New(db *sql.DB) *Store {
 	return &Store{db: db, queries: generated.New(db)}
 }
 
-// Insert stores a new audit event. The event's action is validated against the
-// manifest lifecycle vocabulary before insertion.
+// Insert stores a new audit event as standalone autocommit evidence. The
+// event's action is validated against the manifest lifecycle vocabulary before
+// insertion. Workflows that append evidence atomically with their own
+// transaction use a local generated insert instead, because this method binds
+// to the family connection and cannot join a caller-owned transaction.
 func (s *Store) Insert(ctx context.Context, event *manifest.AuditEvent) (int64, error) {
 	if event == nil {
 		return 0, fmt.Errorf("insert audit event: value is required")
