@@ -250,7 +250,7 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	db, writer, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
 	request := testCacheRequest()
-	artifactID, err := persistArtifact(db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
+	artifactID, err := persistArtifact(context.Background(), db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}

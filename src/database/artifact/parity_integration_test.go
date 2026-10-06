@@ -176,6 +176,62 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 		store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: familyNewArtifact, Role: artifact.RunArtifactWorkspaceConfig}))
 }
 
+// TestArtifactReadParityWithLegacyServerQueries verifies the family content and
+// preview reads return the same values as the viewer's former raw queries.
+func TestArtifactReadParityWithLegacyServerQueries(t *testing.T) {
+	ctx := context.Background()
+	store, db := openFamilyStore(t)
+	runID := createTestRun(t, db, "artifact-read-parity")
+	artifactID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "read-parity", ContentType: "application/json", ByteSize: 12})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("workspace = {}")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: artifactID, Role: artifact.RunArtifactWorkspaceConfig}); err != nil {
+		t.Fatal(err)
+	}
+
+	var legacyType, legacyRole string
+	var legacyHasBlob bool
+	var legacyData []byte
+	if err := db.DB.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL, ab.data,
+		COALESCE((SELECT artifact_role FROM run_artifacts WHERE artifact_id=a.id ORDER BY pipeline_run_id, artifact_role LIMIT 1), '')
+		FROM artifacts a LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
+		WHERE a.id=?`, artifactID).Scan(&legacyType, &legacyHasBlob, &legacyData, &legacyRole); err != nil {
+		t.Fatal(err)
+	}
+	content, err := store.GetContent(ctx, artifactID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content == nil || content.ContentType != legacyType || content.Role != legacyRole ||
+		!legacyHasBlob || !reflect.DeepEqual(content.Data, legacyData) {
+		t.Fatalf("content parity: legacy=(%q,%v,%q,%q) family=%+v", legacyType, legacyHasBlob, legacyData, legacyRole, content)
+	}
+
+	var legacyPreviewType string
+	var legacyByteSize, legacyBlobSize int64
+	var legacyPreviewHasBlob bool
+	var legacyPreviewData []byte
+	if err := db.DB.QueryRowContext(ctx, `SELECT a.content_type, a.byte_size,
+			ab.id IS NOT NULL, COALESCE(length(CAST(ab.data AS BLOB)), 0), substr(CAST(ab.data AS BLOB), 1, ?)
+        FROM artifacts a
+        LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
+        WHERE a.id=?`, 5, artifactID).Scan(&legacyPreviewType, &legacyByteSize, &legacyPreviewHasBlob, &legacyBlobSize, &legacyPreviewData); err != nil {
+		t.Fatal(err)
+	}
+	preview, err := store.GetPreview(ctx, artifactID, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preview == nil || preview.ContentType != legacyPreviewType || preview.ByteSize != legacyByteSize ||
+		preview.BlobSize != legacyBlobSize || !legacyPreviewHasBlob || !reflect.DeepEqual(preview.Data, legacyPreviewData) {
+		t.Fatalf("preview parity: legacy=(%q,%d,%v,%d,%q) family=%+v", legacyPreviewType, legacyByteSize, legacyPreviewHasBlob, legacyBlobSize, legacyPreviewData, preview)
+	}
+}
+
 // legacyCreateError attempts one conflicting artifact create and returns only its error.
 func legacyCreateError(db *database.Database, hash, contentType string, byteSize int64) error {
 	_, err := db.Artifacts.Create(hash, contentType, byteSize)

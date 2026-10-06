@@ -37,6 +37,21 @@ type RelatedArtifact struct {
 	Detail string `json:"relationship_detail"`
 }
 
+// Content is one artifact's stored bytes with its media type and first run role.
+type Content struct {
+	ContentType string
+	Role        string
+	Data        []byte
+}
+
+// Preview is a bounded artifact prefix with its stored metadata.
+type Preview struct {
+	ContentType string
+	ByteSize    int64
+	BlobSize    int64
+	Data        []byte
+}
+
 // CreateInput identifies one content identity to insert or locate.
 type CreateInput struct {
 	ContentHash string

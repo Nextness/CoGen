@@ -47,6 +47,72 @@ func (q *Queries) GetArtifactBlobDataByArtifactID(ctx context.Context, artifactI
 	return data, err
 }
 
+const getArtifactContent = `-- name: GetArtifactContent :one
+SELECT
+    a.content_type,
+    CAST(COALESCE((
+        SELECT artifact_role FROM run_artifacts
+        WHERE artifact_id = a.id
+        ORDER BY pipeline_run_id, artifact_role
+        LIMIT 1
+    ), '') AS TEXT) AS artifact_role,
+    ab.data
+FROM artifacts a
+LEFT JOIN artifact_blobs ab ON ab.artifact_id = a.id
+WHERE a.id = ?1
+`
+
+type GetArtifactContentRow struct {
+	ContentType  string
+	ArtifactRole string
+	Data         []byte
+}
+
+func (q *Queries) GetArtifactContent(ctx context.Context, id int64) (GetArtifactContentRow, error) {
+	row := q.db.QueryRowContext(ctx, getArtifactContent, id)
+	var i GetArtifactContentRow
+	err := row.Scan(&i.ContentType, &i.ArtifactRole, &i.Data)
+	return i, err
+}
+
+const getArtifactPreview = `-- name: GetArtifactPreview :one
+SELECT
+    a.content_type,
+    a.byte_size,
+    CASE WHEN ab.id IS NULL THEN 0 ELSE 1 END AS has_blob,
+    CAST(COALESCE(length(CAST(ab.data AS BLOB)), 0) AS INTEGER) AS blob_size,
+    CAST(substr(CAST(ab.data AS BLOB), 1, ?1) AS BLOB) AS data
+FROM artifacts a
+LEFT JOIN artifact_blobs ab ON ab.artifact_id = a.id
+WHERE a.id = ?2
+`
+
+type GetArtifactPreviewParams struct {
+	PreviewBytes int64
+	ID           int64
+}
+
+type GetArtifactPreviewRow struct {
+	ContentType string
+	ByteSize    int64
+	HasBlob     int64
+	BlobSize    int64
+	Data        []byte
+}
+
+func (q *Queries) GetArtifactPreview(ctx context.Context, arg GetArtifactPreviewParams) (GetArtifactPreviewRow, error) {
+	row := q.db.QueryRowContext(ctx, getArtifactPreview, arg.PreviewBytes, arg.ID)
+	var i GetArtifactPreviewRow
+	err := row.Scan(
+		&i.ContentType,
+		&i.ByteSize,
+		&i.HasBlob,
+		&i.BlobSize,
+		&i.Data,
+	)
+	return i, err
+}
+
 const insertArtifactBlob = `-- name: InsertArtifactBlob :execresult
 INSERT OR IGNORE INTO artifact_blobs (artifact_id, pipeline_run_id, data)
 VALUES (

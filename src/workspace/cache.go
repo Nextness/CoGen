@@ -102,7 +102,7 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		if entry.PayloadArtifactID == nil {
 			return nil, fmt.Errorf("cache entry %d has no payload artifact", entry.ID)
 		}
-		body, err := c.readPayload(*entry.PayloadArtifactID)
+		body, err := c.readPayload(ctx, *entry.PayloadArtifactID)
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +167,7 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	if status == 404 {
 		entry.ExpiresAt = time.Now().UTC().Add(time.Duration(c.policy.NegativeTTLDays) * 24 * time.Hour).Format(time.RFC3339Nano)
 	} else {
-		artifactID, err := persistArtifact(c.db, c.runID, response.Body, "application/json")
+		artifactID, err := persistArtifact(ctx, c.db, c.runID, response.Body, "application/json")
 		if err != nil {
 			return nil, fmt.Errorf("persist cache payload: %w", err)
 		}
@@ -248,8 +248,8 @@ func (c *workspaceCache) recordUse(entryID int64, layer string, outcome manifest
 }
 
 // readPayload reads payload from the supplied source.
-func (c *workspaceCache) readPayload(artifactID int64) ([]byte, error) {
-	blob, err := c.db.ArtifactBlobs.GetByArtifactID(artifactID)
+func (c *workspaceCache) readPayload(ctx context.Context, artifactID int64) ([]byte, error) {
+	blob, err := c.db.Artifact.GetBlobByArtifactID(ctx, artifactID)
 	if err != nil {
 		return nil, err
 	}

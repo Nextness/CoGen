@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/database/artifact"
 	"analysis/internal/pathpolicy"
 	"analysis/internal/sqliteuri"
 	"analysis/logging"
@@ -69,6 +70,7 @@ var viewPages = map[string]string{
 // be set because the binary does not embed frontend assets.
 type Server struct {
 	db         *sql.DB
+	artifact   *artifact.Store
 	writeDB    *database.Database
 	pdfDB      *sql.DB
 	pdfPath    string
@@ -144,7 +146,7 @@ func Open(path string) (*Server, error) {
 		db.Close()
 		return nil, fmt.Errorf("read workspace database: %w", err)
 	}
-	s := &Server{db: db}
+	s := &Server{db: db, artifact: artifact.New(db)}
 	if err := s.discoverTables(ctx); err != nil {
 		db.Close()
 		return nil, err

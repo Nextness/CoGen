@@ -41,6 +41,8 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 			return err
 		}},
 		{"GetBlobByArtifactID", func() error { _, err := store.GetBlobByArtifactID(ctx, 1); return err }},
+		{"GetContent", func() error { _, err := store.GetContent(ctx, 1); return err }},
+		{"GetPreview", func() error { _, err := store.GetPreview(ctx, 1, 5); return err }},
 		{"Link", func() error {
 			return store.Link(ctx, artifact.LinkInput{PipelineRunID: 1, ArtifactID: 1, Role: artifact.RunArtifactWorkspaceConfig})
 		}},

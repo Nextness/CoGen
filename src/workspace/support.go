@@ -19,6 +19,7 @@ import (
 
 	"analysis/bibtex"
 	"analysis/database"
+	"analysis/database/artifact"
 	dbrun "analysis/database/run"
 	dbsearch "analysis/database/search"
 	"analysis/logging"
@@ -223,12 +224,12 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	configArtifactID, err := persistArtifact(db, runID, originalConfig, "application/x-something-config")
+	configArtifactID, err := persistArtifact(ctx, db, runID, originalConfig, "application/x-something-config")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	if err := db.RunArtifacts.Link(runID, configArtifactID, database.RunArtifactWorkspaceConfig); err != nil {
+	if err := db.Artifact.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: configArtifactID, Role: artifact.RunArtifactWorkspaceConfig}); err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
@@ -237,21 +238,21 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, fmt.Errorf("marshal resolved manifest: %w", err)
 	}
-	resolvedManifestArtifactID, err := persistArtifact(db, runID, resolvedBytes, "application/json")
+	resolvedManifestArtifactID, err := persistArtifact(ctx, db, runID, resolvedBytes, "application/json")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	if err := db.RunArtifacts.Link(runID, resolvedManifestArtifactID, database.RunArtifactResolvedManifest); err != nil {
+	if err := db.Artifact.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: resolvedManifestArtifactID, Role: artifact.RunArtifactResolvedManifest}); err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	inputManifestArtifactID, err := persistArtifact(db, runID, inputManifestBytes, "application/json")
+	inputManifestArtifactID, err := persistArtifact(ctx, db, runID, inputManifestBytes, "application/json")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	if err := db.RunArtifacts.Link(runID, inputManifestArtifactID, database.RunArtifactInputManifest); err != nil {
+	if err := db.Artifact.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: inputManifestArtifactID, Role: artifact.RunArtifactInputManifest}); err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
@@ -354,9 +355,15 @@ func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputMan
 }
 
 // persistArtifact stores content-addressed artifact metadata and bytes for a run.
-func persistArtifact(db *database.Database, runID int64, data []byte, contentType string) (int64, error) {
+func persistArtifact(ctx context.Context, db *database.Database, runID int64, data []byte, contentType string) (int64, error) {
 	hash := contentHash(data)
-	return db.Artifacts.CreateWithBlob(hash, contentType, int64(len(data)), runID, data)
+	return db.Artifact.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
+		ContentHash:   hash,
+		ContentType:   contentType,
+		ByteSize:      int64(len(data)),
+		PipelineRunID: runID,
+		Data:          data,
+	})
 }
 
 // contentHash returns the lowercase hexadecimal SHA-256 digest of data.

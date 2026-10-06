@@ -562,11 +562,11 @@ func recordWorkspaceStage(ctx context.Context, db *database.Database, run *Run, 
 	if err != nil {
 		return fmt.Errorf("marshal %s output: %w", name, err)
 	}
-	inputArtifactID, err := persistArtifact(db, runID, inputBytes, "application/json")
+	inputArtifactID, err := persistArtifact(ctx, db, runID, inputBytes, "application/json")
 	if err != nil {
 		return err
 	}
-	outputArtifactID, err := persistArtifact(db, runID, outputBytes, "application/json")
+	outputArtifactID, err := persistArtifact(ctx, db, runID, outputBytes, "application/json")
 	if err != nil {
 		return err
 	}

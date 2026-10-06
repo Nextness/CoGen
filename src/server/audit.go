@@ -7,11 +7,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 
+	"analysis/database/artifact"
 	"analysis/internal/textlimit"
 )
 
@@ -692,33 +694,27 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var contentType, role string
-	var data []byte
-	var hasBlob bool
-	err = s.db.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL, ab.data,
-		COALESCE((SELECT artifact_role FROM run_artifacts WHERE artifact_id=a.id ORDER BY pipeline_run_id, artifact_role LIMIT 1), '')
-		FROM artifacts a LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-		WHERE a.id=?`, artifactID).Scan(&contentType, &hasBlob, &data, &role)
-	if err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("artifact not found"))
+	content, err := s.artifact.GetContent(ctx, artifactID)
+	if errors.Is(err, artifact.ErrNoBlob) {
+		s.respond(w, r, nil, notFound(err.Error()))
 		return
 	}
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if !hasBlob {
-		s.respond(w, r, nil, notFound("artifact has no blob data"))
+	if content == nil {
+		s.respond(w, r, nil, notFound("artifact not found"))
 		return
 	}
-	storedSize := int64(len(data))
-	w.Header().Set("Content-Type", normalizedArtifactContentType(contentType))
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": artifactFilename(artifactID, role, contentType)}))
+	storedSize := int64(len(content.Data))
+	w.Header().Set("Content-Type", normalizedArtifactContentType(content.ContentType))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": artifactFilename(artifactID, content.Role, content.ContentType)}))
 	w.Header().Set("Content-Length", strconv.FormatInt(storedSize, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	_, _ = w.Write(content.Data)
 }
 
 // artifactInspection returns bounded metadata and preview content for one artifact.
@@ -777,25 +773,17 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 
 // artifactPreviewBlob reads a bounded artifact prefix together with its media type and total size.
 func (s *Server) artifactPreviewBlob(ctx context.Context, artifactID int64, previewBytes int) (string, int64, int64, []byte, error) {
-	var contentType string
-	var byteSize, blobSize int64
-	var hasBlob bool
-	var data []byte
-	err := s.db.QueryRowContext(ctx, `SELECT a.content_type, a.byte_size,
-			ab.id IS NOT NULL, COALESCE(length(CAST(ab.data AS BLOB)), 0), substr(CAST(ab.data AS BLOB), 1, ?)
-        FROM artifacts a
-        LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
-        WHERE a.id=?`, previewBytes, artifactID).Scan(&contentType, &byteSize, &hasBlob, &blobSize, &data)
-	if err == sql.ErrNoRows {
-		return "", 0, 0, nil, notFound("artifact not found")
+	preview, err := s.artifact.GetPreview(ctx, artifactID, previewBytes)
+	if errors.Is(err, artifact.ErrNoBlob) {
+		return "", 0, 0, nil, notFound(err.Error())
 	}
 	if err != nil {
 		return "", 0, 0, nil, err
 	}
-	if !hasBlob {
-		return "", 0, 0, nil, notFound("artifact has no blob data")
+	if preview == nil {
+		return "", 0, 0, nil, notFound("artifact not found")
 	}
-	return contentType, byteSize, blobSize, data, nil
+	return preview.ContentType, preview.ByteSize, preview.BlobSize, preview.Data, nil
 }
 
 // normalizedArtifactContentType parses and lowercases an artifact media type without parameters.
