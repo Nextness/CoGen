@@ -36,6 +36,11 @@ coverage_policy: coverage_policy_config = {
         ["analysis/article"]           => { minimum =  97.0 },
         ["analysis/bibtex"]            => { minimum =  95.0 },
         ["analysis/database"]          => { minimum =  70.0 },
+        ["analysis/database/artifact"] => { minimum =  90.0 },
+        ["analysis/database/artifact/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated artifact queries are exercised through the handwritten family integration and parity tests."
+        },
         ["analysis/database/cache"]    => { minimum =  90.0 },
         ["analysis/database/cache/internal/sql"] => {
             minimum = 80.0,
@@ -87,10 +92,6 @@ coverage_policy: coverage_policy_config = {
         ["analysis/workspace/store.go"] => {
             minimum = 66.0,
             rationale = "The main workspace orchestration path needs a stronger floor than package main."
-        },
-        ["analysis/database/attempts.go"] => {
-            minimum = 61.0,
-            rationale = "Attempt, source, artifact, and stage persistence protect run provenance."
         },
         ["analysis/database/database.go"] => {
             minimum = 72.0,

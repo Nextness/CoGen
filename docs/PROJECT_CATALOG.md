@@ -120,26 +120,146 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`parser`](../src/bibtex/helpers_test.go#L15) | function | 15-17 | `func parser() *Parser` | parser supports the package test suite's parser setup or assertions. |
 
+### [`src/database/artifact/artifact.go`](../src/database/artifact/artifact.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Store`](../src/database/artifact/artifact.go#L19) | struct | 19-22 | `type Store struct { db *sql.DB queries *generated.Queries }` | Store binds the generated artifact queries to one already configured connection. |
+| [`New`](../src/database/artifact/artifact.go#L28) | function | 28-30 | `func New(db *sql.DB) *Store` | New returns an artifact family store over an already configured connection. It only binds the generated queries to db; it does not build a SQLite URI, alter pragmas, open or close the connection, load migration configuration, or run migrations. |
+| [`(*Store).Create`](../src/database/artifact/artifact.go#L34) | method | 34-67 | `func (*Store).Create(ctx context.Context, input CreateInput) (int64, error)` | Create inserts a new artifact. Returns the artifact ID. If the content_hash already exists, returns the existing artifact ID. |
+| [`(*Store).CreateWithBlob`](../src/database/artifact/artifact.go#L72) | method | 72-138 | `func (*Store).CreateWithBlob(ctx context.Context, input CreateWithBlobInput) (int64, error)` | CreateWithBlob atomically records an artifact and its bytes for a pipeline run. An existing content identity is reused only when its stored metadata and bytes match; every partial write rolls back on mismatch. |
+| [`(*Store).GetByHash`](../src/database/artifact/artifact.go#L141) | method | 141-150 | `func (*Store).GetByHash(ctx context.Context, contentHash string) (*Artifact, error)` | GetByHash returns an artifact by its content hash, or nil if not found. |
+| [`(*Store).GetByID`](../src/database/artifact/artifact.go#L153) | method | 153-162 | `func (*Store).GetByID(ctx context.Context, id int64) (*Artifact, error)` | GetByID returns an artifact by its primary key, or nil if not found. |
+| [`artifactFromGenerated`](../src/database/artifact/artifact.go#L165) | function | 165-173 | `func artifactFromGenerated(row generated.Artifact) *Artifact` | artifactFromGenerated maps one generated artifact row into an application artifact. |
+| [`(*Store).withTx`](../src/database/artifact/artifact.go#L177) | method | 177-194 | `func (*Store).withTx(ctx context.Context, fn func(*generated.Queries) error) error` | withTx runs fn inside one transaction bound to the generated queries and commits only when every statement succeeds. |
+
+### [`src/database/artifact/artifact_integration_test.go`](../src/database/artifact/artifact_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`openFamilyStore`](../src/database/artifact/artifact_integration_test.go#L23) | function | 23-32 | `func openFamilyStore(t *testing.T) (*artifact.Store, *database.Database)` | openFamilyStore returns an artifact store over a database created by the production migration runner. |
+| [`createTestRun`](../src/database/artifact/artifact_integration_test.go#L35) | function | 35-42 | `func createTestRun(t *testing.T, db *database.Database, step string) int64` | createTestRun creates one pipeline run for artifact linkage and returns its ID. |
+| [`TestStoreCreateAndLookupPreservesIdentityAndDeduplicates`](../src/database/artifact/artifact_integration_test.go#L45) | test | 45-94 | `func TestStoreCreateAndLookupPreservesIdentityAndDeduplicates(t *testing.T)` | TestStoreCreateAndLookupPreservesIdentityAndDeduplicates verifies content-hash reuse and identity lookup. |
+| [`TestStoreCreateRejectsConflictingMetadata`](../src/database/artifact/artifact_integration_test.go#L97) | test | 97-110 | `func TestStoreCreateRejectsConflictingMetadata(t *testing.T)` | TestStoreCreateRejectsConflictingMetadata verifies a repeated identity cannot conceal different metadata. |
+| [`TestStoreCreateWithBlobIsAtomicAndIdempotent`](../src/database/artifact/artifact_integration_test.go#L113) | test | 113-163 | `func TestStoreCreateWithBlobIsAtomicAndIdempotent(t *testing.T)` | TestStoreCreateWithBlobIsAtomicAndIdempotent verifies the artifact and bytes commit together and replay safely. |
+| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/artifact/artifact_integration_test.go#L166) | test | 166-217 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
+
+### [`src/database/artifact/artifact_unit_test.go`](../src/database/artifact/artifact_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestWithTxRollsBackAndRepanics`](../src/database/artifact/artifact_unit_test.go#L19) | test | 19-35 | `func TestWithTxRollsBackAndRepanics(t *testing.T)` | TestWithTxRollsBackAndRepanics verifies a panic inside the transaction body rolls back the transaction and propagates the panic. |
+
+### [`src/database/artifact/blob.go`](../src/database/artifact/blob.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).CreateBlob`](../src/database/artifact/blob.go#L18) | method | 18-51 | `func (*Store).CreateBlob(ctx context.Context, input CreateBlobInput) (int64, error)` | CreateBlob inserts a new artifact blob. Returns the blob ID. If the artifact_id already exists, returns the existing blob ID (deduplicated). |
+| [`(*Store).GetBlobByArtifactID`](../src/database/artifact/blob.go#L54) | method | 54-69 | `func (*Store).GetBlobByArtifactID(ctx context.Context, artifactID int64) (*Blob, error)` | GetBlobByArtifactID returns the blob for a given artifact, or nil if not found. |
+
+### [`src/database/artifact/blob_integration_test.go`](../src/database/artifact/blob_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreCreateBlobDeduplicatesAndRejectsConflictingBytes`](../src/database/artifact/blob_integration_test.go#L15) | test | 15-50 | `func TestStoreCreateBlobDeduplicatesAndRejectsConflictingBytes(t *testing.T)` | TestStoreCreateBlobDeduplicatesAndRejectsConflictingBytes verifies one artifact keeps exactly one byte payload. |
+
+### [`src/database/artifact/errors_integration_test.go`](../src/database/artifact/errors_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreOperationsPropagateConnectionErrors`](../src/database/artifact/errors_integration_test.go#L16) | test | 16-56 | `func TestStoreOperationsPropagateConnectionErrors(t *testing.T)` | TestStoreOperationsPropagateConnectionErrors verifies every public store operation reports a closed connection as an error rather than a value. |
+
+### [`src/database/artifact/failure_integration_test.go`](../src/database/artifact/failure_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreCreateWithBlobRejectsMissingRun`](../src/database/artifact/failure_integration_test.go#L17) | test | 17-30 | `func TestStoreCreateWithBlobRejectsMissingRun(t *testing.T)` | TestStoreCreateWithBlobRejectsMissingRun verifies a foreign-key violation rolls back the artifact identity inserted in the same transaction. |
+| [`TestStoreCreateWithBlobRejectsExistingMetadataConflict`](../src/database/artifact/failure_integration_test.go#L34) | test | 34-54 | `func TestStoreCreateWithBlobRejectsExistingMetadataConflict(t *testing.T)` | TestStoreCreateWithBlobRejectsExistingMetadataConflict verifies an existing content identity with different metadata is rejected before any blob write. |
+| [`TestStoreCreateReportsIgnoredInsertWithoutExistingRow`](../src/database/artifact/failure_integration_test.go#L58) | test | 58-68 | `func TestStoreCreateReportsIgnoredInsertWithoutExistingRow(t *testing.T)` | TestStoreCreateReportsIgnoredInsertWithoutExistingRow verifies an ignored insert that leaves no row is reported instead of returning a phantom ID. |
+| [`TestStoreCreateWithBlobReportsIgnoredIdentityInsert`](../src/database/artifact/failure_integration_test.go#L72) | test | 72-85 | `func TestStoreCreateWithBlobReportsIgnoredIdentityInsert(t *testing.T)` | TestStoreCreateWithBlobReportsIgnoredIdentityInsert verifies an ignored identity insert fails closed before any blob write. |
+| [`TestStoreCreateWithBlobReportsMissingStoredMetadata`](../src/database/artifact/failure_integration_test.go#L89) | test | 89-102 | `func TestStoreCreateWithBlobReportsMissingStoredMetadata(t *testing.T)` | TestStoreCreateWithBlobReportsMissingStoredMetadata verifies a vanished identity row fails closed after a successful insert. |
+| [`TestStoreCreateWithBlobReportsIgnoredBlobInsert`](../src/database/artifact/failure_integration_test.go#L106) | test | 106-119 | `func TestStoreCreateWithBlobReportsIgnoredBlobInsert(t *testing.T)` | TestStoreCreateWithBlobReportsIgnoredBlobInsert verifies an ignored blob insert without an existing row fails closed. |
+| [`TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow`](../src/database/artifact/failure_integration_test.go#L123) | test | 123-138 | `func TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow(t *testing.T)` | TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow verifies an ignored blob insert that leaves no row is reported instead of returning a phantom ID. |
+| [`TestStoreOperationsHonorCanceledContext`](../src/database/artifact/failure_integration_test.go#L142) | test | 142-181 | `func TestStoreOperationsHonorCanceledContext(t *testing.T)` | TestStoreOperationsHonorCanceledContext verifies canceled contexts propagate through reads and transaction-owned writes. |
+
+### [`src/database/artifact/parity_integration_test.go`](../src/database/artifact/parity_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestArtifactFamilyParityWithLegacyRepositories`](../src/database/artifact/parity_integration_test.go#L22) | test | 22-177 | `func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T)` | TestArtifactFamilyParityWithLegacyRepositories verifies the adapters and family store agree on reads, writes, and errors. |
+| [`legacyCreateError`](../src/database/artifact/parity_integration_test.go#L180) | function | 180-183 | `func legacyCreateError(db *database.Database, hash, contentType string, byteSize int64) error` | legacyCreateError attempts one conflicting artifact create and returns only its error. |
+| [`familyCreateError`](../src/database/artifact/parity_integration_test.go#L186) | function | 186-189 | `func familyCreateError(ctx context.Context, store *artifact.Store, hash, contentType string, byteSize int64) error` | familyCreateError attempts one conflicting artifact create and returns only its error. |
+| [`legacyBlobError`](../src/database/artifact/parity_integration_test.go#L192) | function | 192-195 | `func legacyBlobError(db *database.Database, artifactID, runID int64, data []byte) error` | legacyBlobError attempts one conflicting blob create and returns only its error. |
+| [`familyBlobError`](../src/database/artifact/parity_integration_test.go#L198) | function | 198-201 | `func familyBlobError(ctx context.Context, store *artifact.Store, artifactID, runID int64, data []byte) error` | familyBlobError attempts one conflicting blob create and returns only its error. |
+| [`assertArtifactsEqual`](../src/database/artifact/parity_integration_test.go#L204) | function | 204-217 | `func assertArtifactsEqual(t *testing.T, operation string, legacy *database.Artifact, family *artifact.Artifact)` | assertArtifactsEqual compares legacy and family artifact projections. |
+| [`assertBlobsEqual`](../src/database/artifact/parity_integration_test.go#L220) | function | 220-233 | `func assertBlobsEqual(t *testing.T, operation string, legacy *database.ArtifactBlob, family *artifact.Blob)` | assertBlobsEqual compares legacy and family blob projections. |
+| [`assertQueryParity`](../src/database/artifact/parity_integration_test.go#L236) | function | 236-243 | `func assertQueryParity(t *testing.T, legacy, family *sql.DB, query string, args ...any)` | assertQueryParity runs the same read on both databases and compares every returned row. |
+| [`queryRowValues`](../src/database/artifact/parity_integration_test.go#L246) | function | 246-277 | `func queryRowValues(t *testing.T, db *sql.DB, query string, args ...any) [][]string` | queryRowValues renders every row of one query as ordered comparable text. |
+| [`copyDatabaseFile`](../src/database/artifact/parity_integration_test.go#L280) | function | 280-289 | `func copyDatabaseFile(t *testing.T, source, destination string)` | copyDatabaseFile copies one checkpointed fixture into an independent working copy. |
+| [`formatDatabaseValue`](../src/database/artifact/parity_integration_test.go#L292) | function | 292-303 | `func formatDatabaseValue(value any) string` | formatDatabaseValue renders one scanned SQLite value as comparable text. |
+| [`assertErrorParity`](../src/database/artifact/parity_integration_test.go#L306) | function | 306-314 | `func assertErrorParity(t *testing.T, operation string, legacyErr, familyErr error)` | assertErrorParity verifies legacy and family operations reject input with the same error text. |
+
+### [`src/database/artifact/relationships.go`](../src/database/artifact/relationships.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).ListRunArtifacts`](../src/database/artifact/relationships.go#L15) | method | 15-35 | `func (*Store).ListRunArtifacts(ctx context.Context, runID int64) ([]*RelatedArtifact, error)` | ListRunArtifacts returns every artifact related to a run with its relationship evidence, ordered by artifact ID, relationship role, and detail. The roles are run_role, step_input, step_output, cache_payload, and identity_candidate_payload. |
+
+### [`src/database/artifact/relationships_integration_test.go`](../src/database/artifact/relationships_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreListRunArtifactsCoversEveryRelationshipKind`](../src/database/artifact/relationships_integration_test.go#L20) | test | 20-116 | `func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T)` | TestStoreListRunArtifactsCoversEveryRelationshipKind verifies the family returns artifact application types joined from other families. |
+
+### [`src/database/artifact/run_artifact.go`](../src/database/artifact/run_artifact.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`(*Store).Link`](../src/database/artifact/run_artifact.go#L15) | method | 15-42 | `func (*Store).Link(ctx context.Context, input LinkInput) error` | Link records one snapshot role for an attempt. Repeating the same link is idempotent; assigning a role to a different artifact is rejected. |
+
+### [`src/database/artifact/run_artifact_integration_test.go`](../src/database/artifact/run_artifact_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreLinkIsRoleScopedAndImmutable`](../src/database/artifact/run_artifact_integration_test.go#L15) | test | 15-50 | `func TestStoreLinkIsRoleScopedAndImmutable(t *testing.T)` | TestStoreLinkIsRoleScopedAndImmutable verifies idempotent replay and role conflict rejection. |
+
+### [`src/database/artifact/types.go`](../src/database/artifact/types.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Artifact`](../src/database/artifact/types.go#L14) | struct | 14-20 | ``type Artifact struct { ID int64 `json:"id"` ContentHash string `json:"content_hash"` ByteSize int64 `json:"byte_size"` ContentType string `json:"content_type"` CreatedAt string `json:"created_at"` }`` | Artifact is a content-addressed immutable payload. |
+| [`Blob`](../src/database/artifact/types.go#L23) | struct | 23-29 | ``type Blob struct { ID int64 `json:"id"` ArtifactID int64 `json:"artifact_id"` PipelineRunID int64 `json:"pipeline_run_id"` Data []byte `json:"-"` CreatedAt string `json:"created_at"` }`` | Blob stores the raw bytes for an artifact inline in the database. |
+| [`RelatedArtifact`](../src/database/artifact/types.go#L34) | struct | 34-38 | ``type RelatedArtifact struct { Artifact Role string `json:"relationship_role"` Detail string `json:"relationship_detail"` }`` | RelatedArtifact is one artifact related to a run with the relationship that connects it. An artifact with several relationships appears once per relationship. |
+| [`CreateInput`](../src/database/artifact/types.go#L41) | struct | 41-45 | `type CreateInput struct { ContentHash string ContentType string ByteSize int64 }` | CreateInput identifies one content identity to insert or locate. |
+| [`CreateWithBlobInput`](../src/database/artifact/types.go#L48) | struct | 48-54 | `type CreateWithBlobInput struct { ContentHash string ContentType string ByteSize int64 PipelineRunID int64 Data []byte }` | CreateWithBlobInput identifies one content identity and its bytes for a run. |
+| [`CreateBlobInput`](../src/database/artifact/types.go#L57) | struct | 57-61 | `type CreateBlobInput struct { ArtifactID int64 PipelineRunID int64 Data []byte }` | CreateBlobInput identifies one artifact's inline bytes. |
+| [`LinkInput`](../src/database/artifact/types.go#L64) | struct | 64-68 | `type LinkInput struct { PipelineRunID int64 ArtifactID int64 Role string }` | LinkInput identifies one run-artifact role assignment. |
+
+### [`src/database/artifact_adapter.go`](../src/database/artifact_adapter.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Artifact`](../src/database/artifact_adapter.go#L21) | struct | 21-27 | ``type Artifact struct { ID int64 `json:"id"` ContentHash string `json:"content_hash"` ByteSize int64 `json:"byte_size"` ContentType string `json:"content_type"` CreatedAt string `json:"created_at"` }`` | Artifact is a content-addressed immutable payload. |
+| [`ArtifactBlob`](../src/database/artifact_adapter.go#L30) | struct | 30-36 | ``type ArtifactBlob struct { ID int64 `json:"id"` ArtifactID int64 `json:"artifact_id"` PipelineRunID int64 `json:"pipeline_run_id"` Data []byte `json:"-"` CreatedAt string `json:"created_at"` }`` | ArtifactBlob stores the raw bytes for an artifact inline in the database. |
+| [`RunArtifact`](../src/database/artifact_adapter.go#L41) | struct | 41-46 | ``type RunArtifact struct { PipelineRunID int64 `json:"pipeline_run_id"` ArtifactID int64 `json:"artifact_id"` ArtifactRole string `json:"artifact_role"` CreatedAt string `json:"created_at"` }`` | RunArtifact links an attempt to a content-addressed configuration snapshot. The role distinguishes the raw workspace file from its resolved and input manifests without duplicating immutable artifact payloads. |
+| [`ArtifactRepository`](../src/database/artifact_adapter.go#L49) | struct | 49 | `type ArtifactRepository struct{ db *Database }` | ArtifactRepository forwards the legacy artifact API to the artifact family store. |
+| [`ArtifactBlobRepository`](../src/database/artifact_adapter.go#L52) | struct | 52 | `type ArtifactBlobRepository struct{ db *Database }` | ArtifactBlobRepository forwards the legacy artifact-blob API to the artifact family store. |
+| [`RunArtifactRepository`](../src/database/artifact_adapter.go#L55) | struct | 55 | `type RunArtifactRepository struct{ db *Database }` | RunArtifactRepository forwards the legacy run-artifact API to the artifact family store. |
+| [`(*ArtifactRepository).Create`](../src/database/artifact_adapter.go#L59) | method | 59-65 | `func (*ArtifactRepository).Create(contentHash, contentType string, byteSize int64) (int64, error)` | Create inserts a new artifact. Returns the artifact ID. If the content_hash already exists, returns the existing artifact ID. |
+| [`(*ArtifactRepository).CreateWithBlob`](../src/database/artifact_adapter.go#L68) | method | 68-76 | `func (*ArtifactRepository).CreateWithBlob(contentHash, contentType string, byteSize, pipelineRunID int64, data []byte) (int64, error)` | CreateWithBlob atomically records an artifact and its bytes for a pipeline run. |
+| [`(*ArtifactRepository).GetByHash`](../src/database/artifact_adapter.go#L79) | method | 79-85 | `func (*ArtifactRepository).GetByHash(contentHash string) (*Artifact, error)` | GetByHash returns an artifact by its content hash, or nil if not found. |
+| [`(*ArtifactRepository).GetByID`](../src/database/artifact_adapter.go#L88) | method | 88-94 | `func (*ArtifactRepository).GetByID(id int64) (*Artifact, error)` | GetByID returns an artifact by its primary key, or nil if not found. |
+| [`(*ArtifactBlobRepository).Create`](../src/database/artifact_adapter.go#L98) | method | 98-104 | `func (*ArtifactBlobRepository).Create(artifactID, pipelineRunID int64, data []byte) (int64, error)` | Create inserts a new artifact blob. Returns the blob ID. If the artifact_id already exists, returns the existing blob ID (deduplicated). |
+| [`(*ArtifactBlobRepository).GetByArtifactID`](../src/database/artifact_adapter.go#L107) | method | 107-113 | `func (*ArtifactBlobRepository).GetByArtifactID(artifactID int64) (*ArtifactBlob, error)` | GetByArtifactID returns the blob for a given artifact, or nil if not found. |
+| [`(*RunArtifactRepository).Link`](../src/database/artifact_adapter.go#L117) | method | 117-123 | `func (*RunArtifactRepository).Link(pipelineRunID, artifactID int64, role string) error` | Link records one snapshot role for an attempt. Repeating the same link is idempotent; assigning a role to a different artifact is rejected. |
+| [`artifactFromFamily`](../src/database/artifact_adapter.go#L126) | function | 126-137 | `func artifactFromFamily(found *artifact.Artifact) *Artifact` | artifactFromFamily maps an artifact family artifact into the legacy application type. |
+| [`artifactBlobFromFamily`](../src/database/artifact_adapter.go#L140) | function | 140-151 | `func artifactBlobFromFamily(found *artifact.Blob) *ArtifactBlob` | artifactBlobFromFamily maps an artifact family blob into the legacy application type. |
+
 ### [`src/database/artifact_integrity_integration_test.go`](../src/database/artifact_integrity_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestArtifactRepositoriesRejectConflictingContent`](../src/database/artifact_integrity_integration_test.go#L9) | test | 9-38 | `func TestArtifactRepositoriesRejectConflictingContent(t *testing.T)` | TestArtifactRepositoriesRejectConflictingContent verifies duplicate identities cannot conceal different metadata or bytes. |
-
-### [`src/database/attempts.go`](../src/database/attempts.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`Artifact`](../src/database/attempts.go#L14) | struct | 14-20 | ``type Artifact struct { ID int64 `json:"id"` ContentHash string `json:"content_hash"` ByteSize int64 `json:"byte_size"` ContentType string `json:"content_type"` CreatedAt string `json:"created_at"` }`` | Artifact is a content-addressed immutable payload. |
-| [`ArtifactRepository`](../src/database/attempts.go#L23) | struct | 23-25 | `type ArtifactRepository struct { db *Database }` | ArtifactRepository provides CRUD for the artifacts table. |
-| [`(*ArtifactRepository).Create`](../src/database/attempts.go#L29) | method | 29-70 | `func (*ArtifactRepository).Create(contentHash, contentType string, byteSize int64) (int64, error)` | Create inserts a new artifact. Returns the artifact ID. If the content_hash already exists, returns the existing artifact ID. |
-| [`(*ArtifactRepository).CreateWithBlob`](../src/database/attempts.go#L73) | method | 73-132 | `func (*ArtifactRepository).CreateWithBlob(contentHash, contentType string, byteSize, pipelineRunID int64, data []byte) (int64, error)` | CreateWithBlob atomically records an artifact and its bytes for a pipeline run. |
-| [`(*ArtifactRepository).GetByHash`](../src/database/attempts.go#L135) | method | 135-151 | `func (*ArtifactRepository).GetByHash(contentHash string) (*Artifact, error)` | GetByHash returns an artifact by its content hash, or nil if not found. |
-| [`(*ArtifactRepository).GetByID`](../src/database/attempts.go#L154) | method | 154-170 | `func (*ArtifactRepository).GetByID(id int64) (*Artifact, error)` | GetByID returns an artifact by its primary key, or nil if not found. |
-| [`ArtifactBlob`](../src/database/attempts.go#L173) | struct | 173-179 | ``type ArtifactBlob struct { ID int64 `json:"id"` ArtifactID int64 `json:"artifact_id"` PipelineRunID int64 `json:"pipeline_run_id"` Data []byte `json:"-"` CreatedAt string `json:"created_at"` }`` | ArtifactBlob stores the raw bytes for an artifact inline in the database. |
-| [`ArtifactBlobRepository`](../src/database/attempts.go#L182) | struct | 182-184 | `type ArtifactBlobRepository struct { db *Database }` | ArtifactBlobRepository provides CRUD for the artifact_blobs table. |
-| [`(*ArtifactBlobRepository).Create`](../src/database/attempts.go#L188) | method | 188-230 | `func (*ArtifactBlobRepository).Create(artifactID, pipelineRunID int64, data []byte) (int64, error)` | Create inserts a new artifact blob. Returns the blob ID. If the artifact_id already exists, returns the existing blob ID (deduplicated). |
-| [`(*ArtifactBlobRepository).GetByArtifactID`](../src/database/attempts.go#L233) | method | 233-249 | `func (*ArtifactBlobRepository).GetByArtifactID(artifactID int64) (*ArtifactBlob, error)` | GetByArtifactID returns the blob for a given artifact, or nil if not found. |
 
 ### [`src/database/attempts_integration_test.go`](../src/database/attempts_integration_test.go)
 
@@ -431,10 +551,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Database`](../src/database/database.go#L23) | struct | 23-60 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Run *run.Store Search *search.Store Source *source.Store Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository Cache *cache.Store CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository TermMatches *TermMatchesRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
-| [`Open`](../src/database/database.go#L64) | function | 64-78 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
-| [`MigrateExisting`](../src/database/database.go#L81) | function | 81-100 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
-| [`(*Database).initRepositories`](../src/database/database.go#L103) | method | 103-136 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
+| [`Database`](../src/database/database.go#L24) | struct | 24-62 | `type Database struct { DB *sql.DB PipelineRuns *PipelineRunRepository Run *run.Store Search *search.Store Source *source.Store Artifact *artifact.Store Searches *SearchRepository Revisions *SearchRevisionRepository Plans *ExecutionPlanRepository RunSources *RunSourceRepository SourceRecords *SourceRecordRepository Artifacts *ArtifactRepository RunSteps *RunStepRepository Metrics *MetricsRepository AuditEvents *AuditEventRepository Works *WorkRepository WorkIdentifiers *WorkIdentifierRepository WorkRevisions *WorkRevisionRepository RunWorkStages *RunWorkStageRepository People *PersonRepository AuthorOccs *AuthorOccurrenceRepository Authorships *AuthorshipRepository IdentityResolutions *AuthorIdentityResolutionRepository IdentityCandidates *AuthorIdentityCandidateRepository ReferenceMentions *ReferenceMentionRepository Cache *cache.Store CacheEntries *CacheEntryRepository RunCacheUses *RunCacheUseRepository ArtifactBlobs *ArtifactBlobRepository RunArtifacts *RunArtifactRepository SourceFilterCounts *SourceFilterCountRepository PipelineRunReviewers *PipelineRunReviewerRepository TermMatches *TermMatchesRepository Reviews *ReviewRepository dbPath string migrations string // migration SQL directory }` | Database wraps a SQLite connection and exposes per-table repositories. |
+| [`Open`](../src/database/database.go#L66) | function | 66-80 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
+| [`MigrateExisting`](../src/database/database.go#L83) | function | 83-102 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
+| [`(*Database).initRepositories`](../src/database/database.go#L105) | method | 105-139 | `func (*Database).initRepositories()` | initRepositories binds every repository facade to the opened database. |
 
 ### [`src/database/database_integration_test.go`](../src/database/database_integration_test.go)
 
@@ -925,14 +1045,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*PipelineRunReviewerRepository).Get`](../src/database/run_adapter.go#L319) | method | 319-333 | `func (*PipelineRunReviewerRepository).Get(runID int64) (*PipelineRunReviewer, error)` | Get returns the reviewer captured for a run, or nil when a legacy writer omitted it. |
 | [`pipelineRunFromFamily`](../src/database/run_adapter.go#L336) | function | 336-354 | `func pipelineRunFromFamily(found *run.Run) *PipelineRun` | pipelineRunFromFamily maps a run family run into the legacy application type. |
 | [`runStepFromFamily`](../src/database/run_adapter.go#L357) | function | 357-374 | `func runStepFromFamily(found *run.Step) *RunStep` | runStepFromFamily maps a run family step into the legacy application type. |
-
-### [`src/database/run_artifacts.go`](../src/database/run_artifacts.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`RunArtifact`](../src/database/run_artifacts.go#L17) | struct | 17-22 | ``type RunArtifact struct { PipelineRunID int64 `json:"pipeline_run_id"` ArtifactID int64 `json:"artifact_id"` ArtifactRole string `json:"artifact_role"` CreatedAt string `json:"created_at"` }`` | RunArtifact links an attempt to a content-addressed configuration snapshot. The role distinguishes the raw workspace file from its resolved and input manifests without duplicating immutable artifact payloads. |
-| [`RunArtifactRepository`](../src/database/run_artifacts.go#L25) | struct | 25-27 | `type RunArtifactRepository struct { db *Database }` | RunArtifactRepository manages attempt-specific configuration artifact links. |
-| [`(*RunArtifactRepository).Link`](../src/database/run_artifacts.go#L31) | method | 31-58 | `func (*RunArtifactRepository).Link(pipelineRunID, artifactID int64, role string) error` | Link records one snapshot role for an attempt. Repeating the same link is idempotent; assigning a role to a different artifact is rejected. |
 
 ### [`src/database/run_artifacts_integration_test.go`](../src/database/run_artifacts_integration_test.go)
 

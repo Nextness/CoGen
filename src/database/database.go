@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"analysis/database/artifact"
 	"analysis/database/cache"
 	"analysis/database/run"
 	"analysis/database/search"
@@ -26,6 +27,7 @@ type Database struct {
 	Run                  *run.Store
 	Search               *search.Store
 	Source               *source.Store
+	Artifact             *artifact.Store
 	Searches             *SearchRepository
 	Revisions            *SearchRevisionRepository
 	Plans                *ExecutionPlanRepository
@@ -105,6 +107,7 @@ func (d *Database) initRepositories() {
 	d.Run = run.New(d.DB)
 	d.Search = search.New(d.DB)
 	d.Source = source.New(d.DB)
+	d.Artifact = artifact.New(d.DB)
 	d.Searches = &SearchRepository{db: d}
 	d.Revisions = &SearchRevisionRepository{db: d}
 	d.Plans = &ExecutionPlanRepository{db: d}
