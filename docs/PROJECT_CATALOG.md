@@ -916,6 +916,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Store).ListParentCandidates`](../src/database/review/context.go#L145) | method | 145-193 | `func (*Store).ListParentCandidates(ctx context.Context, runID int64, scope, cursorStartedAt string, cursorRunID int64, limit int, query string) ([]ContextCandidate, error)` | ListParentCandidates returns bounded earlier contexts in stable descending run order. |
 | [`(*Store).CreateContext`](../src/database/review/context.go#L196) | method | 196-279 | `func (*Store).CreateContext(ctx context.Context, runID int64, parentContextID *int64) (*Context, bool, error)` | CreateContext initializes one run context and freezes matching parent heads without copying version bodies. |
 
+### [`src/database/review/contract_integration_test.go`](../src/database/review/contract_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`reviewInsertRun`](../src/database/review/contract_integration_test.go#L22) | function | 22-37 | `func reviewInsertRun(t *testing.T, fixture *reviewMutationFixture, status, startedAt string, attempt int) int64` | reviewInsertRun inserts one review run into the fixture plan with the given lifecycle fields. |
+| [`reviewErrorKind`](../src/database/review/contract_integration_test.go#L40) | function | 40-47 | `func reviewErrorKind(t *testing.T, err error) string` | reviewErrorKind returns the typed review error kind for one error. |
+| [`TestReviewTypedErrorContract`](../src/database/review/contract_integration_test.go#L51) | test | 51-85 | `func TestReviewTypedErrorContract(t *testing.T)` | TestReviewTypedErrorContract verifies conflict, lifecycle, not-found, and cancellation errors stay identifiable through wrapping. |
+| [`TestReviewContextEligibilityContract`](../src/database/review/contract_integration_test.go#L89) | test | 89-169 | `func TestReviewContextEligibilityContract(t *testing.T)` | TestReviewContextEligibilityContract verifies contexts require completed, non-trashed runs and earlier eligible parents. |
+| [`TestReviewInheritedHeadStabilityContract`](../src/database/review/contract_integration_test.go#L173) | test | 173-229 | `func TestReviewInheritedHeadStabilityContract(t *testing.T)` | TestReviewInheritedHeadStabilityContract verifies child contexts freeze parent heads and neither side rewrites the other's selected head. |
+| [`TestReviewReviewerPrivacyContract`](../src/database/review/contract_integration_test.go#L233) | test | 233-303 | `func TestReviewReviewerPrivacyContract(t *testing.T)` | TestReviewReviewerPrivacyContract verifies reviewer email never appears in displays or audit evidence and anonymous reviewers stay redacted. |
+| [`TestReviewNoteBoundsContract`](../src/database/review/contract_integration_test.go#L307) | test | 307-361 | `func TestReviewNoteBoundsContract(t *testing.T)` | TestReviewNoteBoundsContract verifies note bodies and links keep their byte and UTF-16 position limits through the family API. |
+| [`TestReviewAnchorBindingContract`](../src/database/review/contract_integration_test.go#L365) | test | 365-401 | `func TestReviewAnchorBindingContract(t *testing.T)` | TestReviewAnchorBindingContract verifies anchors keep their work revision and PDF content hash across inheritance and require both to detect an identical save. |
+| [`TestReviewAnchorGeometryContract`](../src/database/review/contract_integration_test.go#L405) | test | 405-466 | `func TestReviewAnchorGeometryContract(t *testing.T)` | TestReviewAnchorGeometryContract verifies rectangles stay finite and normalized and anchor versions stay tied to a valid PDF page and hash. |
+| [`TestReviewTombstoneRestorationContract`](../src/database/review/contract_integration_test.go#L470) | test | 470-524 | `func TestReviewTombstoneRestorationContract(t *testing.T)` | TestReviewTombstoneRestorationContract verifies tombstones and restorations append new immutable versions instead of rewriting history. |
+
 ### [`src/database/review/decision.go`](../src/database/review/decision.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
