@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	generated "analysis/database/review/internal/sql"
 	"analysis/internal/textlimit"
 )
 
@@ -20,16 +21,23 @@ const (
 	anchorTextPreviewBytes = 512
 )
 
-// Store binds the review data access layer to one already configured connection.
-type Store struct{ db *sql.DB }
+// Store binds the generated review queries to one already configured connection.
+type Store struct {
+	db      *sql.DB
+	queries *generated.Queries
+}
 
 // New returns a review family store over an already configured connection. It
-// only binds the store to db; it does not build a SQLite URI, alter pragmas,
-// open or close the connection, load migration configuration, or run migrations.
-func New(db *sql.DB) *Store { return &Store{db: db} }
+// only binds the generated queries to db; it does not build a SQLite URI,
+// alter pragmas, open or close the connection, load migration configuration,
+// or run migrations.
+func New(db *sql.DB) *Store {
+	return &Store{db: db, queries: generated.New(db)}
+}
 
-// withTx runs fn inside a transaction, rolling back on error and committing on success.
-func (s *Store) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
+// withTx runs fn inside one transaction bound to the generated queries and
+// rolls back every partial review mutation on error.
+func (s *Store) withTx(ctx context.Context, fn func(*generated.Queries) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -41,7 +49,7 @@ func (s *Store) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
 			panic(p)
 		}
 	}()
-	if err := fn(tx); err != nil {
+	if err := fn(s.queries.WithTx(tx)); err != nil {
 		tx.Rollback()
 		return err
 	}
@@ -55,8 +63,8 @@ func timestamp() string {
 
 // CorpusID returns the opaque corpus identity used to namespace browser-local drafts.
 func (s *Store) CorpusID(ctx context.Context) (string, error) {
-	var id string
-	if err := s.db.QueryRowContext(ctx, "SELECT corpus_id FROM review_settings WHERE id=1").Scan(&id); err != nil {
+	id, err := s.queries.GetReviewCorpusID(ctx)
+	if err != nil {
 		return "", fmt.Errorf("read review corpus ID: %w", err)
 	}
 	return id, nil
@@ -68,6 +76,12 @@ type boundedText struct {
 	bytes int
 }
 
+// boundedPreview builds a bounded text projection from generated preview,
+// original byte-length, and presence fields.
+func boundedPreview(preview string, bytes int64, present bool) boundedText {
+	return boundedText{text: sql.NullString{String: preview, Valid: present}, bytes: int(bytes)}
+}
+
 // optional returns the bounded value and whether SQL truncated its original byte sequence.
 func (value boundedText) optional() (*string, bool) {
 	if !value.text.Valid {
@@ -77,23 +91,20 @@ func (value boundedText) optional() (*string, bool) {
 	return &text, value.bytes > len([]byte(text))
 }
 
-// queryRower is the shared single-row query boundary for database and transaction callers.
-type queryRower interface {
-	QueryRowContext(context.Context, string, ...any) *sql.Row
-}
-
-// reviewQuerier is the shared query boundary for review reads that need single and multiple rows.
-type reviewQuerier interface {
-	queryRower
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}
-
-// nullablePointer converts an optional value into a SQL parameter.
-func nullablePointer[T any](value *T) any {
+// optionalInt64 converts an optional application value into a typed nullable parameter.
+func optionalInt64(value *int64) sql.NullInt64 {
 	if value == nil {
-		return nil
+		return sql.NullInt64{}
 	}
-	return *value
+	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+// optionalString converts an optional application value into a typed nullable parameter.
+func optionalString(value *string) sql.NullString {
+	if value == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *value, Valid: true}
 }
 
 // nullInt64Pointer converts a scanned nullable integer into an optional value.

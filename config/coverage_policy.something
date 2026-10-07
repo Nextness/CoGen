@@ -80,6 +80,10 @@ coverage_policy: coverage_policy_config = {
             minimum = 75.0,
             rationale = "The review family starts adapter-driven from the existing database and server suites; relocation into family-owned tests is tracked by the review phase."
         },
+        ["analysis/database/review/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated review queries are exercised through the handwritten family integration, characterization, and server mutation tests."
+        },
         ["analysis/database/sqlcprobe"] => { minimum =  80.0 },
         ["analysis/database/sqlcprobe/internal/sql"] => { minimum =  75.0 },
         ["analysis/enrich"]            => { minimum =  70.0 },

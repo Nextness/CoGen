@@ -1,7 +1,8 @@
 // predicate.go holds the family-local normalized-revision predicate used by
-// the work relationship reads. The review family and the viewer keep their
-// own copies; TestNormalizedRevisionPredicateConformance compares every copy
-// against accepted, discarded, superseded, and missing-normalization cases.
+// the work relationship reads. The review family's schema inputs and the
+// viewer keep their own copies; TestNormalizedRevisionPredicateConformance
+// compares every copy against accepted, discarded, superseded, and
+// missing-normalization cases.
 package work
 
 import "fmt"
