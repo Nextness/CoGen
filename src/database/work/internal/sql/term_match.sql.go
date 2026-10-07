@@ -10,6 +10,18 @@ import (
 	"strings"
 )
 
+const countDistinctRunTerms = `-- name: CountDistinctRunTerms :one
+SELECT COUNT(DISTINCT term) FROM run_search_terms
+WHERE pipeline_run_id = ?1
+`
+
+func (q *Queries) CountDistinctRunTerms(ctx context.Context, pipelineRunID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countDistinctRunTerms, pipelineRunID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteRevisionTermMatches = `-- name: DeleteRevisionTermMatches :exec
 DELETE FROM work_revision_term_matches WHERE pipeline_run_id = ?1
 `

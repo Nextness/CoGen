@@ -24,6 +24,7 @@ import (
 	"analysis/database"
 	"analysis/database/artifact"
 	"analysis/database/audit"
+	"analysis/database/work"
 	"analysis/internal/pathpolicy"
 	"analysis/internal/sqliteuri"
 	"analysis/logging"
@@ -73,6 +74,7 @@ type Server struct {
 	db         *sql.DB
 	artifact   *artifact.Store
 	auditStore *audit.Store
+	workStore  *work.Store
 	writeDB    *database.Database
 	pdfDB      *sql.DB
 	pdfPath    string
@@ -148,7 +150,7 @@ func Open(path string) (*Server, error) {
 		db.Close()
 		return nil, fmt.Errorf("read workspace database: %w", err)
 	}
-	s := &Server{db: db, artifact: artifact.New(db), auditStore: audit.New(db)}
+	s := &Server{db: db, artifact: artifact.New(db), auditStore: audit.New(db), workStore: work.New(db)}
 	if err := s.discoverTables(ctx); err != nil {
 		db.Close()
 		return nil, err

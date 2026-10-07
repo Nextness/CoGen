@@ -747,38 +747,29 @@ func metricDenominator(metric string, values map[string]int64) (int64, bool) {
 
 // currentCoverage returns work-revision and journal coverage for a run.
 func (s *Server) currentCoverage(ctx context.Context, runID int64) (map[string]any, error) {
-	result := map[string]any{}
-	var total, normalized int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(CASE WHEN journal IS NOT NULL AND journal != '' THEN 1 ELSE 0 END),0) FROM work_revisions WHERE pipeline_run_id=?", runID).Scan(&total, &normalized); err != nil {
+	coverage, err := s.workStore.CurrentCoverage(ctx, runID)
+	if err != nil {
 		return nil, err
 	}
-	result["work_revisions"] = map[string]any{"value": total, "available": true, "state": "derived"}
-	result["journal_coverage"] = map[string]any{"value": normalized, "denominator": total, "percentage": percent(normalized, total), "available": true, "state": "derived"}
+	result := map[string]any{}
+	result["work_revisions"] = map[string]any{"value": coverage.WorkRevisions, "available": true, "state": "derived"}
+	result["journal_coverage"] = map[string]any{"value": coverage.JournalCoverage, "denominator": coverage.WorkRevisions, "percentage": percent(coverage.JournalCoverage, coverage.WorkRevisions), "available": true, "state": "derived"}
 	return result, nil
 }
 
 // relationshipTotals counts canonical works, authorships, references, and resolved citations for a run.
 func (s *Server) relationshipTotals(ctx context.Context, runID int64) (map[string]any, error) {
-	queries := map[string]string{
-		"work_revisions":          "SELECT COUNT(*) FROM work_revisions WHERE pipeline_run_id=?",
-		"analysis_ready_articles": "SELECT COUNT(*) FROM work_revisions wr WHERE wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		"authorships":             "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		"reference_mentions":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		"internal_citations":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL AND " + normalizedRevisionPredicate("wr"),
+	totals, err := s.workStore.RelationshipTotals(ctx, runID)
+	if err != nil {
+		return nil, err
 	}
-	result := map[string]any{}
-	for name, query := range queries {
-		var count int64
-		if err := s.db.QueryRowContext(ctx, query, runID).Scan(&count); err != nil {
-			return nil, err
-		}
-		result[name] = map[string]any{
-			"value":     count,
-			"available": true,
-			"state":     "derived",
-		}
-	}
-	return result, nil
+	return map[string]any{
+		"work_revisions":          map[string]any{"value": totals.WorkRevisions, "available": true, "state": "derived"},
+		"analysis_ready_articles": map[string]any{"value": totals.AnalysisReadyArticles, "available": true, "state": "derived"},
+		"authorships":             map[string]any{"value": totals.Authorships, "available": true, "state": "derived"},
+		"reference_mentions":      map[string]any{"value": totals.ReferenceMentions, "available": true, "state": "derived"},
+		"internal_citations":      map[string]any{"value": totals.InternalCitations, "available": true, "state": "derived"},
+	}, nil
 }
 
 // percent returns value as a percentage of denominator, or nil when denominator is zero.

@@ -59,7 +59,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 	}
 	revisionIDs := map[string]int64{"10.1000/one": revOne, "10.1000/two": revTwo}
 	termsBySource, matches := computeRunTermMatches(run, articles, revisionIDs)
-	if err := persistRunTermMatches(db, runID, termsBySource, matches); err != nil {
+	if err := persistRunTermMatches(context.Background(), db, runID, termsBySource, matches); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)

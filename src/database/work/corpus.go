@@ -110,7 +110,7 @@ func (s *Store) ListCorpusReferences(ctx context.Context, filter CorpusReference
 	query := "SELECT rm.id, rm.work_revision_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.resolved_work_id, wr.title AS citing_title, rm.created_at " +
 		"FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE " + where +
 		" ORDER BY " + corpusReferenceSortExpression(filter.Sort) + " " + sqlDirection(filter.Order) + ", rm.id " + sqlDirection(filter.Order) + " LIMIT ? OFFSET ?"
-	queryArgs := append(append([]any(nil), args...), filter.PerPage, (filter.Page-1)*filter.PerPage)
+	queryArgs := append(append([]any(nil), args...), filter.PerPage, (clampPage(filter.Page, filter.PerPage, total)-1)*filter.PerPage)
 	rows, err := s.queryRows(ctx, query, queryArgs)
 	if err != nil {
 		return nil, fmt.Errorf("list corpus references: %w", err)
@@ -120,6 +120,32 @@ func (s *Store) ListCorpusReferences(ctx context.Context, filter CorpusReference
 		items = append(items, corpusReferenceFromRow(row))
 	}
 	return &CorpusReferencePage{Items: items, Total: total}, nil
+}
+
+// ListCorpusAuthors returns one bounded page of run-scoped author occurrences
+// with their article and affiliation counts.
+func (s *Store) ListCorpusAuthors(ctx context.Context, filter CorpusAuthorFilter) (*CorpusAuthorPage, error) {
+	where, args, err := corpusAuthorWhere(filter)
+	if err != nil {
+		return nil, err
+	}
+	total, err := s.countQuery(ctx, "SELECT COUNT(*) FROM (SELECT ao.id FROM author_occurrences ao JOIN authorships a ON a.author_occurrence_id=ao.id JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE "+where+" GROUP BY ao.id)", args)
+	if err != nil {
+		return nil, fmt.Errorf("count corpus authors: %w", err)
+	}
+	query := "SELECT ao.id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, ao.person_id, COUNT(DISTINCT a.work_revision_id) AS article_count, COUNT(DISTINCT NULLIF(a.affiliation, '')) AS affiliation_count, ao.created_at " +
+		"FROM author_occurrences ao JOIN authorships a ON a.author_occurrence_id=ao.id JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE " + where +
+		" GROUP BY ao.id ORDER BY " + corpusAuthorSortExpression(filter.Sort) + " " + sqlDirection(filter.Order) + ", ao.id " + sqlDirection(filter.Order) + " LIMIT ? OFFSET ?"
+	queryArgs := append(append([]any(nil), args...), filter.PerPage, (clampPage(filter.Page, filter.PerPage, total)-1)*filter.PerPage)
+	rows, err := s.queryRows(ctx, query, queryArgs)
+	if err != nil {
+		return nil, fmt.Errorf("list corpus authors: %w", err)
+	}
+	items := make([]*CorpusAuthor, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, corpusAuthorFromRow(row))
+	}
+	return &CorpusAuthorPage{Items: items, Total: total}, nil
 }
 
 // ListRunStages returns one bounded page of run stage outcomes.
@@ -135,7 +161,7 @@ func (s *Store) ListRunStages(ctx context.Context, filter RunStageFilter) (*RunS
 	query := "SELECT rws.id, rws.pipeline_run_id, rws.work_id, rws.stage_name, rws.outcome, rws.reason, rws.created_at, rws.updated_at " +
 		"FROM run_work_stages rws WHERE " + where +
 		" ORDER BY " + runStageSortExpression(filter.Sort) + " " + sqlDirection(filter.Order) + ", rws.id " + sqlDirection(filter.Order) + " LIMIT ? OFFSET ?"
-	queryArgs := append(append([]any(nil), args...), filter.PerPage, (filter.Page-1)*filter.PerPage)
+	queryArgs := append(append([]any(nil), args...), filter.PerPage, (clampPage(filter.Page, filter.PerPage, total)-1)*filter.PerPage)
 	rows, err := s.queryRows(ctx, query, queryArgs)
 	if err != nil {
 		return nil, fmt.Errorf("list run stages: %w", err)
@@ -154,6 +180,18 @@ func (s *Store) countQuery(ctx context.Context, query string, args []any) (int64
 		return 0, err
 	}
 	return total, nil
+}
+
+// clampPage maps an offset request past the end to the final populated page.
+func clampPage(page, perPage int, total int64) int {
+	totalPages := (total + int64(perPage) - 1) / int64(perPage)
+	if totalPages == 0 {
+		return 1
+	}
+	if int64(page) > totalPages {
+		return int(totalPages)
+	}
+	return page
 }
 
 // queryRows runs one read query and returns every row as a string-keyed map.
@@ -207,6 +245,24 @@ func corpusReferenceFromRow(row map[string]any) *CorpusReference {
 		reference.ResolvedWorkID = &value
 	}
 	return reference
+}
+
+// corpusAuthorFromRow maps one dynamic corpus author row into an application author.
+func corpusAuthorFromRow(row map[string]any) *CorpusAuthor {
+	author := &CorpusAuthor{
+		ID:               int64Value(row["id"]),
+		CitationName:     stringValue(row["citation_name"]),
+		FirstName:        stringValue(row["first_name"]),
+		LastName:         stringValue(row["last_name"]),
+		ORCID:            stringValue(row["orcid"]),
+		ArticleCount:     int64Value(row["article_count"]),
+		AffiliationCount: int64Value(row["affiliation_count"]),
+		CreatedAt:        stringValue(row["created_at"]),
+	}
+	if value, ok := row["person_id"].(int64); ok {
+		author.PersonID = &value
+	}
+	return author
 }
 
 // stageOutcomeFromRow maps one dynamic stage row into an application stage outcome.

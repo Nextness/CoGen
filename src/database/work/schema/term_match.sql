@@ -21,6 +21,10 @@ FROM run_search_terms
 WHERE pipeline_run_id = sqlc.arg(pipeline_run_id)
 ORDER BY id;
 
+-- name: CountDistinctRunTerms :one
+SELECT COUNT(DISTINCT term) FROM run_search_terms
+WHERE pipeline_run_id = sqlc.arg(pipeline_run_id);
+
 -- name: ListRevisionTermMatches :many
 SELECT field, term
 FROM work_revision_term_matches

@@ -10,6 +10,34 @@ import (
 	"database/sql"
 )
 
+const countCurrentNormalizedRevisionsByWork = `-- name: CountCurrentNormalizedRevisionsByWork :one
+SELECT COUNT(*) FROM work_revisions wr
+WHERE wr.pipeline_run_id = ?1
+  AND wr.work_id = ?2
+  AND wr.producer_stage = 'normalize'
+  AND wr.id = (SELECT MAX(normalized_candidate.id) FROM work_revisions normalized_candidate
+      WHERE normalized_candidate.pipeline_run_id = wr.pipeline_run_id
+        AND normalized_candidate.work_id = wr.work_id
+        AND normalized_candidate.producer_stage = 'normalize')
+  AND EXISTS (SELECT 1 FROM run_work_stages current_validation
+      WHERE current_validation.pipeline_run_id = wr.pipeline_run_id
+        AND current_validation.work_id = wr.work_id
+        AND current_validation.stage_name = 'validate'
+        AND current_validation.outcome = 'valid')
+`
+
+type CountCurrentNormalizedRevisionsByWorkParams struct {
+	PipelineRunID int64
+	WorkID        int64
+}
+
+func (q *Queries) CountCurrentNormalizedRevisionsByWork(ctx context.Context, arg CountCurrentNormalizedRevisionsByWorkParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countCurrentNormalizedRevisionsByWork, arg.PipelineRunID, arg.WorkID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countWorkRevisionsByWorkID = `-- name: CountWorkRevisionsByWorkID :one
 SELECT COUNT(*) FROM work_revisions WHERE work_id = ?1
 `
@@ -19,6 +47,34 @@ func (q *Queries) CountWorkRevisionsByWorkID(ctx context.Context, workID int64) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getCurrentNormalizedRevisionWorkID = `-- name: GetCurrentNormalizedRevisionWorkID :one
+SELECT wr.work_id FROM work_revisions wr
+WHERE wr.id = ?1
+  AND wr.pipeline_run_id = ?2
+  AND wr.producer_stage = 'normalize'
+  AND wr.id = (SELECT MAX(normalized_candidate.id) FROM work_revisions normalized_candidate
+      WHERE normalized_candidate.pipeline_run_id = wr.pipeline_run_id
+        AND normalized_candidate.work_id = wr.work_id
+        AND normalized_candidate.producer_stage = 'normalize')
+  AND EXISTS (SELECT 1 FROM run_work_stages current_validation
+      WHERE current_validation.pipeline_run_id = wr.pipeline_run_id
+        AND current_validation.work_id = wr.work_id
+        AND current_validation.stage_name = 'validate'
+        AND current_validation.outcome = 'valid')
+`
+
+type GetCurrentNormalizedRevisionWorkIDParams struct {
+	ID            int64
+	PipelineRunID int64
+}
+
+func (q *Queries) GetCurrentNormalizedRevisionWorkID(ctx context.Context, arg GetCurrentNormalizedRevisionWorkIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getCurrentNormalizedRevisionWorkID, arg.ID, arg.PipelineRunID)
+	var work_id int64
+	err := row.Scan(&work_id)
+	return work_id, err
 }
 
 const getWorkRevisionByID = `-- name: GetWorkRevisionByID :one
@@ -147,6 +203,74 @@ func (q *Queries) InsertWorkRevision(ctx context.Context, arg InsertWorkRevision
 		arg.ReferenceCount,
 		arg.ExtensionData,
 	)
+}
+
+const listNormalizeRevisionsByRunID = `-- name: ListNormalizeRevisionsByRunID :many
+SELECT
+    id,
+    work_id,
+    pipeline_run_id,
+    field_schema_version,
+    payload_hash,
+    title,
+    abstract,
+    year,
+    journal,
+    publisher,
+    source,
+    keywords,
+    keywords_plus,
+    citation_count,
+    reference_count,
+    extension_data,
+    producer_stage,
+    created_at
+FROM work_revisions
+WHERE pipeline_run_id = ?1
+  AND producer_stage = 'normalize'
+ORDER BY id
+`
+
+func (q *Queries) ListNormalizeRevisionsByRunID(ctx context.Context, pipelineRunID int64) ([]WorkRevision, error) {
+	rows, err := q.db.QueryContext(ctx, listNormalizeRevisionsByRunID, pipelineRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkRevision
+	for rows.Next() {
+		var i WorkRevision
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkID,
+			&i.PipelineRunID,
+			&i.FieldSchemaVersion,
+			&i.PayloadHash,
+			&i.Title,
+			&i.Abstract,
+			&i.Year,
+			&i.Journal,
+			&i.Publisher,
+			&i.Source,
+			&i.Keywords,
+			&i.KeywordsPlus,
+			&i.CitationCount,
+			&i.ReferenceCount,
+			&i.ExtensionData,
+			&i.ProducerStage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkRevisionsByRunID = `-- name: ListWorkRevisionsByRunID :many

@@ -956,10 +956,8 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*d
 
 // reviewArticlePDF validates exact run ownership and returns stable work plus inventory state.
 func (s *Server) reviewArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, map[string]any, error) {
-	var workID int64
-	err := s.db.QueryRowContext(ctx, `SELECT revision.work_id FROM work_revisions revision
-		WHERE revision.id=? AND revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision"), workRevisionID, runID).Scan(&workID)
-	if err == sql.ErrNoRows {
+	workID, err := s.workStore.GetCurrentNormalizedRevisionWorkID(ctx, workRevisionID, runID)
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil, notFound("article revision does not belong to selected run")
 	}
 	if err != nil {
@@ -988,9 +986,8 @@ func (s *Server) requireAvailableArticlePDF(ctx context.Context, runID, workRevi
 
 // requireAvailableWorkPDF gates PDF anchor mutation on run membership and matching PDF bytes.
 func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int64) (int64, string, error) {
-	var count int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM work_revisions revision
-		WHERE revision.pipeline_run_id=? AND revision.work_id=? AND `+normalizedRevisionPredicate("revision"), runID, workID).Scan(&count); err != nil {
+	count, err := s.workStore.CountCurrentNormalizedRevisionsByWork(ctx, runID, workID)
+	if err != nil {
 		return 0, "", err
 	}
 	if count == 0 {

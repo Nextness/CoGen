@@ -445,6 +445,36 @@ type CorpusReferencePage struct {
 	Total int64
 }
 
+// CorpusAuthor is one run-scoped author occurrence with its article and
+// affiliation counts.
+type CorpusAuthor struct {
+	ID               int64
+	CitationName     string
+	FirstName        string
+	LastName         string
+	ORCID            string
+	PersonID         *int64
+	ArticleCount     int64
+	AffiliationCount int64
+	CreatedAt        string
+}
+
+// CorpusAuthorFilter selects one bounded page of run-scoped authors.
+type CorpusAuthorFilter struct {
+	RunID   int64
+	Query   string
+	Sort    string
+	Order   string
+	Page    int
+	PerPage int
+}
+
+// CorpusAuthorPage is one bounded page of run-scoped authors with its exact total.
+type CorpusAuthorPage struct {
+	Items []*CorpusAuthor
+	Total int64
+}
+
 // RunStageFilter selects one bounded page of run stage outcomes.
 type RunStageFilter struct {
 	RunID   int64

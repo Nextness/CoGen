@@ -7,8 +7,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+
+	"analysis/database/work"
 )
 
 var evaluationSortFields = runCorpusDefinitions["articles"].sortFields
@@ -83,62 +86,28 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	from := `FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
-			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
-		LEFT JOIN review_context_work_heads review_head ON review_head.review_context_id=? AND review_head.work_id=wr.work_id
-		LEFT JOIN work_review_versions review ON review.id=review_head.review_version_id`
-	clauses := []string{"wr.pipeline_run_id=?", normalizedRevisionPredicate("wr")}
-	args := []any{contextID, runID}
-	if query != "" {
-		clauses = append(clauses, "(LOWER(COALESCE(wr.title, '')) LIKE ? OR LOWER(COALESCE(w.doi, '')) LIKE ? OR LOWER(COALESCE(wr.journal, '')) LIKE ? OR LOWER(COALESCE(wr.publisher, '')) LIKE ? OR LOWER(COALESCE(wr.source, '')) LIKE ?)")
-		needle := "%" + strings.ToLower(query) + "%"
-		args = append(args, needle, needle, needle, needle, needle)
+
+	source := strings.TrimSpace(r.URL.Query().Get("source"))
+	reviewStatus := r.URL.Query().Get("review_status")
+	if reviewStatus != "" && !evaluationReviewStatuses[reviewStatus] {
+		s.respond(w, r, nil, badRequest("review_status is invalid"))
+		return
 	}
-	if source := strings.TrimSpace(r.URL.Query().Get("source")); source != "" {
-		if source == "not_recorded" {
-			clauses = append(clauses, "COALESCE(wr.source, '')='' ")
-		} else {
-			clauses = append(clauses, "wr.source=?")
-			args = append(args, source)
-		}
+	qualifier := r.URL.Query().Get("qualifier")
+	if qualifier != "" && !evaluationReviewQualifiers[qualifier] {
+		s.respond(w, r, nil, badRequest("qualifier is invalid"))
+		return
 	}
-	if status := r.URL.Query().Get("review_status"); status != "" {
-		if !evaluationReviewStatuses[status] {
-			s.respond(w, r, nil, badRequest("review_status is invalid"))
-			return
-		}
-		clauses = append(clauses, "COALESCE(review.status, 'not_evaluated')=?")
-		args = append(args, status)
-	}
-	if qualifier := r.URL.Query().Get("qualifier"); qualifier != "" {
-		if !evaluationReviewQualifiers[qualifier] {
-			s.respond(w, r, nil, badRequest("qualifier is invalid"))
-			return
-		}
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM work_review_version_substatuses sub WHERE sub.review_version_id=review.id AND sub.sub_status=?)")
-		args = append(args, qualifier)
-	}
-	switch r.URL.Query().Get("review_source") {
-	case "":
-	case "this_context":
-		clauses = append(clauses, "review.id IS NOT NULL AND review.created_in_context_id=?")
-		args = append(args, contextID)
-	case "inherited":
-		clauses = append(clauses, "review.id IS NOT NULL AND review.created_in_context_id!=?")
-		args = append(args, contextID)
-	case "not_started":
-		clauses = append(clauses, "review.id IS NULL")
+	reviewSource := r.URL.Query().Get("review_source")
+	switch reviewSource {
+	case "", "this_context", "inherited", "not_started":
 	default:
 		s.respond(w, r, nil, badRequest("review_source is invalid"))
 		return
 	}
-	switch r.URL.Query().Get("reviewed") {
-	case "":
-	case "reviewed":
-		clauses = append(clauses, "review.id IS NOT NULL AND review.status!='not_evaluated'")
-	case "unreviewed":
-		clauses = append(clauses, "(review.id IS NULL OR review.status='not_evaluated')")
+	reviewed := r.URL.Query().Get("reviewed")
+	switch reviewed {
+	case "", "reviewed", "unreviewed":
 	default:
 		s.respond(w, r, nil, badRequest("reviewed is invalid"))
 		return
@@ -153,19 +122,11 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if pdfStatus := r.URL.Query().Get("pdf_status"); pdfStatus != "" {
-		if pdfStatus != "available" && pdfStatus != "not_available" {
-			s.respond(w, r, nil, badRequest("pdf_status is invalid"))
-			return
-		}
-		if pdfStatus == "available" {
-			clauses = append(clauses, "w.doi IN (SELECT value FROM json_each(?))")
-		} else {
-			clauses = append(clauses, "(w.doi IS NULL OR w.doi NOT IN (SELECT value FROM json_each(?)))")
-		}
-		args = append(args, string(availableJSON))
+	pdfStatus := r.URL.Query().Get("pdf_status")
+	if pdfStatus != "" && pdfStatus != "available" && pdfStatus != "not_available" {
+		s.respond(w, r, nil, badRequest("pdf_status is invalid"))
+		return
 	}
-	where := strings.Join(clauses, " AND ")
 	var currentRevisionID int64
 	if raw := r.URL.Query().Get("current_revision_id"); raw != "" {
 		currentRevisionID, err = positiveID(raw)
@@ -174,136 +135,69 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) "+from+" WHERE "+where, args...).Scan(&total); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	page = clampScopedPage(page, perPage, total)
 
-	queryArgs := append(append([]any(nil), args...), perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, `SELECT `+corpusSelectColumns("articles")+`, wr.id AS work_revision_id,
-		COALESCE(review.status, 'not_evaluated') AS review_status,
-		CASE WHEN review.id IS NOT NULL AND review.created_in_context_id!=? THEN 1 ELSE 0 END AS review_inherited,
-		review.id AS review_version_id, review.created_in_context_id AS review_created_in_context_id,
-		COALESCE((SELECT json_group_array(sub_status) FROM (
-			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=review.id ORDER BY sub_status)), '[]') AS review_sub_statuses
-		`+from+` WHERE `+where+` ORDER BY COALESCE(`+evaluationSortFields[sortField]+`, '') `+sqlOrderKeyword(order)+`, wr.id `+sqlOrderKeyword(order)+` LIMIT ? OFFSET ?`,
-		append([]any{contextID}, queryArgs...)...)
+	filter := work.EvaluationFilter{
+		RunID: runID, ContextID: contextID, CurrentRevisionID: currentRevisionID,
+		Query: query, Source: source, ReviewStatus: reviewStatus, Qualifier: qualifier,
+		ReviewSource: reviewSource, Reviewed: reviewed, PDFStatus: pdfStatus,
+		AvailableDOIsJSON: string(availableJSON), SortField: sortField, Order: order,
+		Page: page, PerPage: perPage,
+	}
+	result, err := s.workStore.ListEvaluation(ctx, filter)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	items, err := rowsAsMaps(rows)
-	closeErr := rows.Close()
-	if err == nil {
-		err = closeErr
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, evaluationRow(item))
 	}
-	if err == nil {
-		err = s.overlayPDFInventory(ctx, items)
+	if err := s.overlayPDFInventory(ctx, items); err != nil {
+		s.respond(w, r, nil, err)
+		return
 	}
-	if err == nil {
-		err = s.attachArticleTermMatches(ctx, runID, items)
+	if err := s.attachArticleTermMatches(ctx, runID, items); err != nil {
+		s.respond(w, r, nil, err)
+		return
 	}
-	summary, summaryErr := s.evaluationReviewSummary(ctx, runID, contextID, string(availableJSON))
-	if err == nil {
-		err = summaryErr
+	summary, err := s.evaluationReviewSummary(ctx, filter)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
 	}
-	var navigation map[string]any
-	if err == nil {
-		navigation, err = s.evaluationQueueNavigation(ctx, runID, currentRevisionID, from, where, args, sortField, order)
+	navigation, err := s.evaluationQueueNavigation(ctx, filter)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
 	}
-	for _, item := range items {
-		if inherited, ok := item["review_inherited"].(int64); ok {
-			item["review_inherited"] = inherited != 0
-		}
-		if raw, ok := item["review_sub_statuses"].(string); ok {
-			var values []string
-			if decodeErr := json.Unmarshal([]byte(raw), &values); decodeErr != nil {
-				err = decodeErr
-				break
-			}
-			item["review_sub_statuses"] = values
-		} else if raw, ok := item["review_sub_statuses"].([]byte); ok {
-			var values []string
-			if decodeErr := json.Unmarshal(raw, &values); decodeErr != nil {
-				err = decodeErr
-				break
-			}
-			item["review_sub_statuses"] = values
-		}
-	}
+	page = clampScopedPage(page, perPage, result.Total)
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "review_context_initialized": contextRecord != nil, "review_context": contextRecord,
 		"review_summary": summary, "queue_navigation": navigation, "proposed_parent": proposedParent, "run_writable": runWritable,
 		"collection": "articles",
 		"columns":    append(append([]string(nil), runCorpusDefinitions["articles"].columns...), "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"),
 		"rows":       items,
-		"pagination": scopedPagination(
-			page, perPage, total, sortField, order,
-		),
-	}, err)
+		"pagination": scopedPagination(page, perPage, result.Total, sortField, order),
+	}, nil)
 }
 
 // evaluationQueueNavigation returns adjacent unreviewed revisions within the active queue filters.
-func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRevisionID int64, from, where string, args []any, sortField, order string) (map[string]any, error) {
-	unreviewedWhere := where + " AND (review.id IS NULL OR review.status='not_evaluated')"
-	sortExpression := "COALESCE(" + evaluationSortFields[sortField] + ", '')"
-	queryID := func(predicate, queryOrder string, extraArgs ...any) (any, error) {
-		queryArgs := append(append([]any(nil), args...), extraArgs...)
-		var revisionID int64
-		err := s.db.QueryRowContext(ctx, `SELECT wr.id `+from+` WHERE `+unreviewedWhere+predicate+`
-			ORDER BY `+sortExpression+` `+sqlOrderKeyword(queryOrder)+`, wr.id `+sqlOrderKeyword(queryOrder)+` LIMIT 1`, queryArgs...).Scan(&revisionID)
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		return revisionID, nil
-	}
-	if currentRevisionID == 0 {
-		next, err := queryID("", order)
-		if err != nil {
-			return nil, err
-		}
-		reverse := "DESC"
-		if order == "DESC" {
-			reverse = "ASC"
-		}
-		previous, err := queryID("", reverse)
-		return map[string]any{"previous_work_revision_id": previous, "next_work_revision_id": next}, err
-	}
-
-	var currentSortValue any
-	err := s.db.QueryRowContext(ctx, `SELECT `+sortExpression+` FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
-			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+normalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
-	if err == sql.ErrNoRows {
-		return nil, notFound("current evaluation revision is not part of the selected run")
-	}
+func (s *Server) evaluationQueueNavigation(ctx context.Context, filter work.EvaluationFilter) (map[string]any, error) {
+	navigation, err := s.workStore.EvaluationQueueNavigation(ctx, filter)
 	if err != nil {
+		if errors.Is(err, work.ErrEvaluationRevisionNotFound) {
+			return nil, notFound("current evaluation revision is not part of the selected run")
+		}
 		return nil, err
 	}
-	previousOperator := "<"
-	nextOperator := ">"
-	previousOrder := "DESC"
-	nextOrder := "ASC"
-	if order == "DESC" {
-		previousOperator = ">"
-		nextOperator = "<"
-		previousOrder = "ASC"
-		nextOrder = "DESC"
+	result := map[string]any{"previous_work_revision_id": nil, "next_work_revision_id": nil}
+	if navigation.PreviousWorkRevisionID != nil {
+		result["previous_work_revision_id"] = *navigation.PreviousWorkRevisionID
 	}
-	previousPredicate := " AND (" + sortExpression + previousOperator + "? OR (" + sortExpression + "=? AND wr.id" + previousOperator + "?))"
-	nextPredicate := " AND (" + sortExpression + nextOperator + "? OR (" + sortExpression + "=? AND wr.id" + nextOperator + "?))"
-	previous, err := queryID(previousPredicate, previousOrder, currentSortValue, currentSortValue, currentRevisionID)
-	if err != nil {
-		return nil, err
+	if navigation.NextWorkRevisionID != nil {
+		result["next_work_revision_id"] = *navigation.NextWorkRevisionID
 	}
-	next, err := queryID(nextPredicate, nextOrder, currentSortValue, currentSortValue, currentRevisionID)
-	return map[string]any{"previous_work_revision_id": previous, "next_work_revision_id": next}, err
+	return result, nil
 }
 
 // availablePDFDOIs returns the bounded identity projection used for evaluation inventory filters.
@@ -329,62 +223,12 @@ func (s *Server) availablePDFDOIs(ctx context.Context) ([]string, error) {
 }
 
 // evaluationReviewSummary returns invariant queue progress independently of page rows and filters.
-func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID int64, availableDOIsJSON string) (map[string]any, error) {
-	var total, reviewed, unreviewed, availablePDFs int64
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*),
-		COALESCE(SUM(CASE WHEN review.id IS NOT NULL AND review.status!='not_evaluated' THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN review.id IS NULL OR review.status='not_evaluated' THEN 1 ELSE 0 END),0),
-		COALESCE(SUM(CASE WHEN work.doi IN (SELECT value FROM json_each(?)) THEN 1 ELSE 0 END),0)
-		FROM work_revisions revision
-		JOIN works work ON work.id=revision.work_id
-		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
-		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision"), availableDOIsJSON, contextID, runID).
-		Scan(&total, &reviewed, &unreviewed, &availablePDFs)
+func (s *Server) evaluationReviewSummary(ctx context.Context, filter work.EvaluationFilter) (map[string]any, error) {
+	summary, err := s.workStore.EvaluationReviewSummary(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	baseFrom := `FROM work_revisions revision JOIN works work ON work.id=revision.work_id
-		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
-		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND ` + normalizedRevisionPredicate("revision")
-	statusFacets, err := s.rows(ctx, `SELECT COALESCE(review.status, 'not_evaluated') AS value, COUNT(*) AS count `+baseFrom+`
-		GROUP BY COALESCE(review.status, 'not_evaluated') ORDER BY value`, contextID, runID)
-	if err != nil {
-		return nil, err
-	}
-	sourceFacets, err := s.rows(ctx, `SELECT COALESCE(NULLIF(revision.source, ''), 'not_recorded') AS value, COUNT(*) AS count `+baseFrom+`
-		GROUP BY COALESCE(NULLIF(revision.source, ''), 'not_recorded') ORDER BY value`, contextID, runID)
-	if err != nil {
-		return nil, err
-	}
-	reviewSourceFacets, err := s.rows(ctx, `SELECT CASE
-		WHEN review.id IS NULL THEN 'not_started'
-		WHEN review.created_in_context_id=? THEN 'this_context'
-		ELSE 'inherited' END AS value, COUNT(*) AS count `+baseFrom+`
-		GROUP BY value ORDER BY value`, contextID, contextID, runID)
-	if err != nil {
-		return nil, err
-	}
-	qualifierFacets, err := s.rows(ctx, `SELECT sub.sub_status AS value, COUNT(*) AS count
-		FROM work_revisions revision
-		JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
-		JOIN work_review_version_substatuses sub ON sub.review_version_id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision")+`
-		GROUP BY sub.sub_status ORDER BY sub.sub_status`, contextID, runID)
-	if err != nil {
-		return nil, err
-	}
-	return map[string]any{
-		"total": total, "reviewed": reviewed, "unreviewed": unreviewed,
-		"pdf_available": availablePDFs, "pdf_not_available": total - availablePDFs,
-		"percent_reviewed": percent(reviewed, total),
-		"facets": map[string]any{
-			"review_status": statusFacets, "source": sourceFacets, "review_source": reviewSourceFacets,
-			"qualifier":  qualifierFacets,
-			"pdf_status": []map[string]any{{"value": "available", "count": availablePDFs}, {"value": "not_available", "count": total - availablePDFs}},
-		},
-	}, nil
+	return evaluationSummaryPayload(summary), nil
 }
 
 // overlayPDFInventory overlays companion PDF availability onto evaluation rows by normalized DOI.

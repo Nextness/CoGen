@@ -244,7 +244,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 	if len(got.Authors) != 1 || got.Authors[0].CitationName != "Export Author" {
 		t.Fatalf("authors after malformed enrichment = %+v", got.Authors)
 	}
-	if _, _, err := persistWorkspaceStage(db, runID, []*article.Article{got}, database.ProducerStageEnrich, database.StageNameEnrich, database.OutcomeEnriched, nil); err != nil {
+	if _, _, err := persistWorkspaceStage(context.Background(), db, runID, []*article.Article{got}, database.ProducerStageEnrich, database.StageNameEnrich, database.OutcomeEnriched, nil); err != nil {
 		t.Fatalf("persist enriched work: %v", err)
 	}
 }

@@ -25,6 +25,21 @@ var corpusReferenceSortFields = map[string]string{
 // corpusReferenceSearchFields is the fixed searchable projection for references.
 var corpusReferenceSearchFields = []string{"rm.doi", "rm.title", "rm.author", "rm.source", "wr.title"}
 
+// corpusAuthorSortFields is the closed allowlist of author sort expressions.
+var corpusAuthorSortFields = map[string]string{
+	"id":                "ao.id",
+	"citation_name":     "ao.citation_name",
+	"first_name":        "ao.first_name",
+	"last_name":         "ao.last_name",
+	"orcid":             "ao.orcid",
+	"article_count":     "article_count",
+	"affiliation_count": "affiliation_count",
+	"created_at":        "ao.created_at",
+}
+
+// corpusAuthorSearchFields is the fixed searchable projection for authors.
+var corpusAuthorSearchFields = []string{"ao.citation_name", "ao.first_name", "ao.last_name", "ao.orcid"}
+
 // runStageSortFields is the closed allowlist of run-stage sort expressions.
 var runStageSortFields = map[string]string{
 	"id":         "rws.id",
@@ -51,6 +66,20 @@ func corpusReferenceWhere(filter CorpusReferenceFilter) (string, []any, error) {
 // corpusReferenceSortExpression returns the allowlisted sort expression.
 func corpusReferenceSortExpression(sort string) string {
 	return corpusReferenceSortFields[sort]
+}
+
+// corpusAuthorWhere builds the parameterized predicate for an author page.
+func corpusAuthorWhere(filter CorpusAuthorFilter) (string, []any, error) {
+	if _, ok := corpusAuthorSortFields[filter.Sort]; !ok {
+		return "", nil, fmt.Errorf("list corpus authors: unsupported sort field %q", filter.Sort)
+	}
+	where, args := scopedSearch("wr.pipeline_run_id=? AND "+normalizedRevisionPredicate("wr"), corpusAuthorSearchFields, filter.RunID, filter.Query)
+	return where, args, nil
+}
+
+// corpusAuthorSortExpression returns the allowlisted sort expression.
+func corpusAuthorSortExpression(sort string) string {
+	return corpusAuthorSortFields[sort]
 }
 
 // runStageWhere builds the parameterized predicate for a run-stage page.

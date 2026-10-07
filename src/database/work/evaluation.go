@@ -96,7 +96,7 @@ func (s *Store) ListEvaluation(ctx context.Context, filter EvaluationFilter) (*E
 			SELECT sub_status FROM work_review_version_substatuses WHERE review_version_id=review.id ORDER BY sub_status)), '[]') AS review_sub_statuses
 		` + scope.from + " WHERE " + scope.where +
 		" ORDER BY COALESCE(" + scope.sortExpression + ", '') " + sqlDirection(filter.Order) + ", wr.id " + sqlDirection(filter.Order) + " LIMIT ? OFFSET ?"
-	queryArgs := append(append([]any{filter.ContextID}, scope.args...), filter.PerPage, (filter.Page-1)*filter.PerPage)
+	queryArgs := append(append([]any{filter.ContextID}, scope.args...), filter.PerPage, (clampPage(filter.Page, filter.PerPage, total)-1)*filter.PerPage)
 	rows, err := s.queryRows(ctx, query, queryArgs)
 	if err != nil {
 		return nil, fmt.Errorf("list evaluation: %w", err)

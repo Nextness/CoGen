@@ -6,8 +6,11 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
+
+	"analysis/database/work"
 )
 
 const detailCollectionPreviewLimit = 25
@@ -54,8 +57,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	revision, err := s.oneRow(ctx, `SELECT wr.*, w.doi FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+normalizedRevisionPredicate("wr")+`))`, id, runID)
+	revision, err := s.workStore.GetArticleRevision(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -64,7 +66,8 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, notFound("article revision not found"))
 		return
 	}
-	workID := revision["work_id"].(int64)
+	workID := revision.WorkID
+	article := articleRevisionRow(revision)
 	authors, err := s.articleDetailCollectionData(ctx, id, workID, runID, "authors", "article_detail_authors_"+stringID(runID)+"_"+stringID(id), 0, detailCollectionPreviewLimit)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -101,7 +104,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	termMatches := map[string]any(nil)
-	if revision["producer_stage"] == "normalize" {
+	if revision.ProducerStage == "normalize" {
 		termRows, termTotal, err := s.runSearchTerms(ctx, runID)
 		if err != nil {
 			s.respond(w, r, nil, err)
@@ -117,7 +120,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.respond(w, r, map[string]any{
-		"article":                    revision,
+		"article":                    article,
 		"authors":                    authors,
 		"references":                 references,
 		"stage_outcomes":             stageOutcomes,
@@ -199,22 +202,16 @@ func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	mention, err := s.oneRow(ctx, `SELECT rm.*, wr.work_id, wr.title AS citing_title, wr.pipeline_run_id,
-	target.id AS resolved_revision_id, target.title AS resolved_title
-	FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id
-		LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
-			WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=wr.pipeline_run_id
-			AND `+normalizedRevisionPredicate("candidate")+` LIMIT 1)
-		WHERE rm.id=? AND wr.pipeline_run_id=?`, id, runID)
+	detail, err := s.workStore.GetReferenceDetail(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if mention == nil {
+	if detail == nil {
 		s.respond(w, r, nil, notFound("reference mention not found"))
 		return
 	}
-	s.respond(w, r, map[string]any{"reference": mention}, nil)
+	s.respond(w, r, map[string]any{"reference": referenceDetailRow(detail)}, nil)
 }
 
 // articleEnrichmentSummary returns a bounded set of provider and field labels without transferring event payloads.
@@ -306,10 +303,8 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 
 // articleDetailWorkID validates one visible article revision and returns its owning work.
 func (s *Server) articleDetailWorkID(ctx context.Context, revisionID, runID int64) (int64, error) {
-	var workID int64
-	err := s.db.QueryRowContext(ctx, `SELECT wr.work_id FROM work_revisions wr
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+normalizedRevisionPredicate("wr")+`))`, revisionID, runID).Scan(&workID)
-	if err == sql.ErrNoRows {
+	workID, err := s.workStore.GetArticleDetailWorkID(ctx, revisionID, runID)
+	if errors.Is(err, work.ErrArticleRevisionNotFound) {
 		return 0, notFound("article revision not found")
 	}
 	return workID, err
@@ -364,41 +359,58 @@ func (s *Server) detailCollectionEnvelope(ctx context.Context, kind, fromWhere, 
 
 // articleDetailCollectionData defines the fixed projections for article detail subresources.
 func (s *Server) articleDetailCollectionData(ctx context.Context, revisionID, workID, runID int64, collection, cursorKind string, cursorID int64, limit int) (map[string]any, error) {
-	var fromWhere, orderID string
-	var args []any
-	descending := false
 	switch collection {
 	case "authors":
-		fromWhere = `FROM (SELECT a.id AS relation_id, ao.id, ao.person_id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid,
-			a.author_order, a.affiliation FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
-			WHERE a.work_revision_id=?)`
-		orderID, args = "relation_id", []any{revisionID}
+		page, err := s.workStore.ListArticleAuthors(ctx, work.ArticleAuthorPageInput{RevisionID: revisionID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleAuthorRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "references":
-		fromWhere = `FROM (SELECT rm.id, rm.work_revision_id, rm.resolved_work_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.created_at,
-			target.id AS resolved_revision_id, target.title AS resolved_title
-			FROM reference_mentions rm JOIN work_revisions source ON source.id=rm.work_revision_id
-			LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
-				WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=source.pipeline_run_id
-				AND ` + normalizedRevisionPredicate("candidate") + ` LIMIT 1)
-			WHERE rm.work_revision_id=?)`
-		orderID, args = "id", []any{revisionID}
+		page, err := s.workStore.ListArticleReferences(ctx, work.ArticleReferencePageInput{RevisionID: revisionID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleReferenceRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "stages":
-		fromWhere = `FROM (SELECT id, stage_name, outcome, reason, created_at, updated_at FROM run_work_stages
-			WHERE pipeline_run_id=? AND work_id=?)`
-		orderID, args = "id", []any{runID, workID}
+		page, err := s.workStore.ListArticleStages(ctx, work.ArticleStagePageInput{RunID: runID, WorkID: workID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleStageRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "audit":
 		condition, conditionArgs := articleAuditCondition(workID, runID)
-		fromWhere = `FROM (SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
+		fromWhere := `FROM (SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
 			before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE ` + condition + `)`
-		orderID, args, descending = "id", conditionArgs, true
+		result, err := s.detailCollectionEnvelope(ctx, cursorKind, fromWhere, "id", conditionArgs, cursorID, true, limit)
+		if err == nil {
+			boundAuditEventPayloads(result["items"].([]map[string]any), auditListPayloadBytes)
+		}
+		return result, err
 	default:
 		return nil, notFound("article detail collection not found")
 	}
-	result, err := s.detailCollectionEnvelope(ctx, cursorKind, fromWhere, orderID, args, cursorID, descending, limit)
-	if err == nil && collection == "audit" {
-		boundAuditEventPayloads(result["items"].([]map[string]any), auditListPayloadBytes)
+}
+
+// detailCollectionPage builds one bounded detail collection envelope from a family page.
+func detailCollectionPage(items []map[string]any, total int64, limit int, hasMore bool, nextCursorID int64, cursorKind string) map[string]any {
+	var nextCursor any
+	if hasMore {
+		nextCursor = encodeCursor(reviewCursor{Kind: cursorKind, ID: nextCursorID})
 	}
-	return result, err
+	return map[string]any{"items": items, "total": total, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}
 }
 
 // authorDetailCollectionData defines the fixed projections for author detail subresources.

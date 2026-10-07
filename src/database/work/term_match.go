@@ -58,6 +58,15 @@ func (s *Store) ListRunTerms(ctx context.Context, runID int64) ([]RunTerm, error
 	return terms, nil
 }
 
+// CountDistinctRunTerms returns the distinct stored term count for one run.
+func (s *Store) CountDistinctRunTerms(ctx context.Context, runID int64) (int64, error) {
+	count, err := s.queries.CountDistinctRunTerms(ctx, runID)
+	if err != nil {
+		return 0, fmt.Errorf("count distinct run terms: %w", err)
+	}
+	return count, nil
+}
+
 // GetRevisionMatches returns the per-field matched terms for one revision.
 func (s *Store) GetRevisionMatches(ctx context.Context, runID, revisionID int64) (map[string][]string, error) {
 	rows, err := s.queries.ListRevisionTermMatches(ctx, generated.ListRevisionTermMatchesParams{

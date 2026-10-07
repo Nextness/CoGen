@@ -101,6 +101,20 @@ func (s *Store) ListRevisionsByRunID(ctx context.Context, runID int64) ([]*Revis
 	return revisions, nil
 }
 
+// ListNormalizeRevisionsByRunID returns the normalize revisions created by a
+// given pipeline run, in ID order.
+func (s *Store) ListNormalizeRevisionsByRunID(ctx context.Context, runID int64) ([]*Revision, error) {
+	rows, err := s.queries.ListNormalizeRevisionsByRunID(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	var revisions []*Revision
+	for _, row := range rows {
+		revisions = append(revisions, revisionFromGenerated(row))
+	}
+	return revisions, nil
+}
+
 // CountRevisionsByWorkID returns the number of revisions for a given work.
 func (s *Store) CountRevisionsByWorkID(ctx context.Context, workID int64) (int, error) {
 	count, err := s.queries.CountWorkRevisionsByWorkID(ctx, workID)
@@ -108,6 +122,25 @@ func (s *Store) CountRevisionsByWorkID(ctx context.Context, workID int64) (int, 
 		return 0, err
 	}
 	return int(count), nil
+}
+
+// GetCurrentNormalizedRevisionWorkID returns the owning work of one current
+// normalized revision. It returns sql.ErrNoRows when the revision is not the
+// current valid normalize revision for its run and work.
+func (s *Store) GetCurrentNormalizedRevisionWorkID(ctx context.Context, revisionID, runID int64) (int64, error) {
+	return s.queries.GetCurrentNormalizedRevisionWorkID(ctx, generated.GetCurrentNormalizedRevisionWorkIDParams{
+		ID:            revisionID,
+		PipelineRunID: runID,
+	})
+}
+
+// CountCurrentNormalizedRevisionsByWork counts the current normalized
+// revisions for one work in one run.
+func (s *Store) CountCurrentNormalizedRevisionsByWork(ctx context.Context, runID, workID int64) (int64, error) {
+	return s.queries.CountCurrentNormalizedRevisionsByWork(ctx, generated.CountCurrentNormalizedRevisionsByWorkParams{
+		PipelineRunID: runID,
+		WorkID:        workID,
+	})
 }
 
 // revisionFromGenerated maps one generated revision row into an application

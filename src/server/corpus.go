@@ -7,9 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
+
+	"analysis/database/work"
 )
 
 // scopedRowsDefinition defines the safe projection, joins, filters, and sorting for one corpus section.
@@ -26,36 +27,18 @@ type scopedRowsDefinition struct {
 var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	"articles": {
 		columns: []string{"id", "work_id", "title", "year", "journal", "publisher", "source", "doi", "validation_status", "citation_count", "reference_count", "producer_stage", "created_at", "abstract", "keywords", "keywords_plus", "authors"},
-		from: `FROM work_revisions wr
-			JOIN works w ON w.id=wr.work_id
-			LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
-				AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
-		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		search:      "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
-		uniqueOrder: "wr.id",
 		sortFields: map[string]string{
 			"id": "wr.id", "title": "wr.title", "year": "wr.year", "journal": "wr.journal", "publisher": "wr.publisher", "source": "wr.source", "doi": "w.doi", "validation_status": "validation.outcome", "citation_count": "wr.citation_count", "reference_count": "wr.reference_count", "created_at": "wr.created_at",
 		},
 	},
 	"authors": {
 		columns: []string{"id", "citation_name", "first_name", "last_name", "orcid", "person_id", "article_count", "affiliation_count", "created_at"},
-		from: `FROM author_occurrences ao
-			JOIN authorships a ON a.author_occurrence_id=ao.id
-			JOIN work_revisions wr ON wr.id=a.work_revision_id`,
-		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		groupBy:     "ao.id",
-		search:      "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
-		uniqueOrder: "ao.id",
 		sortFields: map[string]string{
 			"id": "ao.id", "citation_name": "ao.citation_name", "first_name": "ao.first_name", "last_name": "ao.last_name", "orcid": "ao.orcid", "article_count": "article_count", "affiliation_count": "affiliation_count", "created_at": "ao.created_at",
 		},
 	},
 	"references": {
-		columns:     []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
-		from:        `FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
-		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
-		search:      "rm.doi, rm.title, rm.author, rm.source, wr.title",
-		uniqueOrder: "rm.id",
+		columns: []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
 		sortFields: map[string]string{
 			"id": "rm.id", "work_revision_id": "rm.work_revision_id", "mention_order": "rm.mention_order", "doi": "rm.doi", "title": "rm.title", "author": "rm.author", "year": "rm.year", "source": "rm.source", "resolved_work_id": "rm.resolved_work_id", "created_at": "rm.created_at",
 		},
@@ -74,8 +57,15 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 
 // runCorpus returns one context-scoped corpus section for the selected run.
 func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
-	if r.PathValue("kind") == "articles" {
+	switch r.PathValue("kind") {
+	case "articles":
 		s.runEvaluation(w, r)
+		return
+	case "authors":
+		s.runCorpusAuthors(w, r)
+		return
+	case "references":
+		s.runCorpusReferences(w, r)
 		return
 	}
 	runID, err := positiveID(r.PathValue("id"))
@@ -141,6 +131,86 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.respond(w, r, payload, err)
+}
+
+// runCorpusAuthors returns one bounded page of run-scoped author occurrences.
+func (s *Server) runCorpusAuthors(w http.ResponseWriter, r *http.Request) {
+	runID, err := positiveID(r.PathValue("id"))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	definition := runCorpusDefinitions["authors"]
+	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	ctx, cancel := queryContext(r)
+	defer cancel()
+	if err := s.requireRun(ctx, runID); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	result, err := s.workStore.ListCorpusAuthors(ctx, work.CorpusAuthorFilter{
+		RunID: runID, Query: query, Sort: sort, Order: order, Page: page, PerPage: perPage,
+	})
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, corpusAuthorRow(item))
+	}
+	page = clampScopedPage(page, perPage, result.Total)
+	s.respond(w, r, map[string]any{
+		"run_id":     runID,
+		"collection": "authors",
+		"columns":    definition.columns,
+		"rows":       items,
+		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+	}, nil)
+}
+
+// runCorpusReferences returns one bounded page of run-scoped reference mentions.
+func (s *Server) runCorpusReferences(w http.ResponseWriter, r *http.Request) {
+	runID, err := positiveID(r.PathValue("id"))
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	definition := runCorpusDefinitions["references"]
+	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	ctx, cancel := queryContext(r)
+	defer cancel()
+	if err := s.requireRun(ctx, runID); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	result, err := s.workStore.ListCorpusReferences(ctx, work.CorpusReferenceFilter{
+		RunID: runID, Query: query, Sort: sort, Order: order, Page: page, PerPage: perPage,
+	})
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, corpusReferenceRow(item))
+	}
+	page = clampScopedPage(page, perPage, result.Total)
+	s.respond(w, r, map[string]any{
+		"run_id":     runID,
+		"collection": "references",
+		"columns":    definition.columns,
+		"rows":       items,
+		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+	}, nil)
 }
 
 // attachArticleTermMatches adds bounded stored search-term evidence to article collection rows.
@@ -215,25 +285,18 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	where, args := scopedWhere("rws.pipeline_run_id=?", "rws.stage_name, rws.outcome, rws.reason, CAST(rws.work_id AS TEXT)", runID, query)
-	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM run_work_stages rws WHERE "+where, args...).Scan(&total); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	page = clampScopedPage(page, perPage, total)
-	queryArgs := append(args, perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, "SELECT rws.id, rws.work_id, rws.stage_name, rws.outcome, rws.reason, rws.created_at, rws.updated_at FROM run_work_stages rws WHERE "+where+" ORDER BY "+stableScopedOrder(fields[sort], "rws.id", order)+" LIMIT ? OFFSET ?", queryArgs...)
+	result, err := s.workStore.ListRunStages(ctx, work.RunStageFilter{
+		RunID: runID, Query: query, Sort: sort, Order: order, Page: page, PerPage: perPage,
+	})
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, stageOutcomeRow(item))
 	}
+	page = clampScopedPage(page, perPage, result.Total)
 	stageSummaries, err := s.runStageSummaries(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -251,69 +314,20 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 	}
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "columns": []string{"id", "work_id", "stage_name", "outcome", "reason", "created_at", "updated_at"}, "rows": items,
-		"pagination":      scopedPagination(page, perPage, total, sort, order),
+		"pagination":      scopedPagination(page, perPage, result.Total, sort, order),
 		"stage_summaries": stageSummaries, "run_steps": steps,
 	}, nil)
 }
 
 // runStageSummaries returns aggregate outcome counts by pipeline stage.
 func (s *Server) runStageSummaries(ctx context.Context, runID int64) ([]map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT stage_name, outcome, COUNT(*) AS count,
-		MIN(created_at) AS first_recorded_at, MAX(updated_at) AS last_recorded_at
-		FROM run_work_stages WHERE pipeline_run_id=?
-		GROUP BY stage_name, outcome ORDER BY stage_name, outcome`, runID)
+	summaries, err := s.workStore.RunStageSummaries(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	records, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, err
-	}
-	byStage := make(map[string]map[string]any)
-	for _, record := range records {
-		stage, _ := record["stage_name"].(string)
-		outcome, _ := record["outcome"].(string)
-		count, _ := record["count"].(int64)
-		summary := byStage[stage]
-		if summary == nil {
-			summary = map[string]any{
-				"stage_name":        stage,
-				"total_records":     int64(0),
-				"outcomes":          map[string]int64{},
-				"first_recorded_at": record["first_recorded_at"],
-				"last_recorded_at":  record["last_recorded_at"],
-			}
-			byStage[stage] = summary
-		}
-		summary["total_records"] = summary["total_records"].(int64) + count
-		summary["outcomes"].(map[string]int64)[outcome] = count
-		if first, ok := record["first_recorded_at"].(string); ok {
-			if current, ok := summary["first_recorded_at"].(string); !ok || first < current {
-				summary["first_recorded_at"] = first
-			}
-		}
-		if last, ok := record["last_recorded_at"].(string); ok {
-			if current, ok := summary["last_recorded_at"].(string); !ok || last > current {
-				summary["last_recorded_at"] = last
-			}
-		}
-	}
-	order := []string{"parse", "deduplicate", "enrich", "enrich_metadata", "enrich_identity", "validate", "normalize"}
-	result := make([]map[string]any, 0, len(byStage))
-	for _, stage := range order {
-		if summary := byStage[stage]; summary != nil {
-			result = append(result, summary)
-			delete(byStage, stage)
-		}
-	}
-	remaining := make([]string, 0, len(byStage))
-	for stage := range byStage {
-		remaining = append(remaining, stage)
-	}
-	sort.Strings(remaining)
-	for _, stage := range remaining {
-		result = append(result, byStage[stage])
+	result := make([]map[string]any, 0, len(summaries))
+	for _, summary := range summaries {
+		result = append(result, stageSummaryRow(summary))
 	}
 	return result, nil
 }
