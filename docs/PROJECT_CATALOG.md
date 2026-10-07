@@ -1517,8 +1517,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestStoreCreateReferenceNormalizesAndResolvesDOI`](../src/database/work/reference_integration_test.go#L16) | test | 16-82 | `func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T)` | TestStoreCreateReferenceNormalizesAndResolvesDOI verifies DOI normalization, best-effort resolution to a known work, and source ordering. |
-| [`TestStoreCreateReferenceValidatesInput`](../src/database/work/reference_integration_test.go#L86) | test | 86-109 | `func TestStoreCreateReferenceValidatesInput(t *testing.T)` | TestStoreCreateReferenceValidatesInput verifies required identity and order are enforced before any write. |
-| [`TestStoreReferencesAreAppendOnly`](../src/database/work/reference_integration_test.go#L113) | test | 113-136 | `func TestStoreReferencesAreAppendOnly(t *testing.T)` | TestStoreReferencesAreAppendOnly verifies the database trigger rejects mutation of an immutable reference snapshot. |
+| [`TestStoreCreateReferenceKeepsExternalMentionsDistinct`](../src/database/work/reference_integration_test.go#L87) | test | 87-146 | `func TestStoreCreateReferenceKeepsExternalMentionsDistinct(t *testing.T)` | TestStoreCreateReferenceKeepsExternalMentionsDistinct verifies repeated external references stay separate, explicit resolution is preserved, and duplicate mention order is rejected. |
+| [`TestStoreCreateReferenceValidatesInput`](../src/database/work/reference_integration_test.go#L150) | test | 150-173 | `func TestStoreCreateReferenceValidatesInput(t *testing.T)` | TestStoreCreateReferenceValidatesInput verifies required identity and order are enforced before any write. |
+| [`TestStoreReferencesAreAppendOnly`](../src/database/work/reference_integration_test.go#L177) | test | 177-200 | `func TestStoreReferencesAreAppendOnly(t *testing.T)` | TestStoreReferencesAreAppendOnly verifies the database trigger rejects mutation of an immutable reference snapshot. |
 
 ### [`src/database/work/relationships_integration_test.go`](../src/database/work/relationships_integration_test.go)
 
@@ -1565,8 +1566,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields`](../src/database/work/revision_integration_test.go#L16) | test | 16-70 | `func TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields(t *testing.T)` | TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields verifies the payload hash, schema default, nullable round trip, and identity reads. |
 | [`TestStoreRevisionsAreImmutableAndOrdered`](../src/database/work/revision_integration_test.go#L74) | test | 74-121 | `func TestStoreRevisionsAreImmutableAndOrdered(t *testing.T)` | TestStoreRevisionsAreImmutableAndOrdered verifies revisions accumulate in chronological order for a work and a run. |
-| [`TestStoreCreateRevisionValidatesProducerStage`](../src/database/work/revision_integration_test.go#L125) | test | 125-162 | `func TestStoreCreateRevisionValidatesProducerStage(t *testing.T)` | TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage vocabulary gates new immutable revisions. |
-| [`TestStoreCreateRevisionHashIgnoresProvenance`](../src/database/work/revision_integration_test.go#L166) | test | 166-185 | `func TestStoreCreateRevisionHashIgnoresProvenance(t *testing.T)` | TestStoreCreateRevisionHashIgnoresProvenance verifies the persisted payload hash covers content only, not producer stage. |
+| [`TestStoreRevisionsAreAppendOnly`](../src/database/work/revision_integration_test.go#L125) | test | 125-152 | `func TestStoreRevisionsAreAppendOnly(t *testing.T)` | TestStoreRevisionsAreAppendOnly verifies the database trigger rejects mutation of an immutable revision snapshot. |
+| [`TestStoreCreateRevisionValidatesProducerStage`](../src/database/work/revision_integration_test.go#L156) | test | 156-193 | `func TestStoreCreateRevisionValidatesProducerStage(t *testing.T)` | TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage vocabulary gates new immutable revisions. |
+| [`TestStoreCreateRevisionHashIgnoresProvenance`](../src/database/work/revision_integration_test.go#L197) | test | 197-216 | `func TestStoreCreateRevisionHashIgnoresProvenance(t *testing.T)` | TestStoreCreateRevisionHashIgnoresProvenance verifies the persisted payload hash covers content only, not producer stage. |
 
 ### [`src/database/work/stage.go`](../src/database/work/stage.go)
 
@@ -1585,9 +1587,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreSetStageOutcomeUpsertsAndPreservesIdentity`](../src/database/work/stage_integration_test.go#L16) | test | 16-59 | `func TestStoreSetStageOutcomeUpsertsAndPreservesIdentity(t *testing.T)` | TestStoreSetStageOutcomeUpsertsAndPreservesIdentity verifies the unique (run, work, stage) row identity survives progressive outcome updates. |
-| [`TestStoreStageOutcomesScopeAndOrder`](../src/database/work/stage_integration_test.go#L63) | test | 63-125 | `func TestStoreStageOutcomesScopeAndOrder(t *testing.T)` | TestStoreStageOutcomesScopeAndOrder verifies run and work scoping plus declared ordering. |
-| [`TestStoreSetStageOutcomeValidatesVocabulary`](../src/database/work/stage_integration_test.go#L129) | test | 129-161 | `func TestStoreSetStageOutcomeValidatesVocabulary(t *testing.T)` | TestStoreSetStageOutcomeValidatesVocabulary verifies invalid stage and outcome pairs are rejected before any write. |
+| [`TestStoreSetStageOutcomeUpsertsAndPreservesIdentity`](../src/database/work/stage_integration_test.go#L17) | test | 17-60 | `func TestStoreSetStageOutcomeUpsertsAndPreservesIdentity(t *testing.T)` | TestStoreSetStageOutcomeUpsertsAndPreservesIdentity verifies the unique (run, work, stage) row identity survives progressive outcome updates. |
+| [`TestStoreStageOutcomesScopeAndOrder`](../src/database/work/stage_integration_test.go#L64) | test | 64-126 | `func TestStoreStageOutcomesScopeAndOrder(t *testing.T)` | TestStoreStageOutcomesScopeAndOrder verifies run and work scoping plus declared ordering. |
+| [`TestStoreSetStageOutcomeValidatesVocabulary`](../src/database/work/stage_integration_test.go#L130) | test | 130-162 | `func TestStoreSetStageOutcomeValidatesVocabulary(t *testing.T)` | TestStoreSetStageOutcomeValidatesVocabulary verifies invalid stage and outcome pairs are rejected before any write. |
+| [`TestStoreSetStageOutcomeAcceptsEveryValidPair`](../src/database/work/stage_integration_test.go#L166) | test | 166-214 | `func TestStoreSetStageOutcomeAcceptsEveryValidPair(t *testing.T)` | TestStoreSetStageOutcomeAcceptsEveryValidPair verifies the complete stage/outcome vocabulary is accepted and impossible pairs are rejected. |
+| [`TestStoreSetStageOutcomeAdvancesUpdatedAt`](../src/database/work/stage_integration_test.go#L218) | test | 218-258 | `func TestStoreSetStageOutcomeAdvancesUpdatedAt(t *testing.T)` | TestStoreSetStageOutcomeAdvancesUpdatedAt verifies progressive outcome updates preserve row identity while advancing updated_at. |
 
 ### [`src/database/work/term_match.go`](../src/database/work/term_match.go)
 
@@ -1608,7 +1612,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreReplaceRunTermDataOrdersTermsDeterministically`](../src/database/work/term_match_integration_test.go#L18) | test | 18-61 | `func TestStoreReplaceRunTermDataOrdersTermsDeterministically(t *testing.T)` | TestStoreReplaceRunTermDataOrdersTermsDeterministically verifies the inventory replacement is idempotent and ordered by ID. |
 | [`TestStoreReplaceRunTermDataDistinguishesAnEmptyCompletedResult`](../src/database/work/term_match_integration_test.go#L65) | test | 65-94 | `func TestStoreReplaceRunTermDataDistinguishesAnEmptyCompletedResult(t *testing.T)` | TestStoreReplaceRunTermDataDistinguishesAnEmptyCompletedResult verifies the reconciliation marker is written even when the valid result set is empty. |
 | [`TestStoreGetRevisionMatchesAndBulkGroupByField`](../src/database/work/term_match_integration_test.go#L98) | test | 98-162 | `func TestStoreGetRevisionMatchesAndBulkGroupByField(t *testing.T)` | TestStoreGetRevisionMatchesAndBulkGroupByField verifies single and bulk match reads group terms by field and order. |
-| [`TestStoreReplaceRunTermDataRollsBackOnInvalidMatch`](../src/database/work/term_match_integration_test.go#L166) | test | 166-212 | `func TestStoreReplaceRunTermDataRollsBackOnInvalidMatch(t *testing.T)` | TestStoreReplaceRunTermDataRollsBackOnInvalidMatch verifies a mid-transaction relationship failure leaves the prior inventory and matches intact. |
+| [`TestStoreReplaceRunTermDataRollsBackOnInvalidMatch`](../src/database/work/term_match_integration_test.go#L166) | test | 166-219 | `func TestStoreReplaceRunTermDataRollsBackOnInvalidMatch(t *testing.T)` | TestStoreReplaceRunTermDataRollsBackOnInvalidMatch verifies a mid-transaction relationship failure leaves the prior inventory and matches intact. |
 
 ### [`src/database/work/types.go`](../src/database/work/types.go)
 
@@ -1685,16 +1689,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`openFamilyStore`](../src/database/work/work_integration_test.go#L23) | function | 23-32 | `func openFamilyStore(t *testing.T) (*work.Store, *database.Database)` | openFamilyStore returns a work store over a database created by the production migration runner. |
 | [`createTestRun`](../src/database/work/work_integration_test.go#L35) | function | 35-42 | `func createTestRun(t *testing.T, db *database.Database, step string) int64` | createTestRun creates one pipeline run for work-family linkage and returns its ID. |
-| [`TestStoreCreateWorkByDOIAndLookupPreservesIdentity`](../src/database/work/work_integration_test.go#L46) | test | 46-120 | `func TestStoreCreateWorkByDOIAndLookupPreservesIdentity(t *testing.T)` | TestStoreCreateWorkByDOIAndLookupPreservesIdentity verifies DOI normalization, idempotent reuse, and ordered reads. |
-| [`TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows`](../src/database/work/work_integration_test.go#L124) | test | 124-146 | `func TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows(t *testing.T)` | TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows verifies uncertain title-only records are never globally merged. |
-| [`TestStoreInsertIdentifierPreservesOwnershipAndReuse`](../src/database/work/work_integration_test.go#L150) | test | 150-219 | `func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T)` | TestStoreInsertIdentifierPreservesOwnershipAndReuse verifies alternate identifiers are idempotent per work and cannot be reassigned silently. |
-| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/work/work_integration_test.go#L223) | test | 223-279 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
+| [`TestStoreCreateWorkByDOIAndLookupPreservesIdentity`](../src/database/work/work_integration_test.go#L46) | test | 46-133 | `func TestStoreCreateWorkByDOIAndLookupPreservesIdentity(t *testing.T)` | TestStoreCreateWorkByDOIAndLookupPreservesIdentity verifies DOI normalization, idempotent reuse, and ordered reads. |
+| [`TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows`](../src/database/work/work_integration_test.go#L137) | test | 137-159 | `func TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows(t *testing.T)` | TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows verifies uncertain title-only records are never globally merged. |
+| [`TestStoreInsertIdentifierPreservesOwnershipAndReuse`](../src/database/work/work_integration_test.go#L163) | test | 163-235 | `func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T)` | TestStoreInsertIdentifierPreservesOwnershipAndReuse verifies alternate identifiers are idempotent per work and cannot be reassigned silently. |
+| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/work/work_integration_test.go#L239) | test | 239-295 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
 
 ### [`src/database/work/work_unit_test.go`](../src/database/work/work_unit_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestRevisionPayloadHashDeterminism`](../src/database/work/work_unit_test.go#L11) | test | 11-71 | `func TestRevisionPayloadHashDeterminism(t *testing.T)` | TestRevisionPayloadHashDeterminism verifies revision payload hash determinism. |
+| [`TestRevisionPayloadHashGoldenValue`](../src/database/work/work_unit_test.go#L75) | test | 75-94 | `func TestRevisionPayloadHashGoldenValue(t *testing.T)` | TestRevisionPayloadHashGoldenValue pins the exact field set covered by the payload hash so adding, removing, or renaming a covered field is caught. |
+| [`TestRevisionPayloadHashCoversEveryContentField`](../src/database/work/work_unit_test.go#L98) | test | 98-145 | `func TestRevisionPayloadHashCoversEveryContentField(t *testing.T)` | TestRevisionPayloadHashCoversEveryContentField verifies every content field changes the hash while producer stage remains excluded. |
 
 ### [`src/database/work_adapter.go`](../src/database/work_adapter.go)
 

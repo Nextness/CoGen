@@ -61,6 +61,19 @@ func TestStoreCreateWorkByDOIAndLookupPreservesIdentity(t *testing.T) {
 	if secondID != firstID {
 		t.Fatalf("duplicate DOI id = %d, want %d", secondID, firstID)
 	}
+	for _, spelling := range []string{
+		"10.1000/EXAMPLE",
+		"http://doi.org/10.1000/example",
+		"  10.1000/example  ",
+	} {
+		id, err := store.CreateWorkByDOI(ctx, spelling)
+		if err != nil {
+			t.Fatalf("create work by DOI %q: %v", spelling, err)
+		}
+		if id != firstID {
+			t.Fatalf("DOI spelling %q created work %d, want %d", spelling, id, firstID)
+		}
+	}
 	thirdID, err := store.CreateWorkByDOI(ctx, "10.1000/other")
 	if err != nil {
 		t.Fatal(err)
@@ -179,6 +192,9 @@ func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T) {
 	}
 	if _, err := store.InsertIdentifier(ctx, work.InsertIdentifierInput{WorkID: firstWork, Namespace: "", Identifier: "W123"}); err == nil {
 		t.Fatal("expected empty namespace to fail")
+	}
+	if _, err := store.InsertIdentifier(ctx, work.InsertIdentifierInput{WorkID: firstWork, Namespace: "openalex", Identifier: ""}); err == nil {
+		t.Fatal("expected empty identifier to fail")
 	}
 
 	byID, err := store.GetIdentifierByID(ctx, id)

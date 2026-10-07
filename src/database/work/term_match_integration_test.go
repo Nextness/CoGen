@@ -209,4 +209,11 @@ func TestStoreReplaceRunTermDataRollsBackOnInvalidMatch(t *testing.T) {
 	if !reflect.DeepEqual(matches, map[string][]string{"title": {"alpha"}}) {
 		t.Fatalf("rolled-back matches = %v, want the prior matches", matches)
 	}
+	reconciled, err := store.HasRunTermData(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reconciled {
+		t.Fatal("rollback removed the prior reconciliation marker")
+	}
 }

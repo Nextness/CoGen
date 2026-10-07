@@ -7,6 +7,7 @@ package work_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"analysis/database/work"
 )
@@ -157,5 +158,101 @@ func TestStoreSetStageOutcomeValidatesVocabulary(t *testing.T) {
 	}
 	if outcomes != nil {
 		t.Fatalf("invalid inputs persisted rows: %+v", outcomes)
+	}
+}
+
+// TestStoreSetStageOutcomeAcceptsEveryValidPair verifies the complete
+// stage/outcome vocabulary is accepted and impossible pairs are rejected.
+func TestStoreSetStageOutcomeAcceptsEveryValidPair(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID := createTestRun(t, db, "stage-vocabulary")
+
+	valid := map[string][]string{
+		work.StageNameParse:          {work.OutcomeParsed, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameDeduplicate:    {work.OutcomeDuplicate, work.OutcomeDeduplicated, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameValidate:       {work.OutcomeValid, work.OutcomeDiscarded, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameEnrich:         {work.OutcomeEnriched, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameEnrichMetadata: {work.OutcomeEnriched, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameEnrichIdentity: {work.OutcomeEnriched, work.OutcomeFailed, work.OutcomeSkipped, work.OutcomePending},
+		work.StageNameNormalize:      {work.OutcomeNormalized, work.OutcomeSkipped, work.OutcomePending},
+	}
+	for stage, outcomes := range valid {
+		for _, outcome := range outcomes {
+			workID, err := store.CreateWorkByDOI(ctx, "10.1000/stage-pair-"+stage+"-"+outcome)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.SetStageOutcome(ctx, work.StageOutcomeInput{
+				RunID: runID, WorkID: workID, StageName: stage, Outcome: outcome,
+			}); err != nil {
+				t.Fatalf("valid pair %s/%s: %v", stage, outcome, err)
+			}
+		}
+	}
+
+	invalidWorkID, err := store.CreateWorkByDOI(ctx, "10.1000/stage-invalid-pairs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := []work.StageOutcomeInput{
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameParse, Outcome: work.OutcomeValid},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameValidate, Outcome: work.OutcomeEnriched},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameNormalize, Outcome: work.OutcomeDeduplicated},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameEnrich, Outcome: work.OutcomeParsed},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameDeduplicate, Outcome: work.OutcomeNormalized},
+		{RunID: runID, WorkID: invalidWorkID, StageName: "bogus", Outcome: work.OutcomeParsed},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameParse, Outcome: "bogus"},
+		{RunID: runID, WorkID: invalidWorkID, StageName: "", Outcome: work.OutcomeParsed},
+		{RunID: runID, WorkID: invalidWorkID, StageName: work.StageNameParse, Outcome: ""},
+	}
+	for _, input := range invalid {
+		if err := store.SetStageOutcome(ctx, input); err == nil {
+			t.Fatalf("expected %q/%q to be rejected", input.StageName, input.Outcome)
+		}
+	}
+}
+
+// TestStoreSetStageOutcomeAdvancesUpdatedAt verifies progressive outcome
+// updates preserve row identity while advancing updated_at.
+func TestStoreSetStageOutcomeAdvancesUpdatedAt(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	workID, err := store.CreateWorkByDOI(ctx, "10.1000/stage-updated-at")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := createTestRun(t, db, "stage-updated-at")
+
+	if err := store.SetStageOutcome(ctx, work.StageOutcomeInput{
+		RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomePending,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := store.GetStageOutcome(ctx, runID, workID, work.StageNameValidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == nil || first.UpdatedAt == "" {
+		t.Fatalf("initial stage outcome = %+v", first)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	if err := store.SetStageOutcome(ctx, work.StageOutcomeInput{
+		RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid, Reason: "progressive",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.GetStageOutcome(ctx, runID, workID, work.StageNameValidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second == nil {
+		t.Fatal("stage outcome missing after update")
+	}
+	if second.ID != first.ID || second.CreatedAt != first.CreatedAt {
+		t.Fatalf("progressive update changed row identity: first=%+v second=%+v", first, second)
+	}
+	if second.UpdatedAt <= first.UpdatedAt {
+		t.Fatalf("updated_at did not advance: first=%q second=%q", first.UpdatedAt, second.UpdatedAt)
 	}
 }

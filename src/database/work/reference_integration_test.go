@@ -81,6 +81,70 @@ func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T) {
 	}
 }
 
+// TestStoreCreateReferenceKeepsExternalMentionsDistinct verifies repeated
+// external references stay separate, explicit resolution is preserved, and
+// duplicate mention order is rejected.
+func TestStoreCreateReferenceKeepsExternalMentionsDistinct(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	targetWork, err := store.CreateWorkByDOI(ctx, "10.1000/reference-explicit-target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceWork, err := store.CreateWorkByDOI(ctx, "10.1000/reference-explicit-source")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionID, err := store.CreateRevision(ctx, &work.Revision{
+		WorkID: sourceWork, PipelineRunID: createTestRun(t, db, "reference-explicit"),
+		ProducerStage: work.ProducerStageNormalize, Title: "source",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := store.CreateReference(ctx, &work.Reference{
+		WorkRevisionID: revisionID, MentionOrder: 1, RawReference: "external", DOI: "10.2000/external",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := store.CreateReference(ctx, &work.Reference{
+		WorkRevisionID: revisionID, MentionOrder: 2, RawReference: "external", DOI: "10.2000/external",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatal("identical external references must remain separate mentions")
+	}
+	explicit, err := store.CreateReference(ctx, &work.Reference{
+		WorkRevisionID: revisionID, MentionOrder: 3, ResolvedWorkID: targetWork,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateReference(ctx, &work.Reference{
+		WorkRevisionID: revisionID, MentionOrder: 1, RawReference: "duplicate",
+	}); err == nil {
+		t.Fatal("expected a duplicate mention order to fail")
+	}
+
+	ordered, err := store.ListReferencesByRevisionID(ctx, revisionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ordered) != 3 || ordered[0].ID != first || ordered[1].ID != second || ordered[2].ID != explicit {
+		t.Fatalf("references = %+v, want mention order", ordered)
+	}
+	if ordered[0].ResolvedWorkID != 0 || ordered[1].ResolvedWorkID != 0 {
+		t.Fatalf("external references resolved unexpectedly: %+v", ordered[:2])
+	}
+	if ordered[2].ResolvedWorkID != targetWork {
+		t.Fatalf("explicit resolved reference = %+v", ordered[2])
+	}
+}
+
 // TestStoreCreateReferenceValidatesInput verifies required identity and order
 // are enforced before any write.
 func TestStoreCreateReferenceValidatesInput(t *testing.T) {

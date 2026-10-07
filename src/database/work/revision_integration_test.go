@@ -120,6 +120,37 @@ func TestStoreRevisionsAreImmutableAndOrdered(t *testing.T) {
 	}
 }
 
+// TestStoreRevisionsAreAppendOnly verifies the database trigger rejects
+// mutation of an immutable revision snapshot.
+func TestStoreRevisionsAreAppendOnly(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	workID, err := store.CreateWorkByDOI(ctx, "10.1000/revision-append-only")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionID, err := store.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: createTestRun(t, db, "revision-append-only"),
+		ProducerStage: work.ProducerStageParse, Title: "immutable",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec("UPDATE work_revisions SET title='changed' WHERE id=?", revisionID); err == nil {
+		t.Fatal("expected an update to be rejected by the append-only trigger")
+	}
+	if _, err := db.DB.Exec("DELETE FROM work_revisions WHERE id=?", revisionID); err == nil {
+		t.Fatal("expected a delete to be rejected by the append-only trigger")
+	}
+	stored, err := store.GetRevisionByID(ctx, revisionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored == nil || stored.Title != "immutable" {
+		t.Fatalf("revision changed after rejected mutation: %+v", stored)
+	}
+}
+
 // TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage
 // vocabulary gates new immutable revisions.
 func TestStoreCreateRevisionValidatesProducerStage(t *testing.T) {
