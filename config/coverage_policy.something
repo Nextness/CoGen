@@ -76,6 +76,10 @@ coverage_policy: coverage_policy_config = {
             minimum = 80.0,
             rationale = "Generated work queries are exercised through the handwritten family integration, parity, and rollback tests."
         },
+        ["analysis/database/review"] => {
+            minimum = 75.0,
+            rationale = "The review family starts adapter-driven from the existing database and server suites; relocation into family-owned tests is tracked by the review phase."
+        },
         ["analysis/database/sqlcprobe"] => { minimum =  80.0 },
         ["analysis/database/sqlcprobe/internal/sql"] => { minimum =  75.0 },
         ["analysis/enrich"]            => { minimum =  70.0 },

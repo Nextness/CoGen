@@ -14,6 +14,7 @@ import (
 	"analysis/database/audit"
 	"analysis/database/author"
 	"analysis/database/cache"
+	"analysis/database/review"
 	"analysis/database/run"
 	"analysis/database/search"
 	"analysis/database/source"
@@ -54,6 +55,7 @@ type Database struct {
 	Audit                *audit.Store
 	Work                 *work.Store
 	Author               *author.Store
+	Review               *review.Store
 	ArtifactBlobs        *ArtifactBlobRepository
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
@@ -135,6 +137,7 @@ func (d *Database) initRepositories() {
 	d.Audit = audit.New(d.DB)
 	d.Work = work.New(d.DB)
 	d.Author = author.New(d.DB)
+	d.Review = review.New(d.DB)
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}

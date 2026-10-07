@@ -1,14 +1,15 @@
-// normalized.go defines the database-package-local analysis-ready revision
-// predicate used by the review queries. The work family and the viewer keep
-// their own copies; TestNormalizedRevisionPredicateConformance compares every
-// copy against accepted, discarded, superseded, and missing-normalization cases.
-package database
+// predicate.go holds the review-family-local normalized-revision predicate used
+// by context initialization and parent candidate queries. The work family and
+// the viewer keep their own copies; TestNormalizedRevisionPredicateConformance
+// compares every copy against accepted, discarded, superseded, and
+// missing-normalization cases.
+package review
 
 import "fmt"
 
-// currentNormalizedRevisionPredicate returns SQL selecting the latest valid
-// normalize revision for each run and work.
-func currentNormalizedRevisionPredicate(alias string) string {
+// normalizedRevisionPredicate returns SQL selecting the latest valid normalize
+// revision for each run and work.
+func normalizedRevisionPredicate(alias string) string {
 	return fmt.Sprintf(`%[1]s.producer_stage='normalize'
 		AND %[1]s.id=(SELECT MAX(normalized_candidate.id) FROM work_revisions normalized_candidate
 			WHERE normalized_candidate.pipeline_run_id=%[1]s.pipeline_run_id

@@ -1,5 +1,5 @@
 // normalized_revision.go holds the viewer-local analysis-ready revision
-// predicate. The work family and the database package keep their own copies;
+// predicate. The work and review families keep their own copies;
 // TestNormalizedRevisionPredicateConformance compares every copy against
 // accepted, discarded, superseded, and missing-normalization cases.
 package server
