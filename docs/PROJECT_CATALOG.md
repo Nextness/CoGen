@@ -666,14 +666,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L21) | test | 21-110 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
-| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L115) | test | 115-225 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
-| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L229) | test | 229-357 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
-| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L361) | test | 361-563 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
-| [`TestCharacterizationReviewCompareAndSwapAndReplay`](../src/database/characterization_integration_test.go#L568) | test | 568-636 | `func TestCharacterizationReviewCompareAndSwapAndReplay(t *testing.T)` | TestCharacterizationReviewCompareAndSwapAndReplay verifies stale expected versions conflict, identical writes report no change, and heads move only through the affected-row compare-and-swap. |
-| [`TestCharacterizationContextCancellation`](../src/database/characterization_integration_test.go#L640) | test | 640-674 | `func TestCharacterizationContextCancellation(t *testing.T)` | TestCharacterizationContextCancellation verifies repository reads and transaction-owned writes propagate a canceled context and leave no partial rows. |
-| [`TestCharacterizationTransactionRollback`](../src/database/characterization_integration_test.go#L678) | test | 678-739 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
-| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L743) | test | 743-796 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
+| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L19) | test | 19-108 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
+| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L113) | test | 113-223 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
+| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L227) | test | 227-355 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
+| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L359) | test | 359-561 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
+| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L565) | test | 565-618 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
 
 ### [`src/database/config_integration_test.go`](../src/database/config_integration_test.go)
 
@@ -887,6 +884,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`newAnchorID`](../src/database/review/anchor.go#L467) | function | 467-473 | `func newAnchorID() (string, error)` | newAnchorID returns an opaque global identifier compatible with the note-language anchor grammar. |
 | [`anchorsEqual`](../src/database/review/anchor.go#L476) | function | 476-492 | `func anchorsEqual(current *AnchorVersion, state, contentHash string, page int, selectedText string, rectangles []AnchorRectangle) bool` | anchorsEqual detects an identical save so the repository can avoid redundant history. |
 
+### [`src/database/review/anchor_integration_test.go`](../src/database/review/anchor_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewAnchorCopyOnWriteLineage`](../src/database/review/anchor_integration_test.go#L17) | test | 17-48 | `func TestReviewAnchorCopyOnWriteLineage(t *testing.T)` | TestReviewAnchorCopyOnWriteLineage verifies inherited anchors, stable parent heads, and tombstones. |
+| [`TestReviewAnchorRejectsInvalidLabel`](../src/database/review/anchor_integration_test.go#L51) | test | 51-62 | `func TestReviewAnchorRejectsInvalidLabel(t *testing.T)` | TestReviewAnchorRejectsInvalidLabel verifies anchor labels must satisfy the note-language grammar. |
+
 ### [`src/database/review/audit.go`](../src/database/review/audit.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -894,6 +898,30 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`insertReviewAudit`](../src/database/review/audit.go#L16) | function | 16-18 | `func insertReviewAudit(ctx context.Context, queries *generated.Queries, runID int64, entityType, entityID string, action manifest.AuditAction, metadata any) error` | insertReviewAudit appends identifier-only review evidence within the caller's head-move transaction. |
 | [`insertReviewChangeAudit`](../src/database/review/audit.go#L21) | function | 21-50 | `func insertReviewChangeAudit(ctx context.Context, queries *generated.Queries, runID int64, entityType, entityID string, action manifest.AuditAction, before, after, metadata any) error` | insertReviewChangeAudit appends identifier metadata and optional bounded decision-state changes. |
 | [`marshalReviewAuditValue`](../src/database/review/audit.go#L53) | function | 53-62 | `func marshalReviewAuditValue(name string, value any) (sql.NullString, error)` | marshalReviewAuditValue returns a nullable JSON payload for one review audit field. |
+
+### [`src/database/review/audit_integration_test.go`](../src/database/review/audit_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewAuditRedaction`](../src/database/review/audit_integration_test.go#L18) | test | 18-54 | `func TestReviewAuditRedaction(t *testing.T)` | TestReviewAuditRedaction verifies every review mutation appends audit evidence and none of the bounded research content reaches audit metadata. |
+
+### [`src/database/review/characterization_integration_test.go`](../src/database/review/characterization_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestCharacterizationReviewCompareAndSwapAndReplay`](../src/database/review/characterization_integration_test.go#L20) | test | 20-82 | `func TestCharacterizationReviewCompareAndSwapAndReplay(t *testing.T)` | TestCharacterizationReviewCompareAndSwapAndReplay verifies stale expected versions conflict, identical writes report no change, and heads move only through the affected-row compare-and-swap. |
+| [`TestCharacterizationContextCancellation`](../src/database/review/characterization_integration_test.go#L86) | test | 86-110 | `func TestCharacterizationContextCancellation(t *testing.T)` | TestCharacterizationContextCancellation verifies repository reads and transaction-owned writes propagate a canceled context and leave no partial rows. |
+| [`TestCharacterizationTransactionRollback`](../src/database/review/characterization_integration_test.go#L114) | test | 114-158 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
+
+### [`src/database/review/concurrency_integration_test.go`](../src/database/review/concurrency_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewConcurrentNoteWriters`](../src/database/review/concurrency_integration_test.go#L18) | test | 18-44 | `func TestReviewConcurrentNoteWriters(t *testing.T)` | TestReviewConcurrentNoteWriters verifies one optimistic head wins when two writers start from the same version. |
+| [`TestReviewConcurrentDecisionWriters`](../src/database/review/concurrency_integration_test.go#L47) | test | 47-68 | `func TestReviewConcurrentDecisionWriters(t *testing.T)` | TestReviewConcurrentDecisionWriters verifies one optimistic head wins when two decision writers start from the same version. |
+| [`TestReviewConcurrentAnchorWriters`](../src/database/review/concurrency_integration_test.go#L71) | test | 71-97 | `func TestReviewConcurrentAnchorWriters(t *testing.T)` | TestReviewConcurrentAnchorWriters verifies one optimistic head wins when two anchor writers start from the same version. |
+| [`runConcurrentReviewWriters`](../src/database/review/concurrency_integration_test.go#L100) | function | 100-121 | `func runConcurrentReviewWriters(t *testing.T, writers []func() error) []error` | runConcurrentReviewWriters starts every writer together and returns their errors. |
+| [`assertOneSuccessOneConflict`](../src/database/review/concurrency_integration_test.go#L124) | function | 124-140 | `func assertOneSuccessOneConflict(t *testing.T, results []error)` | assertOneSuccessOneConflict verifies competing writers produce one success and one optimistic conflict. |
 
 ### [`src/database/review/constructor_integration_test.go`](../src/database/review/constructor_integration_test.go)
 
@@ -915,6 +943,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`contextCandidateFromSearchRow`](../src/database/review/context.go#L131) | function | 131-142 | `func contextCandidateFromSearchRow(row generated.GetReviewParentCandidateBySearchRow) *ContextCandidate` | contextCandidateFromSearchRow maps one same-search generated candidate row. |
 | [`(*Store).ListParentCandidates`](../src/database/review/context.go#L145) | method | 145-193 | `func (*Store).ListParentCandidates(ctx context.Context, runID int64, scope, cursorStartedAt string, cursorRunID int64, limit int, query string) ([]ContextCandidate, error)` | ListParentCandidates returns bounded earlier contexts in stable descending run order. |
 | [`(*Store).CreateContext`](../src/database/review/context.go#L196) | method | 196-279 | `func (*Store).CreateContext(ctx context.Context, runID int64, parentContextID *int64) (*Context, bool, error)` | CreateContext initializes one run context and freezes matching parent heads without copying version bodies. |
+
+### [`src/database/review/context_integration_test.go`](../src/database/review/context_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewParentSelection`](../src/database/review/context_integration_test.go#L17) | test | 17-74 | `func TestReviewParentSelection(t *testing.T)` | TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection. |
+| [`TestReviewContextCopyOnWriteLineage`](../src/database/review/context_integration_test.go#L78) | test | 78-107 | `func TestReviewContextCopyOnWriteLineage(t *testing.T)` | TestReviewContextCopyOnWriteLineage verifies parent conflicts, frozen work heads, and review-context purge protection. |
 
 ### [`src/database/review/contract_integration_test.go`](../src/database/review/contract_integration_test.go)
 
@@ -943,6 +978,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Store).getWorkReviewVersion`](../src/database/review/decision.go#L216) | method | 216-241 | `func (*Store).getWorkReviewVersion(ctx context.Context, queries *generated.Queries, id int64) (*WorkReviewVersion, error)` | getWorkReviewVersion reads one immutable version with canonical sub-statuses and reviewer attribution. |
 | [`validateReviewState`](../src/database/review/decision.go#L244) | function | 244-272 | `func validateReviewState(status string, substatuses []string, reason *string) ([]string, *string, error)` | validateReviewState normalizes one complete review state and enforces vocabulary compatibility. |
 
+### [`src/database/review/decision_integration_test.go`](../src/database/review/decision_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewDecisionCopyOnWriteLineage`](../src/database/review/decision_integration_test.go#L16) | test | 16-53 | `func TestReviewDecisionCopyOnWriteLineage(t *testing.T)` | TestReviewDecisionCopyOnWriteLineage verifies inherited decisions, stale conflicts, and stable parent heads. |
+| [`TestReviewDecisionValidationAndNoOp`](../src/database/review/decision_integration_test.go#L56) | test | 56-70 | `func TestReviewDecisionValidationAndNoOp(t *testing.T)` | TestReviewDecisionValidationAndNoOp verifies default no-op saves and vocabulary compatibility. |
+
 ### [`src/database/review/errors.go`](../src/database/review/errors.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -970,6 +1012,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`newReviewFilterFixture`](../src/database/review/filters_integration_test.go#L36) | function | 36-91 | `func newReviewFilterFixture(t *testing.T) *reviewFilterFixture` | newReviewFilterFixture builds the two-run review fixture through production migrations. |
 | [`TestReviewGeneratedParentCandidateFilters`](../src/database/review/filters_integration_test.go#L94) | test | 94-123 | `func TestReviewGeneratedParentCandidateFilters(t *testing.T)` | TestReviewGeneratedParentCandidateFilters verifies scope, cursor, and search filters. |
 | [`TestReviewGeneratedNoteFilters`](../src/database/review/filters_integration_test.go#L127) | test | 127-194 | `func TestReviewGeneratedNoteFilters(t *testing.T)` | TestReviewGeneratedNoteFilters verifies state, work-revision, search, cursor, link resolution, and backlink filters on inherited notes. |
+
+### [`src/database/review/fixture_integration_test.go`](../src/database/review/fixture_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`newReviewLineageFixture`](../src/database/review/fixture_integration_test.go#L20) | function | 20-29 | `func newReviewLineageFixture(t *testing.T) (*database.Database, int64, int64, int64, int64)` | newReviewLineageFixture opens one migrated database and builds completed A1 and A2 runs with one overlapping stable work. |
+| [`createReviewLineageFixture`](../src/database/review/fixture_integration_test.go#L32) | function | 32-64 | `func createReviewLineageFixture(t *testing.T, db *database.Database) (int64, int64, int64, int64, int64)` | createReviewLineageFixture creates completed A1 and A2 runs with one overlapping stable work. |
 
 ### [`src/database/review/mutations_integration_test.go`](../src/database/review/mutations_integration_test.go)
 
@@ -1011,6 +1060,24 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`noteSummary`](../src/database/review/note.go#L461) | function | 461-476 | `func noteSummary(body string) (string, string)` | noteSummary derives a safe title and excerpt from one stored body or bounded prefix. |
 | [`truncateRunes`](../src/database/review/note.go#L479) | function | 479-485 | `func truncateRunes(value string, limit int) string` | truncateRunes returns a Unicode-safe bounded label with an explicit truncation marker. |
 
+### [`src/database/review/note_integration_test.go`](../src/database/review/note_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewNoteCopyOnWriteLineage`](../src/database/review/note_integration_test.go#L16) | test | 16-55 | `func TestReviewNoteCopyOnWriteLineage(t *testing.T)` | TestReviewNoteCopyOnWriteLineage verifies inherited notes, edits, tombstones, restoration, and stable parent heads. |
+| [`TestReviewNoteRejectsUnsafeLink`](../src/database/review/note_integration_test.go#L58) | test | 58-73 | `func TestReviewNoteRejectsUnsafeLink(t *testing.T)` | TestReviewNoteRejectsUnsafeLink verifies save-blocking note-language validation. |
+
+### [`src/database/review/parity_integration_test.go`](../src/database/review/parity_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewFamilyParityWithLegacyAdapter`](../src/database/review/parity_integration_test.go#L24) | test | 24-178 | `func TestReviewFamilyParityWithLegacyAdapter(t *testing.T)` | TestReviewFamilyParityWithLegacyAdapter verifies the adapters and family store agree on reads, writes, and resulting review evidence graphs. |
+| [`reviewParityQueries`](../src/database/review/parity_integration_test.go#L181) | function | 181-196 | `func reviewParityQueries() []string` | reviewParityQueries returns the review graph queries compared between the legacy adapter and family store. |
+| [`copyReviewDatabaseFile`](../src/database/review/parity_integration_test.go#L199) | function | 199-208 | `func copyReviewDatabaseFile(t *testing.T, source, destination string)` | copyReviewDatabaseFile copies one checkpointed SQLite database file. |
+| [`assertReviewQueryParity`](../src/database/review/parity_integration_test.go#L211) | function | 211-218 | `func assertReviewQueryParity(t *testing.T, legacy, family *sql.DB, query string)` | assertReviewQueryParity compares every row of one review graph query. |
+| [`reviewParityRows`](../src/database/review/parity_integration_test.go#L221) | function | 221-252 | `func reviewParityRows(t *testing.T, db *sql.DB, query string) [][]string` | reviewParityRows renders every row of one query as ordered comparable text. |
+| [`formatReviewDatabaseValue`](../src/database/review/parity_integration_test.go#L255) | function | 255-266 | `func formatReviewDatabaseValue(value any) string` | formatReviewDatabaseValue renders one scanned SQLite value as comparable text. |
+
 ### [`src/database/review/relationships.go`](../src/database/review/relationships.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1038,6 +1105,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`stringSlicesEqual`](../src/database/review/review.go#L125) | function | 125-135 | `func stringSlicesEqual(left, right []string) bool` | stringSlicesEqual compares canonical ordered string sets. |
 | [`sameNullableID`](../src/database/review/review.go#L138) | function | 138-143 | `func sameNullableID(left, right *int64) bool` | sameNullableID compares optional immutable identifiers by value. |
 | [`reviewerDisplay`](../src/database/review/review.go#L146) | function | 146-152 | `func reviewerDisplay(username, _ string) string` | reviewerDisplay exposes only the optional username and never places reviewer email in portable API responses. |
+
+### [`src/database/review/trigger_integration_test.go`](../src/database/review/trigger_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestReviewAppendOnlyTablesRejectUpdatesAndDeletes`](../src/database/review/trigger_integration_test.go#L17) | test | 17-69 | `func TestReviewAppendOnlyTablesRejectUpdatesAndDeletes(t *testing.T)` | TestReviewAppendOnlyTablesRejectUpdatesAndDeletes verifies database triggers reject direct mutation of every immutable review table. |
 
 ### [`src/database/review/types.go`](../src/database/review/types.go)
 
@@ -1099,16 +1172,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*ReviewRepository).ListAnchors`](../src/database/review_adapter.go#L165) | method | 165-167 | `func (*ReviewRepository).ListAnchors(ctx context.Context, contextID, workRevisionID int64, cursor string, limit int) ([]ReviewAnchor, error)` | ListAnchors returns bounded active current anchors for one context work. |
 | [`(*ReviewRepository).ListAnchorVersions`](../src/database/review_adapter.go#L170) | method | 170-172 | `func (*ReviewRepository).ListAnchorVersions(ctx context.Context, contextID int64, anchorID string, cursor int64, limit int) ([]ReviewAnchorVersion, error)` | ListAnchorVersions follows only the selected context anchor head's ancestors. |
 | [`(*ReviewRepository).GetAnchorVersion`](../src/database/review_adapter.go#L175) | method | 175-177 | `func (*ReviewRepository).GetAnchorVersion(ctx context.Context, contextID int64, anchorID string, versionID int64) (*ReviewAnchorVersion, error)` | GetAnchorVersion returns one full geometry version only when it belongs to the selected head ancestry. |
-
-### [`src/database/reviews_integration_test.go`](../src/database/reviews_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestReviewConcurrentNoteWriters`](../src/database/reviews_integration_test.go#L16) | test | 16-63 | `func TestReviewConcurrentNoteWriters(t *testing.T)` | TestReviewConcurrentNoteWriters verifies one optimistic head wins when two writers start from the same version. |
-| [`TestReviewCopyOnWriteLineage`](../src/database/reviews_integration_test.go#L66) | test | 66-175 | `func TestReviewCopyOnWriteLineage(t *testing.T)` | TestReviewCopyOnWriteLineage verifies context inheritance, immutable heads, note history, anchors, audit, and purge protection. |
-| [`TestReviewValidationAndNoOp`](../src/database/reviews_integration_test.go#L178) | test | 178-200 | `func TestReviewValidationAndNoOp(t *testing.T)` | TestReviewValidationAndNoOp verifies invalid vocabulary, geometry, syntax, and identical saves. |
-| [`TestReviewParentSelection`](../src/database/reviews_integration_test.go#L203) | test | 203-262 | `func TestReviewParentSelection(t *testing.T)` | TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection. |
-| [`createReviewLineageFixture`](../src/database/reviews_integration_test.go#L265) | function | 265-295 | `func createReviewLineageFixture(t *testing.T, db *Database) (int64, int64, int64, int64, int64)` | createReviewLineageFixture creates completed A1 and A2 runs with one overlapping stable work. |
 
 ### [`src/database/run/audit.go`](../src/database/run/audit.go)
 
