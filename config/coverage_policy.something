@@ -36,6 +36,11 @@ coverage_policy: coverage_policy_config = {
         ["analysis/article"]           => { minimum =  97.0 },
         ["analysis/bibtex"]            => { minimum =  95.0 },
         ["analysis/database"]          => { minimum =  70.0 },
+        ["analysis/database/author"]   => { minimum =  90.0 },
+        ["analysis/database/author/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated author queries are exercised through the handwritten family integration and parity tests."
+        },
         ["analysis/database/artifact"] => { minimum =  90.0 },
         ["analysis/database/artifact/internal/sql"] => {
             minimum = 80.0,

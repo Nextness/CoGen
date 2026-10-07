@@ -1,7 +1,7 @@
-// Unit tests for ORCID validation functions.
+// Unit tests for ORCID normalization and validation.
 //go:build unit
 
-package database
+package author
 
 import (
 	"testing"
@@ -71,5 +71,12 @@ func TestORCIDNormalizedStillValid(t *testing.T) {
 	}
 	if !isValidORCID("0000-0001-2345-6789") {
 		t.Error("expected numeric check digit to be accepted")
+	}
+}
+
+// TestNormalizeORCIDTrimsAndLowercases verifies normalization is stable.
+func TestNormalizeORCIDTrimsAndLowercases(t *testing.T) {
+	if got := normalizeORCID("  0000-0002-1694-233X  "); got != "0000-0002-1694-233x" {
+		t.Fatalf("normalizeORCID = %q, want %q", got, "0000-0002-1694-233x")
 	}
 }
