@@ -958,7 +958,7 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*d
 func (s *Server) reviewArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, map[string]any, error) {
 	var workID int64
 	err := s.db.QueryRowContext(ctx, `SELECT revision.work_id FROM work_revisions revision
-		WHERE revision.id=? AND revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), workRevisionID, runID).Scan(&workID)
+		WHERE revision.id=? AND revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision"), workRevisionID, runID).Scan(&workID)
 	if err == sql.ErrNoRows {
 		return 0, nil, notFound("article revision does not belong to selected run")
 	}
@@ -990,7 +990,7 @@ func (s *Server) requireAvailableArticlePDF(ctx context.Context, runID, workRevi
 func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int64) (int64, string, error) {
 	var count int
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM work_revisions revision
-		WHERE revision.pipeline_run_id=? AND revision.work_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), runID, workID).Scan(&count); err != nil {
+		WHERE revision.pipeline_run_id=? AND revision.work_id=? AND `+normalizedRevisionPredicate("revision"), runID, workID).Scan(&count); err != nil {
 		return 0, "", err
 	}
 	if count == 0 {

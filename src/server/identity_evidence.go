@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-
-	"analysis/database"
 )
 
 const identityCandidatePreviewLimit = 3
@@ -55,7 +53,7 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
         LEFT JOIN work_revisions wr ON wr.id=COALESCE((
             SELECT current.id FROM work_revisions current
             WHERE current.work_id=evidence.work_id AND current.pipeline_run_id=r.pipeline_run_id
-            AND ` + database.CurrentNormalizedRevisionPredicate("current") + `), captured.id)
+            AND ` + normalizedRevisionPredicate("current") + `), captured.id)
         LEFT JOIN works w ON w.id=wr.work_id
         LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id`
 	where, args := scopedWhere("r.pipeline_run_id=?", "r.queried_citation_name, ao.citation_name, wr.title, w.doi", runID, query)

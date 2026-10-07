@@ -10,8 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-
-	"analysis/database"
 )
 
 // scopedRowsDefinition defines the safe projection, joins, filters, and sorting for one corpus section.
@@ -32,7 +30,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 			JOIN works w ON w.id=wr.work_id
 			LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
 				AND validation.work_id=wr.work_id AND validation.stage_name='validate'`,
-		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
 		search:      "wr.title, w.doi, wr.journal, wr.publisher, wr.source",
 		uniqueOrder: "wr.id",
 		sortFields: map[string]string{
@@ -44,7 +42,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 		from: `FROM author_occurrences ao
 			JOIN authorships a ON a.author_occurrence_id=ao.id
 			JOIN work_revisions wr ON wr.id=a.work_revision_id`,
-		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
 		groupBy:     "ao.id",
 		search:      "ao.citation_name, ao.first_name, ao.last_name, ao.orcid",
 		uniqueOrder: "ao.id",
@@ -55,7 +53,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 	"references": {
 		columns:     []string{"id", "work_revision_id", "mention_order", "doi", "title", "author", "year", "source", "resolved_work_id", "citing_title", "created_at"},
 		from:        `FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id`,
-		where:       "wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+		where:       "wr.pipeline_run_id=? AND " + normalizedRevisionPredicate("wr"),
 		search:      "rm.doi, rm.title, rm.author, rm.source, wr.title",
 		uniqueOrder: "rm.id",
 		sortFields: map[string]string{

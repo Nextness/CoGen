@@ -259,7 +259,7 @@ func (r *ReviewRepository) firstParentCandidate(ctx context.Context, runID int64
 		(SELECT COUNT(*) FROM review_context_work_heads parent_head
 		 WHERE parent_head.review_context_id=rc.id AND EXISTS (
 		   SELECT 1 FROM work_revisions target_wr
-		   WHERE target_wr.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("target_wr")+`
+		   WHERE target_wr.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("target_wr")+`
 		     AND target_wr.work_id=parent_head.work_id))
 		FROM review_contexts rc
 		JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id
@@ -314,7 +314,7 @@ func (r *ReviewRepository) ListParentCandidates(ctx context.Context, runID int64
 		(SELECT COUNT(*) FROM review_context_work_heads parent_head
 		 WHERE parent_head.review_context_id=rc.id AND EXISTS (
 		   SELECT 1 FROM work_revisions target_wr
-		   WHERE target_wr.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("target_wr")+`
+		   WHERE target_wr.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("target_wr")+`
 		     AND target_wr.work_id=parent_head.work_id))
 		FROM review_contexts rc
 		JOIN pipeline_runs pr ON pr.id=rc.pipeline_run_id
@@ -397,7 +397,7 @@ func (r *ReviewRepository) CreateContext(ctx context.Context, runID int64, paren
 			FROM work_revisions latest
 			LEFT JOIN review_context_work_heads parent
 			  ON parent.review_context_id=? AND parent.work_id=latest.work_id
-			WHERE latest.pipeline_run_id=? AND `+CurrentNormalizedRevisionPredicate("latest"), contextID, nullablePointer(parentContextID), runID)
+			WHERE latest.pipeline_run_id=? AND `+currentNormalizedRevisionPredicate("latest"), contextID, nullablePointer(parentContextID), runID)
 		if err != nil {
 			return fmt.Errorf("initialize review work heads: %w", err)
 		}

@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-
-	"analysis/database"
 )
 
 var evaluationSortFields = runCorpusDefinitions["articles"].sortFields
@@ -90,7 +88,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
 		LEFT JOIN review_context_work_heads review_head ON review_head.review_context_id=? AND review_head.work_id=wr.work_id
 		LEFT JOIN work_review_versions review ON review.id=review_head.review_version_id`
-	clauses := []string{"wr.pipeline_run_id=?", database.CurrentNormalizedRevisionPredicate("wr")}
+	clauses := []string{"wr.pipeline_run_id=?", normalizedRevisionPredicate("wr")}
 	args := []any{contextID, runID}
 	if query != "" {
 		clauses = append(clauses, "(LOWER(COALESCE(wr.title, '')) LIKE ? OR LOWER(COALESCE(w.doi, '')) LIKE ? OR LOWER(COALESCE(wr.journal, '')) LIKE ? OR LOWER(COALESCE(wr.publisher, '')) LIKE ? OR LOWER(COALESCE(wr.source, '')) LIKE ?)")
@@ -281,7 +279,7 @@ func (s *Server) evaluationQueueNavigation(ctx context.Context, runID, currentRe
 	err := s.db.QueryRowContext(ctx, `SELECT `+sortExpression+` FROM work_revisions wr JOIN works w ON w.id=wr.work_id
 		LEFT JOIN run_work_stages validation ON validation.pipeline_run_id=wr.pipeline_run_id
 			AND validation.work_id=wr.work_id AND validation.stage_name='validate'
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
+		WHERE wr.id=? AND wr.pipeline_run_id=? AND `+normalizedRevisionPredicate("wr"), currentRevisionID, runID).Scan(&currentSortValue)
 	if err == sql.ErrNoRows {
 		return nil, notFound("current evaluation revision is not part of the selected run")
 	}
@@ -341,7 +339,7 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 		JOIN works work ON work.id=revision.work_id
 		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision"), availableDOIsJSON, contextID, runID).
+		WHERE revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision"), availableDOIsJSON, contextID, runID).
 		Scan(&total, &reviewed, &unreviewed, &availablePDFs)
 	if err != nil {
 		return nil, err
@@ -349,7 +347,7 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 	baseFrom := `FROM work_revisions revision JOIN works work ON work.id=revision.work_id
 		LEFT JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		LEFT JOIN work_review_versions review ON review.id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND ` + database.CurrentNormalizedRevisionPredicate("revision")
+		WHERE revision.pipeline_run_id=? AND ` + normalizedRevisionPredicate("revision")
 	statusFacets, err := s.rows(ctx, `SELECT COALESCE(review.status, 'not_evaluated') AS value, COUNT(*) AS count `+baseFrom+`
 		GROUP BY COALESCE(review.status, 'not_evaluated') ORDER BY value`, contextID, runID)
 	if err != nil {
@@ -372,7 +370,7 @@ func (s *Server) evaluationReviewSummary(ctx context.Context, runID, contextID i
 		FROM work_revisions revision
 		JOIN review_context_work_heads head ON head.review_context_id=? AND head.work_id=revision.work_id
 		JOIN work_review_version_substatuses sub ON sub.review_version_id=head.review_version_id
-		WHERE revision.pipeline_run_id=? AND `+database.CurrentNormalizedRevisionPredicate("revision")+`
+		WHERE revision.pipeline_run_id=? AND `+normalizedRevisionPredicate("revision")+`
 		GROUP BY sub.sub_status ORDER BY sub.sub_status`, contextID, runID)
 	if err != nil {
 		return nil, err
