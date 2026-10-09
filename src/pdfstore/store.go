@@ -26,7 +26,9 @@ const (
 	StatusAvailable      = "available"
 )
 
-// Store is the writable companion PDF database.
+// Store is one companion PDF database handle bound to an already configured
+// connection. The pipeline opens the writable store through Open; the viewer
+// binds its statement-budgeted read-only connection through New.
 type Store struct {
 	DB  *sql.DB
 	now func() time.Time
@@ -48,6 +50,14 @@ type AddResult struct {
 	Added       bool
 }
 
+// New returns a companion-store handle over an already configured connection.
+// It only binds the store to db; it does not build a SQLite URI, alter
+// pragmas, open or close the connection, load migration configuration, or run
+// migrations.
+func New(db *sql.DB) *Store {
+	return &Store{DB: db, now: time.Now}
+}
+
 // Open creates or opens the PDF store and applies its independent migration
 // chain selected by the database registry.
 func Open(path, registryPath string) (*Store, error) {
@@ -55,7 +65,7 @@ func Open(path, registryPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open PDF store: %w", err)
 	}
-	return &Store{DB: db, now: time.Now}, nil
+	return New(db), nil
 }
 
 // Close releases resources owned by the receiver.

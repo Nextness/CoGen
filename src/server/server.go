@@ -24,10 +24,17 @@ import (
 	"analysis/database"
 	"analysis/database/artifact"
 	"analysis/database/audit"
+	"analysis/database/author"
+	"analysis/database/cache"
+	"analysis/database/review"
+	"analysis/database/run"
+	"analysis/database/search"
+	"analysis/database/source"
 	"analysis/database/work"
 	"analysis/internal/pathpolicy"
 	"analysis/internal/sqliteuri"
 	"analysis/logging"
+	"analysis/pdfstore"
 
 	_ "modernc.org/sqlite"
 )
@@ -68,20 +75,31 @@ var viewPages = map[string]string{
 
 // Server serves one existing workspace database. db remains a query-only
 // connection while writeDB owns bounded local review and lifecycle mutations.
+// Viewer-facing family data-access layers bind to the server's already opened
+// statement-budgeted connections: the metadata layers share db, the companion
+// PDF layer binds pdfDB, and every method receives the handler's context so
+// cancellation and query counting continue through generated calls.
 // AssetsFS is the frontend asset file system served at the web root; it must
 // be set because the binary does not embed frontend assets.
 type Server struct {
-	db         *sql.DB
-	artifact   *artifact.Store
-	auditStore *audit.Store
-	workStore  *work.Store
-	writeDB    *database.Database
-	pdfDB      *sql.DB
-	pdfPath    string
-	pdfCacheMu sync.Mutex
-	pdfCache   *cachedPDF
-	tables     map[string]tableInfo
-	AssetsFS   fs.FS // serves frontend assets from this filesystem
+	db          *sql.DB
+	artifact    *artifact.Store
+	auditStore  *audit.Store
+	workStore   *work.Store
+	searchStore *search.Store
+	runStore    *run.Store
+	sourceStore *source.Store
+	authorStore *author.Store
+	reviewStore *review.Store
+	cacheStore  *cache.Store
+	writeDB     *database.Database
+	pdfDB       *sql.DB
+	pdfStore    *pdfstore.Store
+	pdfPath     string
+	pdfCacheMu  sync.Mutex
+	pdfCache    *cachedPDF
+	tables      map[string]tableInfo
+	AssetsFS    fs.FS // serves frontend assets from this filesystem
 }
 
 // tableInfo stores the discovered columns for one browsable SQLite table.
@@ -150,7 +168,18 @@ func Open(path string) (*Server, error) {
 		db.Close()
 		return nil, fmt.Errorf("read workspace database: %w", err)
 	}
-	s := &Server{db: db, artifact: artifact.New(db), auditStore: audit.New(db), workStore: work.New(db)}
+	s := &Server{
+		db:          db,
+		artifact:    artifact.New(db),
+		auditStore:  audit.New(db),
+		workStore:   work.New(db),
+		searchStore: search.New(db),
+		runStore:    run.New(db),
+		sourceStore: source.New(db),
+		authorStore: author.New(db),
+		reviewStore: review.New(db),
+		cacheStore:  cache.New(db),
+	}
 	if err := s.discoverTables(ctx); err != nil {
 		db.Close()
 		return nil, err
@@ -483,7 +512,7 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 			}
 		}
 	}
-	s.pdfDB, s.pdfPath = pdfDB, resolvedStorePath
+	s.pdfDB, s.pdfStore, s.pdfPath = pdfDB, pdfstore.New(pdfDB), resolvedStorePath
 	return nil
 }
 
