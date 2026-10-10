@@ -8,7 +8,6 @@ import (
 	"analysis/article"
 	"analysis/database"
 	"analysis/database/author"
-	"analysis/database/pdfbinding"
 	dbrun "analysis/database/run"
 	dbsource "analysis/database/source"
 	dbwork "analysis/database/work"
@@ -348,20 +347,13 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	return nil
 }
 
-// normalizedInventoryWork identifies a persisted normalized work for companion PDF registration.
-type normalizedInventoryWork struct {
-	DOI           string
-	WorkID        int64
-	PipelineRunID int64
-}
-
 const normalizedInventoryBatchSize = 100
 
 // syncNormalizedPDFInventory reconciles the companion inventory from the
 // authoritative normalized revisions. It is safe to call after a new run or
 // when a completed execution plan is reused.
 func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error) {
-	bindings := pdfbinding.New(db.DB)
+	bindings := db.PDFBindings
 	storePath, err := bindings.ResolveBinding(ctx, dbPath)
 	if err != nil {
 		return 0, 0, err
@@ -407,30 +399,10 @@ func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPa
 
 // normalizedInventoryBatch reads one bounded, deterministic inventory page and
 // closes the metadata cursor before callers touch the companion database.
-func normalizedInventoryBatch(ctx context.Context, db *database.Database, afterWorkID int64) ([]normalizedInventoryWork, error) {
-	rows, err := db.DB.QueryContext(ctx, `SELECT w.doi, w.id, MIN(wr.pipeline_run_id)
-		FROM works w
-		JOIN work_revisions wr ON wr.work_id=w.id
-		WHERE wr.producer_stage='normalize' AND w.doi IS NOT NULL AND trim(w.doi)<>'' AND w.id > ?
-		GROUP BY w.id, w.doi ORDER BY w.id LIMIT ?`, afterWorkID, normalizedInventoryBatchSize)
+func normalizedInventoryBatch(ctx context.Context, db *database.Database, afterWorkID int64) ([]dbwork.NormalizedInventoryWork, error) {
+	works, err := db.Work.ListNormalizedInventoryBatch(ctx, afterWorkID, normalizedInventoryBatchSize)
 	if err != nil {
 		return nil, fmt.Errorf("read normalized works: %w", err)
-	}
-	works := make([]normalizedInventoryWork, 0, normalizedInventoryBatchSize)
-	for rows.Next() {
-		var work normalizedInventoryWork
-		if err := rows.Scan(&work.DOI, &work.WorkID, &work.PipelineRunID); err != nil {
-			rows.Close()
-			return nil, fmt.Errorf("scan normalized work: %w", err)
-		}
-		works = append(works, work)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return nil, fmt.Errorf("read normalized works: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("close normalized work rows: %w", err)
 	}
 	return works, nil
 }

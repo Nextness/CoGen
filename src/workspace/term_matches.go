@@ -76,25 +76,9 @@ func reconcileStoredTermMatchesBestEffort(ctx context.Context, db *database.Data
 // lacks stored match rows. It reads only stored queries and normalize
 // revisions and never reruns pipeline stages.
 func reconcileStoredTermMatches(ctx context.Context, db *database.Database) error {
-	rows, err := db.DB.Query(`SELECT id FROM pipeline_runs WHERE status='completed' ORDER BY id`)
+	runIDs, err := db.Run.ListCompletedRunIDs(ctx)
 	if err != nil {
 		return fmt.Errorf("list completed runs for term reconciliation: %w", err)
-	}
-	var runIDs []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan completed run for term reconciliation: %w", err)
-		}
-		runIDs = append(runIDs, id)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate completed runs for term reconciliation: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close completed run rows: %w", err)
 	}
 	backfilled := 0
 	for _, runID := range runIDs {

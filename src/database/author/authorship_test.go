@@ -30,7 +30,7 @@ func TestAuthorshipAppendOnlyTriggerUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAuthorship: %v", err)
 	}
-	_, err = db.DB.Exec("UPDATE authorships SET author_order = 99 WHERE id = ?", authorshipID)
+	_, err = db.RawDBForTest().Exec("UPDATE authorships SET author_order = 99 WHERE id = ?", authorshipID)
 	if err == nil {
 		t.Fatal("expected error from append-only trigger on UPDATE")
 	}
@@ -63,7 +63,7 @@ func TestAuthorshipAppendOnlyTriggerDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateAuthorship: %v", err)
 	}
-	_, err = db.DB.Exec("DELETE FROM authorships WHERE id = ?", authorshipID)
+	_, err = db.RawDBForTest().Exec("DELETE FROM authorships WHERE id = ?", authorshipID)
 	if err == nil {
 		t.Fatal("expected error from append-only trigger on DELETE")
 	}
@@ -245,7 +245,7 @@ func TestAuthorshipFkRejectsNonexistentPerson(t *testing.T) {
 	_, db := openFamilyStore(t)
 
 	// Direct INSERT to bypass the repository's auto-linking.
-	if _, err := db.DB.Exec(`INSERT INTO author_occurrences (person_id, citation_name) VALUES (99999, 'Test')`); err == nil {
+	if _, err := db.RawDBForTest().Exec(`INSERT INTO author_occurrences (person_id, citation_name) VALUES (99999, 'Test')`); err == nil {
 		t.Fatal("expected FK error for nonexistent person_id")
 	}
 }

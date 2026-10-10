@@ -87,6 +87,36 @@ func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) (sql.Resul
 	return q.db.ExecContext(ctx, insertRun, arg.Step, arg.StartedAt, arg.SearchQuery)
 }
 
+const listCompletedRunIDs = `-- name: ListCompletedRunIDs :many
+SELECT id
+FROM pipeline_runs
+WHERE status = 'completed'
+ORDER BY id
+`
+
+func (q *Queries) ListCompletedRunIDs(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listCompletedRunIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRunsByPlan = `-- name: ListRunsByPlan :many
 SELECT
     id,

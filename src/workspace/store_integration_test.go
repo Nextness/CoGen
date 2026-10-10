@@ -126,7 +126,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		t.Fatalf("not-available inventory documents = %d, want 2", documents)
 	}
 	var events int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered' AND pipeline_run_id=?", runID).Scan(&events); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered' AND pipeline_run_id=?", runID).Scan(&events); err != nil {
 		t.Fatal(err)
 	}
 	if events != 2 {

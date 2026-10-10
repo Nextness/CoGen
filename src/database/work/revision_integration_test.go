@@ -136,10 +136,10 @@ func TestStoreRevisionsAreAppendOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE work_revisions SET title='changed' WHERE id=?", revisionID); err == nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE work_revisions SET title='changed' WHERE id=?", revisionID); err == nil {
 		t.Fatal("expected an update to be rejected by the append-only trigger")
 	}
-	if _, err := db.DB.Exec("DELETE FROM work_revisions WHERE id=?", revisionID); err == nil {
+	if _, err := db.RawDBForTest().Exec("DELETE FROM work_revisions WHERE id=?", revisionID); err == nil {
 		t.Fatal("expected a delete to be rejected by the append-only trigger")
 	}
 	stored, err := store.GetRevisionByID(ctx, revisionID)

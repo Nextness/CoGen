@@ -56,7 +56,7 @@ func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
 		strings.Repeat("€", advancedCellBytes/3+1),
 		strings.Repeat("😀", advancedCellBytes/4+1),
 	} {
-		result, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", value)
+		result, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", value)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -200,10 +200,10 @@ func TestIntrospectionProjectionLimitOmitsWideColumns(t *testing.T) {
 		columns = append(columns, fmt.Sprintf("column_%02d TEXT", index))
 	}
 	columns = append(columns, "id INTEGER PRIMARY KEY")
-	if _, err := db.DB.Exec("CREATE TABLE wide_evidence (" + strings.Join(columns, ", ") + ")"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TABLE wide_evidence (" + strings.Join(columns, ", ") + ")"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO wide_evidence (column_01, column_40) VALUES ('first', 'last')"); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO wide_evidence (column_01, column_40) VALUES ('first', 'last')"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -248,12 +248,12 @@ func TestIntrospectionResponseByteBudgetOmitsExcessValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("CREATE TABLE large_evidence (id INTEGER PRIMARY KEY, alpha TEXT, beta TEXT, gamma TEXT)"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TABLE large_evidence (id INTEGER PRIMARY KEY, alpha TEXT, beta TEXT, gamma TEXT)"); err != nil {
 		t.Fatal(err)
 	}
 	value := strings.Repeat("x", advancedCellBytes)
 	for index := 0; index < 100; index++ {
-		if _, err := db.DB.Exec("INSERT INTO large_evidence (alpha, beta, gamma) VALUES (?, ?, ?)", value, value, value); err != nil {
+		if _, err := db.RawDBForTest().Exec("INSERT INTO large_evidence (alpha, beta, gamma) VALUES (?, ?, ?)", value, value, value); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -366,10 +366,10 @@ func TestIntrospectionQuotesDiscoveredIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec(`CREATE TABLE "weird""table" ("weird""column" TEXT, id INTEGER PRIMARY KEY)`); err != nil {
+	if _, err := db.RawDBForTest().Exec(`CREATE TABLE "weird""table" ("weird""column" TEXT, id INTEGER PRIMARY KEY)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec(`INSERT INTO "weird""table" ("weird""column") VALUES ('quoted value')`); err != nil {
+	if _, err := db.RawDBForTest().Exec(`INSERT INTO "weird""table" ("weird""column") VALUES ('quoted value')`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

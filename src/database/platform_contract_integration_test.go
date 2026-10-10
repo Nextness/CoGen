@@ -70,14 +70,14 @@ func TestOpenExistingConnectionContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.DB.Exec("INSERT INTO searches (search_id) VALUES ('contract')"); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO searches (search_id) VALUES ('contract')"); err != nil {
 		t.Fatalf("existing-only connection rejected a write: %v", err)
 	}
 	var foreignKeys, busyTimeout int
-	if err := db.DB.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+	if err := db.RawDBForTest().QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+	if err := db.RawDBForTest().QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
 		t.Fatal(err)
 	}
 	if foreignKeys != 1 || busyTimeout != 5000 {
@@ -187,7 +187,7 @@ func TestConcurrentOpenAppliesMigrationsOnce(t *testing.T) {
 	}
 	defer metadata.Close()
 	var applied int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&applied); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&applied); err != nil {
 		t.Fatal(err)
 	}
 	entries := metadataMigrationEntries(t)

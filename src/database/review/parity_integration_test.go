@@ -29,7 +29,7 @@ func TestReviewFamilyParityWithLegacyAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 	a1Run, a2Run, _, a1Revision, a2Revision := createReviewLineageFixture(t, fixture)
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -161,7 +161,7 @@ func TestReviewFamilyParityWithLegacyAdapter(t *testing.T) {
 	}
 
 	for _, query := range reviewParityQueries() {
-		assertReviewQueryParity(t, legacy.DB, family.DB, query)
+		assertReviewQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(), query)
 	}
 	legacyRead, err := legacy.Reviews.GetWorkReview(ctx, legacyChild.ID, a2Revision)
 	if err != nil {

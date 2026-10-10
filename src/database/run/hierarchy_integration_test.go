@@ -34,7 +34,7 @@ func TestStoreHierarchyAttemptsFilterOrderAndLookahead(t *testing.T) {
 	if err := db.PipelineRuns.FinishRun(secondRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='test' WHERE id=?", firstRun); err != nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='test' WHERE id=?", firstRun); err != nil {
 		t.Fatal(err)
 	}
 
@@ -104,7 +104,7 @@ func TestStoreHierarchyRunsVisibilityStatusAndAncestry(t *testing.T) {
 	if err := db.PipelineRuns.FinishRun(trashedRun, "failed", "failed"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now') WHERE id=?", trashedRun); err != nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now') WHERE id=?", trashedRun); err != nil {
 		t.Fatal(err)
 	}
 	unplannedRun, err := db.PipelineRuns.StartRun("legacy", "query")
@@ -187,7 +187,7 @@ func TestStoreListLegacyRunsFiltersAndIncludesTrashed(t *testing.T) {
 	if _, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='legacy' WHERE id=?", firstRun); err != nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='legacy' WHERE id=?", firstRun); err != nil {
 		t.Fatal(err)
 	}
 

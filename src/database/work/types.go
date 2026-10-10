@@ -46,6 +46,15 @@ type Revision struct {
 	CreatedAt          string `json:"created_at"`
 }
 
+// NormalizedInventoryWork identifies one normalized work for companion PDF
+// registration: its normalized DOI, stable work ID, and the earliest pipeline
+// run that produced a normalize revision for it.
+type NormalizedInventoryWork struct {
+	DOI           string `json:"doi"`
+	WorkID        int64  `json:"work_id"`
+	PipelineRunID int64  `json:"pipeline_run_id"`
+}
+
 // StageOutcome records what happened to one work at one pipeline stage within
 // a single pipeline run. The (pipeline_run_id, work_id, stage_name) triplet is
 // unique so the same stage cannot report two different outcomes for the same

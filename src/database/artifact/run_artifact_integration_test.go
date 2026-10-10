@@ -38,7 +38,7 @@ func TestStoreLinkIsRoleScopedAndImmutable(t *testing.T) {
 	}
 
 	var linkedID int64
-	if err := db.DB.QueryRowContext(ctx,
+	if err := db.RawDBForTest().QueryRowContext(ctx,
 		"SELECT artifact_id FROM run_artifacts WHERE pipeline_run_id=? AND artifact_role=?",
 		runID, artifact.RunArtifactWorkspaceConfig,
 	).Scan(&linkedID); err != nil {
@@ -71,7 +71,7 @@ func TestStoreListRunArtifactEvidenceFiltersPagesAndFocuses(t *testing.T) {
 	if err := store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: configID, Role: artifact.RunArtifactWorkspaceConfig}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, input_artifact_id, output_artifact_id) VALUES (?, 'preflight', 'completed', ?, ?)", runID, configID, unlinkedID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, input_artifact_id, output_artifact_id) VALUES (?, 'preflight', 'completed', ?, ?)", runID, configID, unlinkedID); err != nil {
 		t.Fatal(err)
 	}
 

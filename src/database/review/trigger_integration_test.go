@@ -52,10 +52,10 @@ func TestReviewAppendOnlyTablesRejectUpdatesAndDeletes(t *testing.T) {
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := db.DB.Exec(test.update, test.args...); err == nil || !strings.Contains(err.Error(), "append-only") {
+			if _, err := db.RawDBForTest().Exec(test.update, test.args...); err == nil || !strings.Contains(err.Error(), "append-only") {
 				t.Fatalf("update error=%v, want append-only rejection", err)
 			}
-			if _, err := db.DB.Exec(test.delete, test.args...); err == nil || !strings.Contains(err.Error(), "append-only") {
+			if _, err := db.RawDBForTest().Exec(test.delete, test.args...); err == nil || !strings.Contains(err.Error(), "append-only") {
 				t.Fatalf("delete error=%v, want append-only rejection", err)
 			}
 		})

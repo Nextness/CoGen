@@ -11,7 +11,6 @@ import (
 	"os"
 
 	"analysis/database"
-	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 )
 
@@ -81,7 +80,7 @@ func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
 		return fmt.Errorf("DOI %q does not belong to the metadata corpus", database.NormalizeDOI(doi))
 	}
 	ctx := context.Background()
-	bindings := pdfbinding.New(metadata.DB)
+	bindings := metadata.PDFBindings
 	storePath, err := bindings.ResolveBinding(ctx, metadataPath)
 	if err != nil {
 		return err

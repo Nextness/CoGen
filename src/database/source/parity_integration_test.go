@@ -44,7 +44,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := fixture.SourceFilterCounts.SetFilterData(runID, "scopus", `[{"filters":["open access"],"count":2}]`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -66,7 +66,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := source.New(family.DB)
+	store := source.New(family.RawDBForTest())
 
 	// Read parity for sources, records, counts, and filter counts.
 	legacySources, err := legacy.RunSources.ListByRun(runID)
@@ -147,7 +147,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewSource != familyNewSource {
 		t.Fatalf("CreateSource ID parity: legacy=%d family=%d", legacyNewSource, familyNewSource)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, pipeline_run_id, source_name, source_type, expected_file, query, requested_fields, expected_result_count, observed_result_count, result_count_comparison, export_date FROM run_sources WHERE id=?",
 		legacyNewSource)
 
@@ -157,7 +157,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.SetObservedResultCount(ctx, source.ObservedResultCountInput{RunSourceID: familyNewSource, ObservedResultCount: 3, Comparison: "above"}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT observed_result_count, result_count_comparison FROM run_sources WHERE id=?", legacyNewSource)
 
 	// Record write parity.
@@ -180,7 +180,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.UpdateRecordStatus(ctx, source.RecordStatusInput{RecordID: familyNewRecord, Status: "rejected", RejectReason: "empty title"}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, run_source_id, record_index, raw_payload, content_hash, parse_status, reject_reason FROM source_records WHERE id=?",
 		legacyNewRecord)
 
@@ -191,7 +191,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.SetFilterData(ctx, source.FilterCountInput{RunID: runID, SourceName: "ieee", FilterData: `[{"filters":[],"count":2}]`}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, source_name, filter_data FROM source_filter_counts WHERE pipeline_run_id=? ORDER BY source_name", runID)
 
 	// Error parity for uniqueness and invalid comparison values.

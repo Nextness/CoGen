@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	"analysis/database"
-	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 	"analysis/searchterms"
 )
@@ -54,7 +53,7 @@ func TestGenerateFixture(t *testing.T) {
 	}
 
 	exec := func(query string, args ...any) {
-		if _, err := db.DB.Exec(query, args...); err != nil {
+		if _, err := db.RawDBForTest().Exec(query, args...); err != nil {
 			t.Fatalf("exec %q: %v", query[:min(len(query), 80)], err)
 		}
 	}
@@ -483,7 +482,7 @@ func TestGenerateFixture(t *testing.T) {
 
 	// 19. Bound normalized PDF inventory and mirrored audit evidence
 	ctx := context.Background()
-	bindings := pdfbinding.New(db.DB)
+	bindings := db.PDFBindings
 	if err := bindings.EnsureBinding(ctx, "workspace.fixture.pdf.db"); err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +491,7 @@ func TestGenerateFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rows, err := db.DB.Query(`SELECT w.doi, w.id, wr.pipeline_run_id
+	rows, err := db.RawDBForTest().Query(`SELECT w.doi, w.id, wr.pipeline_run_id
 		FROM works w JOIN work_revisions wr ON wr.work_id=w.id
 		WHERE wr.producer_stage='normalize' ORDER BY w.id`)
 	if err != nil {
@@ -539,13 +538,13 @@ func TestGenerateFixture(t *testing.T) {
 	}
 
 	// Normalize migration and default timestamps so browser output does not depend on fixture generation time.
-	normalizeFixtureTimestamps(t, db.DB)
-	if _, err := db.DB.Exec(sprintf("PRAGMA user_version=%d", viewerFixtureContractVersion)); err != nil {
+	normalizeFixtureTimestamps(t, db.RawDBForTest())
+	if _, err := db.RawDBForTest().Exec(sprintf("PRAGMA user_version=%d", viewerFixtureContractVersion)); err != nil {
 		t.Fatalf("set metadata fixture contract version: %v", err)
 	}
 
 	// Checkpoint WAL and close
-	if _, err := db.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := db.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatalf("wal checkpoint: %v", err)
 	}
 	if err := db.Close(); err != nil {
@@ -646,7 +645,7 @@ func validFixtureIdentifier(value string) bool {
 // TermMatches code paths the pipeline uses.
 func populateFixtureTermMatches(t *testing.T, db *database.Database, runID int64) {
 	t.Helper()
-	rows, err := db.DB.Query(`SELECT source_name, query FROM run_sources
+	rows, err := db.RawDBForTest().Query(`SELECT source_name, query FROM run_sources
 		WHERE pipeline_run_id=? AND query IS NOT NULL AND trim(query)<>'' ORDER BY id`, runID)
 	if err != nil {
 		t.Fatal(err)
@@ -670,7 +669,7 @@ func populateFixtureTermMatches(t *testing.T, db *database.Database, runID int64
 			termsBySource[source] = append(termsBySource[source], term.Text)
 		}
 	}
-	revRows, err := db.DB.Query(`SELECT id, title, abstract, keywords, keywords_plus
+	revRows, err := db.RawDBForTest().Query(`SELECT id, title, abstract, keywords, keywords_plus
 		FROM work_revisions WHERE pipeline_run_id=? AND producer_stage='normalize' ORDER BY id`, runID)
 	if err != nil {
 		t.Fatal(err)

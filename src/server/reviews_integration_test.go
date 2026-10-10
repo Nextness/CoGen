@@ -278,18 +278,18 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 
 	var planID int64
-	if err := fixture.server.writeDB.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.runID).Scan(&planID); err != nil {
+	if err := fixture.server.writeDB.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.runID).Scan(&planID); err != nil {
 		t.Fatal(err)
 	}
 	for index := 0; index < 101; index++ {
-		result, err := fixture.server.writeDB.DB.Exec(`INSERT INTO pipeline_runs
+		result, err := fixture.server.writeDB.RawDBForTest().Exec(`INSERT INTO pipeline_runs
 			(step, started_at, finished_at, status, execution_plan_id, attempt_number)
 			VALUES ('review', '2020-01-01T00:00:00Z', '2020-01-01T00:01:00Z', 'completed', ?, ?)`, planID, 1000+index)
 		if err != nil {
 			t.Fatal(err)
 		}
 		runID, _ := result.LastInsertId()
-		if _, err := fixture.server.writeDB.DB.Exec("INSERT INTO review_contexts (pipeline_run_id, created_at) VALUES (?, '2020-01-01T00:02:00Z')", runID); err != nil {
+		if _, err := fixture.server.writeDB.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id, created_at) VALUES (?, '2020-01-01T00:02:00Z')", runID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -431,7 +431,7 @@ func TestReviewHistoryRemainsReadableAfterTrash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now') WHERE id=?", fixture.runID); err != nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now') WHERE id=?", fixture.runID); err != nil {
 		db.Close()
 		t.Fatal(err)
 	}

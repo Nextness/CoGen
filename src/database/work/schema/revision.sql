@@ -131,6 +131,21 @@ WHERE pipeline_run_id = sqlc.arg(pipeline_run_id)
   AND producer_stage = 'normalize'
 ORDER BY id;
 
+-- name: ListNormalizedInventoryBatch :many
+SELECT
+    w.doi,
+    w.id AS work_id,
+    CAST(MIN(wr.pipeline_run_id) AS INTEGER) AS pipeline_run_id
+FROM works w
+JOIN work_revisions wr ON wr.work_id = w.id
+WHERE wr.producer_stage = 'normalize'
+  AND w.doi IS NOT NULL
+  AND trim(w.doi) <> ''
+  AND w.id > sqlc.arg(after_work_id)
+GROUP BY w.id, w.doi
+ORDER BY w.id
+LIMIT sqlc.arg(row_limit);
+
 -- name: CountWorkRevisionsByWorkID :one
 SELECT COUNT(*) FROM work_revisions WHERE work_id = sqlc.arg(work_id);
 

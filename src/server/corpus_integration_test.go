@@ -52,7 +52,7 @@ func TestRunScopedCorpusAndStages(t *testing.T) {
 	if articles.Code != http.StatusOK || !strings.Contains(articles.Body.String(), "Article One") || strings.Contains(articles.Body.String(), "Other Run Article") || strings.Contains(articles.Body.String(), "Article Two") {
 		t.Fatalf("analysis-ready corpus included a non-normalized/other-run article: status=%d body=%s", articles.Code, articles.Body.String())
 	}
-	if _, err := viewer.writeDB.DB.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, started_at, finished_at) VALUES (?, 'subsecond', 'completed', '2026-08-22T00:00:00.100000Z', '2026-08-22T00:00:00.350000Z')", runID); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, started_at, finished_at) VALUES (?, 'subsecond', 'completed', '2026-08-22T00:00:00.100000Z', '2026-08-22T00:00:00.350000Z')", runID); err != nil {
 		t.Fatal(err)
 	}
 	stages := viewerRequest(t, handler, base+"/stages?page=1&per_page=20&sort=id&order=asc")
@@ -76,7 +76,7 @@ func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 	}
 	defer viewer.Close()
 	for index := 0; index < 41; index++ {
-		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/tied-"+stringID(int64(index)))
+		work, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO works (doi) VALUES (?)", "10.1/tied-"+stringID(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -84,12 +84,12 @@ func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := viewer.writeDB.DB.Exec(`INSERT INTO work_revisions
+		if _, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO work_revisions
 			(work_id, pipeline_run_id, payload_hash, title, producer_stage)
 			VALUES (?, ?, ?, 'Tied title', 'normalize')`, workID, runID, "tied-"+stringID(int64(index))); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := viewer.writeDB.DB.Exec(`INSERT INTO run_work_stages
+		if _, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO run_work_stages
 			(pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')`, runID, workID); err != nil {
 			t.Fatal(err)
 		}

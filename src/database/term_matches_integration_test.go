@@ -37,14 +37,14 @@ func TestTermMatchesReplaceRunTermDataIdempotent(t *testing.T) {
 	}
 
 	var termRows int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM run_search_terms WHERE pipeline_run_id=?", runID).Scan(&termRows); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM run_search_terms WHERE pipeline_run_id=?", runID).Scan(&termRows); err != nil {
 		t.Fatal(err)
 	}
 	if termRows != 3 {
 		t.Fatalf("run_search_terms rows = %d, want 3", termRows)
 	}
 	var matchRows int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id=?", runID).Scan(&matchRows); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id=?", runID).Scan(&matchRows); err != nil {
 		t.Fatal(err)
 	}
 	if matchRows != 2 {
@@ -238,7 +238,7 @@ func TestTermMatchesHasRunTermDataDistinguishesAnEmptyCompletedResult(t *testing
 func TestTermMatchesSchemaConstraints(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
-	if _, err := db.DB.Exec("INSERT INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (999, 'scopus', 'x')"); err == nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (999, 'scopus', 'x')"); err == nil {
 		t.Fatal("expected foreign key failure for missing run")
 	}
 	runID, err := db.PipelineRuns.StartRun("term matches constraints", "")
@@ -255,10 +255,10 @@ func TestTermMatchesSchemaConstraints(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, 'bogus', 'x')", runID, revisionID); err == nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, 'bogus', 'x')", runID, revisionID); err == nil {
 		t.Fatal("expected CHECK failure for invalid field")
 	}
-	if _, err := db.DB.Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, 999, 'title', 'x')", runID); err == nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, 999, 'title', 'x')", runID); err == nil {
 		t.Fatal("expected foreign key failure for missing revision")
 	}
 }

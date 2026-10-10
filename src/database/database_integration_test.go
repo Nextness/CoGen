@@ -183,7 +183,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// 3. Verify foreign keys with real SQLite
-	fkViolations, err := db.DB.Query("PRAGMA foreign_key_check")
+	fkViolations, err := db.RawDBForTest().Query("PRAGMA foreign_key_check")
 	if err != nil {
 		t.Fatalf("PRAGMA foreign_key_check query failed: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	for _, name := range expectedIndexes {
 		var count int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?", name,
 		).Scan(&count)
 		if err != nil {
@@ -240,7 +240,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	for _, name := range expectedTriggers {
 		var count int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?", name,
 		).Scan(&count)
 		if err != nil {

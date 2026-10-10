@@ -29,7 +29,7 @@ func openFamilyStore(t *testing.T) (*search.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return search.New(db.DB), db
+	return search.New(db.RawDBForTest()), db
 }
 
 // TestStoreFindOrCreateSearchIsIdempotent verifies repeated creation returns one stable ID and distinct identifiers stay independent.
@@ -141,7 +141,7 @@ func TestStoreFindOrCreateSearchSerializesConcurrentInserts(t *testing.T) {
 		}
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM searches WHERE search_id='concurrent-search'").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM searches WHERE search_id='concurrent-search'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {

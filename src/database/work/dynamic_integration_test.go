@@ -27,14 +27,14 @@ func TestStoreCorpusBuildersConstrainDynamicInputs(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.db.DB.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", `x' OR '1'='1`); err != nil {
+	if _, err := fixture.db.RawDBForTest().Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", `x' OR '1'='1`); err != nil {
 		t.Fatal(err)
 	}
 	var injectedAuthorID int64
-	if err := fixture.db.DB.QueryRow("SELECT id FROM author_occurrences WHERE citation_name=?", `x' OR '1'='1`).Scan(&injectedAuthorID); err != nil {
+	if err := fixture.db.RawDBForTest().QueryRow("SELECT id FROM author_occurrences WHERE citation_name=?", `x' OR '1'='1`).Scan(&injectedAuthorID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.db.DB.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 3)", fixture.normalizeRevisionID, injectedAuthorID); err != nil {
+	if _, err := fixture.db.RawDBForTest().Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 3)", fixture.normalizeRevisionID, injectedAuthorID); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.store.SetStageOutcome(ctx, work.StageOutcomeInput{

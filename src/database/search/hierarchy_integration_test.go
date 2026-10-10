@@ -182,7 +182,7 @@ func TestStoreListHierarchySectionsFilterOrderAndPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO pipeline_runs (step, started_at, status, execution_plan_id, attempt_number) VALUES ('workspace', datetime('now'), 'completed', ?, 1)", alphaPlan); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO pipeline_runs (step, started_at, status, execution_plan_id, attempt_number) VALUES ('workspace', datetime('now'), 'completed', ?, 1)", alphaPlan); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := db.Revisions.Create(gamma, "gamma-r1", "config-g", "manifest-g"); err != nil {

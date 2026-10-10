@@ -63,17 +63,17 @@ func TestAPIGraphFiltersAndTruncation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := db.DB.Exec("INSERT INTO works (doi) VALUES ('10.1/graph-truncation')")
+	result, err := db.RawDBForTest().Exec("INSERT INTO works (doi) VALUES ('10.1/graph-truncation')")
 	if err != nil {
 		db.Close()
 		t.Fatal(err)
 	}
 	workID, _ := result.LastInsertId()
-	if _, err := db.DB.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, source, producer_stage) VALUES (?, ?, 'graph-truncation', 'Article Three', 2022, 'scopus', 'normalize')", workID, runID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, year, source, producer_stage) VALUES (?, ?, 'graph-truncation', 'Article Three', 2022, 'scopus', 'normalize')", workID, runID); err != nil {
 		db.Close()
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", runID, workID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", runID, workID); err != nil {
 		db.Close()
 		t.Fatal(err)
 	}
@@ -196,12 +196,12 @@ func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.
 
 	createArticle := func(doi, hash, title string) (int64, int64) {
 		t.Helper()
-		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", doi)
+		work, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO works (doi) VALUES (?)", doi)
 		if err != nil {
 			t.Fatal(err)
 		}
 		workID, _ := work.LastInsertId()
-		revision, err := viewer.writeDB.DB.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage) VALUES (?, ?, ?, ?, 'normalize')", workID, runID, hash, title)
+		revision, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage) VALUES (?, ?, ?, ?, 'normalize')", workID, runID, hash, title)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -211,16 +211,16 @@ func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.
 	sourceWorkID, sourceRevisionID := createArticle("10.1/graph-source", "graph-source", "Graph source")
 	targetWorkID, targetRevisionID := createArticle("10.1/graph-target", "graph-target", "Graph target")
 	for index := 0; index < 3; index++ {
-		work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/graph-external-"+stringID(int64(index)))
+		work, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO works (doi) VALUES (?)", "10.1/graph-external-"+stringID(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		externalWorkID, _ := work.LastInsertId()
-		if _, err := viewer.writeDB.DB.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, ?)", sourceRevisionID, externalWorkID, index+1); err != nil {
+		if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, ?)", sourceRevisionID, externalWorkID, index+1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := viewer.writeDB.DB.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, 4)", sourceRevisionID, targetWorkID); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, 4)", sourceRevisionID, targetWorkID); err != nil {
 		t.Fatal(err)
 	}
 	articles := []map[string]any{

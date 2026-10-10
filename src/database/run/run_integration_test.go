@@ -31,7 +31,7 @@ func openFamilyStore(t *testing.T) (*run.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return run.New(db.DB), db
+	return run.New(db.RawDBForTest()), db
 }
 
 // createTestPlan creates one search, revision, and execution plan and returns the plan ID.
@@ -407,7 +407,7 @@ func TestStoreRecoverAbandonedFailsRunAndStepsWithAudit(t *testing.T) {
 	}
 
 	var actor, entityType, entityID, action, metadataJSON, correlationID string
-	if err := db.DB.QueryRow(`SELECT actor, entity_type, entity_id, action, metadata_json, correlation_id
+	if err := db.RawDBForTest().QueryRow(`SELECT actor, entity_type, entity_id, action, metadata_json, correlation_id
 		FROM audit_events WHERE pipeline_run_id=? ORDER BY id DESC LIMIT 1`, runID).Scan(
 		&actor, &entityType, &entityID, &action, &metadataJSON, &correlationID); err != nil {
 		t.Fatal(err)
@@ -423,7 +423,7 @@ func TestStoreRecoverAbandonedFailsRunAndStepsWithAudit(t *testing.T) {
 		t.Fatal("second recovery of a terminal attempt was accepted")
 	}
 	var auditCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
 		t.Fatal(err)
 	}
 	if auditCount != 1 {
@@ -452,11 +452,11 @@ func TestStoreRecoverAbandonedRollsBackWhenAuditFails(t *testing.T) {
 	if err := store.UpdateStepStatus(ctx, stepID, "running"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec(`CREATE TRIGGER recovery_audit_abort BEFORE INSERT ON audit_events
+	if _, err := db.RawDBForTest().Exec(`CREATE TRIGGER recovery_audit_abort BEFORE INSERT ON audit_events
 		WHEN NEW.action='run_failed' BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END`); err != nil {
 		t.Fatal(err)
 	}
-	defer db.DB.Exec("DROP TRIGGER IF EXISTS recovery_audit_abort")
+	defer db.RawDBForTest().Exec("DROP TRIGGER IF EXISTS recovery_audit_abort")
 
 	if err := store.RecoverAbandoned(ctx, runID); err == nil || !strings.Contains(err.Error(), "audit unavailable") {
 		t.Fatalf("recovery error = %v, want injected audit failure", err)
@@ -470,14 +470,14 @@ func TestStoreRecoverAbandonedRollsBackWhenAuditFails(t *testing.T) {
 	}
 	var stepStatus string
 	var stepFinished sql.NullString
-	if err := db.DB.QueryRow("SELECT step_status, finished_at FROM run_steps WHERE id=?", stepID).Scan(&stepStatus, &stepFinished); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT step_status, finished_at FROM run_steps WHERE id=?", stepID).Scan(&stepStatus, &stepFinished); err != nil {
 		t.Fatal(err)
 	}
 	if stepStatus != "running" || stepFinished.Valid {
 		t.Fatalf("step mutated despite audit failure: status=%q finished=%v", stepStatus, stepFinished)
 	}
 	var auditCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
 		t.Fatal(err)
 	}
 	if auditCount != 0 {

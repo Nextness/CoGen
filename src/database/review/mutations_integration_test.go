@@ -41,7 +41,7 @@ func newReviewMutationFixture(t *testing.T) *reviewMutationFixture {
 	ctx := context.Background()
 	exec := func(query string, args ...any) int64 {
 		t.Helper()
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture query %q: %v", query, err)
 		}
@@ -76,7 +76,7 @@ func newReviewMutationFixture(t *testing.T) *reviewMutationFixture {
 func reviewCount(t *testing.T, db *database.Database, query string, args ...any) int {
 	t.Helper()
 	var count int
-	if err := db.DB.QueryRow(query, args...).Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow(query, args...).Scan(&count); err != nil {
 		t.Fatalf("count query %q: %v", query, err)
 	}
 	return count
@@ -121,7 +121,7 @@ func TestReviewDecisionMutationCommitsAtomically(t *testing.T) {
 func TestReviewDecisionMutationRollsBackOnChildFailure(t *testing.T) {
 	fixture := newReviewMutationFixture(t)
 	ctx := context.Background()
-	if _, err := fixture.db.DB.Exec(`CREATE TRIGGER mutation_fail_substatus BEFORE INSERT ON work_review_version_substatuses
+	if _, err := fixture.db.RawDBForTest().Exec(`CREATE TRIGGER mutation_fail_substatus BEFORE INSERT ON work_review_version_substatuses
 		BEGIN SELECT RAISE(ABORT, 'injected substatus failure'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestReviewNoteMutationRollsBackOnLinkFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	auditsBefore := reviewAuditCount(t, fixture.db, "review_note_created") + reviewAuditCount(t, fixture.db, "review_note_version_created")
-	if _, err := fixture.db.DB.Exec(`CREATE TRIGGER mutation_fail_note_link BEFORE INSERT ON review_note_links
+	if _, err := fixture.db.RawDBForTest().Exec(`CREATE TRIGGER mutation_fail_note_link BEFORE INSERT ON review_note_links
 		BEGIN SELECT RAISE(ABORT, 'injected link failure'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +283,7 @@ func TestReviewAnchorMutationCommitsAtomically(t *testing.T) {
 func TestReviewAnchorMutationRollsBackOnVersionFailure(t *testing.T) {
 	fixture := newReviewMutationFixture(t)
 	ctx := context.Background()
-	if _, err := fixture.db.DB.Exec(`CREATE TRIGGER mutation_fail_anchor_version BEFORE INSERT ON review_anchor_versions
+	if _, err := fixture.db.RawDBForTest().Exec(`CREATE TRIGGER mutation_fail_anchor_version BEFORE INSERT ON review_anchor_versions
 		BEGIN SELECT RAISE(ABORT, 'injected anchor version failure'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestReviewAnchorVersionRollsBackOnHeadFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.db.DB.Exec(`CREATE TRIGGER mutation_fail_anchor_head BEFORE UPDATE ON review_context_anchor_heads
+	if _, err := fixture.db.RawDBForTest().Exec(`CREATE TRIGGER mutation_fail_anchor_head BEFORE UPDATE ON review_context_anchor_heads
 		BEGIN SELECT RAISE(ABORT, 'injected anchor head failure'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestReviewContextMutationCommitsWithInheritedHeads(t *testing.T) {
 func TestReviewContextMutationRollsBackOnWorkHeadFailure(t *testing.T) {
 	fixture := newReviewMutationFixture(t)
 	ctx := context.Background()
-	if _, err := fixture.db.DB.Exec(`CREATE TRIGGER mutation_fail_context_work_heads BEFORE INSERT ON review_context_work_heads
+	if _, err := fixture.db.RawDBForTest().Exec(`CREATE TRIGGER mutation_fail_context_work_heads BEFORE INSERT ON review_context_work_heads
 		BEGIN SELECT RAISE(ABORT, 'injected work head failure'); END`); err != nil {
 		t.Fatal(err)
 	}

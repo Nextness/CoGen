@@ -191,10 +191,10 @@ func TestStoreReferencesAreAppendOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("UPDATE reference_mentions SET raw_reference='changed' WHERE id=?", id); err == nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE reference_mentions SET raw_reference='changed' WHERE id=?", id); err == nil {
 		t.Fatal("expected an update to be rejected by the append-only trigger")
 	}
-	if _, err := db.DB.Exec("DELETE FROM reference_mentions WHERE id=?", id); err == nil {
+	if _, err := db.RawDBForTest().Exec("DELETE FROM reference_mentions WHERE id=?", id); err == nil {
 		t.Fatal("expected a delete to be rejected by the append-only trigger")
 	}
 }

@@ -1,5 +1,7 @@
 // helpers_test.go provides shared test fixtures and request helpers
 // used by the viewer integration tests.
+//go:build integration
+
 package server
 
 import (
@@ -15,7 +17,6 @@ import (
 	"testing"
 
 	"analysis/database"
-	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 )
 
@@ -106,7 +107,7 @@ func viewerFixture(t *testing.T) (string, int64, int64, int64) {
 		t.Fatal(err)
 	}
 	exec := func(query string, args ...any) sql.Result {
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture exec %q: %v", query, err)
 		}
@@ -318,7 +319,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	insertAudit := func(runID any, entityType string, entityID int64, action, metadata, correlationID string) {
 		t.Helper()
-		if _, err := db.DB.Exec(`INSERT INTO audit_events
+		if _, err := db.RawDBForTest().Exec(`INSERT INTO audit_events
 			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
 			VALUES (datetime('now'), 'fixture', ?, ?, ?, ?, ?, ?)`,
 			runID, entityType, stringID(entityID), action, metadata, correlationID); err != nil {
@@ -469,7 +470,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
-	bindings := pdfbinding.New(metadata.DB)
+	bindings := metadata.PDFBindings
 	if err := bindings.EnsureBinding(ctx, "corpus.pdf.db"); err != nil {
 		t.Fatal(err)
 	}

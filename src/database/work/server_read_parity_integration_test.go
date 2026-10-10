@@ -35,7 +35,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	// Normalized revision parity: the former article detail query.
 	var legacyRevisionID, legacyWorkID int64
 	var legacyTitle, legacyDOI string
-	if err := fixture.db.DB.QueryRowContext(ctx, `SELECT wr.id, wr.work_id, wr.title, w.doi
+	if err := fixture.db.RawDBForTest().QueryRowContext(ctx, `SELECT wr.id, wr.work_id, wr.title, w.doi
 		FROM work_revisions wr JOIN works w ON w.id=wr.work_id
 		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+legacyNormalizedPredicate+`))`,
 		fixture.normalizeRevisionID, fixture.runID).Scan(&legacyRevisionID, &legacyWorkID, &legacyTitle, &legacyDOI); err != nil {
@@ -50,7 +50,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	}
 
 	// Ordered author parity: the former article author collection query.
-	legacyAuthors := queryRowValues(t, fixture.db.DB, `SELECT ao.id, ao.person_id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, a.author_order, a.affiliation
+	legacyAuthors := queryRowValues(t, fixture.db.RawDBForTest(), `SELECT ao.id, ao.person_id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, a.author_order, a.affiliation
 		FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
 		WHERE a.work_revision_id=? ORDER BY a.id`, fixture.normalizeRevisionID)
 	authorPage, err := fixture.store.ListArticleAuthors(ctx, work.ArticleAuthorPageInput{RevisionID: fixture.normalizeRevisionID, Limit: 10})
@@ -70,7 +70,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	}
 
 	// Reference parity: the former article reference collection query.
-	legacyReferences := queryRowValues(t, fixture.db.DB, `SELECT rm.id, rm.work_revision_id, rm.resolved_work_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.created_at,
+	legacyReferences := queryRowValues(t, fixture.db.RawDBForTest(), `SELECT rm.id, rm.work_revision_id, rm.resolved_work_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.created_at,
 			target.id AS resolved_revision_id, target.title AS resolved_title
 		FROM reference_mentions rm JOIN work_revisions source ON source.id=rm.work_revision_id
 		LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
@@ -103,7 +103,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	}
 
 	// Graph article parity: the former graph article query.
-	legacyGraphArticles := queryRowValues(t, fixture.db.DB, `SELECT wr.id, wr.work_id, wr.title, wr.year, wr.source, w.doi
+	legacyGraphArticles := queryRowValues(t, fixture.db.RawDBForTest(), `SELECT wr.id, wr.work_id, wr.title, wr.year, wr.source, w.doi
 		FROM work_revisions wr JOIN works w ON w.id=wr.work_id
 		WHERE wr.pipeline_run_id=? AND `+legacyNormalizedPredicate+` ORDER BY wr.id LIMIT 10`, fixture.runID)
 	graphArticles, _, err := fixture.store.ListGraphArticles(ctx, work.GraphFilter{RunID: fixture.runID, Limit: 10})
@@ -122,7 +122,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	}
 
 	// Graph authorship parity: the former article-author edge query.
-	legacyGraphAuthorships := queryRowValues(t, fixture.db.DB, `WITH eligible_authors AS (
+	legacyGraphAuthorships := queryRowValues(t, fixture.db.RawDBForTest(), `WITH eligible_authors AS (
             SELECT a.author_occurrence_id FROM authorships a
             WHERE a.work_revision_id IN (?)
             GROUP BY a.author_occurrence_id ORDER BY MIN(a.id), a.author_occurrence_id LIMIT ?
@@ -146,7 +146,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	}
 
 	// Evaluation row parity: the former evaluation list query.
-	legacyEvaluation := queryRowValues(t, fixture.db.DB, `SELECT wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi,
+	legacyEvaluation := queryRowValues(t, fixture.db.RawDBForTest(), `SELECT wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi,
 			validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at,
 			wr.abstract, wr.keywords, wr.keywords_plus,
 			(SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors,
@@ -183,7 +183,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 
 	// Term-match parity: the former per-revision match query. The family groups
 	// matches by field, so both sides are sorted by (field, term).
-	legacyMatches := queryRowValues(t, fixture.db.DB, `SELECT field, term FROM work_revision_term_matches
+	legacyMatches := queryRowValues(t, fixture.db.RawDBForTest(), `SELECT field, term FROM work_revision_term_matches
 		WHERE pipeline_run_id=? AND work_revision_id=? ORDER BY id`, fixture.runID, fixture.normalizeRevisionID)
 	familyMatches, err := fixture.store.GetRevisionMatches(ctx, fixture.runID, fixture.normalizeRevisionID)
 	if err != nil {

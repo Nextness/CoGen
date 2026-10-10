@@ -43,7 +43,7 @@ func newReviewFilterFixture(t *testing.T) *reviewFilterFixture {
 	ctx := context.Background()
 	exec := func(query string, args ...any) int64 {
 		t.Helper()
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture query %q: %v", query, err)
 		}

@@ -753,7 +753,7 @@ func TestWorkRevisionAbortUpdate(t *testing.T) {
 		Title: "original",
 	})
 
-	_, err := db.DB.Exec("UPDATE work_revisions SET title = 'hacked' WHERE id = ?", revID)
+	_, err := db.RawDBForTest().Exec("UPDATE work_revisions SET title = 'hacked' WHERE id = ?", revID)
 	if err == nil {
 		t.Fatal("expected error when updating an immutable work_revision")
 	}
@@ -777,7 +777,7 @@ func TestWorkRevisionAbortDelete(t *testing.T) {
 		Title: "permanent",
 	})
 
-	_, err := db.DB.Exec("DELETE FROM work_revisions WHERE id = ?", revID)
+	_, err := db.RawDBForTest().Exec("DELETE FROM work_revisions WHERE id = ?", revID)
 	if err == nil {
 		t.Fatal("expected error when deleting an immutable work_revision")
 	}

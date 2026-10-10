@@ -67,7 +67,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -89,7 +89,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := run.New(family.DB)
+	store := run.New(family.RawDBForTest())
 
 	// Read parity for run projection, plan ordering, steps, metrics, reviewer, and purge overview.
 	legacyRun, err := legacy.PipelineRuns.GetByID(priorRun)
@@ -187,7 +187,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewRun != familyNewRun {
 		t.Fatalf("StartRun ID parity: legacy=%d family=%d", legacyNewRun, familyNewRun)
 	}
-	assertStoredRunEqual(t, legacy.DB, family.DB, legacyNewRun)
+	assertStoredRunEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyNewRun)
 
 	// Attempt allocation parity.
 	legacyAttemptRun, legacyAttempt, err := legacy.PipelineRuns.StartAttempt(planID, "parity-attempt", "")
@@ -201,7 +201,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyAttemptRun != familyAttemptRun || legacyAttempt != familyAttempt {
 		t.Fatalf("StartAttempt parity: legacy=(%d,%d) family=(%d,%d)", legacyAttemptRun, legacyAttempt, familyAttemptRun, familyAttempt)
 	}
-	assertStoredRunEqual(t, legacy.DB, family.DB, legacyAttemptRun)
+	assertStoredRunEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyAttemptRun)
 
 	// Completion parity.
 	if err := legacy.PipelineRuns.FinishRun(legacyAttemptRun, "failed", "parity failure"); err != nil {
@@ -210,7 +210,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.FinishRun(ctx, familyAttemptRun, "failed", "parity failure"); err != nil {
 		t.Fatal(err)
 	}
-	assertStoredRunEqual(t, legacy.DB, family.DB, legacyAttemptRun)
+	assertStoredRunEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyAttemptRun)
 
 	// Visibility parity.
 	if err := legacy.PipelineRuns.Trash(legacyNewRun, "parity reason"); err != nil {
@@ -219,14 +219,14 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.Trash(ctx, familyNewRun, "parity reason"); err != nil {
 		t.Fatal(err)
 	}
-	assertStoredRunEqual(t, legacy.DB, family.DB, legacyNewRun)
+	assertStoredRunEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyNewRun)
 	if err := legacy.PipelineRuns.Restore(legacyNewRun); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Restore(ctx, familyNewRun); err != nil {
 		t.Fatal(err)
 	}
-	assertStoredRunEqual(t, legacy.DB, family.DB, legacyNewRun)
+	assertStoredRunEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyNewRun)
 
 	// Step lifecycle and link parity.
 	legacyStep, err := legacy.RunSteps.Create(legacyNewRun, "step")
@@ -252,7 +252,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.SetStepFingerprints(ctx, run.StepFingerprintInput{StepID: familyStep, InputFingerprint: "in", OutputFingerprint: "out"}); err != nil {
 		t.Fatal(err)
 	}
-	assertStoredStepEqual(t, legacy.DB, family.DB, legacyStep)
+	assertStoredStepEqual(t, legacy.RawDBForTest(), family.RawDBForTest(), legacyStep)
 
 	// Metric write parity.
 	if err := legacy.Metrics.Set(legacyNewRun, "new-metric", "source", 9); err != nil {
@@ -261,7 +261,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.SetMetric(ctx, run.MetricInput{RunID: familyNewRun, Metric: "new-metric", Source: "source", Value: 9}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, metric, source, value FROM pipeline_run_metrics WHERE pipeline_run_id=? ORDER BY metric, source", legacyNewRun)
 
 	// Reviewer write parity.
@@ -271,7 +271,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.InsertReviewer(ctx, run.ReviewerInput{RunID: familyNewRun, Username: "  Name  ", Email: "  name@example.test  "}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, username, email FROM pipeline_run_reviewers WHERE pipeline_run_id=?", legacyNewRun)
 
 	// Recovery parity: terminal run and step rows plus non-timestamp audit evidence.
@@ -281,11 +281,11 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.RecoverAbandoned(ctx, recoverRun); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, step, status, summary FROM pipeline_runs WHERE id=?", recoverRun)
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, pipeline_run_id, step_name, step_status FROM run_steps WHERE id=?", recoverStep)
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT actor, entity_type, entity_id, action, metadata_json, correlation_id FROM audit_events WHERE pipeline_run_id=? ORDER BY id", recoverRun)
 	if err := legacy.PipelineRuns.RecoverAbandoned(ctx, recoverRun); err == nil {
 		t.Fatal("legacy accepted a second recovery")

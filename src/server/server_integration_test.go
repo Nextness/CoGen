@@ -151,17 +151,17 @@ func TestReviewWriteConnectionIsWritableWithExistingPragmas(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	if _, err := viewer.writeDB.DB.Exec("CREATE TABLE contract_probe (id INTEGER)"); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("CREATE TABLE contract_probe (id INTEGER)"); err != nil {
 		t.Fatalf("review-write connection rejected a schema write: %v", err)
 	}
-	if _, err := viewer.writeDB.DB.Exec("DROP TABLE contract_probe"); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("DROP TABLE contract_probe"); err != nil {
 		t.Fatal(err)
 	}
 	var foreignKeys, busyTimeout int
-	if err := viewer.writeDB.DB.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
 		t.Fatal(err)
 	}
-	if err := viewer.writeDB.DB.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
 		t.Fatal(err)
 	}
 	if foreignKeys != 1 || busyTimeout != 5000 {

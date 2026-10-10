@@ -108,11 +108,11 @@ func TestReferenceMentionSnapshotsAreAppendOnly(t *testing.T) {
 		t.Fatalf("create second snapshot mention: %v", err)
 	}
 
-	_, err = db.DB.Exec("UPDATE reference_mentions SET title = 'Changed' WHERE id = ?", firstID)
+	_, err = db.RawDBForTest().Exec("UPDATE reference_mentions SET title = 'Changed' WHERE id = ?", firstID)
 	if err == nil || !strings.Contains(err.Error(), "reference_mentions is append-only") {
 		t.Fatalf("expected append-only update error, got %v", err)
 	}
-	_, err = db.DB.Exec("DELETE FROM reference_mentions WHERE id = ?", firstID)
+	_, err = db.RawDBForTest().Exec("DELETE FROM reference_mentions WHERE id = ?", firstID)
 	if err == nil || !strings.Contains(err.Error(), "reference_mentions is append-only") {
 		t.Fatalf("expected append-only delete error, got %v", err)
 	}
@@ -132,14 +132,14 @@ func TestV00005ReferenceMentionsMigrationApplies(t *testing.T) {
 	defer db.Close()
 
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 28 {
 		t.Fatalf("expected 28 applied migrations, got %d", count)
 	}
 	for _, name := range []string{"reference_mentions"} {
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&count); err != nil || count != 1 {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name).Scan(&count); err != nil || count != 1 {
 			t.Fatalf("expected table %q: count=%d err=%v", name, count, err)
 		}
 	}
@@ -148,7 +148,7 @@ func TestV00005ReferenceMentionsMigrationApplies(t *testing.T) {
 		if strings.Contains(name, "abort") {
 			typeName = "trigger"
 		}
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type=? AND name=?", typeName, name).Scan(&count); err != nil || count != 1 {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type=? AND name=?", typeName, name).Scan(&count); err != nil || count != 1 {
 			t.Fatalf("expected %s %q: count=%d err=%v", typeName, name, count, err)
 		}
 	}

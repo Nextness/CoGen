@@ -28,7 +28,7 @@ func openFamilyStore(t *testing.T) (*audit.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return audit.New(db.DB), db
+	return audit.New(db.RawDBForTest()), db
 }
 
 // createTestRun creates one pipeline run for audit linkage and returns its ID.
@@ -116,7 +116,7 @@ func TestStoreInsertRejectsInvalidAction(t *testing.T) {
 func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	if _, err := db.DB.Exec(`CREATE TRIGGER reject_audit_insert BEFORE INSERT ON audit_events
+	if _, err := db.RawDBForTest().Exec(`CREATE TRIGGER reject_audit_insert BEFORE INSERT ON audit_events
 		BEGIN SELECT RAISE(ABORT, 'audit insert rejected'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T) {
 		t.Fatalf("insert error = %v, want injected append-only failure", err)
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
@@ -284,7 +284,7 @@ func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T) {
 	}
 	insert := func(runID int64, entityType, entityID, action string) int64 {
 		t.Helper()
-		result, err := db.DB.Exec(`INSERT INTO audit_events
+		result, err := db.RawDBForTest().Exec(`INSERT INTO audit_events
 			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action)
 			VALUES (datetime('now'), 'pipeline', ?, ?, ?, ?)`, runID, entityType, entityID, action)
 		if err != nil {

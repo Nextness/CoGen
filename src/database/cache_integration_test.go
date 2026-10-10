@@ -41,10 +41,10 @@ func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
 	}
 	var oldStatus int
 	var oldPayload int64
-	if err := db.DB.QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", id).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
+	if err := db.RawDBForTest().QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", id).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
 		t.Fatalf("original response changed: %d %d %v", oldStatus, oldPayload, err)
 	}
-	if _, err := db.DB.Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", id); err == nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", id); err == nil {
 		t.Fatal("immutable response update was accepted")
 	}
 	got, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
@@ -93,7 +93,7 @@ func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
 		}
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries WHERE provider='crossref' AND namespace='works' AND request_fingerprint='same-request' AND extractor_version='1'").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries WHERE provider='crossref' AND namespace='works' AND request_fingerprint='same-request' AND extractor_version='1'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != writers {
@@ -191,15 +191,15 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 	}
 
 	var entries, uses, foreignKeyProblems int
-	if err := first.DB.QueryRow(`SELECT COUNT(*) FROM cache_entries
+	if err := first.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM cache_entries
         WHERE provider='crossref' AND namespace='work_by_doi'
           AND request_fingerprint='same-request' AND extractor_version='concurrency-test'`).Scan(&entries); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.DB.QueryRow("SELECT COUNT(*) FROM run_cache_uses").Scan(&uses); err != nil {
+	if err := first.RawDBForTest().QueryRow("SELECT COUNT(*) FROM run_cache_uses").Scan(&uses); err != nil {
 		t.Fatal(err)
 	}
-	if err := first.DB.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyProblems); err != nil {
+	if err := first.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyProblems); err != nil {
 		t.Fatal(err)
 	}
 	if entries != workers || uses != workers || foreignKeyProblems != 0 {
@@ -231,7 +231,7 @@ func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
 			t.Fatalf("%s: %v", entry.filename, err)
 		}
 	}
-	db := &Database{DB: conn}
+	db := &Database{db: conn}
 	db.initRepositories()
 	runID, err := db.PipelineRuns.StartRun("legacy", "")
 	if err != nil {

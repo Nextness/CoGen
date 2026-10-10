@@ -2,18 +2,20 @@
 // real temporary SQLite databases created by the production migration runner.
 //go:build integration
 
-package pdfbinding
+package pdfbinding_test
 
 import (
 	"context"
 	"testing"
+
+	"analysis/database/pdfbinding"
 )
 
 // TestRecordDeliveredAuditIsIdempotent verifies a repeated event key reuses the existing audit link.
 func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store, metadata, _ := openTestStore(t)
-	event := DeliveredEvent{
+	event := pdfbinding.DeliveredEvent{
 		EventKey: "event-1", OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline",
 		EntityType: "work", EntityID: "1", Action: "pdf_inventory_registered",
 		MetadataJSON: `{"doi":"10.1000/one"}`, CorrelationID: "correlation-1",
@@ -31,10 +33,10 @@ func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 		}
 	}
 	var events, links int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
 		t.Fatal(err)
 	}
 	if events != 1 || links != 1 {
@@ -51,7 +53,7 @@ func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if err := store.RecordDeliveredAudit(ctx, tx, DeliveredEvent{
+	if err := store.RecordDeliveredAudit(ctx, tx, pdfbinding.DeliveredEvent{
 		EventKey: "stale-run", OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline",
 		PipelineRunID: 999, EntityType: "work", EntityID: "1",
 		Action: "pdf_inventory_registered", MetadataJSON: `{}`, CorrelationID: "stale-run",
@@ -62,7 +64,7 @@ func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	var runID any
-	if err := metadata.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&runID); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&runID); err != nil {
 		t.Fatal(err)
 	}
 	if runID != nil {
@@ -83,7 +85,7 @@ func TestRecordDeliveredAuditBindsExistingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	if err := store.RecordDeliveredAudit(ctx, tx, DeliveredEvent{
+	if err := store.RecordDeliveredAudit(ctx, tx, pdfbinding.DeliveredEvent{
 		EventKey: "existing-run", OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline",
 		PipelineRunID: runID, EntityType: "work", EntityID: "1",
 		Action: "pdf_inventory_registered", MetadataJSON: `{}`, CorrelationID: "existing-run",
@@ -94,7 +96,7 @@ func TestRecordDeliveredAuditBindsExistingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	var linkedRunID int64
-	if err := metadata.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&linkedRunID); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&linkedRunID); err != nil {
 		t.Fatal(err)
 	}
 	if linkedRunID != runID {
@@ -110,7 +112,7 @@ func TestRecordDeliveredAuditRollsBackWithTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.RecordDeliveredAudit(ctx, tx, DeliveredEvent{
+	if err := store.RecordDeliveredAudit(ctx, tx, pdfbinding.DeliveredEvent{
 		EventKey: "rolled-back", OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline",
 		EntityType: "work", EntityID: "1", Action: "pdf_inventory_registered",
 		MetadataJSON: `{}`, CorrelationID: "rolled-back",
@@ -121,10 +123,10 @@ func TestRecordDeliveredAuditRollsBackWithTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	var events, links int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
 		t.Fatal(err)
 	}
 	if events != 0 || links != 0 {

@@ -37,7 +37,7 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 	ctx := context.Background()
 	exec := func(query string, args ...any) int64 {
 		t.Helper()
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture query %q: %v", query, err)
 		}
@@ -211,7 +211,7 @@ func TestStoreListAuthorArticlesResolvesRunScopedArticles(t *testing.T) {
 	ctx := context.Background()
 
 	var authorID int64
-	if err := fixture.db.DB.QueryRow("SELECT id FROM author_occurrences WHERE citation_name='Doe, Jane'").Scan(&authorID); err != nil {
+	if err := fixture.db.RawDBForTest().QueryRow("SELECT id FROM author_occurrences WHERE citation_name='Doe, Jane'").Scan(&authorID); err != nil {
 		t.Fatal(err)
 	}
 	page, err := fixture.store.ListAuthorArticles(ctx, work.AuthorArticleFilter{AuthorOccurrenceID: authorID, RunID: fixture.runID, Limit: 10})

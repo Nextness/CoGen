@@ -27,7 +27,7 @@ func openFamilyStore(t *testing.T) (*cache.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return cache.New(db.DB), db
+	return cache.New(db.RawDBForTest()), db
 }
 
 // appendTestEntry appends one entry for a key with the supplied status and returns its ID.
@@ -76,10 +76,10 @@ func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	}
 	var oldStatus int
 	var oldPayload int64
-	if err := db.DB.QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", firstID).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
+	if err := db.RawDBForTest().QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", firstID).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
 		t.Fatalf("original response changed: %d %d %v", oldStatus, oldPayload, err)
 	}
-	if _, err := db.DB.Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", firstID); err == nil {
+	if _, err := db.RawDBForTest().Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", firstID); err == nil {
 		t.Fatal("immutable response update was accepted")
 	}
 	latest, err := store.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
@@ -281,10 +281,10 @@ func TestStoreRejectsInvalidInputs(t *testing.T) {
 		t.Fatalf("invalid outcome error = %v", err)
 	}
 	var entries, uses int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&entries); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&entries); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM run_cache_uses").Scan(&uses); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM run_cache_uses").Scan(&uses); err != nil {
 		t.Fatal(err)
 	}
 	if entries != 0 || uses != 0 {
@@ -318,10 +318,10 @@ func TestStoreConcurrentAppendsRetainEveryVersion(t *testing.T) {
 		}
 	}
 	var entries, foreignKeyProblems int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries WHERE request_fingerprint='same-request'").Scan(&entries); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries WHERE request_fingerprint='same-request'").Scan(&entries); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyProblems); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyProblems); err != nil {
 		t.Fatal(err)
 	}
 	if entries != writers || foreignKeyProblems != 0 {
@@ -344,7 +344,7 @@ func TestStoreContextCancellationLeavesNoRows(t *testing.T) {
 		t.Fatalf("canceled read error = %v, want context.Canceled", err)
 	}
 	var entries int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&entries); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&entries); err != nil {
 		t.Fatal(err)
 	}
 	if entries != 0 {

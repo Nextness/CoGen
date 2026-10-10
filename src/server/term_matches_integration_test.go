@@ -256,10 +256,10 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate a V00024-only database by dropping the V00025 tables.
-	if _, err := db.DB.Exec("DROP TABLE work_revision_term_matches"); err != nil {
+	if _, err := db.RawDBForTest().Exec("DROP TABLE work_revision_term_matches"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("DROP TABLE run_search_terms"); err != nil {
+	if _, err := db.RawDBForTest().Exec("DROP TABLE run_search_terms"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

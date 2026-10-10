@@ -27,7 +27,7 @@ func openFamilyStore(t *testing.T) (*author.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return author.New(db.DB), db
+	return author.New(db.RawDBForTest()), db
 }
 
 // createTestRevision creates one work revision for authorship linkage and returns its ID.
@@ -158,7 +158,7 @@ func TestPeopleORCIDGuardTriggers(t *testing.T) {
 	_, db := openFamilyStore(t)
 
 	const validORCID = "0000-0002-1694-233X"
-	res, err := db.DB.Exec("INSERT INTO people (orcid) VALUES (?)", validORCID)
+	res, err := db.RawDBForTest().Exec("INSERT INTO people (orcid) VALUES (?)", validORCID)
 	if err != nil {
 		t.Fatalf("expected valid INSERT to succeed, got: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestPeopleORCIDGuardTriggers(t *testing.T) {
 
 	invalidValues := []any{nil, "", "   "}
 	for _, value := range invalidValues {
-		_, err := db.DB.Exec("INSERT INTO people (orcid) VALUES (?)", value)
+		_, err := db.RawDBForTest().Exec("INSERT INTO people (orcid) VALUES (?)", value)
 		if err == nil {
 			t.Fatalf("expected INSERT guard error for %#v", value)
 		}
@@ -179,7 +179,7 @@ func TestPeopleORCIDGuardTriggers(t *testing.T) {
 	}
 
 	for _, value := range invalidValues {
-		_, err := db.DB.Exec("UPDATE people SET orcid = ? WHERE id = ?", value, personID)
+		_, err := db.RawDBForTest().Exec("UPDATE people SET orcid = ? WHERE id = ?", value, personID)
 		if err == nil {
 			t.Fatalf("expected UPDATE guard error for %#v", value)
 		}
@@ -188,7 +188,7 @@ func TestPeopleORCIDGuardTriggers(t *testing.T) {
 		}
 
 		var got string
-		if err := db.DB.QueryRow("SELECT orcid FROM people WHERE id = ?", personID).Scan(&got); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT orcid FROM people WHERE id = ?", personID).Scan(&got); err != nil {
 			t.Fatalf("read person after rejected UPDATE: %v", err)
 		}
 		if got != validORCID {

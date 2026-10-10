@@ -67,7 +67,7 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 		_ = conn.Close()
 		return nil, fmt.Errorf("open existing sqlite: %w", err)
 	}
-	d := &Database{DB: conn, dbPath: absolute}
+	d := &Database{db: conn, dbPath: absolute}
 	d.initRepositories()
 	return d, nil
 }
@@ -124,7 +124,7 @@ func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error
 		conn.Close()
 		return nil, fmt.Errorf("resolve migrations: %w", err)
 	}
-	d := &Database{DB: conn, dbPath: dbPath, migrations: migrationConfig.MigrationsDir}
+	d := &Database{db: conn, dbPath: dbPath, migrations: migrationConfig.MigrationsDir}
 	if err := d.runMigrations(migrationConfig.ConfigPath); err != nil {
 		conn.Close()
 		lg.Debug("database migration run failed",
@@ -165,7 +165,7 @@ func sqliteBusy(err error) bool {
 
 // Close closes the database connection.
 func (d *Database) Close() error {
-	err := d.DB.Close()
+	err := d.db.Close()
 	if err != nil {
 		lg.Debug("database close failed", "database_path", d.dbPath, "error", err)
 		return err
@@ -176,14 +176,14 @@ func (d *Database) Close() error {
 
 // PingContext verifies the wrapped connection is reachable.
 func (d *Database) PingContext(ctx context.Context) error {
-	return d.DB.PingContext(ctx)
+	return d.db.PingContext(ctx)
 }
 
 // Writable reports whether the wrapped connection accepts writes by checking
 // the connection-local query_only pragma.
 func (d *Database) Writable(ctx context.Context) (bool, error) {
 	var queryOnly int
-	if err := d.DB.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err != nil {
+	if err := d.db.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err != nil {
 		return false, fmt.Errorf("check database writability: %w", err)
 	}
 	return queryOnly == 0, nil
@@ -192,5 +192,5 @@ func (d *Database) Writable(ctx context.Context) (bool, error) {
 // BeginTx starts a transaction on the wrapped connection for approved
 // coordinators that must keep related writes atomic.
 func (d *Database) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	return d.DB.BeginTx(ctx, opts)
+	return d.db.BeginTx(ctx, opts)
 }

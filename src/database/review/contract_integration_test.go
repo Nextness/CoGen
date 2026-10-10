@@ -22,10 +22,10 @@ import (
 func reviewInsertRun(t *testing.T, fixture *reviewMutationFixture, status, startedAt string, attempt int) int64 {
 	t.Helper()
 	var planID int64
-	if err := fixture.db.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.run1).Scan(&planID); err != nil {
+	if err := fixture.db.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.run1).Scan(&planID); err != nil {
 		t.Fatal(err)
 	}
-	result, err := fixture.db.DB.Exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('review', ?, ?, ?, ?, ?)", startedAt, startedAt, status, planID, attempt)
+	result, err := fixture.db.RawDBForTest().Exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('review', ?, ?, ?, ?, ?)", startedAt, startedAt, status, planID, attempt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestReviewContextEligibilityContract(t *testing.T) {
 	})
 	t.Run("non-completed parent", func(t *testing.T) {
 		fixture := newReviewMutationFixture(t)
-		if _, err := fixture.db.DB.Exec("UPDATE pipeline_runs SET status='running' WHERE id=?", fixture.run1); err != nil {
+		if _, err := fixture.db.RawDBForTest().Exec("UPDATE pipeline_runs SET status='running' WHERE id=?", fixture.run1); err != nil {
 			t.Fatal(err)
 		}
 		if _, _, err := fixture.db.Review.CreateContext(ctx, fixture.run2, &fixture.context1); err == nil {

@@ -40,11 +40,11 @@ func TestCorpusArticleReviewProjection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fixture.server.writeDB.DB.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title, source, citation_count) VALUES (?, ?, ?, 'normalize', 'Numeric article', 'numeric', ?)", workID, fixture.runID, fmt.Sprint(index), count)
+		_, err = fixture.server.writeDB.RawDBForTest().Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title, source, citation_count) VALUES (?, ?, ?, 'normalize', 'Numeric article', 'numeric', ?)", workID, fixture.runID, fmt.Sprint(index), count)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fixture.server.writeDB.DB.Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", fixture.runID, workID)
+		_, err = fixture.server.writeDB.RawDBForTest().Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", fixture.runID, workID)
 		if err != nil {
 			t.Fatal(err)
 		}

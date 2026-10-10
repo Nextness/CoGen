@@ -273,6 +273,56 @@ func (q *Queries) ListNormalizeRevisionsByRunID(ctx context.Context, pipelineRun
 	return items, nil
 }
 
+const listNormalizedInventoryBatch = `-- name: ListNormalizedInventoryBatch :many
+SELECT
+    w.doi,
+    w.id AS work_id,
+    CAST(MIN(wr.pipeline_run_id) AS INTEGER) AS pipeline_run_id
+FROM works w
+JOIN work_revisions wr ON wr.work_id = w.id
+WHERE wr.producer_stage = 'normalize'
+  AND w.doi IS NOT NULL
+  AND trim(w.doi) <> ''
+  AND w.id > ?1
+GROUP BY w.id, w.doi
+ORDER BY w.id
+LIMIT ?2
+`
+
+type ListNormalizedInventoryBatchParams struct {
+	AfterWorkID int64
+	RowLimit    int64
+}
+
+type ListNormalizedInventoryBatchRow struct {
+	Doi           sql.NullString
+	WorkID        int64
+	PipelineRunID int64
+}
+
+func (q *Queries) ListNormalizedInventoryBatch(ctx context.Context, arg ListNormalizedInventoryBatchParams) ([]ListNormalizedInventoryBatchRow, error) {
+	rows, err := q.db.QueryContext(ctx, listNormalizedInventoryBatch, arg.AfterWorkID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListNormalizedInventoryBatchRow
+	for rows.Next() {
+		var i ListNormalizedInventoryBatchRow
+		if err := rows.Scan(&i.Doi, &i.WorkID, &i.PipelineRunID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWorkRevisionsByRunID = `-- name: ListWorkRevisionsByRunID :many
 SELECT
     id,

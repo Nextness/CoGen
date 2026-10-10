@@ -24,7 +24,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	handler := viewer.Handler()
 	run := stringID(runID)
 
-	work, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES ('10.1000/empty-collections')")
+	work, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO works (doi) VALUES ('10.1000/empty-collections')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	revision, err := viewer.writeDB.DB.Exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage)
+	revision, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage)
 		VALUES (?, ?, 'empty-collections', 'normalize')`, workID, runID)
 	if err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := viewer.writeDB.DB.Exec(`INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome)
+	if _, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome)
 		VALUES (?, ?, 'validate', 'valid')`, runID, workID); err != nil {
 		t.Fatal(err)
 	}

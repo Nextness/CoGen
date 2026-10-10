@@ -82,12 +82,12 @@ func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	defer viewer.Close()
 	for index := 0; index < 103; index++ {
-		author, err := viewer.writeDB.DB.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", "Paged author "+stringID(int64(index)))
+		author, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", "Paged author "+stringID(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		authorID, _ := author.LastInsertId()
-		if _, err := viewer.writeDB.DB.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, authorID, index+10); err != nil {
+		if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, authorID, index+10); err != nil {
 			t.Fatal(err)
 		}
 	}

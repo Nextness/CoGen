@@ -17,7 +17,7 @@ import (
 // that interpreted the input.
 func (d *Database) SchemaVersion() (string, error) {
 	var version sql.NullString
-	err := d.DB.QueryRow("SELECT filename FROM schema_migrations ORDER BY rowid DESC LIMIT 1").Scan(&version)
+	err := d.db.QueryRow("SELECT filename FROM schema_migrations ORDER BY rowid DESC LIMIT 1").Scan(&version)
 	if err == sql.ErrNoRows || !version.Valid {
 		return "", nil
 	}
@@ -142,7 +142,7 @@ func (d *Database) runMigrations(configPath string) error {
 // tracking table, preventing two openers from both observing a migration as
 // pending and applying it twice.
 func (d *Database) withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error) {
-	conn, err := d.DB.Conn(ctx)
+	conn, err := d.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire migration connection: %w", err)
 	}

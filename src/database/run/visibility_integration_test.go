@@ -54,7 +54,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 		t.Fatalf("trashed_at = %q, want RFC3339Nano precision", *stored.TrashedAt)
 	}
 
-	trashAudit := latestVisibilityAudit(t, db.DB, runID)
+	trashAudit := latestVisibilityAudit(t, db.RawDBForTest(), runID)
 	if trashAudit.actor != "local_user" || trashAudit.entityType != "pipeline_run" ||
 		trashAudit.entityID != strconv.FormatInt(runID, 10) || trashAudit.action != "run_trashed" {
 		t.Fatalf("trash audit identity = %+v", trashAudit)
@@ -81,7 +81,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	if unchanged == nil || unchanged.Changed || unchanged.VisibilityState != run.VisibilityTrashed {
 		t.Fatalf("no-op result = %+v", unchanged)
 	}
-	if count := visibilityAuditCount(t, db.DB, runID); count != 1 {
+	if count := visibilityAuditCount(t, db.RawDBForTest(), runID); count != 1 {
 		t.Fatalf("audit count after no-op = %d, want 1", count)
 	}
 
@@ -101,7 +101,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	if stored.VisibilityState != run.VisibilityActive || stored.TrashedAt != nil || stored.TrashReason != nil {
 		t.Fatalf("restored run = %+v", stored)
 	}
-	restoreAudit := latestVisibilityAudit(t, db.DB, runID)
+	restoreAudit := latestVisibilityAudit(t, db.RawDBForTest(), runID)
 	if restoreAudit.action != "run_restored" ||
 		restoreAudit.beforeJSON != `{"visibility_state":"trashed"}` ||
 		restoreAudit.afterJSON != `{"visibility_state":"active"}` {
@@ -138,7 +138,7 @@ func TestStoreUpdateVisibilityRejectsRunningAttempt(t *testing.T) {
 	if stored.VisibilityState != run.VisibilityActive || stored.TrashedAt != nil || stored.TrashReason != nil {
 		t.Fatalf("running run mutated = %+v", stored)
 	}
-	if count := visibilityAuditCount(t, db.DB, runID); count != 0 {
+	if count := visibilityAuditCount(t, db.RawDBForTest(), runID); count != 0 {
 		t.Fatalf("running guard wrote %d audit rows, want 0", count)
 	}
 }
@@ -193,7 +193,7 @@ func TestStoreUpdateVisibilityRollsBackWhenAuditFails(t *testing.T) {
 	if err := store.FinishRun(ctx, runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec(`CREATE TRIGGER visibility_audit_abort BEFORE INSERT ON audit_events
+	if _, err := db.RawDBForTest().Exec(`CREATE TRIGGER visibility_audit_abort BEFORE INSERT ON audit_events
 		WHEN NEW.action='run_trashed' BEGIN SELECT RAISE(ABORT, 'audit unavailable'); END`); err != nil {
 		t.Fatal(err)
 	}

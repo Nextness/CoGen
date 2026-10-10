@@ -58,7 +58,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 	if _, err := fixture.WorkIdentifiers.Insert(workID, "openalex", "W42"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -80,7 +80,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := work.New(family.DB)
+	store := work.New(family.RawDBForTest())
 
 	// Read parity for work and identifier identity.
 	legacyWork, err := legacy.Works.GetByDOI("10.1000/parity-work")
@@ -178,7 +178,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewWork != familyNewWork {
 		t.Fatalf("CreateWorkByDOI id parity: legacy=%d family=%d", legacyNewWork, familyNewWork)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, doi FROM works WHERE id=?", legacyNewWork)
 
 	// Revision write parity, including the adapter's hash copy-back.
@@ -204,7 +204,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 			legacyNewRevision.PayloadHash, legacyNewRevision.FieldSchemaVersion,
 			familyNewRevision.PayloadHash, familyNewRevision.FieldSchemaVersion)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, work_id, producer_stage, payload_hash, field_schema_version, title, year FROM work_revisions WHERE id=?",
 		legacyRevisionID)
 
@@ -217,7 +217,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, work_id, stage_name, outcome, reason FROM run_work_stages WHERE pipeline_run_id=? ORDER BY id", runID)
 
 	// Reference write parity, including DOI resolution and copy-back.
@@ -242,7 +242,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatalf("CreateReference resolution parity: legacy=%q/%d family=%q/%d",
 			legacyNewMention.DOI, legacyNewMention.ResolvedWorkID, familyNewMention.DOI, familyNewMention.ResolvedWorkID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, work_revision_id, resolved_work_id, mention_order, doi FROM reference_mentions WHERE id=?", legacyMentionID)
 
 	// Term replacement parity.
@@ -257,9 +257,9 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, source_name, term FROM run_search_terms WHERE pipeline_run_id=? ORDER BY id", runID)
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, work_revision_id, field, term FROM work_revision_term_matches WHERE pipeline_run_id=? ORDER BY id", runID)
 
 	// Error parity for conflicts, invalid vocabulary, and invalid input.

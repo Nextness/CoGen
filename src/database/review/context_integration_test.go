@@ -33,7 +33,7 @@ func TestReviewParentSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	exec := func(query string, args ...any) int64 {
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture query %q: %v", query, err)
 		}
@@ -41,7 +41,7 @@ func TestReviewParentSelection(t *testing.T) {
 		return id
 	}
 	var stableSearchID int64
-	if err := db.DB.QueryRow(`SELECT sr.search_id FROM pipeline_runs run JOIN execution_plans plan ON plan.id=run.execution_plan_id
+	if err := db.RawDBForTest().QueryRow(`SELECT sr.search_id FROM pipeline_runs run JOIN execution_plans plan ON plan.id=run.execution_plan_id
 		JOIN search_revisions sr ON sr.id=plan.search_revision_id WHERE run.id=?`, a1Run).Scan(&stableSearchID); err != nil {
 		t.Fatal(err)
 	}

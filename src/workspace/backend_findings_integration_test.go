@@ -134,7 +134,7 @@ func TestReviewProviderFieldSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	var publisher string
-	if err := db.DB.QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='normalize'").Scan(&publisher); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='normalize'").Scan(&publisher); err != nil {
 		t.Fatal(err)
 	}
 	if publisher != "IEEE" {
@@ -155,7 +155,7 @@ func TestReviewUnstructuredReferencePreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 	var emptyReferences int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM reference_mentions reference JOIN work_revisions revision ON revision.id=reference.work_revision_id
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM reference_mentions reference JOIN work_revisions revision ON revision.id=reference.work_revision_id
 		WHERE revision.producer_stage='normalize' AND reference.raw_reference IS NULL AND reference.doi IS NULL AND reference.title IS NULL AND reference.author IS NULL AND reference.source IS NULL AND reference.year IS NULL`).Scan(&emptyReferences); err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestReviewRawSourcePreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 	var raw string
-	if err := db.DB.QueryRow("SELECT raw_payload FROM source_records LIMIT 1").Scan(&raw); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT raw_payload FROM source_records LIMIT 1").Scan(&raw); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(raw, `\u003cb\u003e`) && !strings.Contains(raw, "<b>") {
@@ -243,14 +243,14 @@ func TestReviewStageInputPreserved(t *testing.T) {
 		t.Fatal(err)
 	}
 	var input, output int64
-	if err := db.DB.QueryRow("SELECT input_artifact_id, output_artifact_id FROM run_steps WHERE step_name='normalize'").Scan(&input, &output); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT input_artifact_id, output_artifact_id FROM run_steps WHERE step_name='normalize'").Scan(&input, &output); err != nil {
 		t.Fatal(err)
 	}
 	var before, after string
-	if err := db.DB.QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='validate'").Scan(&before); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='validate'").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='normalize'").Scan(&after); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT publisher FROM work_revisions WHERE producer_stage='normalize'").Scan(&after); err != nil {
 		t.Fatal(err)
 	}
 	if before == after {
@@ -266,7 +266,7 @@ func TestReviewStageInputPreserved(t *testing.T) {
 			t.Fatalf("stage artifact does not preserve publisher: %+v %v", articles, err)
 		}
 		var hash string
-		if err := db.DB.QueryRow("SELECT content_hash FROM artifacts WHERE id=?", id).Scan(&hash); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT content_hash FROM artifacts WHERE id=?", id).Scan(&hash); err != nil {
 			t.Fatal(err)
 		}
 		if fmt.Sprintf("%x", sha256.Sum256(blob.Data)) != hash {
@@ -366,7 +366,7 @@ func TestReviewCSVByteOrderMark(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM work_revisions WHERE producer_stage='normalize'").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM work_revisions WHERE producer_stage='normalize'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
@@ -401,10 +401,10 @@ func TestReviewInterruptedAttemptRecoverable(t *testing.T) {
 		t.Fatal(err)
 	}
 	var failed, audits int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE id=? AND status='failed' AND finished_at IS NOT NULL", runID).Scan(&failed); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE id=? AND status='failed' AND finished_at IS NOT NULL", runID).Scan(&failed); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_failed' AND actor='operator'", runID).Scan(&audits); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_failed' AND actor='operator'", runID).Scan(&audits); err != nil {
 		t.Fatal(err)
 	}
 	if failed != 1 || audits != 1 {
@@ -438,7 +438,7 @@ func TestReviewCancellationAndActiveRecovery(t *testing.T) {
 		t.Fatal("pipeline never entered provider request")
 	}
 	var runID int64
-	if err := db.DB.QueryRow("SELECT id FROM pipeline_runs WHERE status='running'").Scan(&runID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT id FROM pipeline_runs WHERE status='running'").Scan(&runID); err != nil {
 		t.Fatal(err)
 	}
 	if err := workspace.RecoverAbandonedRun(context.Background(), path, runID); err == nil || !strings.Contains(err.Error(), "active pipeline") {
@@ -457,10 +457,10 @@ func TestReviewCancellationAndActiveRecovery(t *testing.T) {
 		t.Fatal("cancelled pipeline did not finish")
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE id=? AND status='failed' AND finished_at IS NOT NULL", runID).Scan(&count); err != nil || count != 1 {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE id=? AND status='failed' AND finished_at IS NOT NULL", runID).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("cancelled attempt not failed: %d %v", count, err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_failed'", runID).Scan(&count); err != nil || count != 1 {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_failed'", runID).Scan(&count); err != nil || count != 1 {
 		t.Fatalf("cancellation audit missing: %d %v", count, err)
 	}
 	http.DefaultTransport = reviewTransport(func(request *http.Request) (*http.Response, error) {
@@ -483,7 +483,7 @@ func TestReviewMissingCSVHeaderFails(t *testing.T) {
 		t.Fatalf("missing header: %v", err)
 	}
 	var status string
-	if err := db.DB.QueryRow("SELECT status FROM pipeline_runs").Scan(&status); err != nil || status != "failed" {
+	if err := db.RawDBForTest().QueryRow("SELECT status FROM pipeline_runs").Scan(&status); err != nil || status != "failed" {
 		t.Fatalf("status=%s err=%v", status, err)
 	}
 }
@@ -497,7 +497,7 @@ func TestReviewProviderIdentityMismatch(t *testing.T) {
 		t.Fatalf("mismatched DOI response accepted: %v", err)
 	}
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&count); err != nil || count != 0 {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&count); err != nil || count != 0 {
 		t.Fatalf("wrong work cached: %d %v", count, err)
 	}
 }
@@ -526,7 +526,7 @@ func TestReviewMetadataAndIdentityInputs(t *testing.T) {
 	for _, stage := range []string{"enrich_metadata", "enrich_identity"} {
 		var input, output []byte
 		var beforeHash, afterHash string
-		if err := db.DB.QueryRow(`SELECT before.data, after.data, step.input_fingerprint, step.output_fingerprint FROM run_steps step JOIN artifact_blobs before ON before.artifact_id=step.input_artifact_id JOIN artifact_blobs after ON after.artifact_id=step.output_artifact_id WHERE step.step_name=?`, stage).Scan(&input, &output, &beforeHash, &afterHash); err != nil {
+		if err := db.RawDBForTest().QueryRow(`SELECT before.data, after.data, step.input_fingerprint, step.output_fingerprint FROM run_steps step JOIN artifact_blobs before ON before.artifact_id=step.input_artifact_id JOIN artifact_blobs after ON after.artifact_id=step.output_artifact_id WHERE step.step_name=?`, stage).Scan(&input, &output, &beforeHash, &afterHash); err != nil {
 			t.Fatal(err)
 		}
 		var before, after []article.Article

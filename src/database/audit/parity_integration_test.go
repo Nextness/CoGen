@@ -44,7 +44,7 @@ func TestAuditFamilyParityWithLegacyRepository(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -66,7 +66,7 @@ func TestAuditFamilyParityWithLegacyRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := audit.New(family.DB)
+	store := audit.New(family.RawDBForTest())
 
 	// Read parity for run and entity projections.
 	legacyRun, err := legacy.AuditEvents.ListByRun(runID)
@@ -119,7 +119,7 @@ func TestAuditFamilyParityWithLegacyRepository(t *testing.T) {
 	if legacyID != familyID {
 		t.Fatalf("Insert ID parity: legacy=%d family=%d", legacyID, familyID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE id=?", legacyID)
 
 	// Error parity for invalid actions.

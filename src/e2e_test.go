@@ -96,13 +96,13 @@ func TestE2EReviewEvidence(t *testing.T) {
 	assertE2ECount(t, db, "review_contexts", "1=1", nil, 2)
 	var a1Context, a2Context, a1Review, a2Review int64
 	var a1Status, a2Status string
-	if err := db.DB.QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
+	if err := db.RawDBForTest().QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
 		JOIN pipeline_runs run ON run.id=context.pipeline_run_id JOIN review_context_work_heads head ON head.review_context_id=context.id
 		JOIN works work ON work.id=head.work_id AND work.doi='10.5555/e2e-complete-one'
 		JOIN work_review_versions version ON version.id=head.review_version_id WHERE run.attempt_number=1`).Scan(&a1Context, &a1Review, &a1Status); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
+	if err := db.RawDBForTest().QueryRow(`SELECT context.id, head.review_version_id, version.status FROM review_contexts context
 		JOIN pipeline_runs run ON run.id=context.pipeline_run_id JOIN review_context_work_heads head ON head.review_context_id=context.id
 		JOIN works work ON work.id=head.work_id AND work.doi='10.5555/e2e-complete-one'
 		JOIN work_review_versions version ON version.id=head.review_version_id WHERE run.attempt_number=2`).Scan(&a2Context, &a2Review, &a2Status); err != nil {
@@ -112,28 +112,28 @@ func TestE2EReviewEvidence(t *testing.T) {
 		t.Fatalf("review heads A1=%d/%s A2=%d/%s", a1Review, a1Status, a2Review, a2Status)
 	}
 	var parentVersion, parentContext int64
-	if err := db.DB.QueryRow("SELECT parent_version_id, created_in_context_id FROM work_review_versions WHERE id=?", a2Review).Scan(&parentVersion, &parentContext); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT parent_version_id, created_in_context_id FROM work_review_versions WHERE id=?", a2Review).Scan(&parentVersion, &parentContext); err != nil {
 		t.Fatal(err)
 	}
 	if parentVersion != a1Review || parentContext != a2Context {
 		t.Fatalf("A2 review parent=%d context=%d, want %d/%d", parentVersion, parentContext, a1Review, a2Context)
 	}
 	var a1NoteHead, a2NoteHead int64
-	if err := db.DB.QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a1Context).Scan(&a1NoteHead); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a1Context).Scan(&a1NoteHead); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a2Context).Scan(&a2NoteHead); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT note_version_id FROM review_context_note_heads WHERE review_context_id=? AND note_id=1", a2Context).Scan(&a2NoteHead); err != nil {
 		t.Fatal(err)
 	}
 	if a1NoteHead == a2NoteHead {
 		t.Fatal("A2 note edit moved the A1 note head")
 	}
 	var anchorHeads, auditEvents int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM review_context_anchor_heads head
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM review_context_anchor_heads head
 		JOIN review_anchors anchor ON anchor.id=head.anchor_id WHERE anchor.label='e2e-methods'`).Scan(&anchorHeads); err != nil || anchorHeads != 2 {
 		t.Fatalf("anchor heads=%d err=%v", anchorHeads, err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'review_%' OR action='work_review_version_created'").Scan(&auditEvents); err != nil || auditEvents < 8 {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'review_%' OR action='work_review_version_created'").Scan(&auditEvents); err != nil || auditEvents < 8 {
 		t.Fatalf("review audit events=%d err=%v", auditEvents, err)
 	}
 }
@@ -328,7 +328,7 @@ func prepareE2EReviewRuns(t *testing.T, root string, result e2eResult) {
 	}
 	defer db.Close()
 	var completed int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status='completed'").Scan(&completed); err != nil || completed != 2 {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status='completed'").Scan(&completed); err != nil || completed != 2 {
 		t.Fatalf("completed deterministic review runs=%d err=%v", completed, err)
 	}
 }
@@ -506,7 +506,7 @@ func assertE2EDatabases(t *testing.T, root, dbPath string, mode e2eMode) e2eResu
 	}
 	var runID int64
 	var status string
-	if err := db.DB.QueryRow("SELECT id, status FROM pipeline_runs ORDER BY id DESC LIMIT 1").Scan(&runID, &status); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT id, status FROM pipeline_runs ORDER BY id DESC LIMIT 1").Scan(&runID, &status); err != nil {
 		db.Close()
 		t.Fatal(err)
 	}
@@ -591,9 +591,9 @@ func assertE2ECount(t *testing.T, db *database.Database, table, where string, ar
 	var err error
 	query := "SELECT COUNT(*) FROM " + table + " WHERE " + where
 	if argument == nil {
-		err = db.DB.QueryRow(query).Scan(&got)
+		err = db.RawDBForTest().QueryRow(query).Scan(&got)
 	} else {
-		err = db.DB.QueryRow(query, argument).Scan(&got)
+		err = db.RawDBForTest().QueryRow(query, argument).Scan(&got)
 	}
 	if err != nil || got != want {
 		t.Fatalf("%s count with %q = %d, %v; want %d", table, where, got, err, want)
@@ -607,9 +607,9 @@ func assertE2EAtLeast(t *testing.T, db *database.Database, table, where string, 
 	var err error
 	query := "SELECT COUNT(*) FROM " + table + " WHERE " + where
 	if argument == nil {
-		err = db.DB.QueryRow(query).Scan(&got)
+		err = db.RawDBForTest().QueryRow(query).Scan(&got)
 	} else {
-		err = db.DB.QueryRow(query, argument).Scan(&got)
+		err = db.RawDBForTest().QueryRow(query, argument).Scan(&got)
 	}
 	if err != nil || got < minimum {
 		t.Fatalf("%s count with %q = %d, %v; want at least %d", table, where, got, err, minimum)
@@ -628,7 +628,7 @@ func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string,
 // e2ENormalizedWorks returns sorted normalized titles and their stable work IDs.
 func e2ENormalizedWorks(t *testing.T, db *database.Database, runID int64) ([]string, map[string]int64) {
 	t.Helper()
-	rows, err := db.DB.Query(`SELECT wr.title, wr.work_id FROM work_revisions wr
+	rows, err := db.RawDBForTest().Query(`SELECT wr.title, wr.work_id FROM work_revisions wr
         WHERE wr.pipeline_run_id=? AND wr.producer_stage='normalize' ORDER BY wr.title`, runID)
 	if err != nil {
 		t.Fatal(err)
@@ -654,7 +654,7 @@ func e2ENormalizedWorks(t *testing.T, db *database.Database, runID int64) ([]str
 // assertE2EAuditOrder verifies the pipeline's cross-database terminal event order.
 func assertE2EAuditOrder(t *testing.T, db *database.Database, runID int64) {
 	t.Helper()
-	rows, err := db.DB.Query("SELECT action FROM audit_events WHERE pipeline_run_id=? ORDER BY id", runID)
+	rows, err := db.RawDBForTest().Query("SELECT action FROM audit_events WHERE pipeline_run_id=? ORDER BY id", runID)
 	if err != nil {
 		t.Fatal(err)
 	}

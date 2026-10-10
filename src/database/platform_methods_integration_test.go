@@ -47,7 +47,7 @@ func TestDatabaseWritableReflectsQueryOnly(t *testing.T) {
 	if err != nil || !writable {
 		t.Fatalf("Writable = %v err=%v, want true", writable, err)
 	}
-	if _, err := db.DB.Exec("PRAGMA query_only=1"); err != nil {
+	if _, err := db.RawDBForTest().Exec("PRAGMA query_only=1"); err != nil {
 		t.Fatal(err)
 	}
 	writable, err = db.Writable(ctx)
@@ -91,7 +91,7 @@ func TestDatabaseBeginTxCommitAndRollback(t *testing.T) {
 func assertSearchCount(t *testing.T, db *Database, searchID string, want int) {
 	t.Helper()
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM searches WHERE search_id=?", searchID).Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM searches WHERE search_id=?", searchID).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != want {

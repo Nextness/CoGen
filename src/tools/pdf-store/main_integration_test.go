@@ -55,7 +55,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	bindings := pdfbinding.New(metadata.DB)
+	bindings := metadata.PDFBindings
 	if err := bindings.EnsureBinding(ctx, pdfbinding.DefaultStoreFilename); err != nil {
 		t.Fatal(err)
 	}
@@ -157,14 +157,14 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	}
 	defer metadata.Close()
 	var addedEvents int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
 		t.Fatal(err)
 	}
 	if addedEvents != 1 {
 		t.Fatalf("manual add audit events = %d, want 1", addedEvents)
 	}
 	var duplicateEvents int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
 		t.Fatal(err)
 	}
 	if duplicateEvents != 1 {

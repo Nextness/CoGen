@@ -119,14 +119,14 @@ func TestCharacterizationTransactionRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	auditsBefore := reviewCount(t, db, "SELECT COUNT(*) FROM audit_events")
-	if _, err := db.DB.Exec(`CREATE TRIGGER characterization_abort_audit
+	if _, err := db.RawDBForTest().Exec(`CREATE TRIGGER characterization_abort_audit
 		BEFORE INSERT ON audit_events
 		BEGIN
 			SELECT RAISE(ABORT, 'characterization injected audit failure');
 		END`); err != nil {
 		t.Fatal(err)
 	}
-	defer db.DB.Exec("DROP TRIGGER IF EXISTS characterization_abort_audit")
+	defer db.RawDBForTest().Exec("DROP TRIGGER IF EXISTS characterization_abort_audit")
 
 	if _, _, err := db.Review.AppendWorkReview(ctx, contextRecord.ID, a1Revision, nil, "approved", nil, nil); err == nil || !strings.Contains(err.Error(), "characterization injected audit failure") {
 		t.Fatalf("decision error = %v, want injected audit failure", err)

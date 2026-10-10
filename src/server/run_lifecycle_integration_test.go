@@ -34,11 +34,11 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 		t.Fatalf("all runs after trash: status=%d body=%v", status, body)
 	}
 	var trashReason string
-	if err := viewer.writeDB.DB.QueryRow("SELECT trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&trashReason); err != nil || trashReason != "Superseded test attempt" {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&trashReason); err != nil || trashReason != "Superseded test attempt" {
 		t.Fatalf("stored trash reason=%q err=%v", trashReason, err)
 	}
 	var trashEvents int
-	if err := viewer.writeDB.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'", runID).Scan(&trashEvents); err != nil || trashEvents != 1 {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'", runID).Scan(&trashEvents); err != nil || trashEvents != 1 {
 		t.Fatalf("run_trashed events=%d err=%v", trashEvents, err)
 	}
 
@@ -52,11 +52,11 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 	}
 	var restoredState string
 	var clearedReason any
-	if err := viewer.writeDB.DB.QueryRow("SELECT visibility_state, trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&restoredState, &clearedReason); err != nil || restoredState != "active" || clearedReason != nil {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT visibility_state, trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&restoredState, &clearedReason); err != nil || restoredState != "active" || clearedReason != nil {
 		t.Fatalf("restored state=%q reason=%v err=%v", restoredState, clearedReason, err)
 	}
 	var restoreEvents int
-	if err := viewer.writeDB.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_restored'", runID).Scan(&restoreEvents); err != nil || restoreEvents != 1 {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_restored'", runID).Scan(&restoreEvents); err != nil || restoreEvents != 1 {
 		t.Fatalf("run_restored events=%d err=%v", restoreEvents, err)
 	}
 }
@@ -87,7 +87,7 @@ func TestRunVisibilityValidation(t *testing.T) {
 			}
 		})
 	}
-	if _, err := viewer.writeDB.DB.Exec("UPDATE pipeline_runs SET status='running' WHERE id=?", runID); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("UPDATE pipeline_runs SET status='running' WHERE id=?", runID); err != nil {
 		t.Fatal(err)
 	}
 	status, body := mutationJSON(t, handler, http.MethodPut, endpoint, `{"visibility_state":"trashed","reason":"test"}`, "")
@@ -112,11 +112,11 @@ func TestRunVisibilityAuditEvidence(t *testing.T) {
 		t.Fatalf("trash run status=%d", status)
 	}
 	var trashedAt string
-	if err := viewer.writeDB.DB.QueryRow("SELECT trashed_at FROM pipeline_runs WHERE id=?", runID).Scan(&trashedAt); err != nil {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT trashed_at FROM pipeline_runs WHERE id=?", runID).Scan(&trashedAt); err != nil {
 		t.Fatal(err)
 	}
 	var occurredAt, actor, entityType, entityID, action, beforeJSON, afterJSON, metadataJSON string
-	if err := viewer.writeDB.DB.QueryRow(`SELECT occurred_at, actor, entity_type, entity_id, action,
+	if err := viewer.writeDB.RawDBForTest().QueryRow(`SELECT occurred_at, actor, entity_type, entity_id, action,
 		before_json, after_json, metadata_json
 		FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'`, runID).Scan(
 		&occurredAt, &actor, &entityType, &entityID, &action, &beforeJSON, &afterJSON, &metadataJSON); err != nil {

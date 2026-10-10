@@ -1,6 +1,8 @@
 // main_test.go provides end-to-end pipeline tests that build a
 // temporary binary, run the workspace pipeline against a fixture,
 // and verify idempotent database rows and configuration artifacts.
+//go:build integration
+
 package main
 
 import (
@@ -10,11 +12,9 @@ import (
 	"analysis/pdfstore"
 	"analysis/workspace"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 )
@@ -172,7 +172,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 
 	for _, table := range []string{"articles", "authors", "article_authors", "article_references", "enrichment_log"} {
 		var got int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&got); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		if got != 0 {
@@ -189,7 +189,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 		"source_records":     2,
 	} {
 		var got int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&got); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		if got != want {
@@ -198,7 +198,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	}
 
 	var completedRuns int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status = 'completed'").Scan(&completedRuns); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status = 'completed'").Scan(&completedRuns); err != nil {
 		t.Fatal(err)
 	}
 	if completedRuns != 2 {
@@ -206,32 +206,32 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	}
 
 	var artifactCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM artifacts").Scan(&artifactCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM artifacts").Scan(&artifactCount); err != nil {
 		t.Fatal(err)
 	}
 	if artifactCount < 6 {
 		t.Errorf("immutable stage artifact count: got %d, want at least 6", artifactCount)
 	}
 	var inputManifestHash string
-	if err := db.DB.QueryRow("SELECT input_manifest_hash FROM execution_plans").Scan(&inputManifestHash); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT input_manifest_hash FROM execution_plans").Scan(&inputManifestHash); err != nil {
 		t.Fatal(err)
 	}
 	var linkedArtifactCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM artifacts WHERE content_hash = ?", inputManifestHash).Scan(&linkedArtifactCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM artifacts WHERE content_hash = ?", inputManifestHash).Scan(&linkedArtifactCount); err != nil {
 		t.Fatal(err)
 	}
 	if linkedArtifactCount != 1 {
 		t.Errorf("input manifest artifact link count: got %d, want 1", linkedArtifactCount)
 	}
 	var configurationSnapshotCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM run_artifacts WHERE pipeline_run_id=1").Scan(&configurationSnapshotCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM run_artifacts WHERE pipeline_run_id=1").Scan(&configurationSnapshotCount); err != nil {
 		t.Fatal(err)
 	}
 	if configurationSnapshotCount != 3 {
 		t.Errorf("run configuration snapshots: got %d, want 3", configurationSnapshotCount)
 	}
 	var resolvedManifestArtifactCount int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM run_artifacts ra
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM run_artifacts ra
 		JOIN artifacts a ON a.id=ra.artifact_id
 		JOIN execution_plans ep ON ep.id=(SELECT execution_plan_id FROM pipeline_runs WHERE id=ra.pipeline_run_id)
 		WHERE ra.pipeline_run_id=1 AND ra.artifact_role='resolved_manifest' AND a.content_hash=ep.resolved_manifest_hash`).Scan(&resolvedManifestArtifactCount); err != nil {
@@ -241,7 +241,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 		t.Errorf("resolved manifest snapshot link count: got %d, want 1", resolvedManifestArtifactCount)
 	}
 	var enrichmentEnabled bool
-	if err := db.DB.QueryRow("SELECT enrichment_enabled FROM execution_plans").Scan(&enrichmentEnabled); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT enrichment_enabled FROM execution_plans").Scan(&enrichmentEnabled); err != nil {
 		t.Fatal(err)
 	}
 	if enrichmentEnabled {
@@ -279,7 +279,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 		t.Fatalf("run audit does not record enrichment policy: %+v", auditEvents)
 	}
 	var planMetadata string
-	if err := db.DB.QueryRow("SELECT metadata_json FROM audit_events WHERE action=?", manifest.AuditDuplicatePlanSkipped).Scan(&planMetadata); err != nil || !strings.Contains(planMetadata, "matching_completed_plan") {
+	if err := db.RawDBForTest().QueryRow("SELECT metadata_json FROM audit_events WHERE action=?", manifest.AuditDuplicatePlanSkipped).Scan(&planMetadata); err != nil || !strings.Contains(planMetadata, "matching_completed_plan") {
 		t.Fatalf("completed-plan reuse audit = %q, %v", planMetadata, err)
 	}
 	steps, err := db.RunSteps.ListByRun(2)
@@ -299,7 +299,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 		t.Fatalf("preflight provenance is incomplete: %+v", preflight)
 	}
 	var stepRunID int64
-	if err := db.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action=?", manifest.AuditStepReused).Scan(&stepRunID); err != nil || stepRunID != 2 {
+	if err := db.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action=?", manifest.AuditStepReused).Scan(&stepRunID); err != nil || stepRunID != 2 {
 		t.Fatalf("preflight reuse audit run ID = %d, %v", stepRunID, err)
 	}
 	pdfInventory, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), filepath.Join(rootDir, "config", "database.something"))
@@ -372,7 +372,7 @@ func TestWorkspaceAttemptRetryAndSourceHash(t *testing.T) {
 	}
 
 	var planCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM execution_plans").Scan(&planCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM execution_plans").Scan(&planCount); err != nil {
 		t.Fatal(err)
 	}
 	if planCount != 2 {
@@ -411,10 +411,10 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 		t.Fatal("--fresh did not create a distinct run attempt")
 	}
 	var firstPlanID, freshPlanID int64
-	if err := db.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", firstRunID).Scan(&firstPlanID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", firstRunID).Scan(&firstPlanID); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", freshRunID).Scan(&freshPlanID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", freshRunID).Scan(&freshPlanID); err != nil {
 		t.Fatal(err)
 	}
 	if firstPlanID != freshPlanID {
@@ -431,7 +431,7 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 		t.Fatal(err)
 	}
 	var policyPlanID int64
-	if err := db.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", policyRunID).Scan(&policyPlanID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", policyRunID).Scan(&policyPlanID); err != nil {
 		t.Fatal(err)
 	}
 	if policyPlanID == firstPlanID {
@@ -448,7 +448,7 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 		t.Fatal(err)
 	}
 	var revisionPlanID int64
-	if err := db.DB.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", revisionRunID).Scan(&revisionPlanID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", revisionRunID).Scan(&revisionPlanID); err != nil {
 		t.Fatal(err)
 	}
 	if revisionPlanID == firstPlanID || revisionPlanID == policyPlanID {
@@ -456,10 +456,10 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 	}
 
 	var revisionCount, planCount int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM search_revisions").Scan(&revisionCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM search_revisions").Scan(&revisionCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM execution_plans").Scan(&planCount); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM execution_plans").Scan(&planCount); err != nil {
 		t.Fatal(err)
 	}
 	if revisionCount != 2 || planCount != 3 {
@@ -522,7 +522,7 @@ func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T) {
 		}
 	}
 	var normalizedCount int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage = 'normalize'`).Scan(&normalizedCount); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage = 'normalize'`).Scan(&normalizedCount); err != nil {
 		t.Fatal(err)
 	}
 	if normalizedCount != 1 {
@@ -575,7 +575,7 @@ func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T) {
 		}
 
 		var stored bool
-		if err := db.DB.QueryRow(`SELECT ep.enrichment_enabled
+		if err := db.RawDBForTest().QueryRow(`SELECT ep.enrichment_enabled
 			FROM execution_plans ep JOIN pipeline_runs pr ON pr.execution_plan_id = ep.id
 			WHERE pr.id = ?`, runID).Scan(&stored); err != nil {
 			t.Fatal(err)
@@ -633,7 +633,7 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 		"pipeline_runs":    1,
 	} {
 		var got int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM " + table).Scan(&got); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM " + table).Scan(&got); err != nil {
 			t.Fatal(err)
 		}
 		if got != want {
@@ -643,7 +643,7 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 
 	var runID int64
 	var status, summary string
-	if err := db.DB.QueryRow(`SELECT id, status, COALESCE(summary, '') FROM pipeline_runs`).Scan(&runID, &status, &summary); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT id, status, COALESCE(summary, '') FROM pipeline_runs`).Scan(&runID, &status, &summary); err != nil {
 		t.Fatal(err)
 	}
 	if status != "failed" || !strings.Contains(summary, missingPath) {
@@ -672,7 +672,7 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 		t.Fatalf("missing failed-run audit for unreadable source: %+v", events)
 	}
 
-	rows, err := db.DB.Query("SELECT data FROM artifact_blobs WHERE pipeline_run_id=?", runID)
+	rows, err := db.RawDBForTest().Query("SELECT data FROM artifact_blobs WHERE pipeline_run_id=?", runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -740,7 +740,7 @@ func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T) {
 			if tc.name == "empty CSV" {
 				var expected, observed int
 				var comparison string
-				if err := db.DB.QueryRow(`SELECT expected_result_count, observed_result_count, result_count_comparison FROM run_sources`).Scan(&expected, &observed, &comparison); err != nil {
+				if err := db.RawDBForTest().QueryRow(`SELECT expected_result_count, observed_result_count, result_count_comparison FROM run_sources`).Scan(&expected, &observed, &comparison); err != nil {
 					t.Fatal(err)
 				}
 				if expected != 1 || observed != 0 || comparison != "below" {
@@ -751,7 +751,7 @@ func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T) {
 			var runID int64
 			var status string
 			var summary string
-			if err := db.DB.QueryRow(`SELECT id, status, COALESCE(summary, '') FROM pipeline_runs`).Scan(&runID, &status, &summary); err != nil {
+			if err := db.RawDBForTest().QueryRow(`SELECT id, status, COALESCE(summary, '') FROM pipeline_runs`).Scan(&runID, &status, &summary); err != nil {
 				t.Fatal(err)
 			}
 			if status != "failed" || !strings.Contains(summary, tc.wantErr) {
@@ -820,10 +820,10 @@ func TestWorkspacePipelineRecordsInformationalExpectedResultCounts(t *testing.T)
 			defer db.Close()
 			var expected, observed int
 			var comparison, status string
-			if err := db.DB.QueryRow(`SELECT expected_result_count, observed_result_count, result_count_comparison FROM run_sources`).Scan(&expected, &observed, &comparison); err != nil {
+			if err := db.RawDBForTest().QueryRow(`SELECT expected_result_count, observed_result_count, result_count_comparison FROM run_sources`).Scan(&expected, &observed, &comparison); err != nil {
 				t.Fatal(err)
 			}
-			if err := db.DB.QueryRow(`SELECT status FROM pipeline_runs`).Scan(&status); err != nil {
+			if err := db.RawDBForTest().QueryRow(`SELECT status FROM pipeline_runs`).Scan(&status); err != nil {
 				t.Fatal(err)
 			}
 			if expected != tc.expected || observed != 2 || comparison != tc.comparison || status != "completed" {
@@ -862,70 +862,18 @@ func TestWorkspacePipelineRetainsSourceRecordsRejectedDuringCanonicalConversion(
 	defer db.Close()
 
 	var status string
-	if err := db.DB.QueryRow(`SELECT status FROM pipeline_runs`).Scan(&status); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT status FROM pipeline_runs`).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
 	if status != "completed" {
 		t.Fatalf("pipeline run status = %q, want completed", status)
 	}
 	var rejected int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM source_records WHERE parse_status = 'rejected'`).Scan(&rejected); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM source_records WHERE parse_status = 'rejected'`).Scan(&rejected); err != nil {
 		t.Fatal(err)
 	}
 	if rejected != 1 {
 		t.Fatalf("rejected source records = %d, want 1", rejected)
-	}
-}
-
-// TestFrontendAssets verifies frontend asset directory validation.
-func TestFrontendAssets(t *testing.T) {
-	assetDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(assetDir, "index.html"), []byte("filesystem asset"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	assets, err := frontendAssets(assetDir)
-	if err != nil {
-		t.Fatalf("frontendAssets filesystem directory: %v", err)
-	}
-	contents, err := fs.ReadFile(assets, "index.html")
-	if err != nil || string(contents) != "filesystem asset" {
-		t.Fatalf("filesystem assets index = %q, %v", contents, err)
-	}
-
-	if _, err := frontendAssets(filepath.Join(assetDir, "missing")); err == nil {
-		t.Fatal("frontendAssets accepted missing directory")
-	}
-	filePath := filepath.Join(assetDir, "not-a-directory")
-	if err := os.WriteFile(filePath, []byte("file"), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := frontendAssets(filePath); err == nil {
-		t.Fatal("frontendAssets accepted regular file")
-	}
-}
-
-// TestVersion verifies the version command output format and current value.
-func TestVersion(t *testing.T) {
-	got := version()
-	if !regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`).MatchString(got) {
-		t.Fatalf("version() = %q, want MAJOR.MINOR.PATCH", got)
-	}
-	if !strings.HasPrefix(got, "1.0.0") {
-		t.Errorf("version() = %q, want current version 1.0.0", got)
-	}
-}
-
-// TestValidateLoopbackAddress verifies writable serving rejects names, wildcards, and remote IPs.
-func TestValidateLoopbackAddress(t *testing.T) {
-	for _, address := range []string{"127.0.0.1:8080", "[::1]:0"} {
-		if err := validateLoopbackAddress(address); err != nil {
-			t.Errorf("validate %q: %v", address, err)
-		}
-	}
-	for _, address := range []string{"localhost:8080", "0.0.0.0:8080", "[::]:8080", "192.0.2.1:8080", "missing-port"} {
-		if err := validateLoopbackAddress(address); err == nil {
-			t.Errorf("expected %q to be rejected", address)
-		}
 	}
 }
 

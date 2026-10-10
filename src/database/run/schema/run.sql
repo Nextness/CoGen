@@ -64,6 +64,12 @@ FROM pipeline_runs
 WHERE visibility_state = sqlc.arg(visibility_state)
 ORDER BY id;
 
+-- name: ListCompletedRunIDs :many
+SELECT id
+FROM pipeline_runs
+WHERE status = 'completed'
+ORDER BY id;
+
 -- name: RunExists :one
 SELECT 1
 FROM pipeline_runs

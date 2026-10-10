@@ -40,7 +40,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := fixture.RunArtifacts.Link(runID, artifactID, database.RunArtifactWorkspaceConfig); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -62,7 +62,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := artifact.New(family.DB)
+	store := artifact.New(family.RawDBForTest())
 
 	// Read parity for artifact identity and blob bytes.
 	legacyArtifact, err := legacy.Artifacts.GetByHash("parity-hash")
@@ -117,7 +117,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewArtifact != familyNewArtifact {
 		t.Fatalf("Create ID parity: legacy=%d family=%d", legacyNewArtifact, familyNewArtifact)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, content_hash, byte_size, content_type FROM artifacts WHERE id=?", legacyNewArtifact)
 
 	// Atomic artifact-plus-blob write parity.
@@ -134,9 +134,9 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyAtomic != familyAtomic {
 		t.Fatalf("CreateWithBlob ID parity: legacy=%d family=%d", legacyAtomic, familyAtomic)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, content_hash, byte_size, content_type FROM artifacts WHERE id=?", legacyAtomic)
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT artifact_id, pipeline_run_id, data FROM artifact_blobs WHERE artifact_id=?", legacyAtomic)
 
 	// Blob write parity.
@@ -151,7 +151,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewBlob != familyNewBlob {
 		t.Fatalf("CreateBlob ID parity: legacy=%d family=%d", legacyNewBlob, familyNewBlob)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, artifact_id, pipeline_run_id, data FROM artifact_blobs WHERE id=?", legacyNewBlob)
 
 	// Run-artifact link parity.
@@ -161,7 +161,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 	if err := store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: familyNewArtifact, Role: artifact.RunArtifactResolvedManifest}); err != nil {
 		t.Fatal(err)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT pipeline_run_id, artifact_id, artifact_role FROM run_artifacts WHERE pipeline_run_id=? ORDER BY artifact_role", runID)
 
 	// Error parity for conflicting metadata, bytes, and role assignments.
@@ -196,7 +196,7 @@ func TestArtifactReadParityWithLegacyServerQueries(t *testing.T) {
 	var legacyType, legacyRole string
 	var legacyHasBlob bool
 	var legacyData []byte
-	if err := db.DB.QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL, ab.data,
+	if err := db.RawDBForTest().QueryRowContext(ctx, `SELECT a.content_type, ab.id IS NOT NULL, ab.data,
 		COALESCE((SELECT artifact_role FROM run_artifacts WHERE artifact_id=a.id ORDER BY pipeline_run_id, artifact_role LIMIT 1), '')
 		FROM artifacts a LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id
 		WHERE a.id=?`, artifactID).Scan(&legacyType, &legacyHasBlob, &legacyData, &legacyRole); err != nil {
@@ -215,7 +215,7 @@ func TestArtifactReadParityWithLegacyServerQueries(t *testing.T) {
 	var legacyByteSize, legacyBlobSize int64
 	var legacyPreviewHasBlob bool
 	var legacyPreviewData []byte
-	if err := db.DB.QueryRowContext(ctx, `SELECT a.content_type, a.byte_size,
+	if err := db.RawDBForTest().QueryRowContext(ctx, `SELECT a.content_type, a.byte_size,
 			ab.id IS NOT NULL, COALESCE(length(CAST(ab.data AS BLOB)), 0), substr(CAST(ab.data AS BLOB), 1, ?)
         FROM artifacts a
         LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id

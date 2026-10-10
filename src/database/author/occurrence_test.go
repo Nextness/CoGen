@@ -95,7 +95,7 @@ func TestAuthorOccurrenceAppendOnlyTriggerUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateOccurrence: %v", err)
 	}
-	_, err = db.DB.Exec("UPDATE author_occurrences SET citation_name = 'Changed' WHERE id = ?", occurrenceID)
+	_, err = db.RawDBForTest().Exec("UPDATE author_occurrences SET citation_name = 'Changed' WHERE id = ?", occurrenceID)
 	if err == nil {
 		t.Fatal("expected error from append-only trigger on UPDATE")
 	}
@@ -121,7 +121,7 @@ func TestAuthorOccurrenceAppendOnlyTriggerDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateOccurrence: %v", err)
 	}
-	_, err = db.DB.Exec("DELETE FROM author_occurrences WHERE id = ?", occurrenceID)
+	_, err = db.RawDBForTest().Exec("DELETE FROM author_occurrences WHERE id = ?", occurrenceID)
 	if err == nil {
 		t.Fatal("expected error from append-only trigger on DELETE")
 	}

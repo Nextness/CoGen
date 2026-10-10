@@ -28,7 +28,7 @@ func openFamilyStore(t *testing.T) (*source.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return source.New(db.DB), db
+	return source.New(db.RawDBForTest()), db
 }
 
 // createTestRun creates one pipeline run for source linkage and returns its ID.

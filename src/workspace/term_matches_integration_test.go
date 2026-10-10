@@ -166,10 +166,10 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 	var termRows, matchRows int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM run_search_terms WHERE pipeline_run_id=?", runID).Scan(&termRows); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM run_search_terms WHERE pipeline_run_id=?", runID).Scan(&termRows); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id=?", runID).Scan(&matchRows); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id=?", runID).Scan(&matchRows); err != nil {
 		t.Fatal(err)
 	}
 	if termRows != 2 || matchRows != 3 {
@@ -258,7 +258,7 @@ func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T) {
 	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("DROP TABLE work_revision_term_matches"); err != nil {
+	if _, err := db.RawDBForTest().Exec("DROP TABLE work_revision_term_matches"); err != nil {
 		t.Fatal(err)
 	}
 	if err := reconcileStoredTermMatches(context.Background(), db); err == nil {

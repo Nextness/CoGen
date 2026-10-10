@@ -31,7 +31,7 @@ func timestamp() string {
 
 // withTx runs fn inside a transaction, rolling back on error and committing on success.
 func (d *Database) withTx(ctx context.Context, fn func(*sql.Tx) error) error {
-	tx, err := d.DB.BeginTx(ctx, nil)
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}

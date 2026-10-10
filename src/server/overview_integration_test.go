@@ -123,7 +123,7 @@ func TestOverviewReportsMalformedSourceFilterEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec(`INSERT INTO source_filter_counts (pipeline_run_id, source_name, filter_data)
+	if _, err := db.RawDBForTest().Exec(`INSERT INTO source_filter_counts (pipeline_run_id, source_name, filter_data)
 		VALUES (?, 'broken-source', '{not-json')`, runID); err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestOverviewSupportsPreResultCountRunSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, column := range []string{"result_count_comparison", "observed_result_count", "expected_result_count"} {
-		if _, err := db.DB.Exec("ALTER TABLE run_sources DROP COLUMN " + column); err != nil {
+		if _, err := db.RawDBForTest().Exec("ALTER TABLE run_sources DROP COLUMN " + column); err != nil {
 			db.Close()
 			t.Fatalf("drop %s: %v", column, err)
 		}

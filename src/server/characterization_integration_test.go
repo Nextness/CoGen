@@ -29,7 +29,7 @@ func TestCharacterizationRequestContextCancellationDoesNotMutate(t *testing.T) {
 		t.Fatalf("canceled mutation status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 	var contexts int
-	if err := fixture.server.writeDB.DB.QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id=?", fixture.runID).Scan(&contexts); err != nil {
+	if err := fixture.server.writeDB.RawDBForTest().QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id=?", fixture.runID).Scan(&contexts); err != nil {
 		t.Fatal(err)
 	}
 	if contexts != 0 {

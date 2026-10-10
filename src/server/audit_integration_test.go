@@ -117,7 +117,7 @@ func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 	defer viewer.Close()
 
 	payload := bytes.Repeat([]byte("x"), 64*1024*(collectionAPIQueries+1))
-	result, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
+	result, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := viewer.writeDB.DB.Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
+	if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
 		t.Fatal(err)
 	}
 
@@ -151,13 +151,13 @@ func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *test
 	defer viewer.Close()
 	var focusedID int64
 	for index := 0; index < 30; index++ {
-		artifact, err := viewer.writeDB.DB.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", "paged-artifact-"+stringID(int64(index)))
+		artifact, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", "paged-artifact-"+stringID(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		artifactID, _ := artifact.LastInsertId()
 		focusedID = artifactID
-		if _, err := viewer.writeDB.DB.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, output_artifact_id) VALUES (?, ?, 'completed', ?)", runID, "paged-step-"+stringID(int64(index)), artifactID); err != nil {
+		if _, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, output_artifact_id) VALUES (?, ?, 'completed', ?)", runID, "paged-step-"+stringID(int64(index)), artifactID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -195,15 +195,15 @@ func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T) {
 	}
 	defer viewer.Close()
 	var workID int64
-	if err := viewer.writeDB.DB.QueryRow("SELECT work_id FROM work_revisions WHERE id=?", revisionID).Scan(&workID); err != nil {
+	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT work_id FROM work_revisions WHERE id=?", revisionID).Scan(&workID); err != nil {
 		t.Fatal(err)
 	}
-	otherWork, err := viewer.writeDB.DB.Exec("INSERT INTO works (doi) VALUES ('10.1/audit-other')")
+	otherWork, err := viewer.writeDB.RawDBForTest().Exec("INSERT INTO works (doi) VALUES ('10.1/audit-other')")
 	if err != nil {
 		t.Fatal(err)
 	}
 	otherWorkID, _ := otherWork.LastInsertId()
-	if _, err := viewer.writeDB.DB.Exec(`INSERT INTO audit_events
+	if _, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO audit_events
 		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json)
 		VALUES
 		(datetime('now'), 'reviewer', ?, 'work_review_version', '1', 'work_review_version_created', '{"status":"approved"}'),
@@ -262,7 +262,7 @@ func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := viewer.writeDB.DB.Exec(`INSERT INTO audit_events
+	result, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO audit_events
 		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json)
 		VALUES (datetime('now', '+1 minute'), 'reviewer', ?, 'work_review_version', '999', 'work_review_version_created', ?, ?, ?)`, runID, string(before), string(after), string(metadata))
 	if err != nil {

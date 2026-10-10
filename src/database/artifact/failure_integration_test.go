@@ -58,7 +58,7 @@ func TestStoreCreateWithBlobRejectsExistingMetadataConflict(t *testing.T) {
 func TestStoreCreateReportsIgnoredInsertWithoutExistingRow(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	if _, err := db.DB.Exec("CREATE TRIGGER ignore_artifact_insert BEFORE INSERT ON artifacts BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_artifact_insert BEFORE INSERT ON artifacts BEGIN SELECT RAISE(IGNORE); END"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -73,7 +73,7 @@ func TestStoreCreateWithBlobReportsIgnoredIdentityInsert(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-ignored-identity")
-	if _, err := db.DB.Exec("CREATE TRIGGER ignore_artifact_insert BEFORE INSERT ON artifacts BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_artifact_insert BEFORE INSERT ON artifacts BEGIN SELECT RAISE(IGNORE); END"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -90,7 +90,7 @@ func TestStoreCreateWithBlobReportsMissingStoredMetadata(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-vanished-identity")
-	if _, err := db.DB.Exec("CREATE TRIGGER delete_artifact_after_insert AFTER INSERT ON artifacts BEGIN DELETE FROM artifacts WHERE id = NEW.id; END"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER delete_artifact_after_insert AFTER INSERT ON artifacts BEGIN DELETE FROM artifacts WHERE id = NEW.id; END"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +107,7 @@ func TestStoreCreateWithBlobReportsIgnoredBlobInsert(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-ignored-blob")
-	if _, err := db.DB.Exec("CREATE TRIGGER ignore_blob_insert BEFORE INSERT ON artifact_blobs BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_blob_insert BEFORE INSERT ON artifact_blobs BEGIN SELECT RAISE(IGNORE); END"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -128,7 +128,7 @@ func TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("CREATE TRIGGER ignore_blob_insert BEFORE INSERT ON artifact_blobs BEGIN SELECT RAISE(IGNORE); END"); err != nil {
+	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_blob_insert BEFORE INSERT ON artifact_blobs BEGIN SELECT RAISE(IGNORE); END"); err != nil {
 		t.Fatal(err)
 	}
 

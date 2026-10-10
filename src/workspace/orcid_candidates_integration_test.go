@@ -61,7 +61,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 	var status, observedORCID string
 	var personID any
 	var candidates int
-	err = db.DB.QueryRow(`SELECT r.status, COALESCE(ao.orcid, ''), ao.person_id, COUNT(c.id)
+	err = db.RawDBForTest().QueryRow(`SELECT r.status, COALESCE(ao.orcid, ''), ao.person_id, COUNT(c.id)
 		FROM author_identity_resolutions r
 		JOIN author_occurrences ao ON ao.id=r.author_occurrence_id
 		LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id
@@ -73,7 +73,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 		t.Fatalf("uncertain candidate became an identity: status=%q observed_orcid=%q person=%v candidates=%d", status, observedORCID, personID, candidates)
 	}
 	var people int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM people").Scan(&people); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM people").Scan(&people); err != nil {
 		t.Fatal(err)
 	}
 	if people != 0 {
@@ -121,17 +121,17 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 	defer db.Close()
 
 	var runStatus string
-	if err := db.DB.QueryRow(`SELECT status FROM pipeline_runs ORDER BY id DESC LIMIT 1`).Scan(&runStatus); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT status FROM pipeline_runs ORDER BY id DESC LIMIT 1`).Scan(&runStatus); err != nil {
 		t.Fatal(err)
 	}
 	if runStatus != "failed" {
 		t.Fatalf("run status = %q, want failed", runStatus)
 	}
 	var metadataRevisionCount, identityRevisionCount int
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichMetadata).Scan(&metadataRevisionCount); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichMetadata).Scan(&metadataRevisionCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichIdentity).Scan(&identityRevisionCount); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichIdentity).Scan(&identityRevisionCount); err != nil {
 		t.Fatal(err)
 	}
 	if metadataRevisionCount != 1 || identityRevisionCount != 0 {
@@ -147,7 +147,7 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 	}
 	var status, errorMessage, snapshotStage string
 	var candidateCount int
-	if err := db.DB.QueryRow(`SELECT r.status, r.error_message, wr.producer_stage, COUNT(c.id)
+	if err := db.RawDBForTest().QueryRow(`SELECT r.status, r.error_message, wr.producer_stage, COUNT(c.id)
 		FROM author_identity_resolutions r
 		JOIN author_occurrences ao ON ao.id=r.author_occurrence_id
 		JOIN authorships a ON a.author_occurrence_id=ao.id

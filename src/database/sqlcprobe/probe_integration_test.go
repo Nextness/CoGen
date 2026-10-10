@@ -24,7 +24,7 @@ func openProbe(t *testing.T) (*sqlcprobe.Probe, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlcprobe.New(db.DB), db
+	return sqlcprobe.New(db.RawDBForTest()), db
 }
 
 // probeEntry returns one complete probe entry for a request fingerprint.

@@ -71,7 +71,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.DB.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+	if _, err := fixture.RawDBForTest().Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
 		t.Fatal(err)
 	}
 	if err := fixture.Close(); err != nil {
@@ -93,7 +93,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := author.New(family.DB)
+	store := author.New(family.RawDBForTest())
 
 	// Read parity for people, occurrences, and authorships.
 	legacyPerson, err := legacy.People.GetByID(personID)
@@ -153,7 +153,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewPerson != familyNewPerson {
 		t.Fatalf("CreatePersonByORCID id parity: legacy=%d family=%d", legacyNewPerson, familyNewPerson)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, orcid FROM people WHERE id=?", legacyNewPerson)
 
 	// Occurrence write parity, including the person link copy-back.
@@ -173,7 +173,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyNewOccurrence.PersonID != familyNewOccurrence.PersonID {
 		t.Fatalf("CreateOccurrence person parity: legacy=%d family=%d", legacyNewOccurrence.PersonID, familyNewOccurrence.PersonID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, person_id, citation_name, orcid FROM author_occurrences WHERE id=?", legacyOccurrenceID)
 
 	// Authorship write parity.
@@ -194,7 +194,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyAuthorshipID != familyAuthorshipID {
 		t.Fatalf("CreateAuthorship id parity: legacy=%d family=%d", legacyAuthorshipID, familyAuthorshipID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, work_revision_id, author_occurrence_id, author_order, affiliation FROM authorships WHERE id=?", legacyAuthorshipID)
 
 	// Resolution and candidate write parity.
@@ -215,7 +215,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyResolutionID != familyResolutionID {
 		t.Fatalf("CreateIdentityResolution id parity: legacy=%d family=%d", legacyResolutionID, familyResolutionID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, pipeline_run_id, author_occurrence_id, status, provider, queried_citation_name, error_message, resolved_at FROM author_identity_resolutions WHERE id=?", legacyResolutionID)
 
 	legacyCandidateID, err := legacy.IdentityCandidates.Create(&database.AuthorIdentityCandidate{
@@ -235,7 +235,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 	if legacyCandidateID != familyCandidateID {
 		t.Fatalf("CreateIdentityCandidate id parity: legacy=%d family=%d", legacyCandidateID, familyCandidateID)
 	}
-	assertQueryParity(t, legacy.DB, family.DB,
+	assertQueryParity(t, legacy.RawDBForTest(), family.RawDBForTest(),
 		"SELECT id, identity_resolution_id, candidate_orcid, provider_display_name, query_url, provider_rank FROM author_identity_candidates WHERE id=?", legacyCandidateID)
 
 	// Error parity for invalid input.

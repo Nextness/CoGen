@@ -84,6 +84,12 @@ func (s *Store) ListByVisibility(ctx context.Context, visibilityState string) ([
 	return runs, nil
 }
 
+// ListCompletedRunIDs returns the IDs of every completed pipeline run in
+// ascending order. It backs the workspace term-match reconciliation pass.
+func (s *Store) ListCompletedRunIDs(ctx context.Context) ([]int64, error) {
+	return s.queries.ListCompletedRunIDs(ctx)
+}
+
 // runFromGenerated maps one generated run row into an application run and
 // makes every nullable lifecycle field explicit.
 func runFromGenerated(row generated.GetRunByIDRow) *Run {

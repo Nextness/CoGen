@@ -135,7 +135,7 @@ func TestStoreCheckPurgeEligibilityReviewContexts(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := db.DB.Exec("INSERT INTO review_contexts (pipeline_run_id) VALUES (?)", runA); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id) VALUES (?)", runA); err != nil {
 		t.Fatal(err)
 	}
 	eligibility, err := store.CheckPurgeEligibility(ctx, runA)
@@ -147,10 +147,10 @@ func TestStoreCheckPurgeEligibilityReviewContexts(t *testing.T) {
 	}
 
 	var parentContextID int64
-	if err := db.DB.QueryRow("SELECT id FROM review_contexts WHERE pipeline_run_id=?", runA).Scan(&parentContextID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT id FROM review_contexts WHERE pipeline_run_id=?", runA).Scan(&parentContextID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO review_contexts (pipeline_run_id, parent_context_id) VALUES (?, ?)", runB, parentContextID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id, parent_context_id) VALUES (?, ?)", runB, parentContextID); err != nil {
 		t.Fatal(err)
 	}
 	eligibility, err = store.CheckPurgeEligibility(ctx, runA)

@@ -51,7 +51,7 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	}
 	exec := func(query string, args ...any) int64 {
 		t.Helper()
-		result, err := metadata.DB.Exec(query, args...)
+		result, err := metadata.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture query %q: %v", query, err)
 		}
@@ -368,7 +368,7 @@ func TestNormalizedRevisionPredicateConformance(t *testing.T) {
 			t.Fatalf("create review context: context=%+v created=%v err=%v", contextRecord, created, err)
 		}
 		heads := map[int64]int64{}
-		rows, err := fixture.db.DB.Query(`SELECT work_id, work_revision_id FROM review_context_work_heads
+		rows, err := fixture.db.RawDBForTest().Query(`SELECT work_id, work_revision_id FROM review_context_work_heads
 			WHERE review_context_id=? ORDER BY work_id`, contextRecord.ID)
 		if err != nil {
 			t.Fatal(err)
@@ -410,7 +410,7 @@ func (f *normalizedRevisionConformanceFixture) assertAuthorIdentityEvidenceRevis
 	t.Helper()
 	seed := func(name string, revisionID int64, authorOrder int) int64 {
 		t.Helper()
-		occurrence, err := f.db.DB.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", name)
+		occurrence, err := f.db.RawDBForTest().Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -418,10 +418,10 @@ func (f *normalizedRevisionConformanceFixture) assertAuthorIdentityEvidenceRevis
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := f.db.DB.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, occurrenceID, authorOrder); err != nil {
+		if _, err := f.db.RawDBForTest().Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, occurrenceID, authorOrder); err != nil {
 			t.Fatal(err)
 		}
-		resolution, err := f.db.DB.Exec(`INSERT INTO author_identity_resolutions
+		resolution, err := f.db.RawDBForTest().Exec(`INSERT INTO author_identity_resolutions
 			(pipeline_run_id, author_occurrence_id, status, provider, queried_citation_name, resolved_at)
 			VALUES (?, ?, 'orcid_is_unclear', 'orcid', ?, '2026-01-01T00:00:00Z')`, f.runID, occurrenceID, name)
 		if err != nil {

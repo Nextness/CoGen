@@ -184,7 +184,7 @@ func TestAuditEventInsertWithZeroRunID(t *testing.T) {
 	}
 
 	var pipelineRunID any
-	if err := db.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE id=?", id).Scan(&pipelineRunID); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE id=?", id).Scan(&pipelineRunID); err != nil {
 		t.Fatal(err)
 	}
 	if pipelineRunID != nil {
@@ -268,7 +268,7 @@ func TestAuditEventRejectsUpdate(t *testing.T) {
 	})
 
 	// Attempt to update it (must fail)
-	_, err := db.DB.Exec("UPDATE audit_events SET action = 'run_completed' WHERE id = ?", id)
+	_, err := db.RawDBForTest().Exec("UPDATE audit_events SET action = 'run_completed' WHERE id = ?", id)
 	if err == nil {
 		t.Fatal("expected error when updating audit_events")
 	}
@@ -288,20 +288,20 @@ func TestAuditEventRejectsDelete(t *testing.T) {
 
 	// Verify the event exists
 	countBefore := 0
-	_ = db.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&countBefore)
+	_ = db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&countBefore)
 	if countBefore != 1 {
 		t.Fatalf("expected 1 event before delete attempt, got %d", countBefore)
 	}
 
 	// Attempt to delete it (must fail)
-	_, err := db.DB.Exec("DELETE FROM audit_events")
+	_, err := db.RawDBForTest().Exec("DELETE FROM audit_events")
 	if err == nil {
 		t.Fatal("expected error when deleting from audit_events")
 	}
 
 	// Verify the event still exists
 	countAfter := 0
-	_ = db.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&countAfter)
+	_ = db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&countAfter)
 	if countAfter != 1 {
 		t.Errorf("expected 1 event after failed delete, got %d", countAfter)
 	}

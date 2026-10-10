@@ -2,7 +2,7 @@
 // temporary SQLite databases created by the production migration runner.
 //go:build integration
 
-package pdfbinding
+package pdfbinding_test
 
 import (
 	"context"
@@ -11,10 +11,11 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 )
 
 // openTestStore opens a migrated metadata database and returns a binding store.
-func openTestStore(t *testing.T) (*Store, *database.Database, string) {
+func openTestStore(t *testing.T) (*pdfbinding.Store, *database.Database, string) {
 	t.Helper()
 	metadataPath := filepath.Join(t.TempDir(), "corpus.metadata.db")
 	metadata, err := database.Open(metadataPath, filepath.Join("..", "..", "..", "config", "database.something"))
@@ -22,7 +23,7 @@ func openTestStore(t *testing.T) (*Store, *database.Database, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = metadata.Close() })
-	return New(metadata.DB), metadata, metadataPath
+	return metadata.PDFBindings, metadata, metadataPath
 }
 
 // TestBindingReportsMissingRow verifies a fresh metadata database has no binding.
@@ -43,11 +44,11 @@ func TestResolveBindingUsesDefaultAndPreservesExistingBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if path != filepath.Join(filepath.Dir(metadataPath), DefaultStoreFilename) {
+	if path != filepath.Join(filepath.Dir(metadataPath), pdfbinding.DefaultStoreFilename) {
 		t.Fatalf("default PDF store path = %q", path)
 	}
 	relativePath, found, err := store.Binding(ctx)
-	if err != nil || !found || relativePath != DefaultStoreFilename {
+	if err != nil || !found || relativePath != pdfbinding.DefaultStoreFilename {
 		t.Fatalf("resolved binding = %q found=%v err=%v", relativePath, found, err)
 	}
 	if err := store.EnsureBinding(ctx, "other.pdf.db"); err == nil || !strings.Contains(err.Error(), "already bound") {
@@ -65,7 +66,7 @@ func TestEnsureBindingRejectsUnsafePaths(t *testing.T) {
 		}
 	}
 	var count int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_store_binding").Scan(&count); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_store_binding").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
@@ -84,7 +85,7 @@ func TestEnsureBindingPreservesExistingPath(t *testing.T) {
 		t.Fatalf("identical re-bind error = %v", err)
 	}
 	var count int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_store_binding").Scan(&count); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_store_binding").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {

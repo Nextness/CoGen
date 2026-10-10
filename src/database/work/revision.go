@@ -115,6 +115,29 @@ func (s *Store) ListNormalizeRevisionsByRunID(ctx context.Context, runID int64) 
 	return revisions, nil
 }
 
+// ListNormalizedInventoryBatch returns one bounded, deterministic page of
+// normalized works with a non-empty DOI, ordered by work ID. It backs the
+// companion PDF inventory reconciliation and closes its cursor before callers
+// touch the companion database.
+func (s *Store) ListNormalizedInventoryBatch(ctx context.Context, afterWorkID int64, limit int) ([]NormalizedInventoryWork, error) {
+	rows, err := s.queries.ListNormalizedInventoryBatch(ctx, generated.ListNormalizedInventoryBatchParams{
+		AfterWorkID: afterWorkID,
+		RowLimit:    int64(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	works := make([]NormalizedInventoryWork, 0, len(rows))
+	for _, row := range rows {
+		works = append(works, NormalizedInventoryWork{
+			DOI:           row.Doi.String,
+			WorkID:        row.WorkID,
+			PipelineRunID: row.PipelineRunID,
+		})
+	}
+	return works, nil
+}
+
 // CountRevisionsByWorkID returns the number of revisions for a given work.
 func (s *Store) CountRevisionsByWorkID(ctx context.Context, workID int64) (int, error) {
 	count, err := s.queries.CountWorkRevisionsByWorkID(ctx, workID)

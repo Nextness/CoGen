@@ -14,6 +14,7 @@ import (
 	"analysis/database/audit"
 	"analysis/database/author"
 	"analysis/database/cache"
+	"analysis/database/pdfbinding"
 	"analysis/database/review"
 	"analysis/database/run"
 	"analysis/database/search"
@@ -26,7 +27,7 @@ var lg = logging.Logger("database")
 
 // Database wraps a SQLite connection and exposes per-table repositories.
 type Database struct {
-	DB                   *sql.DB
+	db                   *sql.DB
 	PipelineRuns         *PipelineRunRepository
 	Run                  *run.Store
 	Search               *search.Store
@@ -56,6 +57,7 @@ type Database struct {
 	Work                 *work.Store
 	Author               *author.Store
 	Review               *review.Store
+	PDFBindings          *pdfbinding.Store
 	ArtifactBlobs        *ArtifactBlobRepository
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
@@ -76,7 +78,7 @@ func Open(dbPath, configPath string) (*Database, error) {
 	}
 
 	d := &Database{
-		DB:     conn,
+		db:     conn,
 		dbPath: dbPath,
 	}
 	d.initRepositories()
@@ -110,10 +112,10 @@ func MigrateExisting(dbPath, configPath string) error {
 // initRepositories binds every repository facade to the opened database.
 func (d *Database) initRepositories() {
 	d.PipelineRuns = &PipelineRunRepository{db: d}
-	d.Run = run.New(d.DB)
-	d.Search = search.New(d.DB)
-	d.Source = source.New(d.DB)
-	d.Artifact = artifact.New(d.DB)
+	d.Run = run.New(d.db)
+	d.Search = search.New(d.db)
+	d.Source = source.New(d.db)
+	d.Artifact = artifact.New(d.db)
 	d.Searches = &SearchRepository{db: d}
 	d.Revisions = &SearchRevisionRepository{db: d}
 	d.Plans = &ExecutionPlanRepository{db: d}
@@ -133,11 +135,12 @@ func (d *Database) initRepositories() {
 	d.IdentityResolutions = &AuthorIdentityResolutionRepository{db: d}
 	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
 	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
-	d.Cache = cache.New(d.DB)
-	d.Audit = audit.New(d.DB)
-	d.Work = work.New(d.DB)
-	d.Author = author.New(d.DB)
-	d.Review = review.New(d.DB)
+	d.Cache = cache.New(d.db)
+	d.Audit = audit.New(d.db)
+	d.Work = work.New(d.db)
+	d.Author = author.New(d.db)
+	d.Review = review.New(d.db)
+	d.PDFBindings = pdfbinding.New(d.db)
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
