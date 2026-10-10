@@ -51,6 +51,22 @@ func TestStoreListResultCountsForRunProjectsOptionalColumns(t *testing.T) {
 	if len(legacy) != 1 || legacy[0].ExpectedResultCount != nil || legacy[0].ObservedResultCount != nil || legacy[0].ResultCountComparison != nil || legacy[0].ExportDate != nil {
 		t.Fatalf("legacy result count row = %+v, want unavailable optional columns", legacy)
 	}
+
+	exportOnly, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: runID, IncludeExportDate: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(exportOnly) != 1 || exportOnly[0].ExportDate == nil || *exportOnly[0].ExportDate != "2026-01-02" || exportOnly[0].ExpectedResultCount != nil {
+		t.Fatalf("export-only result count row = %+v", exportOnly)
+	}
+
+	countsOnly, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: runID, IncludeResultCounts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(countsOnly) != 1 || countsOnly[0].ExportDate != nil || countsOnly[0].ExpectedResultCount == nil || *countsOnly[0].ExpectedResultCount != 4 {
+		t.Fatalf("counts-only result count row = %+v", countsOnly)
+	}
 }
 
 // TestStoreListCorpusRecordsOrdersSearchesAndClamps verifies the run-scoped

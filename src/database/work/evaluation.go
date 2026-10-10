@@ -80,6 +80,12 @@ func (s *Store) EvaluationReviewSummary(ctx context.Context, filter EvaluationFi
 // ListEvaluation returns one bounded page of analysis-ready articles with their
 // review and validation state.
 func (s *Store) ListEvaluation(ctx context.Context, filter EvaluationFilter) (*EvaluationPage, error) {
+	if filter.Page < 1 {
+		return nil, fmt.Errorf("evaluation: page must be positive")
+	}
+	if filter.PerPage < 1 || filter.PerPage > maxViewerPageSize {
+		return nil, fmt.Errorf("evaluation: per_page must be between 1 and %d", maxViewerPageSize)
+	}
 	scope, err := evaluationScope(filter)
 	if err != nil {
 		return nil, err

@@ -64,6 +64,7 @@ sql:
       - "../src/database/source/schema/source.sql"
       - "../src/database/source/schema/record.sql"
       - "../src/database/source/schema/filter_count.sql"
+      - "../src/database/source/schema/viewer.sql"
     gen:
       go:
         package: "sql"

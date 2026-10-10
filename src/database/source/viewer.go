@@ -6,6 +6,7 @@ package source
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -66,30 +67,69 @@ type CorpusRecordPage struct {
 // evidence for a run in ascending ID order. Columns absent from the opened
 // database are projected as NULL instead of failing the read.
 func (s *Store) ListResultCountsForRun(ctx context.Context, filter ResultCountFilter) ([]*ResultCountRow, error) {
-	rows, err := s.db.QueryContext(ctx, resultCountsQuery(filter.IncludeExportDate, filter.IncludeResultCounts), filter.RunID)
-	if err != nil {
-		return nil, fmt.Errorf("list run source result counts: %w", err)
-	}
-	defer rows.Close()
-	items := make([]*ResultCountRow, 0)
-	for rows.Next() {
-		var item ResultCountRow
-		var query, comparison, exportDate *string
-		var expected, observed *int64
-		if err := rows.Scan(&item.ID, &item.SourceName, &item.SourceType, &item.ExpectedFile, &query, &expected, &observed, &comparison, &exportDate); err != nil {
+	switch {
+	case filter.IncludeExportDate && filter.IncludeResultCounts:
+		rows, err := s.queries.ListResultCountsForRun(ctx, filter.RunID)
+		if err != nil {
 			return nil, fmt.Errorf("list run source result counts: %w", err)
 		}
-		item.Query = query
-		item.ExpectedResultCount = expected
-		item.ObservedResultCount = observed
-		item.ResultCountComparison = comparison
-		item.ExportDate = exportDate
-		items = append(items, &item)
+		items := make([]*ResultCountRow, 0, len(rows))
+		for _, row := range rows {
+			items = append(items, resultCountRow(row.ID, row.SourceName, row.SourceType, row.ExpectedFile, row.Query, row.ExpectedResultCount, row.ObservedResultCount, row.ResultCountComparison, row.ExportDate))
+		}
+		return items, nil
+	case filter.IncludeExportDate:
+		rows, err := s.queries.ListResultCountsForRunWithoutResultCounts(ctx, filter.RunID)
+		if err != nil {
+			return nil, fmt.Errorf("list run source result counts: %w", err)
+		}
+		items := make([]*ResultCountRow, 0, len(rows))
+		for _, row := range rows {
+			items = append(items, resultCountRow(row.ID, row.SourceName, row.SourceType, row.ExpectedFile, row.Query, row.ExpectedResultCount, row.ObservedResultCount, row.ResultCountComparison, row.ExportDate))
+		}
+		return items, nil
+	case filter.IncludeResultCounts:
+		rows, err := s.queries.ListResultCountsForRunWithoutExportDate(ctx, filter.RunID)
+		if err != nil {
+			return nil, fmt.Errorf("list run source result counts: %w", err)
+		}
+		items := make([]*ResultCountRow, 0, len(rows))
+		for _, row := range rows {
+			items = append(items, resultCountRow(row.ID, row.SourceName, row.SourceType, row.ExpectedFile, row.Query, row.ExpectedResultCount, row.ObservedResultCount, row.ResultCountComparison, row.ExportDate))
+		}
+		return items, nil
+	default:
+		rows, err := s.queries.ListResultCountsForRunWithoutResultCountsAndExportDate(ctx, filter.RunID)
+		if err != nil {
+			return nil, fmt.Errorf("list run source result counts: %w", err)
+		}
+		items := make([]*ResultCountRow, 0, len(rows))
+		for _, row := range rows {
+			items = append(items, resultCountRow(row.ID, row.SourceName, row.SourceType, row.ExpectedFile, row.Query, row.ExpectedResultCount, row.ObservedResultCount, row.ResultCountComparison, row.ExportDate))
+		}
+		return items, nil
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list run source result counts: %w", err)
+}
+
+// resultCountRow maps one generated result-count row into an application row.
+func resultCountRow(id int64, sourceName, sourceType, expectedFile string, query sql.NullString, expected, observed sql.NullInt64, comparison, exportDate sql.NullString) *ResultCountRow {
+	row := &ResultCountRow{ID: id, SourceName: sourceName, SourceType: sourceType, ExpectedFile: expectedFile}
+	if query.Valid {
+		row.Query = &query.String
 	}
-	return items, nil
+	if expected.Valid {
+		row.ExpectedResultCount = &expected.Int64
+	}
+	if observed.Valid {
+		row.ObservedResultCount = &observed.Int64
+	}
+	if comparison.Valid {
+		row.ResultCountComparison = &comparison.String
+	}
+	if exportDate.Valid {
+		row.ExportDate = &exportDate.String
+	}
+	return row
 }
 
 // ListCorpusRecords returns one bounded page of run-scoped source records with

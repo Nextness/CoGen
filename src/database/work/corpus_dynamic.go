@@ -1,12 +1,20 @@
 // corpus_dynamic.go retains the bounded dynamic sort/search builders for the
-// run-scoped corpus collections. Sort identifiers come from closed maps and
-// every user value is bound; no caller value is interpolated into SQL text.
+// run-scoped corpus collections. Sort identifiers come from closed maps, every
+// user value is bound, and the search, sort, order, and page inputs are
+// validated and capped before assembly; no caller value is interpolated into
+// SQL text.
 package work
 
 import (
 	"fmt"
 	"strings"
 )
+
+// maxViewerQueryLength bounds one viewer search string.
+const maxViewerQueryLength = 200
+
+// maxViewerPageSize bounds one viewer page request.
+const maxViewerPageSize = 1000
 
 // corpusReferenceSortFields is the closed allowlist of reference sort expressions.
 var corpusReferenceSortFields = map[string]string{
@@ -59,6 +67,9 @@ func corpusReferenceWhere(filter CorpusReferenceFilter) (string, []any, error) {
 	if _, ok := corpusReferenceSortFields[filter.Sort]; !ok {
 		return "", nil, fmt.Errorf("list corpus references: unsupported sort field %q", filter.Sort)
 	}
+	if err := validateCorpusPage("list corpus references", filter.Query, filter.Order, filter.Page, filter.PerPage); err != nil {
+		return "", nil, err
+	}
 	where, args := scopedSearch("wr.pipeline_run_id=? AND "+normalizedRevisionPredicate("wr"), corpusReferenceSearchFields, filter.RunID, filter.Query)
 	return where, args, nil
 }
@@ -72,6 +83,9 @@ func corpusReferenceSortExpression(sort string) string {
 func corpusAuthorWhere(filter CorpusAuthorFilter) (string, []any, error) {
 	if _, ok := corpusAuthorSortFields[filter.Sort]; !ok {
 		return "", nil, fmt.Errorf("list corpus authors: unsupported sort field %q", filter.Sort)
+	}
+	if err := validateCorpusPage("list corpus authors", filter.Query, filter.Order, filter.Page, filter.PerPage); err != nil {
+		return "", nil, err
 	}
 	where, args := scopedSearch("wr.pipeline_run_id=? AND "+normalizedRevisionPredicate("wr"), corpusAuthorSearchFields, filter.RunID, filter.Query)
 	return where, args, nil
@@ -87,6 +101,9 @@ func runStageWhere(filter RunStageFilter) (string, []any, error) {
 	if _, ok := runStageSortFields[filter.Sort]; !ok {
 		return "", nil, fmt.Errorf("list run stages: unsupported sort field %q", filter.Sort)
 	}
+	if err := validateCorpusPage("list run stages", filter.Query, filter.Order, filter.Page, filter.PerPage); err != nil {
+		return "", nil, err
+	}
 	where, args := scopedSearch("rws.pipeline_run_id=?", runStageSearchFields, filter.RunID, filter.Query)
 	return where, args, nil
 }
@@ -94,6 +111,24 @@ func runStageWhere(filter RunStageFilter) (string, []any, error) {
 // runStageSortExpression returns the allowlisted sort expression.
 func runStageSortExpression(sort string) string {
 	return runStageSortFields[sort]
+}
+
+// validateCorpusPage validates the bounded search, order, and page inputs
+// before any SQL text is assembled.
+func validateCorpusPage(operation, query, order string, page, perPage int) error {
+	if err := validateViewerOrder(operation, order); err != nil {
+		return err
+	}
+	if len(query) > maxViewerQueryLength {
+		return fmt.Errorf("%s: query must be at most %d characters", operation, maxViewerQueryLength)
+	}
+	if page < 1 {
+		return fmt.Errorf("%s: page must be positive", operation)
+	}
+	if perPage < 1 || perPage > maxViewerPageSize {
+		return fmt.Errorf("%s: per_page must be between 1 and %d", operation, maxViewerPageSize)
+	}
+	return nil
 }
 
 // scopedSearch appends bound LIKE conditions for one optional search query.
@@ -109,6 +144,16 @@ func scopedSearch(base string, fields []string, runID int64, query string) (stri
 		args = append(args, needle)
 	}
 	return base + " AND (" + strings.Join(conditions, " OR ") + ")", args
+}
+
+// validateViewerOrder validates the closed ascending/descending order enum.
+func validateViewerOrder(operation, order string) error {
+	switch strings.ToUpper(order) {
+	case "", "ASC", "DESC":
+		return nil
+	default:
+		return fmt.Errorf("%s: order must be asc or desc", operation)
+	}
 }
 
 // sqlDirection returns the validated ascending/descending SQL keyword.

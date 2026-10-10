@@ -1,12 +1,20 @@
 // evaluation_dynamic.go retains the bounded dynamic evaluation list and queue
 // navigation builders. Sort identifiers come from a closed map, filter values
-// are bound, and the server validates enum values before calling the family.
+// are bound, and the search, filter, sort, order, and page inputs are
+// validated and capped before assembly; the server validates enum values
+// before calling the family.
 package work
 
 import (
 	"fmt"
 	"strings"
 )
+
+// maxEvaluationQueryLength bounds one evaluation search string.
+const maxEvaluationQueryLength = 200
+
+// maxEvaluationFilterLength bounds one evaluation filter value.
+const maxEvaluationFilterLength = 200
 
 // evaluationSortFields is the closed allowlist of evaluation sort expressions.
 var evaluationSortFields = map[string]string{
@@ -47,6 +55,24 @@ func evaluationScope(filter EvaluationFilter) (*evaluationQueryScope, error) {
 	sortExpression, ok := evaluationSortFields[filter.SortField]
 	if !ok {
 		return nil, fmt.Errorf("evaluation: unsupported sort field %q", filter.SortField)
+	}
+	if err := validateViewerOrder("evaluation", filter.Order); err != nil {
+		return nil, err
+	}
+	if len(filter.Query) > maxEvaluationQueryLength {
+		return nil, fmt.Errorf("evaluation: query must be at most %d characters", maxEvaluationQueryLength)
+	}
+	for _, value := range []struct {
+		name  string
+		value string
+	}{
+		{"source", filter.Source},
+		{"review_status", filter.ReviewStatus},
+		{"qualifier", filter.Qualifier},
+	} {
+		if len(value.value) > maxEvaluationFilterLength {
+			return nil, fmt.Errorf("evaluation: %s must be at most %d characters", value.name, maxEvaluationFilterLength)
+		}
 	}
 	clauses := []string{"wr.pipeline_run_id=?", normalizedRevisionPredicate("wr")}
 	args := []any{filter.ContextID, filter.RunID}

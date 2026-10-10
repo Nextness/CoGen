@@ -1,11 +1,20 @@
 // viewer_dynamic.go retains the bounded dynamic identity-evidence query. Sort
-// identifiers come from a closed map, the search projection is fixed, and
-// every user value is bound; no caller value is interpolated into SQL text.
+// identifiers come from a closed map, the search projection is fixed, every
+// user value is bound, and the search, sort, order, and page inputs are
+// validated and capped before assembly; no caller value is interpolated into
+// SQL text.
 package author
 
 import (
+	"fmt"
 	"strings"
 )
+
+// maxViewerQueryLength bounds one viewer search string.
+const maxViewerQueryLength = 200
+
+// maxViewerPageSize bounds one viewer page request.
+const maxViewerPageSize = 1000
 
 // identityEvidenceSortFields is the closed allowlist of identity-evidence sort expressions.
 var identityEvidenceSortFields = map[string]string{
@@ -52,10 +61,34 @@ func identityEvidenceFrom() string {
 // identityEvidenceQuery builds the parameterized identity-evidence predicate.
 // The arguments are the evidence run identifier, the resolution run
 // identifier, and the optional search patterns.
-func identityEvidenceQuery(filter IdentityEvidenceFilter) (string, string, []any) {
+func identityEvidenceQuery(filter IdentityEvidenceFilter) (string, string, []any, error) {
+	if err := validateIdentityEvidenceFilter(filter); err != nil {
+		return "", "", nil, err
+	}
 	where, searchArgs := scopedSearch("r.pipeline_run_id=?", identityEvidenceSearchFields, filter.RunID, filter.Query)
 	args := append([]any{filter.RunID}, searchArgs...)
-	return identityEvidenceFrom(), where, args
+	return identityEvidenceFrom(), where, args, nil
+}
+
+// validateIdentityEvidenceFilter validates the closed sort and order enums and
+// the bounded search and page inputs before any SQL text is assembled.
+func validateIdentityEvidenceFilter(filter IdentityEvidenceFilter) error {
+	if _, ok := identityEvidenceSortFields[filter.Sort]; !ok {
+		return fmt.Errorf("list identity evidence: unsupported sort field %q", filter.Sort)
+	}
+	if err := validateViewerOrder("list identity evidence", filter.Order); err != nil {
+		return err
+	}
+	if len(filter.Query) > maxViewerQueryLength {
+		return fmt.Errorf("list identity evidence: query must be at most %d characters", maxViewerQueryLength)
+	}
+	if filter.Page < 1 {
+		return fmt.Errorf("list identity evidence: page must be positive")
+	}
+	if filter.PerPage < 1 || filter.PerPage > maxViewerPageSize {
+		return fmt.Errorf("list identity evidence: per_page must be between 1 and %d", maxViewerPageSize)
+	}
+	return nil
 }
 
 // scopedSearch appends bound LIKE conditions for one optional search query.
@@ -71,6 +104,16 @@ func scopedSearch(base string, fields []string, runID int64, query string) (stri
 		args = append(args, needle)
 	}
 	return base + " AND (" + strings.Join(conditions, " OR ") + ")", args
+}
+
+// validateViewerOrder validates the closed ascending/descending order enum.
+func validateViewerOrder(operation, order string) error {
+	switch strings.ToUpper(order) {
+	case "", "ASC", "DESC":
+		return nil
+	default:
+		return fmt.Errorf("%s: order must be asc or desc", operation)
+	}
 }
 
 // sqlDirection returns the validated ascending/descending SQL keyword.

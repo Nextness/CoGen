@@ -1,6 +1,8 @@
 // graph_dynamic.go retains the bounded dynamic graph relationship builders.
 // Filter columns and operators come from closed lists, every user value is
-// bound, and the caller supplies the already validated row limits.
+// bound, and the filter strings, identifier lists, and row limits are
+// validated and capped before assembly; no caller value is interpolated into
+// SQL text.
 package work
 
 import (
@@ -8,8 +10,42 @@ import (
 	"strings"
 )
 
+// maxGraphQueryLength bounds one graph filter string.
+const maxGraphQueryLength = 200
+
+// maxGraphIDListLength bounds one graph identifier list.
+const maxGraphIDListLength = 2000
+
+// maxGraphArticleLimit bounds one graph article selection.
+const maxGraphArticleLimit = 2000
+
+// maxGraphAuthorLimit bounds one graph authorship author selection.
+const maxGraphAuthorLimit = 10000
+
+// maxGraphRowLimit bounds one graph relationship row selection. It leaves
+// headroom above the server's 20,000-edge budget plus its one-row truncation
+// sentinel.
+const maxGraphRowLimit = 25000
+
 // graphArticleWhere builds the parameterized graph article predicate.
 func graphArticleWhere(filter GraphFilter) (string, []any, error) {
+	if filter.Limit < 1 || filter.Limit > maxGraphArticleLimit {
+		return "", nil, fmt.Errorf("list graph articles: limit must be between 1 and %d", maxGraphArticleLimit)
+	}
+	for _, value := range []struct {
+		name  string
+		value string
+	}{
+		{"query", filter.Query},
+		{"source", filter.Source},
+		{"author", filter.Author},
+		{"orcid", filter.ORCID},
+		{"reference", filter.Reference},
+	} {
+		if len(value.value) > maxGraphQueryLength {
+			return "", nil, fmt.Errorf("list graph articles: %s must be at most %d characters", value.name, maxGraphQueryLength)
+		}
+	}
 	clauses := []string{"wr.pipeline_run_id=?", normalizedRevisionPredicate("wr")}
 	args := []any{filter.RunID}
 	if filter.Query != "" {
@@ -62,8 +98,14 @@ func graphArticleWhere(filter GraphFilter) (string, []any, error) {
 
 // graphAuthorshipQuery builds the bounded article-author relationship query.
 func graphAuthorshipQuery(revisionIDs []int64, authorLimit, rowLimit int) (string, []any, error) {
-	if authorLimit < 1 || rowLimit < 1 {
-		return "", nil, fmt.Errorf("list graph authorships: limits must be positive")
+	if len(revisionIDs) == 0 || len(revisionIDs) > maxGraphIDListLength {
+		return "", nil, fmt.Errorf("list graph authorships: revision ids must be between 1 and %d", maxGraphIDListLength)
+	}
+	if authorLimit < 1 || authorLimit > maxGraphAuthorLimit {
+		return "", nil, fmt.Errorf("list graph authorships: author limit must be between 1 and %d", maxGraphAuthorLimit)
+	}
+	if rowLimit < 1 || rowLimit > maxGraphRowLimit {
+		return "", nil, fmt.Errorf("list graph authorships: row limit must be between 1 and %d", maxGraphRowLimit)
 	}
 	articlePlaceholders, articleArgs := placeholders(revisionIDs)
 	query := `WITH eligible_authors AS (
@@ -84,8 +126,14 @@ func graphAuthorshipQuery(revisionIDs []int64, authorLimit, rowLimit int) (strin
 
 // graphCitationQuery builds the bounded resolved citation relationship query.
 func graphCitationQuery(revisionIDs, workIDs []int64, rowLimit int) (string, []any, error) {
-	if rowLimit < 1 {
-		return "", nil, fmt.Errorf("list graph citations: limit must be positive")
+	if len(revisionIDs) == 0 || len(revisionIDs) > maxGraphIDListLength {
+		return "", nil, fmt.Errorf("list graph citations: revision ids must be between 1 and %d", maxGraphIDListLength)
+	}
+	if len(workIDs) == 0 || len(workIDs) > maxGraphIDListLength {
+		return "", nil, fmt.Errorf("list graph citations: work ids must be between 1 and %d", maxGraphIDListLength)
+	}
+	if rowLimit < 1 || rowLimit > maxGraphRowLimit {
+		return "", nil, fmt.Errorf("list graph citations: row limit must be between 1 and %d", maxGraphRowLimit)
 	}
 	articlePlaceholders, articleArgs := placeholders(revisionIDs)
 	workPlaceholders, workArgs := placeholders(workIDs)
@@ -100,8 +148,11 @@ func graphCitationQuery(revisionIDs, workIDs []int64, rowLimit int) (string, []a
 
 // graphReferenceQuery builds the bounded article-reference relationship query.
 func graphReferenceQuery(revisionIDs []int64, rowLimit int) (string, []any, error) {
-	if rowLimit < 1 {
-		return "", nil, fmt.Errorf("list graph references: limit must be positive")
+	if len(revisionIDs) == 0 || len(revisionIDs) > maxGraphIDListLength {
+		return "", nil, fmt.Errorf("list graph references: revision ids must be between 1 and %d", maxGraphIDListLength)
+	}
+	if rowLimit < 1 || rowLimit > maxGraphRowLimit {
+		return "", nil, fmt.Errorf("list graph references: row limit must be between 1 and %d", maxGraphRowLimit)
 	}
 	articlePlaceholders, articleArgs := placeholders(revisionIDs)
 	query := `SELECT rm.id AS reference_id, rm.work_revision_id, rm.doi, rm.title, rm.author, rm.year, rm.source

@@ -939,3 +939,18 @@ func TestHelper_parseOptionalInt(t *testing.T) {
 func ptr(v float64) *float64 {
 	return &v
 }
+
+// TestScopedRowsRequestCapsSearchQuery verifies the shared scoped-rows parser
+// rejects an oversized search string before it reaches a family builder.
+func TestScopedRowsRequestCapsSearchQuery(t *testing.T) {
+	fields := map[string]string{"id": "id"}
+	oversized := httptest.NewRequest(http.MethodGet, "/?q="+strings.Repeat("x", 201), nil)
+	if _, _, _, _, _, err := scopedRowsRequest(oversized, fields, "id"); err == nil {
+		t.Fatal("expected an oversized search query to be rejected")
+	}
+	valid := httptest.NewRequest(http.MethodGet, "/?q=short", nil)
+	page, perPage, sort, order, query, err := scopedRowsRequest(valid, fields, "id")
+	if err != nil || page != 1 || perPage != 50 || sort != "id" || order != "ASC" || query != "short" {
+		t.Fatalf("valid request = (%d,%d,%q,%q,%q,%v)", page, perPage, sort, order, query, err)
+	}
+}

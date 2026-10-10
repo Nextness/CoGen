@@ -167,6 +167,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreGetContentReturnsBytesRoleAndMediaType`](../src/database/artifact/blob_integration_test.go#L55) | test | 55-91 | `func TestStoreGetContentReturnsBytesRoleAndMediaType(t *testing.T)` | TestStoreGetContentReturnsBytesRoleAndMediaType verifies the download read preserves stored metadata, the first run role, and the missing-blob contract. |
 | [`TestStoreGetPreviewReturnsBoundedPrefixAndMetadata`](../src/database/artifact/blob_integration_test.go#L95) | test | 95-135 | `func TestStoreGetPreviewReturnsBoundedPrefixAndMetadata(t *testing.T)` | TestStoreGetPreviewReturnsBoundedPrefixAndMetadata verifies the inspection read preserves stored sizes, bounded prefixes, and the missing-blob contract. |
 
+### [`src/database/artifact/dynamic_integration_test.go`](../src/database/artifact/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreListRunArtifactEvidenceConstrainsDynamicInputs`](../src/database/artifact/dynamic_integration_test.go#L19) | test | 19-80 | `func TestStoreListRunArtifactEvidenceConstrainsDynamicInputs(t *testing.T)` | TestStoreListRunArtifactEvidenceConstrainsDynamicInputs verifies the retained run-artifact builder binds search and role values, rejects invalid order values, follows its declared ordering, and caps oversized inputs. |
+
 ### [`src/database/artifact/errors_integration_test.go`](../src/database/artifact/errors_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -250,15 +256,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`RunArtifactFilter`](../src/database/artifact/viewer.go#L13) | struct | 13-24 | `type RunArtifactFilter struct { RunID int64 Query string Role string CursorID int64 FocusID int64 Page int PerPage int PageMode bool Order string Limit int }` | RunArtifactFilter identifies one bounded page of run artifact evidence in either cursor mode or page mode. |
 | [`RunArtifactEvidence`](../src/database/artifact/viewer.go#L27) | struct | 27-38 | `type RunArtifactEvidence struct { ID int64 ContentHash string ByteSize int64 ContentType string CreatedAt string HasBlob bool ArtifactRoles string RelationshipRoles string ProducedBySteps string ConsumedBySteps string }` | RunArtifactEvidence is one artifact with its run relationship evidence. |
 | [`RunArtifactEvidencePage`](../src/database/artifact/viewer.go#L41) | struct | 41-47 | `type RunArtifactEvidencePage struct { Items []*RunArtifactEvidence Total int64 HasMore bool NextCursorID int64 Page int }` | RunArtifactEvidencePage is one bounded page of run artifact evidence. |
-| [`(*Store).ListRunArtifactEvidence`](../src/database/artifact/viewer.go#L52) | method | 52-142 | `func (*Store).ListRunArtifactEvidence(ctx context.Context, filter RunArtifactFilter) (*RunArtifactEvidencePage, error)` | ListRunArtifactEvidence returns one bounded page of artifact evidence linked to a run. The exact count is read only in page mode, matching the viewer's cursor mode. |
-| [`clampPage`](../src/database/artifact/viewer.go#L145) | function | 145-154 | `func clampPage(page, perPage int, total int64) int` | clampPage maps an offset request past the end to the final populated page. |
+| [`(*Store).ListRunArtifactEvidence`](../src/database/artifact/viewer.go#L58) | method | 58-154 | `func (*Store).ListRunArtifactEvidence(ctx context.Context, filter RunArtifactFilter) (*RunArtifactEvidencePage, error)` | ListRunArtifactEvidence returns one bounded page of artifact evidence linked to a run. The exact count is read only in page mode, matching the viewer's cursor mode. |
+| [`clampPage`](../src/database/artifact/viewer.go#L157) | function | 157-166 | `func clampPage(page, perPage int, total int64) int` | clampPage maps an offset request past the end to the final populated page. |
 
 ### [`src/database/artifact/viewer_dynamic.go`](../src/database/artifact/viewer_dynamic.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`runArtifactRunArgs`](../src/database/artifact/viewer_dynamic.go#L34) | function | 34-40 | `func runArtifactRunArgs(runID int64, count int) []any` | runArtifactRunArgs returns count repeated run identifier arguments. |
-| [`runArtifactFilterClauses`](../src/database/artifact/viewer_dynamic.go#L43) | function | 43-59 | `func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any)` | runArtifactFilterClauses builds the parameterized search and role filters. |
+| [`runArtifactRunArgs`](../src/database/artifact/viewer_dynamic.go#L45) | function | 45-51 | `func runArtifactRunArgs(runID int64, count int) []any` | runArtifactRunArgs returns count repeated run identifier arguments. |
+| [`runArtifactFilterClauses`](../src/database/artifact/viewer_dynamic.go#L54) | function | 54-76 | `func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any, error)` | runArtifactFilterClauses builds the parameterized search and role filters. |
 
 ### [`src/database/artifact_adapter.go`](../src/database/artifact_adapter.go)
 
@@ -338,6 +344,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreRecordedDataAndEnrichmentSummary`](../src/database/audit/audit_integration_test.go#L226) | test | 226-266 | `func TestStoreRecordedDataAndEnrichmentSummary(t *testing.T)` | TestStoreRecordedDataAndEnrichmentSummary verifies the evidence reads. |
 | [`TestStoreDetailEventPagesFilterPageAndScope`](../src/database/audit/audit_integration_test.go#L271) | test | 271-353 | `func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T)` | TestStoreDetailEventPagesFilterPageAndScope verifies the article and author detail event pages apply their logical-work and author scope, order by descending ID, report exact totals, and honor a continuation cursor. |
 
+### [`src/database/audit/dynamic_integration_test.go`](../src/database/audit/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreAuditFilterConstrainsDynamicInputs`](../src/database/audit/dynamic_integration_test.go#L18) | test | 18-76 | `func TestStoreAuditFilterConstrainsDynamicInputs(t *testing.T)` | TestStoreAuditFilterConstrainsDynamicInputs verifies the retained audit filter builder binds search values, caps value lists and filter strings, and resolves only allowlisted facet columns. |
+
 ### [`src/database/audit/errors_integration_test.go`](../src/database/audit/errors_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -349,36 +361,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Store).List`](../src/database/audit/evidence.go#L20) | method | 20-42 | `func (*Store).List(ctx context.Context, filter Filter) ([]*Event, error)` | List returns a bounded page of audit events matching the filter, ordered by occurrence time and ID descending. It returns at most Limit+1 events so the caller can detect a further page. A cursor that does not identify an event returns ErrCursorNotFound. |
-| [`(*Store).Summary`](../src/database/audit/evidence.go#L45) | method | 45-67 | `func (*Store).Summary(ctx context.Context, filter Filter) (*Summary, error)` | Summary returns the filtered audit event count and per-action counts. |
-| [`(*Store).Facets`](../src/database/audit/evidence.go#L71) | method | 71-89 | `func (*Store).Facets(ctx context.Context, filter Filter) (*Facets, error)` | Facets returns distinct non-empty actor, action, and entity type values in the filter's run scope. |
-| [`(*Store).auditFacet`](../src/database/audit/evidence.go#L93) | method | 93-118 | `func (*Store).auditFacet(ctx context.Context, column, scopeClause string, scopeArgs []any) ([]string, error)` | auditFacet returns distinct non-empty values for an allowlisted audit column and run scope, stopping at 100 values. |
-| [`scanEvents`](../src/database/audit/evidence.go#L121) | function | 121-152 | `func scanEvents(rows *sql.Rows) ([]*Event, error)` | scanEvents decodes audit events from a database row set. |
-| [`(*Store).RecordedData`](../src/database/audit/evidence.go#L157) | method | 157-179 | `func (*Store).RecordedData(ctx context.Context, eventID, runID int64) (*RecordedData, error)` | RecordedData returns one event's recorded JSON payloads when the event is visible in the supplied run scope. It returns nil, nil when the event does not exist or is outside the scope. |
-| [`(*Store).EnrichmentSummary`](../src/database/audit/evidence.go#L184) | method | 184-211 | `func (*Store).EnrichmentSummary(ctx context.Context, workID, runID int64) (*EnrichmentSummary, error)` | EnrichmentSummary returns the bounded provider and field labels recorded for one work revision in a run. It stops at 100 distinct labels and reports whether the underlying set was truncated. |
-| [`ArticleDetailEventFilter`](../src/database/audit/evidence.go#L218) | struct | 218-223 | `type ArticleDetailEventFilter struct { WorkID int64 RunID int64 CursorID int64 Limit int }` | ArticleDetailEventFilter identifies one bounded page of run-scoped logical work events for one work. |
-| [`AuthorDetailEventFilter`](../src/database/audit/evidence.go#L227) | struct | 227-232 | `type AuthorDetailEventFilter struct { AuthorOccurrenceID int64 RunID int64 CursorID int64 Limit int }` | AuthorDetailEventFilter identifies one bounded page of run-scoped author occurrence events. |
-| [`EventPage`](../src/database/audit/evidence.go#L236) | struct | 236-241 | `type EventPage struct { Items []*Event Total int64 HasMore bool NextCursorID int64 }` | EventPage is one bounded page of audit events with its exact total and continuation cursor identifier. |
-| [`(*Store).ListArticleDetailEvents`](../src/database/audit/evidence.go#L245) | method | 245-280 | `func (*Store).ListArticleDetailEvents(ctx context.Context, filter ArticleDetailEventFilter) (*EventPage, error)` | ListArticleDetailEvents returns one bounded page of the logical-work events visible for one work in a run, ordered by descending event ID. |
-| [`(*Store).ListAuthorDetailEvents`](../src/database/audit/evidence.go#L284) | method | 284-318 | `func (*Store).ListAuthorDetailEvents(ctx context.Context, filter AuthorDetailEventFilter) (*EventPage, error)` | ListAuthorDetailEvents returns one bounded page of run-scoped author occurrence events, ordered by descending event ID. |
-| [`validateDetailEventLimit`](../src/database/audit/evidence.go#L321) | function | 321-326 | `func validateDetailEventLimit(operation string, limit int) error` | validateDetailEventLimit bounds one viewer detail event page request. |
-
-### [`src/database/audit/filter.go`](../src/database/audit/filter.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`auditFilterClauses`](../src/database/audit/filter.go#L20) | function | 20-83 | `func auditFilterClauses(filter Filter) ([]string, []any)` | auditFilterClauses builds the parameterized WHERE clauses for the viewer's audit filters. Only allowlisted columns and operators are assembled. |
-| [`auditRunScopeClause`](../src/database/audit/filter.go#L87) | function | 87-99 | `func auditRunScopeClause(filter Filter) (string, []any)` | auditRunScopeClause builds the run scope predicate, including the run-scoped PDF evidence variants. |
-| [`auditInClause`](../src/database/audit/filter.go#L102) | function | 102-110 | `func auditInClause(column string, values []string) (string, []any)` | auditInClause builds a parameterized SQL IN clause for validated audit facet values. |
-| [`auditWhere`](../src/database/audit/filter.go#L113) | function | 113-118 | `func auditWhere(clauses []string) string` | auditWhere joins audit predicates into an optional SQL WHERE clause. |
-
-### [`src/database/audit/filter_unit_test.go`](../src/database/audit/filter_unit_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestAuditInClauseBuildsParameterizedMarkers`](../src/database/audit/filter_unit_test.go#L11) | test | 11-44 | `func TestAuditInClauseBuildsParameterizedMarkers(t *testing.T)` | TestAuditInClauseBuildsParameterizedMarkers verifies every value is bound and no caller value is interpolated into SQL text. |
-| [`TestAuditWhereJoinsPredicates`](../src/database/audit/filter_unit_test.go#L47) | test | 47-64 | `func TestAuditWhereJoinsPredicates(t *testing.T)` | TestAuditWhereJoinsPredicates verifies the optional WHERE clause assembly. |
-| [`TestAuditFilterClausesBindEveryValue`](../src/database/audit/filter_unit_test.go#L68) | test | 68-103 | `func TestAuditFilterClausesBindEveryValue(t *testing.T)` | TestAuditFilterClausesBindEveryValue verifies the dynamic builder maps closed categories and binds every user value. |
+| [`(*Store).List`](../src/database/audit/evidence.go#L20) | method | 20-45 | `func (*Store).List(ctx context.Context, filter Filter) ([]*Event, error)` | List returns a bounded page of audit events matching the filter, ordered by occurrence time and ID descending. It returns at most Limit+1 events so the caller can detect a further page. A cursor that does not identify an event returns ErrCursorNotFound. |
+| [`(*Store).Summary`](../src/database/audit/evidence.go#L48) | method | 48-73 | `func (*Store).Summary(ctx context.Context, filter Filter) (*Summary, error)` | Summary returns the filtered audit event count and per-action counts. |
+| [`(*Store).Facets`](../src/database/audit/evidence.go#L77) | method | 77-98 | `func (*Store).Facets(ctx context.Context, filter Filter) (*Facets, error)` | Facets returns distinct non-empty actor, action, and entity type values in the filter's run scope. |
+| [`(*Store).auditFacet`](../src/database/audit/evidence.go#L102) | method | 102-131 | `func (*Store).auditFacet(ctx context.Context, facet, scopeClause string, scopeArgs []any) ([]string, error)` | auditFacet returns distinct non-empty values for an allowlisted audit facet and run scope, stopping at 100 values. |
+| [`scanEvents`](../src/database/audit/evidence.go#L134) | function | 134-165 | `func scanEvents(rows *sql.Rows) ([]*Event, error)` | scanEvents decodes audit events from a database row set. |
+| [`(*Store).RecordedData`](../src/database/audit/evidence.go#L170) | method | 170-192 | `func (*Store).RecordedData(ctx context.Context, eventID, runID int64) (*RecordedData, error)` | RecordedData returns one event's recorded JSON payloads when the event is visible in the supplied run scope. It returns nil, nil when the event does not exist or is outside the scope. |
+| [`(*Store).EnrichmentSummary`](../src/database/audit/evidence.go#L197) | method | 197-224 | `func (*Store).EnrichmentSummary(ctx context.Context, workID, runID int64) (*EnrichmentSummary, error)` | EnrichmentSummary returns the bounded provider and field labels recorded for one work revision in a run. It stops at 100 distinct labels and reports whether the underlying set was truncated. |
+| [`ArticleDetailEventFilter`](../src/database/audit/evidence.go#L231) | struct | 231-236 | `type ArticleDetailEventFilter struct { WorkID int64 RunID int64 CursorID int64 Limit int }` | ArticleDetailEventFilter identifies one bounded page of run-scoped logical work events for one work. |
+| [`AuthorDetailEventFilter`](../src/database/audit/evidence.go#L240) | struct | 240-245 | `type AuthorDetailEventFilter struct { AuthorOccurrenceID int64 RunID int64 CursorID int64 Limit int }` | AuthorDetailEventFilter identifies one bounded page of run-scoped author occurrence events. |
+| [`EventPage`](../src/database/audit/evidence.go#L249) | struct | 249-254 | `type EventPage struct { Items []*Event Total int64 HasMore bool NextCursorID int64 }` | EventPage is one bounded page of audit events with its exact total and continuation cursor identifier. |
+| [`(*Store).ListArticleDetailEvents`](../src/database/audit/evidence.go#L258) | method | 258-291 | `func (*Store).ListArticleDetailEvents(ctx context.Context, filter ArticleDetailEventFilter) (*EventPage, error)` | ListArticleDetailEvents returns one bounded page of the logical-work events visible for one work in a run, ordered by descending event ID. |
+| [`(*Store).ListAuthorDetailEvents`](../src/database/audit/evidence.go#L295) | method | 295-329 | `func (*Store).ListAuthorDetailEvents(ctx context.Context, filter AuthorDetailEventFilter) (*EventPage, error)` | ListAuthorDetailEvents returns one bounded page of run-scoped author occurrence events, ordered by descending event ID. |
+| [`validateDetailEventLimit`](../src/database/audit/evidence.go#L332) | function | 332-337 | `func validateDetailEventLimit(operation string, limit int) error` | validateDetailEventLimit bounds one viewer detail event page request. |
 
 ### [`src/database/audit/parity_integration_test.go`](../src/database/audit/parity_integration_test.go)
 
@@ -404,13 +399,27 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Summary`](../src/database/audit/types.go#L37) | struct | 37-40 | `type Summary struct { TotalEvents int64 Actions []ActionCount }` | Summary is the filtered audit event count and per-action counts. |
 | [`ActionCount`](../src/database/audit/types.go#L43) | struct | 43-46 | `type ActionCount struct { Action string Count int64 }` | ActionCount is one action's filtered event count. |
 | [`Facets`](../src/database/audit/types.go#L49) | struct | 49-53 | `type Facets struct { Actors []string Actions []string EntityTypes []string }` | Facets are the distinct actor, action, and entity type values in a run scope. |
-| [`Filter`](../src/database/audit/types.go#L57) | struct | 57-74 | `type Filter struct { EntityID string EntityTypes []string Actions []string Actors []string Categories []string Stage string Outcome string ReviewStatus string ReviewReason string ReviewSubstatus string Query string RunID int64 PDFScope string PDFSelected bool Cursor int64 Limit int }` | Filter selects audit events for the viewer timeline. Empty fields are ignored; list fields are bounded by the caller. |
+| [`Filter`](../src/database/audit/types.go#L57) | struct | 57-74 | `type Filter struct { EntityID string EntityTypes []string Actions []string Actors []string Categories []string Stage string Outcome string ReviewStatus string ReviewReason string ReviewSubstatus string Query string RunID int64 PDFScope string PDFSelected bool Cursor int64 Limit int }` | Filter selects audit events for the viewer timeline. Empty fields are ignored; list fields and filter strings are capped by the family builder. |
 
 ### [`src/database/audit/viewer_dynamic.go`](../src/database/audit/viewer_dynamic.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`articleDetailEventCondition`](../src/database/audit/viewer_dynamic.go#L11) | function | 11-39 | `func articleDetailEventCondition(workID, runID int64) (string, []any)` | articleDetailEventCondition returns the run-scoped logical-work event predicate and its bound arguments. |
+| [`validateAuditFilter`](../src/database/audit/viewer_dynamic.go#L41) | function | 41-78 | `func validateAuditFilter(filter Filter) error` | validateAuditFilter validates the bounded audit filter inputs before any SQL text is assembled. It rejects oversized value lists and filter strings. |
+| [`auditFilterClauses`](../src/database/audit/viewer_dynamic.go#L82) | function | 82-145 | `func auditFilterClauses(filter Filter) ([]string, []any)` | auditFilterClauses builds the parameterized WHERE clauses for the viewer's audit filters. Only allowlisted columns and operators are assembled. |
+| [`auditRunScopeClause`](../src/database/audit/viewer_dynamic.go#L149) | function | 149-161 | `func auditRunScopeClause(filter Filter) (string, []any)` | auditRunScopeClause builds the run scope predicate, including the run-scoped PDF evidence variants. |
+| [`auditInClause`](../src/database/audit/viewer_dynamic.go#L164) | function | 164-172 | `func auditInClause(column string, values []string) (string, []any)` | auditInClause builds a parameterized SQL IN clause for validated audit facet values. |
+| [`auditWhere`](../src/database/audit/viewer_dynamic.go#L175) | function | 175-180 | `func auditWhere(clauses []string) string` | auditWhere joins audit predicates into an optional SQL WHERE clause. |
+
+### [`src/database/audit/viewer_dynamic_unit_test.go`](../src/database/audit/viewer_dynamic_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestAuditInClauseBuildsParameterizedMarkers`](../src/database/audit/viewer_dynamic_unit_test.go#L14) | test | 14-47 | `func TestAuditInClauseBuildsParameterizedMarkers(t *testing.T)` | TestAuditInClauseBuildsParameterizedMarkers verifies every value is bound and no caller value is interpolated into SQL text. |
+| [`TestAuditWhereJoinsPredicates`](../src/database/audit/viewer_dynamic_unit_test.go#L50) | test | 50-67 | `func TestAuditWhereJoinsPredicates(t *testing.T)` | TestAuditWhereJoinsPredicates verifies the optional WHERE clause assembly. |
+| [`TestAuditFilterClausesBindEveryValue`](../src/database/audit/viewer_dynamic_unit_test.go#L71) | test | 71-106 | `func TestAuditFilterClausesBindEveryValue(t *testing.T)` | TestAuditFilterClausesBindEveryValue verifies the dynamic builder maps closed categories and binds every user value. |
+| [`TestValidateAuditFilterCapsInputs`](../src/database/audit/viewer_dynamic_unit_test.go#L110) | test | 110-138 | `func TestValidateAuditFilterCapsInputs(t *testing.T)` | TestValidateAuditFilterCapsInputs verifies the retained builder rejects oversized value lists and filter strings. |
+| [`TestAuditFacetColumnsAllowlist`](../src/database/audit/viewer_dynamic_unit_test.go#L142) | test | 142-151 | `func TestAuditFacetColumnsAllowlist(t *testing.T)` | TestAuditFacetColumnsAllowlist verifies only the three supported facet columns are available to the dynamic facet builder. |
 
 ### [`src/database/audit_adapter.go`](../src/database/audit_adapter.go)
 
@@ -486,6 +495,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAuthorshipFkRejectsNonexistentPerson`](../src/database/author/authorship_test.go#L244) | test | 244-251 | `func TestAuthorshipFkRejectsNonexistentPerson(t *testing.T)` | TestAuthorshipFkRejectsNonexistentPerson verifies authorship fk rejects nonexistent person. |
 | [`TestTwoRevisionsDistinctAuthorshipSets`](../src/database/author/authorship_test.go#L254) | test | 254-313 | `func TestTwoRevisionsDistinctAuthorshipSets(t *testing.T)` | TestTwoRevisionsDistinctAuthorshipSets verifies two revisions distinct authorship sets. |
 | [`TestAuthorshipGetByOccurrenceID`](../src/database/author/authorship_test.go#L316) | test | 316-346 | `func TestAuthorshipGetByOccurrenceID(t *testing.T)` | TestAuthorshipGetByOccurrenceID verifies authorship get by occurrence id. |
+
+### [`src/database/author/dynamic_integration_test.go`](../src/database/author/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreListIdentityEvidenceConstrainsDynamicInputs`](../src/database/author/dynamic_integration_test.go#L19) | test | 19-88 | `func TestStoreListIdentityEvidenceConstrainsDynamicInputs(t *testing.T)` | TestStoreListIdentityEvidenceConstrainsDynamicInputs verifies the retained identity-evidence builder binds search values, rejects unknown sort and order values, follows its declared ordering, and caps oversized inputs. |
 
 ### [`src/database/author/errors_integration_test.go`](../src/database/author/errors_integration_test.go)
 
@@ -622,10 +637,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`identityEvidenceFrom`](../src/database/author/viewer_dynamic.go#L34) | function | 34-50 | `func identityEvidenceFrom() string` | identityEvidenceFrom returns the fixed identity-evidence join tree. Its first placeholder is the run identifier for the evidence membership subquery. |
-| [`identityEvidenceQuery`](../src/database/author/viewer_dynamic.go#L55) | function | 55-59 | `func identityEvidenceQuery(filter IdentityEvidenceFilter) (string, string, []any)` | identityEvidenceQuery builds the parameterized identity-evidence predicate. The arguments are the evidence run identifier, the resolution run identifier, and the optional search patterns. |
-| [`scopedSearch`](../src/database/author/viewer_dynamic.go#L62) | function | 62-74 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
-| [`sqlDirection`](../src/database/author/viewer_dynamic.go#L77) | function | 77-82 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
+| [`identityEvidenceFrom`](../src/database/author/viewer_dynamic.go#L43) | function | 43-59 | `func identityEvidenceFrom() string` | identityEvidenceFrom returns the fixed identity-evidence join tree. Its first placeholder is the run identifier for the evidence membership subquery. |
+| [`identityEvidenceQuery`](../src/database/author/viewer_dynamic.go#L64) | function | 64-71 | `func identityEvidenceQuery(filter IdentityEvidenceFilter) (string, string, []any, error)` | identityEvidenceQuery builds the parameterized identity-evidence predicate. The arguments are the evidence run identifier, the resolution run identifier, and the optional search patterns. |
+| [`validateIdentityEvidenceFilter`](../src/database/author/viewer_dynamic.go#L75) | function | 75-92 | `func validateIdentityEvidenceFilter(filter IdentityEvidenceFilter) error` | validateIdentityEvidenceFilter validates the closed sort and order enums and the bounded search and page inputs before any SQL text is assembled. |
+| [`scopedSearch`](../src/database/author/viewer_dynamic.go#L95) | function | 95-107 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
+| [`validateViewerOrder`](../src/database/author/viewer_dynamic.go#L110) | function | 110-117 | `func validateViewerOrder(operation, order string) error` | validateViewerOrder validates the closed ascending/descending order enum. |
+| [`sqlDirection`](../src/database/author/viewer_dynamic.go#L120) | function | 120-125 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
 
 ### [`src/database/author/viewer_integration_test.go`](../src/database/author/viewer_integration_test.go)
 
@@ -728,6 +745,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/cache/constructor_integration_test.go#L19) | test | 19-79 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
 
+### [`src/database/cache/dynamic_integration_test.go`](../src/database/cache/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreListCacheUsesForRunConstrainsDynamicInputs`](../src/database/cache/dynamic_integration_test.go#L19) | test | 19-76 | `func TestStoreListCacheUsesForRunConstrainsDynamicInputs(t *testing.T)` | TestStoreListCacheUsesForRunConstrainsDynamicInputs verifies the retained cache-use builder binds search values, rejects unknown sort and order values, follows its declared ordering, and caps oversized inputs. |
+
 ### [`src/database/cache/types.go`](../src/database/cache/types.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -750,10 +773,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`cacheUseWhere`](../src/database/cache/viewer_dynamic.go#L32) | function | 32-38 | `func cacheUseWhere(filter CacheUseFilter) (string, []any, error)` | cacheUseWhere builds the parameterized predicate for a cache-use page. |
-| [`cacheUseSortExpression`](../src/database/cache/viewer_dynamic.go#L41) | function | 41-43 | `func cacheUseSortExpression(sort string) string` | cacheUseSortExpression returns the allowlisted sort expression. |
-| [`scopedSearch`](../src/database/cache/viewer_dynamic.go#L46) | function | 46-58 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
-| [`sqlDirection`](../src/database/cache/viewer_dynamic.go#L61) | function | 61-66 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
+| [`cacheUseWhere`](../src/database/cache/viewer_dynamic.go#L40) | function | 40-46 | `func cacheUseWhere(filter CacheUseFilter) (string, []any, error)` | cacheUseWhere builds the parameterized predicate for a cache-use page. |
+| [`validateCacheUseFilter`](../src/database/cache/viewer_dynamic.go#L50) | function | 50-67 | `func validateCacheUseFilter(filter CacheUseFilter) error` | validateCacheUseFilter validates the closed sort and order enums and the bounded search and page inputs before any SQL text is assembled. |
+| [`cacheUseSortExpression`](../src/database/cache/viewer_dynamic.go#L70) | function | 70-72 | `func cacheUseSortExpression(sort string) string` | cacheUseSortExpression returns the allowlisted sort expression. |
+| [`scopedSearch`](../src/database/cache/viewer_dynamic.go#L75) | function | 75-87 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
+| [`validateViewerOrder`](../src/database/cache/viewer_dynamic.go#L90) | function | 90-97 | `func validateViewerOrder(operation, order string) error` | validateViewerOrder validates the closed ascending/descending order enum. |
+| [`sqlDirection`](../src/database/cache/viewer_dynamic.go#L100) | function | 100-105 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
 
 ### [`src/database/cache_integration_test.go`](../src/database/cache_integration_test.go)
 
@@ -1711,11 +1736,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`revisionFromFamily`](../src/database/search_adapter.go#L212) | function | 212-225 | `func revisionFromFamily(found *search.Revision) *SearchRevision` | revisionFromFamily maps a search family revision into the legacy application type. |
 | [`planFromFamily`](../src/database/search_adapter.go#L228) | function | 228-241 | `func planFromFamily(found *search.Plan) *ExecutionPlan` | planFromFamily maps a search family plan into the legacy application type. |
 
+### [`src/database/source/dynamic_integration_test.go`](../src/database/source/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreListCorpusRecordsConstrainsDynamicInputs`](../src/database/source/dynamic_integration_test.go#L19) | test | 19-84 | `func TestStoreListCorpusRecordsConstrainsDynamicInputs(t *testing.T)` | TestStoreListCorpusRecordsConstrainsDynamicInputs verifies the retained source-record builder binds search values, rejects unknown sort and order values, follows its declared ordering, and caps oversized inputs. |
+
 ### [`src/database/source/errors_integration_test.go`](../src/database/source/errors_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreOperationsPropagateConnectionErrors`](../src/database/source/errors_integration_test.go#L16) | test | 16-57 | `func TestStoreOperationsPropagateConnectionErrors(t *testing.T)` | TestStoreOperationsPropagateConnectionErrors verifies every public store operation reports a closed connection as an error rather than a value. |
+| [`TestStoreOperationsPropagateConnectionErrors`](../src/database/source/errors_integration_test.go#L16) | test | 16-73 | `func TestStoreOperationsPropagateConnectionErrors(t *testing.T)` | TestStoreOperationsPropagateConnectionErrors verifies every public store operation reports a closed connection as an error rather than a value. |
 
 ### [`src/database/source/filter_count.go`](../src/database/source/filter_count.go)
 
@@ -1808,31 +1839,33 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`ResultCountFilter`](../src/database/source/viewer.go#L15) | struct | 15-19 | `type ResultCountFilter struct { RunID int64 IncludeExportDate bool IncludeResultCounts bool }` | ResultCountFilter identifies one run source result-count projection. The include flags describe which optional columns the opened database provides, so the viewer can read databases created before the result-count migration. |
-| [`ResultCountRow`](../src/database/source/viewer.go#L23) | struct | 23-33 | `type ResultCountRow struct { ID int64 SourceName string SourceType string ExpectedFile string Query *string ExpectedResultCount *int64 ObservedResultCount *int64 ResultCountComparison *string ExportDate *string }` | ResultCountRow is one run source with its optional export metadata. Optional fields stay nil when the column is absent or the stored value is NULL. |
-| [`CorpusRecordFilter`](../src/database/source/viewer.go#L37) | struct | 37-44 | `type CorpusRecordFilter struct { RunID int64 Query string Sort string Order string Page int PerPage int }` | CorpusRecordFilter identifies one bounded, searchable page of run-scoped source records. |
-| [`CorpusRecord`](../src/database/source/viewer.go#L47) | struct | 47-57 | `type CorpusRecord struct { ID int64 RunSourceID int64 SourceName string SourceType string RecordIndex int64 ParseStatus string RejectReason *string ContentHash string CreatedAt string }` | CorpusRecord is one raw source record shown in the corpus browser. |
-| [`CorpusRecordPage`](../src/database/source/viewer.go#L60) | struct | 60-63 | `type CorpusRecordPage struct { Items []*CorpusRecord Total int64 }` | CorpusRecordPage is one bounded page of run-scoped source records. |
-| [`(*Store).ListResultCountsForRun`](../src/database/source/viewer.go#L68) | method | 68-93 | `func (*Store).ListResultCountsForRun(ctx context.Context, filter ResultCountFilter) ([]*ResultCountRow, error)` | ListResultCountsForRun returns the stored source inventory and result-count evidence for a run in ascending ID order. Columns absent from the opened database are projected as NULL instead of failing the read. |
-| [`(*Store).ListCorpusRecords`](../src/database/source/viewer.go#L97) | method | 97-129 | `func (*Store).ListCorpusRecords(ctx context.Context, filter CorpusRecordFilter) (*CorpusRecordPage, error)` | ListCorpusRecords returns one bounded page of run-scoped source records with their source identity. |
-| [`clampPage`](../src/database/source/viewer.go#L132) | function | 132-141 | `func clampPage(page, perPage int, total int64) int` | clampPage maps an offset request past the end to the final populated page. |
+| [`ResultCountFilter`](../src/database/source/viewer.go#L16) | struct | 16-20 | `type ResultCountFilter struct { RunID int64 IncludeExportDate bool IncludeResultCounts bool }` | ResultCountFilter identifies one run source result-count projection. The include flags describe which optional columns the opened database provides, so the viewer can read databases created before the result-count migration. |
+| [`ResultCountRow`](../src/database/source/viewer.go#L24) | struct | 24-34 | `type ResultCountRow struct { ID int64 SourceName string SourceType string ExpectedFile string Query *string ExpectedResultCount *int64 ObservedResultCount *int64 ResultCountComparison *string ExportDate *string }` | ResultCountRow is one run source with its optional export metadata. Optional fields stay nil when the column is absent or the stored value is NULL. |
+| [`CorpusRecordFilter`](../src/database/source/viewer.go#L38) | struct | 38-45 | `type CorpusRecordFilter struct { RunID int64 Query string Sort string Order string Page int PerPage int }` | CorpusRecordFilter identifies one bounded, searchable page of run-scoped source records. |
+| [`CorpusRecord`](../src/database/source/viewer.go#L48) | struct | 48-58 | `type CorpusRecord struct { ID int64 RunSourceID int64 SourceName string SourceType string RecordIndex int64 ParseStatus string RejectReason *string ContentHash string CreatedAt string }` | CorpusRecord is one raw source record shown in the corpus browser. |
+| [`CorpusRecordPage`](../src/database/source/viewer.go#L61) | struct | 61-64 | `type CorpusRecordPage struct { Items []*CorpusRecord Total int64 }` | CorpusRecordPage is one bounded page of run-scoped source records. |
+| [`(*Store).ListResultCountsForRun`](../src/database/source/viewer.go#L69) | method | 69-112 | `func (*Store).ListResultCountsForRun(ctx context.Context, filter ResultCountFilter) ([]*ResultCountRow, error)` | ListResultCountsForRun returns the stored source inventory and result-count evidence for a run in ascending ID order. Columns absent from the opened database are projected as NULL instead of failing the read. |
+| [`resultCountRow`](../src/database/source/viewer.go#L115) | function | 115-133 | `func resultCountRow(id int64, sourceName, sourceType, expectedFile string, query sql.NullString, expected, observed sql.NullInt64, comparison, exportDate sql.NullString) *ResultCountRow` | resultCountRow maps one generated result-count row into an application row. |
+| [`(*Store).ListCorpusRecords`](../src/database/source/viewer.go#L137) | method | 137-169 | `func (*Store).ListCorpusRecords(ctx context.Context, filter CorpusRecordFilter) (*CorpusRecordPage, error)` | ListCorpusRecords returns one bounded page of run-scoped source records with their source identity. |
+| [`clampPage`](../src/database/source/viewer.go#L172) | function | 172-181 | `func clampPage(page, perPage int, total int64) int` | clampPage maps an offset request past the end to the final populated page. |
 
 ### [`src/database/source/viewer_dynamic.go`](../src/database/source/viewer_dynamic.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`resultCountsQuery`](../src/database/source/viewer_dynamic.go#L31) | function | 31-42 | `func resultCountsQuery(includeExportDate, includeResultCounts bool) string` | resultCountsQuery builds the run source result-count projection. The optional fragments describe columns that older databases do not provide; they are fixed strings selected by validated booleans. |
-| [`corpusRecordWhere`](../src/database/source/viewer_dynamic.go#L45) | function | 45-51 | `func corpusRecordWhere(filter CorpusRecordFilter) (string, []any, error)` | corpusRecordWhere builds the parameterized predicate for a source-record page. |
-| [`corpusRecordSortExpression`](../src/database/source/viewer_dynamic.go#L54) | function | 54-56 | `func corpusRecordSortExpression(sort string) string` | corpusRecordSortExpression returns the allowlisted sort expression. |
-| [`scopedSearch`](../src/database/source/viewer_dynamic.go#L59) | function | 59-71 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
-| [`sqlDirection`](../src/database/source/viewer_dynamic.go#L74) | function | 74-79 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
+| [`corpusRecordWhere`](../src/database/source/viewer_dynamic.go#L36) | function | 36-42 | `func corpusRecordWhere(filter CorpusRecordFilter) (string, []any, error)` | corpusRecordWhere builds the parameterized predicate for a source-record page. |
+| [`validateCorpusRecordFilter`](../src/database/source/viewer_dynamic.go#L46) | function | 46-63 | `func validateCorpusRecordFilter(filter CorpusRecordFilter) error` | validateCorpusRecordFilter validates the closed sort and order enums and the bounded search and page inputs before any SQL text is assembled. |
+| [`corpusRecordSortExpression`](../src/database/source/viewer_dynamic.go#L66) | function | 66-68 | `func corpusRecordSortExpression(sort string) string` | corpusRecordSortExpression returns the allowlisted sort expression. |
+| [`scopedSearch`](../src/database/source/viewer_dynamic.go#L71) | function | 71-83 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
+| [`validateViewerOrder`](../src/database/source/viewer_dynamic.go#L86) | function | 86-93 | `func validateViewerOrder(operation, order string) error` | validateViewerOrder validates the closed ascending/descending order enum. |
+| [`sqlDirection`](../src/database/source/viewer_dynamic.go#L96) | function | 96-101 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
 
 ### [`src/database/source/viewer_integration_test.go`](../src/database/source/viewer_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreListResultCountsForRunProjectsOptionalColumns`](../src/database/source/viewer_integration_test.go#L16) | test | 16-54 | `func TestStoreListResultCountsForRunProjectsOptionalColumns(t *testing.T)` | TestStoreListResultCountsForRunProjectsOptionalColumns verifies the result count projection returns stored values and projects absent columns as NULL. |
-| [`TestStoreListCorpusRecordsOrdersSearchesAndClamps`](../src/database/source/viewer_integration_test.go#L59) | test | 59-121 | `func TestStoreListCorpusRecordsOrdersSearchesAndClamps(t *testing.T)` | TestStoreListCorpusRecordsOrdersSearchesAndClamps verifies the run-scoped source record page follows its declared ordering, binds the searchable predicate, preserves nullable reject reasons, and clamps a page past the end. |
+| [`TestStoreListResultCountsForRunProjectsOptionalColumns`](../src/database/source/viewer_integration_test.go#L16) | test | 16-70 | `func TestStoreListResultCountsForRunProjectsOptionalColumns(t *testing.T)` | TestStoreListResultCountsForRunProjectsOptionalColumns verifies the result count projection returns stored values and projects absent columns as NULL. |
+| [`TestStoreListCorpusRecordsOrdersSearchesAndClamps`](../src/database/source/viewer_integration_test.go#L75) | test | 75-137 | `func TestStoreListCorpusRecordsOrdersSearchesAndClamps(t *testing.T)` | TestStoreListCorpusRecordsOrdersSearchesAndClamps verifies the run-scoped source record page follows its declared ordering, binds the searchable predicate, preserves nullable reject reasons, and clamps a page past the end. |
 
 ### [`src/database/source_adapter.go`](../src/database/source_adapter.go)
 
@@ -1946,14 +1979,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`corpusReferenceWhere`](../src/database/work/corpus_dynamic.go#L58) | function | 58-64 | `func corpusReferenceWhere(filter CorpusReferenceFilter) (string, []any, error)` | corpusReferenceWhere builds the parameterized predicate for a reference page. |
-| [`corpusReferenceSortExpression`](../src/database/work/corpus_dynamic.go#L67) | function | 67-69 | `func corpusReferenceSortExpression(sort string) string` | corpusReferenceSortExpression returns the allowlisted sort expression. |
-| [`corpusAuthorWhere`](../src/database/work/corpus_dynamic.go#L72) | function | 72-78 | `func corpusAuthorWhere(filter CorpusAuthorFilter) (string, []any, error)` | corpusAuthorWhere builds the parameterized predicate for an author page. |
-| [`corpusAuthorSortExpression`](../src/database/work/corpus_dynamic.go#L81) | function | 81-83 | `func corpusAuthorSortExpression(sort string) string` | corpusAuthorSortExpression returns the allowlisted sort expression. |
-| [`runStageWhere`](../src/database/work/corpus_dynamic.go#L86) | function | 86-92 | `func runStageWhere(filter RunStageFilter) (string, []any, error)` | runStageWhere builds the parameterized predicate for a run-stage page. |
-| [`runStageSortExpression`](../src/database/work/corpus_dynamic.go#L95) | function | 95-97 | `func runStageSortExpression(sort string) string` | runStageSortExpression returns the allowlisted sort expression. |
-| [`scopedSearch`](../src/database/work/corpus_dynamic.go#L100) | function | 100-112 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
-| [`sqlDirection`](../src/database/work/corpus_dynamic.go#L115) | function | 115-120 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
+| [`corpusReferenceWhere`](../src/database/work/corpus_dynamic.go#L66) | function | 66-75 | `func corpusReferenceWhere(filter CorpusReferenceFilter) (string, []any, error)` | corpusReferenceWhere builds the parameterized predicate for a reference page. |
+| [`corpusReferenceSortExpression`](../src/database/work/corpus_dynamic.go#L78) | function | 78-80 | `func corpusReferenceSortExpression(sort string) string` | corpusReferenceSortExpression returns the allowlisted sort expression. |
+| [`corpusAuthorWhere`](../src/database/work/corpus_dynamic.go#L83) | function | 83-92 | `func corpusAuthorWhere(filter CorpusAuthorFilter) (string, []any, error)` | corpusAuthorWhere builds the parameterized predicate for an author page. |
+| [`corpusAuthorSortExpression`](../src/database/work/corpus_dynamic.go#L95) | function | 95-97 | `func corpusAuthorSortExpression(sort string) string` | corpusAuthorSortExpression returns the allowlisted sort expression. |
+| [`runStageWhere`](../src/database/work/corpus_dynamic.go#L100) | function | 100-109 | `func runStageWhere(filter RunStageFilter) (string, []any, error)` | runStageWhere builds the parameterized predicate for a run-stage page. |
+| [`runStageSortExpression`](../src/database/work/corpus_dynamic.go#L112) | function | 112-114 | `func runStageSortExpression(sort string) string` | runStageSortExpression returns the allowlisted sort expression. |
+| [`validateCorpusPage`](../src/database/work/corpus_dynamic.go#L118) | function | 118-132 | `func validateCorpusPage(operation, query, order string, page, perPage int) error` | validateCorpusPage validates the bounded search, order, and page inputs before any SQL text is assembled. |
+| [`scopedSearch`](../src/database/work/corpus_dynamic.go#L135) | function | 135-147 | `func scopedSearch(base string, fields []string, runID int64, query string) (string, []any)` | scopedSearch appends bound LIKE conditions for one optional search query. |
+| [`validateViewerOrder`](../src/database/work/corpus_dynamic.go#L150) | function | 150-157 | `func validateViewerOrder(operation, order string) error` | validateViewerOrder validates the closed ascending/descending order enum. |
+| [`sqlDirection`](../src/database/work/corpus_dynamic.go#L160) | function | 160-165 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
 
 ### [`src/database/work/details.go`](../src/database/work/details.go)
 
@@ -1969,6 +2004,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`articleReferenceFromGenerated`](../src/database/work/details.go#L251) | function | 251-285 | `func articleReferenceFromGenerated(row generated.ListArticleReferencesRow) *ArticleReference` | articleReferenceFromGenerated maps one generated reference row into an application reference and makes every nullable field explicit. |
 | [`referenceDetailFromGenerated`](../src/database/work/details.go#L289) | function | 289-332 | `func referenceDetailFromGenerated(row generated.GetReferenceDetailRow) *ReferenceDetail` | referenceDetailFromGenerated maps one generated reference-detail row into an application reference detail and makes every nullable field explicit. |
 
+### [`src/database/work/dynamic_integration_test.go`](../src/database/work/dynamic_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestStoreCorpusBuildersConstrainDynamicInputs`](../src/database/work/dynamic_integration_test.go#L20) | test | 20-122 | `func TestStoreCorpusBuildersConstrainDynamicInputs(t *testing.T)` | TestStoreCorpusBuildersConstrainDynamicInputs verifies the retained corpus reference, author, and run-stage builders bind search values, reject unknown sort and order values, follow their declared ordering, and cap oversized inputs. |
+| [`TestStoreEvaluationBuilderConstrainsDynamicInputs`](../src/database/work/dynamic_integration_test.go#L127) | test | 127-178 | `func TestStoreEvaluationBuilderConstrainsDynamicInputs(t *testing.T)` | TestStoreEvaluationBuilderConstrainsDynamicInputs verifies the retained evaluation builder binds search values, rejects unknown sort and order values, follows its declared ordering, and caps oversized inputs. |
+| [`TestStoreGraphBuildersConstrainDynamicInputs`](../src/database/work/dynamic_integration_test.go#L183) | test | 183-251 | `func TestStoreGraphBuildersConstrainDynamicInputs(t *testing.T)` | TestStoreGraphBuildersConstrainDynamicInputs verifies the retained graph builders bind filter values and cap filter strings, identifier lists, and row limits. |
+
 ### [`src/database/work/errors_integration_test.go`](../src/database/work/errors_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1980,21 +2023,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`(*Store).EvaluationReviewSummary`](../src/database/work/evaluation.go#L22) | method | 22-78 | `func (*Store).EvaluationReviewSummary(ctx context.Context, filter EvaluationFilter) (*EvaluationSummary, error)` | EvaluationReviewSummary returns invariant queue progress independently of page rows and filters. |
-| [`(*Store).ListEvaluation`](../src/database/work/evaluation.go#L82) | method | 82-113 | `func (*Store).ListEvaluation(ctx context.Context, filter EvaluationFilter) (*EvaluationPage, error)` | ListEvaluation returns one bounded page of analysis-ready articles with their review and validation state. |
-| [`(*Store).EvaluationQueueNavigation`](../src/database/work/evaluation.go#L117) | method | 117-182 | `func (*Store).EvaluationQueueNavigation(ctx context.Context, filter EvaluationFilter) (*QueueNavigation, error)` | EvaluationQueueNavigation returns adjacent unreviewed revisions within the active queue filters. |
-| [`evaluationRowFromMap`](../src/database/work/evaluation.go#L185) | function | 185-222 | `func evaluationRowFromMap(row map[string]any) (*EvaluationRow, error)` | evaluationRowFromMap maps one dynamic evaluation row into an application row. |
-| [`facetCountsFromStatus`](../src/database/work/evaluation.go#L225) | function | 225-231 | `func facetCountsFromStatus(rows []generated.EvaluationStatusFacetsRow) []*FacetCount` | facetCountsFromStatus maps generated status facet rows. |
-| [`facetCountsFromSource`](../src/database/work/evaluation.go#L234) | function | 234-240 | `func facetCountsFromSource(rows []generated.EvaluationSourceFacetsRow) []*FacetCount` | facetCountsFromSource maps generated source facet rows. |
-| [`facetCountsFromReviewSource`](../src/database/work/evaluation.go#L243) | function | 243-249 | `func facetCountsFromReviewSource(rows []generated.EvaluationReviewSourceFacetsRow) []*FacetCount` | facetCountsFromReviewSource maps generated review-source facet rows. |
-| [`facetCountsFromQualifier`](../src/database/work/evaluation.go#L252) | function | 252-258 | `func facetCountsFromQualifier(rows []generated.EvaluationQualifierFacetsRow) []*FacetCount` | facetCountsFromQualifier maps generated qualifier facet rows. |
-| [`percent`](../src/database/work/evaluation.go#L261) | function | 261-267 | `func percent(value, denominator int64) *float64` | percent returns value as a percentage of denominator, or nil when denominator is zero. |
+| [`(*Store).ListEvaluation`](../src/database/work/evaluation.go#L82) | method | 82-119 | `func (*Store).ListEvaluation(ctx context.Context, filter EvaluationFilter) (*EvaluationPage, error)` | ListEvaluation returns one bounded page of analysis-ready articles with their review and validation state. |
+| [`(*Store).EvaluationQueueNavigation`](../src/database/work/evaluation.go#L123) | method | 123-188 | `func (*Store).EvaluationQueueNavigation(ctx context.Context, filter EvaluationFilter) (*QueueNavigation, error)` | EvaluationQueueNavigation returns adjacent unreviewed revisions within the active queue filters. |
+| [`evaluationRowFromMap`](../src/database/work/evaluation.go#L191) | function | 191-228 | `func evaluationRowFromMap(row map[string]any) (*EvaluationRow, error)` | evaluationRowFromMap maps one dynamic evaluation row into an application row. |
+| [`facetCountsFromStatus`](../src/database/work/evaluation.go#L231) | function | 231-237 | `func facetCountsFromStatus(rows []generated.EvaluationStatusFacetsRow) []*FacetCount` | facetCountsFromStatus maps generated status facet rows. |
+| [`facetCountsFromSource`](../src/database/work/evaluation.go#L240) | function | 240-246 | `func facetCountsFromSource(rows []generated.EvaluationSourceFacetsRow) []*FacetCount` | facetCountsFromSource maps generated source facet rows. |
+| [`facetCountsFromReviewSource`](../src/database/work/evaluation.go#L249) | function | 249-255 | `func facetCountsFromReviewSource(rows []generated.EvaluationReviewSourceFacetsRow) []*FacetCount` | facetCountsFromReviewSource maps generated review-source facet rows. |
+| [`facetCountsFromQualifier`](../src/database/work/evaluation.go#L258) | function | 258-264 | `func facetCountsFromQualifier(rows []generated.EvaluationQualifierFacetsRow) []*FacetCount` | facetCountsFromQualifier maps generated qualifier facet rows. |
+| [`percent`](../src/database/work/evaluation.go#L267) | function | 267-273 | `func percent(value, denominator int64) *float64` | percent returns value as a percentage of denominator, or nil when denominator is zero. |
 
 ### [`src/database/work/evaluation_dynamic.go`](../src/database/work/evaluation_dynamic.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`evaluationQueryScope`](../src/database/work/evaluation_dynamic.go#L38) | struct | 38-43 | `type evaluationQueryScope struct { from string where string args []any sortExpression string }` | evaluationQueryScope is one built evaluation predicate and its bound arguments. |
-| [`evaluationScope`](../src/database/work/evaluation_dynamic.go#L46) | function | 46-110 | `func evaluationScope(filter EvaluationFilter) (*evaluationQueryScope, error)` | evaluationScope builds the parameterized evaluation predicate from a filter. |
+| [`evaluationQueryScope`](../src/database/work/evaluation_dynamic.go#L46) | struct | 46-51 | `type evaluationQueryScope struct { from string where string args []any sortExpression string }` | evaluationQueryScope is one built evaluation predicate and its bound arguments. |
+| [`evaluationScope`](../src/database/work/evaluation_dynamic.go#L54) | function | 54-136 | `func evaluationScope(filter EvaluationFilter) (*evaluationQueryScope, error)` | evaluationScope builds the parameterized evaluation predicate from a filter. |
 
 ### [`src/database/work/graph.go`](../src/database/work/graph.go)
 
@@ -2009,11 +2052,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`graphArticleWhere`](../src/database/work/graph_dynamic.go#L12) | function | 12-61 | `func graphArticleWhere(filter GraphFilter) (string, []any, error)` | graphArticleWhere builds the parameterized graph article predicate. |
-| [`graphAuthorshipQuery`](../src/database/work/graph_dynamic.go#L64) | function | 64-83 | `func graphAuthorshipQuery(revisionIDs []int64, authorLimit, rowLimit int) (string, []any, error)` | graphAuthorshipQuery builds the bounded article-author relationship query. |
-| [`graphCitationQuery`](../src/database/work/graph_dynamic.go#L86) | function | 86-99 | `func graphCitationQuery(revisionIDs, workIDs []int64, rowLimit int) (string, []any, error)` | graphCitationQuery builds the bounded resolved citation relationship query. |
-| [`graphReferenceQuery`](../src/database/work/graph_dynamic.go#L102) | function | 102-113 | `func graphReferenceQuery(revisionIDs []int64, rowLimit int) (string, []any, error)` | graphReferenceQuery builds the bounded article-reference relationship query. |
-| [`placeholders`](../src/database/work/graph_dynamic.go#L116) | function | 116-123 | `func placeholders(ids []int64) (string, []any)` | placeholders returns a comma-separated SQL placeholder list and matching identifier arguments. |
+| [`graphArticleWhere`](../src/database/work/graph_dynamic.go#L31) | function | 31-97 | `func graphArticleWhere(filter GraphFilter) (string, []any, error)` | graphArticleWhere builds the parameterized graph article predicate. |
+| [`graphAuthorshipQuery`](../src/database/work/graph_dynamic.go#L100) | function | 100-125 | `func graphAuthorshipQuery(revisionIDs []int64, authorLimit, rowLimit int) (string, []any, error)` | graphAuthorshipQuery builds the bounded article-author relationship query. |
+| [`graphCitationQuery`](../src/database/work/graph_dynamic.go#L128) | function | 128-147 | `func graphCitationQuery(revisionIDs, workIDs []int64, rowLimit int) (string, []any, error)` | graphCitationQuery builds the bounded resolved citation relationship query. |
+| [`graphReferenceQuery`](../src/database/work/graph_dynamic.go#L150) | function | 150-164 | `func graphReferenceQuery(revisionIDs []int64, rowLimit int) (string, []any, error)` | graphReferenceQuery builds the bounded article-reference relationship query. |
+| [`placeholders`](../src/database/work/graph_dynamic.go#L167) | function | 167-174 | `func placeholders(ids []int64) (string, []any)` | placeholders returns a comma-separated SQL placeholder list and matching identifier arguments. |
 
 ### [`src/database/work/parity_integration_test.go`](../src/database/work/parity_integration_test.go)
 
@@ -3019,25 +3062,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`(*Server).audit`](../src/server/audit.go#L27) | method | 27-166 | `func (*Server).audit(w http.ResponseWriter, r *http.Request)` | audit validates filters and returns a cursor-paginated audit timeline with summary and facets. |
-| [`auditEventMap`](../src/server/audit.go#L169) | function | 169-194 | `func auditEventMap(event *audit.Event) map[string]any` | auditEventMap renders one audit family event as the viewer's JSON row shape. |
-| [`auditSummaryPayload`](../src/server/audit.go#L197) | function | 197-203 | `func auditSummaryPayload(summary *audit.Summary) map[string]any` | auditSummaryPayload renders the family summary as the viewer's JSON shape. |
-| [`(*Server).auditRecordedData`](../src/server/audit.go#L206) | method | 206-253 | `func (*Server).auditRecordedData(w http.ResponseWriter, r *http.Request)` | auditRecordedData returns one privacy-scrubbed, byte-bounded payload only after explicit expansion. |
-| [`boundAuditEventPayloads`](../src/server/audit.go#L256) | function | 256-284 | `func boundAuditEventPayloads(items []map[string]any, limit int)` | boundAuditEventPayloads removes private fields and keeps timeline pages within a fixed payload budget per field. |
-| [`safeAuditJSON`](../src/server/audit.go#L287) | function | 287-305 | `func safeAuditJSON(raw any, limit int) (any, int, bool)` | safeAuditJSON decodes and recursively removes prose and contact fields before enforcing the byte budget. |
-| [`scrubAuditValue`](../src/server/audit.go#L308) | function | 308-329 | `func scrubAuditValue(raw any) any` | scrubAuditValue recursively omits review prose, selected text, and reviewer contact fields. |
-| [`auditMultiValues`](../src/server/audit.go#L332) | function | 332-352 | `func auditMultiValues(raw, parameter string) ([]string, error)` | auditMultiValues parses, deduplicates, and bounds a comma-separated audit facet filter. |
-| [`nullableRunScope`](../src/server/audit.go#L355) | function | 355-360 | `func nullableRunScope(raw string) any` | nullableRunScope preserves an invariant null-or-string scope value in audit responses. |
-| [`(*Server).runArtifacts`](../src/server/audit.go#L363) | method | 363-455 | `func (*Server).runArtifacts(w http.ResponseWriter, r *http.Request)` | runArtifacts returns artifact metadata linked to the selected run. |
-| [`nullablePositiveID`](../src/server/audit.go#L458) | function | 458-463 | `func nullablePositiveID(id int64) any` | nullablePositiveID preserves an invariant null-or-number response for optional focused records. |
-| [`(*Server).artifactContent`](../src/server/audit.go#L466) | method | 466-495 | `func (*Server).artifactContent(w http.ResponseWriter, r *http.Request)` | artifactContent streams one stored artifact blob with a safe content disposition. |
-| [`(*Server).artifactInspection`](../src/server/audit.go#L498) | method | 498-549 | `func (*Server).artifactInspection(w http.ResponseWriter, r *http.Request)` | artifactInspection returns bounded metadata and preview content for one artifact. |
-| [`(*Server).artifactPreviewBlob`](../src/server/audit.go#L552) | method | 552-564 | `func (*Server).artifactPreviewBlob(ctx context.Context, artifactID int64, previewBytes int) (string, int64, int64, []byte, error)` | artifactPreviewBlob reads a bounded artifact prefix together with its media type and total size. |
-| [`normalizedArtifactContentType`](../src/server/audit.go#L567) | function | 567-573 | `func normalizedArtifactContentType(contentType string) string` | normalizedArtifactContentType parses and lowercases an artifact media type without parameters. |
-| [`jsonArtifactContentType`](../src/server/audit.go#L576) | function | 576-579 | `func jsonArtifactContentType(contentType string) bool` | jsonArtifactContentType reports whether a normalized media type carries JSON. |
-| [`inlineArtifactContentType`](../src/server/audit.go#L582) | function | 582-588 | `func inlineArtifactContentType(contentType string) bool` | inlineArtifactContentType reports whether a normalized media type is safe for inline display. |
-| [`artifactFilename`](../src/server/audit.go#L591) | function | 591-612 | `func artifactFilename(artifactID int64, role, contentType string) string` | artifactFilename derives a safe download filename from an artifact role and media type. |
-| [`(*Server).runCacheUses`](../src/server/audit.go#L615) | method | 615-668 | `func (*Server).runCacheUses(w http.ResponseWriter, r *http.Request)` | runCacheUses returns cache-use evidence recorded for the selected run. |
+| [`(*Server).audit`](../src/server/audit.go#L27) | method | 27-170 | `func (*Server).audit(w http.ResponseWriter, r *http.Request)` | audit validates filters and returns a cursor-paginated audit timeline with summary and facets. |
+| [`auditEventMap`](../src/server/audit.go#L173) | function | 173-198 | `func auditEventMap(event *audit.Event) map[string]any` | auditEventMap renders one audit family event as the viewer's JSON row shape. |
+| [`auditSummaryPayload`](../src/server/audit.go#L201) | function | 201-207 | `func auditSummaryPayload(summary *audit.Summary) map[string]any` | auditSummaryPayload renders the family summary as the viewer's JSON shape. |
+| [`(*Server).auditRecordedData`](../src/server/audit.go#L210) | method | 210-257 | `func (*Server).auditRecordedData(w http.ResponseWriter, r *http.Request)` | auditRecordedData returns one privacy-scrubbed, byte-bounded payload only after explicit expansion. |
+| [`boundAuditEventPayloads`](../src/server/audit.go#L260) | function | 260-288 | `func boundAuditEventPayloads(items []map[string]any, limit int)` | boundAuditEventPayloads removes private fields and keeps timeline pages within a fixed payload budget per field. |
+| [`safeAuditJSON`](../src/server/audit.go#L291) | function | 291-309 | `func safeAuditJSON(raw any, limit int) (any, int, bool)` | safeAuditJSON decodes and recursively removes prose and contact fields before enforcing the byte budget. |
+| [`scrubAuditValue`](../src/server/audit.go#L312) | function | 312-333 | `func scrubAuditValue(raw any) any` | scrubAuditValue recursively omits review prose, selected text, and reviewer contact fields. |
+| [`auditMultiValues`](../src/server/audit.go#L336) | function | 336-356 | `func auditMultiValues(raw, parameter string) ([]string, error)` | auditMultiValues parses, deduplicates, and bounds a comma-separated audit facet filter. |
+| [`nullableRunScope`](../src/server/audit.go#L359) | function | 359-364 | `func nullableRunScope(raw string) any` | nullableRunScope preserves an invariant null-or-string scope value in audit responses. |
+| [`(*Server).runArtifacts`](../src/server/audit.go#L367) | method | 367-459 | `func (*Server).runArtifacts(w http.ResponseWriter, r *http.Request)` | runArtifacts returns artifact metadata linked to the selected run. |
+| [`nullablePositiveID`](../src/server/audit.go#L462) | function | 462-467 | `func nullablePositiveID(id int64) any` | nullablePositiveID preserves an invariant null-or-number response for optional focused records. |
+| [`(*Server).artifactContent`](../src/server/audit.go#L470) | method | 470-499 | `func (*Server).artifactContent(w http.ResponseWriter, r *http.Request)` | artifactContent streams one stored artifact blob with a safe content disposition. |
+| [`(*Server).artifactInspection`](../src/server/audit.go#L502) | method | 502-553 | `func (*Server).artifactInspection(w http.ResponseWriter, r *http.Request)` | artifactInspection returns bounded metadata and preview content for one artifact. |
+| [`(*Server).artifactPreviewBlob`](../src/server/audit.go#L556) | method | 556-568 | `func (*Server).artifactPreviewBlob(ctx context.Context, artifactID int64, previewBytes int) (string, int64, int64, []byte, error)` | artifactPreviewBlob reads a bounded artifact prefix together with its media type and total size. |
+| [`normalizedArtifactContentType`](../src/server/audit.go#L571) | function | 571-577 | `func normalizedArtifactContentType(contentType string) string` | normalizedArtifactContentType parses and lowercases an artifact media type without parameters. |
+| [`jsonArtifactContentType`](../src/server/audit.go#L580) | function | 580-583 | `func jsonArtifactContentType(contentType string) bool` | jsonArtifactContentType reports whether a normalized media type carries JSON. |
+| [`inlineArtifactContentType`](../src/server/audit.go#L586) | function | 586-592 | `func inlineArtifactContentType(contentType string) bool` | inlineArtifactContentType reports whether a normalized media type is safe for inline display. |
+| [`artifactFilename`](../src/server/audit.go#L595) | function | 595-616 | `func artifactFilename(artifactID int64, role, contentType string) string` | artifactFilename derives a safe download filename from an artifact role and media type. |
+| [`(*Server).runCacheUses`](../src/server/audit.go#L619) | method | 619-672 | `func (*Server).runCacheUses(w http.ResponseWriter, r *http.Request)` | runCacheUses returns cache-use evidence recorded for the selected run. |
 
 ### [`src/server/audit_integration_test.go`](../src/server/audit_integration_test.go)
 
@@ -3079,11 +3122,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`corpusSourceRow`](../src/server/corpus.go#L221) | function | 221-233 | `func corpusSourceRow(item *source.CorpusRecord) map[string]any` | corpusSourceRow maps one source family record into the corpus row shape. |
 | [`(*Server).runStages`](../src/server/corpus.go#L236) | method | 236-293 | `func (*Server).runStages(w http.ResponseWriter, r *http.Request)` | runStages returns detailed work-stage outcomes for the selected run. |
 | [`(*Server).runStageSummaries`](../src/server/corpus.go#L296) | method | 296-306 | `func (*Server).runStageSummaries(ctx context.Context, runID int64) ([]map[string]any, error)` | runStageSummaries returns aggregate outcome counts by pipeline stage. |
-| [`scopedRowsRequest`](../src/server/corpus.go#L309) | function | 309-345 | `func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string, additionalQueryKeys ...string) (int, int, string, string, string, error)` | scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request. |
-| [`scopedPagination`](../src/server/corpus.go#L348) | function | 348-358 | `func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any` | scopedPagination returns validated page, page-size, offset, and limit values. |
-| [`clampScopedPage`](../src/server/corpus.go#L361) | function | 361-370 | `func clampScopedPage(page, perPage int, total int64) int` | clampScopedPage maps an offset request past the end to the final populated page. |
-| [`sqlOrderKeyword`](../src/server/corpus.go#L375) | function | 375-380 | `func sqlOrderKeyword(order string) string` | sqlOrderKeyword returns the validated ascending/descending SQL keyword for a request direction. Request parsing already restricts order to ASC or DESC; the default is defensive and keeps request input out of the SQL text. |
-| [`(*Server).requireRun`](../src/server/corpus.go#L383) | method | 383-392 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
+| [`scopedRowsRequest`](../src/server/corpus.go#L313) | function | 313-353 | `func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string, additionalQueryKeys ...string) (int, int, string, string, string, error)` | scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request. |
+| [`scopedPagination`](../src/server/corpus.go#L356) | function | 356-366 | `func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any` | scopedPagination returns validated page, page-size, offset, and limit values. |
+| [`clampScopedPage`](../src/server/corpus.go#L369) | function | 369-378 | `func clampScopedPage(page, perPage int, total int64) int` | clampScopedPage maps an offset request past the end to the final populated page. |
+| [`sqlOrderKeyword`](../src/server/corpus.go#L383) | function | 383-388 | `func sqlOrderKeyword(order string) string` | sqlOrderKeyword returns the validated ascending/descending SQL keyword for a request direction. Request parsing already restricts order to ASC or DESC; the default is defensive and keeps request input out of the SQL text. |
+| [`(*Server).requireRun`](../src/server/corpus.go#L391) | method | 391-400 | `func (*Server).requireRun(ctx context.Context, runID int64) error` | requireRun requires a valid run value. |
 
 ### [`src/server/corpus_integration_test.go`](../src/server/corpus_integration_test.go)
 
@@ -3168,12 +3211,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`(*Server).graph`](../src/server/graph.go#L26) | method | 26-95 | `func (*Server).graph(w http.ResponseWriter, r *http.Request)` | graph validates graph filters and returns a bounded relationship graph for one run. |
 | [`(*Server).graphArticles`](../src/server/graph.go#L98) | method | 98-112 | `func (*Server).graphArticles(ctx context.Context, r *http.Request, runID int64, limit int) ([]map[string]any, int, error)` | graphArticles selects normalized, valid article nodes matching the request filters and limit. |
-| [`graphArticleFilter`](../src/server/graph.go#L115) | function | 115-145 | `func graphArticleFilter(r *http.Request, runID int64, limit int) (work.GraphFilter, error)` | graphArticleFilter parses and validates the graph article request filters. |
-| [`(*Server).graphEdges`](../src/server/graph.go#L148) | method | 148-150 | `func (*Server).graphEdges(ctx context.Context, mode string, articles []map[string]any) ([]map[string]any, []map[string]any, bool, error)` | graphEdges builds bounded nodes and edges for one supported relationship mode. |
-| [`(*Server).graphEdgesWithinBudget`](../src/server/graph.go#L153) | method | 153-255 | `func (*Server).graphEdgesWithinBudget(ctx context.Context, mode string, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error)` | graphEdgesWithinBudget reads no more than one sentinel row beyond the remaining response budget. |
-| [`(*Server).graphResearchNetwork`](../src/server/graph.go#L258) | method | 258-453 | `func (*Server).graphResearchNetwork(ctx context.Context, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error)` | graphResearchNetwork combines authorship, reference, citation, coauthor, and bibliographic-coupling relationships. |
-| [`placeholders`](../src/server/graph.go#L456) | function | 456-463 | `func placeholders(ids []int64) (string, []any)` | placeholders returns a comma-separated SQL placeholder list and matching identifier arguments. |
-| [`graphFilters`](../src/server/graph.go#L466) | function | 466-474 | `func graphFilters(r *http.Request, runID int64, mode string, limit int) map[string]any` | graphFilters returns the effective non-empty graph filters for response metadata. |
+| [`graphArticleFilter`](../src/server/graph.go#L115) | function | 115-159 | `func graphArticleFilter(r *http.Request, runID int64, limit int) (work.GraphFilter, error)` | graphArticleFilter parses and validates the graph article request filters. |
+| [`(*Server).graphEdges`](../src/server/graph.go#L162) | method | 162-164 | `func (*Server).graphEdges(ctx context.Context, mode string, articles []map[string]any) ([]map[string]any, []map[string]any, bool, error)` | graphEdges builds bounded nodes and edges for one supported relationship mode. |
+| [`(*Server).graphEdgesWithinBudget`](../src/server/graph.go#L167) | method | 167-269 | `func (*Server).graphEdgesWithinBudget(ctx context.Context, mode string, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error)` | graphEdgesWithinBudget reads no more than one sentinel row beyond the remaining response budget. |
+| [`(*Server).graphResearchNetwork`](../src/server/graph.go#L272) | method | 272-467 | `func (*Server).graphResearchNetwork(ctx context.Context, articles []map[string]any, relatedBudget, edgeBudget int) ([]map[string]any, []map[string]any, bool, error)` | graphResearchNetwork combines authorship, reference, citation, coauthor, and bibliographic-coupling relationships. |
+| [`placeholders`](../src/server/graph.go#L470) | function | 470-477 | `func placeholders(ids []int64) (string, []any)` | placeholders returns a comma-separated SQL placeholder list and matching identifier arguments. |
+| [`graphFilters`](../src/server/graph.go#L480) | function | 480-488 | `func graphFilters(r *http.Request, runID int64, mode string, limit int) map[string]any` | graphFilters returns the effective non-empty graph filters for response metadata. |
 
 ### [`src/server/graph_integration_test.go`](../src/server/graph_integration_test.go)
 
@@ -3528,6 +3571,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestHelper_placeholders`](../src/server/server_unit_test.go#L848) | test | 848-881 | `func TestHelper_placeholders(t *testing.T)` | TestHelper_placeholders verifies helper placeholders. |
 | [`TestHelper_parseOptionalInt`](../src/server/server_unit_test.go#L884) | test | 884-936 | `func TestHelper_parseOptionalInt(t *testing.T)` | TestHelper_parseOptionalInt verifies helper parse optional int. |
 | [`ptr`](../src/server/server_unit_test.go#L939) | function | 939-941 | `func ptr(v float64) *float64` | ptr supports the package test suite's ptr setup or assertions. |
+| [`TestScopedRowsRequestCapsSearchQuery`](../src/server/server_unit_test.go#L945) | test | 945-956 | `func TestScopedRowsRequestCapsSearchQuery(t *testing.T)` | TestScopedRowsRequestCapsSearchQuery verifies the shared scoped-rows parser rejects an oversized search string before it reaches a family builder. |
 
 ### [`src/server/tables.go`](../src/server/tables.go)
 

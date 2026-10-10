@@ -91,10 +91,10 @@ type IdentityCandidatePreview struct {
 // ListIdentityEvidence returns one bounded page of run-scoped identity
 // resolutions with the current normalized revision of their evidence work.
 func (s *Store) ListIdentityEvidence(ctx context.Context, filter IdentityEvidenceFilter) (*IdentityEvidencePage, error) {
-	if _, ok := identityEvidenceSortFields[filter.Sort]; !ok {
-		return nil, fmt.Errorf("list identity evidence: unsupported sort field %q", filter.Sort)
+	from, where, args, err := identityEvidenceQuery(filter)
+	if err != nil {
+		return nil, err
 	}
-	from, where, args := identityEvidenceQuery(filter)
 	var total int64
 	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM (SELECT r.id "+from+" WHERE "+where+" GROUP BY r.id, evidence.work_id)", args...).Scan(&total); err != nil {
 		return nil, fmt.Errorf("count identity evidence: %w", err)

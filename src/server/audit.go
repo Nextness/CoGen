@@ -76,6 +76,10 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter.Query = strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(filter.Query) > maxSearchQueryLength {
+		s.respond(w, r, nil, badRequest("q must be at most 200 characters"))
+		return
+	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
 	filter.PDFScope = r.URL.Query().Get("pdf_scope")

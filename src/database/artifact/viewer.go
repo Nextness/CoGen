@@ -46,17 +46,29 @@ type RunArtifactEvidencePage struct {
 	Page         int
 }
 
+// maxRunArtifactLimit bounds one cursor-mode artifact page.
+const maxRunArtifactLimit = 1000
+
+// maxRunArtifactPageSize bounds one page-mode artifact page.
+const maxRunArtifactPageSize = 1000
+
 // ListRunArtifactEvidence returns one bounded page of artifact evidence linked
 // to a run. The exact count is read only in page mode, matching the viewer's
 // cursor mode.
 func (s *Store) ListRunArtifactEvidence(ctx context.Context, filter RunArtifactFilter) (*RunArtifactEvidencePage, error) {
-	if filter.Limit < 1 {
-		return nil, fmt.Errorf("list run artifact evidence: limit must be positive")
+	if filter.Limit < 1 || filter.Limit > maxRunArtifactLimit {
+		return nil, fmt.Errorf("list run artifact evidence: limit must be between 1 and %d", maxRunArtifactLimit)
 	}
 	if filter.Order != "ASC" && filter.Order != "DESC" {
 		return nil, fmt.Errorf("list run artifact evidence: invalid order %q", filter.Order)
 	}
-	where, filterArgs := runArtifactFilterClauses(filter)
+	if filter.PageMode && (filter.PerPage < 1 || filter.PerPage > maxRunArtifactPageSize) {
+		return nil, fmt.Errorf("list run artifact evidence: per_page must be between 1 and %d", maxRunArtifactPageSize)
+	}
+	where, filterArgs, err := runArtifactFilterClauses(filter)
+	if err != nil {
+		return nil, err
+	}
 	page := filter.Page
 	var total int64
 	if filter.PageMode {

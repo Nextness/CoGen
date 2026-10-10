@@ -10,6 +10,43 @@ import (
 	"database/sql"
 )
 
+const countArticleDetailEvents = `-- name: CountArticleDetailEvents :one
+SELECT COUNT(*)
+FROM audit_events
+WHERE (
+    (entity_type='work_revision' AND entity_id IN (
+        SELECT CAST(revision.id AS TEXT) FROM work_revisions revision WHERE revision.work_id=?1 AND revision.pipeline_run_id=?2))
+    OR (entity_type='work' AND entity_id=CAST(?1 AS TEXT) AND (pipeline_run_id=?2 OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%')))
+    OR (entity_type='work_review_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(review.id AS TEXT) FROM work_review_versions review
+        JOIN work_revisions revision ON revision.id=review.work_revision_id
+        WHERE review.work_id=?1 AND revision.pipeline_run_id=?2))
+    OR (entity_type='review_note_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(version.id AS TEXT) FROM review_note_versions version
+        JOIN review_notes note ON note.id=version.note_id
+        JOIN review_contexts context ON context.id=version.created_in_context_id
+        WHERE note.work_id=?1 AND context.pipeline_run_id=?2))
+    OR (entity_type='review_anchor_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(version.id AS TEXT) FROM review_anchor_versions version
+        JOIN review_anchors anchor ON anchor.id=version.anchor_id
+        JOIN review_contexts context ON context.id=version.created_in_context_id
+        WHERE anchor.work_id=?1 AND context.pipeline_run_id=?2))
+    OR (entity_type='review_context' AND pipeline_run_id=?2)
+)
+`
+
+type CountArticleDetailEventsParams struct {
+	WorkID int64
+	RunID  int64
+}
+
+func (q *Queries) CountArticleDetailEvents(ctx context.Context, arg CountArticleDetailEventsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countArticleDetailEvents, arg.WorkID, arg.RunID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countAuthorDetailEvents = `-- name: CountAuthorDetailEvents :one
 SELECT COUNT(*)
 FROM audit_events
@@ -75,6 +112,92 @@ func (q *Queries) GetAuditEventRecordedData(ctx context.Context, arg GetAuditEve
 		&i.MetadataJson,
 	)
 	return i, err
+}
+
+const listArticleDetailEvents = `-- name: ListArticleDetailEvents :many
+SELECT
+    id,
+    occurred_at,
+    actor,
+    pipeline_run_id,
+    entity_type,
+    entity_id,
+    action,
+    before_json,
+    after_json,
+    metadata_json,
+    correlation_id
+FROM audit_events
+WHERE (
+    (entity_type='work_revision' AND entity_id IN (
+        SELECT CAST(revision.id AS TEXT) FROM work_revisions revision WHERE revision.work_id=?1 AND revision.pipeline_run_id=?2))
+    OR (entity_type='work' AND entity_id=CAST(?1 AS TEXT) AND (pipeline_run_id=?2 OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%')))
+    OR (entity_type='work_review_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(review.id AS TEXT) FROM work_review_versions review
+        JOIN work_revisions revision ON revision.id=review.work_revision_id
+        WHERE review.work_id=?1 AND revision.pipeline_run_id=?2))
+    OR (entity_type='review_note_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(version.id AS TEXT) FROM review_note_versions version
+        JOIN review_notes note ON note.id=version.note_id
+        JOIN review_contexts context ON context.id=version.created_in_context_id
+        WHERE note.work_id=?1 AND context.pipeline_run_id=?2))
+    OR (entity_type='review_anchor_version' AND pipeline_run_id=?2 AND entity_id IN (
+        SELECT CAST(version.id AS TEXT) FROM review_anchor_versions version
+        JOIN review_anchors anchor ON anchor.id=version.anchor_id
+        JOIN review_contexts context ON context.id=version.created_in_context_id
+        WHERE anchor.work_id=?1 AND context.pipeline_run_id=?2))
+    OR (entity_type='review_context' AND pipeline_run_id=?2)
+)
+  AND (CAST(?3 AS INTEGER)=0 OR id < ?3)
+ORDER BY id DESC
+LIMIT ?4
+`
+
+type ListArticleDetailEventsParams struct {
+	WorkID   int64
+	RunID    int64
+	CursorID int64
+	Limit    int64
+}
+
+func (q *Queries) ListArticleDetailEvents(ctx context.Context, arg ListArticleDetailEventsParams) ([]AuditEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listArticleDetailEvents,
+		arg.WorkID,
+		arg.RunID,
+		arg.CursorID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditEvent
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OccurredAt,
+			&i.Actor,
+			&i.PipelineRunID,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Action,
+			&i.BeforeJson,
+			&i.AfterJson,
+			&i.MetadataJson,
+			&i.CorrelationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAuthorDetailEvents = `-- name: ListAuthorDetailEvents :many

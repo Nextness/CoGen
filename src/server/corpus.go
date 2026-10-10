@@ -305,6 +305,10 @@ func (s *Server) runStageSummaries(ctx context.Context, runID int64) ([]map[stri
 	return result, nil
 }
 
+// maxSearchQueryLength bounds one viewer search string before it reaches a
+// family builder.
+const maxSearchQueryLength = 200
+
 // scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request.
 func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string, additionalQueryKeys ...string) (int, int, string, string, string, error) {
 	queryKeys := []string{"page", "per_page", "sort", "order", "q"}
@@ -341,7 +345,11 @@ func scopedRowsRequest(r *http.Request, fields map[string]string, fallback strin
 	if order != "ASC" && order != "DESC" {
 		return 0, 0, "", "", "", badRequest("order must be asc or desc")
 	}
-	return page, perPage, sort, order, strings.TrimSpace(r.URL.Query().Get("q")), nil
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if len(query) > maxSearchQueryLength {
+		return 0, 0, "", "", "", badRequest("q must be at most 200 characters")
+	}
+	return page, perPage, sort, order, query, nil
 }
 
 // scopedPagination returns validated page, page-size, offset, and limit values.

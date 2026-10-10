@@ -1,9 +1,20 @@
 // viewer_dynamic.go retains the bounded dynamic run artifact evidence query.
 // The relationship CTE, projection, and filter fragments are fixed SQL text;
-// the order keyword comes from a validated enum and every user value is bound.
+// the order keyword comes from a validated enum, every user value is bound,
+// and the search, role, and page inputs are validated and capped before
+// assembly.
 package artifact
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
+
+// maxRunArtifactQueryLength bounds one artifact search string.
+const maxRunArtifactQueryLength = 200
+
+// maxRunArtifactRoleLength bounds one artifact relationship role filter.
+const maxRunArtifactRoleLength = 100
 
 // runArtifactRelationshipCTE is the fixed relationship CTE. Each of its five
 // placeholders is the run identifier.
@@ -40,7 +51,13 @@ func runArtifactRunArgs(runID int64, count int) []any {
 }
 
 // runArtifactFilterClauses builds the parameterized search and role filters.
-func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any) {
+func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any, error) {
+	if len(filter.Query) > maxRunArtifactQueryLength {
+		return "", nil, fmt.Errorf("list run artifact evidence: query must be at most %d characters", maxRunArtifactQueryLength)
+	}
+	if len(filter.Role) > maxRunArtifactRoleLength {
+		return "", nil, fmt.Errorf("list run artifact evidence: role must be at most %d characters", maxRunArtifactRoleLength)
+	}
 	where := " WHERE 1=1"
 	args := []any{}
 	if filter.Query != "" {
@@ -55,5 +72,5 @@ func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any) {
 			WHERE filtered_role.artifact_id=a.id AND filtered_role.relationship_role=?)`
 		args = append(args, filter.Role)
 	}
-	return where, args
+	return where, args, nil
 }

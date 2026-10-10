@@ -53,7 +53,7 @@ type Facets struct {
 }
 
 // Filter selects audit events for the viewer timeline. Empty fields are
-// ignored; list fields are bounded by the caller.
+// ignored; list fields and filter strings are capped by the family builder.
 type Filter struct {
 	EntityID        string
 	EntityTypes     []string

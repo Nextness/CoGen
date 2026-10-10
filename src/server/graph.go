@@ -120,6 +120,20 @@ func graphArticleFilter(r *http.Request, runID int64, limit int) (work.GraphFilt
 	filter.Author = query.Get("author")
 	filter.ORCID = query.Get("orcid")
 	filter.Reference = query.Get("reference")
+	for _, value := range []struct {
+		name  string
+		value string
+	}{
+		{"q", filter.Query},
+		{"source", filter.Source},
+		{"author", filter.Author},
+		{"orcid", filter.ORCID},
+		{"reference", filter.Reference},
+	} {
+		if len(value.value) > maxSearchQueryLength {
+			return work.GraphFilter{}, badRequest(value.name + " must be at most 200 characters")
+		}
+	}
 	for _, bound := range []struct {
 		parameter string
 		target    **int64

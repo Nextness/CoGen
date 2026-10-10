@@ -46,6 +46,22 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		}},
 		{"ListFilterCountsByRun", func() error { _, err := store.ListFilterCountsByRun(ctx, 1); return err }},
 		{"GetFilterCount", func() error { _, err := store.GetFilterCount(ctx, 1, "closed"); return err }},
+		{"ListResultCountsForRun", func() error {
+			_, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: 1, IncludeExportDate: true, IncludeResultCounts: true})
+			return err
+		}},
+		{"ListResultCountsForRunWithoutExportDate", func() error {
+			_, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: 1, IncludeResultCounts: true})
+			return err
+		}},
+		{"ListResultCountsForRunWithoutResultCounts", func() error {
+			_, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: 1, IncludeExportDate: true})
+			return err
+		}},
+		{"ListResultCountsForRunWithoutResultCountsAndExportDate", func() error {
+			_, err := store.ListResultCountsForRun(ctx, source.ResultCountFilter{RunID: 1})
+			return err
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

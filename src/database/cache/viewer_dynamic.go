@@ -1,12 +1,20 @@
 // viewer_dynamic.go retains the bounded dynamic cache-use query. Sort
-// identifiers come from a closed map, the search projection is fixed, and
-// every user value is bound; no caller value is interpolated into SQL text.
+// identifiers come from a closed map, the search projection is fixed, every
+// user value is bound, and the search, sort, order, and page inputs are
+// validated and capped before assembly; no caller value is interpolated into
+// SQL text.
 package cache
 
 import (
 	"fmt"
 	"strings"
 )
+
+// maxViewerQueryLength bounds one viewer search string.
+const maxViewerQueryLength = 200
+
+// maxViewerPageSize bounds one viewer page request.
+const maxViewerPageSize = 1000
 
 // cacheUseSortFields is the closed allowlist of cache-use sort expressions.
 var cacheUseSortFields = map[string]string{
@@ -30,11 +38,32 @@ var cacheUseSearchFields = []string{"rcu.cache_layer", "rcu.outcome", "ce.provid
 
 // cacheUseWhere builds the parameterized predicate for a cache-use page.
 func cacheUseWhere(filter CacheUseFilter) (string, []any, error) {
-	if _, ok := cacheUseSortFields[filter.Sort]; !ok {
-		return "", nil, fmt.Errorf("list cache uses: unsupported sort field %q", filter.Sort)
+	if err := validateCacheUseFilter(filter); err != nil {
+		return "", nil, err
 	}
 	where, args := scopedSearch("rcu.pipeline_run_id=?", cacheUseSearchFields, filter.RunID, filter.Query)
 	return where, args, nil
+}
+
+// validateCacheUseFilter validates the closed sort and order enums and the
+// bounded search and page inputs before any SQL text is assembled.
+func validateCacheUseFilter(filter CacheUseFilter) error {
+	if _, ok := cacheUseSortFields[filter.Sort]; !ok {
+		return fmt.Errorf("list cache uses: unsupported sort field %q", filter.Sort)
+	}
+	if err := validateViewerOrder("list cache uses", filter.Order); err != nil {
+		return err
+	}
+	if len(filter.Query) > maxViewerQueryLength {
+		return fmt.Errorf("list cache uses: query must be at most %d characters", maxViewerQueryLength)
+	}
+	if filter.Page < 1 {
+		return fmt.Errorf("list cache uses: page must be positive")
+	}
+	if filter.PerPage < 1 || filter.PerPage > maxViewerPageSize {
+		return fmt.Errorf("list cache uses: per_page must be between 1 and %d", maxViewerPageSize)
+	}
+	return nil
 }
 
 // cacheUseSortExpression returns the allowlisted sort expression.
@@ -55,6 +84,16 @@ func scopedSearch(base string, fields []string, runID int64, query string) (stri
 		args = append(args, needle)
 	}
 	return base + " AND (" + strings.Join(conditions, " OR ") + ")", args
+}
+
+// validateViewerOrder validates the closed ascending/descending order enum.
+func validateViewerOrder(operation, order string) error {
+	switch strings.ToUpper(order) {
+	case "", "ASC", "DESC":
+		return nil
+	default:
+		return fmt.Errorf("%s: order must be asc or desc", operation)
+	}
 }
 
 // sqlDirection returns the validated ascending/descending SQL keyword.

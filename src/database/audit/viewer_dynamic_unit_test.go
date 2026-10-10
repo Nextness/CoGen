@@ -1,10 +1,13 @@
-// filter_unit_test.go verifies the retained dynamic audit filter builder
-// without a database.
+// viewer_dynamic_unit_test.go verifies the retained dynamic audit filter
+// builder without a database.
 //go:build unit
 
 package audit
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestAuditInClauseBuildsParameterizedMarkers verifies every value is bound and
 // no caller value is interpolated into SQL text.
@@ -99,5 +102,50 @@ func TestAuditFilterClausesBindEveryValue(t *testing.T) {
 	}
 	if args[len(args)-1] != int64(7) {
 		t.Fatalf("run scope arg = %v, want 7", args[len(args)-1])
+	}
+}
+
+// TestValidateAuditFilterCapsInputs verifies the retained builder rejects
+// oversized value lists and filter strings.
+func TestValidateAuditFilterCapsInputs(t *testing.T) {
+	oversizedValues := make([]string, 101)
+	for index := range oversizedValues {
+		oversizedValues[index] = "value"
+	}
+	for _, test := range []struct {
+		name   string
+		filter Filter
+	}{
+		{"value list", Filter{Actors: oversizedValues}},
+		{"value length", Filter{Actors: []string{strings.Repeat("x", 201)}}},
+		{"entity id", Filter{EntityID: strings.Repeat("x", 201)}},
+		{"stage", Filter{Stage: strings.Repeat("x", 201)}},
+		{"outcome", Filter{Outcome: strings.Repeat("x", 201)}},
+		{"review status", Filter{ReviewStatus: strings.Repeat("x", 201)}},
+		{"review reason", Filter{ReviewReason: strings.Repeat("x", 1001)}},
+		{"review substatus", Filter{ReviewSubstatus: strings.Repeat("x", 201)}},
+		{"query", Filter{Query: strings.Repeat("x", 201)}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateAuditFilter(test.filter); err == nil {
+				t.Fatal("expected the retained builder to reject the input")
+			}
+		})
+	}
+	if err := validateAuditFilter(Filter{Actors: []string{"crossref"}, Query: "title"}); err != nil {
+		t.Fatalf("valid filter rejected: %v", err)
+	}
+}
+
+// TestAuditFacetColumnsAllowlist verifies only the three supported facet
+// columns are available to the dynamic facet builder.
+func TestAuditFacetColumnsAllowlist(t *testing.T) {
+	for _, facet := range []string{"actor", "action", "entity_type"} {
+		if _, ok := auditFacetColumns[facet]; !ok {
+			t.Fatalf("facet %q is missing from the allowlist", facet)
+		}
+	}
+	if len(auditFacetColumns) != 3 {
+		t.Fatalf("facet allowlist = %v, want exactly three entries", auditFacetColumns)
 	}
 }

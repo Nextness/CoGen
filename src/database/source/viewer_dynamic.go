@@ -1,13 +1,20 @@
-// viewer_dynamic.go retains the bounded dynamic projections and predicates for
-// the source family's viewer reads. The projection fragments and sort
-// identifiers come from closed allowlists, and every user value is bound; no
-// caller value is interpolated into SQL text.
+// viewer_dynamic.go retains the bounded dynamic source-record query. Sort
+// identifiers come from a closed map, the search projection is fixed, every
+// user value is bound, and the search, sort, order, and page inputs are
+// validated and capped before assembly; no caller value is interpolated into
+// SQL text.
 package source
 
 import (
 	"fmt"
 	"strings"
 )
+
+// maxViewerQueryLength bounds one viewer search string.
+const maxViewerQueryLength = 200
+
+// maxViewerPageSize bounds one viewer page request.
+const maxViewerPageSize = 1000
 
 // corpusRecordSortFields is the closed allowlist of source-record sort expressions.
 var corpusRecordSortFields = map[string]string{
@@ -25,29 +32,34 @@ var corpusRecordSortFields = map[string]string{
 // corpusRecordSearchFields is the fixed searchable projection for source records.
 var corpusRecordSearchFields = []string{"rs.source_name", "rs.source_type", "sr.parse_status", "sr.reject_reason", "sr.content_hash"}
 
-// resultCountsQuery builds the run source result-count projection. The
-// optional fragments describe columns that older databases do not provide;
-// they are fixed strings selected by validated booleans.
-func resultCountsQuery(includeExportDate, includeResultCounts bool) string {
-	dateColumn := "NULL AS export_date"
-	if includeExportDate {
-		dateColumn = "export_date"
-	}
-	countColumns := "NULL AS expected_result_count, NULL AS observed_result_count, NULL AS result_count_comparison, "
-	if includeResultCounts {
-		countColumns = "expected_result_count, observed_result_count, result_count_comparison, "
-	}
-	return "SELECT id, source_name, source_type, expected_file, query, " + countColumns + dateColumn +
-		" FROM run_sources WHERE pipeline_run_id=? ORDER BY id"
-}
-
 // corpusRecordWhere builds the parameterized predicate for a source-record page.
 func corpusRecordWhere(filter CorpusRecordFilter) (string, []any, error) {
-	if _, ok := corpusRecordSortFields[filter.Sort]; !ok {
-		return "", nil, fmt.Errorf("list corpus source records: unsupported sort field %q", filter.Sort)
+	if err := validateCorpusRecordFilter(filter); err != nil {
+		return "", nil, err
 	}
 	where, args := scopedSearch("rs.pipeline_run_id=?", corpusRecordSearchFields, filter.RunID, filter.Query)
 	return where, args, nil
+}
+
+// validateCorpusRecordFilter validates the closed sort and order enums and the
+// bounded search and page inputs before any SQL text is assembled.
+func validateCorpusRecordFilter(filter CorpusRecordFilter) error {
+	if _, ok := corpusRecordSortFields[filter.Sort]; !ok {
+		return fmt.Errorf("list corpus source records: unsupported sort field %q", filter.Sort)
+	}
+	if err := validateViewerOrder("list corpus source records", filter.Order); err != nil {
+		return err
+	}
+	if len(filter.Query) > maxViewerQueryLength {
+		return fmt.Errorf("list corpus source records: query must be at most %d characters", maxViewerQueryLength)
+	}
+	if filter.Page < 1 {
+		return fmt.Errorf("list corpus source records: page must be positive")
+	}
+	if filter.PerPage < 1 || filter.PerPage > maxViewerPageSize {
+		return fmt.Errorf("list corpus source records: per_page must be between 1 and %d", maxViewerPageSize)
+	}
+	return nil
 }
 
 // corpusRecordSortExpression returns the allowlisted sort expression.
@@ -68,6 +80,16 @@ func scopedSearch(base string, fields []string, runID int64, query string) (stri
 		args = append(args, needle)
 	}
 	return base + " AND (" + strings.Join(conditions, " OR ") + ")", args
+}
+
+// validateViewerOrder validates the closed ascending/descending order enum.
+func validateViewerOrder(operation, order string) error {
+	switch strings.ToUpper(order) {
+	case "", "ASC", "DESC":
+		return nil
+	default:
+		return fmt.Errorf("%s: order must be asc or desc", operation)
+	}
 }
 
 // sqlDirection returns the validated ascending/descending SQL keyword.

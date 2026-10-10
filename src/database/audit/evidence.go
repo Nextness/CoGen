@@ -18,6 +18,9 @@ import (
 // caller can detect a further page. A cursor that does not identify an event
 // returns ErrCursorNotFound.
 func (s *Store) List(ctx context.Context, filter Filter) ([]*Event, error) {
+	if err := validateAuditFilter(filter); err != nil {
+		return nil, err
+	}
 	clauses, args := auditFilterClauses(filter)
 	if filter.Cursor > 0 {
 		occurredAt, err := s.queries.GetAuditEventOccurredAt(ctx, filter.Cursor)
@@ -43,6 +46,9 @@ func (s *Store) List(ctx context.Context, filter Filter) ([]*Event, error) {
 
 // Summary returns the filtered audit event count and per-action counts.
 func (s *Store) Summary(ctx context.Context, filter Filter) (*Summary, error) {
+	if err := validateAuditFilter(filter); err != nil {
+		return nil, err
+	}
 	clauses, args := auditFilterClauses(filter)
 	where := auditWhere(clauses)
 	var total int64
@@ -69,6 +75,9 @@ func (s *Store) Summary(ctx context.Context, filter Filter) (*Summary, error) {
 // Facets returns distinct non-empty actor, action, and entity type values in
 // the filter's run scope.
 func (s *Store) Facets(ctx context.Context, filter Filter) (*Facets, error) {
+	if err := validateAuditFilter(filter); err != nil {
+		return nil, err
+	}
 	scopeClause, scopeArgs := "", []any(nil)
 	if filter.RunID > 0 {
 		scopeClause, scopeArgs = auditRunScopeClause(filter)
@@ -88,9 +97,13 @@ func (s *Store) Facets(ctx context.Context, filter Filter) (*Facets, error) {
 	return &Facets{Actors: actors, Actions: actions, EntityTypes: entityTypes}, nil
 }
 
-// auditFacet returns distinct non-empty values for an allowlisted audit column
+// auditFacet returns distinct non-empty values for an allowlisted audit facet
 // and run scope, stopping at 100 values.
-func (s *Store) auditFacet(ctx context.Context, column, scopeClause string, scopeArgs []any) ([]string, error) {
+func (s *Store) auditFacet(ctx context.Context, facet, scopeClause string, scopeArgs []any) ([]string, error) {
+	column, ok := auditFacetColumns[facet]
+	if !ok {
+		return nil, fmt.Errorf("audit facet %q is not supported", facet)
+	}
 	query := "SELECT DISTINCT COALESCE(" + column + ", '') FROM audit_events"
 	if scopeClause != "" {
 		query += " WHERE " + scopeClause
@@ -246,27 +259,25 @@ func (s *Store) ListArticleDetailEvents(ctx context.Context, filter ArticleDetai
 	if err := validateDetailEventLimit("list article detail events", filter.Limit); err != nil {
 		return nil, err
 	}
-	condition, conditionArgs := articleDetailEventCondition(filter.WorkID, filter.RunID)
-	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM audit_events WHERE ("+condition+")", conditionArgs...).Scan(&total); err != nil {
-		return nil, err
-	}
-	query := "SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE (" + condition + ")"
-	args := append([]any(nil), conditionArgs...)
-	if filter.CursorID > 0 {
-		query += " AND id < ?"
-		args = append(args, filter.CursorID)
-	}
-	query += " ORDER BY id DESC LIMIT ?"
-	args = append(args, filter.Limit+1)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	total, err := s.queries.CountArticleDetailEvents(ctx, generated.CountArticleDetailEventsParams{
+		WorkID: filter.WorkID,
+		RunID:  filter.RunID,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	events, err := scanEvents(rows)
+	rows, err := s.queries.ListArticleDetailEvents(ctx, generated.ListArticleDetailEventsParams{
+		WorkID:   filter.WorkID,
+		RunID:    filter.RunID,
+		CursorID: filter.CursorID,
+		Limit:    int64(filter.Limit + 1),
+	})
 	if err != nil {
 		return nil, err
+	}
+	var events []*Event
+	for _, row := range rows {
+		events = append(events, eventFromGenerated(row))
 	}
 	hasMore := len(events) > filter.Limit
 	if hasMore {
