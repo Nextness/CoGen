@@ -171,22 +171,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}, metadataErr)
 }
 
-// tableNames returns discovered table names in deterministic order.
-func (s *Server) tableNames() []string {
-	names := make([]string, 0, len(s.tables))
-	for name := range s.tables {
-		names = append(names, name)
-	}
-	// Table discovery orders its query. This fallback is intentionally tiny to
-	// avoid exposing map iteration order through the API.
-	for i := 1; i < len(names); i++ {
-		for j := i; j > 0 && names[j] < names[j-1]; j-- {
-			names[j], names[j-1] = names[j-1], names[j]
-		}
-	}
-	return names
-}
-
 // searches returns a bounded compatibility view of searches and their newest revisions.
 func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 	if err := validateKnownQuery(r); err != nil {

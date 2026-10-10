@@ -102,37 +102,6 @@ type Server struct {
 	AssetsFS    fs.FS // serves frontend assets from this filesystem
 }
 
-// tableInfo stores the discovered columns for one browsable SQLite table.
-type tableInfo struct {
-	Name    string       `json:"name"`
-	Columns []columnInfo `json:"columns"`
-}
-
-// columnInfo records a SQLite column's name, declared type, and primary-key position.
-type columnInfo struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	PrimaryKey bool   `json:"primary_key"`
-}
-
-// tableHasColumns reports whether a discovered table contains every requested column.
-func (s *Server) tableHasColumns(table string, required ...string) bool {
-	info, ok := s.tables[table]
-	if !ok {
-		return false
-	}
-	available := make(map[string]struct{}, len(info.Columns))
-	for _, column := range info.Columns {
-		available[column.Name] = struct{}{}
-	}
-	for _, name := range required {
-		if _, ok := available[name]; !ok {
-			return false
-		}
-	}
-	return true
-}
-
 // Open opens an existing database without creating it or modifying it.
 func Open(path string) (*Server, error) {
 	if path == "" {
@@ -411,36 +380,6 @@ func withAPIResponseBudgets(next http.Handler) http.Handler {
 	})
 }
 
-// verifyReviewSchema rejects an unmigrated metadata database before writable controls are served.
-func (s *Server) verifyReviewSchema(ctx context.Context) error {
-	requiredTables := []string{
-		"pipeline_run_reviewers", "review_settings", "review_contexts", "work_review_versions",
-		"work_review_version_substatuses", "review_context_work_heads", "review_notes",
-		"review_note_versions", "review_context_note_heads", "review_note_links", "review_anchors",
-		"review_anchor_versions", "review_context_anchor_heads",
-	}
-	for _, table := range requiredTables {
-		if !s.hasTable(table) {
-			return fmt.Errorf("metadata database is missing review migration table %q; run analysis migrate --db <metadata.db>", table)
-		}
-	}
-	requiredTriggers := []string{
-		"review_contexts_abort_update", "review_contexts_abort_delete", "work_review_versions_abort_update",
-		"work_review_versions_abort_delete", "review_note_versions_abort_update", "review_note_versions_abort_delete",
-		"review_anchor_versions_abort_update", "review_anchor_versions_abort_delete",
-	}
-	for _, trigger := range requiredTriggers {
-		var count int
-		if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?`, trigger).Scan(&count); err != nil {
-			return fmt.Errorf("inspect review migration triggers: %w", err)
-		}
-		if count != 1 {
-			return fmt.Errorf("metadata database is missing review migration trigger %q; run analysis migrate --db <metadata.db>", trigger)
-		}
-	}
-	return nil
-}
-
 // openBoundPDFStore resolves and opens the companion PDF database declared by metadata.
 func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) error {
 	if !s.hasTable("pdf_store_binding") {
@@ -516,29 +455,6 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	return nil
 }
 
-// pdfTableColumns returns the discovered columns for a companion PDF table.
-func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", table))
-	if err != nil {
-		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-	}
-	defer rows.Close()
-	columns := make(map[string]bool)
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, columnType string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-		}
-		columns[name] = true
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-	}
-	return columns, nil
-}
-
 // HTTPServer returns a conservatively configured local HTTP server.
 func (s *Server) HTTPServer(addr string) *http.Server {
 	return &http.Server{
@@ -565,83 +481,6 @@ func enforceLoopbackAuthority(authority string, next http.Handler) http.Handler 
 		}
 		next.ServeHTTP(w, r)
 	})
-}
-
-// discoverTables reads the SQLite schema and returns tables eligible for read-only browsing.
-func (s *Server) discoverTables(ctx context.Context) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master
-        WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
-	if err != nil {
-		return fmt.Errorf("discover workspace tables: %w", err)
-	}
-	names := make([]string, 0)
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			rows.Close()
-			return err
-		}
-		names = append(names, name)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return err
-	}
-	if err := rows.Close(); err != nil {
-		return err
-	}
-	s.tables = make(map[string]tableInfo)
-	for _, name := range names {
-		columns, err := s.columns(ctx, name)
-		if err != nil {
-			return err
-		}
-		s.tables[name] = tableInfo{Name: name, Columns: columns}
-	}
-	return nil
-}
-
-// columns returns ordered metadata for the requested table's columns.
-func (s *Server) columns(ctx context.Context, table string) ([]columnInfo, error) {
-	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+quoteIdentifier(table)+")")
-	if err != nil {
-		return nil, fmt.Errorf("read schema for %q: %w", table, err)
-	}
-	defer rows.Close()
-	var result []columnInfo
-	for rows.Next() {
-		var cid, pk int
-		var name, typ string
-		var notNull int
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &typ, &notNull, &defaultValue, &pk); err != nil {
-			return nil, err
-		}
-		result = append(result, columnInfo{Name: name, Type: typ, PrimaryKey: pk > 0})
-	}
-	return result, rows.Err()
-}
-
-// quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes.
-func quoteIdentifier(identifier string) string {
-	return `"` + strings.ReplaceAll(identifier, `"`, `""`) + `"`
-}
-
-// hasTable reports whether a table was discovered as browsable.
-func (s *Server) hasTable(name string) bool { _, ok := s.tables[name]; return ok }
-
-// hasColumn reports whether a discovered table contains a named column.
-func (s *Server) hasColumn(table, column string) bool {
-	t, ok := s.tables[table]
-	if !ok {
-		return false
-	}
-	for _, c := range t.Columns {
-		if c.Name == column {
-			return true
-		}
-	}
-	return false
 }
 
 // apiError is the stable JSON envelope returned for client-visible failures.
