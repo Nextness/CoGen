@@ -109,6 +109,10 @@ coverage_policy: coverage_policy_config = {
         ["analysis/something"]         => { minimum =  87.5 },
         ["analysis/tools/pdf-store"]   => { minimum =  50.0 },
         ["analysis/tools/prepare-osf"] => { minimum =  45.0 },
+        ["analysis/tools/prepare-osf/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated export queries are exercised through the handwritten prepare-osf integration tests."
+        },
         ["analysis/validation"]        => { minimum =  92.0 },
         ["analysis/workspace"]         => { minimum =  72.0 },
     },
