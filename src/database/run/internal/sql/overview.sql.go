@@ -87,3 +87,137 @@ func (q *Queries) CountSharedRunArtifacts(ctx context.Context, pipelineRunID int
 	err := row.Scan(&count)
 	return count, err
 }
+
+const getLatestRunWithAncestry = `-- name: GetLatestRunWithAncestry :one
+SELECT
+    pr.id,
+    pr.attempt_number,
+    pr.started_at,
+    pr.finished_at,
+    pr.status,
+    pr.visibility_state,
+    s.id AS search_id,
+    s.search_id AS search_name,
+    sr.id AS search_revision_id,
+    sr.revision_label,
+    ep.id AS execution_plan_id
+FROM pipeline_runs pr
+LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
+LEFT JOIN searches s ON s.id=sr.search_id
+ORDER BY pr.id DESC
+LIMIT 1
+`
+
+type GetLatestRunWithAncestryRow struct {
+	ID               int64
+	AttemptNumber    sql.NullInt64
+	StartedAt        string
+	FinishedAt       sql.NullString
+	Status           string
+	VisibilityState  string
+	SearchID         sql.NullInt64
+	SearchName       sql.NullString
+	SearchRevisionID sql.NullInt64
+	RevisionLabel    sql.NullString
+	ExecutionPlanID  sql.NullInt64
+}
+
+func (q *Queries) GetLatestRunWithAncestry(ctx context.Context) (GetLatestRunWithAncestryRow, error) {
+	row := q.db.QueryRowContext(ctx, getLatestRunWithAncestry)
+	var i GetLatestRunWithAncestryRow
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptNumber,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.VisibilityState,
+		&i.SearchID,
+		&i.SearchName,
+		&i.SearchRevisionID,
+		&i.RevisionLabel,
+		&i.ExecutionPlanID,
+	)
+	return i, err
+}
+
+const getRunArtifactContext = `-- name: GetRunArtifactContext :one
+SELECT
+    s.search_id,
+    sr.id AS search_revision_id,
+    sr.revision_label,
+    ep.id AS execution_plan_id,
+    ep.execution_fingerprint,
+    pr.id AS run_id,
+    pr.attempt_number
+FROM pipeline_runs pr
+JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+JOIN search_revisions sr ON sr.id=ep.search_revision_id
+JOIN searches s ON s.id=sr.search_id
+WHERE pr.id = ?1
+`
+
+type GetRunArtifactContextRow struct {
+	SearchID             string
+	SearchRevisionID     int64
+	RevisionLabel        string
+	ExecutionPlanID      int64
+	ExecutionFingerprint string
+	RunID                int64
+	AttemptNumber        sql.NullInt64
+}
+
+func (q *Queries) GetRunArtifactContext(ctx context.Context, id int64) (GetRunArtifactContextRow, error) {
+	row := q.db.QueryRowContext(ctx, getRunArtifactContext, id)
+	var i GetRunArtifactContextRow
+	err := row.Scan(
+		&i.SearchID,
+		&i.SearchRevisionID,
+		&i.RevisionLabel,
+		&i.ExecutionPlanID,
+		&i.ExecutionFingerprint,
+		&i.RunID,
+		&i.AttemptNumber,
+	)
+	return i, err
+}
+
+const getSelectedAttempt = `-- name: GetSelectedAttempt :one
+SELECT
+    id,
+    attempt_number,
+    started_at,
+    status,
+    visibility_state
+FROM pipeline_runs
+WHERE id = ?1
+  AND execution_plan_id = ?2
+  AND visibility_state != 'trashed'
+`
+
+type GetSelectedAttemptParams struct {
+	ID              int64
+	ExecutionPlanID sql.NullInt64
+}
+
+type GetSelectedAttemptRow struct {
+	ID              int64
+	AttemptNumber   sql.NullInt64
+	StartedAt       string
+	Status          string
+	VisibilityState string
+}
+
+func (q *Queries) GetSelectedAttempt(ctx context.Context, arg GetSelectedAttemptParams) (GetSelectedAttemptRow, error) {
+	row := q.db.QueryRowContext(ctx, getSelectedAttempt, arg.ID, arg.ExecutionPlanID)
+	var i GetSelectedAttemptRow
+	err := row.Scan(
+		&i.ID,
+		&i.AttemptNumber,
+		&i.StartedAt,
+		&i.Status,
+		&i.VisibilityState,
+	)
+	return i, err
+}

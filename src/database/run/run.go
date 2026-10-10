@@ -142,6 +142,55 @@ func nullableString(value string) sql.NullString {
 	return sql.NullString{String: value, Valid: true}
 }
 
+// nullableStringPointer converts a scanned nullable text into an optional value.
+func nullableStringPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	result := value.String
+	return &result
+}
+
+// nullableIntPointer converts a scanned nullable integer into an optional value.
+func nullableIntPointer(value sql.NullInt64) *int {
+	if !value.Valid {
+		return nil
+	}
+	result := int(value.Int64)
+	return &result
+}
+
+// nullableInt64Pointer converts a scanned nullable integer into an optional value.
+func nullableInt64Pointer(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Int64
+	return &result
+}
+
+// Exists reports whether a pipeline run with the given ID exists.
+func (s *Store) Exists(ctx context.Context, runID int64) (bool, error) {
+	if _, err := s.queries.RunExists(ctx, runID); errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// HasExecutionPlan reports whether the run is linked to an execution plan.
+func (s *Store) HasExecutionPlan(ctx context.Context, runID int64) (bool, error) {
+	hasPlan, err := s.queries.RunHasExecutionPlan(ctx, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return hasPlan, nil
+}
+
 // nullableInt64 maps a required identifier into its generated null wrapper.
 func nullableInt64(value int64) sql.NullInt64 {
 	return sql.NullInt64{Int64: value, Valid: true}

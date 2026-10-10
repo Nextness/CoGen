@@ -74,3 +74,25 @@ const (
 	IdentityStatusConfirmed        = "confirmed"
 	IdentityStatusRejected         = "rejected"
 )
+
+// IdentityEvidenceStats summarizes run-scoped ORCID evidence outcomes.
+type IdentityEvidenceStats struct {
+	Resolutions    int64
+	Unclear        int64
+	NoCandidate    int64
+	ProviderFailed int64
+	Candidates     int64
+}
+
+// ViewerOccurrence is one run-scoped author occurrence with its optional
+// person ORCID for the viewer detail projection.
+type ViewerOccurrence struct {
+	ID           int64
+	PersonID     *int64
+	CitationName string
+	FirstName    *string
+	LastName     *string
+	ORCID        *string
+	CreatedAt    string
+	PersonORCID  *string
+}

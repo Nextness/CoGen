@@ -138,3 +138,42 @@ func stepFromGenerated(row generated.ListRunStepsByRunRow) *Step {
 func runStepTimestamp() string {
 	return time.Now().UTC().Format("2006-01-02T15:04:05.000000Z")
 }
+
+// ListStepsForViewer returns run steps ordered by ID with their derived
+// duration for the viewer stage timeline.
+func (s *Store) ListStepsForViewer(ctx context.Context, pipelineRunID int64) ([]*ViewerStep, error) {
+	rows, err := s.queries.ListRunStepsForViewer(ctx, pipelineRunID)
+	if err != nil {
+		return nil, fmt.Errorf("list run steps for viewer: %w", err)
+	}
+	steps := make([]*ViewerStep, 0, len(rows))
+	for _, row := range rows {
+		steps = append(steps, &ViewerStep{
+			StepName:          row.StepName,
+			StepStatus:        row.StepStatus,
+			InputArtifactID:   nullableInt64Pointer(row.InputArtifactID),
+			OutputArtifactID:  nullableInt64Pointer(row.OutputArtifactID),
+			StartedAt:         nullableStringPointer(row.StartedAt),
+			FinishedAt:        nullableStringPointer(row.FinishedAt),
+			InputFingerprint:  row.InputFingerprint,
+			OutputFingerprint: row.OutputFingerprint,
+			DurationSeconds:   nullableFloat64(row.DurationSeconds),
+		})
+	}
+	return steps, nil
+}
+
+// nullableFloat64 converts a scanned numeric duration into an optional value.
+func nullableFloat64(value any) *float64 {
+	switch typed := value.(type) {
+	case nil:
+		return nil
+	case float64:
+		return &typed
+	case int64:
+		result := float64(typed)
+		return &result
+	default:
+		return nil
+	}
+}

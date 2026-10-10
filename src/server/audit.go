@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"mime"
@@ -368,33 +367,13 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	type artifactContext struct {
-		SearchID             string `json:"search_id"`
-		SearchRevisionID     int64  `json:"search_revision_id"`
-		SearchRevisionLabel  string `json:"search_revision_label"`
-		ExecutionPlanID      int64  `json:"execution_plan_id"`
-		ExecutionFingerprint string `json:"execution_fingerprint"`
-		RunID                int64  `json:"run_id"`
-		AttemptNumber        int64  `json:"attempt_number"`
-	}
-	var runContext artifactContext
-	err = s.db.QueryRowContext(ctx, `SELECT s.search_id, sr.id, sr.revision_label,
-            ep.id, ep.execution_fingerprint, pr.id, pr.attempt_number
-        FROM pipeline_runs pr
-        JOIN execution_plans ep ON ep.id=pr.execution_plan_id
-        JOIN search_revisions sr ON sr.id=ep.search_revision_id
-        JOIN searches s ON s.id=sr.search_id
-        WHERE pr.id=?`, runID).Scan(
-		&runContext.SearchID, &runContext.SearchRevisionID, &runContext.SearchRevisionLabel,
-		&runContext.ExecutionPlanID, &runContext.ExecutionFingerprint, &runContext.RunID,
-		&runContext.AttemptNumber,
-	)
-	if err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("run not found"))
-		return
-	}
+	runContext, err := s.runStore.RunArtifactContext(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
+		return
+	}
+	if runContext == nil {
+		s.respond(w, r, nil, notFound("run not found"))
 		return
 	}
 	pageMode := r.URL.Query().Has("page") || r.URL.Query().Has("per_page")
@@ -549,7 +528,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		nextCursor = value
 	}
 	payload := map[string]any{
-		"run_id": runID, "context": runContext, "artifacts": items,
+		"run_id": runID, "context": runArtifactContextRow(runContext), "artifacts": items,
 		"has_more": hasMore, "next_cursor": nextCursor, "limit": limit,
 		"filters": map[string]any{"q": searchQuery, "role": role, "artifact_id": nullablePositiveID(focusID)},
 	}

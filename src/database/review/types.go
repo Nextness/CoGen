@@ -133,3 +133,19 @@ type Anchor struct {
 	Version                AnchorVersion `json:"version"`
 	InheritedFromContextID *int64        `json:"inherited_from_context_id,omitempty"`
 }
+
+// AnchorRestore is one active anchor version's restorable geometry.
+type AnchorRestore struct {
+	PDFContentHash string
+	Page           int
+	SelectedText   string
+	RectanglesJSON string
+}
+
+// SummaryCounts is the current note, anchor, and decision-version summary for
+// one work in one review context.
+type SummaryCounts struct {
+	NoteCount          int64
+	AnchorCount        int64
+	ReviewVersionCount int64
+}

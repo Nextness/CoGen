@@ -37,3 +37,23 @@ SELECT
 FROM author_occurrences
 WHERE person_id = sqlc.arg(person_id)
 ORDER BY id;
+
+-- name: GetAuthorOccurrenceForRun :one
+SELECT
+    occurrence.id,
+    occurrence.person_id,
+    occurrence.citation_name,
+    occurrence.first_name,
+    occurrence.last_name,
+    occurrence.orcid,
+    occurrence.created_at,
+    person.orcid AS person_orcid
+FROM author_occurrences occurrence
+LEFT JOIN people person ON person.id=occurrence.person_id
+WHERE occurrence.id = sqlc.arg(id)
+  AND EXISTS (
+      SELECT 1 FROM authorships membership
+      JOIN work_revisions revision ON revision.id=membership.work_revision_id
+      WHERE membership.author_occurrence_id=occurrence.id
+        AND revision.pipeline_run_id = sqlc.arg(pipeline_run_id)
+  );

@@ -113,3 +113,46 @@ func nullableString(value string) sql.NullString {
 	}
 	return sql.NullString{String: value, Valid: true}
 }
+
+// GetOccurrenceForRun returns one author occurrence that participates in the
+// selected run, or nil when it is absent.
+func (s *Store) GetOccurrenceForRun(ctx context.Context, occurrenceID, runID int64) (*ViewerOccurrence, error) {
+	row, err := s.queries.GetAuthorOccurrenceForRun(ctx, generated.GetAuthorOccurrenceForRunParams{
+		ID:            occurrenceID,
+		PipelineRunID: runID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get author occurrence for run: %w", err)
+	}
+	return &ViewerOccurrence{
+		ID:           row.ID,
+		PersonID:     nullableInt64Pointer(row.PersonID),
+		CitationName: row.CitationName,
+		FirstName:    nullableStringPointer(row.FirstName),
+		LastName:     nullableStringPointer(row.LastName),
+		ORCID:        nullableStringPointer(row.Orcid),
+		CreatedAt:    row.CreatedAt,
+		PersonORCID:  nullableStringPointer(row.PersonOrcid),
+	}, nil
+}
+
+// nullableStringPointer converts a scanned nullable text into an optional value.
+func nullableStringPointer(value sql.NullString) *string {
+	if !value.Valid {
+		return nil
+	}
+	result := value.String
+	return &result
+}
+
+// nullableInt64Pointer converts a scanned nullable integer into an optional value.
+func nullableInt64Pointer(value sql.NullInt64) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Int64
+	return &result
+}

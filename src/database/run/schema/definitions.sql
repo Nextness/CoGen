@@ -71,3 +71,31 @@ CREATE TABLE review_contexts (
     parent_context_id INTEGER,
     created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- External search ancestry tables declared only so run overview and lifecycle
+-- reads can return complete lineage. The search family owns their writes.
+CREATE TABLE searches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_id  TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE search_revisions (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_id            INTEGER NOT NULL,
+    revision_label       TEXT NOT NULL,
+    config_artifact_hash TEXT NOT NULL,
+    resolved_manifest_hash TEXT NOT NULL,
+    created_at           TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at           TEXT
+);
+
+CREATE TABLE execution_plans (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    search_revision_id   INTEGER NOT NULL,
+    execution_fingerprint TEXT NOT NULL,
+    resolved_manifest_hash TEXT NOT NULL,
+    input_manifest_hash  TEXT NOT NULL DEFAULT '',
+    enrichment_enabled   INTEGER NOT NULL DEFAULT 0,
+    created_at           TEXT NOT NULL DEFAULT (datetime('now'))
+);

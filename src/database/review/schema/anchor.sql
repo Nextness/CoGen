@@ -222,3 +222,30 @@ FROM review_anchor_versions version
 JOIN review_contexts context ON context.id = version.created_in_context_id
 LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id = context.pipeline_run_id
 WHERE version.id = sqlc.arg(id);
+
+-- name: GetReviewAnchorWorkID :one
+SELECT logical.work_id
+FROM review_context_anchor_heads head
+JOIN review_anchors logical ON logical.id=head.anchor_id
+WHERE head.review_context_id = sqlc.arg(review_context_id)
+  AND head.anchor_id = sqlc.arg(anchor_id);
+
+-- name: GetActiveReviewAnchorVersion :one
+SELECT
+    pdf_content_hash,
+    page,
+    selected_text,
+    rectangles_json
+FROM review_anchor_versions
+WHERE id = sqlc.arg(id)
+  AND anchor_id = sqlc.arg(anchor_id)
+  AND state = 'active';
+
+-- name: CountActiveReviewAnchors :one
+SELECT COUNT(*)
+FROM review_context_anchor_heads head
+JOIN review_anchors logical ON logical.id=head.anchor_id
+JOIN review_anchor_versions version ON version.id=head.anchor_version_id
+WHERE head.review_context_id = sqlc.arg(review_context_id)
+  AND logical.work_id = sqlc.arg(work_id)
+  AND version.state='active';

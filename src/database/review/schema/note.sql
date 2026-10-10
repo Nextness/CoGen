@@ -222,3 +222,12 @@ SELECT
 FROM review_note_links
 WHERE note_version_id = sqlc.arg(note_version_id)
 ORDER BY ordinal;
+
+-- name: CountActiveReviewNotes :one
+SELECT COUNT(*)
+FROM review_context_note_heads head
+JOIN review_notes logical ON logical.id=head.note_id
+JOIN review_note_versions version ON version.id=head.note_version_id
+WHERE head.review_context_id = sqlc.arg(review_context_id)
+  AND logical.work_id = sqlc.arg(work_id)
+  AND version.state='active';

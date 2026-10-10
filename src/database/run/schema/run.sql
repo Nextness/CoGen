@@ -63,3 +63,13 @@ SELECT
 FROM pipeline_runs
 WHERE visibility_state = sqlc.arg(visibility_state)
 ORDER BY id;
+
+-- name: RunExists :one
+SELECT 1
+FROM pipeline_runs
+WHERE id = sqlc.arg(id);
+
+-- name: RunHasExecutionPlan :one
+SELECT execution_plan_id IS NOT NULL AS has_execution_plan
+FROM pipeline_runs
+WHERE id = sqlc.arg(id);

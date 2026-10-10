@@ -10,6 +10,68 @@ import (
 	"database/sql"
 )
 
+const countIdentityCandidatesByRun = `-- name: CountIdentityCandidatesByRun :one
+SELECT COUNT(*)
+FROM author_identity_candidates candidate
+JOIN author_identity_resolutions resolution ON resolution.id=candidate.identity_resolution_id
+WHERE resolution.pipeline_run_id = ?1
+`
+
+func (q *Queries) CountIdentityCandidatesByRun(ctx context.Context, pipelineRunID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countIdentityCandidatesByRun, pipelineRunID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getIdentityEvidenceStats = `-- name: GetIdentityEvidenceStats :one
+SELECT
+    CAST(COUNT(*) AS INTEGER) AS resolutions,
+    CAST(COALESCE(SUM(CASE WHEN status='orcid_is_unclear' THEN 1 ELSE 0 END), 0) AS INTEGER) AS unclear,
+    CAST(COALESCE(SUM(CASE WHEN status='no_orcid_candidate' THEN 1 ELSE 0 END), 0) AS INTEGER) AS no_candidate,
+    CAST(COALESCE(SUM(CASE WHEN status='provider_failed' THEN 1 ELSE 0 END), 0) AS INTEGER) AS provider_failed
+FROM author_identity_resolutions
+WHERE pipeline_run_id = ?1
+`
+
+type GetIdentityEvidenceStatsRow struct {
+	Resolutions    int64
+	Unclear        int64
+	NoCandidate    int64
+	ProviderFailed int64
+}
+
+func (q *Queries) GetIdentityEvidenceStats(ctx context.Context, pipelineRunID int64) (GetIdentityEvidenceStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityEvidenceStats, pipelineRunID)
+	var i GetIdentityEvidenceStatsRow
+	err := row.Scan(
+		&i.Resolutions,
+		&i.Unclear,
+		&i.NoCandidate,
+		&i.ProviderFailed,
+	)
+	return i, err
+}
+
+const identityResolutionExists = `-- name: IdentityResolutionExists :one
+SELECT 1
+FROM author_identity_resolutions
+WHERE id = ?1
+  AND pipeline_run_id = ?2
+`
+
+type IdentityResolutionExistsParams struct {
+	ID            int64
+	PipelineRunID int64
+}
+
+func (q *Queries) IdentityResolutionExists(ctx context.Context, arg IdentityResolutionExistsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, identityResolutionExists, arg.ID, arg.PipelineRunID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const insertAuthorIdentityCandidate = `-- name: InsertAuthorIdentityCandidate :execresult
 INSERT INTO author_identity_candidates (
     identity_resolution_id,

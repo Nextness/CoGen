@@ -151,6 +151,69 @@ func (q *Queries) ListRunStepsByRun(ctx context.Context, pipelineRunID int64) ([
 	return items, nil
 }
 
+const listRunStepsForViewer = `-- name: ListRunStepsForViewer :many
+SELECT
+    step_name,
+    step_status,
+    input_artifact_id,
+    output_artifact_id,
+    started_at,
+    finished_at,
+    input_fingerprint,
+    output_fingerprint,
+    CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL
+        THEN ROUND((julianday(finished_at)-julianday(started_at))*86400, 3)
+        ELSE NULL END AS duration_seconds
+FROM run_steps
+WHERE pipeline_run_id = ?1
+ORDER BY id
+`
+
+type ListRunStepsForViewerRow struct {
+	StepName          string
+	StepStatus        string
+	InputArtifactID   sql.NullInt64
+	OutputArtifactID  sql.NullInt64
+	StartedAt         sql.NullString
+	FinishedAt        sql.NullString
+	InputFingerprint  string
+	OutputFingerprint string
+	DurationSeconds   interface{}
+}
+
+func (q *Queries) ListRunStepsForViewer(ctx context.Context, pipelineRunID int64) ([]ListRunStepsForViewerRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRunStepsForViewer, pipelineRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRunStepsForViewerRow
+	for rows.Next() {
+		var i ListRunStepsForViewerRow
+		if err := rows.Scan(
+			&i.StepName,
+			&i.StepStatus,
+			&i.InputArtifactID,
+			&i.OutputArtifactID,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.InputFingerprint,
+			&i.OutputFingerprint,
+			&i.DurationSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setRunStepFingerprints = `-- name: SetRunStepFingerprints :exec
 UPDATE run_steps
 SET

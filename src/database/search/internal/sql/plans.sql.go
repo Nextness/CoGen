@@ -106,6 +106,57 @@ func (q *Queries) InsertPlanIgnore(ctx context.Context, arg InsertPlanIgnorePara
 	)
 }
 
+const listLegacyPlans = `-- name: ListLegacyPlans :many
+SELECT
+    id,
+    search_revision_id,
+    execution_fingerprint,
+    resolved_manifest_hash,
+    input_manifest_hash,
+    enrichment_enabled,
+    created_at
+FROM execution_plans
+WHERE search_revision_id = ?1
+ORDER BY id DESC
+LIMIT ?2
+`
+
+type ListLegacyPlansParams struct {
+	SearchRevisionID int64
+	Limit            int64
+}
+
+func (q *Queries) ListLegacyPlans(ctx context.Context, arg ListLegacyPlansParams) ([]ExecutionPlan, error) {
+	rows, err := q.db.QueryContext(ctx, listLegacyPlans, arg.SearchRevisionID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExecutionPlan
+	for rows.Next() {
+		var i ExecutionPlan
+		if err := rows.Scan(
+			&i.ID,
+			&i.SearchRevisionID,
+			&i.ExecutionFingerprint,
+			&i.ResolvedManifestHash,
+			&i.InputManifestHash,
+			&i.EnrichmentEnabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPlansBySearchRevision = `-- name: ListPlansBySearchRevision :many
 SELECT
     id,

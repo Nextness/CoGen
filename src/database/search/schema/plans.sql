@@ -50,3 +50,17 @@ SELECT
 FROM execution_plans
 WHERE search_revision_id = sqlc.arg(search_revision_id)
 ORDER BY id;
+
+-- name: ListLegacyPlans :many
+SELECT
+    id,
+    search_revision_id,
+    execution_fingerprint,
+    resolved_manifest_hash,
+    input_manifest_hash,
+    enrichment_enabled,
+    created_at
+FROM execution_plans
+WHERE search_revision_id = sqlc.arg(search_revision_id)
+ORDER BY id DESC
+LIMIT sqlc.arg(limit);

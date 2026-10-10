@@ -61,13 +61,7 @@ func (s *Server) hierarchy(w http.ResponseWriter, r *http.Request) {
 
 // hierarchySummary returns current workspace totals and the latest planned run.
 func (s *Server) hierarchySummary(ctx context.Context) (map[string]any, error) {
-	var searches, revisions, plans, runs, completed int64
-	err := s.db.QueryRowContext(ctx, `SELECT
-        (SELECT COUNT(*) FROM searches),
-        (SELECT COUNT(*) FROM search_revisions),
-        (SELECT COUNT(*) FROM execution_plans),
-        (SELECT COUNT(*) FROM pipeline_runs),
-        (SELECT COUNT(*) FROM pipeline_runs WHERE status='completed')`).Scan(&searches, &revisions, &plans, &runs, &completed)
+	totals, err := s.searchStore.HierarchyTotals(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +71,11 @@ func (s *Server) hierarchySummary(ctx context.Context) (map[string]any, error) {
 	}
 	return map[string]any{
 		"totals": map[string]any{
-			"searches":       searches,
-			"revisions":      revisions,
-			"plans":          plans,
-			"runs":           runs,
-			"completed_runs": completed,
+			"searches":       totals.Searches,
+			"revisions":      totals.Revisions,
+			"plans":          totals.Plans,
+			"runs":           totals.Runs,
+			"completed_runs": totals.CompletedRuns,
 		},
 		"latest_run": latest,
 	}, nil
@@ -89,21 +83,14 @@ func (s *Server) hierarchySummary(ctx context.Context) (map[string]any, error) {
 
 // latestHierarchyRun returns the newest run with complete ancestry when one exists.
 func (s *Server) latestHierarchyRun(ctx context.Context) (any, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT pr.id, pr.attempt_number, pr.started_at, pr.finished_at,
-		pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
-		FROM pipeline_runs pr
-		LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
-		LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
-		LEFT JOIN searches s ON s.id=sr.search_id
-		ORDER BY pr.id DESC LIMIT 1`)
-	item, err := scanHierarchyRun(row)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	ancestry, err := s.runStore.LatestRunWithAncestry(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return item, nil
+	if ancestry == nil {
+		return nil, nil
+	}
+	return runAncestryRow(ancestry), nil
 }
 
 // hierarchySearches returns one bounded server-searchable page of search summaries.
@@ -183,17 +170,15 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 		return nil, err
 	}
 	if selectedID > 0 {
-		var id int64
-		var searchID, createdAt string
-		err := s.db.QueryRowContext(ctx, "SELECT id, search_id, created_at FROM searches WHERE id=?", selectedID).Scan(&id, &searchID, &createdAt)
-		if err != nil && err != sql.ErrNoRows {
+		selected, err := s.searchStore.GetSearchByID(ctx, selectedID)
+		if err != nil {
 			return nil, err
 		}
-		if err == nil {
+		if selected != nil {
 			page["selected_item"] = map[string]any{
-				"id":         id,
-				"search_id":  searchID,
-				"created_at": createdAt,
+				"id":         selected.ID,
+				"search_id":  selected.SearchID,
+				"created_at": selected.CreatedAt,
 			}
 		}
 	}
@@ -265,17 +250,15 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 		return nil, err
 	}
 	if selectedID > 0 {
-		var id int64
-		var label, createdAt string
-		err := s.db.QueryRowContext(ctx, "SELECT id, revision_label, created_at FROM search_revisions WHERE id=? AND search_id=?", selectedID, searchID).Scan(&id, &label, &createdAt)
-		if err != nil && err != sql.ErrNoRows {
+		selected, err := s.searchStore.GetRevisionByID(ctx, selectedID)
+		if err != nil {
 			return nil, err
 		}
-		if err == nil {
+		if selected != nil && selected.SearchID == searchID {
 			page["selected_item"] = map[string]any{
-				"id":         id,
-				"label":      label,
-				"created_at": createdAt,
+				"id":         selected.ID,
+				"label":      selected.RevisionLabel,
+				"created_at": selected.CreatedAt,
 			}
 		}
 	}
@@ -337,16 +320,14 @@ func (s *Server) hierarchyPlans(ctx context.Context, r *http.Request) (map[strin
 		return nil, err
 	}
 	if selectedID > 0 {
-		var id int64
-		var fingerprint string
-		err := s.db.QueryRowContext(ctx, "SELECT id, execution_fingerprint FROM execution_plans WHERE id=? AND search_revision_id=?", selectedID, revisionID).Scan(&id, &fingerprint)
-		if err != nil && err != sql.ErrNoRows {
+		selected, err := s.searchStore.GetPlanByID(ctx, selectedID)
+		if err != nil {
 			return nil, err
 		}
-		if err == nil {
+		if selected != nil && selected.SearchRevisionID == revisionID {
 			page["selected_item"] = map[string]any{
-				"id":                    id,
-				"execution_fingerprint": fingerprint,
+				"id":                    selected.ID,
+				"execution_fingerprint": selected.ExecutionFingerprint,
 			}
 		}
 	}
@@ -411,21 +392,12 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 		return nil, err
 	}
 	if selectedID > 0 {
-		var id int64
-		var attempt sql.NullInt64
-		var startedAt, status, visibility string
-		err := s.db.QueryRowContext(ctx, `SELECT id, attempt_number, started_at, status, visibility_state FROM pipeline_runs WHERE id=? AND execution_plan_id=? AND visibility_state!='trashed'`, selectedID, planID).Scan(&id, &attempt, &startedAt, &status, &visibility)
-		if err != nil && err != sql.ErrNoRows {
+		attempt, err := s.runStore.SelectedAttempt(ctx, planID, selectedID)
+		if err != nil {
 			return nil, err
 		}
-		if err == nil {
-			page["selected_item"] = map[string]any{
-				"id":               id,
-				"attempt_number":   nullableInt64(attempt),
-				"started_at":       startedAt,
-				"status":           status,
-				"visibility_state": visibility,
-			}
+		if attempt != nil {
+			page["selected_item"] = selectedAttemptRow(attempt)
 		}
 	}
 	return page, nil

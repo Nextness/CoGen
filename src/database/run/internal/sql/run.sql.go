@@ -226,3 +226,29 @@ func (q *Queries) ListRunsByVisibility(ctx context.Context, visibilityState stri
 	}
 	return items, nil
 }
+
+const runExists = `-- name: RunExists :one
+SELECT 1
+FROM pipeline_runs
+WHERE id = ?1
+`
+
+func (q *Queries) RunExists(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, runExists, id)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const runHasExecutionPlan = `-- name: RunHasExecutionPlan :one
+SELECT execution_plan_id IS NOT NULL AS has_execution_plan
+FROM pipeline_runs
+WHERE id = ?1
+`
+
+func (q *Queries) RunHasExecutionPlan(ctx context.Context, id int64) (bool, error) {
+	row := q.db.QueryRowContext(ctx, runHasExecutionPlan, id)
+	var has_execution_plan bool
+	err := row.Scan(&has_execution_plan)
+	return has_execution_plan, err
+}

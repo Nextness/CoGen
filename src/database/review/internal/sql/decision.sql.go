@@ -10,6 +10,33 @@ import (
 	"database/sql"
 )
 
+const countReviewVersionAncestry = `-- name: CountReviewVersionAncestry :one
+WITH RECURSIVE ancestry(id) AS (
+    SELECT heads.review_version_id
+    FROM review_context_work_heads heads
+    WHERE heads.review_context_id = ?1
+      AND heads.work_id = ?2
+    UNION ALL
+    SELECT version.parent_version_id
+    FROM work_review_versions version
+    JOIN ancestry ON ancestry.id=version.id
+    WHERE version.parent_version_id IS NOT NULL
+)
+SELECT COUNT(*) FROM ancestry WHERE id IS NOT NULL
+`
+
+type CountReviewVersionAncestryParams struct {
+	ReviewContextID int64
+	WorkID          int64
+}
+
+func (q *Queries) CountReviewVersionAncestry(ctx context.Context, arg CountReviewVersionAncestryParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countReviewVersionAncestry, arg.ReviewContextID, arg.WorkID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getMutableWorkReviewHead = `-- name: GetMutableWorkReviewHead :one
 SELECT
     rc.pipeline_run_id,

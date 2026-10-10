@@ -57,3 +57,20 @@ SELECT
 FROM run_steps
 WHERE pipeline_run_id = sqlc.arg(pipeline_run_id)
 ORDER BY id;
+
+-- name: ListRunStepsForViewer :many
+SELECT
+    step_name,
+    step_status,
+    input_artifact_id,
+    output_artifact_id,
+    started_at,
+    finished_at,
+    input_fingerprint,
+    output_fingerprint,
+    CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL
+        THEN ROUND((julianday(finished_at)-julianday(started_at))*86400, 3)
+        ELSE NULL END AS duration_seconds
+FROM run_steps
+WHERE pipeline_run_id = sqlc.arg(pipeline_run_id)
+ORDER BY id;

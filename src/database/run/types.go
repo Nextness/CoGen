@@ -142,3 +142,112 @@ type VisibilityResult struct {
 	VisibilityState string
 	Changed         bool
 }
+
+// Visibility is the lifecycle state read for one run.
+type Visibility struct {
+	Status          string
+	VisibilityState string
+}
+
+// RunAncestry is one run with its complete search, revision, and plan lineage
+// for the viewer Home and hierarchy sections. Lineage fields stay nil when the
+// run has no execution plan.
+type RunAncestry struct {
+	ID               int64
+	AttemptNumber    *int
+	StartedAt        string
+	FinishedAt       *string
+	Status           string
+	VisibilityState  string
+	SearchID         *int64
+	SearchName       string
+	SearchRevisionID *int64
+	RevisionLabel    string
+	ExecutionPlanID  *int64
+}
+
+// AttemptSummary is the selected non-trashed attempt of one execution plan.
+type AttemptSummary struct {
+	ID              int64
+	AttemptNumber   *int
+	StartedAt       string
+	Status          string
+	VisibilityState string
+}
+
+// RunArtifactContext is the canonical ancestry shown above the run artifact
+// browser.
+type RunArtifactContext struct {
+	SearchID             string
+	SearchRevisionID     int64
+	SearchRevisionLabel  string
+	ExecutionPlanID      int64
+	ExecutionFingerprint string
+	RunID                int64
+	AttemptNumber        *int
+}
+
+// RunContextSearch is the search identity in one canonical run context.
+type RunContextSearch struct {
+	ID        int64
+	SearchID  string
+	CreatedAt string
+}
+
+// RunContextRevision is the selected search revision in one canonical run context.
+type RunContextRevision struct {
+	ID                   int64
+	SearchID             int64
+	Label                string
+	ConfigArtifactHash   string
+	ResolvedManifestHash string
+	CreatedAt            string
+}
+
+// RunContextPlan is the frozen execution plan in one canonical run context.
+type RunContextPlan struct {
+	ID                   int64
+	SearchRevisionID     int64
+	ExecutionFingerprint string
+	ResolvedManifestHash string
+	InputManifestHash    string
+	EnrichmentEnabled    bool
+	CreatedAt            string
+}
+
+// RunContextRun is the lifecycle projection of the selected run.
+type RunContextRun struct {
+	ID              int64
+	ExecutionPlanID int64
+	Step            string
+	StartedAt       string
+	FinishedAt      *string
+	Status          string
+	Summary         *string
+	AttemptNumber   int64
+	VisibilityState string
+	TrashedAt       *string
+	TrashReason     *string
+}
+
+// RunContext is the complete ancestry and lifecycle projection for one run.
+type RunContext struct {
+	Search          RunContextSearch
+	Revision        RunContextRevision
+	Plan            RunContextPlan
+	Run             RunContextRun
+	ReviewContextID *int64
+}
+
+// ViewerStep is one run step with its derived duration for the stage timeline.
+type ViewerStep struct {
+	StepName          string
+	StepStatus        string
+	InputArtifactID   *int64
+	OutputArtifactID  *int64
+	StartedAt         *string
+	FinishedAt        *string
+	InputFingerprint  string
+	OutputFingerprint string
+	DurationSeconds   *float64
+}

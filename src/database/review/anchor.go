@@ -490,3 +490,40 @@ func anchorsEqual(current *AnchorVersion, state, contentHash string, page int, s
 	}
 	return true
 }
+
+// AnchorWorkID returns the work identity behind one selected-context anchor,
+// or nil when the anchor does not belong to the context.
+func (s *Store) AnchorWorkID(ctx context.Context, contextID int64, anchorID string) (*int64, error) {
+	workID, err := s.queries.GetReviewAnchorWorkID(ctx, generated.GetReviewAnchorWorkIDParams{
+		ReviewContextID: contextID,
+		AnchorID:        anchorID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get review anchor work id: %w", err)
+	}
+	return &workID, nil
+}
+
+// ActiveAnchorVersion returns one active anchor version's restorable geometry,
+// or nil when no active version matches the anchor.
+func (s *Store) ActiveAnchorVersion(ctx context.Context, anchorID string, versionID int64) (*AnchorRestore, error) {
+	row, err := s.queries.GetActiveReviewAnchorVersion(ctx, generated.GetActiveReviewAnchorVersionParams{
+		ID:       versionID,
+		AnchorID: anchorID,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get active review anchor version: %w", err)
+	}
+	return &AnchorRestore{
+		PDFContentHash: row.PdfContentHash,
+		Page:           int(row.Page.Int64),
+		SelectedText:   row.SelectedText.String,
+		RectanglesJSON: row.RectanglesJson.String,
+	}, nil
+}

@@ -108,21 +108,17 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 
 // identityEvidenceStats counts candidate and resolution states for the selected context.
 func (s *Server) identityEvidenceStats(ctx context.Context, runID int64) (map[string]int64, error) {
-	var resolutions, unclear, noCandidate, providerFailed, candidates int64
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*),
-        COALESCE(SUM(CASE WHEN status='orcid_is_unclear' THEN 1 ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN status='no_orcid_candidate' THEN 1 ELSE 0 END), 0),
-        COALESCE(SUM(CASE WHEN status='provider_failed' THEN 1 ELSE 0 END), 0)
-        FROM author_identity_resolutions WHERE pipeline_run_id=?`, runID).
-		Scan(&resolutions, &unclear, &noCandidate, &providerFailed); err != nil {
+	stats, err := s.authorStore.IdentityEvidenceStats(ctx, runID)
+	if err != nil {
 		return nil, err
 	}
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM author_identity_candidates c
-        JOIN author_identity_resolutions r ON r.id=c.identity_resolution_id
-		WHERE r.pipeline_run_id=?`, runID).Scan(&candidates); err != nil {
-		return nil, err
-	}
-	return map[string]int64{"resolutions": resolutions, "unclear": unclear, "no_candidate": noCandidate, "provider_failed": providerFailed, "candidates": candidates}, nil
+	return map[string]int64{
+		"resolutions":     stats.Resolutions,
+		"unclear":         stats.Unclear,
+		"no_candidate":    stats.NoCandidate,
+		"provider_failed": stats.ProviderFailed,
+		"candidates":      stats.Candidates,
+	}, nil
 }
 
 // attachIdentityCandidatePreviews batches a small ranked preview for every visible resolution.
@@ -230,13 +226,13 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var exists int
-	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM author_identity_resolutions
-		WHERE id=? AND pipeline_run_id=?`, resolutionID, runID).Scan(&exists); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("identity resolution not found"))
-		return
-	} else if err != nil {
+	exists, err := s.authorStore.IdentityResolutionExists(ctx, resolutionID, runID)
+	if err != nil {
 		s.respond(w, r, nil, err)
+		return
+	}
+	if !exists {
+		s.respond(w, r, nil, notFound("identity resolution not found"))
 		return
 	}
 	query := `SELECT id, candidate_orcid, provider_display_name, query_url,

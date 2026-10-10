@@ -10,6 +10,64 @@ import (
 	"database/sql"
 )
 
+const countActiveReviewAnchors = `-- name: CountActiveReviewAnchors :one
+SELECT COUNT(*)
+FROM review_context_anchor_heads head
+JOIN review_anchors logical ON logical.id=head.anchor_id
+JOIN review_anchor_versions version ON version.id=head.anchor_version_id
+WHERE head.review_context_id = ?1
+  AND logical.work_id = ?2
+  AND version.state='active'
+`
+
+type CountActiveReviewAnchorsParams struct {
+	ReviewContextID int64
+	WorkID          int64
+}
+
+func (q *Queries) CountActiveReviewAnchors(ctx context.Context, arg CountActiveReviewAnchorsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveReviewAnchors, arg.ReviewContextID, arg.WorkID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getActiveReviewAnchorVersion = `-- name: GetActiveReviewAnchorVersion :one
+SELECT
+    pdf_content_hash,
+    page,
+    selected_text,
+    rectangles_json
+FROM review_anchor_versions
+WHERE id = ?1
+  AND anchor_id = ?2
+  AND state = 'active'
+`
+
+type GetActiveReviewAnchorVersionParams struct {
+	ID       int64
+	AnchorID string
+}
+
+type GetActiveReviewAnchorVersionRow struct {
+	PdfContentHash string
+	Page           sql.NullInt64
+	SelectedText   sql.NullString
+	RectanglesJson sql.NullString
+}
+
+func (q *Queries) GetActiveReviewAnchorVersion(ctx context.Context, arg GetActiveReviewAnchorVersionParams) (GetActiveReviewAnchorVersionRow, error) {
+	row := q.db.QueryRowContext(ctx, getActiveReviewAnchorVersion, arg.ID, arg.AnchorID)
+	var i GetActiveReviewAnchorVersionRow
+	err := row.Scan(
+		&i.PdfContentHash,
+		&i.Page,
+		&i.SelectedText,
+		&i.RectanglesJson,
+	)
+	return i, err
+}
+
 const getReviewAnchorHead = `-- name: GetReviewAnchorHead :one
 SELECT
     logical.id,
@@ -158,6 +216,26 @@ func (q *Queries) GetReviewAnchorVersionByID(ctx context.Context, id int64) (Get
 		&i.ReviewerEmail,
 	)
 	return i, err
+}
+
+const getReviewAnchorWorkID = `-- name: GetReviewAnchorWorkID :one
+SELECT logical.work_id
+FROM review_context_anchor_heads head
+JOIN review_anchors logical ON logical.id=head.anchor_id
+WHERE head.review_context_id = ?1
+  AND head.anchor_id = ?2
+`
+
+type GetReviewAnchorWorkIDParams struct {
+	ReviewContextID int64
+	AnchorID        string
+}
+
+func (q *Queries) GetReviewAnchorWorkID(ctx context.Context, arg GetReviewAnchorWorkIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getReviewAnchorWorkID, arg.ReviewContextID, arg.AnchorID)
+	var work_id int64
+	err := row.Scan(&work_id)
+	return work_id, err
 }
 
 const insertReviewAnchor = `-- name: InsertReviewAnchor :exec

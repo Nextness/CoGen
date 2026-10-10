@@ -18,6 +18,7 @@ import (
 	"analysis/database"
 	"analysis/internal/pathpolicy"
 	"analysis/manifest"
+	generated "analysis/pdfstore/internal/sql"
 )
 
 const (
@@ -30,8 +31,9 @@ const (
 // connection. The pipeline opens the writable store through Open; the viewer
 // binds its statement-budgeted read-only connection through New.
 type Store struct {
-	DB  *sql.DB
-	now func() time.Time
+	DB      *sql.DB
+	queries *generated.Queries
+	now     func() time.Time
 }
 
 // Document describes one normalized article's PDF inventory state.
@@ -43,6 +45,14 @@ type Document struct {
 	UpdatedAt     string
 }
 
+// AvailableDocument is one available companion document's inventory metadata
+// and stored byte size.
+type AvailableDocument struct {
+	ContentHash   string
+	InventoriedAt string
+	ByteSize      int64
+}
+
 // AddResult reports the content identity, byte size, and insertion outcome of a manual PDF add.
 type AddResult struct {
 	ContentHash string
@@ -51,11 +61,11 @@ type AddResult struct {
 }
 
 // New returns a companion-store handle over an already configured connection.
-// It only binds the store to db; it does not build a SQLite URI, alter
-// pragmas, open or close the connection, load migration configuration, or run
-// migrations.
+// It only binds the generated queries to db; it does not build a SQLite URI,
+// alter pragmas, open or close the connection, load migration configuration,
+// or run migrations.
 func New(db *sql.DB) *Store {
-	return &Store{DB: db, now: time.Now}
+	return &Store{DB: db, queries: generated.New(db), now: time.Now}
 }
 
 // Open creates or opens the PDF store and applies its independent migration
@@ -106,6 +116,48 @@ func (s *Store) Document(ctx context.Context, doi string) (*Document, error) {
 	document.ContentHash = contentHash.String
 	document.InventoriedAt = inventoriedAt.String
 	return &document, nil
+}
+
+// AvailablePDFDOIs returns normalized DOIs with available companion content in
+// DOI order.
+func (s *Store) AvailablePDFDOIs(ctx context.Context) ([]string, error) {
+	rows, err := s.queries.ListAvailablePDFDOIs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list available PDF DOIs: %w", err)
+	}
+	items := make([]string, 0, len(rows))
+	items = append(items, rows...)
+	return items, nil
+}
+
+// AvailableDocument returns one available document's inventory metadata, or
+// nil when the normalized DOI has no available content.
+func (s *Store) AvailableDocument(ctx context.Context, doi string) (*AvailableDocument, error) {
+	row, err := s.queries.GetAvailablePDFDocument(ctx, database.NormalizeDOI(doi))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get available PDF document: %w", err)
+	}
+	return &AvailableDocument{
+		ContentHash:   row.ContentHash.String,
+		InventoriedAt: row.InventoriedAt.String,
+		ByteSize:      row.ByteSize,
+	}, nil
+}
+
+// BlobData returns stored bytes for one content hash, or nil when the blob is
+// absent.
+func (s *Store) BlobData(ctx context.Context, contentHash string) ([]byte, error) {
+	data, err := s.queries.GetPDFBlobData(ctx, contentHash)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get PDF blob data: %w", err)
+	}
+	return data, nil
 }
 
 // Register creates the not-available inventory row for one normalized work.

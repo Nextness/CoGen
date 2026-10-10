@@ -72,8 +72,8 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	var hasPlan bool
-	if err := s.db.QueryRowContext(ctx, "SELECT execution_plan_id IS NOT NULL FROM pipeline_runs WHERE id=?", runID).Scan(&hasPlan); err != nil {
+	hasPlan, err := s.runStore.HasExecutionPlan(ctx, runID)
+	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -205,21 +205,7 @@ func (s *Server) availablePDFDOIs(ctx context.Context) ([]string, error) {
 	if s.pdfDB == nil {
 		return []string{}, nil
 	}
-	rows, err := s.pdfDB.QueryContext(ctx, `SELECT document.doi FROM pdf_documents document
-		JOIN pdf_blobs blob ON blob.content_hash=document.content_hash WHERE document.status='available' ORDER BY document.doi`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := make([]string, 0)
-	for rows.Next() {
-		var doi string
-		if err := rows.Scan(&doi); err != nil {
-			return nil, err
-		}
-		items = append(items, doi)
-	}
-	return items, rows.Err()
+	return s.pdfStore.AvailablePDFDOIs(ctx)
 }
 
 // evaluationReviewSummary returns invariant queue progress independently of page rows and filters.

@@ -71,6 +71,111 @@ func (q *Queries) FinishRun(ctx context.Context, arg FinishRunParams) error {
 	return err
 }
 
+const getRunContext = `-- name: GetRunContext :one
+SELECT
+    s.id AS search_pk,
+    s.search_id AS search_name,
+    s.created_at AS search_created_at,
+    sr.id AS revision_pk,
+    sr.search_id AS revision_search_id,
+    sr.revision_label,
+    sr.config_artifact_hash,
+    sr.resolved_manifest_hash,
+    sr.created_at AS revision_created_at,
+    ep.id AS plan_pk,
+    ep.search_revision_id AS plan_search_revision_id,
+    ep.execution_fingerprint,
+    ep.resolved_manifest_hash AS plan_resolved_manifest_hash,
+    ep.input_manifest_hash,
+    ep.enrichment_enabled,
+    ep.created_at AS plan_created_at,
+    pr.id AS run_pk,
+    pr.execution_plan_id AS run_execution_plan_id,
+    pr.step,
+    pr.started_at,
+    pr.finished_at,
+    pr.status,
+    pr.summary,
+    pr.attempt_number,
+    pr.visibility_state,
+    pr.trashed_at,
+    pr.trash_reason,
+    rc.id AS review_context_id
+FROM pipeline_runs pr
+JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+JOIN search_revisions sr ON sr.id=ep.search_revision_id
+JOIN searches s ON s.id=sr.search_id
+LEFT JOIN review_contexts rc ON rc.pipeline_run_id=pr.id
+WHERE pr.id = ?1
+`
+
+type GetRunContextRow struct {
+	SearchPk                 int64
+	SearchName               string
+	SearchCreatedAt          string
+	RevisionPk               int64
+	RevisionSearchID         int64
+	RevisionLabel            string
+	ConfigArtifactHash       string
+	ResolvedManifestHash     string
+	RevisionCreatedAt        string
+	PlanPk                   int64
+	PlanSearchRevisionID     int64
+	ExecutionFingerprint     string
+	PlanResolvedManifestHash string
+	InputManifestHash        string
+	EnrichmentEnabled        int64
+	PlanCreatedAt            string
+	RunPk                    int64
+	RunExecutionPlanID       sql.NullInt64
+	Step                     string
+	StartedAt                string
+	FinishedAt               sql.NullString
+	Status                   string
+	Summary                  sql.NullString
+	AttemptNumber            sql.NullInt64
+	VisibilityState          string
+	TrashedAt                sql.NullString
+	TrashReason              sql.NullString
+	ReviewContextID          sql.NullInt64
+}
+
+func (q *Queries) GetRunContext(ctx context.Context, id int64) (GetRunContextRow, error) {
+	row := q.db.QueryRowContext(ctx, getRunContext, id)
+	var i GetRunContextRow
+	err := row.Scan(
+		&i.SearchPk,
+		&i.SearchName,
+		&i.SearchCreatedAt,
+		&i.RevisionPk,
+		&i.RevisionSearchID,
+		&i.RevisionLabel,
+		&i.ConfigArtifactHash,
+		&i.ResolvedManifestHash,
+		&i.RevisionCreatedAt,
+		&i.PlanPk,
+		&i.PlanSearchRevisionID,
+		&i.ExecutionFingerprint,
+		&i.PlanResolvedManifestHash,
+		&i.InputManifestHash,
+		&i.EnrichmentEnabled,
+		&i.PlanCreatedAt,
+		&i.RunPk,
+		&i.RunExecutionPlanID,
+		&i.Step,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Status,
+		&i.Summary,
+		&i.AttemptNumber,
+		&i.VisibilityState,
+		&i.TrashedAt,
+		&i.TrashReason,
+		&i.ReviewContextID,
+	)
+	return i, err
+}
+
 const getRunVisibility = `-- name: GetRunVisibility :one
 SELECT
     status,

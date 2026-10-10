@@ -150,3 +150,30 @@ func reviewerDisplay(username, _ string) string {
 	}
 	return "Anonymous or redacted"
 }
+
+// SummaryCounts returns the current note, anchor, and decision-version counts
+// for one work in one review context.
+func (s *Store) SummaryCounts(ctx context.Context, contextID, workID int64) (*SummaryCounts, error) {
+	noteCount, err := s.queries.CountActiveReviewNotes(ctx, generated.CountActiveReviewNotesParams{
+		ReviewContextID: contextID,
+		WorkID:          workID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count active review notes: %w", err)
+	}
+	anchorCount, err := s.queries.CountActiveReviewAnchors(ctx, generated.CountActiveReviewAnchorsParams{
+		ReviewContextID: contextID,
+		WorkID:          workID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count active review anchors: %w", err)
+	}
+	versionCount, err := s.queries.CountReviewVersionAncestry(ctx, generated.CountReviewVersionAncestryParams{
+		ReviewContextID: contextID,
+		WorkID:          workID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count review version ancestry: %w", err)
+	}
+	return &SummaryCounts{NoteCount: noteCount, AnchorCount: anchorCount, ReviewVersionCount: versionCount}, nil
+}

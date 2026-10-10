@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"strconv"
 	"strings"
@@ -302,20 +301,19 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	steps, err := s.rows(ctx, `SELECT step_name, step_status, input_artifact_id, output_artifact_id,
-		started_at, finished_at, input_fingerprint, output_fingerprint,
-		CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL
-			THEN ROUND((julianday(finished_at)-julianday(started_at))*86400, 3)
-			ELSE NULL END AS duration_seconds
-		FROM run_steps WHERE pipeline_run_id=? ORDER BY id`, runID)
+	steps, err := s.runStore.ListStepsForViewer(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
+	stepRows := make([]map[string]any, 0, len(steps))
+	for _, step := range steps {
+		stepRows = append(stepRows, viewerStepRow(step))
+	}
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "columns": []string{"id", "work_id", "stage_name", "outcome", "reason", "created_at", "updated_at"}, "rows": items,
 		"pagination":      scopedPagination(page, perPage, result.Total, sort, order),
-		"stage_summaries": stageSummaries, "run_steps": steps,
+		"stage_summaries": stageSummaries, "run_steps": stepRows,
 	}, nil)
 }
 
@@ -434,12 +432,12 @@ func stableScopedOrder(expression, uniqueExpression, order string) string {
 
 // requireRun requires a valid run value.
 func (s *Server) requireRun(ctx context.Context, runID int64) error {
-	var exists int
-	if err := s.db.QueryRowContext(ctx, "SELECT 1 FROM pipeline_runs WHERE id=?", runID).Scan(&exists); err != nil {
-		if err == sql.ErrNoRows {
-			return notFound("run not found")
-		}
+	exists, err := s.runStore.Exists(ctx, runID)
+	if err != nil {
 		return err
+	}
+	if !exists {
+		return notFound("run not found")
 	}
 	return nil
 }

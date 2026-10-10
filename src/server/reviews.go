@@ -765,17 +765,16 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("expected_version_id must be positive"))
 		return
 	}
-	var workID int64
-	if err := s.db.QueryRowContext(ctx, `SELECT logical.work_id FROM review_context_anchor_heads head
-		JOIN review_anchors logical ON logical.id=head.anchor_id WHERE head.review_context_id=? AND head.anchor_id=?`,
-		contextRecord.ID, anchorID).Scan(&workID); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("review anchor not found in selected context"))
-		return
-	} else if err != nil {
+	workID, err := s.reviewStore.AnchorWorkID(ctx, contextRecord.ID, anchorID)
+	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	_, contentHash, err := s.requireAvailableWorkPDF(ctx, runID, workID)
+	if workID == nil {
+		s.respond(w, r, nil, notFound("review anchor not found in selected context"))
+		return
+	}
+	_, contentHash, err := s.requireAvailableWorkPDF(ctx, runID, *workID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -785,17 +784,16 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			s.respond(w, r, nil, badRequest("restore_from_version_id requires a positive active anchor version"))
 			return
 		}
-		var restoredHash, rectanglesJSON string
-		if err := s.db.QueryRowContext(ctx, `SELECT pdf_content_hash, page, selected_text, rectangles_json
-			FROM review_anchor_versions WHERE id=? AND anchor_id=? AND state='active'`, *request.RestoreFromID, anchorID).
-			Scan(&restoredHash, &request.Page, &request.SelectedText, &rectanglesJSON); err == sql.ErrNoRows {
-			s.respond(w, r, nil, notFound("restorable anchor version not found"))
-			return
-		} else if err != nil {
+		restored, err := s.reviewStore.ActiveAnchorVersion(ctx, anchorID, *request.RestoreFromID)
+		if err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
-		if restoredHash != contentHash {
+		if restored == nil {
+			s.respond(w, r, nil, notFound("restorable anchor version not found"))
+			return
+		}
+		if restored.PDFContentHash != contentHash {
 			s.respond(w, r, nil, &apiProblem{
 				Status:  http.StatusConflict,
 				Code:    "anchor_pdf_changed",
@@ -803,7 +801,9 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if err := json.Unmarshal([]byte(rectanglesJSON), &request.Rectangles); err != nil {
+		request.Page = restored.Page
+		request.SelectedText = restored.SelectedText
+		if err := json.Unmarshal([]byte(restored.RectanglesJSON), &request.Rectangles); err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
@@ -892,12 +892,14 @@ type reviewRunRecord struct{ Status, Visibility string }
 
 // loadReviewRun returns lifecycle fields without rejecting read-only historical contexts.
 func (s *Server) loadReviewRun(ctx context.Context, runID int64) (reviewRunRecord, error) {
-	var run reviewRunRecord
-	err := s.db.QueryRowContext(ctx, "SELECT status, visibility_state FROM pipeline_runs WHERE id=?", runID).Scan(&run.Status, &run.Visibility)
-	if err == sql.ErrNoRows {
-		return run, notFound("pipeline run not found")
+	visibility, err := s.runStore.GetVisibility(ctx, runID)
+	if err != nil {
+		return reviewRunRecord{}, err
 	}
-	return run, err
+	if visibility == nil {
+		return reviewRunRecord{}, notFound("pipeline run not found")
+	}
+	return reviewRunRecord{Status: visibility.Status, Visibility: visibility.VisibilityState}, nil
 }
 
 // requireReviewableRun rejects missing, failed, running, or trashed run contexts.
@@ -1010,24 +1012,15 @@ func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int6
 
 // reviewSummaryCounts returns current note, anchor, and decision-version summary counts.
 func (s *Server) reviewSummaryCounts(ctx context.Context, contextID, workID int64) (map[string]int, error) {
-	counts := map[string]int{}
-	queries := map[string]string{
-		"note_count": `SELECT COUNT(*) FROM review_context_note_heads head JOIN review_notes logical ON logical.id=head.note_id
-			JOIN review_note_versions version ON version.id=head.note_version_id WHERE head.review_context_id=? AND logical.work_id=? AND version.state='active'`,
-		"anchor_count": `SELECT COUNT(*) FROM review_context_anchor_heads head JOIN review_anchors logical ON logical.id=head.anchor_id
-			JOIN review_anchor_versions version ON version.id=head.anchor_version_id WHERE head.review_context_id=? AND logical.work_id=? AND version.state='active'`,
-		"review_version_count": `WITH RECURSIVE ancestry(id) AS (SELECT review_version_id FROM review_context_work_heads
-			WHERE review_context_id=? AND work_id=? UNION ALL SELECT version.parent_version_id FROM work_review_versions version
-			JOIN ancestry ON ancestry.id=version.id WHERE version.parent_version_id IS NOT NULL) SELECT COUNT(*) FROM ancestry WHERE id IS NOT NULL`,
+	counts, err := s.reviewStore.SummaryCounts(ctx, contextID, workID)
+	if err != nil {
+		return nil, err
 	}
-	for name, query := range queries {
-		var count int
-		if err := s.db.QueryRowContext(ctx, query, contextID, workID).Scan(&count); err != nil {
-			return nil, err
-		}
-		counts[name] = count
-	}
-	return counts, nil
+	return map[string]int{
+		"note_count":           int(counts.NoteCount),
+		"anchor_count":         int(counts.AnchorCount),
+		"review_version_count": int(counts.ReviewVersionCount),
+	}, nil
 }
 
 // reviewArticleIDs parses the positive run and revision identifiers from one review route.

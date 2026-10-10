@@ -64,6 +64,77 @@ func (q *Queries) InsertSearchIgnore(ctx context.Context, searchID string) (sql.
 	return q.db.ExecContext(ctx, insertSearchIgnore, searchID)
 }
 
+const listLegacySearches = `-- name: ListLegacySearches :many
+WITH selected_searches AS (
+    SELECT id, search_id, created_at
+    FROM searches
+    ORDER BY id DESC
+    LIMIT ?2
+)
+SELECT
+    s.id,
+    s.search_id,
+    s.created_at,
+    sr.id AS revision_id,
+    sr.revision_label,
+    sr.config_artifact_hash,
+    sr.resolved_manifest_hash,
+    sr.created_at AS revision_created_at
+FROM selected_searches s
+LEFT JOIN search_revisions sr ON sr.search_id=s.id
+    AND (SELECT COUNT(*) FROM search_revisions newer
+        WHERE newer.search_id=s.id AND newer.id>sr.id) < ?1
+ORDER BY s.id DESC, sr.id DESC
+`
+
+type ListLegacySearchesParams struct {
+	RevisionLimit int64
+	Limit         int64
+}
+
+type ListLegacySearchesRow struct {
+	ID                   int64
+	SearchID             string
+	CreatedAt            string
+	RevisionID           sql.NullInt64
+	RevisionLabel        sql.NullString
+	ConfigArtifactHash   sql.NullString
+	ResolvedManifestHash sql.NullString
+	RevisionCreatedAt    sql.NullString
+}
+
+func (q *Queries) ListLegacySearches(ctx context.Context, arg ListLegacySearchesParams) ([]ListLegacySearchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLegacySearches, arg.RevisionLimit, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLegacySearchesRow
+	for rows.Next() {
+		var i ListLegacySearchesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SearchID,
+			&i.CreatedAt,
+			&i.RevisionID,
+			&i.RevisionLabel,
+			&i.ConfigArtifactHash,
+			&i.ResolvedManifestHash,
+			&i.RevisionCreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSearches = `-- name: ListSearches :many
 SELECT
     id,

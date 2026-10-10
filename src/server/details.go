@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -151,13 +150,7 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	author, err := s.oneRow(ctx, `SELECT ao.*, p.orcid AS person_orcid
-		FROM author_occurrences ao LEFT JOIN people p ON p.id=ao.person_id
-		WHERE ao.id=? AND EXISTS (
-			SELECT 1 FROM authorships membership
-			JOIN work_revisions revision ON revision.id=membership.work_revision_id
-			WHERE membership.author_occurrence_id=ao.id AND revision.pipeline_run_id=?
-		)`, id, runID)
+	author, err := s.authorStore.GetOccurrenceForRun(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -181,7 +174,7 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	s.respond(w, r, map[string]any{"author": author, "articles": articles, "audit_events": audit, "identity_evidence": identityEvidence}, nil)
+	s.respond(w, r, map[string]any{"author": authorOccurrenceRow(author), "articles": articles, "audit_events": audit, "identity_evidence": identityEvidence}, nil)
 }
 
 // referenceDetail returns one reference mention with its citing and resolved-work context.
@@ -287,14 +280,13 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var exists int
-	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM author_occurrences occurrence WHERE occurrence.id=? AND EXISTS (
-		SELECT 1 FROM authorships membership JOIN work_revisions revision ON revision.id=membership.work_revision_id
-		WHERE membership.author_occurrence_id=occurrence.id AND revision.pipeline_run_id=?)`, authorID, runID).Scan(&exists); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("author occurrence not found"))
-		return
-	} else if err != nil {
+	author, err := s.authorStore.GetOccurrenceForRun(ctx, authorID, runID)
+	if err != nil {
 		s.respond(w, r, nil, err)
+		return
+	}
+	if author == nil {
+		s.respond(w, r, nil, notFound("author occurrence not found"))
 		return
 	}
 	result, err := s.authorDetailCollectionData(ctx, authorID, runID, kind, cursorKind, cursorID, limit)

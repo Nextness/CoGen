@@ -10,6 +10,28 @@ import (
 	"database/sql"
 )
 
+const countActiveReviewNotes = `-- name: CountActiveReviewNotes :one
+SELECT COUNT(*)
+FROM review_context_note_heads head
+JOIN review_notes logical ON logical.id=head.note_id
+JOIN review_note_versions version ON version.id=head.note_version_id
+WHERE head.review_context_id = ?1
+  AND logical.work_id = ?2
+  AND version.state='active'
+`
+
+type CountActiveReviewNotesParams struct {
+	ReviewContextID int64
+	WorkID          int64
+}
+
+func (q *Queries) CountActiveReviewNotes(ctx context.Context, arg CountActiveReviewNotesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveReviewNotes, arg.ReviewContextID, arg.WorkID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getReviewNoteHead = `-- name: GetReviewNoteHead :one
 SELECT
     logical.id,

@@ -273,3 +273,66 @@ func isRetryableError(err error) bool {
 	}
 	return strings.Contains(msg, "database is locked") || strings.Contains(msg, "SQLITE_BUSY")
 }
+
+// RunContext returns the complete ancestry and lifecycle projection for one
+// run, or nil when the run does not exist.
+func (s *Store) RunContext(ctx context.Context, runID int64) (*RunContext, error) {
+	row, err := s.queries.GetRunContext(ctx, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get run context: %w", err)
+	}
+	return &RunContext{
+		Search: RunContextSearch{
+			ID:        row.SearchPk,
+			SearchID:  row.SearchName,
+			CreatedAt: row.SearchCreatedAt,
+		},
+		Revision: RunContextRevision{
+			ID:                   row.RevisionPk,
+			SearchID:             row.RevisionSearchID,
+			Label:                row.RevisionLabel,
+			ConfigArtifactHash:   row.ConfigArtifactHash,
+			ResolvedManifestHash: row.ResolvedManifestHash,
+			CreatedAt:            row.RevisionCreatedAt,
+		},
+		Plan: RunContextPlan{
+			ID:                   row.PlanPk,
+			SearchRevisionID:     row.PlanSearchRevisionID,
+			ExecutionFingerprint: row.ExecutionFingerprint,
+			ResolvedManifestHash: row.PlanResolvedManifestHash,
+			InputManifestHash:    row.InputManifestHash,
+			EnrichmentEnabled:    row.EnrichmentEnabled != 0,
+			CreatedAt:            row.PlanCreatedAt,
+		},
+		Run: RunContextRun{
+			ID:              row.RunPk,
+			ExecutionPlanID: row.RunExecutionPlanID.Int64,
+			Step:            row.Step,
+			StartedAt:       row.StartedAt,
+			FinishedAt:      nullableStringPointer(row.FinishedAt),
+			Status:          row.Status,
+			Summary:         nullableStringPointer(row.Summary),
+			AttemptNumber:   row.AttemptNumber.Int64,
+			VisibilityState: row.VisibilityState,
+			TrashedAt:       nullableStringPointer(row.TrashedAt),
+			TrashReason:     nullableStringPointer(row.TrashReason),
+		},
+		ReviewContextID: nullableInt64Pointer(row.ReviewContextID),
+	}, nil
+}
+
+// GetVisibility returns the status and visibility state for one run, or nil
+// when the run is absent.
+func (s *Store) GetVisibility(ctx context.Context, runID int64) (*Visibility, error) {
+	row, err := s.queries.GetRunVisibility(ctx, runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get run visibility: %w", err)
+	}
+	return &Visibility{Status: row.Status, VisibilityState: row.VisibilityState}, nil
+}

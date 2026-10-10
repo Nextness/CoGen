@@ -38,6 +38,59 @@ func (q *Queries) GetAuthorOccurrenceByID(ctx context.Context, id int64) (Author
 	return i, err
 }
 
+const getAuthorOccurrenceForRun = `-- name: GetAuthorOccurrenceForRun :one
+SELECT
+    occurrence.id,
+    occurrence.person_id,
+    occurrence.citation_name,
+    occurrence.first_name,
+    occurrence.last_name,
+    occurrence.orcid,
+    occurrence.created_at,
+    person.orcid AS person_orcid
+FROM author_occurrences occurrence
+LEFT JOIN people person ON person.id=occurrence.person_id
+WHERE occurrence.id = ?1
+  AND EXISTS (
+      SELECT 1 FROM authorships membership
+      JOIN work_revisions revision ON revision.id=membership.work_revision_id
+      WHERE membership.author_occurrence_id=occurrence.id
+        AND revision.pipeline_run_id = ?2
+  )
+`
+
+type GetAuthorOccurrenceForRunParams struct {
+	ID            int64
+	PipelineRunID int64
+}
+
+type GetAuthorOccurrenceForRunRow struct {
+	ID           int64
+	PersonID     sql.NullInt64
+	CitationName string
+	FirstName    sql.NullString
+	LastName     sql.NullString
+	Orcid        sql.NullString
+	CreatedAt    string
+	PersonOrcid  sql.NullString
+}
+
+func (q *Queries) GetAuthorOccurrenceForRun(ctx context.Context, arg GetAuthorOccurrenceForRunParams) (GetAuthorOccurrenceForRunRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuthorOccurrenceForRun, arg.ID, arg.PipelineRunID)
+	var i GetAuthorOccurrenceForRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.CitationName,
+		&i.FirstName,
+		&i.LastName,
+		&i.Orcid,
+		&i.CreatedAt,
+		&i.PersonOrcid,
+	)
+	return i, err
+}
+
 const insertAuthorOccurrence = `-- name: InsertAuthorOccurrence :execresult
 INSERT INTO author_occurrences (
     person_id,

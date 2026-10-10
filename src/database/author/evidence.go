@@ -6,6 +6,7 @@ package author
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -38,4 +39,36 @@ func (s *Store) CreateIdentityCandidate(ctx context.Context, candidate *Identity
 		return 0, fmt.Errorf("create author identity candidate: %w", err)
 	}
 	return result.LastInsertId()
+}
+
+// IdentityEvidenceStats returns run-scoped resolution outcome and candidate counts.
+func (s *Store) IdentityEvidenceStats(ctx context.Context, runID int64) (*IdentityEvidenceStats, error) {
+	stats, err := s.queries.GetIdentityEvidenceStats(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("get identity evidence stats: %w", err)
+	}
+	candidates, err := s.queries.CountIdentityCandidatesByRun(ctx, runID)
+	if err != nil {
+		return nil, fmt.Errorf("count identity candidates: %w", err)
+	}
+	return &IdentityEvidenceStats{
+		Resolutions:    stats.Resolutions,
+		Unclear:        stats.Unclear,
+		NoCandidate:    stats.NoCandidate,
+		ProviderFailed: stats.ProviderFailed,
+		Candidates:     candidates,
+	}, nil
+}
+
+// IdentityResolutionExists reports whether one resolution belongs to the run.
+func (s *Store) IdentityResolutionExists(ctx context.Context, resolutionID, runID int64) (bool, error) {
+	if _, err := s.queries.IdentityResolutionExists(ctx, generated.IdentityResolutionExistsParams{
+		ID:            resolutionID,
+		PipelineRunID: runID,
+	}); errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	} else if err != nil {
+		return false, fmt.Errorf("check identity resolution: %w", err)
+	}
+	return true, nil
 }
