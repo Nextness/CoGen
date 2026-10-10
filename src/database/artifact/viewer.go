@@ -115,7 +115,7 @@ func (s *Store) ListRunArtifactEvidence(ctx context.Context, filter RunArtifactF
 		args = append(args, filter.FocusID)
 	}
 	query += ` GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
-		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + filter.Order + ` LIMIT ?`
+		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + sqlDirection(filter.Order) + ` LIMIT ?`
 	args = append(args, filter.FocusID)
 	if filter.PageMode {
 		args = append(args, filter.PerPage, (page-1)*filter.PerPage)

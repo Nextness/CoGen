@@ -1,8 +1,8 @@
 // viewer_dynamic.go retains the bounded dynamic run artifact evidence query.
 // The relationship CTE, projection, and filter fragments are fixed SQL text;
-// the order keyword comes from a validated enum, every user value is bound,
-// and the search, role, and page inputs are validated and capped before
-// assembly.
+// the order keyword is normalized to a fixed ASC or DESC constant, every user
+// value is bound, and the search, role, and page inputs are validated and
+// capped before assembly.
 package artifact
 
 import (
@@ -73,4 +73,12 @@ func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any, error) {
 		args = append(args, filter.Role)
 	}
 	return where, args, nil
+}
+
+// sqlDirection returns the validated ascending/descending SQL keyword.
+func sqlDirection(order string) string {
+	if strings.EqualFold(order, "DESC") {
+		return "DESC"
+	}
+	return "ASC"
 }

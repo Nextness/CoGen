@@ -265,6 +265,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`runArtifactRunArgs`](../src/database/artifact/viewer_dynamic.go#L45) | function | 45-51 | `func runArtifactRunArgs(runID int64, count int) []any` | runArtifactRunArgs returns count repeated run identifier arguments. |
 | [`runArtifactFilterClauses`](../src/database/artifact/viewer_dynamic.go#L54) | function | 54-76 | `func runArtifactFilterClauses(filter RunArtifactFilter) (string, []any, error)` | runArtifactFilterClauses builds the parameterized search and role filters. |
+| [`sqlDirection`](../src/database/artifact/viewer_dynamic.go#L79) | function | 79-84 | `func sqlDirection(order string) string` | sqlDirection returns the validated ascending/descending SQL keyword. |
 
 ### [`src/database/artifact_adapter.go`](../src/database/artifact_adapter.go)
 
