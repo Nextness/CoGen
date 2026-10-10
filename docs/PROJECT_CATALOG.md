@@ -3366,6 +3366,20 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestViewerPDFConnectionIsReadOnly`](../src/server/pdf_integration_test.go#L96) | test | 96-102 | `func TestViewerPDFConnectionIsReadOnly(t *testing.T)` | TestViewerPDFConnectionIsReadOnly verifies viewer pdf connection is read only. |
 | [`TestPDFContentRejectsSameSizeHashMismatch`](../src/server/pdf_integration_test.go#L105) | test | 105-140 | `func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T)` | TestPDFContentRejectsSameSizeHashMismatch verifies cached PDF bytes are content-addressed. |
 
+### [`src/server/query_behavior_integration_test.go`](../src/server/query_behavior_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`apiQueryCountCase`](../src/server/query_behavior_integration_test.go#L24) | struct | 24-28 | `type apiQueryCountCase struct { name string path string used int64 }` | apiQueryCountCase pins one viewer route to its exact statement count. |
+| [`TestAPIQueryCountsMatchRouteBudgets`](../src/server/query_behavior_integration_test.go#L34) | test | 34-102 | `func TestAPIQueryCountsMatchRouteBudgets(t *testing.T)` | TestAPIQueryCountsMatchRouteBudgets verifies every viewer route keeps its deterministic statement count and hard route ceiling after the handler cutover. The counts are pinned to the shared viewer fixtures; a changed count means a handler started or stopped issuing SQL statements. |
+| [`assertAPIQueryCounts`](../src/server/query_behavior_integration_test.go#L105) | function | 105-125 | `func assertAPIQueryCounts(t *testing.T, handler http.Handler, cases []apiQueryCountCase)` | assertAPIQueryCounts verifies each route's limit header, exact used count, and repeat determinism. |
+| [`routePath`](../src/server/query_behavior_integration_test.go#L128) | function | 128-131 | `func routePath(route string) string` | routePath returns the path portion of one test route without its query string. |
+| [`TestAPIStreamedQueryCountsUseTrailers`](../src/server/query_behavior_integration_test.go#L135) | test | 135-164 | `func TestAPIStreamedQueryCountsUseTrailers(t *testing.T)` | TestAPIStreamedQueryCountsUseTrailers verifies streamed PDF and artifact content deliver their statement count as a trailer instead of a header. |
+| [`TestCanceledReadRequestFailsWithoutPartialJSON`](../src/server/query_behavior_integration_test.go#L169) | test | 169-188 | `func TestCanceledReadRequestFailsWithoutPartialJSON(t *testing.T)` | TestCanceledReadRequestFailsWithoutPartialJSON verifies a canceled read request stops before touching the database and returns the stable error envelope instead of a partial document. |
+| [`TestSelectedRunContextIsConsistentAcrossEndpoints`](../src/server/query_behavior_integration_test.go#L193) | test | 193-266 | `func TestSelectedRunContextIsConsistentAcrossEndpoints(t *testing.T)` | TestSelectedRunContextIsConsistentAcrossEndpoints verifies the run context selected by the viewer is the same run, plan, and revision reported by the run-scoped reads and the hierarchy. |
+| [`TestAPIResponseShapesMatchFrontendFixtures`](../src/server/query_behavior_integration_test.go#L270) | test | 270-365 | `func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T)` | TestAPIResponseShapesMatchFrontendFixtures verifies every viewer route keeps the exact top-level JSON keys the frontend contract consumes. |
+| [`assertTopLevelKeys`](../src/server/query_behavior_integration_test.go#L368) | function | 368-378 | `func assertTopLevelKeys(t *testing.T, path string, body map[string]any, expected []string)` | assertTopLevelKeys verifies one JSON object exposes exactly the expected top-level keys. |
+
 ### [`src/server/query_budget.go`](../src/server/query_budget.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
