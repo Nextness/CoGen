@@ -105,24 +105,20 @@ func newCorrelationID() (string, error) {
 
 // Document returns PDF inventory metadata for a normalized DOI, or nil when it is unregistered.
 func (s *Store) Document(ctx context.Context, doi string) (*Document, error) {
-	doi = database.NormalizeDOI(doi)
-	var document Document
-	var contentHash, inventoriedAt sql.NullString
-	err := s.DB.QueryRowContext(ctx, `SELECT doi, status, content_hash,
-		inventoried_at, updated_at
-		FROM pdf_documents WHERE doi=?`, doi).Scan(
-		&document.DOI, &document.Status, &contentHash,
-		&inventoriedAt, &document.UpdatedAt,
-	)
+	row, err := s.queries.GetPDFDocument(ctx, database.NormalizeDOI(doi))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	document.ContentHash = contentHash.String
-	document.InventoriedAt = inventoriedAt.String
-	return &document, nil
+	return &Document{
+		DOI:           row.Doi,
+		Status:        row.Status,
+		ContentHash:   row.ContentHash.String,
+		InventoriedAt: row.InventoriedAt.String,
+		UpdatedAt:     row.UpdatedAt,
+	}, nil
 }
 
 // AvailablePDFDOIs returns normalized DOIs with available companion content in
@@ -209,10 +205,12 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 		return false, err
 	}
 	defer tx.Rollback()
+	queries := s.queries.WithTx(tx)
 
 	now := timestamp(s.now())
-	result, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pdf_documents
-		(doi, status, updated_at) VALUES (?, 'not_available', ?)`, doi, now)
+	result, err := queries.InsertPDFDocument(ctx, generated.InsertPDFDocumentParams{
+		Doi: doi, UpdatedAt: now,
+	})
 	if err != nil {
 		return false, fmt.Errorf("register PDF inventory document: %w", err)
 	}
@@ -234,7 +232,7 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 	if err != nil {
 		return false, err
 	}
-	if err := insertOutbox(ctx, tx, OutboxEvent{
+	if err := insertOutbox(ctx, queries, OutboxEvent{
 		Actor: "pipeline", PipelineRunID: pipelineRunID,
 		EntityType: "work", EntityID: strconv.FormatInt(workID, 10),
 		Action: string(manifest.AuditPDFInventoryRegistered), MetadataJSON: string(metadata),
@@ -263,65 +261,63 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 	if err != nil {
 		return AddResult{}, err
 	}
+	// The transaction stays handwritten because the concurrent compare-and-swap
+	// fallback must roll back the speculative blob insert instead of committing it.
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return AddResult{}, err
 	}
 	defer tx.Rollback()
+	queries := s.queries.WithTx(tx)
 
-	var status string
-	var existingHash sql.NullString
-	var existingSize sql.NullInt64
-	var existingData []byte
-	err = tx.QueryRowContext(ctx, `SELECT d.status, d.content_hash, b.byte_size, b.data
-		FROM pdf_documents d
-		LEFT JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=?`, doi).Scan(&status, &existingHash, &existingSize, &existingData)
+	existing, err := queries.GetPDFDocumentWithBlob(ctx, doi)
 	if err == sql.ErrNoRows {
 		return AddResult{}, fmt.Errorf("DOI %q is not registered in the normalized PDF inventory", doi)
 	}
 	if err != nil {
 		return AddResult{}, fmt.Errorf("read existing PDF document: %w", err)
 	}
-	if status == StatusAvailable {
-		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+	if existing.Status == StatusAvailable {
+		if err := validateStoredPDFBlob(existing.ContentHash, existing.ByteSize, existing.Data); err != nil {
 			return AddResult{}, fmt.Errorf("available PDF inventory document %q is corrupt: %w", doi, err)
 		}
-		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
+		return AddResult{ContentHash: existing.ContentHash.String, ByteSize: int(existing.ByteSize.Int64), Added: false}, nil
 	}
-	if status != StatusNotAvailable {
-		return AddResult{}, fmt.Errorf("PDF inventory document %q has unsupported status %q", doi, status)
+	if existing.Status != StatusNotAvailable {
+		return AddResult{}, fmt.Errorf("PDF inventory document %q has unsupported status %q", doi, existing.Status)
 	}
 
 	now := timestamp(s.now())
-	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pdf_blobs
-		(content_hash, byte_size, data, created_at) VALUES (?, ?, ?, ?)`, hash, len(data), data, now); err != nil {
+	if err := queries.InsertPDFBlob(ctx, generated.InsertPDFBlobParams{
+		ContentHash: hash, ByteSize: int64(len(data)), Data: data, CreatedAt: now,
+	}); err != nil {
 		return AddResult{}, fmt.Errorf("insert PDF blob: %w", err)
 	}
-	var storedSize int
-	if err := tx.QueryRowContext(ctx, "SELECT byte_size FROM pdf_blobs WHERE content_hash=?", hash).Scan(&storedSize); err != nil {
+	storedSize, err := queries.GetPDFBlobSize(ctx, hash)
+	if err != nil {
 		return AddResult{}, fmt.Errorf("verify PDF blob: %w", err)
 	}
-	if storedSize != len(data) {
+	if storedSize != int64(len(data)) {
 		return AddResult{}, fmt.Errorf("existing PDF blob size does not match its content hash")
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE pdf_documents
-		SET status='available', content_hash=?, inventoried_at=?, updated_at=?
-		WHERE doi=? AND status='not_available'`, hash, now, now, doi)
+	result, err := queries.MarkPDFDocumentAvailable(ctx, generated.MarkPDFDocumentAvailableParams{
+		ContentHash:   sql.NullString{String: hash, Valid: true},
+		InventoriedAt: sql.NullString{String: now, Valid: true},
+		UpdatedAt:     now,
+		Doi:           doi,
+	})
 	if err != nil {
 		return AddResult{}, fmt.Errorf("store PDF document: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected != 1 {
-		if err := tx.QueryRowContext(ctx, `SELECT d.content_hash, b.byte_size, b.data
-			FROM pdf_documents d
-			JOIN pdf_blobs b ON b.content_hash=d.content_hash
-			WHERE d.doi=? AND d.status='available'`, doi).Scan(&existingHash, &existingSize, &existingData); err != nil {
+		concurrent, err := queries.GetAvailablePDFDocumentWithBlob(ctx, doi)
+		if err != nil {
 			return AddResult{}, fmt.Errorf("read concurrently stored PDF document: %w", err)
 		}
-		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+		if err := validateStoredPDFBlob(concurrent.ContentHash, sql.NullInt64{Int64: concurrent.ByteSize, Valid: true}, concurrent.Data); err != nil {
 			return AddResult{}, fmt.Errorf("concurrently stored PDF inventory document %q is corrupt: %w", doi, err)
 		}
-		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
+		return AddResult{ContentHash: concurrent.ContentHash.String, ByteSize: int(concurrent.ByteSize), Added: false}, nil
 	}
 
 	correlationID, err := newCorrelationID()
@@ -335,7 +331,7 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 	if err != nil {
 		return AddResult{}, err
 	}
-	if err := insertOutbox(ctx, tx, OutboxEvent{
+	if err := insertOutbox(ctx, queries, OutboxEvent{
 		Actor: "user", EntityType: "work", EntityID: strconv.FormatInt(workID, 10),
 		Action: string(manifest.AuditPDFDocumentInventoried), MetadataJSON: string(metadata), CorrelationID: correlationID,
 	}, now); err != nil {

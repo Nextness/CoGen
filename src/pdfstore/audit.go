@@ -7,8 +7,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"time"
+
+	generated "analysis/pdfstore/internal/sql"
 )
 
 const auditOutboxBatchSize = 100
@@ -27,7 +28,7 @@ type OutboxEvent struct {
 }
 
 // insertOutbox inserts outbox.
-func insertOutbox(ctx context.Context, tx *sql.Tx, event OutboxEvent, occurredAt string) error {
+func insertOutbox(ctx context.Context, queries *generated.Queries, event OutboxEvent, occurredAt string) error {
 	if event.EventKey == "" {
 		var err error
 		event.EventKey, err = newCorrelationID()
@@ -38,18 +39,28 @@ func insertOutbox(ctx context.Context, tx *sql.Tx, event OutboxEvent, occurredAt
 	if event.OccurredAt == "" {
 		event.OccurredAt = occurredAt
 	}
-	var pipelineRunID any
-	if event.PipelineRunID > 0 {
-		pipelineRunID = event.PipelineRunID
-	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO pdf_audit_outbox
-		(event_key, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, event.EventKey, event.OccurredAt, event.Actor,
-		pipelineRunID, event.EntityType, event.EntityID, event.Action, event.MetadataJSON, event.CorrelationID)
-	if err != nil {
+	if err := queries.InsertPDFAuditOutboxEvent(ctx, generated.InsertPDFAuditOutboxEventParams{
+		EventKey:      event.EventKey,
+		OccurredAt:    event.OccurredAt,
+		Actor:         event.Actor,
+		PipelineRunID: nullableRunID(event.PipelineRunID),
+		EntityType:    event.EntityType,
+		EntityID:      event.EntityID,
+		Action:        event.Action,
+		MetadataJson:  event.MetadataJSON,
+		CorrelationID: event.CorrelationID,
+	}); err != nil {
 		return fmt.Errorf("insert PDF audit outbox event: %w", err)
 	}
 	return nil
+}
+
+// nullableRunID maps a non-positive run ID into SQL NULL.
+func nullableRunID(runID int64) sql.NullInt64 {
+	if runID <= 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: runID, Valid: true}
 }
 
 // FlushAuditOutbox mirrors undelivered PDF events into the metadata database.
@@ -77,41 +88,10 @@ func (s *Store) FlushAuditOutbox(ctx context.Context, metadata *sql.DB) (int, er
 
 // flushAuditOutboxBatch delivers one ordered bounded batch and leaves unmatched PDF updates retryable.
 func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, limit int, afterOccurredAt, afterEventKey string) (int, int, string, string, error) {
-	query := `SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-		entity_id, action, metadata_json, correlation_id FROM pdf_audit_outbox WHERE delivered_at IS NULL`
-	args := make([]any, 0, 3)
-	if afterOccurredAt != "" {
-		query += " AND (occurred_at>? OR (occurred_at=? AND event_key>?))"
-		args = append(args, afterOccurredAt, afterOccurredAt, afterEventKey)
-	}
-	query += " ORDER BY occurred_at, event_key LIMIT ?"
-	args = append(args, limit)
-	rows, err := s.DB.QueryContext(ctx, query, args...)
+	events, err := s.pendingAuditEvents(ctx, limit, afterOccurredAt, afterEventKey)
 	if err != nil {
-		return 0, 0, "", "", fmt.Errorf("read PDF audit outbox: %w", err)
-	}
-	var events []OutboxEvent
-	for rows.Next() {
-		var event OutboxEvent
-		var pipelineRunID sql.NullInt64
-		if err := rows.Scan(&event.EventKey, &event.OccurredAt, &event.Actor, &pipelineRunID, &event.EntityType,
-			&event.EntityID, &event.Action, &event.MetadataJSON, &event.CorrelationID); err != nil {
-			rows.Close()
-			return 0, 0, "", "", err
-		}
-		if pipelineRunID.Valid {
-			event.PipelineRunID = pipelineRunID.Int64
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
 		return 0, 0, "", "", err
 	}
-	if err := rows.Close(); err != nil {
-		return 0, 0, "", "", err
-	}
-
 	if len(events) == 0 {
 		return 0, 0, "", "", nil
 	}
@@ -147,15 +127,13 @@ func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, lim
 		return 0, len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, fmt.Errorf("commit PDF metadata audit batch: %w", err)
 	}
 	keys := make([]string, len(successful))
-	args = make([]any, 0, len(successful)+1)
-	args = append(args, time.Now().UTC().Format(time.RFC3339Nano))
 	for index, event := range successful {
-		keys[index] = "?"
-		args = append(args, event.EventKey)
+		keys[index] = event.EventKey
 	}
-	query = `UPDATE pdf_audit_outbox SET delivered_at=?
-		WHERE delivered_at IS NULL AND event_key IN (` + strings.Join(keys, ",") + `)`
-	result, err := s.DB.ExecContext(ctx, query, args...)
+	result, err := s.queries.MarkPDFAuditEventsDelivered(ctx, generated.MarkPDFAuditEventsDeliveredParams{
+		DeliveredAt: sql.NullString{String: time.Now().UTC().Format(time.RFC3339Nano), Valid: true},
+		EventKeys:   keys,
+	})
 	if err != nil {
 		return 0, len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, fmt.Errorf("mark PDF audit event batch delivered: %w", err)
 	}
@@ -164,6 +142,45 @@ func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, lim
 		return 0, len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, fmt.Errorf("read delivered PDF audit event count: %w", err)
 	}
 	return int(count), len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, firstErr
+}
+
+// pendingAuditEvents loads one ordered bounded batch of undelivered events,
+// using the keyset cursor only after the first batch.
+func (s *Store) pendingAuditEvents(ctx context.Context, limit int, afterOccurredAt, afterEventKey string) ([]OutboxEvent, error) {
+	if afterOccurredAt == "" {
+		rows, err := s.queries.ListPendingPDFAuditEvents(ctx, int64(limit))
+		if err != nil {
+			return nil, fmt.Errorf("read PDF audit outbox: %w", err)
+		}
+		events := make([]OutboxEvent, 0, len(rows))
+		for _, row := range rows {
+			events = append(events, OutboxEvent{
+				EventKey: row.EventKey, OccurredAt: row.OccurredAt, Actor: row.Actor,
+				PipelineRunID: row.PipelineRunID.Int64, EntityType: row.EntityType,
+				EntityID: row.EntityID, Action: row.Action, MetadataJSON: row.MetadataJson,
+				CorrelationID: row.CorrelationID,
+			})
+		}
+		return events, nil
+	}
+	rows, err := s.queries.ListPendingPDFAuditEventsAfter(ctx, generated.ListPendingPDFAuditEventsAfterParams{
+		AfterOccurredAt: afterOccurredAt,
+		AfterEventKey:   afterEventKey,
+		BatchLimit:      int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read PDF audit outbox: %w", err)
+	}
+	events := make([]OutboxEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, OutboxEvent{
+			EventKey: row.EventKey, OccurredAt: row.OccurredAt, Actor: row.Actor,
+			PipelineRunID: row.PipelineRunID.Int64, EntityType: row.EntityType,
+			EntityID: row.EntityID, Action: row.Action, MetadataJSON: row.MetadataJson,
+			CorrelationID: row.CorrelationID,
+		})
+	}
+	return events, nil
 }
 
 // insertMetadataAuditEvent persists one idempotent cross-store audit row in an existing transaction.

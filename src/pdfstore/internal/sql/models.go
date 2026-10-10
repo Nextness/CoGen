@@ -3,3 +3,15 @@
 //   sqlc v1.31.1
 
 package sql
+
+import (
+	"database/sql"
+)
+
+type PdfDocument struct {
+	Doi           string
+	Status        string
+	ContentHash   sql.NullString
+	InventoriedAt sql.NullString
+	UpdatedAt     string
+}

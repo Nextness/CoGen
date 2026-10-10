@@ -17,3 +17,16 @@ CREATE TABLE pdf_blobs (
     data         BLOB NOT NULL,
     created_at   TEXT NOT NULL
 );
+
+CREATE TABLE pdf_audit_outbox (
+    event_key       TEXT PRIMARY KEY,
+    occurred_at     TEXT NOT NULL,
+    actor           TEXT NOT NULL,
+    pipeline_run_id INTEGER,
+    entity_type     TEXT NOT NULL,
+    entity_id       TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    metadata_json   TEXT NOT NULL,
+    correlation_id  TEXT NOT NULL,
+    delivered_at    TEXT
+);
