@@ -8,6 +8,7 @@ package workspace
 import (
 	"analysis/article"
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/enrich"
 	"analysis/manifest"
 	"analysis/pdfstore"
@@ -112,7 +113,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 	if registered != 0 || flushed != 0 {
 		t.Fatalf("second inventory sync registered=%d flushed=%d, want 0 and 0", registered, flushed)
 	}
-	store, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), registry)
+	store, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
 	if err != nil {
 		t.Fatal(err)
 	}

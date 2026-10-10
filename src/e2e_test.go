@@ -6,6 +6,7 @@ package main
 
 import (
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 	"analysis/server"
 	"bytes"
@@ -561,7 +562,7 @@ func assertE2EDatabases(t *testing.T, root, dbPath string, mode e2eMode) e2eResu
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	pdfPath := filepath.Join(filepath.Dir(dbPath), pdfstore.DefaultStoreFilename)
+	pdfPath := filepath.Join(filepath.Dir(dbPath), pdfbinding.DefaultStoreFilename)
 	pdf, err := pdfstore.Open(pdfPath, filepath.Join(root, "config", "database.something"))
 	if err != nil {
 		t.Fatal(err)

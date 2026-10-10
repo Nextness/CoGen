@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"analysis/database/pdfbinding"
 	generated "analysis/pdfstore/internal/sql"
 )
 
@@ -69,12 +70,12 @@ func nullableRunID(runID int64) sql.NullInt64 {
 // append-only audit row. An event whose pipeline run no longer exists in the
 // bound metadata database is preserved with a NULL run link, because the PDF
 // store is durable across metadata database iterations.
-func (s *Store) FlushAuditOutbox(ctx context.Context, metadata *sql.DB) (int, error) {
+func (s *Store) FlushAuditOutbox(ctx context.Context, bindings *pdfbinding.Store) (int, error) {
 	delivered := 0
 	var afterOccurredAt, afterEventKey string
 	var firstErr error
 	for {
-		count, eventCount, occurredAt, eventKey, err := s.flushAuditOutboxBatch(ctx, metadata, auditOutboxBatchSize, afterOccurredAt, afterEventKey)
+		count, eventCount, occurredAt, eventKey, err := s.flushAuditOutboxBatch(ctx, bindings, auditOutboxBatchSize, afterOccurredAt, afterEventKey)
 		delivered += count
 		if err != nil && firstErr == nil {
 			firstErr = err
@@ -87,7 +88,7 @@ func (s *Store) FlushAuditOutbox(ctx context.Context, metadata *sql.DB) (int, er
 }
 
 // flushAuditOutboxBatch delivers one ordered bounded batch and leaves unmatched PDF updates retryable.
-func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, limit int, afterOccurredAt, afterEventKey string) (int, int, string, string, error) {
+func (s *Store) flushAuditOutboxBatch(ctx context.Context, bindings *pdfbinding.Store, limit int, afterOccurredAt, afterEventKey string) (int, int, string, string, error) {
 	events, err := s.pendingAuditEvents(ctx, limit, afterOccurredAt, afterEventKey)
 	if err != nil {
 		return 0, 0, "", "", err
@@ -95,7 +96,7 @@ func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, lim
 	if len(events) == 0 {
 		return 0, 0, "", "", nil
 	}
-	tx, err := metadata.BeginTx(ctx, nil)
+	tx, err := bindings.BeginTx(ctx)
 	if err != nil {
 		return 0, len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, err
 	}
@@ -107,7 +108,12 @@ func (s *Store) flushAuditOutboxBatch(ctx context.Context, metadata *sql.DB, lim
 		if _, err := tx.ExecContext(ctx, "SAVEPOINT "+savepoint); err != nil {
 			return 0, len(events), events[len(events)-1].OccurredAt, events[len(events)-1].EventKey, err
 		}
-		if err := insertMetadataAuditEvent(ctx, tx, event); err != nil {
+		if err := bindings.RecordDeliveredAudit(ctx, tx, pdfbinding.DeliveredEvent{
+			EventKey: event.EventKey, OccurredAt: event.OccurredAt, Actor: event.Actor,
+			PipelineRunID: event.PipelineRunID, EntityType: event.EntityType,
+			EntityID: event.EntityID, Action: event.Action, MetadataJSON: event.MetadataJSON,
+			CorrelationID: event.CorrelationID,
+		}); err != nil {
 			_, _ = tx.ExecContext(ctx, "ROLLBACK TO "+savepoint)
 			_, _ = tx.ExecContext(ctx, "RELEASE "+savepoint)
 			if firstErr == nil {
@@ -181,44 +187,4 @@ func (s *Store) pendingAuditEvents(ctx context.Context, limit int, afterOccurred
 		})
 	}
 	return events, nil
-}
-
-// insertMetadataAuditEvent persists one idempotent cross-store audit row in an existing transaction.
-func insertMetadataAuditEvent(ctx context.Context, tx *sql.Tx, event OutboxEvent) error {
-	var auditID int64
-	err := tx.QueryRowContext(ctx, "SELECT audit_event_id FROM pdf_audit_links WHERE event_key=?", event.EventKey).Scan(&auditID)
-	if err == nil {
-		return nil
-	}
-	if err != sql.ErrNoRows {
-		return fmt.Errorf("read PDF metadata audit link: %w", err)
-	}
-	var pipelineRunID any
-	if event.PipelineRunID > 0 {
-		var runExists int64
-		runErr := tx.QueryRowContext(ctx, "SELECT 1 FROM pipeline_runs WHERE id=?", event.PipelineRunID).Scan(&runExists)
-		if runErr == sql.ErrNoRows {
-			pipelineRunID = nil
-		} else if runErr != nil {
-			return fmt.Errorf("read pipeline run for PDF metadata audit event: %w", runErr)
-		} else {
-			pipelineRunID = event.PipelineRunID
-		}
-	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO audit_events
-		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, event.OccurredAt, event.Actor, pipelineRunID,
-		event.EntityType, event.EntityID, event.Action, event.MetadataJSON, event.CorrelationID)
-	if err != nil {
-		return fmt.Errorf("insert PDF metadata audit event: %w", err)
-	}
-	auditID, err = result.LastInsertId()
-	if err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, `INSERT INTO pdf_audit_links
-		(event_key, audit_event_id, created_at) VALUES (?, ?, ?)`, event.EventKey, auditID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-		return fmt.Errorf("link PDF metadata audit event: %w", err)
-	}
-	return nil
 }

@@ -181,6 +181,21 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
+    schema: "../src/database/pdfbinding/schema/definitions.sql"
+    queries:
+      - "../src/database/pdfbinding/schema/binding.sql"
+      - "../src/database/pdfbinding/schema/delivery.sql"
+    gen:
+      go:
+        package: "sql"
+        out: "../src/database/pdfbinding/internal/sql"
+        sql_package: "database/sql"
+        emit_json_tags: false
+        emit_prepared_queries: false
+        emit_exported_queries: false
+        emit_interface: false
+        omit_unused_structs: true
+  - engine: "sqlite"
     schema: "../src/pdfstore/schema/definitions.sql"
     queries:
       - "../src/pdfstore/schema/queries.sql"

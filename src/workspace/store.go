@@ -8,6 +8,7 @@ import (
 	"analysis/article"
 	"analysis/database"
 	"analysis/database/author"
+	"analysis/database/pdfbinding"
 	dbrun "analysis/database/run"
 	dbsource "analysis/database/source"
 	dbwork "analysis/database/work"
@@ -360,7 +361,8 @@ const normalizedInventoryBatchSize = 100
 // authoritative normalized revisions. It is safe to call after a new run or
 // when a completed execution plan is reused.
 func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error) {
-	storePath, err := pdfstore.BoundStorePath(ctx, db.DB, dbPath)
+	bindings := pdfbinding.New(db.DB)
+	storePath, err := bindings.ResolveBinding(ctx, dbPath)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -370,7 +372,7 @@ func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPa
 	}
 	defer store.Close()
 
-	flushed, err := store.FlushAuditOutbox(ctx, db.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, bindings)
 	if err != nil {
 		return 0, flushed, err
 	}
@@ -395,7 +397,7 @@ func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPa
 		}
 		lastWorkID = works[len(works)-1].WorkID
 	}
-	newlyFlushed, err := store.FlushAuditOutbox(ctx, db.DB)
+	newlyFlushed, err := store.FlushAuditOutbox(ctx, bindings)
 	flushed += newlyFlushed
 	if err != nil {
 		return registered, flushed, err

@@ -10,21 +10,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"analysis/database"
-	"analysis/internal/pathpolicy"
 	"analysis/manifest"
 	generated "analysis/pdfstore/internal/sql"
 )
 
 const (
-	DefaultStoreFilename = "corpus.pdf.db"
-	StatusNotAvailable   = "not_available"
-	StatusAvailable      = "available"
+	StatusNotAvailable = "not_available"
+	StatusAvailable    = "available"
 )
 
 // Store is one companion PDF database handle bound to an already configured
@@ -356,88 +352,4 @@ func validateStoredPDFBlob(contentHash sql.NullString, byteSize sql.NullInt64, d
 		return fmt.Errorf("stored blob digest does not match its content hash")
 	}
 	return nil
-}
-
-// BindStore records a portable bundle-relative companion path. Existing
-// bindings are preserved so older corpus bundles remain usable.
-func BindStore(ctx context.Context, metadata *sql.DB, relativePath string) error {
-	cleanPath, err := validateRelativeStorePath(relativePath)
-	if err != nil {
-		return err
-	}
-	var existingPath string
-	err = metadata.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&existingPath)
-	if err == sql.ErrNoRows {
-		digest := sha256.Sum256([]byte("pdf-inventory-store\x00" + cleanPath))
-		_, err = metadata.ExecContext(ctx, `INSERT INTO pdf_store_binding
-			(id, relative_path, configured_at, config_fingerprint) VALUES (1, ?, ?, ?)`,
-			cleanPath, timestamp(time.Now()), hex.EncodeToString(digest[:]))
-		if err != nil {
-			return fmt.Errorf("create PDF store binding: %w", err)
-		}
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read PDF store binding: %w", err)
-	}
-	if existingPath != cleanPath {
-		return fmt.Errorf("metadata corpus is already bound to PDF store %q, not %q", existingPath, cleanPath)
-	}
-	return nil
-}
-
-// BoundStorePath returns the existing companion path or binds the default
-// corpus.pdf.db beside the metadata database on first inventory use.
-func BoundStorePath(ctx context.Context, metadata *sql.DB, metadataPath string) (string, error) {
-	var relativePath string
-	err := metadata.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&relativePath)
-	if err == sql.ErrNoRows {
-		relativePath = DefaultStoreFilename
-		if err := BindStore(ctx, metadata, relativePath); err != nil {
-			return "", err
-		}
-	} else if err != nil {
-		return "", fmt.Errorf("read PDF store binding: %w", err)
-	}
-	return resolveStorePath(metadataPath, relativePath)
-}
-
-// resolveStorePath resolves store path from the supplied context.
-func resolveStorePath(metadataPath, relativePath string) (string, error) {
-	if metadataPath == "" {
-		return "", fmt.Errorf("metadata database path is required")
-	}
-	cleanPath, err := validateRelativeStorePath(relativePath)
-	if err != nil {
-		return "", err
-	}
-	metadataAbsolute, err := filepath.Abs(metadataPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve metadata database path: %w", err)
-	}
-	metadataDir := filepath.Dir(metadataAbsolute)
-	storePath, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, cleanPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve PDF store path: %w", err)
-	}
-	metadataResolved, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, metadataAbsolute)
-	if err != nil {
-		return "", fmt.Errorf("resolve metadata database path: %w", err)
-	}
-	if storePath == metadataResolved {
-		return "", fmt.Errorf("PDF store path must differ from the metadata database path")
-	}
-	return storePath, nil
-}
-
-// validateRelativeStorePath rejects absolute or escaping companion-store paths and returns a clean relative path.
-func validateRelativeStorePath(relativePath string) (string, error) {
-	if filepath.IsAbs(relativePath) {
-		return "", fmt.Errorf("PDF store path must be relative")
-	}
-	cleanPath := filepath.Clean(strings.TrimSpace(relativePath))
-	if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("PDF store path must stay within the metadata database directory")
-	}
-	return cleanPath, nil
 }

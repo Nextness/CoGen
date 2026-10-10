@@ -26,6 +26,7 @@ import (
 	"analysis/database/audit"
 	"analysis/database/author"
 	"analysis/database/cache"
+	"analysis/database/pdfbinding"
 	"analysis/database/review"
 	"analysis/database/run"
 	"analysis/database/search"
@@ -92,6 +93,7 @@ type Server struct {
 	authorStore *author.Store
 	reviewStore *review.Store
 	cacheStore  *cache.Store
+	pdfBindings *pdfbinding.Store
 	writeDB     *database.Database
 	pdfDB       *sql.DB
 	pdfStore    *pdfstore.Store
@@ -148,6 +150,7 @@ func Open(path string) (*Server, error) {
 		authorStore: author.New(db),
 		reviewStore: review.New(db),
 		cacheStore:  cache.New(db),
+		pdfBindings: pdfbinding.New(db),
 	}
 	if err := s.discoverTables(ctx); err != nil {
 		db.Close()
@@ -385,13 +388,12 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if !s.hasTable("pdf_store_binding") {
 		return nil
 	}
-	var relativePath string
-	err := s.db.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&relativePath)
-	if err == sql.ErrNoRows {
-		return nil
-	}
+	relativePath, found, err := s.pdfBindings.Binding(ctx)
 	if err != nil {
-		return fmt.Errorf("read PDF store binding: %w", err)
+		return err
+	}
+	if !found {
+		return nil
 	}
 	if filepath.IsAbs(relativePath) {
 		return fmt.Errorf("bound PDF store path must be relative")

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 )
 
 // TestAddNormalizesDOIDeduplicatesBlobsAndPreservesExistingDocument verifies add normalizes doi deduplicates blobs and preserves existing document.
@@ -87,11 +88,11 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 	if _, err := store.Add(ctx, "10.1000/audit", workID, []byte("%PDF-1.7\naudit")); err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	first, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	second, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func TestFlushAuditOutboxDropsStalePipelineRun(t *testing.T) {
 	if err != nil || !registered {
 		t.Fatalf("register stale inventory: registered=%v err=%v", registered, err)
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +242,7 @@ func TestFlushAuditOutboxContinuesAfterOneBadEvent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if flushed != 1 || err == nil || !strings.Contains(err.Error(), "injected audit failure") {
 		t.Fatalf("failure-isolating flush=%d err=%v", flushed, err)
 	}
@@ -278,7 +279,7 @@ func TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if flushed != 0 || err == nil || !strings.Contains(err.Error(), "injected link failure") {
 		t.Fatalf("link-failure flush=%d err=%v", flushed, err)
 	}
@@ -299,7 +300,7 @@ func TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails(t *testing.T) {
 	if _, err := metadata.DB.Exec("DROP TRIGGER reject_pdf_audit_link"); err != nil {
 		t.Fatal(err)
 	}
-	flushed, err = store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err = store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil || flushed != 1 {
 		t.Fatalf("retry flush=%d err=%v, want one delivered event", flushed, err)
 	}
@@ -346,29 +347,6 @@ func TestAddRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
 	document, err := store.Document(ctx, "10.1000/rollback")
 	if err != nil || document == nil || document.Status != StatusNotAvailable {
 		t.Fatalf("failed add inventory document=%+v err=%v", document, err)
-	}
-}
-
-// TestBoundStorePathUsesDefaultAndPreservesExistingBinding verifies bound store path uses default and preserves existing binding.
-func TestBoundStorePathUsesDefaultAndPreservesExistingBinding(t *testing.T) {
-	ctx := context.Background()
-	registry := filepath.Join("..", "..", "config", "database.something")
-	tempDir := t.TempDir()
-	metadataPath := filepath.Join(tempDir, "corpus.metadata.db")
-	metadata, err := database.Open(metadataPath, registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer metadata.Close()
-	path, err := BoundStorePath(ctx, metadata.DB, metadataPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != filepath.Join(tempDir, DefaultStoreFilename) {
-		t.Fatalf("default PDF store path = %q", path)
-	}
-	if err := BindStore(ctx, metadata.DB, "other.pdf.db"); err == nil || !strings.Contains(err.Error(), "already bound") {
-		t.Fatalf("conflicting binding error = %v", err)
 	}
 }
 

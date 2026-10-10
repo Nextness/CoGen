@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 )
 
@@ -468,7 +469,8 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
-	if err := pdfstore.BindStore(ctx, metadata.DB, "corpus.pdf.db"); err != nil {
+	bindings := pdfbinding.New(metadata.DB)
+	if err := bindings.EnsureBinding(ctx, "corpus.pdf.db"); err != nil {
 		t.Fatal(err)
 	}
 	store, err := pdfstore.Open(filepath.Join(tempDir, "corpus.pdf.db"), registry)
@@ -489,7 +491,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, deterministicFixturePDF("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.FlushAuditOutbox(ctx, metadata.DB); err != nil {
+	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

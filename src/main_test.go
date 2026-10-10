@@ -5,6 +5,7 @@ package main
 
 import (
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/manifest"
 	"analysis/pdfstore"
 	"analysis/workspace"
@@ -301,7 +302,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	if err := db.DB.QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action=?", manifest.AuditStepReused).Scan(&stepRunID); err != nil || stepRunID != 2 {
 		t.Fatalf("preflight reuse audit run ID = %d, %v", stepRunID, err)
 	}
-	pdfInventory, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), filepath.Join(rootDir, "config", "database.something"))
+	pdfInventory, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), filepath.Join(rootDir, "config", "database.something"))
 	if err != nil {
 		t.Fatal(err)
 	}

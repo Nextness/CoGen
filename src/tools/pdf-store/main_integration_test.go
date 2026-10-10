@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 )
 
@@ -54,10 +55,11 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	if err := pdfstore.BindStore(ctx, metadata.DB, pdfstore.DefaultStoreFilename); err != nil {
+	bindings := pdfbinding.New(metadata.DB)
+	if err := bindings.EnsureBinding(ctx, pdfbinding.DefaultStoreFilename); err != nil {
 		t.Fatal(err)
 	}
-	store, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), registry)
+	store, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +72,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.FlushAuditOutbox(ctx, metadata.DB); err != nil {
+	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
 		store.Close()
 		t.Fatal(err)
 	}
