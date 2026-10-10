@@ -6,6 +6,8 @@ COVERAGE_CHECK   ?= build/coveragecheck
 PREPARE_OSF      ?= build/prepare-osf
 GITLEAKS        ?= build/gitleaks
 GITLEAKS_VERSION ?= v8.30.1
+SQLC             ?= build/sqlc
+SQLC_VERSION     ?= v1.31.1
 GO               ?= go
 GOWD             := src
 DB               ?= corpus.metadata.db
@@ -30,7 +32,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -113,6 +115,16 @@ gitleaks-install: ## Install gitleaks to build/gitleaks for local secret scannin
 
 gitleaks: gitleaks-install ## Run the gitleaks secret scan over the repository.
 	"$(GITLEAKS)" detect --source . --no-banner --redact
+
+sqlc-install: ## Install pinned sqlc to build/sqlc for family SQL code generation.
+	@test -x "$(SQLC)" || { mkdir -p "$(dir $(SQLC))"; cd $(GOWD) && GOBIN="$(abspath $(dir $(SQLC)))" $(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION); }
+
+sqlc-generate: sqlc-install ## Generate committed Go from family SQL inputs with config/sqlc.yaml.
+	"$(SQLC)" -f config/sqlc.yaml generate
+
+sqlc-check: sqlc-install ## Verify generated Go is current and maintained queries pass sqlc analysis.
+	"$(SQLC)" -f config/sqlc.yaml diff
+	"$(SQLC)" -f config/sqlc.yaml vet
 
 test: test-go ## Run all Go tests without test-result caching.
 

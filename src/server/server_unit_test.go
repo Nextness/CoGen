@@ -288,23 +288,23 @@ func TestHelper_stringID(t *testing.T) {
 
 // TestHelper_nullableValue verifies helper nullable value.
 func TestHelper_nullableValue(t *testing.T) {
+	hello, empty := "hello", ""
 	tests := []struct {
-		input sql.NullString
+		input *string
 		want  any
 	}{
-		{sql.NullString{String: "hello", Valid: true}, "hello"},
-		{sql.NullString{String: "", Valid: true}, ""},
-		{sql.NullString{String: "anything", Valid: false}, nil},
-		{sql.NullString{Valid: false}, nil},
+		{&hello, "hello"},
+		{&empty, ""},
+		{nil, nil},
 	}
 	for _, tc := range tests {
-		got := nullableString(tc.input)
+		got := nullableText(tc.input)
 		if tc.want == nil {
 			if got != nil {
-				t.Errorf("nullableString(%+v) = %v, want nil", tc.input, got)
+				t.Errorf("nullableText(%+v) = %v, want nil", tc.input, got)
 			}
 		} else if got != tc.want {
-			t.Errorf("nullableString(%+v) = %v, want %v", tc.input, got, tc.want)
+			t.Errorf("nullableText(%+v) = %v, want %v", tc.input, got, tc.want)
 		}
 	}
 }
@@ -798,83 +798,6 @@ func TestHelper_auditMultiValues(t *testing.T) {
 	})
 }
 
-// TestHelper_auditInClause verifies helper audit in clause.
-func TestHelper_auditInClause(t *testing.T) {
-	t.Run("single value", func(t *testing.T) {
-		clause, args := auditInClause("col", []string{"val1"})
-		if clause != "col IN (?)" {
-			t.Errorf("clause = %q, want %q", clause, "col IN (?)")
-		}
-		if len(args) != 1 || args[0] != "val1" {
-			t.Errorf("args = %v, want [val1]", args)
-		}
-	})
-	t.Run("multiple values", func(t *testing.T) {
-		clause, args := auditInClause("actor", []string{"a", "b", "c"})
-		if clause != "actor IN (?,?,?)" {
-			t.Errorf("clause = %q, want %q", clause, "actor IN (?,?,?)")
-		}
-		if len(args) != 3 {
-			t.Fatalf("len(args) = %d, want 3", len(args))
-		}
-		for i, want := range []string{"a", "b", "c"} {
-			if args[i] != want {
-				t.Errorf("args[%d] = %v, want %v", i, args[i], want)
-			}
-		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		clause, args := auditInClause("col", []string{})
-		if clause != "col IN ()" {
-			t.Errorf("clause = %q, want %q", clause, "col IN ()")
-		}
-		if len(args) != 0 {
-			t.Errorf("args = %v, want empty", args)
-		}
-	})
-}
-
-// TestHelper_auditWhere verifies helper audit where.
-func TestHelper_auditWhere(t *testing.T) {
-	tests := []struct {
-		clauses []string
-		want    string
-	}{
-		{nil, ""},
-		{[]string{}, ""},
-		{[]string{"a = 1"}, " WHERE a = 1"},
-		{[]string{"a = 1", "b = 2"}, " WHERE a = 1 AND b = 2"},
-		{[]string{"x IN (?,?,?)", "y IS NULL"}, " WHERE x IN (?,?,?) AND y IS NULL"},
-	}
-	for _, tc := range tests {
-		got := auditWhere(tc.clauses)
-		if got != tc.want {
-			t.Errorf("auditWhere(%v) = %q, want %q", tc.clauses, got, tc.want)
-		}
-	}
-}
-
-// TestHelper_corpusSelectColumns verifies helper corpus select columns.
-func TestHelper_corpusSelectColumns(t *testing.T) {
-	tests := []struct {
-		kind string
-		want string
-	}{
-		{"articles", "wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi, validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at, wr.abstract, wr.keywords, wr.keywords_plus, (SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors"},
-		{"authors", "ao.id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, ao.person_id, COUNT(DISTINCT a.work_revision_id) AS article_count, COUNT(DISTINCT NULLIF(a.affiliation, '')) AS affiliation_count, ao.created_at"},
-		{"references", "rm.id, rm.work_revision_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.resolved_work_id, wr.title AS citing_title, rm.created_at"},
-		{"sources", "sr.id, sr.run_source_id, rs.source_name, rs.source_type, sr.record_index, sr.parse_status, sr.reject_reason, sr.content_hash, sr.created_at"},
-		{"unknown", ""},
-		{"", ""},
-	}
-	for _, tc := range tests {
-		got := corpusSelectColumns(tc.kind)
-		if got != tc.want {
-			t.Errorf("corpusSelectColumns(%q) = %q, want %q", tc.kind, got, tc.want)
-		}
-	}
-}
-
 // TestHelper_scopedPagination verifies helper scoped pagination.
 func TestHelper_scopedPagination(t *testing.T) {
 	tests := []struct {
@@ -1015,4 +938,19 @@ func TestHelper_parseOptionalInt(t *testing.T) {
 // ptr supports the package test suite's ptr setup or assertions.
 func ptr(v float64) *float64 {
 	return &v
+}
+
+// TestScopedRowsRequestCapsSearchQuery verifies the shared scoped-rows parser
+// rejects an oversized search string before it reaches a family builder.
+func TestScopedRowsRequestCapsSearchQuery(t *testing.T) {
+	fields := map[string]string{"id": "id"}
+	oversized := httptest.NewRequest(http.MethodGet, "/?q="+strings.Repeat("x", 201), nil)
+	if _, _, _, _, _, err := scopedRowsRequest(oversized, fields, "id"); err == nil {
+		t.Fatal("expected an oversized search query to be rejected")
+	}
+	valid := httptest.NewRequest(http.MethodGet, "/?q=short", nil)
+	page, perPage, sort, order, query, err := scopedRowsRequest(valid, fields, "id")
+	if err != nil || page != 1 || perPage != 50 || sort != "id" || order != "ASC" || query != "short" {
+		t.Fatalf("valid request = (%d,%d,%q,%q,%q,%v)", page, perPage, sort, order, query, err)
+	}
 }

@@ -10,26 +10,26 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"analysis/database"
-	"analysis/internal/pathpolicy"
 	"analysis/manifest"
+	generated "analysis/pdfstore/internal/sql"
 )
 
 const (
-	DefaultStoreFilename = "corpus.pdf.db"
-	StatusNotAvailable   = "not_available"
-	StatusAvailable      = "available"
+	StatusNotAvailable = "not_available"
+	StatusAvailable    = "available"
 )
 
-// Store is the writable companion PDF database.
+// Store is one companion PDF database handle bound to an already configured
+// connection. The pipeline opens the writable store through Open; the viewer
+// binds its statement-budgeted read-only connection through New.
 type Store struct {
-	DB  *sql.DB
-	now func() time.Time
+	DB      *sql.DB
+	queries *generated.Queries
+	now     func() time.Time
 }
 
 // Document describes one normalized article's PDF inventory state.
@@ -41,11 +41,34 @@ type Document struct {
 	UpdatedAt     string
 }
 
+// AvailableDocument is one available companion document's inventory metadata
+// and stored byte size.
+type AvailableDocument struct {
+	ContentHash   string
+	InventoriedAt string
+	ByteSize      int64
+}
+
+// InventoryEntry is one available companion document's DOI and optional
+// inventory timestamp.
+type InventoryEntry struct {
+	DOI           string
+	InventoriedAt *string
+}
+
 // AddResult reports the content identity, byte size, and insertion outcome of a manual PDF add.
 type AddResult struct {
 	ContentHash string
 	ByteSize    int
 	Added       bool
+}
+
+// New returns a companion-store handle over an already configured connection.
+// It only binds the generated queries to db; it does not build a SQLite URI,
+// alter pragmas, open or close the connection, load migration configuration,
+// or run migrations.
+func New(db *sql.DB) *Store {
+	return &Store{DB: db, queries: generated.New(db), now: time.Now}
 }
 
 // Open creates or opens the PDF store and applies its independent migration
@@ -55,7 +78,7 @@ func Open(path, registryPath string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open PDF store: %w", err)
 	}
-	return &Store{DB: db, now: time.Now}, nil
+	return New(db), nil
 }
 
 // Close releases resources owned by the receiver.
@@ -78,24 +101,85 @@ func newCorrelationID() (string, error) {
 
 // Document returns PDF inventory metadata for a normalized DOI, or nil when it is unregistered.
 func (s *Store) Document(ctx context.Context, doi string) (*Document, error) {
-	doi = database.NormalizeDOI(doi)
-	var document Document
-	var contentHash, inventoriedAt sql.NullString
-	err := s.DB.QueryRowContext(ctx, `SELECT doi, status, content_hash,
-		inventoried_at, updated_at
-		FROM pdf_documents WHERE doi=?`, doi).Scan(
-		&document.DOI, &document.Status, &contentHash,
-		&inventoriedAt, &document.UpdatedAt,
-	)
+	row, err := s.queries.GetPDFDocument(ctx, database.NormalizeDOI(doi))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	document.ContentHash = contentHash.String
-	document.InventoriedAt = inventoriedAt.String
-	return &document, nil
+	return &Document{
+		DOI:           row.Doi,
+		Status:        row.Status,
+		ContentHash:   row.ContentHash.String,
+		InventoriedAt: row.InventoriedAt.String,
+		UpdatedAt:     row.UpdatedAt,
+	}, nil
+}
+
+// AvailablePDFDOIs returns normalized DOIs with available companion content in
+// DOI order.
+func (s *Store) AvailablePDFDOIs(ctx context.Context) ([]string, error) {
+	rows, err := s.queries.ListAvailablePDFDOIs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list available PDF DOIs: %w", err)
+	}
+	items := make([]string, 0, len(rows))
+	items = append(items, rows...)
+	return items, nil
+}
+
+// InventoryForDOIs returns the available inventory timestamp for every
+// supplied DOI that has stored content, ordered by DOI. An empty request
+// returns no rows without querying.
+func (s *Store) InventoryForDOIs(ctx context.Context, dois []string) ([]*InventoryEntry, error) {
+	if len(dois) == 0 {
+		return nil, nil
+	}
+	rows, err := s.queries.ListAvailableDocumentInventory(ctx, dois)
+	if err != nil {
+		return nil, fmt.Errorf("list available document inventory: %w", err)
+	}
+	items := make([]*InventoryEntry, 0, len(rows))
+	for _, row := range rows {
+		item := &InventoryEntry{DOI: row.Doi}
+		if row.InventoriedAt.Valid {
+			inventoriedAt := row.InventoriedAt.String
+			item.InventoriedAt = &inventoriedAt
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+// AvailableDocument returns one available document's inventory metadata, or
+// nil when the normalized DOI has no available content.
+func (s *Store) AvailableDocument(ctx context.Context, doi string) (*AvailableDocument, error) {
+	row, err := s.queries.GetAvailablePDFDocument(ctx, database.NormalizeDOI(doi))
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get available PDF document: %w", err)
+	}
+	return &AvailableDocument{
+		ContentHash:   row.ContentHash.String,
+		InventoriedAt: row.InventoriedAt.String,
+		ByteSize:      row.ByteSize,
+	}, nil
+}
+
+// BlobData returns stored bytes for one content hash, or nil when the blob is
+// absent.
+func (s *Store) BlobData(ctx context.Context, contentHash string) ([]byte, error) {
+	data, err := s.queries.GetPDFBlobData(ctx, contentHash)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get PDF blob data: %w", err)
+	}
+	return data, nil
 }
 
 // Register creates the not-available inventory row for one normalized work.
@@ -117,10 +201,12 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 		return false, err
 	}
 	defer tx.Rollback()
+	queries := s.queries.WithTx(tx)
 
 	now := timestamp(s.now())
-	result, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pdf_documents
-		(doi, status, updated_at) VALUES (?, 'not_available', ?)`, doi, now)
+	result, err := queries.InsertPDFDocument(ctx, generated.InsertPDFDocumentParams{
+		Doi: doi, UpdatedAt: now,
+	})
 	if err != nil {
 		return false, fmt.Errorf("register PDF inventory document: %w", err)
 	}
@@ -142,7 +228,7 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 	if err != nil {
 		return false, err
 	}
-	if err := insertOutbox(ctx, tx, OutboxEvent{
+	if err := insertOutbox(ctx, queries, OutboxEvent{
 		Actor: "pipeline", PipelineRunID: pipelineRunID,
 		EntityType: "work", EntityID: strconv.FormatInt(workID, 10),
 		Action: string(manifest.AuditPDFInventoryRegistered), MetadataJSON: string(metadata),
@@ -171,65 +257,63 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 	if err != nil {
 		return AddResult{}, err
 	}
+	// The transaction stays handwritten because the concurrent compare-and-swap
+	// fallback must roll back the speculative blob insert instead of committing it.
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return AddResult{}, err
 	}
 	defer tx.Rollback()
+	queries := s.queries.WithTx(tx)
 
-	var status string
-	var existingHash sql.NullString
-	var existingSize sql.NullInt64
-	var existingData []byte
-	err = tx.QueryRowContext(ctx, `SELECT d.status, d.content_hash, b.byte_size, b.data
-		FROM pdf_documents d
-		LEFT JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=?`, doi).Scan(&status, &existingHash, &existingSize, &existingData)
+	existing, err := queries.GetPDFDocumentWithBlob(ctx, doi)
 	if err == sql.ErrNoRows {
 		return AddResult{}, fmt.Errorf("DOI %q is not registered in the normalized PDF inventory", doi)
 	}
 	if err != nil {
 		return AddResult{}, fmt.Errorf("read existing PDF document: %w", err)
 	}
-	if status == StatusAvailable {
-		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+	if existing.Status == StatusAvailable {
+		if err := validateStoredPDFBlob(existing.ContentHash, existing.ByteSize, existing.Data); err != nil {
 			return AddResult{}, fmt.Errorf("available PDF inventory document %q is corrupt: %w", doi, err)
 		}
-		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
+		return AddResult{ContentHash: existing.ContentHash.String, ByteSize: int(existing.ByteSize.Int64), Added: false}, nil
 	}
-	if status != StatusNotAvailable {
-		return AddResult{}, fmt.Errorf("PDF inventory document %q has unsupported status %q", doi, status)
+	if existing.Status != StatusNotAvailable {
+		return AddResult{}, fmt.Errorf("PDF inventory document %q has unsupported status %q", doi, existing.Status)
 	}
 
 	now := timestamp(s.now())
-	if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO pdf_blobs
-		(content_hash, byte_size, data, created_at) VALUES (?, ?, ?, ?)`, hash, len(data), data, now); err != nil {
+	if err := queries.InsertPDFBlob(ctx, generated.InsertPDFBlobParams{
+		ContentHash: hash, ByteSize: int64(len(data)), Data: data, CreatedAt: now,
+	}); err != nil {
 		return AddResult{}, fmt.Errorf("insert PDF blob: %w", err)
 	}
-	var storedSize int
-	if err := tx.QueryRowContext(ctx, "SELECT byte_size FROM pdf_blobs WHERE content_hash=?", hash).Scan(&storedSize); err != nil {
+	storedSize, err := queries.GetPDFBlobSize(ctx, hash)
+	if err != nil {
 		return AddResult{}, fmt.Errorf("verify PDF blob: %w", err)
 	}
-	if storedSize != len(data) {
+	if storedSize != int64(len(data)) {
 		return AddResult{}, fmt.Errorf("existing PDF blob size does not match its content hash")
 	}
-	result, err := tx.ExecContext(ctx, `UPDATE pdf_documents
-		SET status='available', content_hash=?, inventoried_at=?, updated_at=?
-		WHERE doi=? AND status='not_available'`, hash, now, now, doi)
+	result, err := queries.MarkPDFDocumentAvailable(ctx, generated.MarkPDFDocumentAvailableParams{
+		ContentHash:   sql.NullString{String: hash, Valid: true},
+		InventoriedAt: sql.NullString{String: now, Valid: true},
+		UpdatedAt:     now,
+		Doi:           doi,
+	})
 	if err != nil {
 		return AddResult{}, fmt.Errorf("store PDF document: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected != 1 {
-		if err := tx.QueryRowContext(ctx, `SELECT d.content_hash, b.byte_size, b.data
-			FROM pdf_documents d
-			JOIN pdf_blobs b ON b.content_hash=d.content_hash
-			WHERE d.doi=? AND d.status='available'`, doi).Scan(&existingHash, &existingSize, &existingData); err != nil {
+		concurrent, err := queries.GetAvailablePDFDocumentWithBlob(ctx, doi)
+		if err != nil {
 			return AddResult{}, fmt.Errorf("read concurrently stored PDF document: %w", err)
 		}
-		if err := validateStoredPDFBlob(existingHash, existingSize, existingData); err != nil {
+		if err := validateStoredPDFBlob(concurrent.ContentHash, sql.NullInt64{Int64: concurrent.ByteSize, Valid: true}, concurrent.Data); err != nil {
 			return AddResult{}, fmt.Errorf("concurrently stored PDF inventory document %q is corrupt: %w", doi, err)
 		}
-		return AddResult{ContentHash: existingHash.String, ByteSize: int(existingSize.Int64), Added: false}, nil
+		return AddResult{ContentHash: concurrent.ContentHash.String, ByteSize: int(concurrent.ByteSize), Added: false}, nil
 	}
 
 	correlationID, err := newCorrelationID()
@@ -243,7 +327,7 @@ func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) 
 	if err != nil {
 		return AddResult{}, err
 	}
-	if err := insertOutbox(ctx, tx, OutboxEvent{
+	if err := insertOutbox(ctx, queries, OutboxEvent{
 		Actor: "user", EntityType: "work", EntityID: strconv.FormatInt(workID, 10),
 		Action: string(manifest.AuditPDFDocumentInventoried), MetadataJSON: string(metadata), CorrelationID: correlationID,
 	}, now); err != nil {
@@ -268,88 +352,4 @@ func validateStoredPDFBlob(contentHash sql.NullString, byteSize sql.NullInt64, d
 		return fmt.Errorf("stored blob digest does not match its content hash")
 	}
 	return nil
-}
-
-// BindStore records a portable bundle-relative companion path. Existing
-// bindings are preserved so older corpus bundles remain usable.
-func BindStore(ctx context.Context, metadata *sql.DB, relativePath string) error {
-	cleanPath, err := validateRelativeStorePath(relativePath)
-	if err != nil {
-		return err
-	}
-	var existingPath string
-	err = metadata.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&existingPath)
-	if err == sql.ErrNoRows {
-		digest := sha256.Sum256([]byte("pdf-inventory-store\x00" + cleanPath))
-		_, err = metadata.ExecContext(ctx, `INSERT INTO pdf_store_binding
-			(id, relative_path, configured_at, config_fingerprint) VALUES (1, ?, ?, ?)`,
-			cleanPath, timestamp(time.Now()), hex.EncodeToString(digest[:]))
-		if err != nil {
-			return fmt.Errorf("create PDF store binding: %w", err)
-		}
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("read PDF store binding: %w", err)
-	}
-	if existingPath != cleanPath {
-		return fmt.Errorf("metadata corpus is already bound to PDF store %q, not %q", existingPath, cleanPath)
-	}
-	return nil
-}
-
-// BoundStorePath returns the existing companion path or binds the default
-// corpus.pdf.db beside the metadata database on first inventory use.
-func BoundStorePath(ctx context.Context, metadata *sql.DB, metadataPath string) (string, error) {
-	var relativePath string
-	err := metadata.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&relativePath)
-	if err == sql.ErrNoRows {
-		relativePath = DefaultStoreFilename
-		if err := BindStore(ctx, metadata, relativePath); err != nil {
-			return "", err
-		}
-	} else if err != nil {
-		return "", fmt.Errorf("read PDF store binding: %w", err)
-	}
-	return resolveStorePath(metadataPath, relativePath)
-}
-
-// resolveStorePath resolves store path from the supplied context.
-func resolveStorePath(metadataPath, relativePath string) (string, error) {
-	if metadataPath == "" {
-		return "", fmt.Errorf("metadata database path is required")
-	}
-	cleanPath, err := validateRelativeStorePath(relativePath)
-	if err != nil {
-		return "", err
-	}
-	metadataAbsolute, err := filepath.Abs(metadataPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve metadata database path: %w", err)
-	}
-	metadataDir := filepath.Dir(metadataAbsolute)
-	storePath, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, cleanPath)
-	if err != nil {
-		return "", fmt.Errorf("resolve PDF store path: %w", err)
-	}
-	metadataResolved, err := pathpolicy.ResolveExistingComponentsWithin(metadataDir, metadataAbsolute)
-	if err != nil {
-		return "", fmt.Errorf("resolve metadata database path: %w", err)
-	}
-	if storePath == metadataResolved {
-		return "", fmt.Errorf("PDF store path must differ from the metadata database path")
-	}
-	return storePath, nil
-}
-
-// validateRelativeStorePath rejects absolute or escaping companion-store paths and returns a clean relative path.
-func validateRelativeStorePath(relativePath string) (string, error) {
-	if filepath.IsAbs(relativePath) {
-		return "", fmt.Errorf("PDF store path must be relative")
-	}
-	cleanPath := filepath.Clean(strings.TrimSpace(relativePath))
-	if cleanPath == "." || cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("PDF store path must stay within the metadata database directory")
-	}
-	return cleanPath, nil
 }

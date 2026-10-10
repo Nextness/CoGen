@@ -3,13 +3,14 @@
 package workspace
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"analysis/article"
 	"analysis/database"
+	dbwork "analysis/database/work"
 	"analysis/searchterms"
 )
 
@@ -53,8 +54,10 @@ func hasAnyMatch(fields map[string][]string) bool {
 }
 
 // persistRunTermMatches stores the term inventory and revision matches for one run.
-func persistRunTermMatches(db *database.Database, runID int64, termsBySource map[string][]string, matches map[int64]map[string][]string) error {
-	if err := db.TermMatches.ReplaceRunTermData(runID, termsBySource, matches); err != nil {
+func persistRunTermMatches(ctx context.Context, db *database.Database, runID int64, termsBySource map[string][]string, matches map[int64]map[string][]string) error {
+	if err := db.Work.ReplaceRunTermData(ctx, dbwork.ReplaceTermDataInput{
+		RunID: runID, TermsBySource: termsBySource, Matches: matches,
+	}); err != nil {
 		return fmt.Errorf("persist term matches: %w", err)
 	}
 	return nil
@@ -63,8 +66,8 @@ func persistRunTermMatches(db *database.Database, runID int64, termsBySource map
 // reconcileStoredTermMatchesBestEffort runs the reconciliation pass and logs
 // failures without propagating them, so a backfill problem never fails the run
 // or the invocation.
-func reconcileStoredTermMatchesBestEffort(db *database.Database) {
-	if err := reconcileStoredTermMatches(db); err != nil {
+func reconcileStoredTermMatchesBestEffort(ctx context.Context, db *database.Database) {
+	if err := reconcileStoredTermMatches(ctx, db); err != nil {
 		log.Error("term match reconciliation failed", "error", err)
 	}
 }
@@ -72,7 +75,7 @@ func reconcileStoredTermMatchesBestEffort(db *database.Database) {
 // reconcileStoredTermMatches backfills term data for every completed run that
 // lacks stored match rows. It reads only stored queries and normalize
 // revisions and never reruns pipeline stages.
-func reconcileStoredTermMatches(db *database.Database) error {
+func reconcileStoredTermMatches(ctx context.Context, db *database.Database) error {
 	rows, err := db.DB.Query(`SELECT id FROM pipeline_runs WHERE status='completed' ORDER BY id`)
 	if err != nil {
 		return fmt.Errorf("list completed runs for term reconciliation: %w", err)
@@ -95,18 +98,18 @@ func reconcileStoredTermMatches(db *database.Database) error {
 	}
 	backfilled := 0
 	for _, runID := range runIDs {
-		reconciled, err := db.TermMatches.HasRunTermData(runID)
+		reconciled, err := db.Work.HasRunTermData(ctx, runID)
 		if err != nil {
 			return err
 		}
 		if reconciled {
 			continue
 		}
-		termsBySource, matches, err := computeStoredRunTermMatches(db, runID)
+		termsBySource, matches, err := computeStoredRunTermMatches(ctx, db, runID)
 		if err != nil {
 			return fmt.Errorf("compute term matches for run %d: %w", runID, err)
 		}
-		if err := persistRunTermMatches(db, runID, termsBySource, matches); err != nil {
+		if err := persistRunTermMatches(ctx, db, runID, termsBySource, matches); err != nil {
 			return fmt.Errorf("persist term matches for run %d: %w", runID, err)
 		}
 		backfilled++
@@ -119,8 +122,8 @@ func reconcileStoredTermMatches(db *database.Database) error {
 }
 
 // computeStoredRunTermMatches derives term data for one run from stored rows.
-func computeStoredRunTermMatches(db *database.Database, runID int64) (map[string][]string, map[int64]map[string][]string, error) {
-	sources, err := db.RunSources.ListByRun(runID)
+func computeStoredRunTermMatches(ctx context.Context, db *database.Database, runID int64) (map[string][]string, map[int64]map[string][]string, error) {
+	sources, err := db.Source.ListSourcesByRun(ctx, runID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,26 +140,16 @@ func computeStoredRunTermMatches(db *database.Database, runID int64) (map[string
 			termsBySource[source] = append(termsBySource[source], term.Text)
 		}
 	}
-	rows, err := db.DB.Query(`SELECT id, title, abstract, keywords, keywords_plus
-		FROM work_revisions WHERE pipeline_run_id=? AND producer_stage='normalize' ORDER BY id`, runID)
+	revisions, err := db.Work.ListNormalizeRevisionsByRunID(ctx, runID)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
 	matches := make(map[int64]map[string][]string)
-	for rows.Next() {
-		var revisionID int64
-		var title, abstract, keywords, keywordsPlus sql.NullString
-		if err := rows.Scan(&revisionID, &title, &abstract, &keywords, &keywordsPlus); err != nil {
-			return nil, nil, err
-		}
-		fieldMatches := searchterms.MatchFields(title.String, abstract.String, parseKeywordArray(keywords), parseKeywordArray(keywordsPlus), terms)
+	for _, revision := range revisions {
+		fieldMatches := searchterms.MatchFields(revision.Title, revision.Abstract, parseKeywordArray(revision.Keywords), parseKeywordArray(revision.KeywordsPlus), terms)
 		if hasAnyMatch(fieldMatches) {
-			matches[revisionID] = fieldMatches
+			matches[revision.ID] = fieldMatches
 		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, err
 	}
 	return termsBySource, matches, nil
 }
@@ -164,13 +157,13 @@ func computeStoredRunTermMatches(db *database.Database, runID int64) (map[string
 // parseKeywordArray decodes a stored keyword TEXT value into an array. JSON
 // arrays are used when present; JSON null and empty values become empty arrays;
 // otherwise the raw text is treated as a single element.
-func parseKeywordArray(raw sql.NullString) []string {
-	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+func parseKeywordArray(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
 	var arr []string
-	if err := json.Unmarshal([]byte(raw.String), &arr); err == nil {
+	if err := json.Unmarshal([]byte(raw), &arr); err == nil {
 		return arr
 	}
-	return []string{raw.String}
+	return []string{raw}
 }

@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/database/cache"
+	dbrun "analysis/database/run"
 	"analysis/enrich"
 	"analysis/manifest"
 )
@@ -52,20 +54,29 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 	fingerprint := cacheFingerprint(request)
 	for _, layer := range c.policy.Reads {
 		var (
-			entry *database.CacheEntry
+			entry *cache.Entry
 			err   error
 		)
 		switch {
 		case layer == "active_run":
-			entry, err = c.db.RunCacheUses.FindEntry(c.runID, "active_run", request.Provider, request.Namespace, fingerprint, c.extractorVersion("active_run"))
+			entry, err = c.db.Cache.FindEntry(ctx, c.runID, "active_run", cache.Key{
+				Provider: request.Provider, Namespace: request.Namespace,
+				RequestFingerprint: fingerprint, ExtractorVersion: c.extractorVersion("active_run"),
+			})
 		case strings.HasPrefix(layer, "run:"):
 			priorRunID, parseErr := strconv.ParseInt(strings.TrimPrefix(layer, "run:"), 10, 64)
 			if parseErr != nil || priorRunID <= 0 {
 				return nil, fmt.Errorf("invalid named cache layer %q", layer)
 			}
-			entry, err = c.db.RunCacheUses.FindAnyEntry(priorRunID, request.Provider, request.Namespace, fingerprint, cacheExtractorVersion)
+			entry, err = c.db.Cache.FindAnyEntry(ctx, priorRunID, cache.Key{
+				Provider: request.Provider, Namespace: request.Namespace,
+				RequestFingerprint: fingerprint, ExtractorVersion: cacheExtractorVersion,
+			})
 		case layer == "global":
-			entry, err = c.db.CacheEntries.GetGlobal(request.Provider, request.Namespace, fingerprint, cacheExtractorVersion)
+			entry, err = c.db.Cache.GlobalEntry(ctx, cache.Key{
+				Provider: request.Provider, Namespace: request.Namespace,
+				RequestFingerprint: fingerprint, ExtractorVersion: cacheExtractorVersion,
+			})
 		case layer == "network":
 			return c.fetchAndRecord(ctx, request, fingerprint, layer, fetch, negative)
 		default:
@@ -75,25 +86,25 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 			return nil, err
 		}
 		if entry == nil {
-			if err := c.incrementMetric("cache_misses", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_misses", request.Provider); err != nil {
 				return nil, err
 			}
 			continue
 		}
 		if cacheEntryExpired(entry, time.Now().UTC()) {
-			if err := c.recordUse(entry.ID, layer, manifest.CacheStale); err != nil {
+			if err := c.recordUse(ctx, entry.ID, layer, manifest.CacheStale); err != nil {
 				return nil, err
 			}
-			if err := c.incrementMetric("cache_stale", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_stale", request.Provider); err != nil {
 				return nil, err
 			}
 			continue
 		}
 		if entry.ResponseStatus == 404 {
-			if err := c.recordUse(entry.ID, layer, manifest.CacheNegative); err != nil {
+			if err := c.recordUse(ctx, entry.ID, layer, manifest.CacheNegative); err != nil {
 				return nil, err
 			}
-			if err := c.incrementMetric("cache_negative", request.Provider); err != nil {
+			if err := c.incrementMetric(ctx, "cache_negative", request.Provider); err != nil {
 				return nil, err
 			}
 			return &cacheResponse{Status: entry.ResponseStatus, Layer: layer, Outcome: manifest.CacheNegative}, nil
@@ -101,24 +112,24 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 		if entry.PayloadArtifactID == nil {
 			return nil, fmt.Errorf("cache entry %d has no payload artifact", entry.ID)
 		}
-		body, err := c.readPayload(*entry.PayloadArtifactID)
+		body, err := c.readPayload(ctx, *entry.PayloadArtifactID)
 		if err != nil {
 			return nil, err
 		}
 		if err := validateCachePayload(request, body); err != nil {
 			log.Warn("cached provider payload is not reusable", "cache_entry_id", entry.ID, "provider", request.Provider, "namespace", request.Namespace, "error", err)
-			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
+			if metricErr := c.incrementMetric(ctx, "cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
 			}
 			continue
 		}
-		if err := c.recordUse(entry.ID, layer, manifest.CacheHit); err != nil {
+		if err := c.recordUse(ctx, entry.ID, layer, manifest.CacheHit); err != nil {
 			return nil, err
 		}
-		if err := c.incrementMetric("cache_hits", request.Provider); err != nil {
+		if err := c.incrementMetric(ctx, "cache_hits", request.Provider); err != nil {
 			return nil, err
 		}
-		if err := c.recordAudit(manifest.AuditCacheHit, request, layer, manifest.CacheHit, entry.ID); err != nil {
+		if err := c.recordAudit(ctx, manifest.AuditCacheHit, request, layer, manifest.CacheHit, entry.ID); err != nil {
 			return nil, err
 		}
 		return &cacheResponse{Body: body, Status: entry.ResponseStatus, Layer: layer, Outcome: manifest.CacheHit, PayloadArtifactID: *entry.PayloadArtifactID}, nil
@@ -128,14 +139,14 @@ func (c *workspaceCache) resolve(ctx context.Context, request cacheRequest, fetc
 
 // fetchAndRecord validates a network result, persists cacheable evidence, and records cache metrics and audit.
 func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheRequest, fingerprint, layer string, fetch func(context.Context) *enrich.FetchResult, negative func([]byte) bool) (*cacheResponse, error) {
-	if err := c.incrementMetric("cache_network_fetches", request.Provider); err != nil {
+	if err := c.incrementMetric(ctx, "cache_network_fetches", request.Provider); err != nil {
 		return nil, err
 	}
 	response := fetch(ctx)
 	if response == nil {
 		return nil, fmt.Errorf("network fetch %s/%s returned no result", request.Provider, request.Identity)
 	}
-	if err := c.recordAudit(manifest.AuditNetworkFetch, request, layer, manifest.CacheMiss, 0); err != nil {
+	if err := c.recordAudit(ctx, manifest.AuditNetworkFetch, request, layer, manifest.CacheMiss, 0); err != nil {
 		return nil, err
 	}
 	if response.Err != nil {
@@ -147,7 +158,7 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	}
 	if status == 200 {
 		if err := validateCachePayload(request, response.Body); err != nil {
-			if metricErr := c.incrementMetric("cache_invalid_payloads", request.Provider); metricErr != nil {
+			if metricErr := c.incrementMetric(ctx, "cache_invalid_payloads", request.Provider); metricErr != nil {
 				return nil, metricErr
 			}
 			return nil, fmt.Errorf("network fetch %s/%s returned invalid provider payload: %w", request.Provider, request.Identity, err)
@@ -159,14 +170,14 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	if status == 404 && !cacheableNegative(request) {
 		return &cacheResponse{Body: response.Body, Status: status, Layer: "network", Outcome: manifest.CacheMiss}, nil
 	}
-	entry := &database.CacheEntry{
+	entry := &cache.Entry{
 		Provider: request.Provider, Namespace: request.Namespace, RequestFingerprint: fingerprint,
 		ResponseStatus: status, FetchedAt: time.Now().UTC().Format(time.RFC3339Nano), ExtractorVersion: cacheExtractorVersion,
 	}
 	if status == 404 {
 		entry.ExpiresAt = time.Now().UTC().Add(time.Duration(c.policy.NegativeTTLDays) * 24 * time.Hour).Format(time.RFC3339Nano)
 	} else {
-		artifactID, err := persistArtifact(c.db, c.runID, response.Body, "application/json")
+		artifactID, err := persistArtifact(ctx, c.db, c.runID, response.Body, "application/json")
 		if err != nil {
 			return nil, fmt.Errorf("persist cache payload: %w", err)
 		}
@@ -179,11 +190,11 @@ func (c *workspaceCache) fetchAndRecord(ctx context.Context, request cacheReques
 	for _, writeLayer := range c.policy.Writes {
 		copy := *entry
 		copy.ExtractorVersion = c.extractorVersion(writeLayer)
-		entryID, err := c.db.CacheEntries.Upsert(&copy)
+		entryID, err := c.db.Cache.AppendEntry(ctx, &copy)
 		if err != nil {
 			return nil, err
 		}
-		if err := c.recordUse(entryID, writeLayer, outcome); err != nil {
+		if err := c.recordUse(ctx, entryID, writeLayer, outcome); err != nil {
 			return nil, err
 		}
 	}
@@ -223,9 +234,9 @@ func (c *workspaceCache) extractorVersion(layer string) string {
 }
 
 // incrementMetric increments a cache metric at both run-wide and provider scope.
-func (c *workspaceCache) incrementMetric(metric, provider string) error {
+func (c *workspaceCache) incrementMetric(ctx context.Context, metric, provider string) error {
 	for _, source := range []string{"", provider} {
-		current, err := c.db.Metrics.Get(c.runID, metric, source)
+		current, err := c.db.Run.GetMetric(ctx, c.runID, metric, source)
 		if err != nil {
 			return err
 		}
@@ -233,7 +244,7 @@ func (c *workspaceCache) incrementMetric(metric, provider string) error {
 		if current != nil {
 			value += current.Value
 		}
-		if err := c.db.Metrics.Set(c.runID, metric, source, value); err != nil {
+		if err := c.db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: c.runID, Metric: metric, Source: source, Value: value}); err != nil {
 			return err
 		}
 	}
@@ -241,14 +252,14 @@ func (c *workspaceCache) incrementMetric(metric, provider string) error {
 }
 
 // recordUse persists one run-to-cache-entry lookup outcome.
-func (c *workspaceCache) recordUse(entryID int64, layer string, outcome manifest.CacheOutcome) error {
-	_, err := c.db.RunCacheUses.Create(&database.RunCacheUse{PipelineRunID: c.runID, CacheEntryID: entryID, CacheLayer: layer, Outcome: string(outcome)})
+func (c *workspaceCache) recordUse(ctx context.Context, entryID int64, layer string, outcome manifest.CacheOutcome) error {
+	_, err := c.db.Cache.AppendUse(ctx, &cache.Use{PipelineRunID: c.runID, CacheEntryID: entryID, CacheLayer: layer, Outcome: string(outcome)})
 	return err
 }
 
 // readPayload reads payload from the supplied source.
-func (c *workspaceCache) readPayload(artifactID int64) ([]byte, error) {
-	blob, err := c.db.ArtifactBlobs.GetByArtifactID(artifactID)
+func (c *workspaceCache) readPayload(ctx context.Context, artifactID int64) ([]byte, error) {
+	blob, err := c.db.Artifact.GetBlobByArtifactID(ctx, artifactID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +270,7 @@ func (c *workspaceCache) readPayload(artifactID int64) ([]byte, error) {
 }
 
 // recordAudit appends cache decision evidence for one provider request.
-func (c *workspaceCache) recordAudit(action manifest.AuditAction, request cacheRequest, layer string, outcome manifest.CacheOutcome, entryID int64) error {
+func (c *workspaceCache) recordAudit(ctx context.Context, action manifest.AuditAction, request cacheRequest, layer string, outcome manifest.CacheOutcome, entryID int64) error {
 	metadata, err := json.Marshal(map[string]any{
 		"provider": request.Provider, "namespace": request.Namespace, "identity": request.Identity,
 		"cache_layer": layer, "cache_outcome": outcome, "cache_entry_id": entryID,
@@ -267,7 +278,7 @@ func (c *workspaceCache) recordAudit(action manifest.AuditAction, request cacheR
 	if err != nil {
 		return err
 	}
-	_, err = c.db.AuditEvents.Insert(&manifest.AuditEvent{
+	_, err = c.db.Audit.Insert(ctx, &manifest.AuditEvent{
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: c.runID,
 		EntityType: "cache_request", EntityID: cacheFingerprint(request), Action: action,
 		MetadataJSON: string(metadata), CorrelationID: "cache-" + strconv.FormatInt(c.runID, 10),
@@ -284,7 +295,7 @@ func cacheFingerprint(request cacheRequest) string {
 }
 
 // cacheEntryExpired reports whether a cache entry is past its parsed expiry, treating malformed expiry as stale.
-func cacheEntryExpired(entry *database.CacheEntry, now time.Time) bool {
+func cacheEntryExpired(entry *cache.Entry, now time.Time) bool {
 	if entry == nil || entry.ExpiresAt == "" {
 		return false
 	}

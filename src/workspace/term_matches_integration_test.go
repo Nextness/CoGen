@@ -6,6 +6,7 @@
 package workspace
 
 import (
+	"context"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -58,7 +59,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 	}
 	revisionIDs := map[string]int64{"10.1000/one": revOne, "10.1000/two": revTwo}
 	termsBySource, matches := computeRunTermMatches(run, articles, revisionIDs)
-	if err := persistRunTermMatches(db, runID, termsBySource, matches); err != nil {
+	if err := persistRunTermMatches(context.Background(), db, runID, termsBySource, matches); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)
@@ -131,7 +132,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := reconcileStoredTermMatches(db); err != nil {
+	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)
@@ -161,7 +162,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 	}
 
 	// A second pass must not duplicate rows.
-	if err := reconcileStoredTermMatches(db); err != nil {
+	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	var termRows, matchRows int
@@ -193,7 +194,7 @@ func TestReconcileStoredTermMatchesNullQueries(t *testing.T) {
 	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", "", "", 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := reconcileStoredTermMatches(db); err != nil {
+	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)
@@ -223,7 +224,7 @@ func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T) {
 	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`, "", 0, ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := reconcileStoredTermMatches(db); err != nil {
+	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	terms, err := db.TermMatches.GetRunTerms(runID)
@@ -260,8 +261,8 @@ func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T) {
 	if _, err := db.DB.Exec("DROP TABLE work_revision_term_matches"); err != nil {
 		t.Fatal(err)
 	}
-	if err := reconcileStoredTermMatches(db); err == nil {
+	if err := reconcileStoredTermMatches(context.Background(), db); err == nil {
 		t.Fatal("reconcileStoredTermMatches should fail when the match table is missing")
 	}
-	reconcileStoredTermMatchesBestEffort(db)
+	reconcileStoredTermMatchesBestEffort(context.Background(), db)
 }

@@ -51,11 +51,11 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 		t.Fatalf("candidate evidence omitted raw provider payload reference: %#v", evidence[0])
 	}
 
-	_, revisionID, err := persistWorkSnapshot(db, runID, articles[0], database.ProducerStageEnrich, "")
+	_, revisionID, err := persistWorkSnapshot(context.Background(), db, runID, articles[0], database.ProducerStageEnrich, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := persistUncertainORCIDEvidence(db, runID, map[string]int64{articles[0].DOI: revisionID}, evidence); err != nil {
+	if err := persistUncertainORCIDEvidence(context.Background(), db, runID, map[string]int64{articles[0].DOI: revisionID}, evidence); err != nil {
 		t.Fatal(err)
 	}
 	var status, observedORCID string

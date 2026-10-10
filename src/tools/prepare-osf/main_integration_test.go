@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 )
 
@@ -38,7 +39,7 @@ func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := pdfstore.BindStore(context.Background(), metadata.DB, filepath.Base(pdfPath)); err != nil {
+	if err := pdfbinding.New(metadata.DB).EnsureBinding(context.Background(), filepath.Base(pdfPath)); err != nil {
 		t.Fatal(err)
 	}
 	rawConfig := []byte(`workspace = { reviewer = reviewer_config { username = "Sensitive Researcher", email = "sensitive@example.test", }, };`)

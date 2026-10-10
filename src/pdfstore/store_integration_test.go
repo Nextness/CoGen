@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 )
 
 // TestAddNormalizesDOIDeduplicatesBlobsAndPreservesExistingDocument verifies add normalizes doi deduplicates blobs and preserves existing document.
@@ -87,11 +88,11 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 	if _, err := store.Add(ctx, "10.1000/audit", workID, []byte("%PDF-1.7\naudit")); err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	first, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	second, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +160,7 @@ func TestFlushAuditOutboxDropsStalePipelineRun(t *testing.T) {
 	if err != nil || !registered {
 		t.Fatalf("register stale inventory: registered=%v err=%v", registered, err)
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +242,7 @@ func TestFlushAuditOutboxContinuesAfterOneBadEvent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	flushed, err := store.FlushAuditOutbox(ctx, metadata.DB)
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
 	if flushed != 1 || err == nil || !strings.Contains(err.Error(), "injected audit failure") {
 		t.Fatalf("failure-isolating flush=%d err=%v", flushed, err)
 	}
@@ -254,6 +255,167 @@ func TestFlushAuditOutboxContinuesAfterOneBadEvent(t *testing.T) {
 	}
 	if goodEvents != 1 || remaining != 1 {
 		t.Fatalf("good events=%d remaining=%d", goodEvents, remaining)
+	}
+}
+
+// TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails verifies the metadata
+// audit row and its delivery link commit or roll back together and remain
+// retryable after a failed delivery.
+func TestFlushAuditOutboxRollsBackMetadataAuditWhenLinkFails(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+		(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+		VALUES ('link-failure', '2026-01-01T00:00:00Z', 'pipeline', 'work', '1', 'pdf_inventory_registered', '{}', 'link-failure')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := metadata.DB.Exec(`CREATE TRIGGER reject_pdf_audit_link BEFORE INSERT ON pdf_audit_links
+		BEGIN SELECT RAISE(ABORT, 'injected link failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
+	if flushed != 0 || err == nil || !strings.Contains(err.Error(), "injected link failure") {
+		t.Fatalf("link-failure flush=%d err=%v", flushed, err)
+	}
+	var events, links, remaining int
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 0 || links != 0 || remaining != 1 {
+		t.Fatalf("failed delivery events=%d links=%d remaining=%d, want 0, 0, 1", events, links, remaining)
+	}
+
+	if _, err := metadata.DB.Exec("DROP TRIGGER reject_pdf_audit_link"); err != nil {
+		t.Fatal(err)
+	}
+	flushed, err = store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
+	if err != nil || flushed != 1 {
+		t.Fatalf("retry flush=%d err=%v, want one delivered event", flushed, err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 || remaining != 0 {
+		t.Fatalf("retried delivery events=%d links=%d remaining=%d, want 1, 1, 0", events, links, remaining)
+	}
+}
+
+// TestFlushAuditOutboxRetryAfterMetadataCommitIsIdempotent verifies a crash
+// between the metadata commit and the companion marking leaves the committed
+// audit row reusable, so the retry marks the event delivered without
+// duplicating append-only evidence.
+func TestFlushAuditOutboxRetryAfterMetadataCommitIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+		(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+		VALUES ('marking-failure', '2026-01-01T00:00:00Z', 'pipeline', 'work', '1', 'pdf_inventory_registered', '{}', 'marking-failure')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER reject_pdf_outbox_marking BEFORE UPDATE ON pdf_audit_outbox
+		WHEN NEW.delivered_at IS NOT NULL BEGIN SELECT RAISE(ABORT, 'injected marking failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
+	if flushed != 0 || err == nil || !strings.Contains(err.Error(), "injected marking failure") {
+		t.Fatalf("marking-failure flush=%d err=%v", flushed, err)
+	}
+	var events, links, remaining int
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 || remaining != 1 {
+		t.Fatalf("committed-but-unmarked events=%d links=%d remaining=%d, want 1, 1, 1", events, links, remaining)
+	}
+
+	if _, err := store.DB.Exec("DROP TRIGGER reject_pdf_outbox_marking"); err != nil {
+		t.Fatal(err)
+	}
+	flushed, err = store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
+	if err != nil || flushed != 1 {
+		t.Fatalf("retry flush=%d err=%v, want one delivered event", flushed, err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 || remaining != 0 {
+		t.Fatalf("retried delivery events=%d links=%d remaining=%d, want 1, 1, 0", events, links, remaining)
+	}
+}
+
+// TestFlushAuditOutboxIsolatesFailuresBetweenSuccessfulEvents verifies a failed
+// event rolls back only its own savepoint and leaves earlier and later events
+// delivered in the same batch.
+func TestFlushAuditOutboxIsolatesFailuresBetweenSuccessfulEvents(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	metadata, err := database.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := metadata.DB.Exec(`CREATE TRIGGER reject_bad_pdf_audit BEFORE INSERT ON audit_events
+		WHEN NEW.actor='bad' BEGIN SELECT RAISE(ABORT, 'injected audit failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	for _, event := range []struct{ key, actor string }{
+		{"event-a", "good"}, {"event-b", "bad"}, {"event-c", "good"},
+	} {
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+			VALUES (?, '2026-01-01T00:00:00Z', ?, 'work', '1', 'pdf_inventory_registered', '{}', ?)`, event.key, event.actor, event.key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	flushed, err := store.FlushAuditOutbox(ctx, pdfbinding.New(metadata.DB))
+	if flushed != 2 || err == nil || !strings.Contains(err.Error(), "injected audit failure") {
+		t.Fatalf("failure-isolating flush=%d err=%v", flushed, err)
+	}
+	var goodEvents, remaining int
+	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM audit_events WHERE actor='good'`).Scan(&goodEvents); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL`).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if goodEvents != 2 || remaining != 1 {
+		t.Fatalf("good events=%d remaining=%d, want 2 and 1", goodEvents, remaining)
 	}
 }
 
@@ -286,29 +448,6 @@ func TestAddRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
 	document, err := store.Document(ctx, "10.1000/rollback")
 	if err != nil || document == nil || document.Status != StatusNotAvailable {
 		t.Fatalf("failed add inventory document=%+v err=%v", document, err)
-	}
-}
-
-// TestBoundStorePathUsesDefaultAndPreservesExistingBinding verifies bound store path uses default and preserves existing binding.
-func TestBoundStorePathUsesDefaultAndPreservesExistingBinding(t *testing.T) {
-	ctx := context.Background()
-	registry := filepath.Join("..", "..", "config", "database.something")
-	tempDir := t.TempDir()
-	metadataPath := filepath.Join(tempDir, "corpus.metadata.db")
-	metadata, err := database.Open(metadataPath, registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer metadata.Close()
-	path, err := BoundStorePath(ctx, metadata.DB, metadataPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if path != filepath.Join(tempDir, DefaultStoreFilename) {
-		t.Fatalf("default PDF store path = %q", path)
-	}
-	if err := BindStore(ctx, metadata.DB, "other.pdf.db"); err == nil || !strings.Contains(err.Error(), "already bound") {
-		t.Fatalf("conflicting binding error = %v", err)
 	}
 }
 

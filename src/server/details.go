@@ -5,35 +5,16 @@ package server
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
-	"analysis/database"
+	"analysis/database/audit"
+	"analysis/database/author"
+	"analysis/database/work"
 )
 
 const detailCollectionPreviewLimit = 25
-
-const articleWorkRunRevisionIDsSQL = `SELECT CAST(id AS TEXT)
-	FROM work_revisions
-	WHERE work_id=? AND pipeline_run_id=?`
-
-const articleWorkRunReviewVersionIDsSQL = `SELECT CAST(review.id AS TEXT)
-	FROM work_review_versions review
-	JOIN work_revisions revision ON revision.id=review.work_revision_id
-	WHERE review.work_id=? AND revision.pipeline_run_id=?`
-
-const articleWorkRunNoteVersionIDsSQL = `SELECT CAST(version.id AS TEXT)
-	FROM review_note_versions version
-	JOIN review_notes note ON note.id=version.note_id
-	JOIN review_contexts context ON context.id=version.created_in_context_id
-	WHERE note.work_id=? AND context.pipeline_run_id=?`
-
-const articleWorkRunAnchorVersionIDsSQL = `SELECT CAST(version.id AS TEXT)
-	FROM review_anchor_versions version
-	JOIN review_anchors anchor ON anchor.id=version.anchor_id
-	JOIN review_contexts context ON context.id=version.created_in_context_id
-	WHERE anchor.work_id=? AND context.pipeline_run_id=?`
 
 // articleDetail treats the numeric route identifier as an immutable work
 // revision ID. It intentionally does not expose the retired mutable articles
@@ -56,8 +37,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	revision, err := s.oneRow(ctx, `SELECT wr.*, w.doi FROM work_revisions wr JOIN works w ON w.id=wr.work_id
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+database.CurrentNormalizedRevisionPredicate("wr")+`))`, id, runID)
+	revision, err := s.workStore.GetArticleRevision(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -66,7 +46,8 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, notFound("article revision not found"))
 		return
 	}
-	workID := revision["work_id"].(int64)
+	workID := revision.WorkID
+	article := articleRevisionRow(revision)
 	authors, err := s.articleDetailCollectionData(ctx, id, workID, runID, "authors", "article_detail_authors_"+stringID(runID)+"_"+stringID(id), 0, detailCollectionPreviewLimit)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -103,7 +84,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	termMatches := map[string]any(nil)
-	if revision["producer_stage"] == "normalize" {
+	if revision.ProducerStage == "normalize" {
 		termRows, termTotal, err := s.runSearchTerms(ctx, runID)
 		if err != nil {
 			s.respond(w, r, nil, err)
@@ -119,7 +100,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.respond(w, r, map[string]any{
-		"article":                    revision,
+		"article":                    article,
 		"authors":                    authors,
 		"references":                 references,
 		"stage_outcomes":             stageOutcomes,
@@ -150,13 +131,7 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	author, err := s.oneRow(ctx, `SELECT ao.*, p.orcid AS person_orcid
-		FROM author_occurrences ao LEFT JOIN people p ON p.id=ao.person_id
-		WHERE ao.id=? AND EXISTS (
-			SELECT 1 FROM authorships membership
-			JOIN work_revisions revision ON revision.id=membership.work_revision_id
-			WHERE membership.author_occurrence_id=ao.id AND revision.pipeline_run_id=?
-		)`, id, runID)
+	author, err := s.authorStore.GetOccurrenceForRun(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -180,7 +155,7 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	s.respond(w, r, map[string]any{"author": author, "articles": articles, "audit_events": audit, "identity_evidence": identityEvidence}, nil)
+	s.respond(w, r, map[string]any{"author": authorOccurrenceRow(author), "articles": articles, "audit_events": audit, "identity_evidence": identityEvidence}, nil)
 }
 
 // referenceDetail returns one reference mention with its citing and resolved-work context.
@@ -201,66 +176,28 @@ func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	mention, err := s.oneRow(ctx, `SELECT rm.*, wr.work_id, wr.title AS citing_title, wr.pipeline_run_id,
-	target.id AS resolved_revision_id, target.title AS resolved_title
-	FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id
-		LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
-			WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=wr.pipeline_run_id
-			AND `+database.CurrentNormalizedRevisionPredicate("candidate")+` LIMIT 1)
-		WHERE rm.id=? AND wr.pipeline_run_id=?`, id, runID)
+	detail, err := s.workStore.GetReferenceDetail(ctx, id, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if mention == nil {
+	if detail == nil {
 		s.respond(w, r, nil, notFound("reference mention not found"))
 		return
 	}
-	s.respond(w, r, map[string]any{"reference": mention}, nil)
+	s.respond(w, r, map[string]any{"reference": referenceDetailRow(detail)}, nil)
 }
 
 // articleEnrichmentSummary returns a bounded set of provider and field labels without transferring event payloads.
 func (s *Server) articleEnrichmentSummary(ctx context.Context, workID, runID int64) (map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT
-		CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.provider'), '') ELSE '' END AS provider,
-		CASE WHEN json_valid(metadata_json) THEN COALESCE(json_extract(metadata_json, '$.field'), '') ELSE '' END AS field
-		FROM audit_events WHERE entity_type='work_revision' AND action='field_enriched'
-		AND entity_id IN (`+articleWorkRunRevisionIDsSQL+`)
-		ORDER BY provider, field LIMIT 101`, workID, runID)
+	summary, err := s.auditStore.EnrichmentSummary(ctx, workID, runID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	providers, fields := make([]string, 0), make([]string, 0)
-	providerSeen, fieldSeen := make(map[string]bool), make(map[string]bool)
-	truncated := false
-	count := 0
-	for rows.Next() {
-		count++
-		if count > 100 {
-			truncated = true
-			break
-		}
-		var provider, field string
-		if err := rows.Scan(&provider, &field); err != nil {
-			return nil, err
-		}
-		if provider != "" && !providerSeen[provider] {
-			providerSeen[provider] = true
-			providers = append(providers, provider)
-		}
-		if field != "" && !fieldSeen[field] {
-			fieldSeen[field] = true
-			fields = append(fields, field)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
 	return map[string]any{
-		"providers":  providers,
-		"fields":     fields,
-		"truncated":  truncated,
+		"providers":  summary.Providers,
+		"fields":     summary.Fields,
+		"truncated":  summary.Truncated,
 		"pair_limit": 100,
 	}, nil
 }
@@ -324,14 +261,13 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var exists int
-	if err := s.db.QueryRowContext(ctx, `SELECT 1 FROM author_occurrences occurrence WHERE occurrence.id=? AND EXISTS (
-		SELECT 1 FROM authorships membership JOIN work_revisions revision ON revision.id=membership.work_revision_id
-		WHERE membership.author_occurrence_id=occurrence.id AND revision.pipeline_run_id=?)`, authorID, runID).Scan(&exists); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("author occurrence not found"))
-		return
-	} else if err != nil {
+	author, err := s.authorStore.GetOccurrenceForRun(ctx, authorID, runID)
+	if err != nil {
 		s.respond(w, r, nil, err)
+		return
+	}
+	if author == nil {
+		s.respond(w, r, nil, notFound("author occurrence not found"))
 		return
 	}
 	result, err := s.authorDetailCollectionData(ctx, authorID, runID, kind, cursorKind, cursorID, limit)
@@ -340,198 +276,151 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 
 // articleDetailWorkID validates one visible article revision and returns its owning work.
 func (s *Server) articleDetailWorkID(ctx context.Context, revisionID, runID int64) (int64, error) {
-	var workID int64
-	err := s.db.QueryRowContext(ctx, `SELECT wr.work_id FROM work_revisions wr
-		WHERE wr.id=? AND wr.pipeline_run_id=? AND (wr.producer_stage!='normalize' OR (`+database.CurrentNormalizedRevisionPredicate("wr")+`))`, revisionID, runID).Scan(&workID)
-	if err == sql.ErrNoRows {
+	workID, err := s.workStore.GetArticleDetailWorkID(ctx, revisionID, runID)
+	if errors.Is(err, work.ErrArticleRevisionNotFound) {
 		return 0, notFound("article revision not found")
 	}
 	return workID, err
 }
 
-// detailCollectionEnvelope executes one ID-keyset query with an exact count and one-row continuation sentinel.
-func (s *Server) detailCollectionEnvelope(ctx context.Context, kind, fromWhere, orderID string, args []any, cursorID int64, descending bool, limit int) (map[string]any, error) {
-	var total int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) "+fromWhere, args...).Scan(&total); err != nil {
-		return nil, err
-	}
-	queryArgs := append([]any(nil), args...)
-	operator, direction := ">", "ASC"
-	if descending {
-		operator, direction = "<", "DESC"
-	}
-	query := "SELECT " + orderID + " AS collection_cursor_id, detail_rows.* FROM (SELECT * " + fromWhere + ") detail_rows"
-	if cursorID > 0 {
-		query += " WHERE " + orderID + operator + "?"
-		queryArgs = append(queryArgs, cursorID)
-	}
-	query += " ORDER BY " + orderID + " " + direction + " LIMIT ?"
-	queryArgs = append(queryArgs, limit+1)
-	items, err := s.rows(ctx, query, queryArgs...)
-	if err != nil {
-		return nil, err
-	}
-	hasMore := len(items) > limit
-	if hasMore {
-		items = items[:limit]
-	}
-	var nextCursor any
-	if hasMore {
-		cursor, ok := items[len(items)-1]["collection_cursor_id"].(int64)
-		if !ok || cursor < 1 {
-			return nil, &apiProblem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "detail collection has an invalid cursor"}
-		}
-		nextCursor = encodeCursor(reviewCursor{Kind: kind, ID: cursor})
-	}
-	for _, item := range items {
-		delete(item, "collection_cursor_id")
-		delete(item, "relation_id")
-	}
-	return map[string]any{
-		"items":       items,
-		"total":       total,
-		"limit":       limit,
-		"has_more":    hasMore,
-		"next_cursor": nextCursor,
-	}, nil
-}
-
 // articleDetailCollectionData defines the fixed projections for article detail subresources.
 func (s *Server) articleDetailCollectionData(ctx context.Context, revisionID, workID, runID int64, collection, cursorKind string, cursorID int64, limit int) (map[string]any, error) {
-	var fromWhere, orderID string
-	var args []any
-	descending := false
 	switch collection {
 	case "authors":
-		fromWhere = `FROM (SELECT a.id AS relation_id, ao.id, ao.person_id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid,
-			a.author_order, a.affiliation FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
-			WHERE a.work_revision_id=?)`
-		orderID, args = "relation_id", []any{revisionID}
+		page, err := s.workStore.ListArticleAuthors(ctx, work.ArticleAuthorPageInput{RevisionID: revisionID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleAuthorRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "references":
-		fromWhere = `FROM (SELECT rm.id, rm.work_revision_id, rm.resolved_work_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.created_at,
-			target.id AS resolved_revision_id, target.title AS resolved_title
-			FROM reference_mentions rm JOIN work_revisions source ON source.id=rm.work_revision_id
-			LEFT JOIN work_revisions target ON target.id=(SELECT candidate.id FROM work_revisions candidate
-				WHERE candidate.work_id=rm.resolved_work_id AND candidate.pipeline_run_id=source.pipeline_run_id
-				AND ` + database.CurrentNormalizedRevisionPredicate("candidate") + ` LIMIT 1)
-			WHERE rm.work_revision_id=?)`
-		orderID, args = "id", []any{revisionID}
+		page, err := s.workStore.ListArticleReferences(ctx, work.ArticleReferencePageInput{RevisionID: revisionID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleReferenceRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "stages":
-		fromWhere = `FROM (SELECT id, stage_name, outcome, reason, created_at, updated_at FROM run_work_stages
-			WHERE pipeline_run_id=? AND work_id=?)`
-		orderID, args = "id", []any{runID, workID}
+		page, err := s.workStore.ListArticleStages(ctx, work.ArticleStagePageInput{RunID: runID, WorkID: workID, CursorID: cursorID, Limit: limit})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, articleStageRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "audit":
-		condition, conditionArgs := articleAuditCondition(workID, runID)
-		fromWhere = `FROM (SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
-			before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE ` + condition + `)`
-		orderID, args, descending = "id", conditionArgs, true
+		page, err := s.auditStore.ListArticleDetailEvents(ctx, audit.ArticleDetailEventFilter{
+			WorkID: workID, RunID: runID, CursorID: cursorID, Limit: limit,
+		})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, event := range page.Items {
+			items = append(items, auditEventMap(event))
+		}
+		boundAuditEventPayloads(items, auditListPayloadBytes)
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	default:
 		return nil, notFound("article detail collection not found")
 	}
-	result, err := s.detailCollectionEnvelope(ctx, cursorKind, fromWhere, orderID, args, cursorID, descending, limit)
-	if err == nil && collection == "audit" {
-		boundAuditEventPayloads(result["items"].([]map[string]any), auditListPayloadBytes)
+}
+
+// detailCollectionPage builds one bounded detail collection envelope from a family page.
+func detailCollectionPage(items []map[string]any, total int64, limit int, hasMore bool, nextCursorID int64, cursorKind string) map[string]any {
+	var nextCursor any
+	if hasMore {
+		nextCursor = encodeCursor(reviewCursor{Kind: cursorKind, ID: nextCursorID})
 	}
-	return result, err
+	return map[string]any{"items": items, "total": total, "limit": limit, "has_more": hasMore, "next_cursor": nextCursor}
 }
 
 // authorDetailCollectionData defines the fixed projections for author detail subresources.
 func (s *Server) authorDetailCollectionData(ctx context.Context, authorID, runID int64, collection, cursorKind string, cursorID int64, limit int) (map[string]any, error) {
-	var fromWhere, orderID string
-	var args []any
-	descending := false
 	switch collection {
 	case "articles":
-		fromWhere = `FROM (SELECT a.id AS relation_id, a.author_order, a.affiliation, wr.id AS work_revision_id, wr.work_id, wr.title, wr.year,
-			wr.pipeline_run_id, w.doi FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id
-			JOIN works w ON w.id=wr.work_id WHERE a.author_occurrence_id=? AND wr.pipeline_run_id=?)`
-		orderID, args = "relation_id", []any{authorID, runID}
+		page, err := s.workStore.ListAuthorArticles(ctx, work.AuthorArticleFilter{
+			AuthorOccurrenceID: authorID, RunID: runID, CursorID: cursorID, Limit: limit,
+		})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, authorArticleRow(item))
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "audit":
-		fromWhere = `FROM (SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action,
-			before_json, after_json, metadata_json, correlation_id FROM audit_events
-			WHERE entity_type='author_occurrence' AND entity_id=? AND pipeline_run_id=?)`
-		orderID, args, descending = "id", []any{stringID(authorID), runID}, true
+		page, err := s.auditStore.ListAuthorDetailEvents(ctx, audit.AuthorDetailEventFilter{
+			AuthorOccurrenceID: authorID, RunID: runID, CursorID: cursorID, Limit: limit,
+		})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, event := range page.Items {
+			items = append(items, auditEventMap(event))
+		}
+		boundAuditEventPayloads(items, auditListPayloadBytes)
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	case "identity":
 		if !s.tableHasColumns("author_identity_resolutions", "pipeline_run_id", "author_occurrence_id", "status") {
 			return map[string]any{"items": []map[string]any{}, "total": int64(0), "limit": limit, "has_more": false, "next_cursor": nil}, nil
 		}
-		fromWhere = `FROM (SELECT r.id AS resolution_id, r.id, r.pipeline_run_id, r.status, r.provider, r.queried_citation_name,
-			r.error_message, r.resolved_at, COUNT(c.id) AS candidate_count
-			FROM author_identity_resolutions r LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id
-			WHERE r.pipeline_run_id=? AND (r.author_occurrence_id=? OR EXISTS (
-				SELECT 1 FROM authorships target_authorship
-				JOIN author_occurrences target_author ON target_author.id=target_authorship.author_occurrence_id
-				JOIN work_revisions target_revision ON target_revision.id=target_authorship.work_revision_id
-				JOIN work_revisions evidence_revision ON evidence_revision.work_id=target_revision.work_id
-					AND evidence_revision.pipeline_run_id=target_revision.pipeline_run_id
-					AND evidence_revision.id<=target_revision.id
-				JOIN authorships evidence_authorship ON evidence_authorship.work_revision_id=evidence_revision.id
-					AND evidence_authorship.author_order=target_authorship.author_order
-				JOIN author_occurrences evidence_author ON evidence_author.id=evidence_authorship.author_occurrence_id
-				WHERE target_author.id=? AND target_revision.pipeline_run_id=r.pipeline_run_id
-					AND evidence_author.id=r.author_occurrence_id
-					AND evidence_author.citation_name IS target_author.citation_name
-					AND evidence_author.first_name IS target_author.first_name
-					AND evidence_author.last_name IS target_author.last_name
-					AND evidence_author.orcid IS target_author.orcid
-			)) GROUP BY r.id)`
-		orderID, args, descending = "id", []any{runID, authorID, authorID}, true
+		page, err := s.authorStore.ListAuthorIdentityEvidence(ctx, author.AuthorIdentityEvidenceFilter{
+			RunID: runID, AuthorOccurrenceID: authorID, CursorID: cursorID, Limit: limit,
+		})
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(page.Items))
+		for _, item := range page.Items {
+			items = append(items, authorIdentityEvidenceRow(item))
+		}
+		if err := s.attachIdentityCandidatePreviews(ctx, items); err != nil {
+			return nil, err
+		}
+		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	default:
 		return nil, notFound("author detail collection not found")
 	}
-	result, err := s.detailCollectionEnvelope(ctx, cursorKind, fromWhere, orderID, args, cursorID, descending, limit)
-	if err != nil {
-		return nil, err
-	}
-	if collection == "audit" {
-		boundAuditEventPayloads(result["items"].([]map[string]any), auditListPayloadBytes)
-	}
-	if collection == "identity" {
-		if err := s.attachIdentityCandidatePreviews(ctx, result["items"].([]map[string]any)); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
 }
 
-// articleAuditCondition returns the run-scoped, privacy-safe logical-work event predicate and arguments.
-func articleAuditCondition(workID, runID int64) (string, []any) {
-	condition := `(entity_type='work_revision' AND entity_id IN (` + articleWorkRunRevisionIDsSQL + `))
-		OR (entity_type='work' AND entity_id=? AND (pipeline_run_id=? OR (pipeline_run_id IS NULL AND action LIKE 'pdf_%')))
-		OR (entity_type='work_review_version' AND pipeline_run_id=? AND entity_id IN (` + articleWorkRunReviewVersionIDsSQL + `))
-		OR (entity_type='review_note_version' AND pipeline_run_id=? AND entity_id IN (` + articleWorkRunNoteVersionIDsSQL + `))
-		OR (entity_type='review_anchor_version' AND pipeline_run_id=? AND entity_id IN (` + articleWorkRunAnchorVersionIDsSQL + `))
-		OR (entity_type='review_context' AND pipeline_run_id=?)`
-	args := []any{
-		workID, runID, stringID(workID), runID,
-		runID, workID, runID,
-		runID, workID, runID,
-		runID, workID, runID,
-		runID,
+// authorArticleRow renders one author article projection as the viewer's JSON row shape.
+func authorArticleRow(item *work.AuthorArticle) map[string]any {
+	return map[string]any{
+		"author_order":     item.AuthorOrder,
+		"affiliation":      nullableText(item.Affiliation),
+		"work_revision_id": item.WorkRevisionID,
+		"work_id":          item.WorkID,
+		"title":            nullableText(item.Title),
+		"year":             nullableIDPointer(item.Year),
+		"pipeline_run_id":  item.PipelineRunID,
+		"doi":              nullableText(item.DOI),
 	}
-	return condition, args
 }
 
-// rows executes a read-only query and converts every result row to a field map.
-func (s *Server) rows(ctx context.Context, query string, args ...any) ([]map[string]any, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
+// authorIdentityEvidenceRow renders one author identity evidence projection as the viewer's JSON row shape.
+func authorIdentityEvidenceRow(item *author.AuthorIdentityEvidenceRow) map[string]any {
+	return map[string]any{
+		"resolution_id":         item.ResolutionID,
+		"id":                    item.ID,
+		"pipeline_run_id":       item.PipelineRunID,
+		"status":                item.Status,
+		"provider":              item.Provider,
+		"queried_citation_name": item.QueriedCitationName,
+		"error_message":         nullableText(item.ErrorMessage),
+		"resolved_at":           item.ResolvedAt,
+		"candidate_count":       item.CandidateCount,
 	}
-	defer rows.Close()
-	return rowsAsMaps(rows)
-}
-
-// oneRow returns the first mapped query row, or nil when the query returns no rows.
-func (s *Server) oneRow(ctx context.Context, query string, args ...any) (map[string]any, error) {
-	rows, err := s.rows(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-	return rows[0], nil
 }
 
 // stringID formats a numeric database identifier in base 10.

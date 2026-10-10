@@ -5,19 +5,21 @@
 package database
 
 import (
-	"context"
-	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
-	"analysis/internal/sqliteuri"
+	"analysis/database/artifact"
+	"analysis/database/audit"
+	"analysis/database/author"
+	"analysis/database/cache"
+	"analysis/database/review"
+	"analysis/database/run"
+	"analysis/database/search"
+	"analysis/database/source"
+	"analysis/database/work"
 	"analysis/logging"
-
-	_ "modernc.org/sqlite"
 )
 
 var lg = logging.Logger("database")
@@ -26,6 +28,10 @@ var lg = logging.Logger("database")
 type Database struct {
 	DB                   *sql.DB
 	PipelineRuns         *PipelineRunRepository
+	Run                  *run.Store
+	Search               *search.Store
+	Source               *source.Store
+	Artifact             *artifact.Store
 	Searches             *SearchRepository
 	Revisions            *SearchRevisionRepository
 	Plans                *ExecutionPlanRepository
@@ -45,8 +51,11 @@ type Database struct {
 	IdentityResolutions  *AuthorIdentityResolutionRepository
 	IdentityCandidates   *AuthorIdentityCandidateRepository
 	ReferenceMentions    *ReferenceMentionRepository
-	CacheEntries         *CacheEntryRepository
-	RunCacheUses         *RunCacheUseRepository
+	Cache                *cache.Store
+	Audit                *audit.Store
+	Work                 *work.Store
+	Author               *author.Store
+	Review               *review.Store
 	ArtifactBlobs        *ArtifactBlobRepository
 	RunArtifacts         *RunArtifactRepository
 	SourceFilterCounts   *SourceFilterCountRepository
@@ -98,127 +107,13 @@ func MigrateExisting(dbPath, configPath string) error {
 	return db.Close()
 }
 
-// OpenExisting opens an existing metadata database for narrowly scoped review
-// writes. It never creates directories, changes journal mode, or runs migrations.
-func OpenExisting(dbPath string) (*Database, error) {
-	return openExistingWithDriver(dbPath, "sqlite")
-}
-
-// OpenExistingWithDriver opens an existing metadata database through a caller-provided registered SQL driver.
-// It exists so the viewer can enforce request-scoped query budgets without changing pipeline connections.
-func OpenExistingWithDriver(dbPath, driverName string) (*Database, error) {
-	if strings.TrimSpace(driverName) == "" {
-		return nil, fmt.Errorf("database driver is required")
-	}
-	return openExistingWithDriver(dbPath, driverName)
-}
-
-// openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers.
-func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
-	if strings.TrimSpace(dbPath) == "" {
-		return nil, fmt.Errorf("database path is required")
-	}
-	info, err := os.Stat(dbPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("database does not exist")
-		}
-		return nil, fmt.Errorf("inspect database: %w", err)
-	}
-	if info.IsDir() {
-		return nil, fmt.Errorf("database path is a directory")
-	}
-	absolute, err := filepath.Abs(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("resolve database path: %w", err)
-	}
-	uri := sqliteuri.File(absolute, map[string][]string{
-		"mode":    {"rw"},
-		"_txlock": {"immediate"},
-		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
-	})
-	conn, err := sql.Open(driverName, uri)
-	if err != nil {
-		return nil, fmt.Errorf("open existing sqlite: %w", err)
-	}
-	conn.SetMaxOpenConns(1)
-	conn.SetConnMaxLifetime(0)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := conn.PingContext(ctx); err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("open existing sqlite: %w", err)
-	}
-	d := &Database{DB: conn, dbPath: absolute}
-	d.initRepositories()
-	return d, nil
-}
-
-// OpenConfigured opens a writable SQLite database, configures its connection
-// pool, and applies the migration chain selected from the database registry.
-// It is used by the metadata repositories and the independently owned PDF
-// store.
-func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error) {
-	dir := filepath.Dir(dbPath)
-	if dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			lg.Debug("database directory creation failed", "directory", dir, "error", err)
-			return nil, fmt.Errorf("create db dir: %w", err)
-		}
-	}
-
-	// modernc applies _pragma values to every pooled connection. Foreign-key
-	// enforcement is connection-local in SQLite, so configuring it only with a
-	// one-time PRAGMA would leave later pooled connections unprotected.
-	absolute, err := filepath.Abs(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("resolve database path: %w", err)
-	}
-	uri := sqliteuri.File(absolute, map[string][]string{
-		"_txlock": {"immediate"},
-		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
-	})
-	conn, err := sql.Open("sqlite", uri)
-	if err != nil {
-		lg.Debug("database connection open failed", "database_path", dbPath, "error", err)
-		return nil, fmt.Errorf("open sqlite: %w", err)
-	}
-
-	// Pragmas
-	pragmas := []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA foreign_keys=ON",
-		"PRAGMA busy_timeout=5000",
-	}
-	for _, p := range pragmas {
-		if err := configurePragma(conn, p); err != nil {
-			conn.Close()
-			lg.Debug("database pragma configuration failed",
-				"database_path", dbPath, "pragma", p, "error", err)
-			return nil, fmt.Errorf("pragma %q: %w", p, err)
-		}
-	}
-	lg.Debug("database pragma configuration successful",
-		"database_path", dbPath, "pragmas", len(pragmas))
-
-	migrationConfig, err := ResolveMigrationConfig(registryPath, kind)
-	if err != nil {
-		conn.Close()
-		return nil, fmt.Errorf("resolve migrations: %w", err)
-	}
-	d := &Database{DB: conn, dbPath: dbPath, migrations: migrationConfig.MigrationsDir}
-	if err := d.runMigrations(migrationConfig.ConfigPath); err != nil {
-		conn.Close()
-		lg.Debug("database migration run failed",
-			"database_path", dbPath, "config", migrationConfig.ConfigPath, "error", err)
-		return nil, fmt.Errorf("migrations: %w", err)
-	}
-	return conn, nil
-}
-
 // initRepositories binds every repository facade to the opened database.
 func (d *Database) initRepositories() {
 	d.PipelineRuns = &PipelineRunRepository{db: d}
+	d.Run = run.New(d.DB)
+	d.Search = search.New(d.DB)
+	d.Source = source.New(d.DB)
+	d.Artifact = artifact.New(d.DB)
 	d.Searches = &SearchRepository{db: d}
 	d.Revisions = &SearchRevisionRepository{db: d}
 	d.Plans = &ExecutionPlanRepository{db: d}
@@ -238,269 +133,15 @@ func (d *Database) initRepositories() {
 	d.IdentityResolutions = &AuthorIdentityResolutionRepository{db: d}
 	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
 	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
-	d.CacheEntries = &CacheEntryRepository{db: d}
-	d.RunCacheUses = &RunCacheUseRepository{db: d}
+	d.Cache = cache.New(d.DB)
+	d.Audit = audit.New(d.DB)
+	d.Work = work.New(d.DB)
+	d.Author = author.New(d.DB)
+	d.Review = review.New(d.DB)
 	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
 	d.RunArtifacts = &RunArtifactRepository{db: d}
 	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
 	d.PipelineRunReviewers = &PipelineRunReviewerRepository{db: d}
 	d.TermMatches = &TermMatchesRepository{db: d}
 	d.Reviews = &ReviewRepository{db: d}
-}
-
-// configurePragma retries startup-only locking around journal-mode changes.
-// The connection URI covers normal busy handling, but two processes enabling
-// WAL on an uninitialised database can still race before either has completed
-// its first pragma sequence.
-func configurePragma(db *sql.DB, pragma string) error {
-	const maxAttempts = 50
-	var lastErr error
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		if _, err := db.Exec(pragma); err == nil {
-			return nil
-		} else if !sqliteBusy(err) {
-			return err
-		} else {
-			lastErr = err
-		}
-		time.Sleep(time.Duration(attempt+1) * time.Millisecond)
-	}
-	return fmt.Errorf("configure pragma after %d attempts: %w", maxAttempts, lastErr)
-}
-
-// sqliteBusy reports whether an error represents SQLite busy or locked contention.
-func sqliteBusy(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := err.Error()
-	return strings.Contains(message, "database is locked") || strings.Contains(message, "SQLITE_BUSY")
-}
-
-// Close closes the database connection.
-func (d *Database) Close() error {
-	err := d.DB.Close()
-	if err != nil {
-		lg.Debug("database close failed", "database_path", d.dbPath, "error", err)
-		return err
-	}
-	lg.Debug("database close successful", "database_path", d.dbPath)
-	return nil
-}
-
-// SchemaVersion returns the most recently applied migration filename. It is
-// recorded in each resolved manifest so plan fingerprints describe the schema
-// that interpreted the input.
-func (d *Database) SchemaVersion() (string, error) {
-	var version sql.NullString
-	err := d.DB.QueryRow("SELECT filename FROM schema_migrations ORDER BY rowid DESC LIMIT 1").Scan(&version)
-	if err == sql.ErrNoRows || !version.Valid {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("get schema version: %w", err)
-	}
-	return version.String, nil
-}
-
-const migrationsTable = "schema_migrations"
-
-// runMigrations applies unapplied configured migrations in declaration order and records their checksums.
-func (d *Database) runMigrations(configPath string) error {
-	ctx := context.Background()
-	if err := d.withMigrationLock(ctx, func(conn *sql.Conn) error {
-		_, err := conn.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			filename   TEXT PRIMARY KEY,
-			applied_at TEXT NOT NULL DEFAULT (datetime('now')),
-			checksum   TEXT NOT NULL
-		)`, migrationsTable))
-		return err
-	}); err != nil {
-		lg.Debug("migration tracking table creation failed", "error", err)
-		return fmt.Errorf("create tracking table: %w", err)
-	}
-
-	// Load migration chain from database.something
-	entries, err := loadMigrationChain(configPath)
-	if err != nil {
-		lg.Debug("migration chain load failed", "config", configPath, "error", err)
-		return fmt.Errorf("load migration chain: %w", err)
-	}
-	if len(entries) == 0 {
-		lg.Debug("migration run successful", "config", configPath, "result", "no_migrations")
-		return nil
-	}
-
-	appliedCount := 0
-	adoptedCount := 0
-	skippedCount := 0
-	for _, entry := range entries {
-		fn := entry.filename
-		sqlPath := filepath.Join(d.migrations, fn)
-		upSQL, err := extractUpSQL(sqlPath)
-		if err != nil {
-			lg.Debug("migration SQL extraction failed", "file", fn, "error", err)
-			return fmt.Errorf("extract SQL from %s: %w", fn, err)
-		}
-		cs, err := fileChecksum(sqlPath)
-		if err != nil {
-			lg.Debug("migration checksum failed", "file", fn, "error", err)
-			return fmt.Errorf("checksum %s: %w", fn, err)
-		}
-
-		wasApplied := false
-		wasAdopted := false
-		if err := d.withMigrationLock(ctx, func(conn *sql.Conn) error {
-			var appliedFilename string
-			filenames := append([]string{fn}, entry.supersedes...)
-			placeholders := strings.TrimSuffix(strings.Repeat("?,", len(filenames)), ",")
-			args := make([]any, len(filenames))
-			for index := range filenames {
-				args[index] = filenames[index]
-			}
-			query := fmt.Sprintf("SELECT filename FROM %s WHERE filename IN (%s) ORDER BY CASE filename WHEN ? THEN 0 ELSE 1 END LIMIT 1", migrationsTable, placeholders)
-			args = append(args, fn)
-			err := conn.QueryRowContext(ctx, query, args...).Scan(&appliedFilename)
-			if err != nil && err != sql.ErrNoRows {
-				return fmt.Errorf("query applied migration %s: %w", fn, err)
-			}
-			if appliedFilename == fn {
-				wasApplied = true
-				return nil
-			}
-			if appliedFilename != "" {
-				if _, err := conn.ExecContext(ctx,
-					fmt.Sprintf("INSERT INTO %s (filename, checksum) VALUES (?, ?)", migrationsTable), fn, cs,
-				); err != nil {
-					return fmt.Errorf("record migration %s superseding %s: %w", fn, appliedFilename, err)
-				}
-				wasAdopted = true
-				return nil
-			}
-			if _, err := conn.ExecContext(ctx, upSQL); err != nil {
-				return fmt.Errorf("apply %s: %w", fn, err)
-			}
-			if _, err := conn.ExecContext(ctx,
-				fmt.Sprintf("INSERT INTO %s (filename, checksum) VALUES (?, ?)", migrationsTable), fn, cs,
-			); err != nil {
-				return fmt.Errorf("record migration %s: %w", fn, err)
-			}
-			return nil
-		}); err != nil {
-			lg.Debug("migration application failed", "file", fn, "error", err)
-			return err
-		}
-		if wasApplied {
-			skippedCount++
-			lg.Debug("migration skip successful", "file", fn, "result", "already_applied")
-			continue
-		}
-		if wasAdopted {
-			adoptedCount++
-			lg.Info("migration adoption successful", "file", fn, "supersedes", entry.supersedes)
-			continue
-		}
-		appliedCount++
-		lg.Debug("migration application successful", "file", fn)
-	}
-
-	lg.Info("migration run successful",
-		"config", configPath,
-		"configured", len(entries),
-		"applied", appliedCount,
-		"adopted", adoptedCount,
-		"skipped", skippedCount)
-	return nil
-}
-
-// withMigrationLock serializes each migration transaction across independent
-// processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the
-// tracking table, preventing two openers from both observing a migration as
-// pending and applying it twice.
-func (d *Database) withMigrationLock(ctx context.Context, action func(*sql.Conn) error) (err error) {
-	conn, err := d.DB.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("acquire migration connection: %w", err)
-	}
-	defer conn.Close()
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("acquire migration lock: %w", err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			_, _ = conn.ExecContext(ctx, "ROLLBACK")
-		}
-	}()
-	if err := action(conn); err != nil {
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return fmt.Errorf("commit migration lock: %w", err)
-	}
-	committed = true
-	return nil
-}
-
-// migrationEntry stores one configured migration filename and compatible prior identities.
-type migrationEntry struct {
-	filename   string
-	supersedes []string
-}
-
-// loadMigrationChain evaluates the database registry and returns its migrations in declaration order.
-func loadMigrationChain(configPath string) ([]migrationEntry, error) {
-	cfg, err := loadSomethingConfig(configPath)
-	if err != nil {
-		return nil, err
-	}
-
-	entries, err := getMigrationStructs(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	// Sort by iteration counter (already in order from getMigrationStructs)
-	return entries, nil
-}
-
-const upMarker = "-- ==UP=="
-const downMarker = "-- ==DOWN=="
-
-// extractUpSQL returns the SQL between a migration's required UP and DOWN markers.
-func extractUpSQL(filepath string) (string, error) {
-	data, err := os.ReadFile(filepath)
-	if err != nil {
-		return "", err
-	}
-	content := string(data)
-
-	if strings.Count(content, upMarker) != 1 || strings.Count(content, downMarker) != 1 {
-		return "", fmt.Errorf("migration must contain exactly one %s and one %s marker", upMarker, downMarker)
-	}
-	upStart := strings.Index(content, upMarker)
-	downStart := strings.Index(content, downMarker)
-	if downStart <= upStart {
-		return "", fmt.Errorf("migration %s marker must precede %s marker", upMarker, downMarker)
-	}
-	upSQL := strings.TrimSpace(content[upStart+len(upMarker) : downStart])
-	if upSQL == "" {
-		return "", fmt.Errorf("migration %s section must not be empty", upMarker)
-	}
-	return upSQL, nil
-}
-
-// fileChecksum returns the lowercase hexadecimal SHA-256 digest of a file.
-func fileChecksum(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	h := sha256.Sum256(data)
-	return fmt.Sprintf("%x", h), nil
-}
-
-// timestamp returns the current UTC time in the repository's persisted format.
-func timestamp() string {
-	return time.Now().UTC().Format("2006-01-02 15:04:05")
 }

@@ -17,5 +17,5 @@ func RecoverAbandonedRun(ctx context.Context, dbPath string, runID int64) error 
 		return err
 	}
 	defer db.Close()
-	return db.PipelineRuns.RecoverAbandoned(ctx, runID)
+	return db.Run.RecoverAbandoned(ctx, runID)
 }

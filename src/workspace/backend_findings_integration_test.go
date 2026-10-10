@@ -6,6 +6,8 @@ package workspace_test
 import (
 	"analysis/article"
 	"analysis/database"
+	"analysis/database/artifact"
+	"analysis/database/cache"
 	"analysis/enrich"
 	"analysis/manifest"
 	"analysis/notes"
@@ -308,30 +310,30 @@ func TestReviewPriorRunCacheStable(t *testing.T) {
 	artifacts := make([]int64, 2)
 	for index, title := range []string{"original", "refreshed"} {
 		data := []byte(fmt.Sprintf(`{"message":{"title":[%q]}}`, title))
-		artifacts[index], err = db.Artifacts.CreateWithBlob(fmt.Sprintf("%x", sha256.Sum256(data)), "application/json", int64(len(data)), runID, data)
+		artifacts[index], err = db.Artifact.CreateWithBlob(context.Background(), artifact.CreateWithBlobInput{ContentHash: fmt.Sprintf("%x", sha256.Sum256(data)), ContentType: "application/json", ByteSize: int64(len(data)), PipelineRunID: runID, Data: data})
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	entry := &database.CacheEntry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "synthetic-key", ResponseStatus: 200, PayloadArtifactID: &artifacts[0], FetchedAt: "2026-09-13T00:00:00Z"}
+	entry := &cache.Entry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "synthetic-key", ResponseStatus: 200, PayloadArtifactID: &artifacts[0], FetchedAt: "2026-09-13T00:00:00Z"}
 	for _, layer := range []string{"active_run", "global"} {
 		entry.ExtractorVersion = "workspace-cache-v1"
 		if layer == "active_run" {
 			entry.ExtractorVersion += fmt.Sprintf(":run:%d", runID)
 		}
-		id, err := db.CacheEntries.Upsert(entry)
+		id, err := db.Cache.AppendEntry(context.Background(), entry)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.RunCacheUses.Create(&database.RunCacheUse{PipelineRunID: runID, CacheEntryID: id, CacheLayer: layer, Outcome: "hit"}); err != nil {
+		if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: id, CacheLayer: layer, Outcome: "hit"}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	entry.PayloadArtifactID = &artifacts[1]
-	if _, err := db.CacheEntries.Upsert(entry); err != nil {
+	if _, err := db.Cache.AppendEntry(context.Background(), entry); err != nil {
 		t.Fatal(err)
 	}
-	replayed, err := db.RunCacheUses.FindAnyEntry(runID, entry.Provider, entry.Namespace, entry.RequestFingerprint, "workspace-cache-v1")
+	replayed, err := db.Cache.FindAnyEntry(context.Background(), runID, cache.Key{Provider: entry.Provider, Namespace: entry.Namespace, RequestFingerprint: entry.RequestFingerprint, ExtractorVersion: "workspace-cache-v1"})
 	if err != nil {
 		t.Fatal(err)
 	}

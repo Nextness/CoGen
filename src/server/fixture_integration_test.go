@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
 	"analysis/pdfstore"
 	"analysis/searchterms"
 )
@@ -482,7 +483,8 @@ func TestGenerateFixture(t *testing.T) {
 
 	// 19. Bound normalized PDF inventory and mirrored audit evidence
 	ctx := context.Background()
-	if err := pdfstore.BindStore(ctx, db.DB, "workspace.fixture.pdf.db"); err != nil {
+	bindings := pdfbinding.New(db.DB)
+	if err := bindings.EnsureBinding(ctx, "workspace.fixture.pdf.db"); err != nil {
 		t.Fatal(err)
 	}
 	tmpPDFPath := filepath.Join(tmpDir, "workspace.fixture.pdf.db")
@@ -522,7 +524,7 @@ func TestGenerateFixture(t *testing.T) {
 			correlation_id='fixture-pdf-' || action || '-' || entity_id`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pdfs.FlushAuditOutbox(ctx, db.DB); err != nil {
+	if _, err := pdfs.FlushAuditOutbox(ctx, bindings); err != nil {
 		t.Fatal(err)
 	}
 	normalizeFixtureTimestamps(t, pdfs.DB)

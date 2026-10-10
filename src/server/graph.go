@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"analysis/database"
+	"analysis/database/work"
 )
 
 const (
@@ -96,66 +96,66 @@ func (s *Server) graph(w http.ResponseWriter, r *http.Request) {
 
 // graphArticles selects normalized, valid article nodes matching the request filters and limit.
 func (s *Server) graphArticles(ctx context.Context, r *http.Request, runID int64, limit int) ([]map[string]any, int, error) {
-	clauses, args := []string{
-		"wr.pipeline_run_id=?",
-		database.CurrentNormalizedRevisionPredicate("wr"),
-	}, []any{runID}
-	query := r.URL.Query()
-	if value := query.Get("q"); value != "" {
-		clauses = append(clauses, "(lower(COALESCE(wr.title,'')) LIKE lower(?) OR lower(COALESCE(w.doi,'')) LIKE lower(?))")
-		like := "%" + value + "%"
-		args = append(args, like, like)
-	}
-	if value := query.Get("source"); value != "" {
-		clauses = append(clauses, "wr.source=?")
-		args = append(args, value)
-	}
-	for _, filter := range []struct{ parameter, column, operator string }{{"year_min", "wr.year", ">="}, {"year_max", "wr.year", "<="}, {"citation_min", "wr.citation_count", ">="}, {"citation_max", "wr.citation_count", "<="}, {"reference_min", "wr.reference_count", ">="}, {"reference_max", "wr.reference_count", "<="}} {
-		if raw := query.Get(filter.parameter); raw != "" {
-			value, err := strconv.ParseInt(raw, 10, 64)
-			if err != nil {
-				return nil, 0, badRequest(filter.parameter + " must be an integer")
-			}
-			clauses = append(clauses, filter.column+filter.operator+"?")
-			args = append(args, value)
-		}
-	}
-	if author, orcid := query.Get("author"), query.Get("orcid"); author != "" || orcid != "" {
-		conditions := make([]string, 0, 2)
-		authorArgs := make([]any, 0, 2)
-		if author != "" {
-			conditions = append(conditions, "lower(COALESCE(ao.citation_name,'')) LIKE lower(?)")
-			authorArgs = append(authorArgs, "%"+author+"%")
-		}
-		if orcid != "" {
-			conditions = append(conditions, "ao.orcid=?")
-			authorArgs = append(authorArgs, orcid)
-		}
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id AND "+strings.Join(conditions, " AND ")+")")
-		args = append(args, authorArgs...)
-	}
-	if reference := query.Get("reference"); reference != "" {
-		like := "%" + reference + "%"
-		clauses = append(clauses, "EXISTS (SELECT 1 FROM reference_mentions rm WHERE rm.work_revision_id=wr.id AND (lower(COALESCE(rm.doi,'')) LIKE lower(?) OR lower(COALESCE(rm.title,'')) LIKE lower(?) OR lower(COALESCE(rm.author,'')) LIKE lower(?)))")
-		args = append(args, like, like, like)
-	}
-	where := strings.Join(clauses, " AND ")
-	var matches int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM work_revisions wr JOIN works w ON w.id=wr.work_id WHERE `+where, args...).Scan(&matches); err != nil {
-		return nil, 0, err
-	}
-	args = append(args, limit)
-	rows, err := s.db.QueryContext(ctx, `SELECT wr.id, wr.work_id, wr.title, wr.year, wr.source, w.doi
-		FROM work_revisions wr JOIN works w ON w.id=wr.work_id WHERE `+where+` ORDER BY wr.id LIMIT ?`, args...)
+	filter, err := graphArticleFilter(r, runID, limit)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
+	articles, matches, err := s.workStore.ListGraphArticles(ctx, filter)
 	if err != nil {
 		return nil, 0, err
+	}
+	items := make([]map[string]any, 0, len(articles))
+	for _, article := range articles {
+		items = append(items, graphArticleRow(article))
 	}
 	return items, matches, nil
+}
+
+// graphArticleFilter parses and validates the graph article request filters.
+func graphArticleFilter(r *http.Request, runID int64, limit int) (work.GraphFilter, error) {
+	filter := work.GraphFilter{RunID: runID, Limit: limit}
+	query := r.URL.Query()
+	filter.Query = query.Get("q")
+	filter.Source = query.Get("source")
+	filter.Author = query.Get("author")
+	filter.ORCID = query.Get("orcid")
+	filter.Reference = query.Get("reference")
+	for _, value := range []struct {
+		name  string
+		value string
+	}{
+		{"q", filter.Query},
+		{"source", filter.Source},
+		{"author", filter.Author},
+		{"orcid", filter.ORCID},
+		{"reference", filter.Reference},
+	} {
+		if len(value.value) > maxSearchQueryLength {
+			return work.GraphFilter{}, badRequest(value.name + " must be at most 200 characters")
+		}
+	}
+	for _, bound := range []struct {
+		parameter string
+		target    **int64
+	}{
+		{"year_min", &filter.YearMin},
+		{"year_max", &filter.YearMax},
+		{"citation_min", &filter.CitationMin},
+		{"citation_max", &filter.CitationMax},
+		{"reference_min", &filter.ReferenceMin},
+		{"reference_max", &filter.ReferenceMax},
+	} {
+		raw := query.Get(bound.parameter)
+		if raw == "" {
+			continue
+		}
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return work.GraphFilter{}, badRequest(bound.parameter + " must be an integer")
+		}
+		*bound.target = &value
+	}
+	return filter, nil
 }
 
 // graphEdges builds bounded nodes and edges for one supported relationship mode.
@@ -189,51 +189,40 @@ func (s *Server) graphEdgesWithinBudget(ctx context.Context, mode string, articl
 	if edgeBudget < 0 {
 		edgeBudget = 0
 	}
-	articlePlaceholders, articleArgs := placeholders(articleIDs)
-	var query string
-	var args []any
 	queryLimit := edgeBudget + 1
+	var items []map[string]any
 	switch mode {
 	case "article_author":
 		authorLimit := relatedBudget
 		if authorLimit == 0 {
 			authorLimit = 1
 		}
-		query = `WITH eligible_authors AS (
-            SELECT a.author_occurrence_id FROM authorships a
-            WHERE a.work_revision_id IN (` + articlePlaceholders + `)
-            GROUP BY a.author_occurrence_id ORDER BY MIN(a.id), a.author_occurrence_id LIMIT ?
-        ) SELECT a.work_revision_id, ao.id AS author_id, ao.citation_name, ao.orcid, a.author_order, a.affiliation
-            FROM authorships a JOIN eligible_authors ea ON ea.author_occurrence_id=a.author_occurrence_id
-            JOIN author_occurrences ao ON ao.id=a.author_occurrence_id
-            WHERE a.work_revision_id IN (` + articlePlaceholders + `) ORDER BY a.id`
-		args = append(args, articleArgs...)
-		args = append(args, authorLimit)
-		args = append(args, articleArgs...)
+		authorships, err := s.workStore.ListGraphAuthorships(ctx, articleIDs, authorLimit, queryLimit)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		for _, authorship := range authorships {
+			items = append(items, graphAuthorshipItem(authorship))
+		}
 	case "citation":
-		workPlaceholders, workArgs := placeholders(workIDs)
-		query = `SELECT rm.work_revision_id, rm.resolved_work_id FROM reference_mentions rm
-			WHERE rm.work_revision_id IN (` + articlePlaceholders + `) AND rm.resolved_work_id IN (` + workPlaceholders + `) ORDER BY rm.id`
-		args = append(args, articleArgs...)
-		args = append(args, workArgs...)
+		citations, err := s.workStore.ListGraphCitations(ctx, articleIDs, workIDs, queryLimit)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		for _, citation := range citations {
+			items = append(items, graphCitationItem(citation))
+		}
 	case "article_reference":
-		query = `SELECT rm.id AS reference_id, rm.work_revision_id, rm.doi, rm.title, rm.author, rm.year, rm.source
-			FROM reference_mentions rm WHERE rm.work_revision_id IN (` + articlePlaceholders + `) ORDER BY rm.id`
-		args = append(args, articleArgs...)
 		if relatedBudget < edgeBudget {
 			queryLimit = relatedBudget + 1
 		}
-	}
-	query += " LIMIT ?"
-	args = append(args, queryLimit)
-	rows, err := s.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, nil, false, err
-	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, nil, false, err
+		references, err := s.workStore.ListGraphReferences(ctx, articleIDs, queryLimit)
+		if err != nil {
+			return nil, nil, false, err
+		}
+		for _, reference := range references {
+			items = append(items, graphReferenceItem(reference))
+		}
 	}
 	related := map[string]bool{}
 	truncated := len(items) == queryLimit

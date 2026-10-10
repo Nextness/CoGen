@@ -36,6 +36,61 @@ coverage_policy: coverage_policy_config = {
         ["analysis/article"]           => { minimum =  97.0 },
         ["analysis/bibtex"]            => { minimum =  95.0 },
         ["analysis/database"]          => { minimum =  70.0 },
+        ["analysis/database/author"]   => { minimum =  90.0 },
+        ["analysis/database/author/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated author queries are exercised through the handwritten family integration and parity tests."
+        },
+        ["analysis/database/artifact"] => { minimum =  90.0 },
+        ["analysis/database/artifact/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated artifact queries are exercised through the handwritten family integration and parity tests."
+        },
+        ["analysis/database/audit"] => { minimum =  90.0 },
+        ["analysis/database/audit/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated audit queries are exercised through the handwritten family integration and parity tests."
+        },
+        ["analysis/database/cache"]    => { minimum =  90.0 },
+        ["analysis/database/cache/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated cache queries are exercised through the handwritten family integration and parity tests."
+        },
+        ["analysis/database/search"] => { minimum =  90.0 },
+        ["analysis/database/search/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated search queries are exercised through the handwritten family integration and characterization tests."
+        },
+        ["analysis/database/run"] => { minimum =  90.0 },
+        ["analysis/database/run/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated run queries are exercised through the handwritten family integration, concurrency, and lifecycle tests."
+        },
+        ["analysis/database/source"] => { minimum =  90.0 },
+        ["analysis/database/source/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated source queries are exercised through the handwritten family integration and parity tests."
+        },
+        ["analysis/database/work"] => { minimum =  90.0 },
+        ["analysis/database/work/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated work queries are exercised through the handwritten family integration, parity, and rollback tests."
+        },
+        ["analysis/database/review"] => {
+            minimum = 75.0,
+            rationale = "The review family starts adapter-driven from the existing database and server suites; relocation into family-owned tests is tracked by the review phase."
+        },
+        ["analysis/database/review/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated review queries are exercised through the handwritten family integration, characterization, and server mutation tests."
+        },
+        ["analysis/database/pdfbinding"] => { minimum =  90.0 },
+        ["analysis/database/pdfbinding/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated PDF binding queries are exercised through the handwritten family integration and delivered-event tests."
+        },
+        ["analysis/database/sqlcprobe"] => { minimum =  80.0 },
+        ["analysis/database/sqlcprobe/internal/sql"] => { minimum =  75.0 },
         ["analysis/enrich"]            => { minimum =  70.0 },
         ["analysis/logging"]           => { minimum = 100.0 },
         ["analysis/manifest"]          => {
@@ -45,11 +100,19 @@ coverage_policy: coverage_policy_config = {
         ["analysis/normalization"]     => { minimum =  82.0 },
         ["analysis/notes"]             => { minimum =  84.0 },
         ["analysis/pdfstore"]          => { minimum =  73.0 },
+        ["analysis/pdfstore/internal/sql"] => {
+            minimum = 75.0,
+            rationale = "Generated companion PDF queries are exercised through the handwritten store integration and viewer tests; the generated WithTx scaffolding stays unused until the transactional outbox phase and the handwritten layer guards empty slices before generated calls."
+        },
         ["analysis/searchterms"]       => { minimum =  90.0 },
         ["analysis/server"]            => { minimum =  76.0 },
         ["analysis/something"]         => { minimum =  87.5 },
         ["analysis/tools/pdf-store"]   => { minimum =  50.0 },
         ["analysis/tools/prepare-osf"] => { minimum =  45.0 },
+        ["analysis/tools/prepare-osf/internal/sql"] => {
+            minimum = 80.0,
+            rationale = "Generated export queries are exercised through the handwritten prepare-osf integration tests."
+        },
         ["analysis/validation"]        => { minimum =  92.0 },
         ["analysis/workspace"]         => { minimum =  72.0 },
     },
@@ -65,10 +128,6 @@ coverage_policy: coverage_policy_config = {
         ["analysis/workspace/store.go"] => {
             minimum = 66.0,
             rationale = "The main workspace orchestration path needs a stronger floor than package main."
-        },
-        ["analysis/database/attempts.go"] => {
-            minimum = 61.0,
-            rationale = "Attempt, source, artifact, and stage persistence protect run provenance."
         },
         ["analysis/database/database.go"] => {
             minimum = 72.0,

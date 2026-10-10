@@ -80,6 +80,10 @@ jobs:
         with:
           go-version-file: src/go.mod
           cache: true
+      - name: Install pinned sqlc
+        run: make sqlc-install
+      - name: Verify generated sqlc output and query analysis
+        run: make sqlc-check
       - name: Build build/analysis
         run: make build
       - name: Build maintained Go tools

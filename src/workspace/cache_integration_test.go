@@ -18,6 +18,7 @@ import (
 
 	"analysis/article"
 	"analysis/database"
+	dbcache "analysis/database/cache"
 	"analysis/enrich"
 	"analysis/manifest"
 )
@@ -72,7 +73,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil || response.Layer != "run:"+strconv.FormatInt(firstRunID, 10) || string(response.Body) == "unexpected" || calls != 1 {
 		t.Fatalf("prior-run response = %+v, %v, calls=%d", response, err, calls)
 	}
-	uses, err := db.RunCacheUses.ListByRun(secondRunID)
+	uses, err := db.Cache.ListUsesByRun(context.Background(), secondRunID)
 	if err != nil || len(uses) != 1 || uses[0].CacheLayer != "run:"+strconv.FormatInt(firstRunID, 10) || uses[0].Outcome != string(manifest.CacheHit) {
 		t.Fatalf("prior-run use = %+v, %v", uses, err)
 	}
@@ -156,16 +157,16 @@ func TestWorkspaceCacheStaleNegativeRelooksUp(t *testing.T) {
 	if err != nil || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("negative response = %+v, %v", response, err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil {
 		t.Fatalf("negative entry = %+v, %v", entry, err)
 	}
 	entry.ExpiresAt = "2000-01-01T00:00:00Z"
-	staleID, err := db.CacheEntries.Upsert(entry)
+	staleID, err := db.Cache.AppendEntry(context.Background(), entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := first.recordUse(staleID, "global", manifest.CacheNegative); err != nil {
+	if err := first.recordUse(context.Background(), staleID, "global", manifest.CacheNegative); err != nil {
 		t.Fatal(err)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"global"}, NegativeTTLDays: 1})
@@ -190,11 +191,11 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(testCachePayload("network")) || calls != 1 {
 		t.Fatalf("network fallback = %+v, %v, calls=%d", response, err, calls)
 	}
-	uses, err := db.RunCacheUses.ListByRun(cache.runID)
+	uses, err := db.Cache.ListUsesByRun(context.Background(), cache.runID)
 	if err != nil || len(uses) != 2 || uses[0].CacheLayer != "active_run" || uses[1].CacheLayer != "global" {
 		t.Fatalf("network cache writes = %+v, %v", uses, err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(testCacheRequest()), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(testCacheRequest()), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("network cache payload linkage = %+v, %v", entry, err)
 	}
@@ -223,7 +224,7 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	}, nil); err == nil || !strings.Contains(err.Error(), "invalid provider payload") {
 		t.Fatalf("malformed provider response error = %v", err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry != nil {
 		t.Fatalf("malformed provider response was cached: entry=%+v err=%v", entry, err)
 	}
@@ -239,7 +240,7 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
 		t.Fatalf("valid retry response = %+v, %v", response, err)
 	}
-	entry, err = db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err = db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("valid retry cache entry = %+v, %v", entry, err)
 	}
@@ -250,18 +251,18 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	db, writer, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
 	request := testCacheRequest()
-	artifactID, err := persistArtifact(db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
+	artifactID, err := persistArtifact(context.Background(), db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	entryID, err := db.CacheEntries.Upsert(&database.CacheEntry{
+	entryID, err := db.Cache.AppendEntry(context.Background(), &dbcache.Entry{
 		Provider: request.Provider, Namespace: request.Namespace, RequestFingerprint: cacheFingerprint(request),
 		ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: time.Now().UTC().Format(time.RFC3339Nano), ExtractorVersion: cacheExtractorVersion,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunCacheUses.Create(&database.RunCacheUse{PipelineRunID: writer.runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
+	if _, err := db.Cache.AppendUse(context.Background(), &dbcache.Use{PipelineRunID: writer.runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -290,7 +291,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 	}, negative); err == nil || !strings.Contains(err.Error(), "temporary ORCID outage") {
 		t.Fatalf("transient ORCID error = %v", err)
 	}
-	entry, err := db.CacheEntries.Get("orcid", "author_name_search", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry != nil {
 		t.Fatalf("transient ORCID error was cached: entry=%+v err=%v", entry, err)
 	}
@@ -309,7 +310,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 	if err != nil || response.Status != 404 || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("empty ORCID result = %+v, %v", response, err)
 	}
-	emptyEntry, err := db.CacheEntries.Get("orcid", "author_name_search", cacheFingerprint(emptyRequest), cacheExtractorVersion)
+	emptyEntry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: cacheFingerprint(emptyRequest), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || emptyEntry == nil || emptyEntry.ExpiresAt == "" || emptyEntry.PayloadArtifactID != nil {
 		t.Fatalf("empty ORCID negative cache entry = %+v, %v", emptyEntry, err)
 	}

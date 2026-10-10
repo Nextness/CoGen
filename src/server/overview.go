@@ -5,14 +5,13 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
-	"analysis/database"
+	"analysis/database/run"
+	"analysis/database/source"
 )
 
 var knownRunMetrics = []string{
@@ -54,20 +53,29 @@ const legacyDiscoveryLimit = 100
 
 // sourceResultCounts returns the stored source inventory and result-count evidence for a run.
 func (s *Server) sourceResultCounts(ctx context.Context, runID int64) ([]map[string]any, error) {
-	dateColumn := "NULL AS export_date"
-	if s.tableHasColumns("run_sources", "export_date") {
-		dateColumn = "export_date"
-	}
-	countColumns := fmt.Sprintf(`NULL AS expected_result_count, NULL AS observed_result_count, NULL AS result_count_comparison, %s`, dateColumn)
-	if s.tableHasColumns("run_sources", "expected_result_count", "observed_result_count", "result_count_comparison") {
-		countColumns = fmt.Sprintf("expected_result_count, observed_result_count, result_count_comparison, %s", dateColumn)
-	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, source_name, source_type, expected_file, query, `+countColumns+` FROM run_sources WHERE pipeline_run_id=? ORDER BY id`, runID)
+	rows, err := s.sourceStore.ListResultCountsForRun(ctx, source.ResultCountFilter{
+		RunID:               runID,
+		IncludeExportDate:   s.tableHasColumns("run_sources", "export_date"),
+		IncludeResultCounts: s.tableHasColumns("run_sources", "expected_result_count", "observed_result_count", "result_count_comparison"),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return rowsAsMaps(rows)
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":                      row.ID,
+			"source_name":             row.SourceName,
+			"source_type":             row.SourceType,
+			"expected_file":           row.ExpectedFile,
+			"query":                   nullableText(row.Query),
+			"expected_result_count":   nullableIDPointer(row.ExpectedResultCount),
+			"observed_result_count":   nullableIDPointer(row.ObservedResultCount),
+			"result_count_comparison": nullableText(row.ResultCountComparison),
+			"export_date":             nullableText(row.ExportDate),
+		})
+	}
+	return items, nil
 }
 
 // sourceFilterCounts decodes stored per-source filter stages and reports malformed evidence without exposing its raw content.
@@ -75,20 +83,15 @@ func (s *Server) sourceFilterCounts(ctx context.Context, runID int64) ([]map[str
 	if !s.tableHasColumns("source_filter_counts") {
 		return nil, nil, nil
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT source_name, filter_data FROM source_filter_counts WHERE pipeline_run_id=? ORDER BY source_name`, runID)
+	counts, err := s.sourceStore.ListFilterCountsByRun(ctx, runID)
 	if err != nil {
 		return nil, nil, err
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, nil, err
-	}
-	result := make([]map[string]any, 0, len(items))
+	result := make([]map[string]any, 0, len(counts))
 	diagnostics := make([]map[string]any, 0)
-	for _, item := range items {
-		sourceName, _ := item["source_name"].(string)
-		filterDataRaw, _ := item["filter_data"].(string)
+	for _, item := range counts {
+		sourceName := item.SourceName
+		filterDataRaw := item.FilterData
 		if filterDataRaw == "" || filterDataRaw == "[]" {
 			continue
 		}
@@ -136,9 +139,8 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	corpusID := ""
 	reviewWritable := false
 	if metadataReadable && s.writeDB != nil {
-		var queryOnly int
-		if err := s.writeDB.DB.PingContext(ctx); err == nil {
-			if err := s.writeDB.DB.QueryRowContext(ctx, "PRAGMA query_only").Scan(&queryOnly); err == nil && queryOnly == 0 {
+		if err := s.writeDB.PingContext(ctx); err == nil {
+			if writable, err := s.writeDB.Writable(ctx); err == nil && writable {
 				var reviewErr error
 				corpusID, reviewErr = s.writeDB.Reviews.CorpusID(ctx)
 				reviewWritable = reviewErr == nil
@@ -169,22 +171,6 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	}, metadataErr)
 }
 
-// tableNames returns discovered table names in deterministic order.
-func (s *Server) tableNames() []string {
-	names := make([]string, 0, len(s.tables))
-	for name := range s.tables {
-		names = append(names, name)
-	}
-	// Table discovery orders its query. This fallback is intentionally tiny to
-	// avoid exposing map iteration order through the API.
-	for i := 1; i < len(names); i++ {
-		for j := i; j > 0 && names[j] < names[j-1]; j-- {
-			names[j], names[j-1] = names[j-1], names[j]
-		}
-	}
-	return names
-}
-
 // searches returns a bounded compatibility view of searches and their newest revisions.
 func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 	if err := validateKnownQuery(r); err != nil {
@@ -193,25 +179,11 @@ func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `WITH selected_searches AS (
-		SELECT id, search_id, created_at FROM searches ORDER BY id DESC LIMIT ?
-	), ranked_revisions AS (
-		SELECT sr.id, sr.search_id, sr.revision_label, sr.config_artifact_hash,
-			sr.resolved_manifest_hash, sr.created_at,
-			ROW_NUMBER() OVER (PARTITION BY sr.search_id ORDER BY sr.id DESC) AS row_number
-		FROM search_revisions sr JOIN selected_searches selected ON selected.id=sr.search_id
-	)
-		SELECT s.id, s.search_id, s.created_at,
-			sr.id AS revision_id, sr.revision_label, sr.config_artifact_hash,
-			sr.resolved_manifest_hash, sr.created_at AS revision_created_at
-		FROM selected_searches s
-		LEFT JOIN ranked_revisions sr ON sr.search_id=s.id AND sr.row_number<=?
-		ORDER BY s.id DESC, sr.id DESC`, legacyDiscoveryLimit+1, legacyDiscoveryLimit+1)
+	rows, err := s.searchStore.ListLegacySearches(ctx, legacyDiscoveryLimit+1)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
 	type revision struct {
 		ID                   int64  `json:"id"`
 		Label                string `json:"label"`
@@ -219,44 +191,36 @@ func (s *Server) searches(w http.ResponseWriter, r *http.Request) {
 		ResolvedManifestHash string `json:"resolved_manifest_hash"`
 		CreatedAt            string `json:"created_at"`
 	}
-	type search struct {
+	type searchRecord struct {
 		ID                 int64      `json:"id"`
 		SearchID           string     `json:"search_id"`
 		CreatedAt          string     `json:"created_at"`
 		Revisions          []revision `json:"revisions"`
 		RevisionsTruncated bool       `json:"revisions_truncated"`
 	}
-	byID := map[int64]*search{}
-	ordered := make([]*search, 0)
-	for rows.Next() {
-		var item search
-		var revisionID sql.NullInt64
-		var rev revision
-		var nullable [4]sql.NullString
-		if err := rows.Scan(&item.ID, &item.SearchID, &item.CreatedAt, &revisionID, &nullable[0], &nullable[1], &nullable[2], &nullable[3]); err != nil {
-			s.respond(w, r, nil, err)
-			return
-		}
-		existing := byID[item.ID]
+	byID := map[int64]*searchRecord{}
+	ordered := make([]*searchRecord, 0)
+	for _, row := range rows {
+		existing := byID[row.ID]
 		if existing == nil {
-			existing = &item
-			byID[item.ID] = existing
+			existing = &searchRecord{ID: row.ID, SearchID: row.SearchID, CreatedAt: row.CreatedAt}
+			byID[row.ID] = existing
 			ordered = append(ordered, existing)
 		}
-		if revisionID.Valid && len(existing.Revisions) < legacyDiscoveryLimit {
-			rev.ID = revisionID.Int64
-			rev.Label = nullable[0].String
-			rev.ConfigArtifactHash = nullable[1].String
-			rev.ResolvedManifestHash = nullable[2].String
-			rev.CreatedAt = nullable[3].String
-			existing.Revisions = append(existing.Revisions, rev)
-		} else if revisionID.Valid {
+		if row.RevisionID == nil {
+			continue
+		}
+		if len(existing.Revisions) < legacyDiscoveryLimit {
+			existing.Revisions = append(existing.Revisions, revision{
+				ID:                   *row.RevisionID,
+				Label:                row.RevisionLabel,
+				ConfigArtifactHash:   row.ConfigArtifactHash,
+				ResolvedManifestHash: row.ResolvedManifestHash,
+				CreatedAt:            row.RevisionCreatedAt,
+			})
+		} else {
 			existing.RevisionsTruncated = true
 		}
-	}
-	if err := rows.Err(); err != nil {
-		s.respond(w, r, nil, err)
-		return
 	}
 	hasMore := len(ordered) > legacyDiscoveryLimit
 	if hasMore {
@@ -284,18 +248,26 @@ func (s *Server) plans(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id, search_revision_id, execution_fingerprint,
-		resolved_manifest_hash, input_manifest_hash, enrichment_enabled, created_at
-		FROM execution_plans WHERE search_revision_id=? ORDER BY id DESC LIMIT ?`, id, legacyDiscoveryLimit+1)
+	plans, err := s.searchStore.ListLegacyPlans(ctx, id, legacyDiscoveryLimit+1)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	items := make([]map[string]any, 0, len(plans))
+	for _, plan := range plans {
+		enrichmentEnabled := int64(0)
+		if plan.EnrichmentEnabled {
+			enrichmentEnabled = 1
+		}
+		items = append(items, map[string]any{
+			"id":                     plan.ID,
+			"search_revision_id":     plan.SearchRevisionID,
+			"execution_fingerprint":  plan.ExecutionFingerprint,
+			"resolved_manifest_hash": plan.ResolvedManifestHash,
+			"input_manifest_hash":    plan.InputManifestHash,
+			"enrichment_enabled":     enrichmentEnabled,
+			"created_at":             plan.CreatedAt,
+		})
 	}
 	hasMore := len(items) > legacyDiscoveryLimit
 	if hasMore {
@@ -321,16 +293,14 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("include_trashed must be true or false"))
 		return
 	}
-	args := make([]any, 0, 2)
-	clauses := make([]string, 0, 2)
+	filter := run.LegacyRunFilter{IncludeTrashed: includeTrashed, Limit: legacyDiscoveryLimit + 1}
 	if raw := r.URL.Query().Get("search_revision_id"); raw != "" {
 		id, err := positiveID(raw)
 		if err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
-		clauses = append(clauses, "ep.search_revision_id=?")
-		args = append(args, id)
+		filter.SearchRevisionID = id
 	}
 	if raw := r.URL.Query().Get("plan_id"); raw != "" {
 		id, err := positiveID(raw)
@@ -338,33 +308,32 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 			s.respond(w, r, nil, err)
 			return
 		}
-		clauses = append(clauses, "pr.execution_plan_id=?")
-		args = append(args, id)
+		filter.PlanID = id
 	}
-	if !includeTrashed {
-		clauses = append(clauses, "pr.visibility_state != 'trashed'")
-	}
-	query := `SELECT pr.id, pr.step, pr.started_at, pr.finished_at, pr.status, pr.summary,
-	pr.search_query, pr.execution_plan_id, pr.attempt_number, pr.visibility_state,
-	pr.trashed_at, pr.trash_reason, ep.search_revision_id
-	FROM pipeline_runs pr LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id`
-	if len(clauses) != 0 {
-		query += " WHERE " + strings.Join(clauses, " AND ")
-	}
-	query += " ORDER BY pr.id DESC LIMIT ?"
-	args = append(args, legacyDiscoveryLimit+1)
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.runStore.ListLegacyRuns(ctx, filter)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":                 row.ID,
+			"step":               row.Step,
+			"started_at":         row.StartedAt,
+			"finished_at":        nullableText(row.FinishedAt),
+			"status":             row.Status,
+			"summary":            nullableText(row.Summary),
+			"search_query":       nullableText(row.SearchQuery),
+			"execution_plan_id":  nullableIDPointer(row.ExecutionPlanID),
+			"attempt_number":     nullableIDPointer(row.AttemptNumber),
+			"visibility_state":   row.VisibilityState,
+			"trashed_at":         nullableText(row.TrashedAt),
+			"trash_reason":       nullableText(row.TrashReason),
+			"search_revision_id": nullableIDPointer(row.SearchRevisionID),
+		})
 	}
 	hasMore := len(items) > legacyDiscoveryLimit
 	if hasMore {
@@ -388,96 +357,17 @@ func (s *Server) runContext(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-
-	type searchContext struct {
-		ID        int64  `json:"id"`
-		SearchID  string `json:"search_id"`
-		CreatedAt string `json:"created_at"`
-	}
-	type revisionContext struct {
-		ID                   int64  `json:"id"`
-		SearchID             int64  `json:"search_id"`
-		Label                string `json:"label"`
-		ConfigArtifactHash   string `json:"config_artifact_hash"`
-		ResolvedManifestHash string `json:"resolved_manifest_hash"`
-		CreatedAt            string `json:"created_at"`
-	}
-	type planContext struct {
-		ID                   int64  `json:"id"`
-		SearchRevisionID     int64  `json:"search_revision_id"`
-		ExecutionFingerprint string `json:"execution_fingerprint"`
-		ResolvedManifestHash string `json:"resolved_manifest_hash"`
-		InputManifestHash    string `json:"input_manifest_hash"`
-		EnrichmentEnabled    bool   `json:"enrichment_enabled"`
-		CreatedAt            string `json:"created_at"`
-	}
-	type runContext struct {
-		ID              int64   `json:"id"`
-		ExecutionPlanID int64   `json:"execution_plan_id"`
-		Step            string  `json:"step"`
-		StartedAt       string  `json:"started_at"`
-		FinishedAt      *string `json:"finished_at"`
-		Status          string  `json:"status"`
-		Summary         *string `json:"summary"`
-		AttemptNumber   int64   `json:"attempt_number"`
-		VisibilityState string  `json:"visibility_state"`
-		TrashedAt       *string `json:"trashed_at"`
-		TrashReason     *string `json:"trash_reason"`
-	}
-
-	var search searchContext
-	var revision revisionContext
-	var plan planContext
-	var run runContext
-	var reviewContextID sql.NullInt64
-	err = s.db.QueryRowContext(ctx, `SELECT
-		s.id, s.search_id, s.created_at,
-		sr.id, sr.search_id, sr.revision_label, sr.config_artifact_hash, sr.resolved_manifest_hash, sr.created_at,
-		ep.id, ep.search_revision_id, ep.execution_fingerprint, ep.resolved_manifest_hash, ep.input_manifest_hash, ep.enrichment_enabled, ep.created_at,
-		pr.id, pr.execution_plan_id, pr.step, pr.started_at, pr.finished_at, pr.status, pr.summary,
-		pr.attempt_number, pr.visibility_state, pr.trashed_at, pr.trash_reason, rc.id
-		FROM pipeline_runs pr
-		JOIN execution_plans ep ON ep.id=pr.execution_plan_id
-		JOIN search_revisions sr ON sr.id=ep.search_revision_id
-		JOIN searches s ON s.id=sr.search_id
-		LEFT JOIN review_contexts rc ON rc.pipeline_run_id=pr.id
-		WHERE pr.id=?`, runID).Scan(
-		&search.ID, &search.SearchID, &search.CreatedAt,
-		&revision.ID, &revision.SearchID, &revision.Label, &revision.ConfigArtifactHash, &revision.ResolvedManifestHash, &revision.CreatedAt,
-		&plan.ID, &plan.SearchRevisionID, &plan.ExecutionFingerprint, &plan.ResolvedManifestHash, &plan.InputManifestHash, &plan.EnrichmentEnabled, &plan.CreatedAt,
-		&run.ID, &run.ExecutionPlanID, &run.Step, &run.StartedAt, &run.FinishedAt, &run.Status, &run.Summary,
-		&run.AttemptNumber, &run.VisibilityState, &run.TrashedAt, &run.TrashReason, &reviewContextID,
-	)
-	if err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("run context not found"))
-		return
-	}
+	context, err := s.runStore.RunContext(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-
-	runWritable := run.Status == "completed" && run.VisibilityState != "trashed"
-	var contextID any
-	if reviewContextID.Valid {
-		contextID = reviewContextID.Int64
+	if context == nil {
+		s.respond(w, r, nil, notFound("run context not found"))
+		return
 	}
-	s.respond(w, r, map[string]any{
-		"search":   search,
-		"revision": revision,
-		"plan":     plan,
-		"run":      run,
-		"lifecycle": map[string]any{
-			"status":           run.Status,
-			"visibility_state": run.VisibilityState,
-			"review_writable":  runWritable,
-		},
-		"review": map[string]any{
-			"initialized":  reviewContextID.Valid,
-			"context_id":   contextID,
-			"run_writable": runWritable,
-		},
-	}, nil)
+	runWritable := context.Run.Status == "completed" && context.Run.VisibilityState != "trashed"
+	s.respond(w, r, runContextPayload(context, runWritable), nil)
 }
 
 // overview returns captured metrics, coverage, relationships, and source evidence for a run.
@@ -489,24 +379,27 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var exists int
-	if err := s.db.QueryRowContext(ctx, "SELECT 1 FROM pipeline_runs WHERE id=?", runID).Scan(&exists); err == sql.ErrNoRows {
+	exists, err := s.runStore.Exists(ctx, runID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if !exists {
 		s.respond(w, r, nil, notFound("run not found"))
 		return
-	} else if err != nil {
-		s.respond(w, r, nil, err)
-		return
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT metric, source, value FROM pipeline_run_metrics WHERE pipeline_run_id=? ORDER BY metric, source", runID)
+	metricRows, err := s.runStore.ListMetricsByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	metrics, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	metrics := make([]map[string]any, 0, len(metricRows))
+	for _, metric := range metricRows {
+		metrics = append(metrics, map[string]any{
+			"metric": metric.Metric,
+			"source": metric.Source,
+			"value":  int64(metric.Value),
+		})
 	}
 	metricValues := map[string]int64{}
 	for _, metric := range metrics {
@@ -750,38 +643,29 @@ func metricDenominator(metric string, values map[string]int64) (int64, bool) {
 
 // currentCoverage returns work-revision and journal coverage for a run.
 func (s *Server) currentCoverage(ctx context.Context, runID int64) (map[string]any, error) {
-	result := map[string]any{}
-	var total, normalized int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*), COALESCE(SUM(CASE WHEN journal IS NOT NULL AND journal != '' THEN 1 ELSE 0 END),0) FROM work_revisions WHERE pipeline_run_id=?", runID).Scan(&total, &normalized); err != nil {
+	coverage, err := s.workStore.CurrentCoverage(ctx, runID)
+	if err != nil {
 		return nil, err
 	}
-	result["work_revisions"] = map[string]any{"value": total, "available": true, "state": "derived"}
-	result["journal_coverage"] = map[string]any{"value": normalized, "denominator": total, "percentage": percent(normalized, total), "available": true, "state": "derived"}
+	result := map[string]any{}
+	result["work_revisions"] = map[string]any{"value": coverage.WorkRevisions, "available": true, "state": "derived"}
+	result["journal_coverage"] = map[string]any{"value": coverage.JournalCoverage, "denominator": coverage.WorkRevisions, "percentage": percent(coverage.JournalCoverage, coverage.WorkRevisions), "available": true, "state": "derived"}
 	return result, nil
 }
 
 // relationshipTotals counts canonical works, authorships, references, and resolved citations for a run.
 func (s *Server) relationshipTotals(ctx context.Context, runID int64) (map[string]any, error) {
-	queries := map[string]string{
-		"work_revisions":          "SELECT COUNT(*) FROM work_revisions WHERE pipeline_run_id=?",
-		"analysis_ready_articles": "SELECT COUNT(*) FROM work_revisions wr WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
-		"authorships":             "SELECT COUNT(*) FROM authorships a JOIN work_revisions wr ON wr.id=a.work_revision_id WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
-		"reference_mentions":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND " + database.CurrentNormalizedRevisionPredicate("wr"),
-		"internal_citations":      "SELECT COUNT(*) FROM reference_mentions rm JOIN work_revisions wr ON wr.id=rm.work_revision_id WHERE wr.pipeline_run_id=? AND rm.resolved_work_id IS NOT NULL AND " + database.CurrentNormalizedRevisionPredicate("wr"),
+	totals, err := s.workStore.RelationshipTotals(ctx, runID)
+	if err != nil {
+		return nil, err
 	}
-	result := map[string]any{}
-	for name, query := range queries {
-		var count int64
-		if err := s.db.QueryRowContext(ctx, query, runID).Scan(&count); err != nil {
-			return nil, err
-		}
-		result[name] = map[string]any{
-			"value":     count,
-			"available": true,
-			"state":     "derived",
-		}
-	}
-	return result, nil
+	return map[string]any{
+		"work_revisions":          map[string]any{"value": totals.WorkRevisions, "available": true, "state": "derived"},
+		"analysis_ready_articles": map[string]any{"value": totals.AnalysisReadyArticles, "available": true, "state": "derived"},
+		"authorships":             map[string]any{"value": totals.Authorships, "available": true, "state": "derived"},
+		"reference_mentions":      map[string]any{"value": totals.ReferenceMentions, "available": true, "state": "derived"},
+		"internal_citations":      map[string]any{"value": totals.InternalCitations, "available": true, "state": "derived"},
+	}, nil
 }
 
 // percent returns value as a percentage of denominator, or nil when denominator is zero.

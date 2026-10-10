@@ -98,9 +98,9 @@ func prepare(ctx context.Context, input options) error {
 	if err != nil {
 		return fmt.Errorf("read source metadata schema version: %w", err)
 	}
-	var relativePDF string
-	if err := source.QueryRowContext(ctx, "SELECT relative_path FROM pdf_store_binding WHERE id=1").Scan(&relativePDF); err != nil {
-		return fmt.Errorf("read PDF binding: %w", err)
+	relativePDF, err := newExportStore(source).binding(ctx)
+	if err != nil {
+		return err
 	}
 	pdfPath, err := safeCompanionPath(dbPath, relativePDF)
 	if err != nil {
@@ -222,95 +222,67 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 		return nil, "", err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, "UPDATE pipeline_run_reviewers SET username='', email=''"); err != nil {
-		return nil, "", fmt.Errorf("redact reviewers: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, "UPDATE review_settings SET corpus_id=lower(hex(randomblob(16))) WHERE id=1"); err != nil {
-		return nil, "", fmt.Errorf("regenerate review corpus ID: %w", err)
-	}
-	rows, err := tx.QueryContext(ctx, `SELECT DISTINCT artifact.id, artifact.content_hash, artifact.content_type,
-		blob.pipeline_run_id, blob.data FROM run_artifacts link JOIN artifacts artifact ON artifact.id=link.artifact_id
-		JOIN artifact_blobs blob ON blob.artifact_id=artifact.id WHERE link.artifact_role='workspace_config' ORDER BY artifact.id`)
-	if err != nil {
+	store := newExportStore(db).withTx(tx)
+	if err := store.redactReviewers(ctx); err != nil {
 		return nil, "", err
 	}
-	type rawArtifact struct {
-		id, runID         int64
-		hash, contentType string
-		data              []byte
+	if err := store.regenerateCorpusID(ctx); err != nil {
+		return nil, "", err
 	}
-	items := []rawArtifact{}
-	for rows.Next() {
-		var item rawArtifact
-		if err := rows.Scan(&item.id, &item.hash, &item.contentType, &item.runID, &item.data); err != nil {
-			rows.Close()
-			return nil, "", err
-		}
-		items = append(items, item)
-	}
-	if err := rows.Close(); err != nil {
+	items, err := store.workspaceConfigArtifacts(ctx)
+	if err != nil {
 		return nil, "", err
 	}
 	mappings := []hashMapping{}
 	for _, item := range items {
-		sanitized, changed, err := sanitizeReviewerAssignments(item.data)
+		sanitized, changed, err := sanitizeReviewerAssignments(item.Data)
 		if err != nil {
-			return nil, "", fmt.Errorf("sanitize workspace configuration artifact %s: %w", item.hash, err)
+			return nil, "", fmt.Errorf("sanitize workspace configuration artifact %s: %w", item.ContentHash, err)
 		}
-		if !changed || bytes.Equal(sanitized, item.data) {
+		if !changed || bytes.Equal(sanitized, item.Data) {
 			continue
 		}
 		digest := sha256.Sum256(sanitized)
 		newHash := hex.EncodeToString(digest[:])
-		var newID int64
-		err = tx.QueryRowContext(ctx, "SELECT id FROM artifacts WHERE content_hash=?", newHash).Scan(&newID)
-		if err == sql.ErrNoRows {
-			result, err := tx.ExecContext(ctx, `INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, ?)`, newHash, len(sanitized), item.contentType)
+		newID, found, err := store.artifactByHash(ctx, newHash)
+		if err != nil {
+			return nil, "", err
+		}
+		if !found {
+			newID, err = store.insertArtifact(ctx, newHash, int64(len(sanitized)), item.ContentType)
 			if err != nil {
 				return nil, "", err
 			}
-			newID, err = result.LastInsertId()
-			if err != nil {
+			if err := store.insertArtifactBlob(ctx, newID, item.PipelineRunID, sanitized); err != nil {
 				return nil, "", err
 			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)`, newID, item.runID, sanitized); err != nil {
-				return nil, "", err
-			}
-		} else if err != nil {
+		}
+		if err := store.rewireRunArtifacts(ctx, newID, item.ID); err != nil {
 			return nil, "", err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE run_artifacts SET artifact_id=? WHERE artifact_id=?", newID, item.id); err != nil {
+		if err := store.rewireSearchRevisions(ctx, newHash, item.ContentHash); err != nil {
 			return nil, "", err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE search_revisions SET config_artifact_hash=? WHERE config_artifact_hash=?", newHash, item.hash); err != nil {
+		if err := store.rewireRunStepInputs(ctx, newID, newHash, item.ID); err != nil {
 			return nil, "", err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE run_steps SET input_artifact_id=?, input_fingerprint=? WHERE input_artifact_id=?", newID, newHash, item.id); err != nil {
+		if err := store.rewireRunStepOutputs(ctx, newID, newHash, item.ID); err != nil {
 			return nil, "", err
 		}
-		if _, err := tx.ExecContext(ctx, "UPDATE run_steps SET output_artifact_id=?, output_fingerprint=? WHERE output_artifact_id=?", newID, newHash, item.id); err != nil {
-			return nil, "", err
-		}
-		var references int
-		if err := tx.QueryRowContext(ctx, `SELECT
-			(SELECT COUNT(*) FROM run_artifacts WHERE artifact_id=?)+
-			(SELECT COUNT(*) FROM run_steps WHERE input_artifact_id=? OR output_artifact_id=?)+
-			(SELECT COUNT(*) FROM cache_entries WHERE payload_artifact_id=?)+
-			(SELECT COUNT(*) FROM author_identity_candidates WHERE payload_artifact_id=?)`, item.id, item.id, item.id, item.id, item.id).Scan(&references); err != nil {
+		references, err := store.artifactReferenceCount(ctx, item.ID)
+		if err != nil {
 			return nil, "", err
 		}
 		if references != 0 {
 			return nil, "", fmt.Errorf("original reviewer configuration artifact remains referenced")
 		}
-		if references == 0 {
-			if _, err := tx.ExecContext(ctx, "DELETE FROM artifact_blobs WHERE artifact_id=?", item.id); err != nil {
-				return nil, "", err
-			}
-			if _, err := tx.ExecContext(ctx, "DELETE FROM artifacts WHERE id=?", item.id); err != nil {
-				return nil, "", err
-			}
+		if err := store.deleteArtifactBlob(ctx, item.ID); err != nil {
+			return nil, "", err
 		}
-		mappings = append(mappings, hashMapping{Original: item.hash, Sanitized: newHash})
+		if err := store.deleteArtifact(ctx, item.ID); err != nil {
+			return nil, "", err
+		}
+		mappings = append(mappings, hashMapping{Original: item.ContentHash, Sanitized: newHash})
 	}
 	var foreignKeyFailures int
 	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM pragma_foreign_key_check").Scan(&foreignKeyFailures); err != nil {
@@ -323,7 +295,7 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 	if err := tx.QueryRowContext(ctx, "SELECT filename FROM schema_migrations ORDER BY rowid DESC LIMIT 1").Scan(&version); err != nil {
 		return nil, "", err
 	}
-	if err := validateArtifactBlobs(ctx, tx); err != nil {
+	if err := validateArtifactBlobs(ctx, store); err != nil {
 		return nil, "", err
 	}
 	if err := tx.Commit(); err != nil {
@@ -334,26 +306,18 @@ func sanitizeMetadata(ctx context.Context, db *sql.DB) ([]hashMapping, string, e
 }
 
 // validateArtifactBlobs recomputes every copied artifact size and SHA-256 identity.
-func validateArtifactBlobs(ctx context.Context, tx *sql.Tx) error {
-	rows, err := tx.QueryContext(ctx, `SELECT artifact.content_hash, artifact.byte_size, blob.data
-		FROM artifacts artifact JOIN artifact_blobs blob ON blob.artifact_id=artifact.id`)
+func validateArtifactBlobs(ctx context.Context, store *exportStore) error {
+	blobs, err := store.artifactBlobs(ctx)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var expected string
-		var size int
-		var data []byte
-		if err := rows.Scan(&expected, &size, &data); err != nil {
-			return err
-		}
-		digest := sha256.Sum256(data)
-		if size != len(data) || expected != hex.EncodeToString(digest[:]) {
-			return fmt.Errorf("artifact blob hash or size validation failed for %s", expected)
+	for _, blob := range blobs {
+		digest := sha256.Sum256(blob.Data)
+		if blob.ByteSize != int64(len(blob.Data)) || blob.ContentHash != hex.EncodeToString(digest[:]) {
+			return fmt.Errorf("artifact blob hash or size validation failed for %s", blob.ContentHash)
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 // sanitizeReviewerAssignments replaces only provable inline reviewer values and fails closed otherwise.
