@@ -47,6 +47,14 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 			return store.Link(ctx, artifact.LinkInput{PipelineRunID: 1, ArtifactID: 1, Role: artifact.RunArtifactWorkspaceConfig})
 		}},
 		{"ListRunArtifacts", func() error { _, err := store.ListRunArtifacts(ctx, 1); return err }},
+		{"ListRunArtifactEvidence", func() error {
+			_, err := store.ListRunArtifactEvidence(ctx, artifact.RunArtifactFilter{RunID: 1, Order: "ASC", Limit: 10})
+			return err
+		}},
+		{"ListRunArtifactEvidencePageMode", func() error {
+			_, err := store.ListRunArtifactEvidence(ctx, artifact.RunArtifactFilter{RunID: 1, Order: "ASC", Page: 1, PerPage: 10, PageMode: true, Limit: 10})
+			return err
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

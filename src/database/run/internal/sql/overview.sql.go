@@ -221,3 +221,265 @@ func (q *Queries) GetSelectedAttempt(ctx context.Context, arg GetSelectedAttempt
 	)
 	return i, err
 }
+
+const listHierarchyAttempts = `-- name: ListHierarchyAttempts :many
+SELECT
+    id,
+    execution_plan_id,
+    attempt_number,
+    started_at,
+    finished_at,
+    status,
+    visibility_state
+FROM pipeline_runs
+WHERE execution_plan_id = ?1
+  AND visibility_state != 'trashed'
+  AND (CAST(?2 AS TEXT)='' OR CAST(id AS TEXT) LIKE CAST(?3 AS TEXT)
+    OR LOWER(status) LIKE CAST(?3 AS TEXT) OR LOWER(started_at) LIKE CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER)=0 OR id < ?4)
+ORDER BY id DESC
+LIMIT ?5
+`
+
+type ListHierarchyAttemptsParams struct {
+	ExecutionPlanID sql.NullInt64
+	Query           string
+	Pattern         string
+	Cursor          int64
+	Limit           int64
+}
+
+type ListHierarchyAttemptsRow struct {
+	ID              int64
+	ExecutionPlanID sql.NullInt64
+	AttemptNumber   sql.NullInt64
+	StartedAt       string
+	FinishedAt      sql.NullString
+	Status          string
+	VisibilityState string
+}
+
+func (q *Queries) ListHierarchyAttempts(ctx context.Context, arg ListHierarchyAttemptsParams) ([]ListHierarchyAttemptsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHierarchyAttempts,
+		arg.ExecutionPlanID,
+		arg.Query,
+		arg.Pattern,
+		arg.Cursor,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHierarchyAttemptsRow
+	for rows.Next() {
+		var i ListHierarchyAttemptsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionPlanID,
+			&i.AttemptNumber,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Status,
+			&i.VisibilityState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHierarchyRuns = `-- name: ListHierarchyRuns :many
+SELECT
+    pr.id,
+    pr.attempt_number,
+    pr.started_at,
+    pr.finished_at,
+    pr.status,
+    pr.visibility_state,
+    s.id AS search_id,
+    s.search_id AS search_name,
+    sr.id AS search_revision_id,
+    sr.revision_label,
+    ep.id AS execution_plan_id
+FROM pipeline_runs pr
+LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
+LEFT JOIN searches s ON s.id=sr.search_id
+WHERE (CAST(?1 AS TEXT)='' OR LOWER(s.search_id) LIKE ?2
+    OR LOWER(sr.revision_label) LIKE ?2 OR CAST(pr.id AS TEXT) LIKE ?2)
+  AND (CAST(?3 AS TEXT)='all'
+    OR (CAST(?3 AS TEXT)='active' AND pr.visibility_state!='trashed')
+    OR (CAST(?3 AS TEXT)='trashed' AND pr.visibility_state='trashed'))
+  AND (CAST(?4 AS TEXT)='' OR CAST(?4 AS TEXT)='all' OR pr.status=?4)
+  AND (CAST(?5 AS TEXT)='' OR datetime(pr.started_at) >= datetime(?5))
+  AND (CAST(?6 AS TEXT)='' OR datetime(pr.started_at) < datetime(?6))
+  AND (CAST(?7 AS INTEGER)=0 OR pr.id < ?7)
+ORDER BY pr.id DESC
+LIMIT ?8
+`
+
+type ListHierarchyRunsParams struct {
+	Query         string
+	Pattern       string
+	Visibility    string
+	Status        string
+	StartedAfter  string
+	StartedBefore string
+	Cursor        int64
+	Limit         int64
+}
+
+type ListHierarchyRunsRow struct {
+	ID               int64
+	AttemptNumber    sql.NullInt64
+	StartedAt        string
+	FinishedAt       sql.NullString
+	Status           string
+	VisibilityState  string
+	SearchID         sql.NullInt64
+	SearchName       sql.NullString
+	SearchRevisionID sql.NullInt64
+	RevisionLabel    sql.NullString
+	ExecutionPlanID  sql.NullInt64
+}
+
+func (q *Queries) ListHierarchyRuns(ctx context.Context, arg ListHierarchyRunsParams) ([]ListHierarchyRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHierarchyRuns,
+		arg.Query,
+		arg.Pattern,
+		arg.Visibility,
+		arg.Status,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.Cursor,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHierarchyRunsRow
+	for rows.Next() {
+		var i ListHierarchyRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AttemptNumber,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Status,
+			&i.VisibilityState,
+			&i.SearchID,
+			&i.SearchName,
+			&i.SearchRevisionID,
+			&i.RevisionLabel,
+			&i.ExecutionPlanID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLegacyRuns = `-- name: ListLegacyRuns :many
+SELECT
+    pr.id,
+    pr.step,
+    pr.started_at,
+    pr.finished_at,
+    pr.status,
+    pr.summary,
+    pr.search_query,
+    pr.execution_plan_id,
+    pr.attempt_number,
+    pr.visibility_state,
+    pr.trashed_at,
+    pr.trash_reason,
+    ep.search_revision_id
+FROM pipeline_runs pr
+LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
+WHERE (CAST(?1 AS INTEGER)=0 OR ep.search_revision_id=?1)
+  AND (CAST(?2 AS INTEGER)=0 OR pr.execution_plan_id=?2)
+  AND (CAST(?3 AS INTEGER)=1 OR pr.visibility_state!='trashed')
+ORDER BY pr.id DESC
+LIMIT ?4
+`
+
+type ListLegacyRunsParams struct {
+	SearchRevisionID int64
+	PlanID           int64
+	IncludeTrashed   int64
+	Limit            int64
+}
+
+type ListLegacyRunsRow struct {
+	ID               int64
+	Step             string
+	StartedAt        string
+	FinishedAt       sql.NullString
+	Status           string
+	Summary          sql.NullString
+	SearchQuery      sql.NullString
+	ExecutionPlanID  sql.NullInt64
+	AttemptNumber    sql.NullInt64
+	VisibilityState  string
+	TrashedAt        sql.NullString
+	TrashReason      sql.NullString
+	SearchRevisionID sql.NullInt64
+}
+
+func (q *Queries) ListLegacyRuns(ctx context.Context, arg ListLegacyRunsParams) ([]ListLegacyRunsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLegacyRuns,
+		arg.SearchRevisionID,
+		arg.PlanID,
+		arg.IncludeTrashed,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListLegacyRunsRow
+	for rows.Next() {
+		var i ListLegacyRunsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Step,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Status,
+			&i.Summary,
+			&i.SearchQuery,
+			&i.ExecutionPlanID,
+			&i.AttemptNumber,
+			&i.VisibilityState,
+			&i.TrashedAt,
+			&i.TrashReason,
+			&i.SearchRevisionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

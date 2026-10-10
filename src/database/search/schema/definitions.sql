@@ -31,9 +31,11 @@ CREATE TABLE execution_plans (
     UNIQUE (search_revision_id, execution_fingerprint)
 );
 
--- External run table declared only so hierarchy totals can count planned and
--- completed attempts. The run family owns all run mutations and lifecycle.
+-- External run table declared only so hierarchy totals and search summary
+-- counts can read planned and completed attempts. The run family owns all run
+-- mutations and lifecycle.
 CREATE TABLE pipeline_runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    execution_plan_id INTEGER
 );

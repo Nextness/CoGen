@@ -154,3 +154,157 @@ func TestStoreListLegacyPlansOrdersDescendingWithLimit(t *testing.T) {
 		t.Fatalf("legacy newest plan = %+v", plans[0])
 	}
 }
+
+// TestStoreListHierarchySectionsFilterOrderAndPage verifies the filtered Home
+// sections return descending identifiers, lookahead flags, cursor exclusion,
+// searchable predicates, counts, and nullable newest planned identifiers.
+func TestStoreListHierarchySectionsFilterOrderAndPage(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+
+	alpha, err := db.Searches.Create("section-alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	beta, err := db.Searches.Create("section-beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gamma, err := db.Searches.Create("section-gamma")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaRevision, _, err := db.Revisions.Create(alpha, "alpha-r1", "config-a", "manifest-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaPlan, err := db.Plans.CreateWithInputManifest(alphaRevision, "alpha-fp", "manifest-a", "input-a", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec("INSERT INTO pipeline_runs (step, started_at, status, execution_plan_id, attempt_number) VALUES ('workspace', datetime('now'), 'completed', ?, 1)", alphaPlan); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := db.Revisions.Create(gamma, "gamma-r1", "config-g", "manifest-g"); err != nil {
+		t.Fatal(err)
+	}
+
+	searches, hasMore, err := store.ListHierarchySearches(ctx, search.HierarchySearchFilter{Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasMore || len(searches) != 2 {
+		t.Fatalf("search page = %d items hasMore=%v, want 2 items with lookahead", len(searches), hasMore)
+	}
+	if searches[0].ID != gamma || searches[1].ID != beta {
+		t.Fatalf("search order = [%d %d], want [%d %d]", searches[0].ID, searches[1].ID, gamma, beta)
+	}
+	if searches[0].RevisionCount != 1 || searches[0].LatestRunID != nil || searches[0].LatestPlanID != nil {
+		t.Fatalf("gamma summary = %+v, want one revision and no planned identifiers", searches[0])
+	}
+
+	filtered, _, err := store.ListHierarchySearches(ctx, search.HierarchySearchFilter{Query: "alpha-r1", Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filtered) != 1 || filtered[0].ID != alpha {
+		t.Fatalf("revision-label filter = %+v, want search %d", filtered, alpha)
+	}
+	if filtered[0].RunCount != 1 || filtered[0].LatestRunID == nil || filtered[0].LatestPlanID == nil || filtered[0].LatestRevisionID == nil {
+		t.Fatalf("alpha summary = %+v, want planned identifiers and one run", filtered[0])
+	}
+	if *filtered[0].LatestRevisionID != alphaRevision || *filtered[0].LatestPlanID != alphaPlan {
+		t.Fatalf("alpha newest identifiers = %d/%d, want %d/%d", *filtered[0].LatestRevisionID, *filtered[0].LatestPlanID, alphaRevision, alphaPlan)
+	}
+
+	afterCursor, _, err := store.ListHierarchySearches(ctx, search.HierarchySearchFilter{CursorID: beta, Limit: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterCursor) != 1 || afterCursor[0].ID != alpha {
+		t.Fatalf("cursor page = %+v, want only search %d", afterCursor, alpha)
+	}
+
+	revisions, revisionHasMore, err := store.ListHierarchyRevisions(ctx, search.HierarchyRevisionFilter{SearchID: alpha, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revisionHasMore || len(revisions) != 1 || revisions[0].ID != alphaRevision {
+		t.Fatalf("revision page = %+v hasMore=%v, want only revision %d", revisions, revisionHasMore, alphaRevision)
+	}
+	if revisions[0].RunCount != 1 || revisions[0].LatestRunID == nil || revisions[0].LatestPlanID == nil {
+		t.Fatalf("revision summary = %+v, want planned identifiers", revisions[0])
+	}
+
+	plans, planHasMore, err := store.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{SearchRevisionID: alphaRevision, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if planHasMore || len(plans) != 1 || plans[0].ID != alphaPlan || plans[0].EnrichmentEnabled {
+		t.Fatalf("plan page = %+v hasMore=%v, want plan %d", plans, planHasMore, alphaPlan)
+	}
+
+	missing, _, err := store.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{SearchRevisionID: alphaRevision, Query: "no-match", Limit: 1})
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("unmatched plan filter = %+v err=%v, want empty", missing, err)
+	}
+	if _, _, err := store.ListHierarchySearches(ctx, search.HierarchySearchFilter{Limit: 0}); err == nil {
+		t.Fatal("expected a limit validation error")
+	}
+}
+
+// TestStoreListHierarchySectionsLookaheadAndQueryFilters verifies revision and
+// plan lookahead flags and their searchable predicates.
+func TestStoreListHierarchySectionsLookaheadAndQueryFilters(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+
+	searchID, err := db.Searches.Create("lookahead-search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := db.Revisions.Create(searchID, "first-revision", "config-1", "manifest-1"); err != nil {
+		t.Fatal(err)
+	}
+	secondRevision, _, err := db.Revisions.Create(searchID, "second-revision", "config-2", "manifest-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Plans.CreateWithInputManifest(secondRevision, "first-fingerprint", "manifest", "input", false); err != nil {
+		t.Fatal(err)
+	}
+	secondPlan, err := db.Plans.CreateWithInputManifest(secondRevision, "second-fingerprint", "manifest", "input", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	revisions, hasMore, err := store.ListHierarchyRevisions(ctx, search.HierarchyRevisionFilter{SearchID: searchID, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasMore || len(revisions) != 1 || revisions[0].ID != secondRevision {
+		t.Fatalf("revision lookahead = %+v hasMore=%v, want newest revision %d", revisions, hasMore, secondRevision)
+	}
+	filteredRevisions, _, err := store.ListHierarchyRevisions(ctx, search.HierarchyRevisionFilter{SearchID: searchID, Query: "first-revision", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filteredRevisions) != 1 || filteredRevisions[0].Label != "first-revision" {
+		t.Fatalf("filtered revisions = %+v", filteredRevisions)
+	}
+
+	plans, planHasMore, err := store.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{SearchRevisionID: secondRevision, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !planHasMore || len(plans) != 1 || plans[0].ID != secondPlan {
+		t.Fatalf("plan lookahead = %+v hasMore=%v, want newest plan %d", plans, planHasMore, secondPlan)
+	}
+	filteredPlans, _, err := store.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{SearchRevisionID: secondRevision, Query: "first-fingerprint", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filteredPlans) != 1 || filteredPlans[0].ExecutionFingerprint != "first-fingerprint" {
+		t.Fatalf("filtered plans = %+v", filteredPlans)
+	}
+}

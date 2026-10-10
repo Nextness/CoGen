@@ -118,6 +118,67 @@ func (s *Store) ListArticleStages(ctx context.Context, input ArticleStagePageInp
 	return &ArticleStagePage{Items: items, Total: total, HasMore: hasMore, NextCursorID: nextCursorID}, nil
 }
 
+// ListAuthorArticles returns one bounded page of run-scoped article revisions
+// attached to an author occurrence through an authorship, ordered by ascending
+// authorship ID.
+func (s *Store) ListAuthorArticles(ctx context.Context, filter AuthorArticleFilter) (*AuthorArticlePage, error) {
+	if filter.Limit < 1 {
+		return nil, fmt.Errorf("list author articles: limit must be positive")
+	}
+	total, err := s.queries.CountAuthorArticles(ctx, generated.CountAuthorArticlesParams{
+		AuthorOccurrenceID: filter.AuthorOccurrenceID,
+		PipelineRunID:      filter.RunID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count author articles: %w", err)
+	}
+	rows, err := s.queries.ListAuthorArticles(ctx, generated.ListAuthorArticlesParams{
+		AuthorOccurrenceID: filter.AuthorOccurrenceID,
+		PipelineRunID:      filter.RunID,
+		CursorID:           filter.CursorID,
+		RowLimit:           int64(filter.Limit + 1),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list author articles: %w", err)
+	}
+	hasMore := len(rows) > filter.Limit
+	if hasMore {
+		rows = rows[:filter.Limit]
+	}
+	items := make([]*AuthorArticle, 0, len(rows))
+	for _, row := range rows {
+		item := &AuthorArticle{
+			RelationID:     row.RelationID,
+			AuthorOrder:    row.AuthorOrder,
+			WorkRevisionID: row.WorkRevisionID,
+			WorkID:         row.WorkID,
+			PipelineRunID:  row.PipelineRunID,
+		}
+		if row.Affiliation.Valid {
+			affiliation := row.Affiliation.String
+			item.Affiliation = &affiliation
+		}
+		if row.Title.Valid {
+			title := row.Title.String
+			item.Title = &title
+		}
+		if row.Year.Valid {
+			year := row.Year.Int64
+			item.Year = &year
+		}
+		if row.Doi.Valid {
+			doi := row.Doi.String
+			item.DOI = &doi
+		}
+		items = append(items, item)
+	}
+	var nextCursorID int64
+	if hasMore && len(items) > 0 {
+		nextCursorID = items[len(items)-1].RelationID
+	}
+	return &AuthorArticlePage{Items: items, Total: total, HasMore: hasMore, NextCursorID: nextCursorID}, nil
+}
+
 // GetReferenceDetail returns one reference mention with its citing and
 // resolved-work context, or nil when it is not visible in the selected run.
 func (s *Store) GetReferenceDetail(ctx context.Context, referenceID, runID int64) (*ReferenceDetail, error) {

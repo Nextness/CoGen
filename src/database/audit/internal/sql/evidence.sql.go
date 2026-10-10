@@ -10,6 +10,26 @@ import (
 	"database/sql"
 )
 
+const countAuthorDetailEvents = `-- name: CountAuthorDetailEvents :one
+SELECT COUNT(*)
+FROM audit_events
+WHERE entity_type='author_occurrence'
+  AND entity_id = ?1
+  AND pipeline_run_id = ?2
+`
+
+type CountAuthorDetailEventsParams struct {
+	EntityID      string
+	PipelineRunID sql.NullInt64
+}
+
+func (q *Queries) CountAuthorDetailEvents(ctx context.Context, arg CountAuthorDetailEventsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuthorDetailEvents, arg.EntityID, arg.PipelineRunID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAuditEventRecordedData = `-- name: GetAuditEventRecordedData :one
 SELECT
     event.id,
@@ -55,6 +75,75 @@ func (q *Queries) GetAuditEventRecordedData(ctx context.Context, arg GetAuditEve
 		&i.MetadataJson,
 	)
 	return i, err
+}
+
+const listAuthorDetailEvents = `-- name: ListAuthorDetailEvents :many
+SELECT
+    id,
+    occurred_at,
+    actor,
+    pipeline_run_id,
+    entity_type,
+    entity_id,
+    action,
+    before_json,
+    after_json,
+    metadata_json,
+    correlation_id
+FROM audit_events
+WHERE entity_type='author_occurrence'
+  AND entity_id = ?1
+  AND pipeline_run_id = ?2
+  AND (CAST(?3 AS INTEGER)=0 OR id < ?3)
+ORDER BY id DESC
+LIMIT ?4
+`
+
+type ListAuthorDetailEventsParams struct {
+	EntityID      string
+	PipelineRunID sql.NullInt64
+	CursorID      int64
+	Limit         int64
+}
+
+func (q *Queries) ListAuthorDetailEvents(ctx context.Context, arg ListAuthorDetailEventsParams) ([]AuditEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listAuthorDetailEvents,
+		arg.EntityID,
+		arg.PipelineRunID,
+		arg.CursorID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditEvent
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.OccurredAt,
+			&i.Actor,
+			&i.PipelineRunID,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Action,
+			&i.BeforeJson,
+			&i.AfterJson,
+			&i.MetadataJson,
+			&i.CorrelationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEnrichmentSummary = `-- name: ListEnrichmentSummary :many

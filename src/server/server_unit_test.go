@@ -288,23 +288,23 @@ func TestHelper_stringID(t *testing.T) {
 
 // TestHelper_nullableValue verifies helper nullable value.
 func TestHelper_nullableValue(t *testing.T) {
+	hello, empty := "hello", ""
 	tests := []struct {
-		input sql.NullString
+		input *string
 		want  any
 	}{
-		{sql.NullString{String: "hello", Valid: true}, "hello"},
-		{sql.NullString{String: "", Valid: true}, ""},
-		{sql.NullString{String: "anything", Valid: false}, nil},
-		{sql.NullString{Valid: false}, nil},
+		{&hello, "hello"},
+		{&empty, ""},
+		{nil, nil},
 	}
 	for _, tc := range tests {
-		got := nullableString(tc.input)
+		got := nullableText(tc.input)
 		if tc.want == nil {
 			if got != nil {
-				t.Errorf("nullableString(%+v) = %v, want nil", tc.input, got)
+				t.Errorf("nullableText(%+v) = %v, want nil", tc.input, got)
 			}
 		} else if got != tc.want {
-			t.Errorf("nullableString(%+v) = %v, want %v", tc.input, got, tc.want)
+			t.Errorf("nullableText(%+v) = %v, want %v", tc.input, got, tc.want)
 		}
 	}
 }
@@ -796,27 +796,6 @@ func TestHelper_auditMultiValues(t *testing.T) {
 			t.Error("expected error for >100 values")
 		}
 	})
-}
-
-// TestHelper_corpusSelectColumns verifies helper corpus select columns.
-func TestHelper_corpusSelectColumns(t *testing.T) {
-	tests := []struct {
-		kind string
-		want string
-	}{
-		{"articles", "wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi, validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at, wr.abstract, wr.keywords, wr.keywords_plus, (SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors"},
-		{"authors", "ao.id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, ao.person_id, COUNT(DISTINCT a.work_revision_id) AS article_count, COUNT(DISTINCT NULLIF(a.affiliation, '')) AS affiliation_count, ao.created_at"},
-		{"references", "rm.id, rm.work_revision_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.resolved_work_id, wr.title AS citing_title, rm.created_at"},
-		{"sources", "sr.id, sr.run_source_id, rs.source_name, rs.source_type, sr.record_index, sr.parse_status, sr.reject_reason, sr.content_hash, sr.created_at"},
-		{"unknown", ""},
-		{"", ""},
-	}
-	for _, tc := range tests {
-		got := corpusSelectColumns(tc.kind)
-		if got != tc.want {
-			t.Errorf("corpusSelectColumns(%q) = %q, want %q", tc.kind, got, tc.want)
-		}
-	}
 }
 
 // TestHelper_scopedPagination verifies helper scoped pagination.

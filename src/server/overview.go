@@ -6,10 +6,12 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"analysis/database/run"
+	"analysis/database/source"
 )
 
 var knownRunMetrics = []string{
@@ -51,20 +53,29 @@ const legacyDiscoveryLimit = 100
 
 // sourceResultCounts returns the stored source inventory and result-count evidence for a run.
 func (s *Server) sourceResultCounts(ctx context.Context, runID int64) ([]map[string]any, error) {
-	dateColumn := "NULL AS export_date"
-	if s.tableHasColumns("run_sources", "export_date") {
-		dateColumn = "export_date"
-	}
-	countColumns := fmt.Sprintf(`NULL AS expected_result_count, NULL AS observed_result_count, NULL AS result_count_comparison, %s`, dateColumn)
-	if s.tableHasColumns("run_sources", "expected_result_count", "observed_result_count", "result_count_comparison") {
-		countColumns = fmt.Sprintf("expected_result_count, observed_result_count, result_count_comparison, %s", dateColumn)
-	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, source_name, source_type, expected_file, query, `+countColumns+` FROM run_sources WHERE pipeline_run_id=? ORDER BY id`, runID)
+	rows, err := s.sourceStore.ListResultCountsForRun(ctx, source.ResultCountFilter{
+		RunID:               runID,
+		IncludeExportDate:   s.tableHasColumns("run_sources", "export_date"),
+		IncludeResultCounts: s.tableHasColumns("run_sources", "expected_result_count", "observed_result_count", "result_count_comparison"),
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	return rowsAsMaps(rows)
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":                      row.ID,
+			"source_name":             row.SourceName,
+			"source_type":             row.SourceType,
+			"expected_file":           row.ExpectedFile,
+			"query":                   nullableText(row.Query),
+			"expected_result_count":   nullableIDPointer(row.ExpectedResultCount),
+			"observed_result_count":   nullableIDPointer(row.ObservedResultCount),
+			"result_count_comparison": nullableText(row.ResultCountComparison),
+			"export_date":             nullableText(row.ExportDate),
+		})
+	}
+	return items, nil
 }
 
 // sourceFilterCounts decodes stored per-source filter stages and reports malformed evidence without exposing its raw content.
@@ -298,16 +309,14 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("include_trashed must be true or false"))
 		return
 	}
-	args := make([]any, 0, 2)
-	clauses := make([]string, 0, 2)
+	filter := run.LegacyRunFilter{IncludeTrashed: includeTrashed, Limit: legacyDiscoveryLimit + 1}
 	if raw := r.URL.Query().Get("search_revision_id"); raw != "" {
 		id, err := positiveID(raw)
 		if err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
-		clauses = append(clauses, "ep.search_revision_id=?")
-		args = append(args, id)
+		filter.SearchRevisionID = id
 	}
 	if raw := r.URL.Query().Get("plan_id"); raw != "" {
 		id, err := positiveID(raw)
@@ -315,33 +324,32 @@ func (s *Server) runs(w http.ResponseWriter, r *http.Request) {
 			s.respond(w, r, nil, err)
 			return
 		}
-		clauses = append(clauses, "pr.execution_plan_id=?")
-		args = append(args, id)
+		filter.PlanID = id
 	}
-	if !includeTrashed {
-		clauses = append(clauses, "pr.visibility_state != 'trashed'")
-	}
-	query := `SELECT pr.id, pr.step, pr.started_at, pr.finished_at, pr.status, pr.summary,
-	pr.search_query, pr.execution_plan_id, pr.attempt_number, pr.visibility_state,
-	pr.trashed_at, pr.trash_reason, ep.search_revision_id
-	FROM pipeline_runs pr LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id`
-	if len(clauses) != 0 {
-		query += " WHERE " + strings.Join(clauses, " AND ")
-	}
-	query += " ORDER BY pr.id DESC LIMIT ?"
-	args = append(args, legacyDiscoveryLimit+1)
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, err := s.runStore.ListLegacyRuns(ctx, filter)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":                 row.ID,
+			"step":               row.Step,
+			"started_at":         row.StartedAt,
+			"finished_at":        nullableText(row.FinishedAt),
+			"status":             row.Status,
+			"summary":            nullableText(row.Summary),
+			"search_query":       nullableText(row.SearchQuery),
+			"execution_plan_id":  nullableIDPointer(row.ExecutionPlanID),
+			"attempt_number":     nullableIDPointer(row.AttemptNumber),
+			"visibility_state":   row.VisibilityState,
+			"trashed_at":         nullableText(row.TrashedAt),
+			"trash_reason":       nullableText(row.TrashReason),
+			"search_revision_id": nullableIDPointer(row.SearchRevisionID),
+		})
 	}
 	hasMore := len(items) > legacyDiscoveryLimit
 	if hasMore {

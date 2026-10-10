@@ -10,6 +10,41 @@ import (
 	"database/sql"
 )
 
+const countAuthorIdentityEvidence = `-- name: CountAuthorIdentityEvidence :one
+SELECT COUNT(DISTINCT r.id)
+FROM author_identity_resolutions r
+WHERE r.pipeline_run_id = ?1
+  AND (r.author_occurrence_id = ?2 OR EXISTS (
+    SELECT 1 FROM authorships target_authorship
+    JOIN author_occurrences target_author ON target_author.id=target_authorship.author_occurrence_id
+    JOIN work_revisions target_revision ON target_revision.id=target_authorship.work_revision_id
+    JOIN work_revisions evidence_revision ON evidence_revision.work_id=target_revision.work_id
+        AND evidence_revision.pipeline_run_id=target_revision.pipeline_run_id
+        AND evidence_revision.id<=target_revision.id
+    JOIN authorships evidence_authorship ON evidence_authorship.work_revision_id=evidence_revision.id
+        AND evidence_authorship.author_order=target_authorship.author_order
+    JOIN author_occurrences evidence_author ON evidence_author.id=evidence_authorship.author_occurrence_id
+    WHERE target_author.id = ?2
+      AND target_revision.pipeline_run_id = r.pipeline_run_id
+      AND evidence_author.id = r.author_occurrence_id
+      AND evidence_author.citation_name IS target_author.citation_name
+      AND evidence_author.first_name IS target_author.first_name
+      AND evidence_author.last_name IS target_author.last_name
+      AND evidence_author.orcid IS target_author.orcid))
+`
+
+type CountAuthorIdentityEvidenceParams struct {
+	PipelineRunID      int64
+	AuthorOccurrenceID int64
+}
+
+func (q *Queries) CountAuthorIdentityEvidence(ctx context.Context, arg CountAuthorIdentityEvidenceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuthorIdentityEvidence, arg.PipelineRunID, arg.AuthorOccurrenceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countIdentityCandidatesByRun = `-- name: CountIdentityCandidatesByRun :one
 SELECT COUNT(*)
 FROM author_identity_candidates candidate
@@ -108,4 +143,245 @@ func (q *Queries) InsertAuthorIdentityCandidate(ctx context.Context, arg InsertA
 		arg.PayloadArtifactID,
 		arg.ProviderRank,
 	)
+}
+
+const listAuthorIdentityEvidence = `-- name: ListAuthorIdentityEvidence :many
+SELECT
+    r.id AS resolution_id,
+    r.id,
+    r.pipeline_run_id,
+    r.status,
+    r.provider,
+    r.queried_citation_name,
+    r.error_message,
+    r.resolved_at,
+    COUNT(c.id) AS candidate_count
+FROM author_identity_resolutions r
+LEFT JOIN author_identity_candidates c ON c.identity_resolution_id=r.id
+WHERE r.pipeline_run_id = ?1
+  AND (r.author_occurrence_id = ?2 OR EXISTS (
+    SELECT 1 FROM authorships target_authorship
+    JOIN author_occurrences target_author ON target_author.id=target_authorship.author_occurrence_id
+    JOIN work_revisions target_revision ON target_revision.id=target_authorship.work_revision_id
+    JOIN work_revisions evidence_revision ON evidence_revision.work_id=target_revision.work_id
+        AND evidence_revision.pipeline_run_id=target_revision.pipeline_run_id
+        AND evidence_revision.id<=target_revision.id
+    JOIN authorships evidence_authorship ON evidence_authorship.work_revision_id=evidence_revision.id
+        AND evidence_authorship.author_order=target_authorship.author_order
+    JOIN author_occurrences evidence_author ON evidence_author.id=evidence_authorship.author_occurrence_id
+    WHERE target_author.id = ?2
+      AND target_revision.pipeline_run_id = r.pipeline_run_id
+      AND evidence_author.id = r.author_occurrence_id
+      AND evidence_author.citation_name IS target_author.citation_name
+      AND evidence_author.first_name IS target_author.first_name
+      AND evidence_author.last_name IS target_author.last_name
+      AND evidence_author.orcid IS target_author.orcid))
+  AND (CAST(?3 AS INTEGER)=0 OR r.id < ?3)
+GROUP BY r.id
+ORDER BY r.id DESC
+LIMIT ?4
+`
+
+type ListAuthorIdentityEvidenceParams struct {
+	PipelineRunID      int64
+	AuthorOccurrenceID int64
+	CursorID           int64
+	RowLimit           int64
+}
+
+type ListAuthorIdentityEvidenceRow struct {
+	ResolutionID        int64
+	ID                  int64
+	PipelineRunID       int64
+	Status              string
+	Provider            string
+	QueriedCitationName string
+	ErrorMessage        sql.NullString
+	ResolvedAt          string
+	CandidateCount      int64
+}
+
+func (q *Queries) ListAuthorIdentityEvidence(ctx context.Context, arg ListAuthorIdentityEvidenceParams) ([]ListAuthorIdentityEvidenceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAuthorIdentityEvidence,
+		arg.PipelineRunID,
+		arg.AuthorOccurrenceID,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorIdentityEvidenceRow
+	for rows.Next() {
+		var i ListAuthorIdentityEvidenceRow
+		if err := rows.Scan(
+			&i.ResolutionID,
+			&i.ID,
+			&i.PipelineRunID,
+			&i.Status,
+			&i.Provider,
+			&i.QueriedCitationName,
+			&i.ErrorMessage,
+			&i.ResolvedAt,
+			&i.CandidateCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCandidatePreviews = `-- name: ListCandidatePreviews :many
+SELECT
+    preview.identity_resolution_id,
+    preview.id,
+    preview.candidate_orcid,
+    preview.provider_display_name,
+    preview.query_url,
+    preview.payload_artifact_id,
+    preview.provider_rank,
+    preview.created_at
+FROM (
+    SELECT
+        candidate.id,
+        candidate.identity_resolution_id,
+        candidate.candidate_orcid,
+        candidate.provider_display_name,
+        candidate.query_url,
+        candidate.payload_artifact_id,
+        candidate.provider_rank,
+        candidate.created_at,
+        ROW_NUMBER() OVER (PARTITION BY candidate.identity_resolution_id ORDER BY candidate.provider_rank, candidate.id) AS candidate_row
+    FROM author_identity_candidates candidate
+    WHERE candidate.identity_resolution_id IN (SELECT value FROM json_each(CAST(?1 AS TEXT)))
+) preview
+WHERE preview.candidate_row <= CAST(?2 AS INTEGER)
+ORDER BY preview.identity_resolution_id, preview.provider_rank, preview.id
+`
+
+type ListCandidatePreviewsParams struct {
+	ResolutionIdsJson string
+	Limit             int64
+}
+
+type ListCandidatePreviewsRow struct {
+	IdentityResolutionID int64
+	ID                   int64
+	CandidateOrcid       string
+	ProviderDisplayName  sql.NullString
+	QueryUrl             string
+	PayloadArtifactID    sql.NullInt64
+	ProviderRank         int64
+	CreatedAt            string
+}
+
+func (q *Queries) ListCandidatePreviews(ctx context.Context, arg ListCandidatePreviewsParams) ([]ListCandidatePreviewsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCandidatePreviews, arg.ResolutionIdsJson, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListCandidatePreviewsRow
+	for rows.Next() {
+		var i ListCandidatePreviewsRow
+		if err := rows.Scan(
+			&i.IdentityResolutionID,
+			&i.ID,
+			&i.CandidateOrcid,
+			&i.ProviderDisplayName,
+			&i.QueryUrl,
+			&i.PayloadArtifactID,
+			&i.ProviderRank,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIdentityCandidates = `-- name: ListIdentityCandidates :many
+SELECT
+    id,
+    candidate_orcid,
+    provider_display_name,
+    query_url,
+    payload_artifact_id,
+    provider_rank,
+    created_at
+FROM author_identity_candidates
+WHERE identity_resolution_id = ?1
+  AND (CAST(?2 AS INTEGER)=0
+    OR COALESCE(provider_rank, 0) > ?3
+    OR (COALESCE(provider_rank, 0) = ?3 AND id > ?2))
+ORDER BY COALESCE(provider_rank, 0), id
+LIMIT ?4
+`
+
+type ListIdentityCandidatesParams struct {
+	ResolutionID int64
+	CursorID     int64
+	CursorRank   int64
+	Limit        int64
+}
+
+type ListIdentityCandidatesRow struct {
+	ID                  int64
+	CandidateOrcid      string
+	ProviderDisplayName sql.NullString
+	QueryUrl            string
+	PayloadArtifactID   sql.NullInt64
+	ProviderRank        int64
+	CreatedAt           string
+}
+
+func (q *Queries) ListIdentityCandidates(ctx context.Context, arg ListIdentityCandidatesParams) ([]ListIdentityCandidatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listIdentityCandidates,
+		arg.ResolutionID,
+		arg.CursorID,
+		arg.CursorRank,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListIdentityCandidatesRow
+	for rows.Next() {
+		var i ListIdentityCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CandidateOrcid,
+			&i.ProviderDisplayName,
+			&i.QueryUrl,
+			&i.PayloadArtifactID,
+			&i.ProviderRank,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -40,6 +40,25 @@ func (q *Queries) CountArticleStages(ctx context.Context, arg CountArticleStages
 	return count, err
 }
 
+const countAuthorArticles = `-- name: CountAuthorArticles :one
+SELECT COUNT(*) FROM authorships a
+JOIN work_revisions wr ON wr.id=a.work_revision_id
+WHERE a.author_occurrence_id = ?1
+  AND wr.pipeline_run_id = ?2
+`
+
+type CountAuthorArticlesParams struct {
+	AuthorOccurrenceID int64
+	PipelineRunID      int64
+}
+
+func (q *Queries) CountAuthorArticles(ctx context.Context, arg CountAuthorArticlesParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuthorArticles, arg.AuthorOccurrenceID, arg.PipelineRunID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getArticleDetailWorkID = `-- name: GetArticleDetailWorkID :one
 SELECT wr.work_id
 FROM work_revisions wr
@@ -391,6 +410,84 @@ func (q *Queries) ListArticleStages(ctx context.Context, arg ListArticleStagesPa
 			&i.Reason,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuthorArticles = `-- name: ListAuthorArticles :many
+SELECT
+    a.id AS relation_id,
+    a.author_order,
+    a.affiliation,
+    wr.id AS work_revision_id,
+    wr.work_id,
+    wr.title,
+    wr.year,
+    wr.pipeline_run_id,
+    w.doi
+FROM authorships a
+JOIN work_revisions wr ON wr.id=a.work_revision_id
+JOIN works w ON w.id=wr.work_id
+WHERE a.author_occurrence_id = ?1
+  AND wr.pipeline_run_id = ?2
+  AND a.id > ?3
+ORDER BY a.id
+LIMIT ?4
+`
+
+type ListAuthorArticlesParams struct {
+	AuthorOccurrenceID int64
+	PipelineRunID      int64
+	CursorID           int64
+	RowLimit           int64
+}
+
+type ListAuthorArticlesRow struct {
+	RelationID     int64
+	AuthorOrder    int64
+	Affiliation    sql.NullString
+	WorkRevisionID int64
+	WorkID         int64
+	Title          sql.NullString
+	Year           sql.NullInt64
+	PipelineRunID  int64
+	Doi            sql.NullString
+}
+
+func (q *Queries) ListAuthorArticles(ctx context.Context, arg ListAuthorArticlesParams) ([]ListAuthorArticlesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAuthorArticles,
+		arg.AuthorOccurrenceID,
+		arg.PipelineRunID,
+		arg.CursorID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAuthorArticlesRow
+	for rows.Next() {
+		var i ListAuthorArticlesRow
+		if err := rows.Scan(
+			&i.RelationID,
+			&i.AuthorOrder,
+			&i.Affiliation,
+			&i.WorkRevisionID,
+			&i.WorkID,
+			&i.Title,
+			&i.Year,
+			&i.PipelineRunID,
+			&i.Doi,
 		); err != nil {
 			return nil, err
 		}

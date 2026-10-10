@@ -131,3 +131,260 @@ func TestStoreIdentityEvidenceStatsCountsRunOutcomes(t *testing.T) {
 		t.Fatalf("cross-run identity resolution exists = %v err=%v, want false", exists, err)
 	}
 }
+
+// TestStoreListIdentityEvidenceSearchesSortsAndPages verifies the run-scoped
+// evidence page resolves the current normalized revision, binds the search
+// predicate, follows its declared ordering, and reports a total.
+func TestStoreListIdentityEvidenceSearchesSortsAndPages(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID, err := db.Run.StartRun(ctx, "author-evidence-list", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/author-evidence-list")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize, Title: "Evidence article",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RunWorkStages.SetOutcome(runID, workID, work.StageNameValidate, work.OutcomeValid, ""); err != nil {
+		t.Fatal(err)
+	}
+	alphaID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Alpha Evidence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	betaID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Beta Evidence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for order, occurrenceID := range []int64{alphaID, betaID} {
+		if _, err := store.CreateAuthorship(ctx, &author.Authorship{WorkRevisionID: revisionID, AuthorOccurrenceID: occurrenceID, AuthorOrder: order + 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	alphaResolutionID, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: alphaID, Status: author.IdentityStatusORCIDUnclear,
+		Provider: "orcid", QueriedCitationName: "Alpha Evidence", ResolvedAt: "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: betaID, Status: author.IdentityStatusNoORCIDCandidate,
+		Provider: "orcid", QueriedCitationName: "Beta Evidence", ResolvedAt: "2026-01-02T00:00:00Z",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := store.ListIdentityEvidence(ctx, author.IdentityEvidenceFilter{RunID: runID, Sort: "id", Order: "ASC", Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("identity evidence = %d items total=%d, want 2", len(page.Items), page.Total)
+	}
+	if page.Items[0].WorkRevisionID == nil || *page.Items[0].WorkRevisionID != revisionID || page.Items[0].ArticleTitle == nil || *page.Items[0].ArticleTitle != "Evidence article" {
+		t.Fatalf("resolved evidence = %+v, want revision %d", page.Items[0], revisionID)
+	}
+
+	filtered, err := store.ListIdentityEvidence(ctx, author.IdentityEvidenceFilter{RunID: runID, Query: "beta", Sort: "citation_name", Order: "DESC", Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Total != 1 || len(filtered.Items) != 1 || filtered.Items[0].QueriedCitationName != "Beta Evidence" {
+		t.Fatalf("filtered identity evidence = %+v", filtered.Items)
+	}
+	if _, err := store.ListIdentityEvidence(ctx, author.IdentityEvidenceFilter{RunID: runID, Sort: "unknown", Order: "ASC", Page: 1, PerPage: 20}); err == nil {
+		t.Fatal("expected an unsupported sort error")
+	}
+
+	previews, err := store.ListCandidatePreviews(ctx, []int64{alphaResolutionID}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 0 {
+		t.Fatalf("previews without candidates = %+v, want none", previews)
+	}
+}
+
+// TestStoreListIdentityCandidatesCursorsAndPreviews verifies ranked candidate
+// ordering, cursor traversal, lookahead, and bounded per-resolution previews.
+func TestStoreListIdentityCandidatesCursorsAndPreviews(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID, err := db.Run.StartRun(ctx, "author-candidates", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	occurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Candidate Author"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolutionID, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: occurrenceID, Status: author.IdentityStatusORCIDUnclear,
+		Provider: "orcid", QueriedCitationName: "Candidate Author", ResolvedAt: "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherOccurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Other Candidate Author"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherResolutionID, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: otherOccurrenceID, Status: author.IdentityStatusORCIDUnclear,
+		Provider: "orcid", QueriedCitationName: "Other Candidate Author", ResolvedAt: "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rank := 1; rank <= 5; rank++ {
+		if _, err := store.CreateIdentityCandidate(ctx, &author.IdentityCandidate{
+			IdentityResolutionID: resolutionID, CandidateORCID: "0000-0000-0000-" + string(rune('0'+rank)),
+			QueryURL: "https://orcid.example/search", ProviderRank: rank,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.CreateIdentityCandidate(ctx, &author.IdentityCandidate{
+		IdentityResolutionID: otherResolutionID, CandidateORCID: "0000-0000-0000-9000",
+		QueryURL: "https://orcid.example/search", ProviderRank: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := store.ListIdentityCandidates(ctx, author.IdentityCandidateFilter{ResolutionID: resolutionID, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 3 || first[0].ProviderRank == nil || *first[0].ProviderRank != 1 || first[2].ProviderRank == nil || *first[2].ProviderRank != 3 {
+		t.Fatalf("first candidate page = %+v, want 3 lookahead rows ranked 1..3", first)
+	}
+	next, err := store.ListIdentityCandidates(ctx, author.IdentityCandidateFilter{
+		ResolutionID: resolutionID, CursorRank: *first[1].ProviderRank, CursorID: first[1].ID, Limit: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next) != 3 || next[0].ProviderRank == nil || *next[0].ProviderRank != 3 {
+		t.Fatalf("cursor candidate page = %+v, want ranks 3..5", next)
+	}
+
+	previews, err := store.ListCandidatePreviews(ctx, []int64{resolutionID, otherResolutionID}, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(previews) != 4 {
+		t.Fatalf("candidate previews = %d, want 3 plus 1", len(previews))
+	}
+	if previews[0].ResolutionID != resolutionID || previews[3].ResolutionID != otherResolutionID {
+		t.Fatalf("candidate preview order = %+v", previews)
+	}
+	if _, err := store.ListIdentityCandidates(ctx, author.IdentityCandidateFilter{ResolutionID: resolutionID, Limit: 0}); err == nil {
+		t.Fatal("expected a limit validation error")
+	}
+}
+
+// TestStoreListAuthorIdentityEvidenceCarriesSameNameEvidence verifies the
+// author detail evidence page applies the same-name revision membership rule,
+// orders by descending resolution ID, and reports exact totals and cursors.
+func TestStoreListAuthorIdentityEvidenceCarriesSameNameEvidence(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID, err := db.Run.StartRun(ctx, "author-detail-evidence", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/author-detail-evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstRevisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize, Title: "First revision",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondRevisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize, Title: "Second revision",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RunWorkStages.SetOutcome(runID, workID, work.StageNameValidate, work.OutcomeValid, ""); err != nil {
+		t.Fatal(err)
+	}
+	firstOccurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Shared Evidence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOccurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Shared Evidence"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateAuthorship(ctx, &author.Authorship{WorkRevisionID: firstRevisionID, AuthorOccurrenceID: firstOccurrenceID, AuthorOrder: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateAuthorship(ctx, &author.Authorship{WorkRevisionID: secondRevisionID, AuthorOccurrenceID: secondOccurrenceID, AuthorOrder: 1}); err != nil {
+		t.Fatal(err)
+	}
+	firstResolutionID, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: firstOccurrenceID, Status: author.IdentityStatusORCIDUnclear,
+		Provider: "orcid", QueriedCitationName: "Shared Evidence", ResolvedAt: "2026-01-01T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondResolutionID, err := store.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: secondOccurrenceID, Status: author.IdentityStatusORCIDUnclear,
+		Provider: "orcid", QueriedCitationName: "Shared Evidence", ResolvedAt: "2026-01-02T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := store.ListAuthorIdentityEvidence(ctx, author.AuthorIdentityEvidenceFilter{
+		RunID: runID, AuthorOccurrenceID: secondOccurrenceID, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 || page.Items[0].ResolutionID != secondResolutionID || page.Items[1].ResolutionID != firstResolutionID {
+		t.Fatalf("author identity evidence = %+v total=%d, want resolutions %d then %d", page.Items, page.Total, secondResolutionID, firstResolutionID)
+	}
+
+	firstPage, err := store.ListAuthorIdentityEvidence(ctx, author.AuthorIdentityEvidenceFilter{
+		RunID: runID, AuthorOccurrenceID: secondOccurrenceID, Limit: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !firstPage.HasMore || firstPage.NextCursorID != secondResolutionID {
+		t.Fatalf("author identity evidence first page = %+v", firstPage)
+	}
+	nextPage, err := store.ListAuthorIdentityEvidence(ctx, author.AuthorIdentityEvidenceFilter{
+		RunID: runID, AuthorOccurrenceID: secondOccurrenceID, CursorID: firstPage.NextCursorID, Limit: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if nextPage.HasMore || len(nextPage.Items) != 1 || nextPage.Items[0].ResolutionID != firstResolutionID {
+		t.Fatalf("author identity evidence next page = %+v", nextPage.Items)
+	}
+
+	earlier, err := store.ListAuthorIdentityEvidence(ctx, author.AuthorIdentityEvidenceFilter{
+		RunID: runID, AuthorOccurrenceID: firstOccurrenceID, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if earlier.Total != 1 || len(earlier.Items) != 1 || earlier.Items[0].ResolutionID != firstResolutionID {
+		t.Fatalf("earlier occurrence evidence = %+v total=%d, want only its own resolution", earlier.Items, earlier.Total)
+	}
+}

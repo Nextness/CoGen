@@ -204,6 +204,46 @@ func TestStoreListArticleAuthorsOrdersAndPaginates(t *testing.T) {
 	}
 }
 
+// TestStoreListAuthorArticlesResolvesRunScopedArticles verifies the author
+// detail article page scopes memberships to one run and maps optional fields.
+func TestStoreListAuthorArticlesResolvesRunScopedArticles(t *testing.T) {
+	fixture := seedRelationshipFixture(t)
+	ctx := context.Background()
+
+	var authorID int64
+	if err := fixture.db.DB.QueryRow("SELECT id FROM author_occurrences WHERE citation_name='Doe, Jane'").Scan(&authorID); err != nil {
+		t.Fatal(err)
+	}
+	page, err := fixture.store.ListAuthorArticles(ctx, work.AuthorArticleFilter{AuthorOccurrenceID: authorID, RunID: fixture.runID, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.HasMore {
+		t.Fatalf("author articles = %d items total=%d, want 1", len(page.Items), page.Total)
+	}
+	item := page.Items[0]
+	if item.WorkRevisionID != fixture.normalizeRevisionID || item.WorkID != fixture.workID || item.PipelineRunID != fixture.runID {
+		t.Fatalf("author article identity = %+v", item)
+	}
+	if item.Title == nil || *item.Title != "Normalized article" || item.DOI == nil || *item.DOI != "10.1000/relationship" {
+		t.Fatalf("author article metadata = %+v", item)
+	}
+	if item.Affiliation == nil || *item.Affiliation != "University" {
+		t.Fatalf("author article affiliation = %+v", item)
+	}
+
+	otherRun, err := fixture.store.ListAuthorArticles(ctx, work.AuthorArticleFilter{AuthorOccurrenceID: authorID, RunID: fixture.runID + 1, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if otherRun.Total != 0 || len(otherRun.Items) != 0 {
+		t.Fatalf("cross-run author articles = %+v, want none", otherRun)
+	}
+	if _, err := fixture.store.ListAuthorArticles(ctx, work.AuthorArticleFilter{AuthorOccurrenceID: authorID, RunID: fixture.runID, Limit: 0}); err == nil {
+		t.Fatal("expected a limit validation error")
+	}
+}
+
 // TestStoreGetArticleRevisionHonorsNormalizedVisibility verifies the
 // normalized-revision rule and nullable field mapping.
 func TestStoreGetArticleRevisionHonorsNormalizedVisibility(t *testing.T) {

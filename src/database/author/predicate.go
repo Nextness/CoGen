@@ -1,8 +1,8 @@
-// normalized_revision.go holds the viewer-local analysis-ready revision
-// predicate. The work family and the review schema inputs keep their own
-// copies; TestNormalizedRevisionPredicateConformance compares every copy
-// against accepted, discarded, superseded, and missing-normalization cases.
-package server
+// predicate.go holds the author family's normalized-revision predicate copy
+// used by the run identity-evidence read. The work family keeps its own copy;
+// the normalized-revision conformance fixture compares every copy against
+// accepted, discarded, superseded, and missing-normalization cases.
+package author
 
 import "fmt"
 

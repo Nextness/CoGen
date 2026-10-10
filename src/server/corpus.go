@@ -9,18 +9,14 @@ import (
 	"strconv"
 	"strings"
 
+	"analysis/database/source"
 	"analysis/database/work"
 )
 
-// scopedRowsDefinition defines the safe projection, joins, filters, and sorting for one corpus section.
+// scopedRowsDefinition defines the safe projection and sorting for one corpus section.
 type scopedRowsDefinition struct {
-	columns     []string
-	from        string
-	where       string
-	groupBy     string
-	search      string
-	sortFields  map[string]string
-	uniqueOrder string
+	columns    []string
+	sortFields map[string]string
 }
 
 var runCorpusDefinitions = map[string]scopedRowsDefinition{
@@ -43,11 +39,7 @@ var runCorpusDefinitions = map[string]scopedRowsDefinition{
 		},
 	},
 	"sources": {
-		columns:     []string{"id", "run_source_id", "source_name", "source_type", "record_index", "parse_status", "reject_reason", "content_hash", "created_at"},
-		from:        "FROM source_records sr JOIN run_sources rs ON rs.id=sr.run_source_id",
-		where:       "rs.pipeline_run_id=?",
-		search:      "rs.source_name, rs.source_type, sr.parse_status, sr.reject_reason, sr.content_hash",
-		uniqueOrder: "sr.id",
+		columns: []string{"id", "run_source_id", "source_name", "source_type", "record_index", "parse_status", "reject_reason", "content_hash", "created_at"},
 		sortFields: map[string]string{
 			"id": "sr.id", "run_source_id": "sr.run_source_id", "source_name": "rs.source_name", "source_type": "rs.source_type", "record_index": "sr.record_index", "parse_status": "sr.parse_status", "reject_reason": "sr.reject_reason", "content_hash": "sr.content_hash", "created_at": "sr.created_at",
 		},
@@ -66,17 +58,17 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 	case "references":
 		s.runCorpusReferences(w, r)
 		return
+	case "sources":
+	default:
+		s.respond(w, r, nil, notFound("corpus collection not found"))
+		return
 	}
 	runID, err := positiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	definition, ok := runCorpusDefinitions[r.PathValue("kind")]
-	if !ok {
-		s.respond(w, r, nil, notFound("corpus collection not found"))
-		return
-	}
+	definition := runCorpusDefinitions["sources"]
 	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -88,47 +80,31 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	where, args := scopedWhere(definition.where, definition.search, runID, query)
-	countQuery := "SELECT COUNT(*) " + definition.from + " WHERE " + where
-	if definition.groupBy != "" {
-		countQuery = "SELECT COUNT(*) FROM (SELECT 1 " + definition.from + " WHERE " + where + " GROUP BY " + definition.groupBy + ")"
-	}
-	var total int64
-	if err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	page = clampScopedPage(page, perPage, total)
-	selectColumns := corpusSelectColumns(r.PathValue("kind"))
-	querySQL := "SELECT " + selectColumns + " " + definition.from + " WHERE " + where
-	if definition.groupBy != "" {
-		querySQL += " GROUP BY " + definition.groupBy
-	}
-	querySQL += " ORDER BY " + stableScopedOrder(definition.sortFields[sort], definition.uniqueOrder, order) + " LIMIT ? OFFSET ?"
-	args = append(args, perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, querySQL, args...)
+	result, err := s.sourceStore.ListCorpusRecords(ctx, source.CorpusRecordFilter{
+		RunID: runID, Query: query, Sort: sort, Order: order, Page: page, PerPage: perPage,
+	})
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, corpusSourceRow(item))
+	}
+	page = clampScopedPage(page, perPage, result.Total)
 	payload := map[string]any{
 		"run_id":     runID,
-		"collection": r.PathValue("kind"),
+		"collection": "sources",
 		"columns":    definition.columns,
 		"rows":       items,
-		"pagination": scopedPagination(page, perPage, total, sort, order),
+		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
 	}
-	if err == nil && r.PathValue("kind") == "sources" {
-		sourceResultCounts, sourceErr := s.sourceResultCounts(ctx, runID)
-		if sourceErr != nil {
-			err = sourceErr
-		} else {
-			payload["source_result_counts"] = sourceResultCounts
-		}
+	sourceResultCounts, sourceErr := s.sourceResultCounts(ctx, runID)
+	if sourceErr != nil {
+		err = sourceErr
+	} else {
+		payload["source_result_counts"] = sourceResultCounts
 	}
-
 	s.respond(w, r, payload, err)
 }
 
@@ -241,19 +217,18 @@ func (s *Server) attachArticleTermMatches(ctx context.Context, runID int64, item
 	return nil
 }
 
-// corpusSelectColumns returns the fixed safe projection for a browsable corpus section.
-func corpusSelectColumns(kind string) string {
-	switch kind {
-	case "articles":
-		return "wr.id, wr.work_id, wr.title, wr.year, wr.journal, wr.publisher, wr.source, w.doi, validation.outcome AS validation_status, wr.citation_count, wr.reference_count, wr.producer_stage, wr.created_at, wr.abstract, wr.keywords, wr.keywords_plus, (SELECT GROUP_CONCAT(ao.citation_name, '; ') FROM authorships a JOIN author_occurrences ao ON ao.id=a.author_occurrence_id WHERE a.work_revision_id=wr.id ORDER BY a.author_order) AS authors"
-	case "authors":
-		return "ao.id, ao.citation_name, ao.first_name, ao.last_name, ao.orcid, ao.person_id, COUNT(DISTINCT a.work_revision_id) AS article_count, COUNT(DISTINCT NULLIF(a.affiliation, '')) AS affiliation_count, ao.created_at"
-	case "references":
-		return "rm.id, rm.work_revision_id, rm.mention_order, rm.doi, rm.title, rm.author, rm.year, rm.source, rm.resolved_work_id, wr.title AS citing_title, rm.created_at"
-	case "sources":
-		return "sr.id, sr.run_source_id, rs.source_name, rs.source_type, sr.record_index, sr.parse_status, sr.reject_reason, sr.content_hash, sr.created_at"
-	default:
-		return ""
+// corpusSourceRow maps one source family record into the corpus row shape.
+func corpusSourceRow(item *source.CorpusRecord) map[string]any {
+	return map[string]any{
+		"id":            item.ID,
+		"run_source_id": item.RunSourceID,
+		"source_name":   item.SourceName,
+		"source_type":   item.SourceType,
+		"record_index":  item.RecordIndex,
+		"parse_status":  item.ParseStatus,
+		"reject_reason": nullableText(item.RejectReason),
+		"content_hash":  item.ContentHash,
+		"created_at":    item.CreatedAt,
 	}
 }
 
@@ -369,22 +344,6 @@ func scopedRowsRequest(r *http.Request, fields map[string]string, fallback strin
 	return page, perPage, sort, order, strings.TrimSpace(r.URL.Query().Get("q")), nil
 }
 
-// scopedWhere builds the SQL predicate and arguments for a scoped corpus request.
-func scopedWhere(base, searchable string, runID int64, query string) (string, []any) {
-	args := []any{runID}
-	if query == "" {
-		return base, args
-	}
-	fields := strings.Split(searchable, ", ")
-	conditions := make([]string, 0, len(fields))
-	needle := "%" + strings.ToLower(query) + "%"
-	for _, field := range fields {
-		conditions = append(conditions, "LOWER(COALESCE("+field+", '')) LIKE ?")
-		args = append(args, needle)
-	}
-	return base + " AND (" + strings.Join(conditions, " OR ") + ")", args
-}
-
 // scopedPagination returns validated page, page-size, offset, and limit values.
 func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any {
 	return map[string]any{
@@ -418,16 +377,6 @@ func sqlOrderKeyword(order string) string {
 		return "DESC"
 	}
 	return "ASC"
-}
-
-// stableScopedOrder appends a unique key in the requested direction when needed.
-func stableScopedOrder(expression, uniqueExpression, order string) string {
-	direction := sqlOrderKeyword(order)
-	result := expression + " " + direction
-	if expression != uniqueExpression {
-		result += ", " + uniqueExpression + " " + direction
-	}
-	return result
 }
 
 // requireRun requires a valid run value.

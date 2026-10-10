@@ -41,3 +41,222 @@ func (q *Queries) GetHierarchyTotals(ctx context.Context) (GetHierarchyTotalsRow
 	)
 	return i, err
 }
+
+const listHierarchyPlans = `-- name: ListHierarchyPlans :many
+SELECT id, search_revision_id, execution_fingerprint, enrichment_enabled, created_at
+FROM execution_plans
+WHERE search_revision_id=?1
+  AND (CAST(?2 AS TEXT)='' OR LOWER(execution_fingerprint) LIKE ?3 OR CAST(id AS TEXT) LIKE ?3)
+  AND (CAST(?4 AS INTEGER)=0 OR id < ?4)
+ORDER BY id DESC
+LIMIT ?5
+`
+
+type ListHierarchyPlansParams struct {
+	SearchRevisionID int64
+	Query            string
+	Pattern          string
+	Cursor           int64
+	Limit            int64
+}
+
+type ListHierarchyPlansRow struct {
+	ID                   int64
+	SearchRevisionID     int64
+	ExecutionFingerprint string
+	EnrichmentEnabled    int64
+	CreatedAt            string
+}
+
+func (q *Queries) ListHierarchyPlans(ctx context.Context, arg ListHierarchyPlansParams) ([]ListHierarchyPlansRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHierarchyPlans,
+		arg.SearchRevisionID,
+		arg.Query,
+		arg.Pattern,
+		arg.Cursor,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHierarchyPlansRow
+	for rows.Next() {
+		var i ListHierarchyPlansRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SearchRevisionID,
+			&i.ExecutionFingerprint,
+			&i.EnrichmentEnabled,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHierarchyRevisions = `-- name: ListHierarchyRevisions :many
+SELECT sr.id, sr.revision_label, sr.created_at,
+    COUNT(DISTINCT ep.id) AS plan_count,
+    COUNT(DISTINCT pr.id) AS run_count,
+    MAX(pr.id) AS latest_run_id,
+    MAX((SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
+        JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+        WHERE latest_ep.search_revision_id=sr.id ORDER BY latest_pr.id DESC LIMIT 1)) AS latest_plan_id
+FROM search_revisions sr
+LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
+LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id
+WHERE sr.search_id=?1
+  AND (CAST(?2 AS TEXT)='' OR LOWER(sr.revision_label) LIKE ?3 OR CAST(sr.id AS TEXT) LIKE ?3)
+  AND (CAST(?4 AS INTEGER)=0 OR sr.id < ?4)
+GROUP BY sr.id
+ORDER BY sr.id DESC
+LIMIT ?5
+`
+
+type ListHierarchyRevisionsParams struct {
+	SearchID int64
+	Query    string
+	Pattern  string
+	Cursor   int64
+	Limit    int64
+}
+
+type ListHierarchyRevisionsRow struct {
+	ID            int64
+	RevisionLabel string
+	CreatedAt     string
+	PlanCount     int64
+	RunCount      int64
+	LatestRunID   interface{}
+	LatestPlanID  interface{}
+}
+
+func (q *Queries) ListHierarchyRevisions(ctx context.Context, arg ListHierarchyRevisionsParams) ([]ListHierarchyRevisionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHierarchyRevisions,
+		arg.SearchID,
+		arg.Query,
+		arg.Pattern,
+		arg.Cursor,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHierarchyRevisionsRow
+	for rows.Next() {
+		var i ListHierarchyRevisionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RevisionLabel,
+			&i.CreatedAt,
+			&i.PlanCount,
+			&i.RunCount,
+			&i.LatestRunID,
+			&i.LatestPlanID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listHierarchySearches = `-- name: ListHierarchySearches :many
+SELECT s.id, s.search_id, s.created_at,
+    COUNT(DISTINCT sr.id) AS revision_count,
+    COUNT(DISTINCT ep.id) AS plan_count,
+    COUNT(DISTINCT pr.id) AS run_count,
+    MAX(pr.id) AS latest_run_id,
+    MAX((SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
+        JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+        JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
+        WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1)) AS latest_plan_id,
+    MAX((SELECT latest_ep.search_revision_id FROM pipeline_runs latest_pr
+        JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
+        JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
+        WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1)) AS latest_revision_id
+FROM searches s
+LEFT JOIN search_revisions sr ON sr.search_id=s.id
+LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
+LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id
+WHERE (CAST(?1 AS TEXT)='' OR LOWER(s.search_id) LIKE ?2 OR EXISTS (
+        SELECT 1 FROM search_revisions matched_sr
+        WHERE matched_sr.search_id=s.id AND LOWER(matched_sr.revision_label) LIKE ?2))
+  AND (CAST(?3 AS INTEGER)=0 OR s.id < ?3)
+GROUP BY s.id
+ORDER BY s.id DESC
+LIMIT ?4
+`
+
+type ListHierarchySearchesParams struct {
+	Query   string
+	Pattern string
+	Cursor  int64
+	Limit   int64
+}
+
+type ListHierarchySearchesRow struct {
+	ID               int64
+	SearchID         string
+	CreatedAt        string
+	RevisionCount    int64
+	PlanCount        int64
+	RunCount         int64
+	LatestRunID      interface{}
+	LatestPlanID     interface{}
+	LatestRevisionID interface{}
+}
+
+func (q *Queries) ListHierarchySearches(ctx context.Context, arg ListHierarchySearchesParams) ([]ListHierarchySearchesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listHierarchySearches,
+		arg.Query,
+		arg.Pattern,
+		arg.Cursor,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListHierarchySearchesRow
+	for rows.Next() {
+		var i ListHierarchySearchesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SearchID,
+			&i.CreatedAt,
+			&i.RevisionCount,
+			&i.PlanCount,
+			&i.RunCount,
+			&i.LatestRunID,
+			&i.LatestPlanID,
+			&i.LatestRevisionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

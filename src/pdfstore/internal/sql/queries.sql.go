@@ -8,6 +8,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const getAvailablePDFDocument = `-- name: GetAvailablePDFDocument :one
@@ -45,6 +46,53 @@ func (q *Queries) GetPDFBlobData(ctx context.Context, contentHash string) ([]byt
 	var data []byte
 	err := row.Scan(&data)
 	return data, err
+}
+
+const listAvailableDocumentInventory = `-- name: ListAvailableDocumentInventory :many
+SELECT document.doi, document.inventoried_at
+FROM pdf_documents document
+JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
+WHERE document.status='available'
+  AND document.doi IN (/*SLICE:dois*/?)
+ORDER BY document.doi
+`
+
+type ListAvailableDocumentInventoryRow struct {
+	Doi           string
+	InventoriedAt sql.NullString
+}
+
+func (q *Queries) ListAvailableDocumentInventory(ctx context.Context, dois []string) ([]ListAvailableDocumentInventoryRow, error) {
+	query := listAvailableDocumentInventory
+	var queryParams []interface{}
+	if len(dois) > 0 {
+		for _, v := range dois {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:dois*/?", strings.Repeat(",?", len(dois))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:dois*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAvailableDocumentInventoryRow
+	for rows.Next() {
+		var i ListAvailableDocumentInventoryRow
+		if err := rows.Scan(&i.Doi, &i.InventoriedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listAvailablePDFDOIs = `-- name: ListAvailablePDFDOIs :many

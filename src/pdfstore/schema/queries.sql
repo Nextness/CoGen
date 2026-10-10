@@ -8,6 +8,14 @@ JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
 WHERE document.status='available'
 ORDER BY document.doi;
 
+-- name: ListAvailableDocumentInventory :many
+SELECT document.doi, document.inventoried_at
+FROM pdf_documents document
+JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
+WHERE document.status='available'
+  AND document.doi IN (sqlc.slice('dois'))
+ORDER BY document.doi;
+
 -- name: GetAvailablePDFDocument :one
 SELECT
     d.content_hash,

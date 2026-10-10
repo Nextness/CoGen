@@ -34,3 +34,31 @@ WHERE event.entity_type = 'work_revision'
   )
 ORDER BY provider, field
 LIMIT 101;
+
+-- name: CountAuthorDetailEvents :one
+SELECT COUNT(*)
+FROM audit_events
+WHERE entity_type='author_occurrence'
+  AND entity_id = sqlc.arg('entity_id')
+  AND pipeline_run_id = sqlc.arg('pipeline_run_id');
+
+-- name: ListAuthorDetailEvents :many
+SELECT
+    id,
+    occurred_at,
+    actor,
+    pipeline_run_id,
+    entity_type,
+    entity_id,
+    action,
+    before_json,
+    after_json,
+    metadata_json,
+    correlation_id
+FROM audit_events
+WHERE entity_type='author_occurrence'
+  AND entity_id = sqlc.arg('entity_id')
+  AND pipeline_run_id = sqlc.arg('pipeline_run_id')
+  AND (CAST(sqlc.arg('cursor_id') AS INTEGER)=0 OR id < sqlc.arg('cursor_id'))
+ORDER BY id DESC
+LIMIT sqlc.arg('limit');

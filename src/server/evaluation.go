@@ -5,7 +5,6 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -227,7 +226,7 @@ func (s *Server) overlayPDFInventory(ctx context.Context, items []map[string]any
 		return nil
 	}
 
-	dois := make([]any, 0, len(items))
+	dois := make([]string, 0, len(items))
 	byDOI := make(map[string]map[string]any, len(items))
 	for _, item := range items {
 		doi, _ := item["doi"].(string)
@@ -241,27 +240,19 @@ func (s *Server) overlayPDFInventory(ctx context.Context, items []map[string]any
 		return nil
 	}
 
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(dois)), ",")
-	rows, err := s.pdfDB.QueryContext(ctx, `SELECT d.doi, d.inventoried_at
-		FROM pdf_documents d
-		JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.status='available' AND d.doi IN (`+placeholders+`)`, dois...)
+	entries, err := s.pdfStore.InventoryForDOIs(ctx, dois)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var doi string
-		var inventoriedAt sql.NullString
-		if err := rows.Scan(&doi, &inventoriedAt); err != nil {
-			return err
+	for _, entry := range entries {
+		item := byDOI[entry.DOI]
+		if item == nil {
+			continue
 		}
-		if item := byDOI[doi]; item != nil {
-			item["inventory_status"] = "available"
-			if inventoriedAt.Valid {
-				item["inventoried_at"] = inventoriedAt.String
-			}
+		item["inventory_status"] = "available"
+		if entry.InventoriedAt != nil {
+			item["inventoried_at"] = *entry.InventoriedAt
 		}
 	}
-	return rows.Err()
+	return nil
 }

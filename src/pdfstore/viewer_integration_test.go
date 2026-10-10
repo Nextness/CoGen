@@ -67,3 +67,35 @@ func TestStoreViewerReadsReturnAvailableInventoryAndBlob(t *testing.T) {
 		t.Fatalf("missing blob = %q err=%v, want nil", data, err)
 	}
 }
+
+// TestStoreInventoryForDOIsFiltersAvailableContent verifies the bounded
+// evaluation inventory projection returns only requested available DOIs in DOI
+// order and skips empty requests.
+func TestStoreInventoryForDOIsFiltersAvailableContent(t *testing.T) {
+	ctx := context.Background()
+	store := openTestStore(t)
+	for index, doi := range []string{"10.1000/zeta", "10.1000/alpha", "10.1000/beta"} {
+		if _, err := store.Register(ctx, doi, int64(index+1), 10); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Add(ctx, doi, int64(index+1), []byte("%PDF-1.7\ncontent")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	entries, err := store.InventoryForDOIs(ctx, []string{"10.1000/zeta", "10.1000/missing", "10.1000/alpha"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].DOI != "10.1000/alpha" || entries[1].DOI != "10.1000/zeta" {
+		t.Fatalf("inventory entries = %+v, want available DOIs in order", entries)
+	}
+	if entries[0].InventoriedAt == nil || *entries[0].InventoriedAt == "" {
+		t.Fatalf("inventory timestamp = %+v, want recorded value", entries[0])
+	}
+
+	empty, err := store.InventoryForDOIs(ctx, nil)
+	if err != nil || empty != nil {
+		t.Fatalf("empty inventory = %+v err=%v, want nil without error", empty, err)
+	}
+}

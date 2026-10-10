@@ -4,7 +4,6 @@ package server
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -12,6 +11,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"analysis/database/run"
+	"analysis/database/search"
 )
 
 const hierarchyPageLimit = 20
@@ -101,70 +103,29 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 	if err != nil {
 		return nil, err
 	}
-	clauses := make([]string, 0, 2)
-	args := make([]any, 0, 4)
-	if query != "" {
-		pattern := "%" + strings.ToLower(query) + "%"
-		clauses = append(clauses, `(LOWER(s.search_id) LIKE ? OR EXISTS (
-			SELECT 1 FROM search_revisions matched_sr
-			WHERE matched_sr.search_id=s.id AND LOWER(matched_sr.revision_label) LIKE ?))`)
-		args = append(args, pattern, pattern)
-	}
-	if cursor.ID > 0 {
-		clauses = append(clauses, "s.id < ?")
-		args = append(args, cursor.ID)
-	}
-	sqlQuery := `SELECT s.id, s.search_id, s.created_at,
-		COUNT(DISTINCT sr.id) AS revision_count,
-		COUNT(DISTINCT ep.id) AS plan_count,
-		COUNT(DISTINCT pr.id) AS run_count,
-		MAX(pr.id) AS latest_run_id,
-		(SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
-			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-			JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
-			WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_plan_id,
-		(SELECT latest_ep.search_revision_id FROM pipeline_runs latest_pr
-			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-			JOIN search_revisions latest_sr ON latest_sr.id=latest_ep.search_revision_id
-			WHERE latest_sr.search_id=s.id ORDER BY latest_pr.id DESC LIMIT 1) AS latest_revision_id
-		FROM searches s
-		LEFT JOIN search_revisions sr ON sr.search_id=s.id
-		LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
-		LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id`
-	if len(clauses) > 0 {
-		sqlQuery += " WHERE " + strings.Join(clauses, " AND ")
-	}
-	sqlQuery += " GROUP BY s.id ORDER BY s.id DESC LIMIT ?"
-	args = append(args, hierarchyPageLimit+1)
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, hasMore, err := s.searchStore.ListHierarchySearches(ctx, search.HierarchySearchFilter{
+		Query:    query,
+		CursorID: cursor.ID,
+		Limit:    hierarchyPageLimit,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]map[string]any, 0, hierarchyPageLimit+1)
-	for rows.Next() {
-		var id, revisions, plans, runs int64
-		var searchID, createdAt string
-		var latestRunID, latestPlanID, latestRevisionID sql.NullInt64
-		if err := rows.Scan(&id, &searchID, &createdAt, &revisions, &plans, &runs, &latestRunID, &latestPlanID, &latestRevisionID); err != nil {
-			return nil, err
-		}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
 		items = append(items, map[string]any{
-			"id":                 id,
-			"search_id":          searchID,
-			"created_at":         createdAt,
-			"revision_count":     revisions,
-			"plan_count":         plans,
-			"run_count":          runs,
-			"latest_run_id":      nullableInt64(latestRunID),
-			"latest_plan_id":     nullableInt64(latestPlanID),
-			"latest_revision_id": nullableInt64(latestRevisionID),
+			"id":                 row.ID,
+			"search_id":          row.SearchID,
+			"created_at":         row.CreatedAt,
+			"revision_count":     row.RevisionCount,
+			"plan_count":         row.PlanCount,
+			"run_count":          row.RunCount,
+			"latest_run_id":      nullableIDPointer(row.LatestRunID),
+			"latest_plan_id":     nullableIDPointer(row.LatestPlanID),
+			"latest_revision_id": nullableIDPointer(row.LatestRevisionID),
 		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	page := hierarchyPage("searches", scope, items)
+	page := hierarchyPage("searches", scope, items, hasMore)
 	selectedID, err := optionalHierarchyID(r, "selected_id")
 	if err != nil {
 		return nil, err
@@ -197,54 +158,28 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT sr.id, sr.revision_label, sr.created_at,
-		COUNT(DISTINCT ep.id), COUNT(DISTINCT pr.id), MAX(pr.id),
-		(SELECT latest_pr.execution_plan_id FROM pipeline_runs latest_pr
-			JOIN execution_plans latest_ep ON latest_ep.id=latest_pr.execution_plan_id
-			WHERE latest_ep.search_revision_id=sr.id ORDER BY latest_pr.id DESC LIMIT 1)
-		FROM search_revisions sr
-		LEFT JOIN execution_plans ep ON ep.search_revision_id=sr.id
-		LEFT JOIN pipeline_runs pr ON pr.execution_plan_id=ep.id
-		WHERE sr.search_id=?`
-	args := []any{searchID}
-	if searchQuery != "" {
-		query += " AND (LOWER(sr.revision_label) LIKE ? OR CAST(sr.id AS TEXT) LIKE ?)"
-		pattern := "%" + strings.ToLower(searchQuery) + "%"
-		args = append(args, pattern, pattern)
-	}
-	if cursor.ID > 0 {
-		query += " AND sr.id < ?"
-		args = append(args, cursor.ID)
-	}
-	query += " GROUP BY sr.id ORDER BY sr.id DESC LIMIT ?"
-	args = append(args, hierarchyPageLimit+1)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, hasMore, err := s.searchStore.ListHierarchyRevisions(ctx, search.HierarchyRevisionFilter{
+		SearchID: searchID,
+		Query:    searchQuery,
+		CursorID: cursor.ID,
+		Limit:    hierarchyPageLimit,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]map[string]any, 0, hierarchyPageLimit+1)
-	for rows.Next() {
-		var id, plans, runs int64
-		var label, createdAt string
-		var latestRunID, latestPlanID sql.NullInt64
-		if err := rows.Scan(&id, &label, &createdAt, &plans, &runs, &latestRunID, &latestPlanID); err != nil {
-			return nil, err
-		}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
 		items = append(items, map[string]any{
-			"id":             id,
-			"label":          label,
-			"created_at":     createdAt,
-			"plan_count":     plans,
-			"run_count":      runs,
-			"latest_run_id":  nullableInt64(latestRunID),
-			"latest_plan_id": nullableInt64(latestPlanID),
+			"id":             row.ID,
+			"label":          row.Label,
+			"created_at":     row.CreatedAt,
+			"plan_count":     row.PlanCount,
+			"run_count":      row.RunCount,
+			"latest_run_id":  nullableIDPointer(row.LatestRunID),
+			"latest_plan_id": nullableIDPointer(row.LatestPlanID),
 		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	page := hierarchyPage("revisions", scope, items)
+	page := hierarchyPage("revisions", scope, items, hasMore)
 	selectedID, err := optionalHierarchyID(r, "selected_id")
 	if err != nil {
 		return nil, err
@@ -277,44 +212,26 @@ func (s *Server) hierarchyPlans(ctx context.Context, r *http.Request) (map[strin
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT id, search_revision_id, execution_fingerprint, enrichment_enabled, created_at FROM execution_plans WHERE search_revision_id=?`
-	args := []any{revisionID}
-	if searchQuery != "" {
-		query += " AND (LOWER(execution_fingerprint) LIKE ? OR CAST(id AS TEXT) LIKE ?)"
-		pattern := "%" + strings.ToLower(searchQuery) + "%"
-		args = append(args, pattern, pattern)
-	}
-	if cursor.ID > 0 {
-		query += " AND id < ?"
-		args = append(args, cursor.ID)
-	}
-	query += " ORDER BY id DESC LIMIT ?"
-	args = append(args, hierarchyPageLimit+1)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, hasMore, err := s.searchStore.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{
+		SearchRevisionID: revisionID,
+		Query:            searchQuery,
+		CursorID:         cursor.ID,
+		Limit:            hierarchyPageLimit,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]map[string]any, 0, hierarchyPageLimit+1)
-	for rows.Next() {
-		var id, parentID int64
-		var fingerprint, createdAt string
-		var enrichmentEnabled bool
-		if err := rows.Scan(&id, &parentID, &fingerprint, &enrichmentEnabled, &createdAt); err != nil {
-			return nil, err
-		}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
 		items = append(items, map[string]any{
-			"id":                    id,
-			"search_revision_id":    parentID,
-			"execution_fingerprint": fingerprint,
-			"enrichment_enabled":    enrichmentEnabled,
-			"created_at":            createdAt,
+			"id":                    row.ID,
+			"search_revision_id":    row.SearchRevisionID,
+			"execution_fingerprint": row.ExecutionFingerprint,
+			"enrichment_enabled":    row.EnrichmentEnabled,
+			"created_at":            row.CreatedAt,
 		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	page := hierarchyPage("plans", scope, items)
+	page := hierarchyPage("plans", scope, items, hasMore)
 	selectedID, err := optionalHierarchyID(r, "selected_id")
 	if err != nil {
 		return nil, err
@@ -346,47 +263,28 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 	if err != nil {
 		return nil, err
 	}
-	query := `SELECT id, execution_plan_id, attempt_number, started_at, finished_at, status, visibility_state FROM pipeline_runs WHERE execution_plan_id=? AND visibility_state!='trashed'`
-	args := []any{planID}
-	if searchQuery != "" {
-		query += " AND (CAST(id AS TEXT) LIKE ? OR LOWER(status) LIKE ? OR LOWER(started_at) LIKE ?)"
-		pattern := "%" + strings.ToLower(searchQuery) + "%"
-		args = append(args, pattern, pattern, pattern)
-	}
-	if cursor.ID > 0 {
-		query += " AND id < ?"
-		args = append(args, cursor.ID)
-	}
-	query += " ORDER BY id DESC LIMIT ?"
-	args = append(args, hierarchyPageLimit+1)
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	rows, hasMore, err := s.runStore.ListHierarchyAttempts(ctx, run.HierarchyAttemptFilter{
+		ExecutionPlanID: planID,
+		Query:           searchQuery,
+		CursorID:        cursor.ID,
+		Limit:           hierarchyPageLimit,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]map[string]any, 0, hierarchyPageLimit+1)
-	for rows.Next() {
-		var id, parentID int64
-		var attempt sql.NullInt64
-		var startedAt, status, visibility string
-		var finishedAt sql.NullString
-		if err := rows.Scan(&id, &parentID, &attempt, &startedAt, &finishedAt, &status, &visibility); err != nil {
-			return nil, err
-		}
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
 		items = append(items, map[string]any{
-			"id":                id,
-			"execution_plan_id": parentID,
-			"attempt_number":    nullableInt64(attempt),
-			"started_at":        startedAt,
-			"finished_at":       nullableString(finishedAt),
-			"status":            status,
-			"visibility_state":  visibility,
+			"id":                row.ID,
+			"execution_plan_id": nullableIDPointer(row.ExecutionPlanID),
+			"attempt_number":    nullableIDPointer(row.AttemptNumber),
+			"started_at":        row.StartedAt,
+			"finished_at":       nullableText(row.FinishedAt),
+			"status":            row.Status,
+			"visibility_state":  row.VisibilityState,
 		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	page := hierarchyPage("attempts", scope, items)
+	page := hierarchyPage("attempts", scope, items, hasMore)
 	selectedID, err := optionalHierarchyID(r, "selected_id")
 	if err != nil {
 		return nil, err
@@ -430,104 +328,39 @@ func (s *Server) hierarchyRuns(ctx context.Context, r *http.Request) (map[string
 	if err != nil {
 		return nil, err
 	}
-	clauses := make([]string, 0, 6)
-	args := make([]any, 0, 10)
-	if query != "" {
-		pattern := "%" + strings.ToLower(query) + "%"
-		clauses = append(clauses, "(LOWER(s.search_id) LIKE ? OR LOWER(sr.revision_label) LIKE ? OR CAST(pr.id AS TEXT) LIKE ?)")
-		args = append(args, pattern, pattern, pattern)
-	}
-	if visibility != "all" {
-		if visibility == "active" {
-			clauses = append(clauses, "pr.visibility_state!='trashed'")
-		} else {
-			clauses = append(clauses, "pr.visibility_state='trashed'")
-		}
-	}
-	if status != "" && status != "all" {
-		clauses = append(clauses, "pr.status=?")
-		args = append(args, status)
-	}
-	if startedAfter != "" {
-		clauses = append(clauses, "datetime(pr.started_at) >= datetime(?)")
-		args = append(args, startedAfter)
-	}
-	if startedBefore != "" {
-		clauses = append(clauses, "datetime(pr.started_at) < datetime(?)")
-		args = append(args, startedBefore)
-	}
-	if cursor.ID > 0 {
-		clauses = append(clauses, "pr.id < ?")
-		args = append(args, cursor.ID)
-	}
-	sqlQuery := `SELECT pr.id, pr.attempt_number, pr.started_at, pr.finished_at,
-		pr.status, pr.visibility_state, s.id, s.search_id, sr.id, sr.revision_label, ep.id
-		FROM pipeline_runs pr
-		LEFT JOIN execution_plans ep ON ep.id=pr.execution_plan_id
-		LEFT JOIN search_revisions sr ON sr.id=ep.search_revision_id
-		LEFT JOIN searches s ON s.id=sr.search_id`
-	if len(clauses) > 0 {
-		sqlQuery += " WHERE " + strings.Join(clauses, " AND ")
-	}
-	sqlQuery += " ORDER BY pr.id DESC LIMIT ?"
-	args = append(args, hierarchyPageLimit+1)
-	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	rows, hasMore, err := s.runStore.ListHierarchyRuns(ctx, run.HierarchyRunFilter{
+		Query:         query,
+		Visibility:    visibility,
+		Status:        status,
+		StartedAfter:  startedAfter,
+		StartedBefore: startedBefore,
+		CursorID:      cursor.ID,
+		Limit:         hierarchyPageLimit,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	items := make([]map[string]any, 0, hierarchyPageLimit+1)
-	for rows.Next() {
-		item, err := scanHierarchyRun(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"id":                 row.ID,
+			"attempt_number":     nullableIDPointer(row.AttemptNumber),
+			"started_at":         row.StartedAt,
+			"finished_at":        nullableText(row.FinishedAt),
+			"status":             row.Status,
+			"visibility_state":   row.VisibilityState,
+			"search_id":          nullableIDPointer(row.SearchID),
+			"search_name":        row.SearchName,
+			"search_revision_id": nullableIDPointer(row.SearchRevisionID),
+			"revision_label":     row.RevisionLabel,
+			"execution_plan_id":  nullableIDPointer(row.ExecutionPlanID),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return hierarchyPage("runs", scope, items), nil
-}
-
-// hierarchyScanner is the shared Scan contract for one row or rows cursor.
-type hierarchyScanner interface {
-	Scan(...any) error
-}
-
-// scanHierarchyRun scans one run and its complete search ancestry.
-func scanHierarchyRun(scanner hierarchyScanner) (map[string]any, error) {
-	var id int64
-	var attempt, searchID, revisionID, planID sql.NullInt64
-	var startedAt, status, visibility, searchName, revisionLabel string
-	var nullableSearchName, nullableRevisionLabel sql.NullString
-	var finishedAt sql.NullString
-	if err := scanner.Scan(&id, &attempt, &startedAt, &finishedAt, &status, &visibility, &searchID, &nullableSearchName, &revisionID, &nullableRevisionLabel, &planID); err != nil {
-		return nil, err
-	}
-	searchName = nullableSearchName.String
-	revisionLabel = nullableRevisionLabel.String
-	return map[string]any{
-		"id":                 id,
-		"attempt_number":     nullableInt64(attempt),
-		"started_at":         startedAt,
-		"finished_at":        nullableString(finishedAt),
-		"status":             status,
-		"visibility_state":   visibility,
-		"search_id":          nullableInt64(searchID),
-		"search_name":        searchName,
-		"search_revision_id": nullableInt64(revisionID),
-		"revision_label":     revisionLabel,
-		"execution_plan_id":  nullableInt64(planID),
-	}, nil
+	return hierarchyPage("runs", scope, items, hasMore), nil
 }
 
 // hierarchyPage trims the lookahead row and emits an opaque continuation cursor.
-func hierarchyPage(kind, scope string, items []map[string]any) map[string]any {
-	hasMore := len(items) > hierarchyPageLimit
-	if hasMore {
-		items = items[:hierarchyPageLimit]
-	}
+func hierarchyPage(kind, scope string, items []map[string]any, hasMore bool) map[string]any {
 	nextCursor := ""
 	if hasMore {
 		id, _ := items[len(items)-1]["id"].(int64)
@@ -599,18 +432,18 @@ func decodeHierarchyCursor(raw, kind, scope string) (hierarchyCursor, error) {
 	return cursor, nil
 }
 
-// nullableInt64 converts a nullable identifier to the invariant JSON null-or-number shape.
-func nullableInt64(value sql.NullInt64) any {
-	if value.Valid {
-		return value.Int64
+// nullableIDPointer converts an optional family identifier to the invariant JSON null-or-number shape.
+func nullableIDPointer(value *int64) any {
+	if value == nil {
+		return nil
 	}
-	return nil
+	return *value
 }
 
-// nullableString converts an optional stored string to the invariant JSON null-or-string shape.
-func nullableString(value sql.NullString) any {
-	if value.Valid {
-		return value.String
+// nullableText converts an optional family text value to the invariant JSON null-or-string shape.
+func nullableText(value *string) any {
+	if value == nil {
+		return nil
 	}
-	return nil
+	return *value
 }

@@ -16,6 +16,7 @@ import (
 
 // Store binds the generated author queries to one already configured connection.
 type Store struct {
+	db      *sql.DB
 	queries *generated.Queries
 }
 
@@ -24,7 +25,7 @@ type Store struct {
 // alter pragmas, open or close the connection, load migration configuration,
 // or run migrations.
 func New(db *sql.DB) *Store {
-	return &Store{queries: generated.New(db)}
+	return &Store{db: db, queries: generated.New(db)}
 }
 
 // CreatePersonByORCID inserts a new person by ORCID. If the ORCID already

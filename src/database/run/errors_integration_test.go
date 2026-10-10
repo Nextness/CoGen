@@ -65,6 +65,26 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		{"GetMetric", func() error { _, err := store.GetMetric(ctx, 1, "metric", "source"); return err }},
 		{"ListMetricsByRun", func() error { _, err := store.ListMetricsByRun(ctx, 1); return err }},
 		{"CheckPurgeEligibility", func() error { _, err := store.CheckPurgeEligibility(ctx, 1); return err }},
+		{"LatestRunWithAncestry", func() error { _, err := store.LatestRunWithAncestry(ctx); return err }},
+		{"SelectedAttempt", func() error { _, err := store.SelectedAttempt(ctx, 1, 1); return err }},
+		{"RunArtifactContext", func() error { _, err := store.RunArtifactContext(ctx, 1); return err }},
+		{"RunContext", func() error { _, err := store.RunContext(ctx, 1); return err }},
+		{"GetVisibility", func() error { _, err := store.GetVisibility(ctx, 1); return err }},
+		{"Exists", func() error { _, err := store.Exists(ctx, 1); return err }},
+		{"HasExecutionPlan", func() error { _, err := store.HasExecutionPlan(ctx, 1); return err }},
+		{"ListStepsForViewer", func() error { _, err := store.ListStepsForViewer(ctx, 1); return err }},
+		{"ListHierarchyAttempts", func() error {
+			_, _, err := store.ListHierarchyAttempts(ctx, run.HierarchyAttemptFilter{ExecutionPlanID: 1, Limit: 10})
+			return err
+		}},
+		{"ListHierarchyRuns", func() error {
+			_, _, err := store.ListHierarchyRuns(ctx, run.HierarchyRunFilter{Visibility: "all", Limit: 10})
+			return err
+		}},
+		{"ListLegacyRuns", func() error {
+			_, err := store.ListLegacyRuns(ctx, run.LegacyRunFilter{Limit: 10})
+			return err
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {

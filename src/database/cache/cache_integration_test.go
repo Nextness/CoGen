@@ -351,3 +351,48 @@ func TestStoreContextCancellationLeavesNoRows(t *testing.T) {
 		t.Fatalf("canceled append wrote %d entries", entries)
 	}
 }
+
+// TestStoreListCacheUsesForRunOrdersSearchesAndPaginates verifies the joined
+// cache-use page preserves ordering, nullable entry fields, search binding, and
+// exact totals.
+func TestStoreListCacheUsesForRunOrdersSearchesAndPaginates(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID, err := db.Run.StartRun(ctx, "cache-viewer", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	alphaEntry := appendTestEntry(t, store, cache.Key{Provider: "crossref", Namespace: "doi", RequestFingerprint: "alpha", ExtractorVersion: "v1"}, 200)
+	betaEntry := appendTestEntry(t, store, cache.Key{Provider: "openalex", Namespace: "doi", RequestFingerprint: "beta", ExtractorVersion: "v1"}, 404)
+	if _, err := store.AppendUse(ctx, &cache.Use{PipelineRunID: runID, CacheEntryID: alphaEntry, CacheLayer: "global", Outcome: "hit"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AppendUse(ctx, &cache.Use{PipelineRunID: runID, CacheEntryID: betaEntry, CacheLayer: "global", Outcome: "negative"}); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := store.ListCacheUsesForRun(ctx, cache.CacheUseFilter{RunID: runID, Sort: "id", Order: "DESC", Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 2 || len(page.Items) != 2 {
+		t.Fatalf("cache use page = %d items total=%d, want 2", len(page.Items), page.Total)
+	}
+	if page.Items[0].Provider != "openalex" || page.Items[1].Provider != "crossref" {
+		t.Fatalf("cache use order = %+v", page.Items)
+	}
+	if page.Items[0].ExpiresAt != nil || page.Items[0].PayloadArtifactID != nil || page.Items[0].ResponseStatus != 404 {
+		t.Fatalf("cache use nullable entry = %+v", page.Items[0])
+	}
+
+	filtered, err := store.ListCacheUsesForRun(ctx, cache.CacheUseFilter{RunID: runID, Query: "crossref", Sort: "provider", Order: "ASC", Page: 1, PerPage: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Total != 1 || len(filtered.Items) != 1 || filtered.Items[0].Outcome != "hit" {
+		t.Fatalf("filtered cache use page = %+v", filtered.Items)
+	}
+	if _, err := store.ListCacheUsesForRun(ctx, cache.CacheUseFilter{RunID: runID, Sort: "unknown", Order: "ASC", Page: 1, PerPage: 20}); err == nil {
+		t.Fatal("expected an unsupported sort error")
+	}
+}

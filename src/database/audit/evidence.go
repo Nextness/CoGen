@@ -8,6 +8,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	generated "analysis/database/audit/internal/sql"
 )
@@ -207,4 +208,119 @@ func (s *Store) EnrichmentSummary(ctx context.Context, workID, runID int64) (*En
 		}
 	}
 	return summary, nil
+}
+
+// maxDetailEventLimit bounds one viewer detail event page.
+const maxDetailEventLimit = 1000
+
+// ArticleDetailEventFilter identifies one bounded page of run-scoped logical
+// work events for one work.
+type ArticleDetailEventFilter struct {
+	WorkID   int64
+	RunID    int64
+	CursorID int64
+	Limit    int
+}
+
+// AuthorDetailEventFilter identifies one bounded page of run-scoped author
+// occurrence events.
+type AuthorDetailEventFilter struct {
+	AuthorOccurrenceID int64
+	RunID              int64
+	CursorID           int64
+	Limit              int
+}
+
+// EventPage is one bounded page of audit events with its exact total and
+// continuation cursor identifier.
+type EventPage struct {
+	Items        []*Event
+	Total        int64
+	HasMore      bool
+	NextCursorID int64
+}
+
+// ListArticleDetailEvents returns one bounded page of the logical-work events
+// visible for one work in a run, ordered by descending event ID.
+func (s *Store) ListArticleDetailEvents(ctx context.Context, filter ArticleDetailEventFilter) (*EventPage, error) {
+	if err := validateDetailEventLimit("list article detail events", filter.Limit); err != nil {
+		return nil, err
+	}
+	condition, conditionArgs := articleDetailEventCondition(filter.WorkID, filter.RunID)
+	var total int64
+	if err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM audit_events WHERE ("+condition+")", conditionArgs...).Scan(&total); err != nil {
+		return nil, err
+	}
+	query := "SELECT id, occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json, correlation_id FROM audit_events WHERE (" + condition + ")"
+	args := append([]any(nil), conditionArgs...)
+	if filter.CursorID > 0 {
+		query += " AND id < ?"
+		args = append(args, filter.CursorID)
+	}
+	query += " ORDER BY id DESC LIMIT ?"
+	args = append(args, filter.Limit+1)
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	events, err := scanEvents(rows)
+	if err != nil {
+		return nil, err
+	}
+	hasMore := len(events) > filter.Limit
+	if hasMore {
+		events = events[:filter.Limit]
+	}
+	page := &EventPage{Items: events, Total: total, HasMore: hasMore}
+	if hasMore {
+		page.NextCursorID = events[len(events)-1].ID
+	}
+	return page, nil
+}
+
+// ListAuthorDetailEvents returns one bounded page of run-scoped author
+// occurrence events, ordered by descending event ID.
+func (s *Store) ListAuthorDetailEvents(ctx context.Context, filter AuthorDetailEventFilter) (*EventPage, error) {
+	if err := validateDetailEventLimit("list author detail events", filter.Limit); err != nil {
+		return nil, err
+	}
+	entityID := fmt.Sprintf("%d", filter.AuthorOccurrenceID)
+	total, err := s.queries.CountAuthorDetailEvents(ctx, generated.CountAuthorDetailEventsParams{
+		EntityID:      entityID,
+		PipelineRunID: nullableRunID(filter.RunID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.queries.ListAuthorDetailEvents(ctx, generated.ListAuthorDetailEventsParams{
+		EntityID:      entityID,
+		PipelineRunID: nullableRunID(filter.RunID),
+		CursorID:      filter.CursorID,
+		Limit:         int64(filter.Limit + 1),
+	})
+	if err != nil {
+		return nil, err
+	}
+	events := make([]*Event, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, eventFromGenerated(row))
+	}
+	hasMore := len(events) > filter.Limit
+	if hasMore {
+		events = events[:filter.Limit]
+	}
+	page := &EventPage{Items: events, Total: total, HasMore: hasMore}
+	if hasMore {
+		page.NextCursorID = events[len(events)-1].ID
+	}
+	return page, nil
+}
+
+// validateDetailEventLimit bounds one viewer detail event page request.
+func validateDetailEventLimit(operation string, limit int) error {
+	if limit < 1 || limit > maxDetailEventLimit {
+		return fmt.Errorf("%s: limit must be between 1 and %d", operation, maxDetailEventLimit)
+	}
+	return nil
 }

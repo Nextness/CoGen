@@ -53,6 +53,13 @@ type AvailableDocument struct {
 	ByteSize      int64
 }
 
+// InventoryEntry is one available companion document's DOI and optional
+// inventory timestamp.
+type InventoryEntry struct {
+	DOI           string
+	InventoriedAt *string
+}
+
 // AddResult reports the content identity, byte size, and insertion outcome of a manual PDF add.
 type AddResult struct {
 	ContentHash string
@@ -127,6 +134,29 @@ func (s *Store) AvailablePDFDOIs(ctx context.Context) ([]string, error) {
 	}
 	items := make([]string, 0, len(rows))
 	items = append(items, rows...)
+	return items, nil
+}
+
+// InventoryForDOIs returns the available inventory timestamp for every
+// supplied DOI that has stored content, ordered by DOI. An empty request
+// returns no rows without querying.
+func (s *Store) InventoryForDOIs(ctx context.Context, dois []string) ([]*InventoryEntry, error) {
+	if len(dois) == 0 {
+		return nil, nil
+	}
+	rows, err := s.queries.ListAvailableDocumentInventory(ctx, dois)
+	if err != nil {
+		return nil, fmt.Errorf("list available document inventory: %w", err)
+	}
+	items := make([]*InventoryEntry, 0, len(rows))
+	for _, row := range rows {
+		item := &InventoryEntry{DOI: row.Doi}
+		if row.InventoriedAt.Valid {
+			inventoriedAt := row.InventoriedAt.String
+			item.InventoriedAt = &inventoriedAt
+		}
+		items = append(items, item)
+	}
 	return items, nil
 }
 

@@ -251,6 +251,36 @@ type ArticleStagePage struct {
 	NextCursorID int64
 }
 
+// AuthorArticle is one run-scoped article revision attached to an author
+// occurrence through an authorship. Optional metadata stays nil when absent.
+type AuthorArticle struct {
+	RelationID     int64
+	AuthorOrder    int64
+	Affiliation    *string
+	WorkRevisionID int64
+	WorkID         int64
+	Title          *string
+	Year           *int64
+	PipelineRunID  int64
+	DOI            *string
+}
+
+// AuthorArticleFilter selects one bounded page of articles for an author occurrence.
+type AuthorArticleFilter struct {
+	AuthorOccurrenceID int64
+	RunID              int64
+	CursorID           int64
+	Limit              int
+}
+
+// AuthorArticlePage is one bounded page of author articles with its exact total.
+type AuthorArticlePage struct {
+	Items        []*AuthorArticle
+	Total        int64
+	HasMore      bool
+	NextCursorID int64
+}
+
 // ReferenceDetail is one reference mention with its citing and resolved-work context.
 type ReferenceDetail struct {
 	Reference

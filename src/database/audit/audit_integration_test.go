@@ -7,6 +7,7 @@ package audit_test
 import (
 	"context"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -261,5 +262,92 @@ func TestStoreRecordedDataAndEnrichmentSummary(t *testing.T) {
 	}
 	if len(summary.Providers) != 1 || summary.Providers[0] != "crossref" || len(summary.Fields) != 1 || summary.Fields[0] != "title" || summary.Truncated {
 		t.Fatalf("enrichment summary = %+v", summary)
+	}
+}
+
+// TestStoreDetailEventPagesFilterPageAndScope verifies the article and author
+// detail event pages apply their logical-work and author scope, order by
+// descending ID, report exact totals, and honor a continuation cursor.
+func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	runID := createTestRun(t, db, "audit-detail-events")
+	workID, err := db.Works.CreateByDOI("10.1000/audit-detail-events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: "normalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insert := func(runID int64, entityType, entityID, action string) int64 {
+		t.Helper()
+		result, err := db.DB.Exec(`INSERT INTO audit_events
+			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action)
+			VALUES (datetime('now'), 'pipeline', ?, ?, ?, ?)`, runID, entityType, entityID, action)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	insert(runID, "work_revision", strconv.FormatInt(revisionID, 10), "field_enriched")
+	workEventID := insert(runID, "work", strconv.FormatInt(workID, 10), "validation_changed")
+	contextEventID := insert(runID, "review_context", "1", "review_context_created")
+	otherRunID := createTestRun(t, db, "audit-detail-events-other")
+	otherWorkID, err := db.Works.CreateByDOI("10.1000/audit-detail-events-other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherRevisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+		WorkID: otherWorkID, PipelineRunID: otherRunID, ProducerStage: "normalize",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	insert(otherRunID, "work_revision", strconv.FormatInt(otherRevisionID, 10), "field_enriched")
+
+	page, err := store.ListArticleDetailEvents(ctx, audit.ArticleDetailEventFilter{WorkID: workID, RunID: runID, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 3 || len(page.Items) != 2 || !page.HasMore {
+		t.Fatalf("article detail events = %d items total=%d hasMore=%v, want 2 of 3", len(page.Items), page.Total, page.HasMore)
+	}
+	if page.Items[0].ID != contextEventID || page.Items[1].ID != workEventID || page.NextCursorID != workEventID {
+		t.Fatalf("article detail order = %+v next=%d", page.Items, page.NextCursorID)
+	}
+	next, err := store.ListArticleDetailEvents(ctx, audit.ArticleDetailEventFilter{WorkID: workID, RunID: runID, CursorID: page.NextCursorID, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next.Items) != 1 || next.Items[0].EntityType != "work_revision" || next.HasMore {
+		ids := make([]int64, 0, len(next.Items))
+		for _, item := range next.Items {
+			ids = append(ids, item.ID)
+		}
+		t.Fatalf("article detail cursor page ids=%v cursor=%d events=%+v", ids, page.NextCursorID, next.Items)
+	}
+
+	authorEventID := insert(runID, "author_occurrence", "7", "author_identity_resolved")
+	insert(runID, "author_occurrence", "7", "author_identity_resolved")
+	insert(runID, "author_occurrence", "8", "author_identity_resolved")
+	authorPage, err := store.ListAuthorDetailEvents(ctx, audit.AuthorDetailEventFilter{AuthorOccurrenceID: 7, RunID: runID, Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if authorPage.Total != 2 || len(authorPage.Items) != 1 || !authorPage.HasMore {
+		t.Fatalf("author detail events = %d items total=%d hasMore=%v, want 1 of 2", len(authorPage.Items), authorPage.Total, authorPage.HasMore)
+	}
+	if authorPage.Items[0].EntityID != "7" || authorPage.Items[0].ID <= authorEventID {
+		t.Fatalf("author detail newest event = %+v", authorPage.Items[0])
+	}
+	if _, err := store.ListArticleDetailEvents(ctx, audit.ArticleDetailEventFilter{WorkID: workID, RunID: runID, Limit: 0}); err == nil {
+		t.Fatal("expected a limit validation error")
 	}
 }

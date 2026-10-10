@@ -14,6 +14,7 @@ import (
 
 	"analysis/database/artifact"
 	"analysis/database/audit"
+	"analysis/database/cache"
 	"analysis/internal/textlimit"
 )
 
@@ -406,126 +407,41 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	const relationshipsSQL = `WITH artifact_relationships AS (
-			SELECT artifact_id, 'run_role' AS relationship_role, artifact_role AS relationship_detail
-			FROM run_artifacts WHERE pipeline_run_id=?
-			UNION ALL
-			SELECT input_artifact_id, 'step_input', step_name FROM run_steps
-			WHERE pipeline_run_id=? AND input_artifact_id IS NOT NULL
-			UNION ALL
-			SELECT output_artifact_id, 'step_output', step_name FROM run_steps
-			WHERE pipeline_run_id=? AND output_artifact_id IS NOT NULL
-			UNION ALL
-			SELECT ce.payload_artifact_id, 'cache_payload', ce.provider || ':' || ce.namespace
-			FROM run_cache_uses use_record
-			JOIN cache_entries ce ON ce.id=use_record.cache_entry_id
-			WHERE use_record.pipeline_run_id=? AND ce.payload_artifact_id IS NOT NULL
-			UNION ALL
-			SELECT candidate.payload_artifact_id, 'identity_candidate_payload', resolution.provider
-			FROM author_identity_resolutions resolution
-			JOIN author_identity_candidates candidate ON candidate.identity_resolution_id=resolution.id
-			WHERE resolution.pipeline_run_id=? AND candidate.payload_artifact_id IS NOT NULL
-		), selected_artifacts AS (
-			SELECT DISTINCT artifact_id FROM artifact_relationships
-		)`
-	where := " WHERE 1=1"
-	filterArgs := []any{}
-	if searchQuery != "" {
-		where += ` AND (LOWER(a.content_hash) LIKE ? OR LOWER(a.content_type) LIKE ?
-			OR EXISTS (SELECT 1 FROM artifact_relationships searchable
-				WHERE searchable.artifact_id=a.id AND (LOWER(searchable.relationship_role) LIKE ? OR LOWER(searchable.relationship_detail) LIKE ?)))`
-		pattern := "%" + strings.ToLower(searchQuery) + "%"
-		filterArgs = append(filterArgs, pattern, pattern, pattern, pattern)
-	}
-	if role != "" {
-		where += ` AND EXISTS (SELECT 1 FROM artifact_relationships filtered_role
-			WHERE filtered_role.artifact_id=a.id AND filtered_role.relationship_role=?)`
-		filterArgs = append(filterArgs, role)
-	}
-	var total int64
-	if pageMode {
-		countQuery := relationshipsSQL + `
-			SELECT COUNT(*) FROM selected_artifacts selected
-			JOIN artifacts a ON a.id=selected.artifact_id` + where
-		countArgs := []any{runID, runID, runID, runID, runID}
-		countArgs = append(countArgs, filterArgs...)
-		if err := s.db.QueryRowContext(ctx, countQuery, countArgs...).Scan(&total); err != nil {
-			s.respond(w, r, nil, err)
-			return
-		}
-		page = clampScopedPage(page, perPage, total)
-	}
-	query := relationshipsSQL + `
-		SELECT a.id, a.content_hash, a.byte_size, a.content_type, a.created_at,
-		       (ab.id IS NOT NULL) AS has_blob,
-		       COALESCE((SELECT GROUP_CONCAT(role.artifact_role, ', ') FROM (
-		           SELECT DISTINCT artifact_role FROM run_artifacts
-		           WHERE pipeline_run_id=? AND artifact_id=a.id ORDER BY artifact_role
-		       ) role), '') AS artifact_roles,
-		       COALESCE((SELECT GROUP_CONCAT(relationship_role, ', ') FROM (
-		           SELECT DISTINCT relationship_role FROM artifact_relationships
-		           WHERE artifact_id=a.id ORDER BY relationship_role
-		       )), '') AS relationship_roles,
-		       COALESCE((SELECT GROUP_CONCAT(step_name, ', ') FROM (
-		           SELECT DISTINCT step_name FROM run_steps
-                   WHERE pipeline_run_id=? AND output_artifact_id=a.id
-                   ORDER BY step_name
-               )), '') AS produced_by_steps,
-               COALESCE((SELECT GROUP_CONCAT(step_name, ', ') FROM (
-                   SELECT DISTINCT step_name FROM run_steps
-                   WHERE pipeline_run_id=? AND input_artifact_id=a.id
-                   ORDER BY step_name
-               )), '') AS consumed_by_steps
-		FROM selected_artifacts selected
-		JOIN artifacts a ON a.id=selected.artifact_id
-		LEFT JOIN artifact_blobs ab ON ab.artifact_id=a.id` + where
-	args := []any{runID, runID, runID, runID, runID, runID, runID, runID}
-	args = append(args, filterArgs...)
-	if !pageMode {
-		query += " AND a.id>?"
-		args = append(args, cursor)
-	}
-	if cursor > 0 && focusID > 0 {
-		query += " AND a.id!=?"
-		args = append(args, focusID)
-	}
-	query += ` GROUP BY a.id, a.content_hash, a.byte_size, a.content_type, a.created_at, ab.id
-		ORDER BY CASE WHEN a.id=? THEN 0 ELSE 1 END, a.id ` + sqlOrderKeyword(order) + ` LIMIT ?`
-	args = append(args, focusID)
-	if pageMode {
-		args = append(args, perPage, (page-1)*perPage)
-		query += " OFFSET ?"
-	} else {
-		args = append(args, limit+1)
-	}
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	result, err := s.artifact.ListRunArtifactEvidence(ctx, artifact.RunArtifactFilter{
+		RunID: runID, Query: searchQuery, Role: role, CursorID: cursor, FocusID: focusID,
+		Page: page, PerPage: perPage, PageMode: pageMode, Order: order, Limit: limit,
+	})
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err == nil {
-		for _, item := range items {
-			contentType, _ := item["content_type"].(string)
-			hasBlob, _ := item["has_blob"].(int64)
-			item["preview_available"] = hasBlob != 0 && inlineArtifactContentType(contentType)
-			item["preview_limit_bytes"] = defaultInlineArtifactPreviewBytes
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, record := range result.Items {
+		hasBlob := int64(0)
+		if record.HasBlob {
+			hasBlob = 1
 		}
+		item := map[string]any{
+			"id":                 record.ID,
+			"content_hash":       record.ContentHash,
+			"byte_size":          record.ByteSize,
+			"content_type":       record.ContentType,
+			"created_at":         record.CreatedAt,
+			"has_blob":           hasBlob,
+			"artifact_roles":     record.ArtifactRoles,
+			"relationship_roles": record.RelationshipRoles,
+			"produced_by_steps":  record.ProducedBySteps,
+			"consumed_by_steps":  record.ConsumedBySteps,
+		}
+		item["preview_available"] = record.HasBlob && inlineArtifactContentType(record.ContentType)
+		item["preview_limit_bytes"] = defaultInlineArtifactPreviewBytes
+		items = append(items, item)
 	}
-	if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	hasMore := int64(page*perPage) < total
-	if !pageMode && len(items) > limit {
-		hasMore = true
-		items = items[:limit]
-	}
+	page = result.Page
+	hasMore := result.HasMore
 	var nextCursor any
 	if !pageMode && hasMore {
-		value := encodeCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: items[len(items)-1]["id"].(int64)})
-		nextCursor = value
+		nextCursor = encodeCursor(reviewCursor{Kind: "run_artifacts_" + stringID(runID), ID: result.NextCursorID})
 	}
 	payload := map[string]any{
 		"run_id": runID, "context": runArtifactContextRow(runContext), "artifacts": items,
@@ -533,7 +449,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		"filters": map[string]any{"q": searchQuery, "role": role, "artifact_id": nullablePositiveID(focusID)},
 	}
 	if pageMode {
-		payload["pagination"] = scopedPagination(page, perPage, total, "id", order)
+		payload["pagination"] = scopedPagination(page, perPage, result.Total, "id", order)
 	}
 	s.respond(w, r, payload, nil)
 }
@@ -718,28 +634,35 @@ func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	where, args := scopedWhere("rcu.pipeline_run_id=?", "rcu.cache_layer, rcu.outcome, ce.provider, ce.namespace, ce.request_fingerprint", runID, query)
-	var total int64
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM run_cache_uses rcu JOIN cache_entries ce ON ce.id=rcu.cache_entry_id WHERE `+where, args...).Scan(&total); err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	page = clampScopedPage(page, perPage, total)
-	args = append(args, perPage, (page-1)*perPage)
-	rows, err := s.db.QueryContext(ctx, `SELECT rcu.id, rcu.cache_layer, rcu.outcome, rcu.used_at,
-        ce.id AS cache_entry_id, ce.provider, ce.namespace, ce.request_fingerprint,
-        ce.response_status, ce.payload_artifact_id, ce.fetched_at, ce.expires_at, ce.extractor_version
-        FROM run_cache_uses rcu JOIN cache_entries ce ON ce.id=rcu.cache_entry_id
-		WHERE `+where+` ORDER BY `+stableScopedOrder(fields[sort], "rcu.id", order)+` LIMIT ? OFFSET ?`, args...)
+	result, err := s.cacheStore.ListCacheUsesForRun(ctx, cache.CacheUseFilter{
+		RunID: runID, Query: query, Sort: sort, Order: order, Page: page, PerPage: perPage,
+	})
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
+	items := make([]map[string]any, 0, len(result.Items))
+	for _, record := range result.Items {
+		items = append(items, map[string]any{
+			"id":                  record.ID,
+			"cache_layer":         record.CacheLayer,
+			"outcome":             record.Outcome,
+			"used_at":             record.UsedAt,
+			"cache_entry_id":      record.CacheEntryID,
+			"provider":            record.Provider,
+			"namespace":           record.Namespace,
+			"request_fingerprint": record.RequestFingerprint,
+			"response_status":     record.ResponseStatus,
+			"payload_artifact_id": nullableIDPointer(record.PayloadArtifactID),
+			"fetched_at":          record.FetchedAt,
+			"expires_at":          nullableText(record.ExpiresAt),
+			"extractor_version":   record.ExtractorVersion,
+		})
+	}
+	page = clampScopedPage(page, perPage, result.Total)
 	columns := []string{"id", "cache_layer", "outcome", "used_at", "cache_entry_id", "provider", "namespace", "request_fingerprint", "response_status", "payload_artifact_id", "fetched_at", "expires_at", "extractor_version"}
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "columns": columns, "rows": items, "cache_uses": items,
-		"pagination": scopedPagination(page, perPage, total, sort, order),
-	}, err)
+		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+	}, nil)
 }

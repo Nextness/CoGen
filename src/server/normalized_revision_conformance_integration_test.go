@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/author"
 	"analysis/database/work"
 )
 
@@ -174,9 +175,6 @@ func TestNormalizedRevisionPredicateConformance(t *testing.T) {
 	fixture := newNormalizedRevisionConformanceFixture(t)
 	expected := revisionSet(fixture.acceptedRevisionID, fixture.supersededLatestRevisionID)
 
-	t.Run("server predicate fragment", func(t *testing.T) {
-		assertRevisionSet(t, "server predicate fragment", fixture.serverPredicateRevisionIDs(t), expected)
-	})
 	t.Run("server corpus articles", func(t *testing.T) {
 		assertRevisionSet(t, "server corpus articles", fixture.corpusArticleRevisionIDs(t), expected)
 	})
@@ -399,29 +397,73 @@ func TestNormalizedRevisionPredicateConformance(t *testing.T) {
 			}
 		}
 	})
+	t.Run("author identity evidence revisions", func(t *testing.T) {
+		fixture.assertAuthorIdentityEvidenceRevisions(t)
+	})
 }
 
-// serverPredicateRevisionIDs runs the viewer-local predicate fragment directly.
-func (f *normalizedRevisionConformanceFixture) serverPredicateRevisionIDs(t *testing.T) map[int64]bool {
+// assertAuthorIdentityEvidenceRevisions seeds one resolution per predicate case
+// and verifies the author family evidence read selects the same analysis-ready
+// revision rule: the current normalized revision when the predicate matches,
+// and the captured evidence revision otherwise.
+func (f *normalizedRevisionConformanceFixture) assertAuthorIdentityEvidenceRevisions(t *testing.T) {
 	t.Helper()
-	rows, err := f.server.db.QueryContext(context.Background(),
-		"SELECT wr.id FROM work_revisions wr WHERE wr.pipeline_run_id=? AND "+normalizedRevisionPredicate("wr"), f.runID)
+	seed := func(name string, revisionID int64, authorOrder int) int64 {
+		t.Helper()
+		occurrence, err := f.db.DB.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		occurrenceID, err := occurrence.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.db.DB.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, occurrenceID, authorOrder); err != nil {
+			t.Fatal(err)
+		}
+		resolution, err := f.db.DB.Exec(`INSERT INTO author_identity_resolutions
+			(pipeline_run_id, author_occurrence_id, status, provider, queried_citation_name, resolved_at)
+			VALUES (?, ?, 'orcid_is_unclear', 'orcid', ?, '2026-01-01T00:00:00Z')`, f.runID, occurrenceID, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolutionID, err := resolution.LastInsertId()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resolutionID
+	}
+
+	acceptedResolution := seed("Accepted Evidence", f.acceptedRevisionID, 2)
+	supersededResolution := seed("Superseded Evidence", f.supersededRevisionID, 1)
+	discardedResolution := seed("Discarded Evidence", f.discardedRevisionID, 1)
+	missingResolution := seed("Missing Evidence", f.missingRevisionID, 1)
+
+	page, err := f.server.authorStore.ListIdentityEvidence(context.Background(), author.IdentityEvidenceFilter{
+		RunID: f.runID, Sort: "id", Order: "ASC", Page: 1, PerPage: 20,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rows.Close()
-	result := map[int64]bool{}
-	for rows.Next() {
-		var revisionID int64
-		if err := rows.Scan(&revisionID); err != nil {
-			t.Fatal(err)
+	byResolution := map[int64]*author.IdentityEvidenceRow{}
+	for _, row := range page.Items {
+		byResolution[row.ResolutionID] = row
+	}
+	want := map[int64]int64{
+		acceptedResolution:   f.acceptedRevisionID,
+		supersededResolution: f.supersededLatestRevisionID,
+		discardedResolution:  f.discardedRevisionID,
+		missingResolution:    f.missingRevisionID,
+	}
+	if len(byResolution) != len(want) {
+		t.Fatalf("identity evidence rows = %d, want %d", len(byResolution), len(want))
+	}
+	for resolutionID, revisionID := range want {
+		row := byResolution[resolutionID]
+		if row == nil || row.WorkRevisionID == nil || *row.WorkRevisionID != revisionID {
+			t.Fatalf("resolution %d work revision = %+v, want %d", resolutionID, row, revisionID)
 		}
-		result[revisionID] = true
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatal(err)
-	}
-	return result
 }
 
 // corpusArticleRevisionIDs collects the citing revisions returned by the corpus article endpoint.

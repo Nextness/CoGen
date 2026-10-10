@@ -95,6 +95,10 @@ coverage_policy: coverage_policy_config = {
         ["analysis/normalization"]     => { minimum =  82.0 },
         ["analysis/notes"]             => { minimum =  84.0 },
         ["analysis/pdfstore"]          => { minimum =  73.0 },
+        ["analysis/pdfstore/internal/sql"] => {
+            minimum = 75.0,
+            rationale = "Generated companion PDF queries are exercised through the handwritten store integration and viewer tests; the generated WithTx scaffolding stays unused until the transactional outbox phase and the handwritten layer guards empty slices before generated calls."
+        },
         ["analysis/searchterms"]       => { minimum =  90.0 },
         ["analysis/server"]            => { minimum =  76.0 },
         ["analysis/something"]         => { minimum =  87.5 },

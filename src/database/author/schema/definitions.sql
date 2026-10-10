@@ -60,8 +60,10 @@ CREATE TABLE author_identity_candidates (
 );
 
 -- External immutable revision table declared only so run-scoped author
--- membership reads can compile. The work family owns revision writes.
+-- membership and identity-evidence reads can compile. The work family owns
+-- revision writes.
 CREATE TABLE work_revisions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_id         INTEGER NOT NULL,
     pipeline_run_id INTEGER NOT NULL
 );

@@ -114,6 +114,32 @@ WHERE pipeline_run_id = sqlc.arg(pipeline_run_id)
 ORDER BY id
 LIMIT sqlc.arg(row_limit);
 
+-- name: CountAuthorArticles :one
+SELECT COUNT(*) FROM authorships a
+JOIN work_revisions wr ON wr.id=a.work_revision_id
+WHERE a.author_occurrence_id = sqlc.arg('author_occurrence_id')
+  AND wr.pipeline_run_id = sqlc.arg('pipeline_run_id');
+
+-- name: ListAuthorArticles :many
+SELECT
+    a.id AS relation_id,
+    a.author_order,
+    a.affiliation,
+    wr.id AS work_revision_id,
+    wr.work_id,
+    wr.title,
+    wr.year,
+    wr.pipeline_run_id,
+    w.doi
+FROM authorships a
+JOIN work_revisions wr ON wr.id=a.work_revision_id
+JOIN works w ON w.id=wr.work_id
+WHERE a.author_occurrence_id = sqlc.arg('author_occurrence_id')
+  AND wr.pipeline_run_id = sqlc.arg('pipeline_run_id')
+  AND a.id > sqlc.arg('cursor_id')
+ORDER BY a.id
+LIMIT sqlc.arg('row_limit');
+
 -- name: GetReferenceDetail :one
 SELECT
     rm.id,

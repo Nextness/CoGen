@@ -46,6 +46,21 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		{"GetPlanByID", func() error { _, err := store.GetPlanByID(ctx, 1); return err }},
 		{"GetPlanByFingerprint", func() error { _, err := store.GetPlanByFingerprint(ctx, 1, "fp"); return err }},
 		{"ListPlansBySearchRevision", func() error { _, err := store.ListPlansBySearchRevision(ctx, 1); return err }},
+		{"HierarchyTotals", func() error { _, err := store.HierarchyTotals(ctx); return err }},
+		{"ListLegacySearches", func() error { _, err := store.ListLegacySearches(ctx, 10); return err }},
+		{"ListLegacyPlans", func() error { _, err := store.ListLegacyPlans(ctx, 1, 10); return err }},
+		{"ListHierarchySearches", func() error {
+			_, _, err := store.ListHierarchySearches(ctx, search.HierarchySearchFilter{Limit: 10})
+			return err
+		}},
+		{"ListHierarchyRevisions", func() error {
+			_, _, err := store.ListHierarchyRevisions(ctx, search.HierarchyRevisionFilter{SearchID: 1, Limit: 10})
+			return err
+		}},
+		{"ListHierarchyPlans", func() error {
+			_, _, err := store.ListHierarchyPlans(ctx, search.HierarchyPlanFilter{SearchRevisionID: 1, Limit: 10})
+			return err
+		}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
