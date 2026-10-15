@@ -9,6 +9,7 @@ import (
 	"analysis/article"
 	"analysis/database"
 	"analysis/database/pdfbinding"
+	dbwork "analysis/database/work"
 	"analysis/enrich"
 	"analysis/manifest"
 	"analysis/pdfstore"
@@ -81,16 +82,16 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("inventory-sync", "")
+	runID, err := db.Run.StartRun(context.Background(), "inventory-sync", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for index, doi := range []string{"10.1000/normalized-one", "10.1000/normalized-two"} {
-		workID, err := db.Works.CreateByDOI(doi)
+		workID, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.WorkRevisions.Create(&database.WorkRevision{
+		if _, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 			WorkID: workID, PipelineRunID: runID,
 			ProducerStage: database.ProducerStageNormalize,
 			Title:         "Normalized article " + strconv.Itoa(index+1),
@@ -181,7 +182,7 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("normalization metrics", "")
+	runID, err := db.Run.StartRun(context.Background(), "normalization metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,12 +204,12 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		{"normalization_fields_already_canonical", "publisher", 1},
 		{"normalization_fields_unavailable", "affiliation", 1},
 	} {
-		metric, err := db.Metrics.Get(runID, check.metric, check.source)
+		metric, err := db.Run.GetMetric(context.Background(), runID, check.metric, check.source)
 		if err != nil || metric == nil || metric.Value != check.want {
 			t.Errorf("metric %s/%s = %+v, %v; want %d", check.metric, check.source, metric, err, check.want)
 		}
 	}
-	auditEvents, err := db.AuditEvents.ListByRun(runID)
+	auditEvents, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +225,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("workspace test", "")
+	runID, err := db.Run.StartRun(context.Background(), "workspace test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +357,7 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test emit", "")
+	runID, err := db.Run.StartRun(context.Background(), "test emit", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -368,7 +369,7 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
-	events, err := db.AuditEvents.ListByRun(runID)
+	events, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,11 +413,11 @@ func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	validWorkID, err := db.Works.CreateByDOI("10.1000/valid")
+	validWorkID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/valid")
 	if err != nil {
 		t.Fatal(err)
 	}
-	discardedWorkID, err := db.Works.CreateByDOI("10.1000/discarded")
+	discardedWorkID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/discarded")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +475,7 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test metrics", "")
+	runID, err := db.Run.StartRun(context.Background(), "test metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -487,7 +488,7 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkMetric := func(name, source string, want int) {
-		metric, err := db.Metrics.Get(runID, name, source)
+		metric, err := db.Run.GetMetric(context.Background(), runID, name, source)
 		if err != nil || metric == nil || metric.Value != want {
 			t.Fatalf("metric %s/%s = %+v, %v; want %d", name, source, metric, err, want)
 		}
@@ -507,7 +508,7 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test skip", "")
+	runID, err := db.Run.StartRun(context.Background(), "test skip", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +520,7 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
-	events, err := db.AuditEvents.ListByRun(runID)
+	events, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}

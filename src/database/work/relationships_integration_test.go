@@ -9,6 +9,9 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/author"
+	"analysis/database/run"
+	"analysis/database/search"
 	"analysis/database/work"
 )
 
@@ -28,6 +31,7 @@ type relationshipFixture struct {
 	secondNormalizeRevisionID int64
 	contextID                 int64
 	referenceID               int64
+	firstAuthorID             int64
 }
 
 // seedRelationshipFixture creates one completed planned run with relationship evidence.
@@ -35,19 +39,29 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 	t.Helper()
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	exec := func(query string, args ...any) int64 {
-		t.Helper()
-		result, err := db.RawDBForTest().Exec(query, args...)
-		if err != nil {
-			t.Fatalf("fixture query %q: %v", query, err)
-		}
-		id, _ := result.LastInsertId()
-		return id
+	searchID, err := db.Search.FindOrCreateSearch(ctx, "work-relationship-search")
+	if err != nil {
+		t.Fatal(err)
 	}
-	searchID := exec("INSERT INTO searches (search_id) VALUES ('work-relationship-search')")
-	searchRevisionID := exec("INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r1', 'config', 'manifest')", searchID)
-	planID := exec("INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'fingerprint', 'manifest', 'input')", searchRevisionID)
-	runID := exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('work-relationship', '2026-01-01 00:00:00', '2026-01-01 00:01:00', 'completed', ?, 1)", planID)
+	searchRevisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "work-relationship"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(ctx, runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
 
 	workID, err := store.CreateWorkByDOI(ctx, "10.1000/relationship")
 	if err != nil {
@@ -125,10 +139,26 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 		t.Fatal(err)
 	}
 
-	firstAuthorID := exec("INSERT INTO author_occurrences (citation_name, first_name, last_name, orcid) VALUES ('Doe, Jane', 'Jane', 'Doe', '0000-0002-1825-0097')")
-	secondAuthorID := exec("INSERT INTO author_occurrences (citation_name) VALUES ('Smith, John')")
-	exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order, affiliation) VALUES (?, ?, 1, 'University')", normalizeRevisionID, firstAuthorID)
-	exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 2)", normalizeRevisionID, secondAuthorID)
+	firstAuthorID, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{
+		CitationName: "Doe, Jane", FirstName: "Jane", LastName: "Doe", ORCID: "0000-0002-1825-0097",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondAuthorID, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Smith, John"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Author.CreateAuthorship(ctx, &author.Authorship{
+		WorkRevisionID: normalizeRevisionID, AuthorOccurrenceID: firstAuthorID, AuthorOrder: 1, Affiliation: "University",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Author.CreateAuthorship(ctx, &author.Authorship{
+		WorkRevisionID: normalizeRevisionID, AuthorOccurrenceID: secondAuthorID, AuthorOrder: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	referenceID, err := store.CreateReference(ctx, &work.Reference{
 		WorkRevisionID: normalizeRevisionID, MentionOrder: 1, RawReference: "raw reference",
@@ -138,11 +168,11 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 		t.Fatal(err)
 	}
 
-	contextRecord, _, err := db.Reviews.CreateContext(ctx, runID, nil)
+	contextRecord, _, err := db.Review.CreateContext(ctx, runID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Reviews.AppendWorkReview(ctx, contextRecord.ID, normalizeRevisionID, nil, "not_approved", []string{"out_of_scope"}, nil); err != nil {
+	if _, _, err := db.Review.AppendWorkReview(ctx, contextRecord.ID, normalizeRevisionID, nil, "not_approved", []string{"out_of_scope"}, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -152,7 +182,7 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 		normalizeRevisionID: normalizeRevisionID, discardedWorkID: discardedWorkID,
 		discardedRevisionID: discardedRevisionID, secondWorkID: secondWorkID,
 		secondNormalizeRevisionID: secondNormalizeRevisionID, contextID: contextRecord.ID,
-		referenceID: referenceID,
+		referenceID: referenceID, firstAuthorID: firstAuthorID,
 	}
 }
 
@@ -210,10 +240,7 @@ func TestStoreListAuthorArticlesResolvesRunScopedArticles(t *testing.T) {
 	fixture := seedRelationshipFixture(t)
 	ctx := context.Background()
 
-	var authorID int64
-	if err := fixture.db.RawDBForTest().QueryRow("SELECT id FROM author_occurrences WHERE citation_name='Doe, Jane'").Scan(&authorID); err != nil {
-		t.Fatal(err)
-	}
+	authorID := fixture.firstAuthorID
 	page, err := fixture.store.ListAuthorArticles(ctx, work.AuthorArticleFilter{AuthorOccurrenceID: authorID, RunID: fixture.runID, Limit: 10})
 	if err != nil {
 		t.Fatal(err)

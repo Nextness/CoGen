@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"analysis/database/audit"
+	"analysis/manifest"
 )
 
 // TestStoreAuditFilterConstrainsDynamicInputs verifies the retained audit
@@ -21,9 +22,10 @@ func TestStoreAuditFilterConstrainsDynamicInputs(t *testing.T) {
 	runID := createTestRun(t, db, "audit-filter-dynamic")
 	insert := func(actor, entityType, entityID, action string) {
 		t.Helper()
-		if _, err := db.RawDBForTest().Exec(`INSERT INTO audit_events
-			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action)
-			VALUES (datetime('now'), ?, ?, ?, ?, ?)`, actor, runID, entityType, entityID, action); err != nil {
+		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
+			OccurredAt: "2026-01-01T00:00:00Z", Actor: actor, PipelineRunID: runID,
+			EntityType: entityType, EntityID: entityID, Action: manifest.AuditAction(action),
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}

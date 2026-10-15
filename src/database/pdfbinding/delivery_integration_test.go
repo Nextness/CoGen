@@ -32,15 +32,19 @@ func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var events, links int
-	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+	events, err := metadata.Audit.ListByEntity(ctx, "work", "1")
+	if err != nil {
 		t.Fatal(err)
 	}
+	// The delivered-event link table is internal to the cross-database outbox
+	// protocol and has no family read API, so this direct integrity check
+	// counts its rows to prove the retry guard reused the existing link.
+	var links int
 	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
 		t.Fatal(err)
 	}
-	if events != 1 || links != 1 {
-		t.Fatalf("idempotent delivery events=%d links=%d, want one each", events, links)
+	if len(events) != 1 || links != 1 {
+		t.Fatalf("idempotent delivery events=%d links=%d, want one each", len(events), links)
 	}
 }
 
@@ -63,12 +67,12 @@ func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T) {
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	var runID any
-	if err := metadata.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&runID); err != nil {
+	events, err := metadata.Audit.ListByEntity(ctx, "work", "1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if runID != nil {
-		t.Fatalf("stale run ID = %v, want NULL", runID)
+	if len(events) != 1 || events[0].PipelineRunID != nil {
+		t.Fatalf("stale run events = %+v, want one event with a NULL run link", events)
 	}
 }
 
@@ -76,7 +80,7 @@ func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T) {
 func TestRecordDeliveredAuditBindsExistingRun(t *testing.T) {
 	ctx := context.Background()
 	store, metadata, _ := openTestStore(t)
-	runID, err := metadata.PipelineRuns.StartRun("pdfbinding-test", "")
+	runID, err := metadata.Run.StartRun(ctx, "pdfbinding-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,12 +99,12 @@ func TestRecordDeliveredAuditBindsExistingRun(t *testing.T) {
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	var linkedRunID int64
-	if err := metadata.RawDBForTest().QueryRow("SELECT pipeline_run_id FROM audit_events WHERE action='pdf_inventory_registered'").Scan(&linkedRunID); err != nil {
+	events, err := metadata.Audit.ListByEntity(ctx, "work", "1")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if linkedRunID != runID {
-		t.Fatalf("linked run ID = %d, want %d", linkedRunID, runID)
+	if len(events) != 1 || events[0].PipelineRunID == nil || *events[0].PipelineRunID != runID {
+		t.Fatalf("linked run events = %+v, want one event linked to run %d", events, runID)
 	}
 }
 
@@ -122,14 +126,18 @@ func TestRecordDeliveredAuditRollsBackWithTransaction(t *testing.T) {
 	if err := tx.Rollback(); err != nil {
 		t.Fatal(err)
 	}
-	var events, links int
-	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+	events, err := metadata.Audit.ListByEntity(ctx, "work", "1")
+	if err != nil {
 		t.Fatal(err)
 	}
+	// The delivered-event link table is internal to the cross-database outbox
+	// protocol and has no family read API, so this direct integrity check
+	// counts its rows to prove the rollback left no link behind.
+	var links int
 	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
 		t.Fatal(err)
 	}
-	if events != 0 || links != 0 {
-		t.Fatalf("rolled-back delivery events=%d links=%d, want zero", events, links)
+	if len(events) != 0 || links != 0 {
+		t.Fatalf("rolled-back delivery events=%d links=%d, want zero", len(events), links)
 	}
 }

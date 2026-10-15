@@ -82,7 +82,7 @@ func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 
 	t.Run("pdf fixture", func(t *testing.T) {
 		fixture := newPDFViewerFixture(t)
-		if _, _, err := fixture.server.writeDB.Reviews.CreateContext(t.Context(), fixture.runID, nil); err != nil {
+		if _, _, err := fixture.server.writeDB.Review.CreateContext(t.Context(), fixture.runID, nil); err != nil {
 			t.Fatal(err)
 		}
 		run := stringID(fixture.runID)
@@ -331,7 +331,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 
 	t.Run("pdf fixture", func(t *testing.T) {
 		fixture := newPDFViewerFixture(t)
-		if _, _, err := fixture.server.writeDB.Reviews.CreateContext(t.Context(), fixture.runID, nil); err != nil {
+		if _, _, err := fixture.server.writeDB.Review.CreateContext(t.Context(), fixture.runID, nil); err != nil {
 			t.Fatal(err)
 		}
 		pdfHandler := fixture.server.Handler()

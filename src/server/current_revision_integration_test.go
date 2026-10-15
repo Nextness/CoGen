@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/work"
 )
 
 // TestCurrentNormalizedRevisionIsConsistentAcrossConsumers verifies a later duplicate normalize revision replaces the earlier revision everywhere.
@@ -24,7 +25,7 @@ func TestCurrentNormalizedRevisionIsConsistentAcrossConsumers(t *testing.T) {
 	}
 	defer db.Close()
 
-	latestID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	latestID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 		WorkID: fixture.availableID, PipelineRunID: fixture.runID, ProducerStage: database.ProducerStageNormalize,
 		Title: "Replacement normalized revision",
 	})
@@ -38,7 +39,7 @@ func TestCurrentNormalizedRevisionIsConsistentAcrossConsumers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reviewContext, created, err := db.Reviews.CreateContext(context.Background(), fixture.runID, nil)
+	reviewContext, created, err := db.Review.CreateContext(context.Background(), fixture.runID, nil)
 	if err != nil || !created {
 		t.Fatalf("create review context: context=%+v created=%v err=%v", reviewContext, created, err)
 	}

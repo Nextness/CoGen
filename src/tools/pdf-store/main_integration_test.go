@@ -13,6 +13,7 @@ import (
 
 	"analysis/database"
 	"analysis/database/pdfbinding"
+	"analysis/database/work"
 	"analysis/pdfstore"
 )
 
@@ -25,31 +26,31 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workID, err := metadata.Works.CreateByDOI("10.1000/manual")
+	workID, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual")
 	if err != nil {
 		t.Fatal(err)
 	}
-	duplicateWorkID, err := metadata.Works.CreateByDOI("10.1000/manual-duplicate")
+	duplicateWorkID, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-duplicate")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.Works.CreateByDOI("10.1000/manual-unnormalized"); err != nil {
+	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-unnormalized"); err != nil {
 		t.Fatal(err)
 	}
-	runID, err := metadata.PipelineRuns.StartRun("manual-pdf-test", "")
+	runID, err := metadata.Run.StartRun(context.Background(), "manual-pdf-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, work := range []struct {
+	for _, item := range []struct {
 		id    int64
 		title string
 	}{
 		{workID, "Manual PDF"},
 		{duplicateWorkID, "Manual duplicate PDF"},
 	} {
-		if _, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-			WorkID: work.id, PipelineRunID: runID,
-			ProducerStage: database.ProducerStageNormalize, Title: work.title,
+		if _, err := metadata.Work.CreateRevision(context.Background(), &work.Revision{
+			WorkID: item.id, PipelineRunID: runID,
+			ProducerStage: work.ProducerStageNormalize, Title: item.title,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -181,7 +182,7 @@ func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.Works.CreateByDOI("10.1000/manual-invalid"); err != nil {
+	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-invalid"); err != nil {
 		t.Fatal(err)
 	}
 	metadata.Close()

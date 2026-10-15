@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/work"
 	"analysis/pdfstore"
 	"analysis/searchterms"
 )
@@ -697,7 +698,7 @@ func populateFixtureTermMatches(t *testing.T, db *database.Database, runID int64
 	if err := revRows.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.TermMatches.ReplaceRunTermData(runID, termsBySource, matches); err != nil {
+	if err := db.Work.ReplaceRunTermData(context.Background(), work.ReplaceTermDataInput{RunID: runID, TermsBySource: termsBySource, Matches: matches}); err != nil {
 		t.Fatal(err)
 	}
 }

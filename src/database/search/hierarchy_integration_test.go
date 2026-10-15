@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	"analysis/database/run"
 	"analysis/database/search"
 )
 
@@ -17,31 +18,37 @@ func TestStoreHierarchyTotalsCountsWorkspaceIdentities(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	firstSearch, err := db.Searches.Create("hierarchy-alpha")
+	firstSearch, err := db.Search.FindOrCreateSearch(ctx, "hierarchy-alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Searches.Create("hierarchy-beta"); err != nil {
+	if _, err := db.Search.FindOrCreateSearch(ctx, "hierarchy-beta"); err != nil {
 		t.Fatal(err)
 	}
-	revisionID, _, err := db.Revisions.Create(firstSearch, "r1", "config", "manifest")
+	revisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: firstSearch, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Revisions.Create(firstSearch, "r2", "config2", "manifest2"); err != nil {
+	if _, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: firstSearch, RevisionLabel: "r2", ConfigArtifactHash: "config2", ResolvedManifestHash: "manifest2",
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Plans.CreateWithInputManifest(revisionID, "fp-1", "manifest", "input", false); err != nil {
+	if _, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-1", ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	}); err != nil {
 		t.Fatal(err)
 	}
-	completedRun, err := db.PipelineRuns.StartRun("hierarchy", "query")
+	completedRun, err := db.Run.StartRun(ctx, "hierarchy", "query")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(completedRun, "completed", "done"); err != nil {
+	if err := db.Run.FinishRun(ctx, completedRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.PipelineRuns.StartRun("hierarchy", "query"); err != nil {
+	if _, err := db.Run.StartRun(ctx, "hierarchy", "query"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,17 +68,19 @@ func TestStoreListLegacySearchesBoundsNewestRevisionsPerSearch(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	alpha, err := db.Searches.Create("legacy-alpha")
+	alpha, err := db.Search.FindOrCreateSearch(ctx, "legacy-alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	beta, err := db.Searches.Create("legacy-beta")
+	beta, err := db.Search.FindOrCreateSearch(ctx, "legacy-beta")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var alphaRevisions []int64
 	for _, label := range []string{"a1", "a2", "a3"} {
-		revisionID, _, err := db.Revisions.Create(alpha, label, "config-"+label, "manifest-"+label)
+		revisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+			SearchID: alpha, RevisionLabel: label, ConfigArtifactHash: "config-" + label, ResolvedManifestHash: "manifest-" + label,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +88,9 @@ func TestStoreListLegacySearchesBoundsNewestRevisionsPerSearch(t *testing.T) {
 	}
 	var betaRevisions []int64
 	for _, label := range []string{"b1", "b2"} {
-		revisionID, _, err := db.Revisions.Create(beta, label, "config-"+label, "manifest-"+label)
+		revisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+			SearchID: beta, RevisionLabel: label, ConfigArtifactHash: "config-" + label, ResolvedManifestHash: "manifest-" + label,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -123,17 +134,22 @@ func TestStoreListLegacyPlansOrdersDescendingWithLimit(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	searchID, err := db.Searches.Create("legacy-plans")
+	searchID, err := db.Search.FindOrCreateSearch(ctx, "legacy-plans")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revisionID, _, err := db.Revisions.Create(searchID, "r1", "config", "manifest")
+	revisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	var planIDs []int64
 	for _, fingerprint := range []string{"fp-a", "fp-b", "fp-c"} {
-		planID, err := db.Plans.CreateWithInputManifest(revisionID, fingerprint, "manifest", "input", true)
+		planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+			SearchRevisionID: revisionID, ExecutionFingerprint: fingerprint, ResolvedManifestHash: "manifest",
+			InputManifestHash: "input", EnrichmentEnabled: true,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,30 +178,36 @@ func TestStoreListHierarchySectionsFilterOrderAndPage(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	alpha, err := db.Searches.Create("section-alpha")
+	alpha, err := db.Search.FindOrCreateSearch(ctx, "section-alpha")
 	if err != nil {
 		t.Fatal(err)
 	}
-	beta, err := db.Searches.Create("section-beta")
+	beta, err := db.Search.FindOrCreateSearch(ctx, "section-beta")
 	if err != nil {
 		t.Fatal(err)
 	}
-	gamma, err := db.Searches.Create("section-gamma")
+	gamma, err := db.Search.FindOrCreateSearch(ctx, "section-gamma")
 	if err != nil {
 		t.Fatal(err)
 	}
-	alphaRevision, _, err := db.Revisions.Create(alpha, "alpha-r1", "config-a", "manifest-a")
+	alphaRevision, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: alpha, RevisionLabel: "alpha-r1", ConfigArtifactHash: "config-a", ResolvedManifestHash: "manifest-a",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	alphaPlan, err := db.Plans.CreateWithInputManifest(alphaRevision, "alpha-fp", "manifest-a", "input-a", false)
+	alphaPlan, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: alphaRevision, ExecutionFingerprint: "alpha-fp", ResolvedManifestHash: "manifest-a", InputManifestHash: "input-a",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("INSERT INTO pipeline_runs (step, started_at, status, execution_plan_id, attempt_number) VALUES ('workspace', datetime('now'), 'completed', ?, 1)", alphaPlan); err != nil {
+	if _, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: alphaPlan, Step: "workspace"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Revisions.Create(gamma, "gamma-r1", "config-g", "manifest-g"); err != nil {
+	if _, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: gamma, RevisionLabel: "gamma-r1", ConfigArtifactHash: "config-g", ResolvedManifestHash: "manifest-g",
+	}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -259,21 +281,30 @@ func TestStoreListHierarchySectionsLookaheadAndQueryFilters(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	searchID, err := db.Searches.Create("lookahead-search")
+	searchID, err := db.Search.FindOrCreateSearch(ctx, "lookahead-search")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Revisions.Create(searchID, "first-revision", "config-1", "manifest-1"); err != nil {
+	if _, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "first-revision", ConfigArtifactHash: "config-1", ResolvedManifestHash: "manifest-1",
+	}); err != nil {
 		t.Fatal(err)
 	}
-	secondRevision, _, err := db.Revisions.Create(searchID, "second-revision", "config-2", "manifest-2")
+	secondRevision, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "second-revision", ConfigArtifactHash: "config-2", ResolvedManifestHash: "manifest-2",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Plans.CreateWithInputManifest(secondRevision, "first-fingerprint", "manifest", "input", false); err != nil {
+	if _, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: secondRevision, ExecutionFingerprint: "first-fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	}); err != nil {
 		t.Fatal(err)
 	}
-	secondPlan, err := db.Plans.CreateWithInputManifest(secondRevision, "second-fingerprint", "manifest", "input", true)
+	secondPlan, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: secondRevision, ExecutionFingerprint: "second-fingerprint", ResolvedManifestHash: "manifest",
+		InputManifestHash: "input", EnrichmentEnabled: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

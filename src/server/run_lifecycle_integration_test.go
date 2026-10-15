@@ -3,6 +3,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -33,13 +34,13 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 	if status, body := requestJSON(t, handler, "/api/runs?include_trashed=true"); status != http.StatusOK || !containsRun(body, runID) {
 		t.Fatalf("all runs after trash: status=%d body=%v", status, body)
 	}
-	var trashReason string
-	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&trashReason); err != nil || trashReason != "Superseded test attempt" {
-		t.Fatalf("stored trash reason=%q err=%v", trashReason, err)
+	trashedRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	if err != nil || trashedRun == nil || trashedRun.TrashReason == nil || *trashedRun.TrashReason != "Superseded test attempt" {
+		t.Fatalf("stored trash reason=%v err=%v", trashedRun, err)
 	}
-	var trashEvents int
-	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'", runID).Scan(&trashEvents); err != nil || trashEvents != 1 {
-		t.Fatalf("run_trashed events=%d err=%v", trashEvents, err)
+	trashEvents := countRunAuditEvents(t, viewer, runID, "run_trashed")
+	if trashEvents != 1 {
+		t.Fatalf("run_trashed events=%d", trashEvents)
 	}
 
 	status, unchanged := mutationJSON(t, handler, http.MethodPut, endpoint, `{"visibility_state":"trashed","reason":"Ignored no-op"}`, "")
@@ -50,14 +51,13 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 	if status != http.StatusOK || restored["changed"] != true || restored["visibility_state"] != "active" {
 		t.Fatalf("restore run: status=%d body=%v", status, restored)
 	}
-	var restoredState string
-	var clearedReason any
-	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT visibility_state, trash_reason FROM pipeline_runs WHERE id=?", runID).Scan(&restoredState, &clearedReason); err != nil || restoredState != "active" || clearedReason != nil {
-		t.Fatalf("restored state=%q reason=%v err=%v", restoredState, clearedReason, err)
+	restoredRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	if err != nil || restoredRun == nil || restoredRun.VisibilityState != "active" || restoredRun.TrashReason != nil {
+		t.Fatalf("restored run=%+v err=%v", restoredRun, err)
 	}
-	var restoreEvents int
-	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=? AND action='run_restored'", runID).Scan(&restoreEvents); err != nil || restoreEvents != 1 {
-		t.Fatalf("run_restored events=%d err=%v", restoreEvents, err)
+	restoreEvents := countRunAuditEvents(t, viewer, runID, "run_restored")
+	if restoreEvents != 1 {
+		t.Fatalf("run_restored events=%d", restoreEvents)
 	}
 }
 
@@ -87,10 +87,12 @@ func TestRunVisibilityValidation(t *testing.T) {
 			}
 		})
 	}
-	if _, err := viewer.writeDB.RawDBForTest().Exec("UPDATE pipeline_runs SET status='running' WHERE id=?", runID); err != nil {
+	runningRunID, err := viewer.writeDB.Run.StartRun(context.Background(), "run_lifecycle", "")
+	if err != nil {
 		t.Fatal(err)
 	}
-	status, body := mutationJSON(t, handler, http.MethodPut, endpoint, `{"visibility_state":"trashed","reason":"test"}`, "")
+	runningEndpoint := fmt.Sprintf("/api/runs/%d/visibility", runningRunID)
+	status, body := mutationJSON(t, handler, http.MethodPut, runningEndpoint, `{"visibility_state":"trashed","reason":"test"}`, "")
 	if status != http.StatusConflict || body["error"].(map[string]any)["code"] != "run_active" {
 		t.Fatalf("running run lifecycle: status=%d body=%v", status, body)
 	}
@@ -111,16 +113,21 @@ func TestRunVisibilityAuditEvidence(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("trash run status=%d", status)
 	}
-	var trashedAt string
-	if err := viewer.writeDB.RawDBForTest().QueryRow("SELECT trashed_at FROM pipeline_runs WHERE id=?", runID).Scan(&trashedAt); err != nil {
+	trashedRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	if err != nil || trashedRun == nil || trashedRun.TrashedAt == nil {
+		t.Fatalf("trashed run=%+v err=%v", trashedRun, err)
+	}
+	trashedAt := *trashedRun.TrashedAt
+	events, err := viewer.writeDB.Audit.ListByRun(context.Background(), runID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	var occurredAt, actor, entityType, entityID, action, beforeJSON, afterJSON, metadataJSON string
-	if err := viewer.writeDB.RawDBForTest().QueryRow(`SELECT occurred_at, actor, entity_type, entity_id, action,
-		before_json, after_json, metadata_json
-		FROM audit_events WHERE pipeline_run_id=? AND action='run_trashed'`, runID).Scan(
-		&occurredAt, &actor, &entityType, &entityID, &action, &beforeJSON, &afterJSON, &metadataJSON); err != nil {
-		t.Fatal(err)
+	for _, event := range events {
+		if event.Action == "run_trashed" {
+			occurredAt, actor, entityType, entityID, action = event.OccurredAt, event.Actor, event.EntityType, event.EntityID, event.Action
+			beforeJSON, afterJSON, metadataJSON = event.BeforeJSON, event.AfterJSON, event.MetadataJSON
+		}
 	}
 	if occurredAt != trashedAt {
 		t.Fatalf("audit occurred_at %q != trashed_at %q", occurredAt, trashedAt)
@@ -134,6 +141,22 @@ func TestRunVisibilityAuditEvidence(t *testing.T) {
 	if beforeJSON != `{"visibility_state":"active"}` || afterJSON != `{"visibility_state":"trashed"}` || metadataJSON != `{"source":"local_viewer"}` {
 		t.Fatalf("audit state = %q %q %q", beforeJSON, afterJSON, metadataJSON)
 	}
+}
+
+// countRunAuditEvents counts audit rows for one run action through the audit family store.
+func countRunAuditEvents(t *testing.T, viewer *Server, runID int64, action string) int {
+	t.Helper()
+	events, err := viewer.writeDB.Audit.ListByRun(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, event := range events {
+		if event.Action == action {
+			count++
+		}
+	}
+	return count
 }
 
 // containsRun reports whether a run-list API response includes the requested identifier.

@@ -80,7 +80,7 @@ func TestWorkFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := work.New(family.RawDBForTest())
+	store := family.Work
 
 	// Read parity for work and identifier identity.
 	legacyWork, err := legacy.Works.GetByDOI("10.1000/parity-work")

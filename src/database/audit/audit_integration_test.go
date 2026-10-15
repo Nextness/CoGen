@@ -13,6 +13,7 @@ import (
 
 	"analysis/database"
 	"analysis/database/audit"
+	"analysis/database/work"
 	"analysis/manifest"
 )
 
@@ -28,7 +29,7 @@ func openFamilyStore(t *testing.T) (*audit.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return audit.New(db.RawDBForTest()), db
+	return db.Audit, db
 }
 
 // createTestRun creates one pipeline run for audit linkage and returns its ID.
@@ -133,6 +134,33 @@ func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("rejected insert left %d audit rows", count)
+	}
+}
+
+// TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes verifies the production
+// audit_events triggers reject direct UPDATE and DELETE statements.
+func TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	id, err := store.Insert(ctx, &manifest.AuditEvent{
+		OccurredAt: "2026-01-02T03:04:05Z", Actor: "pipeline",
+		EntityType: "pipeline_run", EntityID: "1", Action: manifest.AuditRunStarted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RawDBForTest().Exec("UPDATE audit_events SET action = 'run_completed' WHERE id = ?", id); err == nil || !strings.Contains(err.Error(), "append-only") {
+		t.Fatalf("update error = %v, want append-only rejection", err)
+	}
+	if _, err := db.RawDBForTest().Exec("DELETE FROM audit_events WHERE id = ?", id); err == nil || !strings.Contains(err.Error(), "append-only") {
+		t.Fatalf("delete error = %v, want append-only rejection", err)
+	}
+	events, err := store.ListByEntity(ctx, "pipeline_run", "1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].ID != id {
+		t.Fatalf("audit rows after rejected mutations = %+v, want the original event", events)
 	}
 }
 
@@ -247,12 +275,12 @@ func TestStoreRecordedDataAndEnrichmentSummary(t *testing.T) {
 		t.Fatalf("out-of-scope recorded data = %+v err=%v, want nil without error", missing, err)
 	}
 
-	workID, err := db.Works.CreateByDOI("10.1000/audit-evidence")
+	workID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/audit-evidence")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: workID, PipelineRunID: runID, PayloadHash: "hash", ProducerStage: "enrich",
+	if _, err := db.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: "enrich",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -272,11 +300,11 @@ func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "audit-detail-events")
-	workID, err := db.Works.CreateByDOI("10.1000/audit-detail-events")
+	workID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/audit-detail-events")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
 		WorkID: workID, PipelineRunID: runID, ProducerStage: "normalize",
 	})
 	if err != nil {
@@ -284,6 +312,9 @@ func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T) {
 	}
 	insert := func(runID int64, entityType, entityID, action string) int64 {
 		t.Helper()
+		// The viewer detail pages must tolerate stored actions outside the
+		// current manifest vocabulary, so this fixture inserts evidence
+		// directly instead of going through the validating audit store.
 		result, err := db.RawDBForTest().Exec(`INSERT INTO audit_events
 			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action)
 			VALUES (datetime('now'), 'pipeline', ?, ?, ?, ?)`, runID, entityType, entityID, action)
@@ -300,11 +331,11 @@ func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T) {
 	workEventID := insert(runID, "work", strconv.FormatInt(workID, 10), "validation_changed")
 	contextEventID := insert(runID, "review_context", "1", "review_context_created")
 	otherRunID := createTestRun(t, db, "audit-detail-events-other")
-	otherWorkID, err := db.Works.CreateByDOI("10.1000/audit-detail-events-other")
+	otherWorkID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/audit-detail-events-other")
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherRevisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	otherRevisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
 		WorkID: otherWorkID, PipelineRunID: otherRunID, ProducerStage: "normalize",
 	})
 	if err != nil {

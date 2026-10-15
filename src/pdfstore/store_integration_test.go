@@ -68,11 +68,11 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer metadata.Close()
-	workID, err := metadata.Works.CreateByDOI("10.1000/audit")
+	workID, err := metadata.Work.CreateWorkByDOI(ctx, "10.1000/audit")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := metadata.PipelineRuns.StartRun("pdf-inventory-test", "")
+	runID, err := metadata.Run.StartRun(ctx, "pdf-inventory-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestFlushAuditOutboxDropsStalePipelineRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer metadata.Close()
-	workID, err := metadata.Works.CreateByDOI("10.1000/stale")
+	workID, err := metadata.Work.CreateWorkByDOI(ctx, "10.1000/stale")
 	if err != nil {
 		t.Fatal(err)
 	}

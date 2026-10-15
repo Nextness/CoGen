@@ -89,7 +89,7 @@ func TestRunFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := run.New(family.RawDBForTest())
+	store := family.Run
 
 	// Read parity for run projection, plan ordering, steps, metrics, reviewer, and purge overview.
 	legacyRun, err := legacy.PipelineRuns.GetByID(priorRun)

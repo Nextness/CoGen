@@ -17,6 +17,9 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/run"
+	"analysis/database/search"
+	"analysis/database/work"
 	"analysis/pdfstore"
 )
 
@@ -201,7 +204,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	}
 	createWork := func(doi string) int64 {
 		t.Helper()
-		id, err := db.Works.CreateByDOI(doi)
+		id, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -209,7 +212,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	}
 	createRevision := func(workID, runID int64, stage, title string) int64 {
 		t.Helper()
-		id, err := db.WorkRevisions.Create(&database.WorkRevision{
+		id, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 			WorkID: workID, PipelineRunID: runID, ProducerStage: stage, Title: title,
 		})
 		if err != nil {
@@ -217,7 +220,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		}
 		return id
 	}
-	runID, err := db.PipelineRuns.StartRun("viewer", "reference resolution")
+	runID, err := db.Run.StartRun(context.Background(), "viewer", "reference resolution")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +228,9 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	citingRevisionID := createRevision(citingWorkID, runID, database.ProducerStageNormalize, "Citing normalized title")
 	targetWorkID := createWork("10.1000/viewer-target")
 	for _, workID := range []int64{citingWorkID, targetWorkID} {
-		if err := db.RunWorkStages.SetOutcome(runID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+		if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{
+			RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -248,7 +253,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 			normalizedTargetID = id
 		}
 	}
-	externalMentionID, err := db.ReferenceMentions.Create(&database.ReferenceMention{
+	externalMentionID, err := db.Work.CreateReference(context.Background(), &work.Reference{
 		WorkRevisionID: citingRevisionID,
 		MentionOrder:   1,
 		RawReference:   "External reference",
@@ -259,7 +264,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolvedMentionID, err := db.ReferenceMentions.Create(&database.ReferenceMention{
+	resolvedMentionID, err := db.Work.CreateReference(context.Background(), &work.Reference{
 		WorkRevisionID: citingRevisionID,
 		ResolvedWorkID: targetWorkID,
 		MentionOrder:   2,
@@ -295,7 +300,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	createWork := func(doi string) int64 {
 		t.Helper()
-		id, err := db.Works.CreateByDOI(doi)
+		id, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -303,7 +308,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	createRevision := func(workID, runID int64, stage, title string) int64 {
 		t.Helper()
-		id, err := db.WorkRevisions.Create(&database.WorkRevision{
+		id, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 			WorkID: workID, PipelineRunID: runID, ProducerStage: stage, Title: title,
 		})
 		if err != nil {
@@ -313,7 +318,9 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	setStage := func(runID, workID int64, stage, outcome, reason string) {
 		t.Helper()
-		if err := db.RunWorkStages.SetOutcome(runID, workID, stage, outcome, reason); err != nil {
+		if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{
+			RunID: runID, WorkID: workID, StageName: stage, Outcome: outcome, Reason: reason,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -326,11 +333,11 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 			t.Fatal(err)
 		}
 	}
-	previousRunID, err := db.PipelineRuns.StartRun("viewer", "prior article activity")
+	previousRunID, err := db.Run.StartRun(context.Background(), "viewer", "prior article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("viewer", "article activity")
+	runID, err := db.Run.StartRun(context.Background(), "viewer", "article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +424,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 		t.Fatal(err)
 	}
 	create := func(doi string) int64 {
-		id, err := metadata.Works.CreateByDOI(doi)
+		id, err := metadata.Work.CreateWorkByDOI(ctx, doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -425,49 +432,56 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	}
 	availableID := create("10.1000/viewer-available")
 	notAvailableID := create("10.1000/viewer-not-available")
-	unavailableID, err := metadata.Works.CreateWithoutDOI()
+	unavailableID, err := metadata.Work.CreateWorkWithoutDOI(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	searchID, err := metadata.Searches.Create("viewer-pdf-search")
+	searchID, err := metadata.Search.FindOrCreateSearch(ctx, "viewer-pdf-search")
 	if err != nil {
 		t.Fatal(err)
 	}
-	searchRevisionID, _, err := metadata.Revisions.Create(searchID, "r1", "config", "manifest")
+	searchRevisionID, _, err := metadata.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := metadata.Plans.CreateWithInputManifest(searchRevisionID, "viewer-pdf-fingerprint", "manifest", "input", false)
+	planID, err := metadata.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "viewer-pdf-fingerprint",
+		ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipelineRunID, _, err := metadata.PipelineRuns.StartAttempt(planID, "viewer", "query")
+	pipelineRunID, _, err := metadata.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.PipelineRunReviewers.Insert(pipelineRunID, "Fixture Reviewer", "fixture@example.test"); err != nil {
+	if err := metadata.Run.InsertReviewer(ctx, run.ReviewerInput{RunID: pipelineRunID, Username: "Fixture Reviewer", Email: "fixture@example.test"}); err != nil {
 		t.Fatal(err)
 	}
-	revisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: availableID, PipelineRunID: pipelineRunID, ProducerStage: database.ProducerStageNormalize,
+	revisionID, err := metadata.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: availableID, PipelineRunID: pipelineRunID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Viewer PDF article",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	notAvailableRevisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: notAvailableID, PipelineRunID: pipelineRunID, ProducerStage: database.ProducerStageNormalize,
+	notAvailableRevisionID, err := metadata.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: notAvailableID, PipelineRunID: pipelineRunID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Viewer PDF article without inventory content",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, workID := range []int64{availableID, notAvailableID} {
-		if err := metadata.RunWorkStages.SetOutcome(pipelineRunID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+		if err := metadata.Work.SetStageOutcome(ctx, work.StageOutcomeInput{
+			RunID: pipelineRunID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
+	if err := metadata.Run.FinishRun(ctx, pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
 	bindings := metadata.PDFBindings

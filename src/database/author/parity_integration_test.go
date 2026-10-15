@@ -93,7 +93,7 @@ func TestAuthorFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := author.New(family.RawDBForTest())
+	store := family.Author
 
 	// Read parity for people, occurrences, and authorships.
 	legacyPerson, err := legacy.People.GetByID(personID)

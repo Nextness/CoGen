@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/artifact"
 	"analysis/database/cache"
 	"analysis/manifest"
 )
@@ -27,7 +28,7 @@ func openFamilyStore(t *testing.T) (*cache.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return cache.New(db.RawDBForTest()), db
+	return db.Cache, db
 }
 
 // appendTestEntry appends one entry for a key with the supplied status and returns its ID.
@@ -51,7 +52,7 @@ func appendTestEntry(t *testing.T, store *cache.Store, key cache.Key, status int
 func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	artifactID, err := db.Artifacts.Create("cache-payload-a", "application/json", 12)
+	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "cache-payload-a", ContentType: "application/json", ByteSize: 12})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +77,9 @@ func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	}
 	var oldStatus int
 	var oldPayload int64
+	// The immutable-history contract is enforced by a database trigger, so this
+	// direct integrity check reads and updates the stored row through the raw
+	// connection instead of the append-only family API.
 	if err := db.RawDBForTest().QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", firstID).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
 		t.Fatalf("original response changed: %d %d %v", oldStatus, oldPayload, err)
 	}
@@ -128,7 +132,7 @@ func TestStoreAppendEntrySeparatesKeysAndNullableFields(t *testing.T) {
 func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.PipelineRuns.StartRun("cache-family-global", "")
+	runID, err := db.Run.StartRun(ctx, "cache-family-global", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +168,7 @@ func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.PipelineRuns.StartRun("cache-family-replay", "")
+	runID, err := db.Run.StartRun(ctx, "cache-family-replay", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +203,7 @@ func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.PipelineRuns.StartRun("cache-family-scoped", "")
+	runID, err := db.Run.StartRun(ctx, "cache-family-scoped", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +239,7 @@ func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 func TestStoreListUsesByRunPreservesOrderAndEmptyIdentity(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.PipelineRuns.StartRun("cache-family-uses", "")
+	runID, err := db.Run.StartRun(ctx, "cache-family-uses", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +284,8 @@ func TestStoreRejectsInvalidInputs(t *testing.T) {
 	if _, err := store.AppendUse(ctx, &cache.Use{PipelineRunID: 1, CacheEntryID: 1, CacheLayer: "global", Outcome: "invalid"}); err == nil || !strings.Contains(err.Error(), "invalid cache outcome") {
 		t.Fatalf("invalid outcome error = %v", err)
 	}
+	// The family API has no row-count read, so this direct integrity check
+	// counts stored rows to prove rejected inputs wrote nothing.
 	var entries, uses int
 	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries").Scan(&entries); err != nil {
 		t.Fatal(err)

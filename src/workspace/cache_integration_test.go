@@ -30,7 +30,7 @@ func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*databas
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("cache-test", "")
+	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil || response.Layer != "network" || calls != 1 {
 		t.Fatalf("first response = %+v, %v, calls=%d", response, err, calls)
 	}
-	secondRunID, err := db.PipelineRuns.StartRun("cache-test", "")
+	secondRunID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +207,7 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 		{"cache_misses", "", 1}, {"cache_misses", "crossref", 1},
 		{"cache_network_fetches", "", 1}, {"cache_network_fetches", "crossref", 1},
 	} {
-		got, err := db.Metrics.Get(cache.runID, metric.name, metric.source)
+		got, err := db.Run.GetMetric(context.Background(), cache.runID, metric.name, metric.source)
 		if err != nil || got == nil || got.Value != metric.want {
 			t.Fatalf("metric %s/%s = %+v, %v; want %d", metric.name, metric.source, got, err, metric.want)
 		}
@@ -228,7 +228,7 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	if err != nil || entry != nil {
 		t.Fatalf("malformed provider response was cached: entry=%+v err=%v", entry, err)
 	}
-	metric, err := db.Metrics.Get(cache.runID, "cache_invalid_payloads", "crossref")
+	metric, err := db.Run.GetMetric(context.Background(), cache.runID, "cache_invalid_payloads", "crossref")
 	if err != nil || metric == nil || metric.Value != 1 {
 		t.Fatalf("invalid payload metric = %+v, %v", metric, err)
 	}
@@ -274,7 +274,7 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
 		t.Fatalf("legacy malformed cache response = %+v, %v", response, err)
 	}
-	metric, err := db.Metrics.Get(reader.runID, "cache_invalid_payloads", "crossref")
+	metric, err := db.Run.GetMetric(context.Background(), reader.runID, "cache_invalid_payloads", "crossref")
 	if err != nil || metric == nil || metric.Value != 1 {
 		t.Fatalf("legacy invalid payload metric = %+v, %v", metric, err)
 	}
@@ -320,7 +320,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 func TestWorkspaceMetricUnavailableForOlderRun(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run"}})
 	defer db.Close()
-	metric, err := db.Metrics.Get(cache.runID, "cache_hits", "")
+	metric, err := db.Run.GetMetric(context.Background(), cache.runID, "cache_hits", "")
 	if err != nil || metric != nil {
 		t.Fatalf("unrecorded cache metric = %+v, %v", metric, err)
 	}
@@ -387,7 +387,7 @@ func TestWorkspaceOpenAlexReferenceCacheUsesSQLitePolicy(t *testing.T) {
 // openWorkspaceCacheTestForDB supports the package test suite's open workspace cache test for db setup or assertions.
 func openWorkspaceCacheTestForDB(t *testing.T, db *database.Database, policy manifest.CachePolicy) (*database.Database, *workspaceCache, int64) {
 	t.Helper()
-	runID, err := db.PipelineRuns.StartRun("cache-test", "")
+	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/source"
+	"analysis/database/work"
 )
 
 // termMatchesFixture is a viewer fixture with stored term data.
@@ -33,24 +36,28 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("term matches", "")
+	runID, err := db.Run.StartRun(context.Background(), "term matches", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`, "", 0, ""); err != nil {
+	if _, err := db.Source.CreateSource(context.Background(), source.CreateSourceInput{
+		RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`,
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunSources.Create(runID, "wos", "bib", "wos.bib", `TS=("BPMN" OR "genetic algorithm" OR "metaheuristic")`, "", 0, ""); err != nil {
+	if _, err := db.Source.CreateSource(context.Background(), source.CreateSourceInput{
+		RunID: runID, Name: "wos", Type: "bib", ExpectedFile: "wos.bib", Query: `TS=("BPMN" OR "genetic algorithm" OR "metaheuristic")`,
+	}); err != nil {
 		t.Fatal(err)
 	}
-	workOne, err := db.Works.CreateByDOI("10.1000/term-one")
+	workOne, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/term-one")
 	if err != nil {
 		t.Fatal(err)
 	}
-	normalizedID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	normalizedID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize,
 		Title: "BPMN scheduling", Abstract: "genetic algorithm",
 		Keywords: `["bpmn"]`, KeywordsPlus: `["scheduling"]`,
@@ -58,40 +65,40 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parseRevisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	parseRevisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageParse, Title: "BPMN scheduling raw",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunWorkStages.SetOutcome(runID, workOne, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+	if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{RunID: runID, WorkID: workOne, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
-	emptyRunID, err := db.PipelineRuns.StartRun("term matches empty", "")
+	emptyRunID, err := db.Run.StartRun(context.Background(), "term matches empty", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(emptyRunID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), emptyRunID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	emptyWork, err := db.Works.CreateByDOI("10.1000/term-empty")
+	emptyWork, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/term-empty")
 	if err != nil {
 		t.Fatal(err)
 	}
-	emptyRevisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	emptyRevisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 		WorkID: emptyWork, PipelineRunID: emptyRunID, ProducerStage: database.ProducerStageNormalize, Title: "Empty run article",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunWorkStages.SetOutcome(emptyRunID, emptyWork, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+	if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{RunID: emptyRunID, WorkID: emptyWork, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
 	termsBySource := map[string][]string{"scopus": {"BPMN", "scheduling"}, "wos": {"BPMN", "genetic algorithm", "metaheuristic"}}
 	matches := map[int64]map[string][]string{
 		normalizedID: {"title": {"BPMN", "scheduling"}, "abstract": {"genetic algorithm"}, "keywords": {"BPMN"}, "keywords_plus": {"scheduling"}},
 	}
-	if err := db.TermMatches.ReplaceRunTermData(runID, termsBySource, matches); err != nil {
+	if err := db.Work.ReplaceRunTermData(context.Background(), work.ReplaceTermDataInput{RunID: runID, TermsBySource: termsBySource, Matches: matches}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {
@@ -235,24 +242,24 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("unmigrated", "")
+	runID, err := db.Run.StartRun(context.Background(), "unmigrated", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	workID, err := db.Works.CreateByDOI("10.1000/unmigrated")
+	workID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/unmigrated")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revisionID, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 		WorkID: workID, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unmigrated article",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunWorkStages.SetOutcome(runID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+	if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
 	// Simulate a V00024-only database by dropping the V00025 tables.

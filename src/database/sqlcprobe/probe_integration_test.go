@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/artifact"
 	"analysis/database/sqlcprobe"
 )
 
@@ -57,7 +58,7 @@ func TestProbeInsertReportsResultAndMapsNullableOutput(t *testing.T) {
 	if record.ID != first.ID || record.ResponseStatus != 200 || record.PayloadArtifactID != nil || record.ExpiresAt != "" {
 		t.Fatalf("nullable negative record = %+v", record)
 	}
-	artifactID, err := db.Artifacts.Create("probe-payload", "application/json", 4)
+	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "probe-payload", ContentType: "application/json", ByteSize: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

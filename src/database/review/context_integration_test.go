@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"analysis/database/review"
+	"analysis/database/run"
+	"analysis/database/search"
 )
 
 // TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection.
@@ -32,22 +34,29 @@ func TestReviewParentSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec := func(query string, args ...any) int64 {
-		result, err := db.RawDBForTest().Exec(query, args...)
-		if err != nil {
-			t.Fatalf("fixture query %q: %v", query, err)
-		}
-		id, _ := result.LastInsertId()
-		return id
-	}
-	var stableSearchID int64
-	if err := db.RawDBForTest().QueryRow(`SELECT sr.search_id FROM pipeline_runs run JOIN execution_plans plan ON plan.id=run.execution_plan_id
-		JOIN search_revisions sr ON sr.id=plan.search_revision_id WHERE run.id=?`, a1Run).Scan(&stableSearchID); err != nil {
+	stableSearchID, err := db.Search.FindOrCreateSearch(ctx, "review-search")
+	if err != nil {
 		t.Fatal(err)
 	}
-	secondRevision := exec("INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r2', 'config-r2', 'manifest-r2')", stableSearchID)
-	secondPlan := exec("INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'fingerprint-r2', 'manifest-r2', 'input-r2')", secondRevision)
-	sameSearchRun := exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('review', '2026-01-03 00:00:00', '2026-01-03 00:01:00', 'completed', ?, 1)", secondPlan)
+	secondRevision, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: stableSearchID, RevisionLabel: "r2", ConfigArtifactHash: "config-r2", ResolvedManifestHash: "manifest-r2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondPlan, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		SearchRevisionID: secondRevision, ExecutionFingerprint: "fingerprint-r2", ResolvedManifestHash: "manifest-r2", InputManifestHash: "input-r2",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameSearchRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: secondPlan, Step: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(ctx, sameSearchRun, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
 	proposed, err = db.Review.ProposeParent(ctx, sameSearchRun)
 	if err != nil || proposed == nil || proposed.ContextID != a2.ID {
 		t.Fatalf("same-search proposed parent=%+v err=%v", proposed, err)
@@ -56,11 +65,36 @@ func TestReviewParentSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	crossSearch := exec("INSERT INTO searches (search_id) VALUES ('cross-search')")
-	crossRevision := exec("INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r1', 'cross-config', 'cross-manifest')", crossSearch)
-	crossPlan := exec("INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'cross-fingerprint', 'cross-manifest', 'cross-input')", crossRevision)
-	earlierRun := exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('review', '2026-01-01 12:00:00', '2026-01-01 12:01:00', 'completed', ?, 1)", crossPlan)
-	laterRun := exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('review', '2026-01-04 00:00:00', '2026-01-04 00:01:00', 'completed', ?, 2)", crossPlan)
+	crossSearch, err := db.Search.FindOrCreateSearch(ctx, "cross-search")
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossRevision, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: crossSearch, RevisionLabel: "r1", ConfigArtifactHash: "cross-config", ResolvedManifestHash: "cross-manifest",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossPlan, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		SearchRevisionID: crossRevision, ExecutionFingerprint: "cross-fingerprint", ResolvedManifestHash: "cross-manifest", InputManifestHash: "cross-input",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	earlierRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	laterRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(ctx, earlierRun, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(ctx, laterRun, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
 	if proposed, err := db.Review.ProposeParent(ctx, laterRun); err != nil || proposed != nil {
 		t.Fatalf("cross-search implicit parent=%+v err=%v", proposed, err)
 	}

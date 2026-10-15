@@ -9,8 +9,8 @@ import (
 	"context"
 	"testing"
 
-	"analysis/database"
 	"analysis/database/artifact"
+	"analysis/database/author"
 	"analysis/database/cache"
 	"analysis/database/run"
 )
@@ -68,18 +68,18 @@ func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	occurrenceID, err := db.AuthorOccs.Create(&database.AuthorOccurrence{CitationName: "Test Author"})
+	occurrenceID, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Test Author"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolutionID, err := db.IdentityResolutions.Create(&database.AuthorIdentityResolution{
-		PipelineRunID: runID, AuthorOccurrenceID: occurrenceID, Status: database.AuthorIdentityStatusORCIDUnclear,
+	resolutionID, err := db.Author.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		PipelineRunID: runID, AuthorOccurrenceID: occurrenceID, Status: author.IdentityStatusORCIDUnclear,
 		Provider: "orcid", QueriedCitationName: "Test Author", ResolvedAt: "2026-01-02T03:04:05Z",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.IdentityCandidates.Create(&database.AuthorIdentityCandidate{
+	if _, err := db.Author.CreateIdentityCandidate(ctx, &author.IdentityCandidate{
 		IdentityResolutionID: resolutionID, CandidateORCID: "0000-0002-1825-0097",
 		QueryURL: "https://orcid.org/0000-0002-1825-0097", PayloadArtifactID: candidatePayloadID, ProviderRank: 1,
 	}); err != nil {

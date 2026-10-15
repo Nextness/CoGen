@@ -13,6 +13,8 @@ import (
 
 	"analysis/article"
 	"analysis/database"
+	dbsource "analysis/database/source"
+	dbwork "analysis/database/work"
 	"analysis/manifest"
 )
 
@@ -23,7 +25,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("term matches", "")
+	runID, err := db.Run.StartRun(context.Background(), "term matches", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,21 +35,21 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 			{Name: "wos", Query: `TS=("BPMN" OR "genetic algorithm")`},
 		},
 	}}
-	workOne, err := db.Works.CreateByDOI("10.1000/one")
+	workOne, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/one")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revOne, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "BPMN scheduling",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	workTwo, err := db.Works.CreateByDOI("10.1000/two")
+	workTwo, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/two")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revTwo, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 		WorkID: workTwo, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unrelated",
 	})
 	if err != nil {
@@ -62,14 +64,14 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 	if err := persistRunTermMatches(context.Background(), db, runID, termsBySource, matches); err != nil {
 		t.Fatal(err)
 	}
-	terms, err := db.TermMatches.GetRunTerms(runID)
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(terms) != 4 {
 		t.Fatalf("run_search_terms = %d, want 4: %+v", len(terms), terms)
 	}
-	got, err := db.TermMatches.GetRevisionMatches(runID, revOne)
+	got, err := db.Work.GetRevisionMatches(context.Background(), runID, revOne)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +84,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("revision one matches = %v, want %v", got, want)
 	}
-	gotTwo, err := db.TermMatches.GetRevisionMatches(runID, revTwo)
+	gotTwo, err := db.Work.GetRevisionMatches(context.Background(), runID, revTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,21 +101,21 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("reconcile", "")
+	runID, err := db.Run.StartRun(context.Background(), "reconcile", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`, "", 0, ""); err != nil {
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`}); err != nil {
 		t.Fatal(err)
 	}
-	workOne, err := db.Works.CreateByDOI("10.1000/backfill-one")
+	workOne, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/backfill-one")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revOne, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize,
 		Title: "BPMN scheduling", Abstract: "genetic algorithm",
 		Keywords: "genetic algorithm; BPMN", KeywordsPlus: "null",
@@ -121,11 +123,11 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workTwo, err := db.Works.CreateByDOI("10.1000/backfill-two")
+	workTwo, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/backfill-two")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revTwo, err := db.WorkRevisions.Create(&database.WorkRevision{
+	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 		WorkID: workTwo, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unrelated",
 	})
 	if err != nil {
@@ -135,14 +137,14 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	terms, err := db.TermMatches.GetRunTerms(runID)
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(terms) != 2 {
 		t.Fatalf("run_search_terms = %d, want 2: %+v", len(terms), terms)
 	}
-	got, err := db.TermMatches.GetRevisionMatches(runID, revOne)
+	got, err := db.Work.GetRevisionMatches(context.Background(), runID, revOne)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +155,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("revision one matches = %v, want %v", got, want)
 	}
-	gotTwo, err := db.TermMatches.GetRevisionMatches(runID, revTwo)
+	gotTwo, err := db.Work.GetRevisionMatches(context.Background(), runID, revTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,20 +186,20 @@ func TestReconcileStoredTermMatchesNullQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("reconcile null", "")
+	runID, err := db.Run.StartRun(context.Background(), "reconcile null", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", "", "", 0, ""); err != nil {
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	terms, err := db.TermMatches.GetRunTerms(runID)
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,27 +216,27 @@ func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("reconcile no revisions", "")
+	runID, err := db.Run.StartRun(context.Background(), "reconcile no revisions", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunSources.Create(runID, "scopus", "csv", "scopus.csv", `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`, "", 0, ""); err != nil {
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`}); err != nil {
 		t.Fatal(err)
 	}
 	if err := reconcileStoredTermMatches(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
-	terms, err := db.TermMatches.GetRunTerms(runID)
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(terms) != 2 {
 		t.Fatalf("run_search_terms = %d, want 2: %+v", len(terms), terms)
 	}
-	reconciled, err := db.TermMatches.HasRunTermData(runID)
+	reconciled, err := db.Work.HasRunTermData(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,11 +253,11 @@ func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("reconcile failure", "")
+	runID, err := db.Run.StartRun(context.Background(), "reconcile failure", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(runID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.RawDBForTest().Exec("DROP TABLE work_revision_term_matches"); err != nil {

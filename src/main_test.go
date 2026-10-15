@@ -8,9 +8,12 @@ package main
 import (
 	"analysis/database"
 	"analysis/database/pdfbinding"
+	"analysis/database/run"
+	"analysis/database/work"
 	"analysis/manifest"
 	"analysis/pdfstore"
 	"analysis/workspace"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -247,7 +250,7 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	if enrichmentEnabled {
 		t.Fatal("execution plan enrichment policy = true, want false")
 	}
-	metric, err := db.Metrics.Get(1, "enrichment_enabled", "")
+	metric, err := db.Run.GetMetric(context.Background(), 1, "enrichment_enabled", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,12 +269,12 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 		{"discarded_articles", "", 0}, {"normalized_articles_processed", "", 1},
 		{"input_records", "fixture", 1}, {"parsed_articles", "fixture", 1},
 	} {
-		metric, err := db.Metrics.Get(1, expected.name, expected.source)
+		metric, err := db.Run.GetMetric(context.Background(), 1, expected.name, expected.source)
 		if err != nil || metric == nil || metric.Value != expected.value {
 			t.Fatalf("metric %s/%s = %+v, %v; want %d", expected.name, expected.source, metric, err, expected.value)
 		}
 	}
-	auditEvents, err := db.AuditEvents.ListByRun(1)
+	auditEvents, err := db.Audit.ListByRun(context.Background(), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,11 +285,11 @@ func TestPipelineEndToEndWorkspace(t *testing.T) {
 	if err := db.RawDBForTest().QueryRow("SELECT metadata_json FROM audit_events WHERE action=?", manifest.AuditDuplicatePlanSkipped).Scan(&planMetadata); err != nil || !strings.Contains(planMetadata, "matching_completed_plan") {
 		t.Fatalf("completed-plan reuse audit = %q, %v", planMetadata, err)
 	}
-	steps, err := db.RunSteps.ListByRun(2)
+	steps, err := db.Run.ListStepsByRun(context.Background(), 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var preflight *database.RunStep
+	var preflight *run.Step
 	for _, step := range steps {
 		if step.StepName == "preflight" {
 			preflight = step
@@ -336,7 +339,7 @@ func TestWorkspaceAttemptRetryAndSourceHash(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(firstRunID, "failed", "fixture failure"); err != nil {
+	if err := db.Run.FinishRun(context.Background(), firstRunID, "failed", "fixture failure"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -347,7 +350,7 @@ func TestWorkspaceAttemptRetryAndSourceHash(t *testing.T) {
 	if retryRunID == firstRunID {
 		t.Fatal("retry did not create a new attempt")
 	}
-	if err := db.PipelineRuns.FinishRun(retryRunID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), retryRunID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -399,7 +402,7 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(firstRunID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), firstRunID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -420,7 +423,7 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 	if firstPlanID != freshPlanID {
 		t.Fatalf("--fresh plan = %d, want matching plan %d", freshPlanID, firstPlanID)
 	}
-	if err := db.PipelineRuns.FinishRun(freshRunID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), freshRunID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -437,7 +440,7 @@ func TestWorkspaceRevisionPlanAndAttemptGrouping(t *testing.T) {
 	if policyPlanID == firstPlanID {
 		t.Fatal("changed cache policy reused the prior execution plan")
 	}
-	if err := db.PipelineRuns.FinishRun(policyRunID, "completed", ""); err != nil {
+	if err := db.Run.FinishRun(context.Background(), policyRunID, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -499,18 +502,18 @@ func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T) {
 		{doi: "10.1234/valid", validateOutcome: database.OutcomeValid, normalized: true},
 		{doi: "10.1234/discarded", validateOutcome: database.OutcomeDiscarded, normalized: false},
 	} {
-		work, err := db.Works.GetByDOI(check.doi)
-		if err != nil || work == nil {
-			t.Fatalf("work %s = %+v, %v", check.doi, work, err)
+		workRecord, err := db.Work.GetWorkByDOI(context.Background(), check.doi)
+		if err != nil || workRecord == nil {
+			t.Fatalf("work %s = %+v, %v", check.doi, workRecord, err)
 		}
-		validationStage, err := db.RunWorkStages.GetByRunAndWork(1, work.ID, database.StageNameValidate)
+		validationStage, err := db.Work.GetStageOutcome(context.Background(), 1, workRecord.ID, work.StageNameValidate)
 		if err != nil || validationStage == nil || validationStage.Outcome != check.validateOutcome {
 			t.Fatalf("validation stage for %s = %+v, %v", check.doi, validationStage, err)
 		}
 		if check.validateOutcome == database.OutcomeDiscarded && validationStage.Reason == "" {
 			t.Fatalf("discarded work %s has no validation reason", check.doi)
 		}
-		normalizationStage, err := db.RunWorkStages.GetByRunAndWork(1, work.ID, database.StageNameNormalize)
+		normalizationStage, err := db.Work.GetStageOutcome(context.Background(), 1, workRecord.ID, work.StageNameNormalize)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -583,7 +586,7 @@ func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T) {
 		if stored != enabled {
 			t.Fatalf("plan enrichment_enabled = %t, want %t", stored, enabled)
 		}
-		metric, err := db.Metrics.Get(runID, "enrichment_enabled", "")
+		metric, err := db.Run.GetMetric(context.Background(), runID, "enrichment_enabled", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -594,7 +597,7 @@ func TestWorkspaceAttemptRecordsDeclaredEnrichmentPolicy(t *testing.T) {
 		if metric == nil || metric.Value != expectedMetric {
 			t.Fatalf("enrichment metric = %+v, want %d", metric, expectedMetric)
 		}
-		events, err := db.AuditEvents.ListByRun(runID)
+		events, err := db.Audit.ListByRun(context.Background(), runID)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -650,7 +653,7 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 		t.Fatalf("pipeline run status/summary = %q/%q, want failed with %q", status, summary, missingPath)
 	}
 
-	steps, err := db.RunSteps.ListByRun(runID)
+	steps, err := db.Run.ListStepsByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,7 +661,7 @@ func TestWorkspacePipelineRecordsUnreadableSourcePreflightFailure(t *testing.T) 
 		t.Fatalf("preflight steps = %+v, want one failed preflight step", steps)
 	}
 
-	events, err := db.AuditEvents.ListByRun(runID)
+	events, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -758,7 +761,7 @@ func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T) {
 				t.Fatalf("pipeline run status/summary = %q/%q, want failed containing %q", status, summary, tc.wantErr)
 			}
 
-			events, err := db.AuditEvents.ListByRun(runID)
+			events, err := db.Audit.ListByRun(context.Background(), runID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -772,7 +775,7 @@ func TestWorkspacePipelineFailsForEmptyOrMalformedSource(t *testing.T) {
 				t.Fatalf("missing failed-run audit for %q: %+v", tc.wantErr, events)
 			}
 
-			steps, err := db.RunSteps.ListByRun(runID)
+			steps, err := db.Run.ListStepsByRun(context.Background(), runID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -830,7 +833,7 @@ func TestWorkspacePipelineRecordsInformationalExpectedResultCounts(t *testing.T)
 				t.Fatalf("source result count/status = %d/%d/%q/%q, want %d/2/%q/completed", expected, observed, comparison, status, tc.expected, tc.comparison)
 			}
 			for metric, want := range map[string]int{"expected_result_count": tc.expected, "observed_result_count": 2} {
-				got, err := db.Metrics.Get(1, metric, "fixture")
+				got, err := db.Run.GetMetric(context.Background(), 1, metric, "fixture")
 				if err != nil || got == nil || got.Value != want {
 					t.Fatalf("%s metric = %+v, %v; want %d", metric, got, err, want)
 				}

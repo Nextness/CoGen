@@ -6,13 +6,13 @@ package run_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 
+	"analysis/database"
 	"analysis/database/run"
 )
 
@@ -54,7 +54,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 		t.Fatalf("trashed_at = %q, want RFC3339Nano precision", *stored.TrashedAt)
 	}
 
-	trashAudit := latestVisibilityAudit(t, db.RawDBForTest(), runID)
+	trashAudit := latestVisibilityAudit(t, db, runID)
 	if trashAudit.actor != "local_user" || trashAudit.entityType != "pipeline_run" ||
 		trashAudit.entityID != strconv.FormatInt(runID, 10) || trashAudit.action != "run_trashed" {
 		t.Fatalf("trash audit identity = %+v", trashAudit)
@@ -62,7 +62,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	if trashAudit.beforeJSON != `{"visibility_state":"active"}` || trashAudit.afterJSON != `{"visibility_state":"trashed"}` {
 		t.Fatalf("trash audit state = %q -> %q", trashAudit.beforeJSON, trashAudit.afterJSON)
 	}
-	if trashAudit.metadataJSON != `{"source":"local_viewer"}` || trashAudit.correlationID.Valid {
+	if trashAudit.metadataJSON != `{"source":"local_viewer"}` || trashAudit.correlationID != "" {
 		t.Fatalf("trash audit metadata = %q correlation=%v", trashAudit.metadataJSON, trashAudit.correlationID)
 	}
 	if trashAudit.occurredAt != *stored.TrashedAt {
@@ -81,7 +81,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	if unchanged == nil || unchanged.Changed || unchanged.VisibilityState != run.VisibilityTrashed {
 		t.Fatalf("no-op result = %+v", unchanged)
 	}
-	if count := visibilityAuditCount(t, db.RawDBForTest(), runID); count != 1 {
+	if count := visibilityAuditCount(t, db, runID); count != 1 {
 		t.Fatalf("audit count after no-op = %d, want 1", count)
 	}
 
@@ -101,7 +101,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	if stored.VisibilityState != run.VisibilityActive || stored.TrashedAt != nil || stored.TrashReason != nil {
 		t.Fatalf("restored run = %+v", stored)
 	}
-	restoreAudit := latestVisibilityAudit(t, db.RawDBForTest(), runID)
+	restoreAudit := latestVisibilityAudit(t, db, runID)
 	if restoreAudit.action != "run_restored" ||
 		restoreAudit.beforeJSON != `{"visibility_state":"trashed"}` ||
 		restoreAudit.afterJSON != `{"visibility_state":"active"}` {
@@ -138,7 +138,7 @@ func TestStoreUpdateVisibilityRejectsRunningAttempt(t *testing.T) {
 	if stored.VisibilityState != run.VisibilityActive || stored.TrashedAt != nil || stored.TrashReason != nil {
 		t.Fatalf("running run mutated = %+v", stored)
 	}
-	if count := visibilityAuditCount(t, db.RawDBForTest(), runID); count != 0 {
+	if count := visibilityAuditCount(t, db, runID); count != 0 {
 		t.Fatalf("running guard wrote %d audit rows, want 0", count)
 	}
 }
@@ -222,29 +222,39 @@ type visibilityAudit struct {
 	beforeJSON    string
 	afterJSON     string
 	metadataJSON  string
-	correlationID sql.NullString
+	correlationID string
 }
 
-// latestVisibilityAudit reads the newest audit row for a run.
-func latestVisibilityAudit(t *testing.T, db *sql.DB, runID int64) visibilityAudit {
+// latestVisibilityAudit reads the newest audit row for a run through the audit family store.
+func latestVisibilityAudit(t *testing.T, db *database.Database, runID int64) visibilityAudit {
 	t.Helper()
-	var audit visibilityAudit
-	if err := db.QueryRow(`SELECT occurred_at, actor, entity_type, entity_id, action,
-		before_json, after_json, metadata_json, correlation_id
-		FROM audit_events WHERE pipeline_run_id=? ORDER BY id DESC LIMIT 1`, runID).Scan(
-		&audit.occurredAt, &audit.actor, &audit.entityType, &audit.entityID, &audit.action,
-		&audit.beforeJSON, &audit.afterJSON, &audit.metadataJSON, &audit.correlationID); err != nil {
+	events, err := db.Audit.ListByRun(context.Background(), runID)
+	if err != nil {
 		t.Fatalf("read visibility audit: %v", err)
 	}
-	return audit
+	if len(events) == 0 {
+		t.Fatalf("no visibility audit recorded for run %d", runID)
+	}
+	event := events[len(events)-1]
+	return visibilityAudit{
+		occurredAt:    event.OccurredAt,
+		actor:         event.Actor,
+		entityType:    event.EntityType,
+		entityID:      event.EntityID,
+		action:        event.Action,
+		beforeJSON:    event.BeforeJSON,
+		afterJSON:     event.AfterJSON,
+		metadataJSON:  event.MetadataJSON,
+		correlationID: event.CorrelationID,
+	}
 }
 
-// visibilityAuditCount counts audit rows recorded for a run.
-func visibilityAuditCount(t *testing.T, db *sql.DB, runID int64) int {
+// visibilityAuditCount counts audit rows recorded for a run through the audit family store.
+func visibilityAuditCount(t *testing.T, db *database.Database, runID int64) int {
 	t.Helper()
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&count); err != nil {
+	events, err := db.Audit.ListByRun(context.Background(), runID)
+	if err != nil {
 		t.Fatalf("count visibility audit: %v", err)
 	}
-	return count
+	return len(events)
 }

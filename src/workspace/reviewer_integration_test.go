@@ -3,6 +3,7 @@
 package workspace
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +40,7 @@ func TestFailedAttemptRetainsReviewer(t *testing.T) {
 	if status != "failed" {
 		t.Fatalf("run status=%q", status)
 	}
-	reviewer, err := db.PipelineRunReviewers.Get(runID)
+	reviewer, err := db.Run.GetReviewer(context.Background(), runID)
 	if err != nil || reviewer == nil || reviewer.Username != "Fixture Reviewer" || reviewer.Email != "reviewer@example.test" {
 		t.Fatalf("reviewer=%+v err=%v", reviewer, err)
 	}

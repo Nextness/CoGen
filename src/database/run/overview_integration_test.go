@@ -8,6 +8,7 @@ import (
 	"context"
 	"testing"
 
+	"analysis/database/artifact"
 	"analysis/database/run"
 )
 
@@ -37,7 +38,7 @@ func TestStoreCheckPurgeEligibilitySharedArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifactID, err := db.Artifacts.Create("purge-shared-hash", "application/json", 100)
+	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "purge-shared-hash", ContentType: "application/json", ByteSize: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,16 +127,24 @@ func TestStoreCheckPurgeEligibilityReusedBy(t *testing.T) {
 func TestStoreCheckPurgeEligibilityReviewContexts(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runA, err := store.StartRun(ctx, "purge_context_a", "")
+	planID := createTestPlan(t, db, "purge-contexts")
+	runA, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "purge_context_a"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runB, err := store.StartRun(ctx, "purge_context_b", "")
+	runB, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "purge_context_b"})
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.FinishRun(ctx, runA, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.FinishRun(ctx, runB, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := db.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id) VALUES (?)", runA); err != nil {
+	contextA, _, err := db.Review.CreateContext(ctx, runA, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
 	eligibility, err := store.CheckPurgeEligibility(ctx, runA)
@@ -146,11 +155,7 @@ func TestStoreCheckPurgeEligibilityReviewContexts(t *testing.T) {
 		t.Fatalf("owned context eligibility = %+v, want ineligible", eligibility)
 	}
 
-	var parentContextID int64
-	if err := db.RawDBForTest().QueryRow("SELECT id FROM review_contexts WHERE pipeline_run_id=?", runA).Scan(&parentContextID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id, parent_context_id) VALUES (?, ?)", runB, parentContextID); err != nil {
+	if _, _, err := db.Review.CreateContext(ctx, runB, &contextA.ID); err != nil {
 		t.Fatal(err)
 	}
 	eligibility, err = store.CheckPurgeEligibility(ctx, runA)

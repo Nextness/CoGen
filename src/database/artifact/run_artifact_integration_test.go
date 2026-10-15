@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database/artifact"
+	"analysis/database/run"
 )
 
 // TestStoreLinkIsRoleScopedAndImmutable verifies idempotent replay and role conflict rejection.
@@ -37,12 +38,15 @@ func TestStoreLinkIsRoleScopedAndImmutable(t *testing.T) {
 		t.Fatal("expected a conflicting role assignment to fail")
 	}
 
-	var linkedID int64
-	if err := db.RawDBForTest().QueryRowContext(ctx,
-		"SELECT artifact_id FROM run_artifacts WHERE pipeline_run_id=? AND artifact_role=?",
-		runID, artifact.RunArtifactWorkspaceConfig,
-	).Scan(&linkedID); err != nil {
+	related, err := store.ListRunArtifacts(ctx, runID)
+	if err != nil {
 		t.Fatal(err)
+	}
+	var linkedID int64
+	for _, item := range related {
+		if item.Role == "run_role" && item.Detail == artifact.RunArtifactWorkspaceConfig {
+			linkedID = item.ID
+		}
 	}
 	if linkedID != configID {
 		t.Fatalf("stored link artifact = %d, want %d", linkedID, configID)
@@ -71,7 +75,14 @@ func TestStoreListRunArtifactEvidenceFiltersPagesAndFocuses(t *testing.T) {
 	if err := store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: configID, Role: artifact.RunArtifactWorkspaceConfig}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, input_artifact_id, output_artifact_id) VALUES (?, 'preflight', 'completed', ?, ?)", runID, configID, unlinkedID); err != nil {
+	stepID, err := db.Run.CreateStep(ctx, runID, "preflight")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.LinkStepInputArtifact(ctx, run.StepArtifactInput{StepID: stepID, ArtifactID: configID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.LinkStepOutputArtifact(ctx, run.StepArtifactInput{StepID: stepID, ArtifactID: unlinkedID}); err != nil {
 		t.Fatal(err)
 	}
 

@@ -16,6 +16,7 @@ import (
 
 	"analysis/article"
 	"analysis/database"
+	dbwork "analysis/database/work"
 	"analysis/enrich"
 	"analysis/manifest"
 )
@@ -137,11 +138,11 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 	if metadataRevisionCount != 1 || identityRevisionCount != 0 {
 		t.Fatalf("metadata/identity revisions = %d/%d, want 1/0", metadataRevisionCount, identityRevisionCount)
 	}
-	work, err := db.Works.GetByDOI("10.1000/orcid-provider-failure")
+	work, err := db.Work.GetWorkByDOI(context.Background(), "10.1000/orcid-provider-failure")
 	if err != nil || work == nil {
 		t.Fatalf("failed identity work = %+v, %v", work, err)
 	}
-	identityStage, err := db.RunWorkStages.GetByRunAndWork(1, work.ID, database.StageNameEnrichIdentity)
+	identityStage, err := db.Work.GetStageOutcome(context.Background(), 1, work.ID, dbwork.StageNameEnrichIdentity)
 	if err != nil || identityStage == nil || identityStage.Outcome != database.OutcomeFailed || !strings.Contains(identityStage.Reason, "invalid provider payload") {
 		t.Fatalf("identity stage = %+v, %v", identityStage, err)
 	}

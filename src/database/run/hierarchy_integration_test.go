@@ -19,22 +19,22 @@ func TestStoreHierarchyAttemptsFilterOrderAndLookahead(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "hierarchy-attempts")
 
-	firstRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	firstRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	secondRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	thirdRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	thirdRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(secondRun, "completed", "done"); err != nil {
+	if err := db.Run.FinishRun(ctx, secondRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='test' WHERE id=?", firstRun); err != nil {
+	if err := db.Run.Trash(ctx, firstRun, "test"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -90,24 +90,24 @@ func TestStoreHierarchyRunsVisibilityStatusAndAncestry(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "hierarchy-runs")
 
-	activeRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	activeRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(activeRun, "completed", "done"); err != nil {
+	if err := db.Run.FinishRun(ctx, activeRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	trashedRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	trashedRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.PipelineRuns.FinishRun(trashedRun, "failed", "failed"); err != nil {
+	if err := db.Run.FinishRun(ctx, trashedRun, "failed", "failed"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now') WHERE id=?", trashedRun); err != nil {
+	if err := db.Run.Trash(ctx, trashedRun, ""); err != nil {
 		t.Fatal(err)
 	}
-	unplannedRun, err := db.PipelineRuns.StartRun("legacy", "query")
+	unplannedRun, err := db.Run.StartRun(ctx, "legacy", "query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,14 +180,14 @@ func TestStoreListLegacyRunsFiltersAndIncludesTrashed(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "legacy-runs")
 
-	firstRun, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query")
+	firstRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.PipelineRuns.StartAttempt(planID, "workspace", "query"); err != nil {
+	if _, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("UPDATE pipeline_runs SET visibility_state='trashed', trashed_at=datetime('now'), trash_reason='legacy' WHERE id=?", firstRun); err != nil {
+	if err := db.Run.Trash(ctx, firstRun, "legacy"); err != nil {
 		t.Fatal(err)
 	}
 

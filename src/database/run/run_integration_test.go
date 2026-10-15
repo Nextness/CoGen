@@ -22,7 +22,7 @@ import (
 // familyConfigPath points at the production database registry from the family test directory.
 var familyConfigPath = filepath.Join("..", "..", "..", "config", "database.something")
 
-// openFamilyStore returns a run store over a database created by the production migration runner.
+// openFamilyStore returns the composed run store over a database created by the production migration runner.
 func openFamilyStore(t *testing.T) (*run.Store, *database.Database) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "run.db")
@@ -31,7 +31,7 @@ func openFamilyStore(t *testing.T) (*run.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return run.New(db.RawDBForTest()), db
+	return db.Run, db
 }
 
 // createTestPlan creates one search, revision, and execution plan and returns the plan ID.
@@ -406,28 +406,30 @@ func TestStoreRecoverAbandonedFailsRunAndStepsWithAudit(t *testing.T) {
 		t.Fatal("step IDs collided")
 	}
 
-	var actor, entityType, entityID, action, metadataJSON, correlationID string
-	if err := db.RawDBForTest().QueryRow(`SELECT actor, entity_type, entity_id, action, metadata_json, correlation_id
-		FROM audit_events WHERE pipeline_run_id=? ORDER BY id DESC LIMIT 1`, runID).Scan(
-		&actor, &entityType, &entityID, &action, &metadataJSON, &correlationID); err != nil {
+	events, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if actor != "operator" || entityType != "pipeline_run" || entityID != fmt.Sprint(runID) {
-		t.Fatalf("recovery audit identity = %q %q %q", actor, entityType, entityID)
+	if len(events) != 1 {
+		t.Fatalf("recovery audit count = %d, want 1", len(events))
 	}
-	if action != "run_failed" || metadataJSON != `{"reason":"abandoned_attempt_recovery"}` || correlationID != "run-recovered-"+fmt.Sprint(runID) {
-		t.Fatalf("recovery audit evidence = %q %q %q", action, metadataJSON, correlationID)
+	event := events[0]
+	if event.Actor != "operator" || event.EntityType != "pipeline_run" || event.EntityID != fmt.Sprint(runID) {
+		t.Fatalf("recovery audit identity = %q %q %q", event.Actor, event.EntityType, event.EntityID)
+	}
+	if event.Action != "run_failed" || event.MetadataJSON != `{"reason":"abandoned_attempt_recovery"}` || event.CorrelationID != "run-recovered-"+fmt.Sprint(runID) {
+		t.Fatalf("recovery audit evidence = %q %q %q", event.Action, event.MetadataJSON, event.CorrelationID)
 	}
 
 	if err := store.RecoverAbandoned(ctx, runID); err == nil {
 		t.Fatal("second recovery of a terminal attempt was accepted")
 	}
-	var auditCount int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
+	events, err = db.Audit.ListByRun(ctx, runID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if auditCount != 1 {
-		t.Fatalf("recovery audit count = %d, want 1", auditCount)
+	if len(events) != 1 {
+		t.Fatalf("recovery audit count = %d, want 1", len(events))
 	}
 	if err := store.RecoverAbandoned(ctx, 0); err == nil {
 		t.Fatal("non-positive run ID was accepted")
@@ -468,20 +470,29 @@ func TestStoreRecoverAbandonedRollsBackWhenAuditFails(t *testing.T) {
 	if stored.Status != "running" || stored.FinishedAt != nil {
 		t.Fatalf("run mutated despite audit failure: %+v", stored)
 	}
+	steps, err := store.ListStepsByRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var stepStatus string
 	var stepFinished sql.NullString
-	if err := db.RawDBForTest().QueryRow("SELECT step_status, finished_at FROM run_steps WHERE id=?", stepID).Scan(&stepStatus, &stepFinished); err != nil {
-		t.Fatal(err)
+	for _, step := range steps {
+		if step.ID == stepID {
+			stepStatus = step.StepStatus
+			if step.FinishedAt != "" {
+				stepFinished = sql.NullString{String: step.FinishedAt, Valid: true}
+			}
+		}
 	}
 	if stepStatus != "running" || stepFinished.Valid {
 		t.Fatalf("step mutated despite audit failure: status=%q finished=%v", stepStatus, stepFinished)
 	}
-	var auditCount int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE pipeline_run_id=?", runID).Scan(&auditCount); err != nil {
+	events, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if auditCount != 0 {
-		t.Fatalf("failed recovery left %d audit rows", auditCount)
+	if len(events) != 0 {
+		t.Fatalf("failed recovery left %d audit rows", len(events))
 	}
 }
 

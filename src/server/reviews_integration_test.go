@@ -219,7 +219,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	fixture := newPDFViewerFixture(t)
 	handler := fixture.server.Handler()
 	ctx := context.Background()
-	contextRecord, _, err := fixture.server.writeDB.Reviews.CreateContext(ctx, fixture.runID, nil)
+	contextRecord, _, err := fixture.server.writeDB.Review.CreateContext(ctx, fixture.runID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	var expectedReviewID *int64
 	for index := 0; index < 101; index++ {
 		reason := fmt.Sprintf("decision-%03d", index)
-		state, changed, err := fixture.server.writeDB.Reviews.AppendWorkReview(ctx, contextRecord.ID, fixture.revisionID, expectedReviewID, "approved", nil, &reason)
+		state, changed, err := fixture.server.writeDB.Review.AppendWorkReview(ctx, contextRecord.ID, fixture.revisionID, expectedReviewID, "approved", nil, &reason)
 		if err != nil || !changed || state.Version == nil {
 			t.Fatalf("create review version %d: state=%+v changed=%v err=%v", index, state, changed, err)
 		}
@@ -237,7 +237,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 
 	notes := make([]*database.ReviewNote, 0, 101)
 	for index := 0; index < 101; index++ {
-		note, err := fixture.server.writeDB.Reviews.CreateNote(ctx, contextRecord.ID, fixture.revisionID,
+		note, err := fixture.server.writeDB.Review.CreateNote(ctx, contextRecord.ID, fixture.revisionID,
 			fmt.Sprintf("# Note %03d\n\nSee [[article:10.1000/viewer-available|article]].", index))
 		if err != nil {
 			t.Fatalf("create note %d: %v", index, err)
@@ -246,7 +246,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	historyNote := notes[0]
 	for index := 1; index < 101; index++ {
-		updated, changed, err := fixture.server.writeDB.Reviews.AppendNoteVersion(ctx, contextRecord.ID, historyNote.ID,
+		updated, changed, err := fixture.server.writeDB.Review.AppendNoteVersion(ctx, contextRecord.ID, historyNote.ID,
 			historyNote.Version.ID, "active", fmt.Sprintf("# History %03d\n\nSee [[article:10.1000/viewer-available|article]].", index))
 		if err != nil || !changed {
 			t.Fatalf("create note version %d: changed=%v err=%v", index, changed, err)
@@ -260,7 +260,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	anchors := make([]*database.ReviewAnchor, 0, 101)
 	for index := 0; index < 101; index++ {
-		anchor, err := fixture.server.writeDB.Reviews.CreateAnchor(ctx, contextRecord.ID, fixture.revisionID,
+		anchor, err := fixture.server.writeDB.Review.CreateAnchor(ctx, contextRecord.ID, fixture.revisionID,
 			fmt.Sprintf("anchor-%03d", index), contentHash, 1, fmt.Sprintf("Anchor %03d", index), []database.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil {
 			t.Fatalf("create anchor %d: %v", index, err)
@@ -269,7 +269,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	historyAnchor := anchors[0]
 	for index := 1; index < 101; index++ {
-		updated, changed, err := fixture.server.writeDB.Reviews.AppendAnchorVersion(ctx, contextRecord.ID, historyAnchor.ID,
+		updated, changed, err := fixture.server.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, historyAnchor.ID,
 			historyAnchor.Version.ID, "active", contentHash, 1, fmt.Sprintf("Anchor history %03d", index), []database.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil || !changed {
 			t.Fatalf("create anchor version %d: changed=%v err=%v", index, changed, err)

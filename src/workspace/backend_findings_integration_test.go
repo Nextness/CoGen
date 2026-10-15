@@ -257,7 +257,7 @@ func TestReviewStageInputPreserved(t *testing.T) {
 		t.Fatal("reproduction did not transform publisher")
 	}
 	for id, publisher := range map[int64]string{input: before, output: after} {
-		blob, err := db.ArtifactBlobs.GetByArtifactID(id)
+		blob, err := db.Artifact.GetBlobByArtifactID(context.Background(), id)
 		if err != nil || blob == nil {
 			t.Fatalf("stage artifact missing: %v", err)
 		}
@@ -303,7 +303,7 @@ func TestReviewNotePipeParagraphNotTable(t *testing.T) {
 // TestReviewPriorRunCacheStable reproduces F-02 with a private snapshot and a global refresh.
 func TestReviewPriorRunCacheStable(t *testing.T) {
 	db, _ := reviewDB(t)
-	runID, err := db.PipelineRuns.StartRun("review", "")
+	runID, err := db.Run.StartRun(context.Background(), "review", "")
 	if err != nil {
 		t.Fatal(err)
 	}

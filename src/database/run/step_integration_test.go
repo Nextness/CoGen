@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"testing"
 
+	"analysis/database/artifact"
 	"analysis/database/run"
 )
 
@@ -82,11 +83,11 @@ func TestStoreStepLinksAndFingerprintsPreserveReuseEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputArtifactID, err := db.Artifacts.Create("step-input-hash", "application/json", 10)
+	inputArtifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "step-input-hash", ContentType: "application/json", ByteSize: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputArtifactID, err := db.Artifacts.Create("step-output-hash", "application/json", 20)
+	outputArtifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "step-output-hash", ContentType: "application/json", ByteSize: 20})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -66,7 +66,7 @@ func TestAuditFamilyParityWithLegacyRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := audit.New(family.RawDBForTest())
+	store := family.Audit
 
 	// Read parity for run and entity projections.
 	legacyRun, err := legacy.AuditEvents.ListByRun(runID)

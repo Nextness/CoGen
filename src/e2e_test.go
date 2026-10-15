@@ -10,6 +10,7 @@ import (
 	"analysis/pdfstore"
 	"analysis/server"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -529,7 +530,7 @@ func assertE2EDatabases(t *testing.T, root, dbPath string, mode e2eMode) e2eResu
 		"valid_articles": mode.expectedValid, "discarded_articles": mode.expectedDiscarded,
 		"normalized_articles_processed": mode.expectedValid,
 	} {
-		value, err := db.Metrics.Get(runID, metric, "")
+		value, err := db.Run.GetMetric(context.Background(), runID, metric, "")
 		if err != nil || value == nil || value.Value != want {
 			db.Close()
 			t.Fatalf("%s metric %s = %+v, %v; want %d", mode.name, metric, value, err, want)

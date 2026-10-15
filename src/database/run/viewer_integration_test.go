@@ -26,7 +26,7 @@ func TestStoreViewerRunReadsPreserveAncestryAndLifecycle(t *testing.T) {
 	if err := store.FinishRun(ctx, runID, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RawDBForTest().Exec("INSERT INTO review_contexts (pipeline_run_id) VALUES (?)", runID); err != nil {
+	if _, _, err := db.Review.CreateContext(ctx, runID, nil); err != nil {
 		t.Fatal(err)
 	}
 

@@ -27,7 +27,7 @@ func openFamilyStore(t *testing.T) (*author.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return author.New(db.RawDBForTest()), db
+	return db.Author, db
 }
 
 // createTestRevision creates one work revision for authorship linkage and returns its ID.

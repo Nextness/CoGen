@@ -20,7 +20,7 @@ import (
 // familyConfigPath points at the production database registry from the family test directory.
 var familyConfigPath = filepath.Join("..", "..", "..", "config", "database.something")
 
-// openFamilyStore returns a search store over a database created by the production migration runner.
+// openFamilyStore returns the composed search store over a database created by the production migration runner.
 func openFamilyStore(t *testing.T) (*search.Store, *database.Database) {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "search.db")
@@ -29,7 +29,7 @@ func openFamilyStore(t *testing.T) (*search.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return search.New(db.RawDBForTest()), db
+	return db.Search, db
 }
 
 // TestStoreFindOrCreateSearchIsIdempotent verifies repeated creation returns one stable ID and distinct identifiers stay independent.
@@ -115,7 +115,7 @@ func TestStoreListSearchesOrdersByID(t *testing.T) {
 
 // TestStoreFindOrCreateSearchSerializesConcurrentInserts verifies concurrent writers converge on one row and one ID.
 func TestStoreFindOrCreateSearchSerializesConcurrentInserts(t *testing.T) {
-	store, db := openFamilyStore(t)
+	store, _ := openFamilyStore(t)
 	ctx := context.Background()
 
 	const writers = 8
@@ -140,9 +140,15 @@ func TestStoreFindOrCreateSearchSerializesConcurrentInserts(t *testing.T) {
 			t.Fatalf("writer %d returned id %d, want %d", i, ids[i], ids[0])
 		}
 	}
-	var count int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM searches WHERE search_id='concurrent-search'").Scan(&count); err != nil {
+	found, err := store.ListSearches(context.Background())
+	if err != nil {
 		t.Fatal(err)
+	}
+	count := 0
+	for _, item := range found {
+		if item.SearchID == "concurrent-search" {
+			count++
+		}
 	}
 	if count != 1 {
 		t.Fatalf("concurrent searches row count = %d, want 1", count)

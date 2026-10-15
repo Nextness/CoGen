@@ -217,3 +217,30 @@ func TestStoreReplaceRunTermDataRollsBackOnInvalidMatch(t *testing.T) {
 		t.Fatal("rollback removed the prior reconciliation marker")
 	}
 }
+
+// TestStoreTermMatchSchemaConstraints verifies the production foreign keys and
+// field vocabulary check reject direct invalid term rows.
+func TestStoreTermMatchSchemaConstraints(t *testing.T) {
+	store, db := openFamilyStore(t)
+	ctx := context.Background()
+	if _, err := db.RawDBForTest().Exec("INSERT INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (999, 'scopus', 'x')"); err == nil {
+		t.Fatal("expected foreign key failure for a missing run")
+	}
+	workID, err := store.CreateWorkByDOI(ctx, "10.1000/term-constraints")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runID := createTestRun(t, db, "term-constraints")
+	revisionID, err := store.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize, Title: "Constraint article",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, 'bogus', 'x')", runID, revisionID); err == nil {
+		t.Fatal("expected CHECK failure for an invalid field")
+	}
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, 999, 'title', 'x')", runID); err == nil {
+		t.Fatal("expected foreign key failure for a missing revision")
+	}
+}

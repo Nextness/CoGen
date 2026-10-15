@@ -28,7 +28,7 @@ func openFamilyStore(t *testing.T) (*source.Store, *database.Database) {
 		t.Fatalf("open migrated database: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return source.New(db.RawDBForTest()), db
+	return db.Source, db
 }
 
 // createTestRun creates one pipeline run for source linkage and returns its ID.
@@ -142,6 +142,18 @@ func TestStoreCreateSourceRejectsDuplicateRunSourceName(t *testing.T) {
 	}
 	if _, err := store.CreateSource(ctx, input); err == nil {
 		t.Fatal("duplicate run source was accepted")
+	}
+}
+
+// TestStoreCreateSourceRejectsMissingRun verifies the production foreign key
+// rejects a run source that references a non-existent pipeline run.
+func TestStoreCreateSourceRejectsMissingRun(t *testing.T) {
+	store, _ := openFamilyStore(t)
+	ctx := context.Background()
+	if _, err := store.CreateSource(ctx, source.CreateSourceInput{
+		RunID: 99999, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv",
+	}); err == nil {
+		t.Fatal("expected foreign key failure for a non-existent pipeline run")
 	}
 }
 

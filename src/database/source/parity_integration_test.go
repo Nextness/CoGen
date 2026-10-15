@@ -66,7 +66,7 @@ func TestSourceFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := source.New(family.RawDBForTest())
+	store := family.Source
 
 	// Read parity for sources, records, counts, and filter counts.
 	legacySources, err := legacy.RunSources.ListByRun(runID)

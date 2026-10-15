@@ -152,7 +152,7 @@ func TestStoreListIdentityEvidenceSearchesSortsAndPages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunWorkStages.SetOutcome(runID, workID, work.StageNameValidate, work.OutcomeValid, ""); err != nil {
+	if err := db.Work.SetStageOutcome(ctx, work.StageOutcomeInput{RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
 	alphaID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Alpha Evidence"})
@@ -317,7 +317,7 @@ func TestStoreListAuthorIdentityEvidenceCarriesSameNameEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RunWorkStages.SetOutcome(runID, workID, work.StageNameValidate, work.OutcomeValid, ""); err != nil {
+	if err := db.Work.SetStageOutcome(ctx, work.StageOutcomeInput{RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
 	firstOccurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Shared Evidence"})

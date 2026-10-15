@@ -6,6 +6,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -36,7 +37,7 @@ func TestCorpusArticleReviewProjection(t *testing.T) {
 		}
 	}
 	for index, count := range []int{2, 10, 5} {
-		workID, err := fixture.server.writeDB.Works.CreateByDOI(fmt.Sprintf("10.numeric/%d", index))
+		workID, err := fixture.server.writeDB.Work.CreateWorkByDOI(context.Background(), fmt.Sprintf("10.numeric/%d", index))
 		if err != nil {
 			t.Fatal(err)
 		}

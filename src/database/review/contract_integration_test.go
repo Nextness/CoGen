@@ -18,7 +18,10 @@ import (
 	"analysis/notes"
 )
 
-// reviewInsertRun inserts one review run into the fixture plan with the given lifecycle fields.
+// reviewInsertRun inserts one review run into the fixture plan with the given
+// lifecycle fields. It uses the raw connection because the run family DAL
+// always stamps the current time and cannot create the explicit earlier
+// timestamps and non-completed statuses these lifecycle contract cases need.
 func reviewInsertRun(t *testing.T, fixture *reviewMutationFixture, status, startedAt string, attempt int) int64 {
 	t.Helper()
 	var planID int64

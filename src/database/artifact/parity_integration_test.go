@@ -62,7 +62,7 @@ func TestArtifactFamilyParityWithLegacyRepositories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer family.Close()
-	store := artifact.New(family.RawDBForTest())
+	store := family.Artifact
 
 	// Read parity for artifact identity and blob bytes.
 	legacyArtifact, err := legacy.Artifacts.GetByHash("parity-hash")

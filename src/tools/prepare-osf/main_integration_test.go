@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/run"
 	"analysis/pdfstore"
 )
 
@@ -52,7 +53,7 @@ func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
 	planID, _ := planResult.LastInsertId()
 	runResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('export', '2026-01-01', '2026-01-01', 'completed', ?, 1)", planID)
 	runID, _ := runResult.LastInsertId()
-	if err := metadata.PipelineRunReviewers.Insert(runID, "Sensitive Researcher", "sensitive@example.test"); err != nil {
+	if err := metadata.Run.InsertReviewer(context.Background(), run.ReviewerInput{RunID: runID, Username: "Sensitive Researcher", Email: "sensitive@example.test"}); err != nil {
 		t.Fatal(err)
 	}
 	artifactResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'text/plain')", rawHash, len(rawConfig))

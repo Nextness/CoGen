@@ -16,6 +16,8 @@ import (
 
 	"analysis/database"
 	"analysis/database/author"
+	"analysis/database/run"
+	"analysis/database/search"
 	"analysis/database/work"
 )
 
@@ -49,37 +51,34 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	if err != nil {
 		t.Fatal(err)
 	}
-	exec := func(query string, args ...any) int64 {
-		t.Helper()
-		result, err := metadata.RawDBForTest().Exec(query, args...)
-		if err != nil {
-			t.Fatalf("fixture query %q: %v", query, err)
-		}
-		id, _ := result.LastInsertId()
-		return id
-	}
-	searchID, err := metadata.Searches.Create("normalized-conformance-search")
+	ctx := context.Background()
+	searchID, err := metadata.Search.FindOrCreateSearch(ctx, "normalized-conformance-search")
 	if err != nil {
 		t.Fatal(err)
 	}
-	searchRevisionID, _, err := metadata.Revisions.Create(searchID, "r1", "config", "manifest")
+	searchRevisionID, _, err := metadata.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := metadata.Plans.CreateWithInputManifest(searchRevisionID, "normalized-conformance-fingerprint", "manifest", "input", false)
+	planID, err := metadata.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "normalized-conformance-fingerprint",
+		ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, _, err := metadata.PipelineRuns.StartAttempt(planID, "normalized-conformance", "query")
+	runID, _, err := metadata.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "normalized-conformance", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.PipelineRuns.FinishRun(runID, "completed", "fixture complete"); err != nil {
+	if err := metadata.Run.FinishRun(ctx, runID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
 	createWork := func(doi string) int64 {
 		t.Helper()
-		id, err := metadata.Works.CreateByDOI(doi)
+		id, err := metadata.Work.CreateWorkByDOI(ctx, doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -87,7 +86,7 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	}
 	createRevision := func(workID int64, stage, title string) int64 {
 		t.Helper()
-		id, err := metadata.WorkRevisions.Create(&database.WorkRevision{
+		id, err := metadata.Work.CreateRevision(ctx, &work.Revision{
 			WorkID: workID, PipelineRunID: runID, ProducerStage: stage, Title: title,
 		})
 		if err != nil {
@@ -97,7 +96,9 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	}
 	setStage := func(workID int64, stage, outcome string) {
 		t.Helper()
-		if err := metadata.RunWorkStages.SetOutcome(runID, workID, stage, outcome, ""); err != nil {
+		if err := metadata.Work.SetStageOutcome(ctx, work.StageOutcomeInput{
+			RunID: runID, WorkID: workID, StageName: stage, Outcome: outcome,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -119,24 +120,31 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	missingRevisionID := createRevision(missingWorkID, database.ProducerStageParse, "Missing normalization article")
 	setStage(missingWorkID, database.StageNameValidate, database.OutcomeValid)
 
-	authorID := exec("INSERT INTO author_occurrences (citation_name) VALUES ('Conformance, Author')")
-	exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1)", acceptedRevisionID, authorID)
+	authorID, err := metadata.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Conformance, Author"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := metadata.Author.CreateAuthorship(ctx, &author.Authorship{
+		WorkRevisionID: acceptedRevisionID, AuthorOccurrenceID: authorID, AuthorOrder: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
 
-	supersededReferenceID, err := metadata.ReferenceMentions.Create(&database.ReferenceMention{
+	supersededReferenceID, err := metadata.Work.CreateReference(ctx, &work.Reference{
 		WorkRevisionID: acceptedRevisionID, MentionOrder: 1, RawReference: "superseded reference",
 		DOI: "10.1000/conformance-superseded",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	discardedReferenceID, err := metadata.ReferenceMentions.Create(&database.ReferenceMention{
+	discardedReferenceID, err := metadata.Work.CreateReference(ctx, &work.Reference{
 		WorkRevisionID: acceptedRevisionID, MentionOrder: 2, RawReference: "discarded reference",
 		DOI: "10.1000/conformance-discarded",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.ReferenceMentions.Create(&database.ReferenceMention{
+	if _, err := metadata.Work.CreateReference(ctx, &work.Reference{
 		WorkRevisionID: supersededLatestRevisionID, MentionOrder: 1, RawReference: "superseding reference",
 		DOI: "10.1000/conformance-accepted",
 	}); err != nil {
@@ -363,7 +371,7 @@ func TestNormalizedRevisionPredicateConformance(t *testing.T) {
 		}
 	})
 	t.Run("review context heads", func(t *testing.T) {
-		contextRecord, created, err := fixture.db.Reviews.CreateContext(context.Background(), fixture.runID, nil)
+		contextRecord, created, err := fixture.db.Review.CreateContext(context.Background(), fixture.runID, nil)
 		if err != nil || !created {
 			t.Fatalf("create review context: context=%+v created=%v err=%v", contextRecord, created, err)
 		}
