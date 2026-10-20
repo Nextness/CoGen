@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database/pdfbinding"
+	"analysis/internal/testfixture"
 )
 
 // TestRecordDeliveredAuditIsIdempotent verifies a repeated event key reuses the existing audit link.
@@ -80,7 +81,7 @@ func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T) {
 func TestRecordDeliveredAuditBindsExistingRun(t *testing.T) {
 	ctx := context.Background()
 	store, metadata, _ := openTestStore(t)
-	runID, err := metadata.Run.StartRun(ctx, "pdfbinding-test", "")
+	runID, err := testfixture.Run(ctx, metadata.RawDBForTest(), "pdfbinding-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

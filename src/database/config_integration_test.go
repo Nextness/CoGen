@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"analysis/internal/testfixture"
 )
 
 // TestBaselineAppliesCorrectly verifies that a new temporary database opens
@@ -172,9 +174,9 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWorkByDOI: %v", err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "baseline test", "q")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "baseline test", "q")
 	if err != nil {
-		t.Fatalf("StartRun: %v", err)
+		t.Fatalf("insert run fixture: %v", err)
 	}
 	_, err = db.RawDBForTest().Exec(
 		"INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome, reason) VALUES (?, ?, 'parse', 'parsed', 'baseline default')",

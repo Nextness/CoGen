@@ -9,6 +9,7 @@ import (
 	"analysis/database/artifact"
 	"analysis/database/cache"
 	"analysis/enrich"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 	"analysis/notes"
 	"analysis/workspace"
@@ -303,7 +304,7 @@ func TestReviewNotePipeParagraphNotTable(t *testing.T) {
 // TestReviewPriorRunCacheStable reproduces F-02 with a private snapshot and a global refresh.
 func TestReviewPriorRunCacheStable(t *testing.T) {
 	db, _ := reviewDB(t)
-	runID, err := db.Run.StartRun(context.Background(), "review", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "review", "")
 	if err != nil {
 		t.Fatal(err)
 	}

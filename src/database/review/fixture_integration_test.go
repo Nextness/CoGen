@@ -44,21 +44,21 @@ func createReviewLineageFixture(t *testing.T, db *database.Database) (int64, int
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	a1Run, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	a2Run, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	a1Run, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, a1Run, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	a2Run, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, a2Run, "completed", ""); err != nil {

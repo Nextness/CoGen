@@ -14,6 +14,7 @@ import (
 
 	"analysis/database"
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // nanoTimestampPattern matches RFC3339Nano text with an optional fractional second.
@@ -23,7 +24,7 @@ var nanoTimestampPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d
 func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "visibility", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "visibility", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +114,7 @@ func TestStoreUpdateVisibilityTrashesAndRestoresWithAudit(t *testing.T) {
 func TestStoreUpdateVisibilityRejectsRunningAttempt(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "running-visibility", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "running-visibility", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,9 +157,9 @@ func TestStoreUpdateVisibilityMissingRunReturnsNil(t *testing.T) {
 
 // TestStoreUpdateVisibilityValidatesInput verifies state and reason bounds before any transaction.
 func TestStoreUpdateVisibilityValidatesInput(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "visibility-validation", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "visibility-validation", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestStoreUpdateVisibilityValidatesInput(t *testing.T) {
 func TestStoreUpdateVisibilityRollsBackWhenAuditFails(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "visibility-rollback", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "visibility-rollback", "")
 	if err != nil {
 		t.Fatal(err)
 	}

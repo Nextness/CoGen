@@ -31,7 +31,7 @@ func TestStoreFindOrCreatePlanPreservesFingerprintChecks(t *testing.T) {
 	ctx := context.Background()
 	revisionID := createTestRevision(t, store, "v1")
 
-	planID, err := store.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-abc123", ResolvedManifestHash: "manifest-xyz",
 	})
 	if err != nil {
@@ -53,7 +53,7 @@ func TestStoreFindOrCreatePlanPreservesFingerprintChecks(t *testing.T) {
 		t.Fatalf("get by fingerprint = %+v err=%v", byFingerprint, err)
 	}
 
-	reusedID, err := store.FindOrCreatePlan(ctx, search.PlanInput{
+	reusedID, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-abc123", ResolvedManifestHash: "manifest-xyz",
 	})
 	if err != nil {
@@ -62,7 +62,7 @@ func TestStoreFindOrCreatePlanPreservesFingerprintChecks(t *testing.T) {
 	if reusedID != planID {
 		t.Fatalf("identical plan reuse returned %d, want %d", reusedID, planID)
 	}
-	if _, err := store.FindOrCreatePlan(ctx, search.PlanInput{
+	if _, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-abc123", ResolvedManifestHash: "manifest-other",
 	}); err == nil {
 		t.Fatal("duplicate fingerprint with a different manifest hash was accepted")
@@ -104,6 +104,12 @@ func TestStoreFindOrCreatePlanWithInputManifestPreservesPolicy(t *testing.T) {
 		t.Fatal("duplicate fingerprint with a different enrichment policy was accepted")
 	}
 	if _, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-policy",
+		ResolvedManifestHash: "manifest", InputManifestHash: "different-input", EnrichmentEnabled: true,
+	}); err == nil {
+		t.Fatal("duplicate fingerprint with a different input manifest was accepted")
+	}
+	if _, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-missing-input", ResolvedManifestHash: "manifest",
 	}); err == nil {
 		t.Fatal("missing input manifest hash was accepted")
@@ -129,13 +135,13 @@ func TestStorePlansOrderAndEmptyIdentity(t *testing.T) {
 		t.Fatalf("empty plan list = %+v err=%v, want nil without error", empty, err)
 	}
 
-	first, err := store.FindOrCreatePlan(ctx, search.PlanInput{
+	first, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-z", ResolvedManifestHash: "manifest-a",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.FindOrCreatePlan(ctx, search.PlanInput{
+	second, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-b", ResolvedManifestHash: "manifest-b",
 	})
 	if err != nil {

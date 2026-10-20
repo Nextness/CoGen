@@ -26,6 +26,8 @@ coverage_policy: coverage_policy_config = {
         "analysis/dev",
         "analysis/internal/pathpolicy",
         "analysis/internal/sqliteuri",
+        // Fixture seeds compile only with integration/e2e tags and are not production behavior.
+        "analysis/internal/testfixture",
         "analysis/internal/textlimit",
         "analysis/tools/coveragecheck",
         "analysis/tools/doccheck",

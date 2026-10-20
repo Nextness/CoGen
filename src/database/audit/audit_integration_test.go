@@ -14,6 +14,7 @@ import (
 	"analysis/database"
 	"analysis/database/audit"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -35,7 +36,7 @@ func openFamilyStore(t *testing.T) (*audit.Store, *database.Database) {
 // createTestRun creates one pipeline run for audit linkage and returns its ID.
 func createTestRun(t *testing.T, db *database.Database, step string) int64 {
 	t.Helper()
-	runID, err := db.Run.StartRun(context.Background(), step, "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), step, "")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}

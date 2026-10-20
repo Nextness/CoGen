@@ -10,6 +10,7 @@ import (
 
 	"analysis/database/run"
 	"analysis/database/search"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreHierarchyTotalsCountsWorkspaceIdentities verifies the Home summary
@@ -41,14 +42,14 @@ func TestStoreHierarchyTotalsCountsWorkspaceIdentities(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	completedRun, err := db.Run.StartRun(ctx, "hierarchy", "query")
+	completedRun, err := testfixture.Run(ctx, db.RawDBForTest(), "hierarchy", "query")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, completedRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Run.StartRun(ctx, "hierarchy", "query"); err != nil {
+	if _, err := testfixture.Run(ctx, db.RawDBForTest(), "hierarchy", "query"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -202,7 +203,7 @@ func TestStoreListHierarchySectionsFilterOrderAndPage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: alphaPlan, Step: "workspace"}); err != nil {
+	if _, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: alphaPlan, Step: "workspace"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{

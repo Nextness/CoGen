@@ -13,6 +13,7 @@ import (
 	"analysis/database"
 	"analysis/database/author"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 )
 
 // familyConfigPath points at the production database registry from the family test directory.
@@ -38,7 +39,7 @@ func createTestRevision(t *testing.T, db *database.Database, doi, stage string) 
 	if err != nil {
 		t.Fatalf("create work: %v", err)
 	}
-	runID, err := db.Run.StartRun(ctx, "author-test", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-test", "")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}

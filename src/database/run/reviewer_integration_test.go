@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreReviewerInsertAndGetPreservesIdentity verifies trimming, immutable projection, absent identity, and input validation.
 func TestStoreReviewerInsertAndGetPreservesIdentity(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "reviewer", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "reviewer", "")
 	if err != nil {
 		t.Fatal(err)
 	}

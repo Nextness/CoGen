@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"analysis/database/artifact"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreListRunArtifactEvidenceConstrainsDynamicInputs verifies the retained
@@ -21,11 +22,11 @@ func TestStoreListRunArtifactEvidenceConstrainsDynamicInputs(t *testing.T) {
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-evidence-dynamic")
 
-	alphaID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "alpha-evidence", ContentType: "application/json", ByteSize: 2})
+	alphaID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "alpha-evidence", "application/json", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	betaID, err := store.Create(ctx, artifact.CreateInput{ContentHash: `x' OR '1'='1`, ContentType: "text/plain", ByteSize: 2})
+	betaID, err := testfixture.Artifact(ctx, db.RawDBForTest(), `x' OR '1'='1`, "text/plain", 2)
 	if err != nil {
 		t.Fatal(err)
 	}

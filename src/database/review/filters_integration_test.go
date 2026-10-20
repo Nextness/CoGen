@@ -53,21 +53,21 @@ func newReviewFilterFixture(t *testing.T) *reviewFilterFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	run1, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	run2, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	run1, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, run1, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	run2, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, run2, "completed", ""); err != nil {

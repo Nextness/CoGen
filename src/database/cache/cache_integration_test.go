@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"analysis/database"
-	"analysis/database/artifact"
+	"analysis/internal/testfixture"
+
 	"analysis/database/cache"
 	"analysis/manifest"
 )
@@ -52,7 +53,7 @@ func appendTestEntry(t *testing.T, store *cache.Store, key cache.Key, status int
 func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "cache-payload-a", ContentType: "application/json", ByteSize: 12})
+	artifactID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "cache-payload-a", "application/json", 12)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +138,7 @@ func TestStoreAppendEntrySeparatesKeysAndNullableFields(t *testing.T) {
 func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-global", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-global", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +174,7 @@ func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-replay", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-replay", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-scoped", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-scoped", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,7 +253,7 @@ func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 func TestStoreListUsesByRunPreservesOrderAndEmptyIdentity(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-uses", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-uses", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +378,7 @@ func TestStoreContextCancellationLeavesNoRows(t *testing.T) {
 func TestStoreListCacheUsesForRunOrdersSearchesAndPaginates(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-viewer", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-viewer", "")
 	if err != nil {
 		t.Fatal(err)
 	}

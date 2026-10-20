@@ -1,16 +1,3 @@
--- name: InsertRun :execresult
-INSERT INTO pipeline_runs (
-    step,
-    started_at,
-    status,
-    search_query
-) VALUES (
-    sqlc.arg(step),
-    sqlc.arg(started_at),
-    'running',
-    sqlc.arg(search_query)
-);
-
 -- name: GetRunByID :one
 SELECT
     id,

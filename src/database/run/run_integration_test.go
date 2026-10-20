@@ -15,6 +15,7 @@ import (
 	"analysis/database"
 	"analysis/database/run"
 	"analysis/database/search"
+	"analysis/internal/testfixture"
 
 	_ "modernc.org/sqlite"
 )
@@ -51,7 +52,7 @@ func createTestPlan(t *testing.T, db *database.Database, label string) int64 {
 	if err != nil {
 		t.Fatalf("create revision: %v", err)
 	}
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID:     revisionID,
 		ExecutionFingerprint: "fingerprint-" + label,
 		ResolvedManifestHash: "manifest-" + label,
@@ -62,13 +63,13 @@ func createTestPlan(t *testing.T, db *database.Database, label string) int64 {
 	return planID
 }
 
-// TestStoreStartRunAndReadsPreserveNullabilityAndOrdering verifies legacy run creation, optional fields, not-found identity, and declared list ordering.
-func TestStoreStartRunAndReadsPreserveNullabilityAndOrdering(t *testing.T) {
+// TestStoreReadsPreserveNullabilityAndOrdering verifies historical nullable fields, not-found identity, and declared list ordering.
+func TestStoreReadsPreserveNullabilityAndOrdering(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "start-run")
 
-	legacyID, err := store.StartRun(ctx, "legacy_step", "")
+	legacyID, err := testfixture.Run(ctx, db.RawDBForTest(), "legacy_step", "")
 	if err != nil {
 		t.Fatalf("start legacy run: %v", err)
 	}
@@ -83,7 +84,7 @@ func TestStoreStartRunAndReadsPreserveNullabilityAndOrdering(t *testing.T) {
 		t.Fatalf("legacy optional fields = %+v", legacy)
 	}
 
-	queriedID, err := store.StartRun(ctx, "queried_step", "search text")
+	queriedID, err := testfixture.Run(ctx, db.RawDBForTest(), "queried_step", "search text")
 	if err != nil {
 		t.Fatalf("start queried run: %v", err)
 	}
@@ -108,15 +109,21 @@ func TestStoreStartRunAndReadsPreserveNullabilityAndOrdering(t *testing.T) {
 		t.Fatalf("empty visibility list = %+v err=%v, want nil without error", emptyVisibility, err)
 	}
 
-	first, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q1"})
+	first, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q2"})
+	if err := store.FinishRun(ctx, first, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q2"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	third, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q3"})
+	if err := store.FinishRun(ctx, second, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	third, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "attempt", SearchQuery: "q3"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,15 +162,18 @@ func TestStoreStartAttemptAllocatesPositiveNumbersAtomically(t *testing.T) {
 	otherPlanID := createTestPlan(t, db, "numbering-other")
 
 	for want := 1; want <= 3; want++ {
-		_, attempt, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "step"})
+		runID, attempt, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "step"})
 		if err != nil {
 			t.Fatalf("attempt %d: %v", want, err)
 		}
 		if attempt != want {
 			t.Fatalf("attempt number = %d, want %d", attempt, want)
 		}
+		if err := store.FinishRun(ctx, runID, "completed", ""); err != nil {
+			t.Fatal(err)
+		}
 	}
-	_, otherAttempt, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: otherPlanID, Step: "step"})
+	_, otherAttempt, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: otherPlanID, Step: "step"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,51 +249,12 @@ func TestStoreStartAttemptIfIdleSerializesConcurrentAttempts(t *testing.T) {
 	}
 }
 
-// TestStoreConcurrentStartAttemptAllocatesUniqueNumbers verifies racing callers each receive a distinct positive attempt number.
-func TestStoreConcurrentStartAttemptAllocatesUniqueNumbers(t *testing.T) {
-	store, db := openFamilyStore(t)
-	ctx := context.Background()
-	planID := createTestPlan(t, db, "concurrent")
-
-	const callers = 10
-	type result struct {
-		attempt int
-		err     error
-	}
-	results := make(chan result, callers)
-	for range callers {
-		go func() {
-			_, attempt, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
-			results <- result{attempt: attempt, err: err}
-		}()
-	}
-
-	seen := make(map[int]bool, callers)
-	for range callers {
-		outcome := <-results
-		if outcome.err != nil {
-			t.Errorf("concurrent start failed: %v", outcome.err)
-			continue
-		}
-		if outcome.attempt < 1 || outcome.attempt > callers {
-			t.Errorf("attempt number %d out of range [1,%d]", outcome.attempt, callers)
-		}
-		if seen[outcome.attempt] {
-			t.Errorf("duplicate attempt number %d", outcome.attempt)
-		}
-		seen[outcome.attempt] = true
-	}
-	if len(seen) != callers {
-		t.Fatalf("unique attempt numbers = %d, want %d", len(seen), callers)
-	}
-}
-
 // TestStoreFinishRunSetsTerminalFieldsConsistently verifies status validation and the finished_at rule for running versus terminal statuses.
 func TestStoreFinishRunSetsTerminalFieldsConsistently(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	runID, err := store.StartRun(ctx, "finish", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "finish", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,51 +291,13 @@ func TestStoreFinishRunSetsTerminalFieldsConsistently(t *testing.T) {
 	}
 }
 
-// TestStoreTrashAndRestorePreservesVisibilityLifecycle verifies the reversible visibility transition and cleared trash fields.
-func TestStoreTrashAndRestorePreservesVisibilityLifecycle(t *testing.T) {
-	store, _ := openFamilyStore(t)
-	ctx := context.Background()
-
-	runID, err := store.StartRun(ctx, "visibility", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.FinishRun(ctx, runID, "completed", "done"); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Trash(ctx, runID, "test trashing"); err != nil {
-		t.Fatal(err)
-	}
-	trashed, err := store.GetByID(ctx, runID)
-	if err != nil || trashed == nil {
-		t.Fatalf("trashed run = %+v err=%v", trashed, err)
-	}
-	if trashed.VisibilityState != "trashed" || trashed.TrashedAt == nil || *trashed.TrashedAt == "" {
-		t.Fatalf("trashed run = %+v", trashed)
-	}
-	if trashed.TrashReason == nil || *trashed.TrashReason != "test trashing" {
-		t.Fatalf("trash reason = %v", trashed.TrashReason)
-	}
-
-	if err := store.Restore(ctx, runID); err != nil {
-		t.Fatal(err)
-	}
-	restored, err := store.GetByID(ctx, runID)
-	if err != nil || restored == nil {
-		t.Fatalf("restored run = %+v err=%v", restored, err)
-	}
-	if restored.VisibilityState != "active" || restored.TrashedAt != nil || restored.TrashReason != nil {
-		t.Fatalf("restored run = %+v", restored)
-	}
-}
-
 // TestStoreRecoverAbandonedFailsRunAndStepsWithAudit verifies the recovery transaction, affected-row guard, and append-only evidence.
 func TestStoreRecoverAbandonedFailsRunAndStepsWithAudit(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "recovery")
 
-	runID, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
+	runID, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +376,7 @@ func TestStoreRecoverAbandonedRollsBackWhenAuditFails(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "recovery-rollback")
 
-	runID, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
+	runID, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "parse"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +478,7 @@ func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T) {
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.StartRun(context.Background(), "closed", ""); err == nil {
+	if _, err := store.GetByID(context.Background(), 1); err == nil {
 		t.Fatal("store used a connection the constructor opened instead of the supplied one")
 	}
 }

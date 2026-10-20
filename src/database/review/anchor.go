@@ -316,7 +316,6 @@ type anchorVersionProjection struct {
 	RectanglesJSON      sql.NullString
 	CreatedAt           string
 	ReviewerUsername    string
-	ReviewerEmail       string
 }
 
 // anchorVersionProjectionFromListRow maps one generated current-anchor list row.
@@ -336,7 +335,6 @@ func anchorVersionProjectionFromListRow(row generated.ListReviewAnchorsRow) anch
 		RectanglesJSON:      row.RectanglesJson,
 		CreatedAt:           row.VersionCreatedAt,
 		ReviewerUsername:    row.ReviewerUsername,
-		ReviewerEmail:       row.ReviewerEmail,
 	}
 }
 
@@ -357,7 +355,6 @@ func anchorVersionProjectionFromAncestryRow(row generated.ListReviewAnchorVersio
 		RectanglesJSON:      row.RectanglesJson,
 		CreatedAt:           row.CreatedAt,
 		ReviewerUsername:    row.ReviewerUsername,
-		ReviewerEmail:       row.ReviewerEmail,
 	}
 }
 
@@ -372,7 +369,7 @@ func anchorVersionFromProjection(projection anchorVersionProjection) (AnchorVers
 		PDFContentHash:     projection.PDFContentHash,
 		State:              projection.State,
 		CreatedAt:          projection.CreatedAt,
-		ReviewerDisplay:    reviewerDisplay(projection.ReviewerUsername, projection.ReviewerEmail),
+		ReviewerDisplay:    reviewerDisplay(projection.ReviewerUsername),
 	}
 	if projection.Page.Valid {
 		value := int(projection.Page.Int64)
@@ -402,7 +399,7 @@ func (s *Store) getAnchorVersion(ctx context.Context, queries *generated.Queries
 		PDFContentHash:     row.PdfContentHash,
 		State:              row.State,
 		CreatedAt:          row.CreatedAt,
-		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername, row.ReviewerEmail),
+		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername),
 	}
 	if row.Page.Valid {
 		value := int(row.Page.Int64)

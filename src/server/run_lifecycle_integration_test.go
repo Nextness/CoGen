@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"regexp"
 	"testing"
+
+	"analysis/internal/testfixture"
 )
 
 // nanoTimestampPattern matches RFC3339Nano text with an optional fractional second.
@@ -87,7 +89,7 @@ func TestRunVisibilityValidation(t *testing.T) {
 			}
 		})
 	}
-	runningRunID, err := viewer.writeDB.Run.StartRun(context.Background(), "run_lifecycle", "")
+	runningRunID, err := testfixture.Run(context.Background(), viewer.writeDB.RawDBForTest(), "run_lifecycle", "")
 	if err != nil {
 		t.Fatal(err)
 	}

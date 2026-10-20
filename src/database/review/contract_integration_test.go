@@ -7,6 +7,7 @@
 package review_test
 
 import (
+	"analysis/database/run"
 	"context"
 	"errors"
 	"fmt"
@@ -67,7 +68,7 @@ func TestReviewTypedErrorContract(t *testing.T) {
 		t.Fatal("wrapped conflict is no longer identifiable")
 	}
 
-	if err := fixture.db.Run.Trash(ctx, fixture.run1, "contract"); err != nil {
+	if _, err := fixture.db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: fixture.run1, VisibilityState: run.VisibilityTrashed, Reason: "contract"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := fixture.db.Review.AppendWorkReview(ctx, fixture.context1, fixture.revision1, nil, "approved", nil, nil); err == nil {
@@ -111,7 +112,7 @@ func TestReviewContextEligibilityContract(t *testing.T) {
 	})
 	t.Run("trashed target", func(t *testing.T) {
 		fixture := newReviewMutationFixture(t)
-		if err := fixture.db.Run.Trash(ctx, fixture.run2, "contract"); err != nil {
+		if _, err := fixture.db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: fixture.run2, VisibilityState: run.VisibilityTrashed, Reason: "contract"}); err != nil {
 			t.Fatal(err)
 		}
 		if _, _, err := fixture.db.Review.CreateContext(ctx, fixture.run2, nil); err == nil {
@@ -122,7 +123,7 @@ func TestReviewContextEligibilityContract(t *testing.T) {
 	})
 	t.Run("trashed parent", func(t *testing.T) {
 		fixture := newReviewMutationFixture(t)
-		if err := fixture.db.Run.Trash(ctx, fixture.run1, "contract"); err != nil {
+		if _, err := fixture.db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: fixture.run1, VisibilityState: run.VisibilityTrashed, Reason: "contract"}); err != nil {
 			t.Fatal(err)
 		}
 		if _, _, err := fixture.db.Review.CreateContext(ctx, fixture.run2, &fixture.context1); err == nil {

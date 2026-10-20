@@ -14,6 +14,7 @@ import (
 	"analysis/database"
 	"analysis/database/pdfbinding"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/pdfstore"
 )
 
@@ -37,7 +38,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-unnormalized"); err != nil {
 		t.Fatal(err)
 	}
-	runID, err := metadata.Run.StartRun(context.Background(), "manual-pdf-test", "")
+	runID, err := testfixture.Run(context.Background(), metadata.RawDBForTest(), "manual-pdf-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

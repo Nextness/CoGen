@@ -44,8 +44,7 @@ type RevisionInput struct {
 }
 
 // PlanInput identifies one execution plan fingerprint and its frozen input
-// policy. An empty InputManifestHash selects the legacy policy that predates
-// frozen input manifests.
+// policy. InputManifestHash is required for every new plan.
 type PlanInput struct {
 	SearchRevisionID     int64
 	ExecutionFingerprint string

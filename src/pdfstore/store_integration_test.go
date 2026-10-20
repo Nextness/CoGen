@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/internal/testfixture"
 )
 
 // TestAddNormalizesDOIDeduplicatesBlobsAndPreservesExistingDocument verifies add normalizes doi deduplicates blobs and preserves existing document.
@@ -72,7 +73,7 @@ func TestAddAndAuditOutboxAreTransactionalAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := metadata.Run.StartRun(ctx, "pdf-inventory-test", "")
+	runID, err := testfixture.Run(ctx, metadata.RawDBForTest(), "pdf-inventory-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

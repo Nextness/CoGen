@@ -24,10 +24,7 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"Create", func() error {
-			_, err := store.Create(ctx, artifact.CreateInput{ContentHash: "closed", ContentType: "application/json", ByteSize: 1})
-			return err
-		}},
+
 		{"CreateWithBlob", func() error {
 			_, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
 				ContentHash: "closed", ContentType: "application/json", ByteSize: 1, PipelineRunID: 1, Data: []byte("x"),
@@ -36,10 +33,7 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		}},
 		{"GetByHash", func() error { _, err := store.GetByHash(ctx, "closed"); return err }},
 		{"GetByID", func() error { _, err := store.GetByID(ctx, 1); return err }},
-		{"CreateBlob", func() error {
-			_, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: 1, PipelineRunID: 1, Data: []byte("x")})
-			return err
-		}},
+
 		{"GetBlobByArtifactID", func() error { _, err := store.GetBlobByArtifactID(ctx, 1); return err }},
 		{"GetContent", func() error { _, err := store.GetContent(ctx, 1); return err }},
 		{"GetPreview", func() error { _, err := store.GetPreview(ctx, 1, 5); return err }},

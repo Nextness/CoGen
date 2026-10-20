@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreHierarchyAttemptsFilterOrderAndLookahead verifies the attempt page
@@ -19,22 +20,25 @@ func TestStoreHierarchyAttemptsFilterOrderAndLookahead(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "hierarchy-attempts")
 
-	firstRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	firstRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
-	if err != nil {
+	if err := db.Run.FinishRun(ctx, firstRun, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	thirdRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	secondRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, secondRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Run.Trash(ctx, firstRun, "test"); err != nil {
+	thirdRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: firstRun, VisibilityState: run.VisibilityTrashed, Reason: "test"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -90,24 +94,24 @@ func TestStoreHierarchyRunsVisibilityStatusAndAncestry(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "hierarchy-runs")
 
-	activeRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	activeRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, activeRun, "completed", "done"); err != nil {
 		t.Fatal(err)
 	}
-	trashedRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	trashedRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, trashedRun, "failed", "failed"); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Run.Trash(ctx, trashedRun, ""); err != nil {
+	if _, err := db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: trashedRun, VisibilityState: run.VisibilityTrashed, Reason: ""}); err != nil {
 		t.Fatal(err)
 	}
-	unplannedRun, err := db.Run.StartRun(ctx, "legacy", "query")
+	unplannedRun, err := testfixture.Run(ctx, db.RawDBForTest(), "legacy", "query")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,14 +184,17 @@ func TestStoreListLegacyRunsFiltersAndIncludesTrashed(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "legacy-runs")
 
-	firstRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
+	firstRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"}); err != nil {
+	if err := db.Run.FinishRun(ctx, firstRun, "completed", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Run.Trash(ctx, firstRun, "legacy"); err != nil {
+	if _, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "workspace", SearchQuery: "query"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: firstRun, VisibilityState: run.VisibilityTrashed, Reason: "legacy"}); err != nil {
 		t.Fatal(err)
 	}
 

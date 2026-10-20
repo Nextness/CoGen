@@ -1,7 +1,7 @@
 // run.go provides the handwritten pipeline-run data access layer over the
 // generated queries in this family's private internal/sql package. It owns run
-// creation, lookup, and plan or visibility listing; lifecycle transitions,
-// reviewer attribution, steps, metrics, purge overview, and recovery live in
+// lookup and plan or visibility listing; lifecycle transitions,
+// reviewer attribution, steps, metrics, ancestry, and recovery live in
 // their specifically named files.
 package run
 
@@ -26,24 +26,6 @@ type Store struct {
 // or run migrations.
 func New(db *sql.DB) *Store {
 	return &Store{db: db, queries: generated.New(db)}
-}
-
-// StartRun records the start of a legacy pipeline step that has no execution
-// plan or attempt number. Returns the run ID. New code should use StartAttempt.
-func (s *Store) StartRun(ctx context.Context, step, searchQuery string) (int64, error) {
-	result, err := s.queries.InsertRun(ctx, generated.InsertRunParams{
-		Step:        step,
-		StartedAt:   runTimestamp(),
-		SearchQuery: nullableString(searchQuery),
-	})
-	if err != nil {
-		return 0, err
-	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-	return id, nil
 }
 
 // GetByID returns a run by its primary key, or nil if not found.

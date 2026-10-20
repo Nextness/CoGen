@@ -51,21 +51,21 @@ func newReviewMutationFixture(t *testing.T) *reviewMutationFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	run1, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	run2, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	run1, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, run1, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	run2, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "review"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, run2, "completed", ""); err != nil {
@@ -430,7 +430,7 @@ func TestReviewMutationsRejectReadOnlyRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := fixture.db.Run.Trash(ctx, fixture.run1, "mutation test"); err != nil {
+	if _, err := fixture.db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: fixture.run1, VisibilityState: run.VisibilityTrashed, Reason: "mutation test"}); err != nil {
 		t.Fatal(err)
 	}
 	versionsBefore := reviewCount(t, fixture.db, "SELECT COUNT(*) FROM work_review_versions")

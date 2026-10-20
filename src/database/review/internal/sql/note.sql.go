@@ -133,8 +133,7 @@ SELECT
     version.state,
     version.body,
     version.created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM review_note_versions version
 JOIN review_contexts context ON context.id = version.created_in_context_id
 LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id = context.pipeline_run_id
@@ -150,7 +149,6 @@ type GetReviewNoteVersionByIDRow struct {
 	Body               sql.NullString
 	CreatedAt          string
 	ReviewerUsername   string
-	ReviewerEmail      string
 }
 
 func (q *Queries) GetReviewNoteVersionByID(ctx context.Context, id int64) (GetReviewNoteVersionByIDRow, error) {
@@ -165,7 +163,6 @@ func (q *Queries) GetReviewNoteVersionByID(ctx context.Context, id int64) (GetRe
 		&i.Body,
 		&i.CreatedAt,
 		&i.ReviewerUsername,
-		&i.ReviewerEmail,
 	)
 	return i, err
 }
@@ -345,7 +342,6 @@ SELECT
     CAST(version.body IS NOT NULL AS INTEGER) AS has_body,
     version.created_at AS version_created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST((SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id = version.id) AS INTEGER) AS link_count
 FROM review_context_note_heads head
 JOIN review_context_work_heads work_head ON work_head.review_context_id = head.review_context_id
@@ -393,7 +389,6 @@ type ListReviewNoteHeadsRow struct {
 	HasBody            int64
 	VersionCreatedAt   string
 	ReviewerUsername   string
-	ReviewerEmail      string
 	LinkCount          int64
 }
 
@@ -431,7 +426,6 @@ func (q *Queries) ListReviewNoteHeads(ctx context.Context, arg ListReviewNoteHea
 			&i.HasBody,
 			&i.VersionCreatedAt,
 			&i.ReviewerUsername,
-			&i.ReviewerEmail,
 			&i.LinkCount,
 		); err != nil {
 			return nil, err
@@ -522,7 +516,6 @@ SELECT
     CAST(version.body IS NOT NULL AS INTEGER) AS has_body,
     version.created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST((SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id = version.id) AS INTEGER) AS link_count
 FROM ancestry
 JOIN review_note_versions version ON version.id = ancestry.id
@@ -552,7 +545,6 @@ type ListReviewNoteVersionAncestryRow struct {
 	HasBody            int64
 	CreatedAt          string
 	ReviewerUsername   string
-	ReviewerEmail      string
 	LinkCount          int64
 }
 
@@ -582,7 +574,6 @@ func (q *Queries) ListReviewNoteVersionAncestry(ctx context.Context, arg ListRev
 			&i.HasBody,
 			&i.CreatedAt,
 			&i.ReviewerUsername,
-			&i.ReviewerEmail,
 			&i.LinkCount,
 		); err != nil {
 			return nil, err

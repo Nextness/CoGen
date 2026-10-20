@@ -24,21 +24,17 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"StartRun", func() error { _, err := store.StartRun(ctx, "closed", ""); return err }},
+
 		{"GetByID", func() error { _, err := store.GetByID(ctx, 1); return err }},
 		{"ListByPlan", func() error { _, err := store.ListByPlan(ctx, 1); return err }},
 		{"ListByVisibility", func() error { _, err := store.ListByVisibility(ctx, "active"); return err }},
-		{"StartAttempt", func() error {
-			_, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: 1, Step: "closed"})
-			return err
-		}},
+
 		{"StartAttemptIfIdle", func() error {
 			_, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: 1, Step: "closed"})
 			return err
 		}},
 		{"FinishRun", func() error { return store.FinishRun(ctx, 1, "completed", "") }},
-		{"Trash", func() error { return store.Trash(ctx, 1, "reason") }},
-		{"Restore", func() error { return store.Restore(ctx, 1) }},
+
 		{"RecoverAbandoned", func() error { return store.RecoverAbandoned(ctx, 1) }},
 		{"InsertReviewer", func() error {
 			return store.InsertReviewer(ctx, run.ReviewerInput{RunID: 1, Username: "name", Email: "name@example.test"})
@@ -64,7 +60,7 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		}},
 		{"GetMetric", func() error { _, err := store.GetMetric(ctx, 1, "metric", "source"); return err }},
 		{"ListMetricsByRun", func() error { _, err := store.ListMetricsByRun(ctx, 1); return err }},
-		{"CheckPurgeEligibility", func() error { _, err := store.CheckPurgeEligibility(ctx, 1); return err }},
+
 		{"LatestRunWithAncestry", func() error { _, err := store.LatestRunWithAncestry(ctx); return err }},
 		{"SelectedAttempt", func() error { _, err := store.SelectedAttempt(ctx, 1, 1); return err }},
 		{"RunArtifactContext", func() error { _, err := store.RunArtifactContext(ctx, 1); return err }},

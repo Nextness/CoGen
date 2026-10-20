@@ -11,15 +11,6 @@ import (
 	generated "analysis/database/search/internal/sql"
 )
 
-// FindOrCreatePlan inserts a new execution plan and returns the plan ID. An
-// identical plan (same search revision and execution fingerprint) with the
-// same manifest and input policy returns the existing ID. A different
-// manifest or input for a reserved fingerprint returns an error because the
-// fingerprint is reserved for a different resolved configuration.
-func (s *Store) FindOrCreatePlan(ctx context.Context, input PlanInput) (int64, error) {
-	return s.findOrCreatePlan(ctx, input)
-}
-
 // FindOrCreatePlanWithInputManifest inserts or reuses a plan linked to the
 // frozen input manifest used to calculate its execution fingerprint. The
 // input manifest hash is required.
@@ -27,13 +18,6 @@ func (s *Store) FindOrCreatePlanWithInputManifest(ctx context.Context, input Pla
 	if input.InputManifestHash == "" {
 		return 0, fmt.Errorf("create execution plan: input manifest hash is required")
 	}
-	return s.findOrCreatePlan(ctx, input)
-}
-
-// findOrCreatePlan inserts or reuses an execution plan with the supplied
-// manifest and enrichment policy. The input policy is only compared when the
-// caller supplied an input manifest hash.
-func (s *Store) findOrCreatePlan(ctx context.Context, input PlanInput) (int64, error) {
 	result, err := s.queries.InsertPlanIgnore(ctx, generated.InsertPlanIgnoreParams{
 		SearchRevisionID:     input.SearchRevisionID,
 		ExecutionFingerprint: input.ExecutionFingerprint,
@@ -64,8 +48,8 @@ func (s *Store) findOrCreatePlan(ctx context.Context, input PlanInput) (int64, e
 		return 0, fmt.Errorf("create execution plan: insert skipped but existing row not found")
 	}
 	if existing.ResolvedManifestHash != input.ResolvedManifestHash ||
-		(input.InputManifestHash != "" && existing.InputManifestHash != input.InputManifestHash) ||
-		(input.InputManifestHash != "" && existing.EnrichmentEnabled != input.EnrichmentEnabled) {
+		existing.InputManifestHash != input.InputManifestHash ||
+		existing.EnrichmentEnabled != input.EnrichmentEnabled {
 		return 0, fmt.Errorf("execution fingerprint %q already exists for search revision %d with different manifest or input", input.ExecutionFingerprint, input.SearchRevisionID)
 	}
 	return existing.ID, nil

@@ -63,30 +63,6 @@ func (q *Queries) GetRunByID(ctx context.Context, id int64) (GetRunByIDRow, erro
 	return i, err
 }
 
-const insertRun = `-- name: InsertRun :execresult
-INSERT INTO pipeline_runs (
-    step,
-    started_at,
-    status,
-    search_query
-) VALUES (
-    ?1,
-    ?2,
-    'running',
-    ?3
-)
-`
-
-type InsertRunParams struct {
-	Step        string
-	StartedAt   string
-	SearchQuery sql.NullString
-}
-
-func (q *Queries) InsertRun(ctx context.Context, arg InsertRunParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, insertRun, arg.Step, arg.StartedAt, arg.SearchQuery)
-}
-
 const listCompletedRunIDs = `-- name: ListCompletedRunIDs :many
 SELECT id
 FROM pipeline_runs

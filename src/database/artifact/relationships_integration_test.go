@@ -13,6 +13,7 @@ import (
 	"analysis/database/author"
 	"analysis/database/cache"
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreListRunArtifactsCoversEveryRelationshipKind verifies the family
@@ -22,7 +23,7 @@ func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T) {
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-relationships")
 
-	runRoleID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "relationship-run-role", ContentType: "application/json", ByteSize: 1})
+	runRoleID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "relationship-run-role", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,11 +31,11 @@ func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	stepInputID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "relationship-step-input", ContentType: "application/json", ByteSize: 1})
+	stepInputID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "relationship-step-input", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	stepOutputID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "relationship-step-output", ContentType: "application/json", ByteSize: 1})
+	stepOutputID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "relationship-step-output", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +50,7 @@ func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cachePayloadID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "relationship-cache-payload", ContentType: "application/json", ByteSize: 1})
+	cachePayloadID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "relationship-cache-payload", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +65,7 @@ func TestStoreListRunArtifactsCoversEveryRelationshipKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	candidatePayloadID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "relationship-candidate-payload", ContentType: "application/json", ByteSize: 1})
+	candidatePayloadID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "relationship-candidate-payload", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

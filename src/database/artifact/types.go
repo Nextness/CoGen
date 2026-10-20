@@ -52,25 +52,11 @@ type Preview struct {
 	Data        []byte
 }
 
-// CreateInput identifies one content identity to insert or locate.
-type CreateInput struct {
-	ContentHash string
-	ContentType string
-	ByteSize    int64
-}
-
 // CreateWithBlobInput identifies one content identity and its bytes for a run.
 type CreateWithBlobInput struct {
 	ContentHash   string
 	ContentType   string
 	ByteSize      int64
-	PipelineRunID int64
-	Data          []byte
-}
-
-// CreateBlobInput identifies one artifact's inline bytes.
-type CreateBlobInput struct {
-	ArtifactID    int64
 	PipelineRunID int64
 	Data          []byte
 }

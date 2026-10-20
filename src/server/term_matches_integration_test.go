@@ -16,6 +16,7 @@ import (
 	"analysis/database"
 	"analysis/database/source"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 )
 
 // termMatchesFixture is a viewer fixture with stored term data.
@@ -36,7 +37,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "term matches", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "term matches", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 	if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{RunID: runID, WorkID: workOne, StageName: work.StageNameValidate, Outcome: work.OutcomeValid}); err != nil {
 		t.Fatal(err)
 	}
-	emptyRunID, err := db.Run.StartRun(context.Background(), "term matches empty", "")
+	emptyRunID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "term matches empty", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,7 +243,7 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "unmigrated", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "unmigrated", "")
 	if err != nil {
 		t.Fatal(err)
 	}

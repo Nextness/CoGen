@@ -12,6 +12,7 @@ import (
 
 	"analysis/database"
 	"analysis/database/source"
+	"analysis/internal/testfixture"
 
 	_ "modernc.org/sqlite"
 )
@@ -34,7 +35,7 @@ func openFamilyStore(t *testing.T) (*source.Store, *database.Database) {
 // createTestRun creates one pipeline run for source linkage and returns its ID.
 func createTestRun(t *testing.T, db *database.Database, step string) int64 {
 	t.Helper()
-	runID, err := db.Run.StartRun(context.Background(), step, "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), step, "")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}

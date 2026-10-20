@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database/author"
+	"analysis/internal/testfixture"
 )
 
 // TestAuthorIdentityResolutionCreate verifies creating an identity resolution record.
@@ -16,9 +17,9 @@ func TestAuthorIdentityResolutionCreate(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	runID, err := db.Run.StartRun(ctx, "identity-test", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "identity-test", "")
 	if err != nil {
-		t.Fatalf("StartRun: %v", err)
+		t.Fatalf("insert run fixture: %v", err)
 	}
 	occurrenceID, err := store.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Test, Author"})
 	if err != nil {
@@ -61,7 +62,7 @@ func TestAuthorIdentityResolutionRejectsUnknownStatus(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	runID, err := db.Run.StartRun(ctx, "identity-status", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "identity-status", "")
 	if err != nil {
 		t.Fatal(err)
 	}

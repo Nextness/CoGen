@@ -19,7 +19,7 @@ func TestStoreViewerRunReadsPreserveAncestryAndLifecycle(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "viewer-context")
 
-	runID, attempt, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
+	runID, attempt, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestStoreSelectedAttemptHonorsPlanAndVisibility(t *testing.T) {
 	planID := createTestPlan(t, db, "viewer-attempt")
 	otherPlanID := createTestPlan(t, db, "viewer-attempt-other")
 
-	runID, attempt, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
+	runID, attempt, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,10 @@ func TestStoreSelectedAttemptHonorsPlanAndVisibility(t *testing.T) {
 		t.Fatalf("cross-plan selected attempt = %+v err=%v, want nil", selected, err)
 	}
 
-	if err := store.Trash(ctx, runID, "fixture"); err != nil {
+	if err := store.FinishRun(ctx, runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateVisibility(ctx, run.VisibilityInput{RunID: runID, VisibilityState: run.VisibilityTrashed, Reason: "fixture"}); err != nil {
 		t.Fatal(err)
 	}
 	if selected, err := store.SelectedAttempt(ctx, planID, runID); err != nil || selected != nil {
@@ -147,7 +150,7 @@ func TestStoreListStepsForViewerDerivesDuration(t *testing.T) {
 	ctx := context.Background()
 	planID := createTestPlan(t, db, "viewer-steps")
 
-	runID, _, err := store.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
+	runID, _, err := store.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "q"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 	"analysis/database/pdfbinding"
 	dbwork "analysis/database/work"
 	"analysis/enrich"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 	"analysis/pdfstore"
 	"context"
@@ -82,7 +83,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "inventory-sync", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "inventory-sync", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +183,7 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "normalization metrics", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "normalization metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +226,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "workspace test", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "workspace test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +358,7 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "test emit", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "test emit", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,7 +410,7 @@ func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(ctx, "validation-audit", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "validation-audit", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +476,7 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "test metrics", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "test metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +509,7 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "test skip", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "test skip", "")
 	if err != nil {
 		t.Fatal(err)
 	}
