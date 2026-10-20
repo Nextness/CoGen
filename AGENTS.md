@@ -40,6 +40,9 @@ make check-sql
 make sql-report
 make check-imports
 make import-report
+make sqlc-install
+make sqlc-generate
+make sqlc-check
 make test-docs
 make check-docs
 make docs-catalog-update
@@ -73,6 +76,10 @@ Run built tools from the repository root:
 ```
 
 There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers a gitleaks secret scan before backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target after its own gitleaks gate. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes. Raw SQL calls outside generated `internal/sql/` output must be classified by `make check-sql`, and the package import and transaction graph is enforced by `make check-imports`; `make sql-report` and `make import-report` print the current ownership inventories.
+
+Family SQL is compiled by sqlc, a pinned development generator installed to `build/sqlc` by `make sqlc-install` at the version declared in the root Makefile. Maintained declarations and named queries stay under `src/database/<family>/schema/` and `src/pdfstore/schema/`, and generated Go is committed under reserved `internal/sql/` paths, stays private to its owning package tree, and never crosses handwritten family APIs; change the inputs, run `make sqlc-generate` from the repository root with the committed `config/sqlc.yaml` configuration, and review the generated diff instead of editing generated files.
+
+Normal builds and tests stay offline: `make build`, `make tools`, `make test`, and `make check` consume committed generated output without invoking sqlc, while `make sqlc-check` proves generated output is current and every maintained query still passes sqlc analysis after any SQL input change. sqlc is not a Go module dependency and never feeds runtime migrations or SOMETHING database versioning, and `modernc.org/sqlite` remains the only direct runtime database dependency.
 
 ## 4. Runtime and configuration essentials
 
