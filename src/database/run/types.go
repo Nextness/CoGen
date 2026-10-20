@@ -72,23 +72,6 @@ type Metric struct {
 	Value         int    `json:"value"`
 }
 
-// PurgeEligibility describes whether a pipeline run can be safely purged.
-type PurgeEligibility struct {
-	// Eligible is true when no other run references this run's artifacts or
-	// reusable outputs.
-	Eligible bool `json:"eligible"`
-	// SharedArtifactCount is the number of artifacts from this run that are
-	// referenced by other runs.
-	SharedArtifactCount int `json:"shared_artifact_count"`
-	// ReusedByCount is the number of other runs that reuse one or more stages
-	// from this run.
-	ReusedByCount int `json:"reused_by_count"`
-	// OwnedReviewContextCount is the number of review contexts initialized for this run.
-	OwnedReviewContextCount int `json:"owned_review_context_count"`
-	// DependentReviewContextCount is the number of child contexts inheriting directly or indirectly from this run's context.
-	DependentReviewContextCount int `json:"dependent_review_context_count"`
-}
-
 // StartAttemptInput identifies one planned attempt to start.
 type StartAttemptInput struct {
 	ExecutionPlanID int64

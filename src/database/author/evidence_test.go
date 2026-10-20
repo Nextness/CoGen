@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"analysis/database/author"
+	"analysis/internal/testfixture"
 )
 
 // TestAuthorIdentityCandidateCreate verifies creating an identity candidate.
@@ -16,7 +17,7 @@ func TestAuthorIdentityCandidateCreate(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	runID, err := db.Run.StartRun(ctx, "candidate-test", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "candidate-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +78,7 @@ func TestAuthorIdentityCandidateUniqueRankAndORCID(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 
-	runID, err := db.Run.StartRun(ctx, "candidate-unique", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "candidate-unique", "")
 	if err != nil {
 		t.Fatal(err)
 	}

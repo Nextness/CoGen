@@ -10,6 +10,7 @@ import (
 
 	"analysis/database/artifact"
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreLinkIsRoleScopedAndImmutable verifies idempotent replay and role conflict rejection.
@@ -17,11 +18,11 @@ func TestStoreLinkIsRoleScopedAndImmutable(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-link")
-	configID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "config-snapshot", ContentType: "application/x-something-config", ByteSize: 10})
+	configID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "config-snapshot", "application/x-something-config", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	otherID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "other-snapshot", ContentType: "application/json", ByteSize: 10})
+	otherID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "other-snapshot", "application/json", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,14 +62,11 @@ func TestStoreListRunArtifactEvidenceFiltersPagesAndFocuses(t *testing.T) {
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-evidence")
 
-	configID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "config-evidence", ContentType: "application/json", ByteSize: 12})
+	configID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "config-evidence", ContentType: "application/json", ByteSize: int64(len([]byte(`{"ok":true}`))), PipelineRunID: runID, Data: []byte(`{"ok":true}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: configID, PipelineRunID: runID, Data: []byte(`{"ok":true}`)}); err != nil {
-		t.Fatal(err)
-	}
-	unlinkedID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "unlinked-evidence", ContentType: "text/plain", ByteSize: 4})
+	unlinkedID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "unlinked-evidence", "text/plain", 4)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"analysis/database/cache"
 	"analysis/database/run"
 	"analysis/database/search"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -35,7 +37,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := first.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := first.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revisionID, ExecutionFingerprint: "concurrent-cache-plan", ResolvedManifestHash: "manifest",
 	})
 	if err != nil {
@@ -43,6 +45,17 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 	}
 
 	const workers = 6
+	plans := []int64{planID}
+	for index := 1; index < workers; index++ {
+		id, err := first.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+			SearchRevisionID: revisionID, ExecutionFingerprint: fmt.Sprintf("concurrent-cache-plan-%d", index),
+			ResolvedManifestHash: "manifest", InputManifestHash: "fixture-input",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plans = append(plans, id)
+	}
 	databases := make([]*Database, 0, workers)
 	for range workers {
 		db, err := Open(dbPath, testConfigPath)
@@ -59,11 +72,11 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 
 	var wg sync.WaitGroup
 	errs := make(chan error, workers)
-	for _, db := range databases {
+	for index, db := range databases {
 		wg.Add(1)
-		go func(db *Database) {
+		go func(db *Database, planID int64) {
 			defer wg.Done()
-			runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "concurrent-cache"})
+			runID, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "concurrent-cache"})
 			if err != nil {
 				errs <- err
 				return
@@ -78,7 +91,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 			}
 			_, err = db.Cache.AppendUse(ctx, &cache.Use{PipelineRunID: runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)})
 			errs <- err
-		}(db)
+		}(db, plans[index])
 	}
 	wg.Wait()
 	close(errs)
@@ -132,7 +145,7 @@ func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
 	}
 	db := &Database{db: conn}
 	db.initRepositories()
-	runID, err := db.Run.StartRun(ctx, "legacy", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "legacy", "")
 	if err != nil {
 		t.Fatal(err)
 	}

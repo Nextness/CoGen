@@ -35,10 +35,7 @@ func TestStoreOperationsPropagateConnectionErrors(t *testing.T) {
 		{"GetRevisionByID", func() error { _, err := store.GetRevisionByID(ctx, 1); return err }},
 		{"GetRevisionBySearchAndLabel", func() error { _, err := store.GetRevisionBySearchAndLabel(ctx, 1, "v1"); return err }},
 		{"ListRevisionsBySearch", func() error { _, err := store.ListRevisionsBySearch(ctx, 1); return err }},
-		{"FindOrCreatePlan", func() error {
-			_, err := store.FindOrCreatePlan(ctx, search.PlanInput{SearchRevisionID: 1, ExecutionFingerprint: "fp"})
-			return err
-		}},
+
 		{"FindOrCreatePlanWithInputManifest", func() error {
 			_, err := store.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{SearchRevisionID: 1, ExecutionFingerprint: "fp", InputManifestHash: "input"})
 			return err

@@ -63,7 +63,6 @@ Source exports + SOMETHING configuration
 | `migrations/corpus.metadata/` | Metadata migrations V00001-V00028. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
 | `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
-| `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, and snapshots. |
 | `src/server/testdata/` | Ignored generated viewer metadata and PDF fixture pair produced from authoritative Go fixture code. |
 | `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
@@ -115,7 +114,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 ### 4.1 Table-family data access
 
-`src/database/database.go` is the metadata composition root. It opens or creates the metadata database, configures the SQLite URI and pragmas, applies the configured migration chain behind an immediate lock, exposes platform methods for close, health, writability, schema version, and transactions, and binds one handwritten store per table family to that single connection. Consumers that need only the stores use the root fields; consumers that need family application types, filters, or errors import the owning family package directly, which is why `workspace` and `server` appear as importers of both the root and individual families.
+`src/database/database.go` is the metadata composition root. It opens or creates the metadata database, configures the SQLite URI and pragmas, applies the configured migration chain behind an immediate lock, exposes platform methods for close, health, writability, and schema version, and binds one handwritten store per table family to that single connection. Consumers that need only the stores use the root fields; consumers that need family application types, filters, or errors import the owning family package directly, which is why `workspace` and `server` appear as importers of both the root and individual families.
 
 | Family | Package | Primary tables and relationships |
 |---|---|---|
@@ -130,7 +129,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 | Audit | `src/database/audit/` | `audit_events`; append-only insertion, filtering, and provenance relationships whose primary result is audit evidence. |
 | PDF binding | `src/database/pdfbinding/` | Metadata `pdf_store_binding` and `pdf_audit_links`; companion binding and delivered-event links. |
 
-Each family owns its maintained declarations and named queries under `src/database/<family>/schema/`, its committed sqlc-generated package under the reserved `src/database/<family>/internal/sql/` path, and its handwritten models, validation, error mapping, and transactions under `src/database/<family>/`; generated row types are mapped to application types inside the family, never cross a handwritten family API, and neither the schema declarations nor the generated output feeds runtime migrations or SOMETHING versioning. The companion store follows the same shape with `src/pdfstore/schema/` and `src/pdfstore/internal/sql/`, `src/database/sqlcprobe/` is generator validation scaffolding rather than a production family, and `src/tools/prepare-osf/` keeps a private generated export package because its statements are maintenance orchestration.
+Each family owns its maintained declarations and named queries under `src/database/<family>/schema/`, its committed sqlc-generated package under the reserved `src/database/<family>/internal/sql/` path, and its handwritten models, validation, error mapping, and transactions under `src/database/<family>/`; generated row types are mapped to application types inside the family, never cross a handwritten family API, and neither the schema declarations nor the generated output feeds runtime migrations or SOMETHING versioning. The companion store follows the same shape with `src/pdfstore/schema/` and `src/pdfstore/internal/sql/`, and `src/tools/prepare-osf/` keeps a private generated export package because its statements are maintenance orchestration.
 
 Relationship SQL lives with the family that owns the returned resource or the mutation, in a specifically named Go and SQL file such as `cache/cache_use.go` with `cache/schema/cache_use.sql`, `artifact/run_artifact.go` with `artifact/schema/run_artifact.sql`, or `work/reference.go` with `work/schema/reference.sql`. A family may declare the external table shapes its relationship queries need to compile without taking ownership of those tables.
 
@@ -309,7 +308,7 @@ The metadata schema includes pipeline planning and evidence, corpus revisions an
 
 The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated manual inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
 
-Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through family transactions. A reviewed run or a run used in review lineage is purge-ineligible.
+Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through family transactions. Foreign keys protect reviewed runs and their immutable review lineage.
 
 ## 12. Cache and network behavior
 

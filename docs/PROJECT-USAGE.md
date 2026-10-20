@@ -180,7 +180,6 @@ make vet
 make test-go PACKAGE=./server TEST='^TestGraph$'
 make test
 make test-race
-make test-migration-parity
 make coverage
 make check-sql
 make sql-report
@@ -191,8 +190,6 @@ make check
 ```
 
 `make test-go` enables unit, functional, and integration tags for the selected package and disables result caching. `make test` runs the same tag set across the module. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes.
-
-`make test-migration-parity` independently builds the frozen pre-sqlc revision `f06e5f90eb09b187988a952660cf2323248ad51e` and the working source, then runs the same run, artifact, cache, review, and PDF failure/retry scenarios against cloned production-migrated fixtures. It preserves exact null, empty, zero, relationship, audit, and query-count values while normalizing call-time clocks and generated identities consistently. The baseline Git object and cached Go dependencies must already exist locally; the target never fetches history or downloads dependencies. It is separate from default tests and writes unique evidence, source hashes, logs, and comparison JSON under `build/e2e/migration-parity/`.
 
 `make coverage` writes `build/coverage/coverage.out` and enforces [config/coverage_policy.something](../config/coverage_policy.something). The checker merges duplicate source ranges using the highest hit count and reports current, required, and delta coverage for tracked packages and high-risk files.
 

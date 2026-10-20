@@ -69,7 +69,7 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, _, err := metadata.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "normalized-conformance", SearchQuery: "query"})
+	runID, _, err := metadata.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "normalized-conformance", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -49,13 +49,13 @@ func seedRelationshipFixture(t *testing.T) *relationshipFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "fingerprint", ResolvedManifestHash: "manifest", InputManifestHash: "input",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "work-relationship"})
+	runID, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "work-relationship"})
 	if err != nil {
 		t.Fatal(err)
 	}

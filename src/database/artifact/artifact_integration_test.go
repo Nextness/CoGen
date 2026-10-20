@@ -12,6 +12,7 @@ import (
 
 	"analysis/database"
 	"analysis/database/artifact"
+	"analysis/internal/testfixture"
 
 	_ "modernc.org/sqlite"
 )
@@ -34,7 +35,7 @@ func openFamilyStore(t *testing.T) (*artifact.Store, *database.Database) {
 // createTestRun creates one pipeline run for artifact linkage and returns its ID.
 func createTestRun(t *testing.T, db *database.Database, step string) int64 {
 	t.Helper()
-	runID, err := db.Run.StartRun(context.Background(), step, "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), step, "")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}
@@ -43,24 +44,25 @@ func createTestRun(t *testing.T, db *database.Database, step string) int64 {
 
 // TestStoreCreateAndLookupPreservesIdentityAndDeduplicates verifies content-hash reuse and identity lookup.
 func TestStoreCreateAndLookupPreservesIdentityAndDeduplicates(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
+	runID := createTestRun(t, db, "artifact-lookup")
 
-	firstID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "sha256-abc", ContentType: "application/json", ByteSize: 1024})
+	firstID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "sha256-abc", ContentType: "application/json", ByteSize: 1024, PipelineRunID: runID, Data: make([]byte, 1024)})
 	if err != nil {
 		t.Fatalf("create artifact: %v", err)
 	}
 	if firstID == 0 {
 		t.Fatal("expected non-zero artifact id")
 	}
-	secondID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "sha256-abc", ContentType: "application/json", ByteSize: 1024})
+	secondID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "sha256-abc", ContentType: "application/json", ByteSize: 1024, PipelineRunID: runID, Data: make([]byte, 1024)})
 	if err != nil {
 		t.Fatalf("create duplicate artifact: %v", err)
 	}
 	if secondID != firstID {
 		t.Fatalf("duplicate artifact id = %d, want %d", secondID, firstID)
 	}
-	thirdID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "sha256-def", ContentType: "text/plain", ByteSize: 512})
+	thirdID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "sha256-def", ContentType: "text/plain", ByteSize: 512, PipelineRunID: runID, Data: make([]byte, 512)})
 	if err != nil {
 		t.Fatalf("create distinct artifact: %v", err)
 	}
@@ -93,22 +95,6 @@ func TestStoreCreateAndLookupPreservesIdentityAndDeduplicates(t *testing.T) {
 	}
 }
 
-// TestStoreCreateRejectsConflictingMetadata verifies a repeated identity cannot conceal different metadata.
-func TestStoreCreateRejectsConflictingMetadata(t *testing.T) {
-	store, _ := openFamilyStore(t)
-	ctx := context.Background()
-
-	if _, err := store.Create(ctx, artifact.CreateInput{ContentHash: "content-hash", ContentType: "application/json", ByteSize: 3}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.Create(ctx, artifact.CreateInput{ContentHash: "content-hash", ContentType: "text/plain", ByteSize: 3}); err == nil {
-		t.Fatal("expected conflicting content type to fail")
-	}
-	if _, err := store.Create(ctx, artifact.CreateInput{ContentHash: "content-hash", ContentType: "application/json", ByteSize: 4}); err == nil {
-		t.Fatal("expected conflicting byte size to fail")
-	}
-}
-
 // TestStoreCreateWithBlobIsAtomicAndIdempotent verifies the artifact and bytes commit together and replay safely.
 func TestStoreCreateWithBlobIsAtomicAndIdempotent(t *testing.T) {
 	store, db := openFamilyStore(t)
@@ -134,8 +120,16 @@ func TestStoreCreateWithBlobIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if blob == nil || string(blob.Data) != "one" || blob.PipelineRunID != runID {
+	if blob == nil || blob.ID == 0 || blob.CreatedAt == "" || string(blob.Data) != "one" || blob.PipelineRunID != runID {
 		t.Fatalf("stored blob = %+v", blob)
+	}
+	if missing, err := store.GetBlobByArtifactID(ctx, 99999); err != nil || missing != nil {
+		t.Fatalf("missing blob = %+v err=%v, want nil without error", missing, err)
+	}
+	if _, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
+		ContentHash: "atomic-hash", ContentType: "application/json", ByteSize: 4, PipelineRunID: runID, Data: []byte("four"),
+	}); err == nil {
+		t.Fatal("expected conflicting stored byte size to fail")
 	}
 
 	if _, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
@@ -211,7 +205,7 @@ func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T) {
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Create(context.Background(), artifact.CreateInput{ContentHash: "closed"}); err == nil {
+	if _, err := store.CreateWithBlob(context.Background(), artifact.CreateWithBlobInput{ContentHash: "closed", ByteSize: 1, PipelineRunID: 1, Data: []byte("x")}); err == nil {
 		t.Fatal("store used a connection the constructor opened instead of the supplied one")
 	}
 }

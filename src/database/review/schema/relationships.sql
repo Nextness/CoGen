@@ -174,7 +174,6 @@ SELECT
     CAST(version.body IS NOT NULL AS INTEGER) AS has_body,
     version.created_at AS version_created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST((SELECT COUNT(*) FROM review_note_links all_links WHERE all_links.note_version_id = version.id) AS INTEGER) AS link_count
 FROM review_context_note_heads head
 JOIN review_note_versions version ON version.id = head.note_version_id AND version.state = 'active'

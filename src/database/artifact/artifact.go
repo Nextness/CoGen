@@ -29,43 +29,6 @@ func New(db *sql.DB) *Store {
 	return &Store{db: db, queries: generated.New(db)}
 }
 
-// Create inserts a new artifact. Returns the artifact ID.
-// If the content_hash already exists, returns the existing artifact ID.
-func (s *Store) Create(ctx context.Context, input CreateInput) (int64, error) {
-	result, err := s.queries.InsertArtifact(ctx, generated.InsertArtifactParams{
-		ContentHash: input.ContentHash,
-		ByteSize:    input.ByteSize,
-		ContentType: input.ContentType,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("create artifact: %w", err)
-	}
-	inserted, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	if inserted > 0 {
-		id, err := result.LastInsertId()
-		if err != nil {
-			return 0, err
-		}
-		return id, nil
-	}
-
-	// Already exists - return existing ID after verifying compatible metadata.
-	existing, err := s.GetByHash(ctx, input.ContentHash)
-	if err != nil {
-		return 0, err
-	}
-	if existing == nil {
-		return 0, fmt.Errorf("create artifact: insert skipped but existing row not found")
-	}
-	if existing.ByteSize != input.ByteSize || existing.ContentType != input.ContentType {
-		return 0, fmt.Errorf("create artifact: content hash %q conflicts with stored metadata", input.ContentHash)
-	}
-	return existing.ID, nil
-}
-
 // CreateWithBlob atomically records an artifact and its bytes for a pipeline
 // run. An existing content identity is reused only when its stored metadata and
 // bytes match; every partial write rolls back on mismatch.

@@ -67,6 +67,16 @@ func TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields(t *testing.T)
 	if missing, err := store.GetRevisionByID(ctx, 99999); err != nil || missing != nil {
 		t.Fatalf("missing revision = %+v err=%v, want nil without error", missing, err)
 	}
+	minimalID, err := store.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageParse,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	minimal, err := store.GetRevisionByID(ctx, minimalID)
+	if err != nil || minimal == nil || minimal.Title != "" || minimal.Year != 0 || minimal.Journal != "" {
+		t.Fatalf("minimal revision = %+v err=%v, want zero-valued metadata", minimal, err)
+	}
 }
 
 // TestStoreRevisionsAreImmutableAndOrdered verifies revisions accumulate in
@@ -110,6 +120,9 @@ func TestStoreRevisionsAreImmutableAndOrdered(t *testing.T) {
 	}
 	if absent, err := store.ListRevisionsByWorkID(ctx, 99999); err != nil || absent != nil {
 		t.Fatalf("absent revision list = %+v err=%v, want nil without error", absent, err)
+	}
+	if absent, err := store.ListRevisionsByRunID(ctx, 99999); err != nil || absent != nil {
+		t.Fatalf("absent run revision list = %+v err=%v, want nil without error", absent, err)
 	}
 	count, err := store.CountRevisionsByWorkID(ctx, workID)
 	if err != nil {

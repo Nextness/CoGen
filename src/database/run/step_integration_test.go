@@ -9,8 +9,8 @@ import (
 	"regexp"
 	"testing"
 
-	"analysis/database/artifact"
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // stepTimestampPattern matches the microsecond-precision persisted stage format.
@@ -18,9 +18,9 @@ var stepTimestampPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d
 
 // TestStoreStepLifecyclePreservesStatusAndTimestamps verifies stage validation, terminal finish times, ordering, and empty-list identity.
 func TestStoreStepLifecyclePreservesStatusAndTimestamps(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "steps", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "steps", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,19 +75,19 @@ func TestStoreStepLifecyclePreservesStatusAndTimestamps(t *testing.T) {
 func TestStoreStepLinksAndFingerprintsPreserveReuseEvidence(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "step-links", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "step-links", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	priorRunID, err := store.StartRun(ctx, "step-reuse-source", "")
+	priorRunID, err := testfixture.Run(ctx, db.RawDBForTest(), "step-reuse-source", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	inputArtifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "step-input-hash", ContentType: "application/json", ByteSize: 10})
+	inputArtifactID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "step-input-hash", "application/json", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	outputArtifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "step-output-hash", ContentType: "application/json", ByteSize: 20})
+	outputArtifactID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "step-output-hash", "application/json", 20)
 	if err != nil {
 		t.Fatal(err)
 	}

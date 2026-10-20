@@ -1,5 +1,5 @@
-// characterization_integration_test.go pins viewer request-context behavior
-// that the migration must preserve across the HTTP-to-repository boundary.
+// characterization_integration_test.go verifies canceled viewer requests leave
+// no partial review mutations across the HTTP-to-store boundary.
 //go:build integration
 
 package server

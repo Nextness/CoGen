@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"analysis/database/artifact"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreCreateWithBlobRejectsMissingRun verifies a foreign-key violation
@@ -35,7 +36,7 @@ func TestStoreCreateWithBlobRejectsExistingMetadataConflict(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-metadata-conflict")
-	if _, err := store.Create(ctx, artifact.CreateInput{ContentHash: "metadata-conflict", ContentType: "application/json", ByteSize: 1}); err != nil {
+	if _, err := testfixture.Artifact(ctx, db.RawDBForTest(), "metadata-conflict", "application/json", 1); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,20 +51,6 @@ func TestStoreCreateWithBlobRejectsExistingMetadataConflict(t *testing.T) {
 	}
 	if blob != nil {
 		t.Fatalf("conflicting metadata write stored a blob: %+v", blob)
-	}
-}
-
-// TestStoreCreateReportsIgnoredInsertWithoutExistingRow verifies an ignored
-// insert that leaves no row is reported instead of returning a phantom ID.
-func TestStoreCreateReportsIgnoredInsertWithoutExistingRow(t *testing.T) {
-	store, db := openFamilyStore(t)
-	ctx := context.Background()
-	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_artifact_insert BEFORE INSERT ON artifacts BEGIN SELECT RAISE(IGNORE); END"); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := store.Create(ctx, artifact.CreateInput{ContentHash: "ignored", ContentType: "application/json", ByteSize: 1}); err == nil {
-		t.Fatal("expected an ignored insert without an existing row to fail")
 	}
 }
 
@@ -118,25 +105,6 @@ func TestStoreCreateWithBlobReportsIgnoredBlobInsert(t *testing.T) {
 	}
 }
 
-// TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow verifies an ignored
-// blob insert that leaves no row is reported instead of returning a phantom ID.
-func TestStoreCreateBlobReportsIgnoredInsertWithoutExistingRow(t *testing.T) {
-	store, db := openFamilyStore(t)
-	ctx := context.Background()
-	runID := createTestRun(t, db, "artifact-ignored-blob-create")
-	artifactID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "ignored-blob-create", ContentType: "application/json", ByteSize: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.RawDBForTest().Exec("CREATE TRIGGER ignore_blob_insert BEFORE INSERT ON artifact_blobs BEGIN SELECT RAISE(IGNORE); END"); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("x")}); err == nil {
-		t.Fatal("expected an ignored blob insert without an existing row to fail")
-	}
-}
-
 // TestStoreOperationsHonorCanceledContext verifies canceled contexts propagate
 // through reads and transaction-owned writes.
 func TestStoreOperationsHonorCanceledContext(t *testing.T) {
@@ -149,10 +117,7 @@ func TestStoreOperationsHonorCanceledContext(t *testing.T) {
 		name string
 		call func() error
 	}{
-		{"Create", func() error {
-			_, err := store.Create(ctx, artifact.CreateInput{ContentHash: "canceled", ContentType: "application/json", ByteSize: 1})
-			return err
-		}},
+
 		{"CreateWithBlob", func() error {
 			_, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
 				ContentHash: "canceled-atomic", ContentType: "application/json", ByteSize: 1, PipelineRunID: runID, Data: []byte("x"),
@@ -161,10 +126,7 @@ func TestStoreOperationsHonorCanceledContext(t *testing.T) {
 		}},
 		{"GetByHash", func() error { _, err := store.GetByHash(ctx, "canceled"); return err }},
 		{"GetByID", func() error { _, err := store.GetByID(ctx, 1); return err }},
-		{"CreateBlob", func() error {
-			_, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: 1, PipelineRunID: runID, Data: []byte("x")})
-			return err
-		}},
+
 		{"GetBlobByArtifactID", func() error { _, err := store.GetBlobByArtifactID(ctx, 1); return err }},
 		{"GetContent", func() error { _, err := store.GetContent(ctx, 1); return err }},
 		{"GetPreview", func() error { _, err := store.GetPreview(ctx, 1, 5); return err }},

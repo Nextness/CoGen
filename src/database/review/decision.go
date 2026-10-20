@@ -185,7 +185,7 @@ func (s *Store) ListWorkReviewVersions(ctx context.Context, contextID, workRevis
 			ParentVersionID:    nullInt64Pointer(row.ParentVersionID),
 			Status:             row.Status,
 			CreatedAt:          row.CreatedAt,
-			ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername, row.ReviewerEmail),
+			ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername),
 		}
 		item.Reason, item.ReasonTruncated = boundedPreview(row.ReasonPreview, row.ReasonBytes, row.HasReason != 0).optional()
 		if err := json.Unmarshal([]byte(row.SubstatusesJson), &item.Substatuses); err != nil {
@@ -226,7 +226,7 @@ func (s *Store) getWorkReviewVersion(ctx context.Context, queries *generated.Que
 		ParentVersionID:    nullInt64Pointer(row.ParentVersionID),
 		Status:             row.Status,
 		CreatedAt:          row.CreatedAt,
-		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername, row.ReviewerEmail),
+		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername),
 	}
 	if row.Reason.Valid {
 		item.Reason = &row.Reason.String

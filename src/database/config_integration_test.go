@@ -10,11 +10,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"analysis/internal/testfixture"
 )
 
 // TestBaselineAppliesCorrectly verifies that a new temporary database opens
-// with the single workspace baseline, has all required tables, indexes, and
-// triggers, and reopens without reapplying the baseline.
+// with the production metadata migration chain, has all required tables,
+// indexes, and triggers, and reopens without reapplying migrations.
 func TestBaselineAppliesCorrectly(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
@@ -172,9 +174,9 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateWorkByDOI: %v", err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "baseline test", "q")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "baseline test", "q")
 	if err != nil {
-		t.Fatalf("StartRun: %v", err)
+		t.Fatalf("insert run fixture: %v", err)
 	}
 	_, err = db.RawDBForTest().Exec(
 		"INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome, reason) VALUES (?, ?, 'parse', 'parsed', 'baseline default')",
@@ -296,45 +298,8 @@ db_migration: setup = {
 	}
 }
 
-// TestV00003MigrationApplies verifies that the V00003 migration is applied
-// after V00002, creating the four append-only triggers.
-func TestV00003MigrationApplies(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	// Five migrations should be applied: V00001 through V00005.
-	var count int
-	err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if count != 28 {
-		t.Fatalf("expected 28 applied migrations, got %d", count)
-	}
-
-	// Verify the four append-only triggers exist
-	expectedTriggers := []string{
-		"author_occurrences_abort_update", "author_occurrences_abort_delete",
-		"authorships_abort_update", "authorships_abort_delete",
-	}
-	for _, name := range expectedTriggers {
-		var n int
-		err := db.RawDBForTest().QueryRow(
-			"SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name,
-		).Scan(&n)
-		if err != nil {
-			t.Fatalf("query trigger %s: %v", name, err)
-		}
-		if n != 1 {
-			t.Errorf("expected trigger %q to exist", name)
-		}
-	}
-}
-
 // TestV00002ToV00003Upgrade verifies that an existing database with V00001 and
-// V00002 upgrades correctly when V00003 is added to the config. This is a
-// true upgrade regression test, distinct from TestV00003MigrationApplies which
-// opens a fresh database with all three migrations already configured.
+// V00002 upgrades correctly when V00003 is added to the config.
 func TestV00002ToV00003Upgrade(t *testing.T) {
 	tempDir := t.TempDir()
 	migrationsDir := filepath.Join(tempDir, "migrations")
@@ -584,56 +549,6 @@ db_migration: setup = {
 	_, err = db.RawDBForTest().Exec("INSERT INTO people (orcid) VALUES ('   ')")
 	if err == nil || !strings.Contains(err.Error(), "people.orcid must not be null, empty, or whitespace") {
 		t.Fatalf("expected non-blank ORCID guard after upgrade, got: %v", err)
-	}
-}
-
-// TestV00002MigrationApplies verifies that the V00002 migration is applied
-// after the baseline, creating the people, author_occurrences, and
-// authorships tables with their indexes.
-func TestV00002MigrationApplies(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	// Five migrations should be applied: V00001 through V00005.
-	var count int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != 28 {
-		t.Fatalf("expected 28 applied metadata migrations, got %d", count)
-	}
-
-	// Verify the new tables exist
-	expectedTables := []string{"people", "author_occurrences", "authorships"}
-	for _, name := range expectedTables {
-		var n int
-		err := db.RawDBForTest().QueryRow(
-			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name,
-		).Scan(&n)
-		if err != nil {
-			t.Fatalf("query table %s: %v", name, err)
-		}
-		if n != 1 {
-			t.Errorf("expected table %q to exist", name)
-		}
-	}
-
-	// Verify the new indexes exist
-	expectedIndexes := []string{
-		"idx_author_occurrences_person", "idx_author_occurrences_orcid",
-		"idx_authorships_revision", "idx_authorships_occurrence",
-	}
-	for _, name := range expectedIndexes {
-		var n int
-		err := db.RawDBForTest().QueryRow(
-			"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name,
-		).Scan(&n)
-		if err != nil {
-			t.Fatalf("query index %s: %v", name, err)
-		}
-		if n != 1 {
-			t.Errorf("expected index %q to exist", name)
-		}
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/internal/testfixture"
 )
 
 // TestViewerMetadataPreservesNullEmptyAndZero verifies optional article,
@@ -34,7 +35,7 @@ func TestViewerMetadataPreservesNullEmptyAndZero(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { metadata.Close() })
-			runID, err := metadata.Run.StartRun(context.Background(), "nullability", "")
+			runID, err := testfixture.Run(context.Background(), metadata.RawDBForTest(), "nullability", "")
 			if err != nil {
 				t.Fatal(err)
 			}

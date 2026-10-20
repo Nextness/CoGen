@@ -574,32 +574,3 @@ func positiveID(raw string) (int64, error) {
 	}
 	return id, nil
 }
-
-// rowsAsMaps scans SQL rows into maps keyed by result-column name.
-func rowsAsMaps(rows *sql.Rows) ([]map[string]any, error) {
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-	result := make([]map[string]any, 0)
-	for rows.Next() {
-		values := make([]any, len(columns))
-		pointers := make([]any, len(columns))
-		for i := range values {
-			pointers[i] = &values[i]
-		}
-		if err := rows.Scan(pointers...); err != nil {
-			return nil, err
-		}
-		row := make(map[string]any, len(columns))
-		for i, value := range values {
-			if bytes, ok := value.([]byte); ok {
-				row[columns[i]] = string(bytes)
-			} else {
-				row[columns[i]] = value
-			}
-		}
-		result = append(result, row)
-	}
-	return result, rows.Err()
-}

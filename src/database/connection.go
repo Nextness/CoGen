@@ -188,9 +188,3 @@ func (d *Database) Writable(ctx context.Context) (bool, error) {
 	}
 	return queryOnly == 0, nil
 }
-
-// BeginTx starts a transaction on the wrapped connection for approved
-// coordinators that must keep related writes atomic.
-func (d *Database) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	return d.db.BeginTx(ctx, opts)
-}

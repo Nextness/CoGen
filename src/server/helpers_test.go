@@ -20,6 +20,7 @@ import (
 	"analysis/database/run"
 	"analysis/database/search"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/pdfstore"
 )
 
@@ -220,7 +221,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		}
 		return id
 	}
-	runID, err := db.Run.StartRun(context.Background(), "viewer", "reference resolution")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "viewer", "reference resolution")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,11 +334,11 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 			t.Fatal(err)
 		}
 	}
-	previousRunID, err := db.Run.StartRun(context.Background(), "viewer", "prior article activity")
+	previousRunID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "viewer", "prior article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "viewer", "article activity")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "viewer", "article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +454,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipelineRunID, _, err := metadata.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "query"})
+	pipelineRunID, _, err := metadata.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}

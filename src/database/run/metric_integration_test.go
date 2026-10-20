@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"analysis/database/run"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreMetricSetAndReadPreservesUpsertAndOrdering verifies replace-by-key semantics, ordering, whole-run sources, and absent-read identity.
 func TestStoreMetricSetAndReadPreservesUpsertAndOrdering(t *testing.T) {
-	store, _ := openFamilyStore(t)
+	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := store.StartRun(ctx, "metrics", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}

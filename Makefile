@@ -34,7 +34,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-migration-parity test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup sql-report import-report
+.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup sql-report import-report
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -182,9 +182,6 @@ test-e2e: build frontend-build something-printer pdf-store ## Run offline pipeli
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2E(Deterministic|Mocked)$$' -count=1
 	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.ts --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.ts
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EReviewEvidence$$' -count=1
-
-test-migration-parity: ## Compare frozen pre-sqlc and current implementations offline; requires baseline Git history.
-	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EDatabaseMigrationParity$$' -count=1 -v
 
 test-e2e-live: build something-printer ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
 	@test "$(E2E_LIVE)" = "1" || (printf '%s\n' 'Set E2E_LIVE=1 to permit real provider requests.' >&2; exit 2)

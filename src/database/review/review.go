@@ -143,7 +143,7 @@ func sameNullableID(left, right *int64) bool {
 }
 
 // reviewerDisplay exposes only the optional username and never places reviewer email in portable API responses.
-func reviewerDisplay(username, _ string) string {
+func reviewerDisplay(username string) string {
 	username = strings.TrimSpace(username)
 	if username != "" {
 		return username

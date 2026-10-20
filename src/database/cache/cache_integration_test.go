@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"analysis/database"
-	"analysis/database/artifact"
+	"analysis/internal/testfixture"
+
 	"analysis/database/cache"
 	"analysis/manifest"
 )
@@ -52,17 +53,22 @@ func appendTestEntry(t *testing.T, store *cache.Store, key cache.Key, status int
 func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "cache-payload-a", ContentType: "application/json", ByteSize: 12})
+	artifactID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "cache-payload-a", "application/json", 12)
 	if err != nil {
 		t.Fatal(err)
 	}
 	firstID, err := store.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a",
 		ResponseStatus: 200, PayloadArtifactID: &artifactID,
-		FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1",
+		FetchedAt: "2026-07-22T00:00:00Z", ExpiresAt: "2026-07-24T00:00:00Z", ExtractorVersion: "1",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	first, err := store.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
+	if err != nil || first == nil || first.ID != firstID || first.PayloadArtifactID == nil ||
+		*first.PayloadArtifactID != artifactID || first.ExpiresAt != "2026-07-24T00:00:00Z" {
+		t.Fatalf("first entry = %+v err=%v, want payload %d and explicit expiry", first, err, artifactID)
 	}
 	secondID, err := store.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a",
@@ -132,7 +138,7 @@ func TestStoreAppendEntrySeparatesKeysAndNullableFields(t *testing.T) {
 func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-global", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-global", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +174,7 @@ func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T) {
 func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-replay", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-replay", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,13 +203,21 @@ func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 	if entry, err := store.FindAnyEntry(ctx, runID+999, key); err != nil || entry != nil {
 		t.Fatalf("run mismatch = %+v err=%v, want nil without error", entry, err)
 	}
+	latest, err := store.LatestEntry(ctx, key)
+	if err != nil || latest == nil || latest.ID != newerID || latest.ResponseStatus != 404 {
+		t.Fatalf("latest entry = %+v err=%v, want newer %d", latest, err, newerID)
+	}
+	uses, err := store.ListUsesByRun(ctx, runID)
+	if err != nil || len(uses) != 1 || uses[0].CacheEntryID != recordedID {
+		t.Fatalf("recorded uses = %+v err=%v, want original entry %d", uses, err, recordedID)
+	}
 }
 
 // TestStoreFindAnyEntryMatchesRunScopedExtractorVersions verifies the prior-run read accepts run-scoped extractor version suffixes.
 func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-scoped", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-scoped", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +253,7 @@ func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T) {
 func TestStoreListUsesByRunPreservesOrderAndEmptyIdentity(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-family-uses", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-family-uses", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +378,7 @@ func TestStoreContextCancellationLeavesNoRows(t *testing.T) {
 func TestStoreListCacheUsesForRunOrdersSearchesAndPaginates(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-viewer", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-viewer", "")
 	if err != nil {
 		t.Fatal(err)
 	}

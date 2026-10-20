@@ -92,6 +92,11 @@ type approvedLocation struct {
 // without an entry because bypassing the family DALs is their subject.
 var approvedLocations = []approvedLocation{
 	{
+		Path:     "src/internal/testfixture/rows.go",
+		Category: categoryTest,
+		Reason:   "integration/e2e-only fixture seeds intentionally create historical runs and artifacts without blobs; production uses guarded family writers.",
+	},
+	{
 		Path:     "src/database/connection.go",
 		Category: categoryPlatform,
 		Reason:   "SQLite URI pragmas and the query_only probe are connection platform behavior.",

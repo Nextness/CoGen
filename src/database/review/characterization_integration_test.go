@@ -1,6 +1,5 @@
-// characterization_integration_test.go pins the review compare-and-swap,
-// context-cancellation, and transaction-rollback contracts that the legacy
-// root characterization suite covered before the family relocation.
+// characterization_integration_test.go verifies review compare-and-swap,
+// context cancellation, and transaction rollback through the review store.
 //go:build integration
 
 package review_test

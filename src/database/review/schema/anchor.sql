@@ -123,8 +123,7 @@ SELECT
     CAST(version.selected_text IS NOT NULL AS INTEGER) AS has_selected_text,
     version.rectangles_json,
     version.created_at AS version_created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM review_context_anchor_heads head
 JOIN review_anchors logical ON logical.id = head.anchor_id
 JOIN review_context_work_heads work_head
@@ -179,8 +178,7 @@ SELECT
     CAST(version.selected_text IS NOT NULL AS INTEGER) AS has_selected_text,
     version.rectangles_json,
     version.created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM ancestry
 JOIN review_anchor_versions version ON version.id = ancestry.id
 JOIN review_contexts version_context ON version_context.id = version.created_in_context_id
@@ -216,8 +214,7 @@ SELECT
     version.selected_text,
     version.rectangles_json,
     version.created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM review_anchor_versions version
 JOIN review_contexts context ON context.id = version.created_in_context_id
 LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id = context.pipeline_run_id

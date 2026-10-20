@@ -23,23 +23,10 @@ const visibilityReasonLimit = 1000
 // ErrRunActive reports that a running attempt cannot change visibility.
 var ErrRunActive = errors.New("a running attempt cannot be moved to or restored from trash")
 
-// StartAttempt records the start of a pipeline run attempt linked to an
-// execution plan. It atomically computes the next attempt_number for the given
-// plan and retries on transient UNIQUE constraint conflicts or SQLITE_BUSY.
-// Returns the run ID and attempt number.
-func (s *Store) StartAttempt(ctx context.Context, input StartAttemptInput) (int64, int, error) {
-	return s.startAttempt(ctx, input, false)
-}
-
 // StartAttemptIfIdle starts a new attempt only when this execution plan has no
 // running attempt. The check and insert share one transaction so callers cannot
 // race from a separate read into duplicate active work.
 func (s *Store) StartAttemptIfIdle(ctx context.Context, input StartAttemptInput) (int64, int, error) {
-	return s.startAttempt(ctx, input, true)
-}
-
-// startAttempt atomically starts the next plan attempt, optionally rejecting an already-running attempt.
-func (s *Store) startAttempt(ctx context.Context, input StartAttemptInput, rejectRunning bool) (int64, int, error) {
 	const maxRetries = 50
 	var lastErr error
 
@@ -48,14 +35,12 @@ func (s *Store) startAttempt(ctx context.Context, input StartAttemptInput, rejec
 		var attemptNum int
 
 		err := s.withTx(ctx, func(queries *generated.Queries) error {
-			if rejectRunning {
-				runningID, err := queries.FindRunningAttemptByPlan(ctx, nullableInt64(input.ExecutionPlanID))
-				if err == nil {
-					return &AttemptAlreadyRunningError{ExecutionPlanID: input.ExecutionPlanID, PipelineRunID: runningID}
-				}
-				if !errors.Is(err, sql.ErrNoRows) {
-					return fmt.Errorf("lookup running attempt: %w", err)
-				}
+			runningID, err := queries.FindRunningAttemptByPlan(ctx, nullableInt64(input.ExecutionPlanID))
+			if err == nil {
+				return &AttemptAlreadyRunningError{ExecutionPlanID: input.ExecutionPlanID, PipelineRunID: runningID}
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("lookup running attempt: %w", err)
 			}
 
 			// Atomically determine the next attempt number within the transaction.
@@ -125,20 +110,6 @@ func (s *Store) FinishRun(ctx context.Context, runID int64, status, summary stri
 		Summary:    nullableString(summary),
 		ID:         runID,
 	})
-}
-
-// Trash marks a pipeline run as trashed (soft-deleted).
-func (s *Store) Trash(ctx context.Context, runID int64, reason string) error {
-	return s.queries.TrashRun(ctx, generated.TrashRunParams{
-		TrashedAt:   sql.NullString{String: runTimestamp(), Valid: true},
-		TrashReason: sql.NullString{String: reason, Valid: true},
-		ID:          runID,
-	})
-}
-
-// Restore sets a trashed pipeline run back to active visibility.
-func (s *Store) Restore(ctx context.Context, runID int64) error {
-	return s.queries.RestoreRun(ctx, runID)
 }
 
 // UpdateVisibility validates the requested state, rejects a running attempt,

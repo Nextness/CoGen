@@ -7,12 +7,12 @@ import (
 	"context"
 	"testing"
 
-	"analysis/database/artifact"
 	"analysis/database/author"
 	"analysis/database/run"
 	"analysis/database/search"
 	"analysis/database/source"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -47,22 +47,22 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// -- execution_plans
-	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 		SearchRevisionID: revID, ExecutionFingerprint: "exec-fp-001", ResolvedManifestHash: "manifest-hash-c3d4",
 	})
 	if err != nil {
-		t.Fatalf("Search.FindOrCreatePlan: %v", err)
+		t.Fatalf("Search.FindOrCreatePlanWithInputManifest: %v", err)
 	}
 	if planID == 0 {
 		t.Fatal("expected non-zero plan ID")
 	}
 
-	// -- pipeline_runs (attempt via StartAttempt)
-	runID, attemptNum, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{
+	// -- pipeline_runs (attempt via StartAttemptIfIdle)
+	runID, attemptNum, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{
 		ExecutionPlanID: planID, Step: "parse+enrich", SearchQuery: "TITLE-ABS-KEY(bpmn)",
 	})
 	if err != nil {
-		t.Fatalf("Run.StartAttempt: %v", err)
+		t.Fatalf("Run.StartAttemptIfIdle: %v", err)
 	}
 	if runID == 0 {
 		t.Fatal("expected non-zero run ID")
@@ -105,7 +105,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// -- artifacts
-	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "sha256-content-hash", ContentType: "application/json", ByteSize: 1024})
+	artifactID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "sha256-content-hash", "application/json", 1024)
 	if err != nil {
 		t.Fatalf("Artifact.Create: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	// 2. Trash and restore the run
 	// Trash
-	if err := db.Run.Trash(ctx, runID, "test-purge"); err != nil {
+	if _, err := db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: runID, VisibilityState: run.VisibilityTrashed, Reason: "test-purge"}); err != nil {
 		t.Fatalf("Run.Trash: %v", err)
 	}
 	trashedRun, err := db.Run.GetByID(ctx, runID)
@@ -181,7 +181,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// Restore
-	if err := db.Run.Restore(ctx, runID); err != nil {
+	if _, err := db.Run.UpdateVisibility(ctx, run.VisibilityInput{RunID: runID, VisibilityState: run.VisibilityActive}); err != nil {
 		t.Fatalf("Run.Restore: %v", err)
 	}
 	restoredRun, err := db.Run.GetByID(ctx, runID)
@@ -290,13 +290,13 @@ func TestCorpusModelSmokePhase25(t *testing.T) {
 		if err != nil {
 			t.Fatalf("create revision %s: %v", searchName, err)
 		}
-		planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		planID, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{InputManifestHash: "fixture-input",
 			SearchRevisionID: revisionID, ExecutionFingerprint: fingerprint, ResolvedManifestHash: "manifest-" + searchName,
 		})
 		if err != nil {
 			t.Fatalf("create plan %s: %v", searchName, err)
 		}
-		runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "pipeline", SearchQuery: searchName})
+		runID, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "pipeline", SearchQuery: searchName})
 		if err != nil {
 			t.Fatalf("start attempt %s: %v", searchName, err)
 		}

@@ -92,7 +92,6 @@ SELECT
     CAST(version.reason IS NOT NULL AS INTEGER) AS has_reason,
     version.created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST(COALESCE((SELECT json_group_array(sub_status) FROM (
         SELECT sub_status FROM work_review_version_substatuses
         WHERE review_version_id = version.id
@@ -131,8 +130,7 @@ SELECT
     version.status,
     version.reason,
     version.created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM work_review_versions version
 JOIN review_contexts context ON context.id = version.created_in_context_id
 LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id = context.pipeline_run_id

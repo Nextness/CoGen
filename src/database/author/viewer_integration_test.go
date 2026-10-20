@@ -11,6 +11,7 @@ import (
 
 	"analysis/database/author"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreGetOccurrenceForRunPreservesMembershipAndNullableIdentity verifies
@@ -18,7 +19,7 @@ import (
 func TestStoreGetOccurrenceForRunPreservesMembershipAndNullableIdentity(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-viewer", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-viewer", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestStoreGetOccurrenceForRunPreservesMembershipAndNullableIdentity(t *testi
 func TestStoreIdentityEvidenceStatsCountsRunOutcomes(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-viewer", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-viewer", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +139,7 @@ func TestStoreIdentityEvidenceStatsCountsRunOutcomes(t *testing.T) {
 func TestStoreListIdentityEvidenceSearchesSortsAndPages(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-evidence-list", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-evidence-list", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +219,7 @@ func TestStoreListIdentityEvidenceSearchesSortsAndPages(t *testing.T) {
 func TestStoreListIdentityCandidatesCursorsAndPreviews(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-candidates", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-candidates", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +298,7 @@ func TestStoreListIdentityCandidatesCursorsAndPreviews(t *testing.T) {
 func TestStoreListAuthorIdentityEvidenceCarriesSameNameEvidence(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-detail-evidence", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-detail-evidence", "")
 	if err != nil {
 		t.Fatal(err)
 	}

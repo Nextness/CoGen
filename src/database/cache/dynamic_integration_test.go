@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"analysis/database/cache"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreListCacheUsesForRunConstrainsDynamicInputs verifies the retained
@@ -19,7 +20,7 @@ import (
 func TestStoreListCacheUsesForRunConstrainsDynamicInputs(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "cache-viewer-dynamic", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "cache-viewer-dynamic", "")
 	if err != nil {
 		t.Fatal(err)
 	}

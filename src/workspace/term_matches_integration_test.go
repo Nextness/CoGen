@@ -15,6 +15,7 @@ import (
 	"analysis/database"
 	dbsource "analysis/database/source"
 	dbwork "analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -25,7 +26,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "term matches", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "term matches", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +102,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "reconcile", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "reconcile", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +187,7 @@ func TestReconcileStoredTermMatchesNullQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "reconcile null", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "reconcile null", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +217,7 @@ func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "reconcile no revisions", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "reconcile no revisions", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +254,7 @@ func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.Run.StartRun(context.Background(), "reconcile failure", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "reconcile failure", "")
 	if err != nil {
 		t.Fatal(err)
 	}

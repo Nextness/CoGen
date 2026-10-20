@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"analysis/database/author"
+	"analysis/internal/testfixture"
 )
 
 // TestStoreListIdentityEvidenceConstrainsDynamicInputs verifies the retained
@@ -19,7 +20,7 @@ import (
 func TestStoreListIdentityEvidenceConstrainsDynamicInputs(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
-	runID, err := db.Run.StartRun(ctx, "author-evidence-dynamic", "")
+	runID, err := testfixture.Run(ctx, db.RawDBForTest(), "author-evidence-dynamic", "")
 	if err != nil {
 		t.Fatal(err)
 	}

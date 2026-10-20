@@ -1,6 +1,5 @@
-// platform_methods_integration_test.go verifies the narrow platform methods
-// that let health checks and approved coordinators avoid the exported raw
-// connection.
+// platform_methods_integration_test.go verifies health and writability checks
+// through the metadata platform's narrow API.
 //go:build integration
 
 package database
@@ -53,48 +52,5 @@ func TestDatabaseWritableReflectsQueryOnly(t *testing.T) {
 	writable, err = db.Writable(ctx)
 	if err != nil || writable {
 		t.Fatalf("Writable = %v err=%v, want false", writable, err)
-	}
-}
-
-// TestDatabaseBeginTxCommitAndRollback verifies the platform transaction entry point commits and rolls back related writes.
-func TestDatabaseBeginTxCommitAndRollback(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-	ctx := context.Background()
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO searches (search_id) VALUES ('rollback')"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Rollback(); err != nil {
-		t.Fatal(err)
-	}
-	assertSearchCount(t, db, "rollback", 0)
-
-	tx, err = db.BeginTx(ctx, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tx.ExecContext(ctx, "INSERT INTO searches (search_id) VALUES ('commit')"); err != nil {
-		t.Fatal(err)
-	}
-	if err := tx.Commit(); err != nil {
-		t.Fatal(err)
-	}
-	assertSearchCount(t, db, "commit", 1)
-}
-
-// assertSearchCount verifies the number of searches with the supplied identifier.
-func assertSearchCount(t *testing.T, db *Database, searchID string, want int) {
-	t.Helper()
-	var count int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM searches WHERE search_id=?", searchID).Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != want {
-		t.Fatalf("searches %q = %d, want %d", searchID, count, want)
 	}
 }

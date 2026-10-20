@@ -20,6 +20,7 @@ import (
 	"analysis/database"
 	dbcache "analysis/database/cache"
 	"analysis/enrich"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -30,7 +31,7 @@ func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*databas
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "cache-test", "")
 	if err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -61,7 +62,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil || response.Layer != "network" || calls != 1 {
 		t.Fatalf("first response = %+v, %v, calls=%d", response, err, calls)
 	}
-	secondRunID, err := db.Run.StartRun(context.Background(), "cache-test", "")
+	secondRunID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -387,7 +388,7 @@ func TestWorkspaceOpenAlexReferenceCacheUsesSQLitePolicy(t *testing.T) {
 // openWorkspaceCacheTestForDB supports the package test suite's open workspace cache test for db setup or assertions.
 func openWorkspaceCacheTestForDB(t *testing.T, db *database.Database, policy manifest.CachePolicy) (*database.Database, *workspaceCache, int64) {
 	t.Helper()
-	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

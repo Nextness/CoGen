@@ -107,7 +107,6 @@ SELECT
     CAST(version.body IS NOT NULL AS INTEGER) AS has_body,
     version.created_at AS version_created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST((SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id = version.id) AS INTEGER) AS link_count
 FROM review_context_note_heads head
 JOIN review_context_work_heads work_head ON work_head.review_context_id = head.review_context_id
@@ -150,7 +149,6 @@ SELECT
     CAST(version.body IS NOT NULL AS INTEGER) AS has_body,
     version.created_at,
     CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email,
     CAST((SELECT COUNT(*) FROM review_note_links link WHERE link.note_version_id = version.id) AS INTEGER) AS link_count
 FROM ancestry
 JOIN review_note_versions version ON version.id = ancestry.id
@@ -183,8 +181,7 @@ SELECT
     version.state,
     version.body,
     version.created_at,
-    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username,
-    CAST(COALESCE(reviewer.email, '') AS TEXT) AS reviewer_email
+    CAST(COALESCE(reviewer.username, '') AS TEXT) AS reviewer_username
 FROM review_note_versions version
 JOIN review_contexts context ON context.id = version.created_in_context_id
 LEFT JOIN pipeline_run_reviewers reviewer ON reviewer.pipeline_run_id = context.pipeline_run_id

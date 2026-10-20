@@ -14,6 +14,7 @@ import (
 	"analysis/database"
 	"analysis/database/audit"
 	"analysis/database/work"
+	"analysis/internal/testfixture"
 	"analysis/manifest"
 )
 
@@ -35,7 +36,7 @@ func openFamilyStore(t *testing.T) (*audit.Store, *database.Database) {
 // createTestRun creates one pipeline run for audit linkage and returns its ID.
 func createTestRun(t *testing.T, db *database.Database, step string) int64 {
 	t.Helper()
-	runID, err := db.Run.StartRun(context.Background(), step, "")
+	runID, err := testfixture.Run(context.Background(), db.RawDBForTest(), step, "")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}
@@ -66,12 +67,19 @@ func TestStoreInsertAndListPreservesOrderingAndNullableFields(t *testing.T) {
 	if firstID == 0 || secondID == 0 || firstID == secondID {
 		t.Fatalf("insert ids = %d, %d", firstID, secondID)
 	}
+	thirdID, err := store.Insert(ctx, &manifest.AuditEvent{
+		OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline", PipelineRunID: runID,
+		EntityType: "pipeline_run", EntityID: "1", Action: manifest.AuditRunStarted,
+	})
+	if err != nil {
+		t.Fatalf("insert earlier event: %v", err)
+	}
 
 	events, err := store.ListByRun(ctx, runID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 1 || events[0].ID != firstID {
+	if len(events) != 2 || events[0].ID != firstID || events[1].ID != thirdID {
 		t.Fatalf("run events = %+v", events)
 	}
 	if events[0].PipelineRunID == nil || *events[0].PipelineRunID != runID ||
@@ -86,7 +94,8 @@ func TestStoreInsertAndListPreservesOrderingAndNullableFields(t *testing.T) {
 	if len(byEntity) != 1 || byEntity[0].ID != secondID {
 		t.Fatalf("entity events = %+v", byEntity)
 	}
-	if byEntity[0].PipelineRunID != nil || byEntity[0].BeforeJSON != "" || byEntity[0].AfterJSON != "" {
+	if byEntity[0].PipelineRunID != nil || byEntity[0].BeforeJSON != "" || byEntity[0].AfterJSON != "" ||
+		byEntity[0].MetadataJSON != "" || byEntity[0].CorrelationID != "" {
 		t.Fatalf("minimal event nullable fields = %+v", byEntity[0])
 	}
 

@@ -55,8 +55,9 @@ func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if external == nil || external.ResolvedWorkID != 0 || external.DOI != "" {
-		t.Fatalf("external reference = %+v, want unresolved empty DOI", external)
+	if external == nil || external.ResolvedWorkID != 0 || external.DOI != "" ||
+		external.Title != "" || external.Author != "" || external.Year != 0 || external.Source != "" {
+		t.Fatalf("external reference = %+v, want unresolved zero-valued metadata", external)
 	}
 
 	ordered, err := store.ListReferencesByRevisionID(ctx, revisionID)
@@ -75,6 +76,9 @@ func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T) {
 	}
 	if len(citing) != 1 || citing[0].ID != second {
 		t.Fatalf("references by resolved work = %+v", citing)
+	}
+	if absent, err := store.ListReferencesByResolvedWorkID(ctx, 99999); err != nil || absent == nil || len(absent) != 0 {
+		t.Fatalf("absent citing reference list = %+v err=%v, want empty non-nil without error", absent, err)
 	}
 	if missing, err := store.GetReferenceByID(ctx, 99999); err != nil || missing != nil {
 		t.Fatalf("missing reference = %+v err=%v, want nil without error", missing, err)

@@ -19,6 +19,9 @@ import (
 func TestReviewParentSelection(t *testing.T) {
 	db, a1Run, a2Run, _, _ := newReviewLineageFixture(t)
 	ctx := context.Background()
+	if missing, err := db.Review.GetContextByRun(ctx, 999); err != nil || missing != nil {
+		t.Fatalf("missing context = %+v err=%v, want nil without error", missing, err)
+	}
 	if proposed, err := db.Review.ProposeParent(ctx, a1Run); err != nil || proposed != nil {
 		t.Fatalf("first run proposed parent=%+v err=%v", proposed, err)
 	}
@@ -44,13 +47,13 @@ func TestReviewParentSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondPlan, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	secondPlan, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: secondRevision, ExecutionFingerprint: "fingerprint-r2", ResolvedManifestHash: "manifest-r2", InputManifestHash: "input-r2",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	sameSearchRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: secondPlan, Step: "review"})
+	sameSearchRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: secondPlan, Step: "review"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,21 +78,21 @@ func TestReviewParentSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	crossPlan, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+	crossPlan, err := db.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
 		SearchRevisionID: crossRevision, ExecutionFingerprint: "cross-fingerprint", ResolvedManifestHash: "cross-manifest", InputManifestHash: "cross-input",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	earlierRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	laterRun, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
+	earlierRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, earlierRun, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	laterRun, _, err := db.Run.StartAttemptIfIdle(ctx, run.StartAttemptInput{ExecutionPlanID: crossPlan, Step: "review"})
+	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Run.FinishRun(ctx, laterRun, "completed", ""); err != nil {
@@ -108,7 +111,7 @@ func TestReviewParentSelection(t *testing.T) {
 }
 
 // TestReviewContextCopyOnWriteLineage verifies parent conflicts, frozen work
-// heads, and review-context purge protection.
+// heads, and immutable parent selection.
 func TestReviewContextCopyOnWriteLineage(t *testing.T) {
 	db, a1Run, a2Run, a1Revision, a2Revision := newReviewLineageFixture(t)
 	ctx := context.Background()
@@ -133,9 +136,5 @@ func TestReviewContextCopyOnWriteLineage(t *testing.T) {
 	}
 	if head := reviewCount(t, db, "SELECT COUNT(*) FROM review_context_work_heads WHERE review_context_id=? AND work_revision_id=?", a1.ID, a1Revision); head != 1 {
 		t.Fatalf("A1 work head rows=%d, want revision %d", head, a1Revision)
-	}
-	eligibility, err := db.Run.CheckPurgeEligibility(ctx, a1Run)
-	if err != nil || eligibility.Eligible || eligibility.OwnedReviewContextCount != 1 || eligibility.DependentReviewContextCount != 1 {
-		t.Fatalf("purge eligibility = %+v err=%v", eligibility, err)
 	}
 }

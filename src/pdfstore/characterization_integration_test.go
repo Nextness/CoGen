@@ -1,5 +1,5 @@
-// characterization_integration_test.go pins the typed companion query
-// projections and the keyset outbox selection after the sqlc migration.
+// characterization_integration_test.go verifies nullable companion query
+// projections and deterministic keyset outbox selection.
 //go:build integration
 
 package pdfstore

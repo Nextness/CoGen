@@ -286,7 +286,7 @@ func (s *Store) ListNoteVersions(ctx context.Context, contextID, noteID, cursor 
 			CreatedInContextID: row.CreatedInContextID,
 			State:              row.State,
 			CreatedAt:          row.CreatedAt,
-			ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername, row.ReviewerEmail),
+			ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername),
 		}
 		item.Body, item.BodyTruncated = boundedPreview(row.BodyPreview, row.BodyBytes, row.HasBody != 0).optional()
 		item.BodyBytes = int(row.BodyBytes)
@@ -328,7 +328,7 @@ func (s *Store) getNoteVersion(ctx context.Context, queries *generated.Queries, 
 		CreatedInContextID: row.CreatedInContextID,
 		State:              row.State,
 		CreatedAt:          row.CreatedAt,
-		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername, row.ReviewerEmail),
+		ReviewerDisplay:    reviewerDisplay(row.ReviewerUsername),
 	}
 	if row.Body.Valid {
 		item.Body = &row.Body.String
@@ -379,7 +379,6 @@ type noteSummaryProjection struct {
 	HasBody            int64
 	VersionCreatedAt   string
 	ReviewerUsername   string
-	ReviewerEmail      string
 	LinkCount          int64
 }
 
@@ -400,7 +399,6 @@ func noteSummaryFromHeadRow(row generated.ListReviewNoteHeadsRow) noteSummaryPro
 		HasBody:            row.HasBody,
 		VersionCreatedAt:   row.VersionCreatedAt,
 		ReviewerUsername:   row.ReviewerUsername,
-		ReviewerEmail:      row.ReviewerEmail,
 		LinkCount:          row.LinkCount,
 	}
 }
@@ -422,7 +420,6 @@ func noteSummaryFromBacklinkRow(row generated.ListReviewBacklinksRow) noteSummar
 		HasBody:            row.HasBody,
 		VersionCreatedAt:   row.VersionCreatedAt,
 		ReviewerUsername:   row.ReviewerUsername,
-		ReviewerEmail:      row.ReviewerEmail,
 		LinkCount:          row.LinkCount,
 	}
 }
@@ -440,7 +437,7 @@ func noteSummaries(projections []noteSummaryProjection, contextID int64) []Note 
 			BodyBytes:          int(projection.BodyBytes),
 			LinkCount:          int(projection.LinkCount),
 			CreatedAt:          projection.VersionCreatedAt,
-			ReviewerDisplay:    reviewerDisplay(projection.ReviewerUsername, projection.ReviewerEmail),
+			ReviewerDisplay:    reviewerDisplay(projection.ReviewerUsername),
 		}
 		version.Body, version.BodyTruncated = boundedPreview(projection.BodyPreview, projection.BodyBytes, projection.HasBody != 0).optional()
 		if version.Body != nil {

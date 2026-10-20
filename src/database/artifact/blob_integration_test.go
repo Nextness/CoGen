@@ -10,45 +10,8 @@ import (
 	"testing"
 
 	"analysis/database/artifact"
+	"analysis/internal/testfixture"
 )
-
-// TestStoreCreateBlobDeduplicatesAndRejectsConflictingBytes verifies one artifact keeps exactly one byte payload.
-func TestStoreCreateBlobDeduplicatesAndRejectsConflictingBytes(t *testing.T) {
-	store, db := openFamilyStore(t)
-	ctx := context.Background()
-	runID := createTestRun(t, db, "artifact-blob")
-	artifactID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "blob-hash", ContentType: "application/json", ByteSize: 3})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	blobID, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("one")})
-	if err != nil {
-		t.Fatalf("create blob: %v", err)
-	}
-	replayedID, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("one")})
-	if err != nil {
-		t.Fatalf("replay blob: %v", err)
-	}
-	if replayedID != blobID {
-		t.Fatalf("replayed blob id = %d, want %d", replayedID, blobID)
-	}
-	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("two")}); err == nil {
-		t.Fatal("expected conflicting blob bytes to fail")
-	}
-
-	blob, err := store.GetBlobByArtifactID(ctx, artifactID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if blob == nil || blob.ID != blobID || string(blob.Data) != "one" || blob.PipelineRunID != runID {
-		t.Fatalf("stored blob = %+v", blob)
-	}
-	missing, err := store.GetBlobByArtifactID(ctx, 99999)
-	if err != nil || missing != nil {
-		t.Fatalf("missing blob = %+v err=%v, want nil without error", missing, err)
-	}
-}
 
 // TestStoreGetContentReturnsBytesRoleAndMediaType verifies the download read
 // preserves stored metadata, the first run role, and the missing-blob contract.
@@ -56,11 +19,8 @@ func TestStoreGetContentReturnsBytesRoleAndMediaType(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-content")
-	artifactID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "content-hash", ContentType: "application/x-something-config", ByteSize: 14})
+	artifactID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "content-hash", ContentType: "application/x-something-config", ByteSize: int64(len([]byte("workspace = {}"))), PipelineRunID: runID, Data: []byte("workspace = {}")})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("workspace = {}")}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Link(ctx, artifact.LinkInput{PipelineRunID: runID, ArtifactID: artifactID, Role: artifact.RunArtifactWorkspaceConfig}); err != nil {
@@ -76,7 +36,7 @@ func TestStoreGetContentReturnsBytesRoleAndMediaType(t *testing.T) {
 		t.Fatalf("artifact content = %+v", content)
 	}
 
-	noBlobID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "content-no-blob", ContentType: "application/json", ByteSize: 1})
+	noBlobID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "content-no-blob", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,11 +56,8 @@ func TestStoreGetPreviewReturnsBoundedPrefixAndMetadata(t *testing.T) {
 	store, db := openFamilyStore(t)
 	ctx := context.Background()
 	runID := createTestRun(t, db, "artifact-preview")
-	artifactID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "preview-hash", ContentType: "application/json", ByteSize: 14})
+	artifactID, err := store.CreateWithBlob(ctx, artifact.CreateWithBlobInput{ContentHash: "preview-hash", ContentType: "application/json", ByteSize: int64(len([]byte("workspace = {}"))), PipelineRunID: runID, Data: []byte("workspace = {}")})
 	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.CreateBlob(ctx, artifact.CreateBlobInput{ArtifactID: artifactID, PipelineRunID: runID, Data: []byte("workspace = {}")}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -120,7 +77,7 @@ func TestStoreGetPreviewReturnsBoundedPrefixAndMetadata(t *testing.T) {
 		t.Fatalf("full preview = %+v", full)
 	}
 
-	noBlobID, err := store.Create(ctx, artifact.CreateInput{ContentHash: "preview-no-blob", ContentType: "application/json", ByteSize: 1})
+	noBlobID, err := testfixture.Artifact(ctx, db.RawDBForTest(), "preview-no-blob", "application/json", 1)
 	if err != nil {
 		t.Fatal(err)
 	}

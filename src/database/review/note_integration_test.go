@@ -52,6 +52,18 @@ func TestReviewNoteCopyOnWriteLineage(t *testing.T) {
 	if err != nil || a1Note.Version.ID != note.Version.ID {
 		t.Fatalf("A1 note changed: %+v err=%v", a1Note, err)
 	}
+	if missing, err := db.Review.GetNote(ctx, 999, 999); err != nil || missing != nil {
+		t.Fatalf("missing note = %+v err=%v, want nil without error", missing, err)
+	}
+	if missing, err := db.Review.GetNoteVersion(ctx, 999, 999, 999); err != nil || missing != nil {
+		t.Fatalf("missing note version = %+v err=%v, want nil without error", missing, err)
+	}
+	if empty, err := db.Review.ListNotes(ctx, 999, 999, 0, 10, false); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent notes = %+v err=%v, want non-nil empty slice", empty, err)
+	}
+	if empty, err := db.Review.ListNoteVersions(ctx, 999, 999, 0, 10); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent note versions = %+v err=%v, want non-nil empty slice", empty, err)
+	}
 }
 
 // TestReviewNoteRejectsUnsafeLink verifies save-blocking note-language validation.

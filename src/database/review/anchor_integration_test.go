@@ -45,6 +45,18 @@ func TestReviewAnchorCopyOnWriteLineage(t *testing.T) {
 	if err != nil || a1Anchor.Version.ID != anchor.Version.ID {
 		t.Fatalf("A1 anchor changed: %+v err=%v", a1Anchor, err)
 	}
+	if missing, err := db.Review.GetAnchor(ctx, 999, "absent"); err != nil || missing != nil {
+		t.Fatalf("missing anchor = %+v err=%v, want nil without error", missing, err)
+	}
+	if missing, err := db.Review.GetAnchorVersion(ctx, 999, "absent", 999); err != nil || missing != nil {
+		t.Fatalf("missing anchor version = %+v err=%v, want nil without error", missing, err)
+	}
+	if empty, err := db.Review.ListAnchors(ctx, 999, 999, "", 10); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent anchors = %+v err=%v, want non-nil empty slice", empty, err)
+	}
+	if empty, err := db.Review.ListAnchorVersions(ctx, 999, "absent", 0, 10); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent anchor versions = %+v err=%v, want non-nil empty slice", empty, err)
+	}
 }
 
 // TestReviewAnchorRejectsInvalidLabel verifies anchor labels must satisfy the note-language grammar.
