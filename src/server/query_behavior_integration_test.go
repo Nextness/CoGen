@@ -1,5 +1,5 @@
 // query_behavior_integration_test.go pins the observable query behavior of the
-// viewer API after the table-family cutover: per-route statement counts,
+// viewer API: per-route statement counts,
 // streamed trailer counts, canceled reads, selected-context consistency, and
 // the top-level JSON shapes the frontend consumes. The counts and shapes are
 // pinned to the shared viewer fixtures, so a change means a handler started or
@@ -28,8 +28,8 @@ type apiQueryCountCase struct {
 }
 
 // TestAPIQueryCountsMatchRouteBudgets verifies every viewer route keeps its
-// deterministic statement count and hard route ceiling after the handler
-// cutover. The counts are pinned to the shared viewer fixtures; a changed count
+// deterministic statement count and hard route ceiling. The counts are pinned
+// to the shared viewer fixtures; a changed count
 // means a handler started or stopped issuing SQL statements.
 func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 	t.Run("metadata fixture", func(t *testing.T) {

@@ -68,20 +68,6 @@ func (s *Server) tableNames() []string {
 // hasTable reports whether a table was discovered as browsable.
 func (s *Server) hasTable(name string) bool { _, ok := s.tables[name]; return ok }
 
-// hasColumn reports whether a discovered table contains a named column.
-func (s *Server) hasColumn(table, column string) bool {
-	t, ok := s.tables[table]
-	if !ok {
-		return false
-	}
-	for _, c := range t.Columns {
-		if c.Name == column {
-			return true
-		}
-	}
-	return false
-}
-
 // discoverTables reads the SQLite schema and returns tables eligible for read-only browsing.
 func (s *Server) discoverTables(ctx context.Context) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT name FROM sqlite_master

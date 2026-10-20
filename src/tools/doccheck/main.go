@@ -246,9 +246,6 @@ func checkMarkdownLinks(root string, markdownFiles []string) []string {
 func checkObsoleteReferences(root string, markdownFiles []string) []string {
 	var failures []string
 	for _, relativePath := range markdownFiles {
-		if filepath.ToSlash(relativePath) == "PLAN.md" {
-			continue
-		}
 		data, err := os.ReadFile(filepath.Join(root, relativePath))
 		if err != nil {
 			continue

@@ -1,5 +1,5 @@
-// characterization_unit_test.go pins query-budget boundary semantics that the
-// migration must preserve when the budget driver wrappers are reorganized.
+// characterization_unit_test.go verifies query-budget boundary semantics for
+// requests without a budget and requests with disabled accounting.
 //go:build unit
 
 package server

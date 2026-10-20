@@ -1,5 +1,5 @@
 // fixture_integration_test.go provides the shared review lineage fixture used
-// by the table-focused family tests and the legacy-adapter parity comparison.
+// by the table-focused family tests.
 //go:build integration
 
 package review_test

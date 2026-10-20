@@ -641,11 +641,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L25) | test | 25-129 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
-| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L134) | test | 134-259 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
-| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L263) | test | 263-393 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
-| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L397) | test | 397-604 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
-| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L608) | test | 608-661 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
+| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L24) | test | 24-128 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
+| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L133) | test | 133-258 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
+| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L262) | test | 262-392 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
+| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L396) | test | 396-603 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
+| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L607) | test | 607-660 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
 
 ### [`src/database/config_integration_test.go`](../src/database/config_integration_test.go)
 
@@ -690,7 +690,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Database).Close`](../src/database/connection.go#L167) | method | 167-175 | `func (*Database).Close() error` | Close closes the database connection. |
 | [`(*Database).PingContext`](../src/database/connection.go#L178) | method | 178-180 | `func (*Database).PingContext(ctx context.Context) error` | PingContext verifies the wrapped connection is reachable. |
 | [`(*Database).Writable`](../src/database/connection.go#L184) | method | 184-190 | `func (*Database).Writable(ctx context.Context) (bool, error)` | Writable reports whether the wrapped connection accepts writes by checking the connection-local query_only pragma. |
-| [`(*Database).BeginTx`](../src/database/connection.go#L194) | method | 194-196 | `func (*Database).BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)` | BeginTx starts a transaction on the wrapped connection for approved coordinators that must keep related writes atomic. |
 
 ### [`src/database/database.go`](../src/database/database.go)
 
@@ -845,10 +844,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestDatabasePingContext`](../src/database/platform_methods_integration_test.go#L15) | test | 15-27 | `func TestDatabasePingContext(t *testing.T)` | TestDatabasePingContext verifies the platform ping reports open and closed connections. |
-| [`TestDatabaseWritableReflectsQueryOnly`](../src/database/platform_methods_integration_test.go#L30) | test | 30-57 | `func TestDatabaseWritableReflectsQueryOnly(t *testing.T)` | TestDatabaseWritableReflectsQueryOnly verifies the platform writability check follows the connection-local pragma. |
-| [`TestDatabaseBeginTxCommitAndRollback`](../src/database/platform_methods_integration_test.go#L60) | test | 60-88 | `func TestDatabaseBeginTxCommitAndRollback(t *testing.T)` | TestDatabaseBeginTxCommitAndRollback verifies the platform transaction entry point commits and rolls back related writes. |
-| [`assertSearchCount`](../src/database/platform_methods_integration_test.go#L91) | function | 91-100 | `func assertSearchCount(t *testing.T, db *Database, searchID string, want int)` | assertSearchCount verifies the number of searches with the supplied identifier. |
+| [`TestDatabasePingContext`](../src/database/platform_methods_integration_test.go#L14) | test | 14-26 | `func TestDatabasePingContext(t *testing.T)` | TestDatabasePingContext verifies the platform ping reports open and closed connections. |
+| [`TestDatabaseWritableReflectsQueryOnly`](../src/database/platform_methods_integration_test.go#L29) | test | 29-56 | `func TestDatabaseWritableReflectsQueryOnly(t *testing.T)` | TestDatabaseWritableReflectsQueryOnly verifies the platform writability check follows the connection-local pragma. |
 
 ### [`src/database/reference_mentions_integration_test.go`](../src/database/reference_mentions_integration_test.go)
 
@@ -909,9 +906,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestCharacterizationReviewCompareAndSwapAndReplay`](../src/database/review/characterization_integration_test.go#L20) | test | 20-82 | `func TestCharacterizationReviewCompareAndSwapAndReplay(t *testing.T)` | TestCharacterizationReviewCompareAndSwapAndReplay verifies stale expected versions conflict, identical writes report no change, and heads move only through the affected-row compare-and-swap. |
-| [`TestCharacterizationContextCancellation`](../src/database/review/characterization_integration_test.go#L86) | test | 86-110 | `func TestCharacterizationContextCancellation(t *testing.T)` | TestCharacterizationContextCancellation verifies repository reads and transaction-owned writes propagate a canceled context and leave no partial rows. |
-| [`TestCharacterizationTransactionRollback`](../src/database/review/characterization_integration_test.go#L114) | test | 114-158 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
+| [`TestCharacterizationReviewCompareAndSwapAndReplay`](../src/database/review/characterization_integration_test.go#L19) | test | 19-81 | `func TestCharacterizationReviewCompareAndSwapAndReplay(t *testing.T)` | TestCharacterizationReviewCompareAndSwapAndReplay verifies stale expected versions conflict, identical writes report no change, and heads move only through the affected-row compare-and-swap. |
+| [`TestCharacterizationContextCancellation`](../src/database/review/characterization_integration_test.go#L85) | test | 85-109 | `func TestCharacterizationContextCancellation(t *testing.T)` | TestCharacterizationContextCancellation verifies repository reads and transaction-owned writes propagate a canceled context and leave no partial rows. |
+| [`TestCharacterizationTransactionRollback`](../src/database/review/characterization_integration_test.go#L113) | test | 113-157 | `func TestCharacterizationTransactionRollback(t *testing.T)` | TestCharacterizationTransactionRollback verifies a mid-transaction failure rolls back every earlier statement in the same review mutation. |
 
 ### [`src/database/review/concurrency_integration_test.go`](../src/database/review/concurrency_integration_test.go)
 
@@ -1578,34 +1575,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreListResultCountsForRunProjectsOptionalColumns`](../src/database/source/viewer_integration_test.go#L16) | test | 16-70 | `func TestStoreListResultCountsForRunProjectsOptionalColumns(t *testing.T)` | TestStoreListResultCountsForRunProjectsOptionalColumns verifies the result count projection returns stored values and projects absent columns as NULL. |
 | [`TestStoreListCorpusRecordsOrdersSearchesAndClamps`](../src/database/source/viewer_integration_test.go#L75) | test | 75-137 | `func TestStoreListCorpusRecordsOrdersSearchesAndClamps(t *testing.T)` | TestStoreListCorpusRecordsOrdersSearchesAndClamps verifies the run-scoped source record page follows its declared ordering, binds the searchable predicate, preserves nullable reject reasons, and clamps a page past the end. |
 
-### [`src/database/sqlcprobe/probe.go`](../src/database/sqlcprobe/probe.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`Record`](../src/database/sqlcprobe/probe.go#L16) | struct | 16-26 | `type Record struct { ID int64 Provider string Namespace string RequestFingerprint string ResponseStatus int PayloadArtifactID *int64 FetchedAt string ExpiresAt string ExtractorVersion string }` | Record is one probe cache-entry projection mapped from generated rows. |
-| [`Entry`](../src/database/sqlcprobe/probe.go#L29) | struct | 29-38 | `type Entry struct { Provider string Namespace string RequestFingerprint string ResponseStatus int PayloadArtifactID *int64 ExpiresAt string FetchedAt string ExtractorVersion string }` | Entry is one probe cache-entry write with nullable payload and expiry input. |
-| [`InsertResult`](../src/database/sqlcprobe/probe.go#L41) | struct | 41-44 | `type InsertResult struct { ID int64 RowsAffected int64 }` | InsertResult reports the identifier and affected-row count of one generated insert. |
-| [`Probe`](../src/database/sqlcprobe/probe.go#L47) | struct | 47-50 | `type Probe struct { db *sql.DB queries *generated.Queries }` | Probe exercises generated query features against one configured connection. |
-| [`New`](../src/database/sqlcprobe/probe.go#L53) | function | 53-55 | `func New(db *sql.DB) *Probe` | New returns a probe over an already configured connection. |
-| [`(*Probe).InsertEntry`](../src/database/sqlcprobe/probe.go#L58) | method | 58-72 | `func (*Probe).InsertEntry(ctx context.Context, entry Entry) (InsertResult, error)` | InsertEntry inserts one probe entry and inspects the generated insert result. |
-| [`(*Probe).LatestEntry`](../src/database/sqlcprobe/probe.go#L75) | method | 75-85 | `func (*Probe).LatestEntry(ctx context.Context, provider, namespace string) (*Record, error)` | LatestEntry returns the latest probe entry for an exact provider and namespace. |
-| [`(*Probe).ListEntries`](../src/database/sqlcprobe/probe.go#L88) | method | 88-98 | `func (*Probe).ListEntries(ctx context.Context, provider string) ([]Record, error)` | ListEntries returns probe entries for a provider in explicit identifier order. |
-| [`(*Probe).InsertPair`](../src/database/sqlcprobe/probe.go#L101) | method | 101-118 | `func (*Probe).InsertPair(ctx context.Context, first, second Entry) error` | InsertPair commits two probe entries in one generated transaction. |
-| [`insertParams`](../src/database/sqlcprobe/probe.go#L121) | function | 121-132 | `func insertParams(entry Entry) generated.InsertProbeEntryParams` | insertParams maps one probe entry into generated insert parameters. |
-| [`recordFromGenerated`](../src/database/sqlcprobe/probe.go#L135) | function | 135-152 | `func recordFromGenerated(row generated.CacheEntry) Record` | recordFromGenerated maps one generated probe row into an application record. |
-| [`nullableInt64`](../src/database/sqlcprobe/probe.go#L155) | function | 155-160 | `func nullableInt64(value *int64) sql.NullInt64` | nullableInt64 maps an optional artifact identifier into a generated null wrapper. |
-| [`nullableString`](../src/database/sqlcprobe/probe.go#L163) | function | 163-168 | `func nullableString(value string) sql.NullString` | nullableString maps optional text into a generated null wrapper. |
-
-### [`src/database/sqlcprobe/probe_integration_test.go`](../src/database/sqlcprobe/probe_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`openProbe`](../src/database/sqlcprobe/probe_integration_test.go#L20) | function | 20-29 | `func openProbe(t *testing.T) (*sqlcprobe.Probe, *database.Database)` | openProbe returns a probe over a database created by the production migration runner. |
-| [`probeEntry`](../src/database/sqlcprobe/probe_integration_test.go#L32) | function | 32-41 | `func probeEntry(fingerprint string) sqlcprobe.Entry` | probeEntry returns one complete probe entry for a request fingerprint. |
-| [`TestProbeInsertReportsResultAndMapsNullableOutput`](../src/database/sqlcprobe/probe_integration_test.go#L44) | test | 44-83 | `func TestProbeInsertReportsResultAndMapsNullableOutput(t *testing.T)` | TestProbeInsertReportsResultAndMapsNullableOutput verifies named parameters, nullable input and output, and the inspected insert result. |
-| [`TestProbeListEntriesReturnsDeterministicOrder`](../src/database/sqlcprobe/probe_integration_test.go#L86) | test | 86-111 | `func TestProbeListEntriesReturnsDeterministicOrder(t *testing.T)` | TestProbeListEntriesReturnsDeterministicOrder verifies the generated many-row result follows explicit ordering and preserves an empty slice. |
-| [`TestProbeInsertPairCommitsAndRollsBack`](../src/database/sqlcprobe/probe_integration_test.go#L114) | test | 114-140 | `func TestProbeInsertPairCommitsAndRollsBack(t *testing.T)` | TestProbeInsertPairCommitsAndRollsBack verifies Queries.WithTx executes on a transaction and rolls back a failed pair. |
-
 ### [`src/database/test_access.go`](../src/database/test_access.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -1800,18 +1769,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStoreRevisionsAreAppendOnly`](../src/database/work/revision_integration_test.go#L125) | test | 125-152 | `func TestStoreRevisionsAreAppendOnly(t *testing.T)` | TestStoreRevisionsAreAppendOnly verifies the database trigger rejects mutation of an immutable revision snapshot. |
 | [`TestStoreCreateRevisionValidatesProducerStage`](../src/database/work/revision_integration_test.go#L156) | test | 156-193 | `func TestStoreCreateRevisionValidatesProducerStage(t *testing.T)` | TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage vocabulary gates new immutable revisions. |
 | [`TestStoreCreateRevisionHashIgnoresProvenance`](../src/database/work/revision_integration_test.go#L197) | test | 197-216 | `func TestStoreCreateRevisionHashIgnoresProvenance(t *testing.T)` | TestStoreCreateRevisionHashIgnoresProvenance verifies the persisted payload hash covers content only, not producer stage. |
-
-### [`src/database/work/server_read_parity_integration_test.go`](../src/database/work/server_read_parity_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestWorkReadParityWithLegacyServerQueries`](../src/database/work/server_read_parity_integration_test.go#L33) | test | 33-205 | `func TestWorkReadParityWithLegacyServerQueries(t *testing.T)` | TestWorkReadParityWithLegacyServerQueries verifies the family reads match the viewer's former raw queries on one migrated fixture. |
-| [`rowsEqual`](../src/database/work/server_read_parity_integration_test.go#L208) | function | 208-212 | `func rowsEqual(left, right [][]string) bool` | rowsEqual reports whether two rendered row sets are identical. |
-| [`sortRows`](../src/database/work/server_read_parity_integration_test.go#L215) | function | 215-222 | `func sortRows(rows [][]string)` | sortRows sorts two-column match rows by field and term for comparison. |
-| [`familyValue`](../src/database/work/server_read_parity_integration_test.go#L226) | function | 226-235 | `func familyValue(value any) string` | familyValue renders optional or required application values with exact JSON null, string, and number identity for the legacy query comparison. |
-| [`boolInt`](../src/database/work/server_read_parity_integration_test.go#L238) | function | 238-243 | `func boolInt(value bool) int64` | boolInt renders a boolean as the legacy integer representation. |
-| [`queryRowValues`](../src/database/work/server_read_parity_integration_test.go#L246) | function | 246-277 | `func queryRowValues(t *testing.T, db *sql.DB, query string, args ...any) [][]string` | queryRowValues renders every row of one raw query as ordered comparable text. |
-| [`formatDatabaseValue`](../src/database/work/server_read_parity_integration_test.go#L280) | function | 280-289 | `func formatDatabaseValue(value any) string` | formatDatabaseValue renders one scanned SQLite value as comparable text. |
 
 ### [`src/database/work/stage.go`](../src/database/work/stage.go)
 
@@ -2357,14 +2314,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`BenchmarkResolvedManifestHash`](../src/manifest/manifest_unit_test.go#L1091) | benchmark | 1091-1101 | `func BenchmarkResolvedManifestHash(b *testing.B)` | BenchmarkResolvedManifestHash measures resolved manifest hash. |
 | [`ExampleComputeFingerprint`](../src/manifest/manifest_unit_test.go#L1104) | function | 1104-1147 | `func ExampleComputeFingerprint()` | ExampleComputeFingerprint supports the package test suite's example compute fingerprint setup or assertions. |
 
-### [`src/migration_parity_test.go`](../src/migration_parity_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestE2EDatabaseMigrationParity`](../src/migration_parity_test.go#L29) | test | 29-142 | `func TestE2EDatabaseMigrationParity(t *testing.T)` | TestE2EDatabaseMigrationParity runs identical scenarios through independently compiled implementations and compares exact API values and persisted graphs. |
-| [`migrationCommand`](../src/migration_parity_test.go#L146) | function | 146-156 | `func migrationCommand(t *testing.T, directory, name string, args ...string) []byte` | migrationCommand executes an offline build or isolated parity runner and reports its output on failure without shell interpretation. |
-| [`migrationCopy`](../src/migration_parity_test.go#L160) | function | 160-172 | `func migrationCopy(t *testing.T, source, destination string)` | migrationCopy copies one authoritative source or closed fixture database into a target-owned directory without changing its source. |
-
 ### [`src/normalization/normalization.go`](../src/normalization/normalization.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -2850,22 +2799,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Server).tableHasColumns`](../src/server/introspection.go#L35) | method | 35-50 | `func (*Server).tableHasColumns(table string, required ...string) bool` | tableHasColumns reports whether a discovered table contains every requested column. |
 | [`(*Server).tableNames`](../src/server/introspection.go#L53) | method | 53-66 | `func (*Server).tableNames() []string` | tableNames returns the discovered browsable table names in deterministic order. |
 | [`(*Server).hasTable`](../src/server/introspection.go#L69) | method | 69 | `func (*Server).hasTable(name string) bool` | hasTable reports whether a table was discovered as browsable. |
-| [`(*Server).hasColumn`](../src/server/introspection.go#L72) | method | 72-83 | `func (*Server).hasColumn(table, column string) bool` | hasColumn reports whether a discovered table contains a named column. |
-| [`(*Server).discoverTables`](../src/server/introspection.go#L86) | method | 86-117 | `func (*Server).discoverTables(ctx context.Context) error` | discoverTables reads the SQLite schema and returns tables eligible for read-only browsing. |
-| [`(*Server).columns`](../src/server/introspection.go#L120) | method | 120-138 | `func (*Server).columns(ctx context.Context, table string) ([]columnInfo, error)` | columns returns ordered metadata for the requested table's columns. |
-| [`quoteIdentifier`](../src/server/introspection.go#L141) | function | 141-143 | `func quoteIdentifier(identifier string) string` | quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes. |
-| [`(*Server).verifyReviewSchema`](../src/server/introspection.go#L146) | method | 146-173 | `func (*Server).verifyReviewSchema(ctx context.Context) error` | verifyReviewSchema rejects an unmigrated metadata database before writable controls are served. |
-| [`pdfTableColumns`](../src/server/introspection.go#L176) | function | 176-196 | `func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error)` | pdfTableColumns returns the discovered columns for a companion PDF table. |
-| [`tableProjection`](../src/server/introspection.go#L208) | struct | 208-212 | ``type tableProjection struct { Columns []columnInfo `json:"columns"` OmittedColumns map[string]string `json:"omitted_columns,omitempty"` RedactedFields []string `json:"redacted_fields,omitempty"` }`` | tableProjection describes the columns that Advanced may return without exposing raw binary or sensitive evidence. |
-| [`tableSummary`](../src/server/introspection.go#L215) | struct | 215-218 | ``type tableSummary struct { Name string `json:"name"` tableProjection }`` | tableSummary is the schema-only discovery shape; row counts are computed only for the selected table. |
-| [`(*Server).tablesHandler`](../src/server/introspection.go#L221) | method | 221-232 | `func (*Server).tablesHandler(w http.ResponseWriter, r *http.Request)` | tablesHandler returns metadata for every discovered browsable table. |
-| [`(*Server).tableRows`](../src/server/introspection.go#L235) | method | 235-358 | `func (*Server).tableRows(w http.ResponseWriter, r *http.Request)` | tableRows returns a bounded page from one validated browsable table. |
-| [`tableRowsAsMaps`](../src/server/introspection.go#L361) | function | 361-383 | `func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | tableRowsAsMaps scans table-browser rows without converting byte prefixes before UTF-8 truncation. |
-| [`safeTableProjection`](../src/server/introspection.go#L386) | function | 386-406 | `func safeTableProjection(info tableInfo) tableProjection` | safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas. |
-| [`advancedSensitiveColumn`](../src/server/introspection.go#L409) | function | 409-417 | `func advancedSensitiveColumn(name string) bool` | advancedSensitiveColumn reports whether a generic cell may contain private or large research evidence. |
-| [`boundAdvancedRows`](../src/server/introspection.go#L420) | function | 420-437 | `func boundAdvancedRows(rows []map[string]any, columns []columnInfo, truncated map[string][]string)` | boundAdvancedRows enforces a deterministic total value budget without dropping page rows. |
-| [`appendUnique`](../src/server/introspection.go#L440) | function | 440-447 | `func appendUnique(values []string, value string) []string` | appendUnique adds one truncation reason at most once per projected field. |
-| [`tableRequest`](../src/server/introspection.go#L450) | function | 450-483 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
+| [`(*Server).discoverTables`](../src/server/introspection.go#L72) | method | 72-103 | `func (*Server).discoverTables(ctx context.Context) error` | discoverTables reads the SQLite schema and returns tables eligible for read-only browsing. |
+| [`(*Server).columns`](../src/server/introspection.go#L106) | method | 106-124 | `func (*Server).columns(ctx context.Context, table string) ([]columnInfo, error)` | columns returns ordered metadata for the requested table's columns. |
+| [`quoteIdentifier`](../src/server/introspection.go#L127) | function | 127-129 | `func quoteIdentifier(identifier string) string` | quoteIdentifier quotes a validated SQLite identifier and escapes embedded quotes. |
+| [`(*Server).verifyReviewSchema`](../src/server/introspection.go#L132) | method | 132-159 | `func (*Server).verifyReviewSchema(ctx context.Context) error` | verifyReviewSchema rejects an unmigrated metadata database before writable controls are served. |
+| [`pdfTableColumns`](../src/server/introspection.go#L162) | function | 162-182 | `func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error)` | pdfTableColumns returns the discovered columns for a companion PDF table. |
+| [`tableProjection`](../src/server/introspection.go#L194) | struct | 194-198 | ``type tableProjection struct { Columns []columnInfo `json:"columns"` OmittedColumns map[string]string `json:"omitted_columns,omitempty"` RedactedFields []string `json:"redacted_fields,omitempty"` }`` | tableProjection describes the columns that Advanced may return without exposing raw binary or sensitive evidence. |
+| [`tableSummary`](../src/server/introspection.go#L201) | struct | 201-204 | ``type tableSummary struct { Name string `json:"name"` tableProjection }`` | tableSummary is the schema-only discovery shape; row counts are computed only for the selected table. |
+| [`(*Server).tablesHandler`](../src/server/introspection.go#L207) | method | 207-218 | `func (*Server).tablesHandler(w http.ResponseWriter, r *http.Request)` | tablesHandler returns metadata for every discovered browsable table. |
+| [`(*Server).tableRows`](../src/server/introspection.go#L221) | method | 221-344 | `func (*Server).tableRows(w http.ResponseWriter, r *http.Request)` | tableRows returns a bounded page from one validated browsable table. |
+| [`tableRowsAsMaps`](../src/server/introspection.go#L347) | function | 347-369 | `func tableRowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | tableRowsAsMaps scans table-browser rows without converting byte prefixes before UTF-8 truncation. |
+| [`safeTableProjection`](../src/server/introspection.go#L372) | function | 372-392 | `func safeTableProjection(info tableInfo) tableProjection` | safeTableProjection excludes binary values, redacts sensitive evidence, and caps overly wide schemas. |
+| [`advancedSensitiveColumn`](../src/server/introspection.go#L395) | function | 395-403 | `func advancedSensitiveColumn(name string) bool` | advancedSensitiveColumn reports whether a generic cell may contain private or large research evidence. |
+| [`boundAdvancedRows`](../src/server/introspection.go#L406) | function | 406-423 | `func boundAdvancedRows(rows []map[string]any, columns []columnInfo, truncated map[string][]string)` | boundAdvancedRows enforces a deterministic total value budget without dropping page rows. |
+| [`appendUnique`](../src/server/introspection.go#L426) | function | 426-433 | `func appendUnique(values []string, value string) []string` | appendUnique adds one truncation reason at most once per projected field. |
+| [`tableRequest`](../src/server/introspection.go#L436) | function | 436-469 | `func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, error)` | tableRequest parses the requested table name from the route path. |
 
 ### [`src/server/introspection_integration_test.go`](../src/server/introspection_integration_test.go)
 
@@ -2970,7 +2918,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`apiQueryCountCase`](../src/server/query_behavior_integration_test.go#L24) | struct | 24-28 | `type apiQueryCountCase struct { name string path string used int64 }` | apiQueryCountCase pins one viewer route to its exact statement count. |
-| [`TestAPIQueryCountsMatchRouteBudgets`](../src/server/query_behavior_integration_test.go#L34) | test | 34-102 | `func TestAPIQueryCountsMatchRouteBudgets(t *testing.T)` | TestAPIQueryCountsMatchRouteBudgets verifies every viewer route keeps its deterministic statement count and hard route ceiling after the handler cutover. The counts are pinned to the shared viewer fixtures; a changed count means a handler started or stopped issuing SQL statements. |
+| [`TestAPIQueryCountsMatchRouteBudgets`](../src/server/query_behavior_integration_test.go#L34) | test | 34-102 | `func TestAPIQueryCountsMatchRouteBudgets(t *testing.T)` | TestAPIQueryCountsMatchRouteBudgets verifies every viewer route keeps its deterministic statement count and hard route ceiling. The counts are pinned to the shared viewer fixtures; a changed count means a handler started or stopped issuing SQL statements. |
 | [`assertAPIQueryCounts`](../src/server/query_behavior_integration_test.go#L105) | function | 105-125 | `func assertAPIQueryCounts(t *testing.T, handler http.Handler, cases []apiQueryCountCase)` | assertAPIQueryCounts verifies each route's limit header, exact used count, and repeat determinism. |
 | [`routePath`](../src/server/query_behavior_integration_test.go#L128) | function | 128-131 | `func routePath(route string) string` | routePath returns the path portion of one test route without its query string. |
 | [`TestAPIStreamedQueryCountsUseTrailers`](../src/server/query_behavior_integration_test.go#L135) | test | 135-164 | `func TestAPIStreamedQueryCountsUseTrailers(t *testing.T)` | TestAPIStreamedQueryCountsUseTrailers verifies streamed PDF and artifact content deliver their statement count as a trailer instead of a header. |
@@ -3126,7 +3074,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Server).respond`](../src/server/server.go#L550) | method | 550-562 | `func (*Server).respond(w http.ResponseWriter, r *http.Request, value any, err error)` | respond maps successful values, client problems, and internal failures to safe JSON responses. |
 | [`queryContext`](../src/server/server.go#L565) | function | 565-567 | `func queryContext(r *http.Request) (context.Context, context.CancelFunc)` | queryContext derives a request context bounded by the server query timeout. |
 | [`positiveID`](../src/server/server.go#L570) | function | 570-576 | `func positiveID(raw string) (int64, error)` | positiveID parses a strictly positive decimal identifier or returns a bad-request problem. |
-| [`rowsAsMaps`](../src/server/server.go#L579) | function | 579-605 | `func rowsAsMaps(rows *sql.Rows) ([]map[string]any, error)` | rowsAsMaps scans SQL rows into maps keyed by result-column name. |
 
 ### [`src/server/server_integration_test.go`](../src/server/server_integration_test.go)
 
@@ -4496,45 +4443,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestWorkspaceConfigEmptyCachePolicy`](../src/something/workspace_config_integration_test.go#L171) | test | 171-207 | `func TestWorkspaceConfigEmptyCachePolicy(t *testing.T)` | TestWorkspaceConfigEmptyCachePolicy verifies workspace config empty cache policy. |
 | [`TestWorkspaceConfigNestedOptionalReviewerDefault`](../src/something/workspace_config_integration_test.go#L210) | test | 210-233 | `func TestWorkspaceConfigNestedOptionalReviewerDefault(t *testing.T)` | TestWorkspaceConfigNestedOptionalReviewerDefault verifies the exact nested setup default form used by format-version-2 workspaces. |
 
-### [`src/testdata/migration-parity/baseline_test.go`](../src/testdata/migration-parity/baseline_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`openBindings`](../src/testdata/migration-parity/baseline_test.go#L11) | function | 11-78 | `func openBindings(path, config string) (*bindings, error)` | openBindings calls the original implementations from the baseline checkout. |
-
-### [`src/testdata/migration-parity/current_test.go`](../src/testdata/migration-parity/current_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`openBindings`](../src/testdata/migration-parity/current_test.go#L14) | function | 14-87 | `func openBindings(path, config string) (*bindings, error)` | openBindings calls the current handwritten family implementations. |
-
-### [`src/testdata/migration-parity/scenario_test.go`](../src/testdata/migration-parity/scenario_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`bindings`](../src/testdata/migration-parity/scenario_test.go#L27) | struct | 27-49 | `type bindings struct { raw *sql.DB close func() error start func(bool) (int64, int, error) finish func(int64, string) error step func(int64, string) (int64, error) stepStatus func(int64, string) error stepLinks func(int64, int64, int64) error readSteps func(int64) (any, error) readRun func(int64) (any, error) readRuns func() (any, error) purge func(int64) (any, error) reviewer func(bool) (any, error) recover func(int64) error artifact func(string, string, int64, []byte) (int64, error) readArtifact func(int64) (any, error) link func(int64, string) error appendCache func(int, *int64, string) (int64, error) useCache func(int64, int64, string, string) error findCache func(int64, bool) (any, error) latestCache func(bool) (any, error) flush func(*pdfstore.Store) (int, error) }` | bindings adapts names and inputs only; each closure calls its snapshot's original implementation rather than a shared implementation of persistence. |
-| [`must`](../src/testdata/migration-parity/scenario_test.go#L52) | function | 52-56 | `func must(err error)` | must stops a scenario if an operation expected to succeed fails. |
-| [`check`](../src/testdata/migration-parity/scenario_test.go#L59) | function | 59-63 | `func check(ok bool, message string)` | check enforces expected behavior independently of the cross-version comparison. |
-| [`execute`](../src/testdata/migration-parity/scenario_test.go#L66) | function | 66 | `func execute(db *sql.DB, query string, args ...any)` | execute runs controlled fixture or failure-injection SQL. |
-| [`digest`](../src/testdata/migration-parity/scenario_test.go#L69) | function | 69 | `func digest(data []byte) string` | digest identifies deterministic fixture bytes. |
-| [`main`](../src/testdata/migration-parity/scenario_test.go#L72) | function | 72-144 | `func main()` | main seeds a production-migrated fixture or executes one cloned-fixture case. |
-| [`seed`](../src/testdata/migration-parity/scenario_test.go#L147) | function | 147-167 | `func seed(db, pdf *sql.DB)` | seed creates deterministic rows using schemas created by production migrations. |
-| [`errorText`](../src/testdata/migration-parity/scenario_test.go#L170) | function | 170 | `func errorText(err error) string` | errorText requires failure and retains exact error text for comparison. |
-| [`runLifecycle`](../src/testdata/migration-parity/scenario_test.go#L173) | function | 173-224 | `func runLifecycle(db *bindings, result map[string]any)` | runLifecycle compares attempt numbering, step timestamps, recovery, and rollback. |
-| [`runConcurrency`](../src/testdata/migration-parity/scenario_test.go#L228) | function | 228-253 | `func runConcurrency(db *bindings, result map[string]any)` | runConcurrency compares competing active-attempt exclusion without depending on which goroutine wins the write lock. |
-| [`artifactIntegrity`](../src/testdata/migration-parity/scenario_test.go#L257) | function | 257-286 | `func artifactIntegrity(db *bindings, result map[string]any)` | artifactIntegrity compares idempotency, metadata/byte conflicts, atomic rollback, and immutable run-role assignment. |
-| [`cacheReplay`](../src/testdata/migration-parity/scenario_test.go#L290) | function | 290-314 | `func cacheReplay(db *bindings, result map[string]any)` | cacheReplay compares immutable response history, layer selection, replay, nullable payload/expiry, and append-only enforcement. |
-| [`request`](../src/testdata/migration-parity/scenario_test.go#L318) | function | 318-330 | `func request(viewer *server.Server, result map[string]any, name, method, path string, data any, status int) map[string]any` | request runs a real handler without requiring network sockets and retains status, response body, and exact statement count in the comparison. |
-| [`reviewFlow`](../src/testdata/migration-parity/scenario_test.go#L334) | function | 334-388 | `func reviewFlow(root string, db *bindings, result map[string]any)` | reviewFlow compares decision/note/anchor version graphs, no-ops, stale conflicts, inheritance, tombstones, restore, and lifecycle audit. |
-| [`reviewRollback`](../src/testdata/migration-parity/scenario_test.go#L392) | function | 392-406 | `func reviewRollback(root string, db *bindings, result map[string]any)` | reviewRollback compares complete rollback after an injected mutation-audit failure, including context heads, version children, and logical identities. |
-| [`reviewConcurrency`](../src/testdata/migration-parity/scenario_test.go#L410) | function | 410-451 | `func reviewConcurrency(root string, result map[string]any)` | reviewConcurrency requires one success and one optimistic conflict from competing decision, note, and anchor saves against the same expected head. |
-| [`pdfFlow`](../src/testdata/migration-parity/scenario_test.go#L455) | function | 455-477 | `func pdfFlow(db *bindings, pdf *pdfstore.Store, result map[string]any)` | pdfFlow compares registration, validated bytes, deduplication, immutable selection, mutation rollback, and outbox delivery on the original stores. |
-| [`outboxEvent`](../src/testdata/migration-parity/scenario_test.go#L480) | function | 480-482 | `func outboxEvent(pdf *pdfstore.Store, key, actor string, run int64)` | outboxEvent inserts fixed identities to isolate delivery behavior from clocks. |
-| [`pdfSavepoints`](../src/testdata/migration-parity/scenario_test.go#L486) | function | 486-505 | `func pdfSavepoints(db *bindings, pdf *pdfstore.Store, result map[string]any)` | pdfSavepoints compares bad-event isolation, bounded multi-batch draining, stale run references, audit/link atomicity, and successful retries. |
-| [`pdfCrash`](../src/testdata/migration-parity/scenario_test.go#L509) | function | 509-521 | `func pdfCrash(db *bindings, pdf *pdfstore.Store, result map[string]any)` | pdfCrash compares the committed-but-unmarked crash window and verifies retry does not duplicate the already committed audit event. |
-| [`snapshot`](../src/testdata/migration-parity/scenario_test.go#L525) | function | 525-555 | `func snapshot(db *sql.DB, tables []string) map[string]any` | snapshot retains every persisted column, including nulls and relationships, in insertion order; normalization handles only volatile identities/clocks. |
-| [`normalize`](../src/testdata/migration-parity/scenario_test.go#L559) | function | 559-602 | `func normalize(value any, key string, identities map[string]string) any` | normalize preserves values and nullability while replacing call-time clocks and generated IDs consistently across returned values and persisted graphs. |
-
 ### [`src/tools/coveragecheck/main.go`](../src/tools/coveragecheck/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -4624,15 +4532,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`markdownDestinations`](../src/tools/doccheck/main.go#L155) | function | 155-185 | `func markdownDestinations(text string) map[int][]string` | markdownDestinations returns inline and reference-style destinations outside fenced code blocks. |
 | [`pathWithin`](../src/tools/doccheck/main.go#L188) | function | 188-194 | `func pathWithin(root, target string) bool` | pathWithin reports whether target is contained by root after path cleaning. |
 | [`checkMarkdownLinks`](../src/tools/doccheck/main.go#L197) | function | 197-243 | `func checkMarkdownLinks(root string, markdownFiles []string) []string` | checkMarkdownLinks reports missing, unreadable, or repository-escaping local Markdown links. |
-| [`checkObsoleteReferences`](../src/tools/doccheck/main.go#L246) | function | 246-265 | `func checkObsoleteReferences(root string, markdownFiles []string) []string` | checkObsoleteReferences reports exact historical references that are invalid in current documentation. |
-| [`migrationVersions`](../src/tools/doccheck/main.go#L268) | function | 268-297 | `func migrationVersions(filenames []string, source string) ([]int, []string)` | migrationVersions parses ordered migration versions and reports malformed or duplicate declarations. |
-| [`checkMigrationChains`](../src/tools/doccheck/main.go#L300) | function | 300-398 | `func checkMigrationChains(root string) ([]string, map[string]migrationBoundary)` | checkMigrationChains validates configured migration files and returns version boundaries by chain. |
-| [`sortedDifference`](../src/tools/doccheck/main.go#L401) | function | 401-410 | `func sortedDifference(left, right map[string]bool) []string` | sortedDifference returns deterministic keys present in left and absent from right. |
-| [`checkDocumentedMigrationBoundaries`](../src/tools/doccheck/main.go#L413) | function | 413-437 | `func checkDocumentedMigrationBoundaries(root string, boundaries map[string]migrationBoundary) []string` | checkDocumentedMigrationBoundaries requires designated guides to state each derived boundary. |
-| [`checkRepository`](../src/tools/doccheck/main.go#L440) | function | 440-462 | `func checkRepository(root string) ([]string, int, error)` | checkRepository runs every documentation check and returns failures plus the Markdown count. |
-| [`runCheck`](../src/tools/doccheck/main.go#L465) | function | 465-490 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, executes every non-mutating check, and returns a process exit status. |
-| [`run`](../src/tools/doccheck/main.go#L493) | function | 493-511 | `func run(args []string, stdout, stderr io.Writer) int` | run parses the command hierarchy and returns a process exit status. |
-| [`main`](../src/tools/doccheck/main.go#L514) | function | 514-516 | `func main()` | main runs the documentation consistency command. |
+| [`checkObsoleteReferences`](../src/tools/doccheck/main.go#L246) | function | 246-262 | `func checkObsoleteReferences(root string, markdownFiles []string) []string` | checkObsoleteReferences reports exact historical references that are invalid in current documentation. |
+| [`migrationVersions`](../src/tools/doccheck/main.go#L265) | function | 265-294 | `func migrationVersions(filenames []string, source string) ([]int, []string)` | migrationVersions parses ordered migration versions and reports malformed or duplicate declarations. |
+| [`checkMigrationChains`](../src/tools/doccheck/main.go#L297) | function | 297-395 | `func checkMigrationChains(root string) ([]string, map[string]migrationBoundary)` | checkMigrationChains validates configured migration files and returns version boundaries by chain. |
+| [`sortedDifference`](../src/tools/doccheck/main.go#L398) | function | 398-407 | `func sortedDifference(left, right map[string]bool) []string` | sortedDifference returns deterministic keys present in left and absent from right. |
+| [`checkDocumentedMigrationBoundaries`](../src/tools/doccheck/main.go#L410) | function | 410-434 | `func checkDocumentedMigrationBoundaries(root string, boundaries map[string]migrationBoundary) []string` | checkDocumentedMigrationBoundaries requires designated guides to state each derived boundary. |
+| [`checkRepository`](../src/tools/doccheck/main.go#L437) | function | 437-459 | `func checkRepository(root string) ([]string, int, error)` | checkRepository runs every documentation check and returns failures plus the Markdown count. |
+| [`runCheck`](../src/tools/doccheck/main.go#L462) | function | 462-487 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, executes every non-mutating check, and returns a process exit status. |
+| [`run`](../src/tools/doccheck/main.go#L490) | function | 490-508 | `func run(args []string, stdout, stderr io.Writer) int` | run parses the command hierarchy and returns a process exit status. |
+| [`main`](../src/tools/doccheck/main.go#L511) | function | 511-513 | `func main()` | main runs the documentation consistency command. |
 
 ### [`src/tools/doccheck/main_unit_test.go`](../src/tools/doccheck/main_unit_test.go)
 

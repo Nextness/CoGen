@@ -1,6 +1,5 @@
-// characterization_integration_test.go pins database-layer contracts that the
-// type-safe SQL migration must preserve. The critical operations marked for
-// direct old-versus-new comparison are recorded in PARITY.md.
+// characterization_integration_test.go verifies family read contracts for
+// absent rows, empty lists, nullable values, ordering, and immutable cache replay.
 //go:build integration
 
 package database
