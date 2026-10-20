@@ -59,7 +59,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Do not lower a coverage floor merely to accept a regression.
 - Raise a floor only when meaningful tests justify the durable threshold.
 - Inspection tools excluded by the policy do not become exempt from their focused unit suites.
-- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, `make vet` or `make check`, the `make check-sql` raw SQL ownership check that `make check` and the CI backend gate run, and the `make gitleaks` secret scan that `make check` and the CI merge gate run.
+- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, `make vet` or `make check`, the `make check-sql` raw SQL ownership check and the `make check-imports` import and transaction graph check that `make check` and the CI backend gate run, and the `make gitleaks` secret scan that `make check` and the CI merge gate run.
 
 ## 7. SOMETHING standards
 
@@ -88,6 +88,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Keep foreign keys enabled, retain connection busy timeouts, and preserve `BEGIN IMMEDIATE` migration serialization.
 - Use repository nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
 - Keep raw SQL calls inside classified ownership locations: platform migrations and connections, the viewer query-budget driver wrapper, dynamic table introspection, sanitized export maintenance, the cross-database outbox, or a retained `*_dynamic.go` reader. Run `make check-sql` after adding or moving a call; an unclassified call or a stale ownership entry fails with the file and the expected remediation, and `make sql-report` prints the current inventory.
+- Keep the package dependency direction: family production code depends only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; the composition root imports families, the companion store coordinates with them, and consumers import both; shared low-level packages never import orchestration. Run `make check-imports` after changing imports; generated `internal/sql` output stays inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and output under one owner directory.
 - Validate dynamic identifiers against discovered or explicit allowlists before quoting them.
 - Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 - Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap. Review audit metadata remains identifier-only; decision events deliberately record the complete bounded previous and new decision in the audit before/after fields.

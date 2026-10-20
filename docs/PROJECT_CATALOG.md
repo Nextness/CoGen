@@ -4627,6 +4627,73 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestStateCheckIsNonMutatingAndUpdatePreservesDependencies`](../src/tools/doccheck/state_unit_test.go#L90) | test | 90-113 | `func TestStateCheckIsNonMutatingAndUpdatePreservesDependencies(t *testing.T)` | TestStateCheckIsNonMutatingAndUpdatePreservesDependencies verifies state check is non mutating and update preserves dependencies. |
 | [`TestStateCheckDetectsStaleGeneratedDependentsAndUpdateRepairsGeneratedRows`](../src/tools/doccheck/state_unit_test.go#L116) | test | 116-150 | `func TestStateCheckDetectsStaleGeneratedDependentsAndUpdateRepairsGeneratedRows(t *testing.T)` | TestStateCheckDetectsStaleGeneratedDependentsAndUpdateRepairsGeneratedRows verifies state check detects stale generated dependents and update repairs generated rows. |
 
+### [`src/tools/importcheck/main.go`](../src/tools/importcheck/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`layer`](../src/tools/importcheck/main.go#L32) | type | 32 | `type layer string` | layer identifies one package's position in the approved dependency direction. |
+| [`importEdge`](../src/tools/importcheck/main.go#L48) | struct | 48-52 | `type importEdge struct { Importer string Target string Test bool }` | importEdge records one import from one maintained package. |
+| [`packageGraph`](../src/tools/importcheck/main.go#L55) | struct | 55-60 | `type packageGraph struct { Module string Families map[string]bool Packages map[string]bool Edges []importEdge }` | packageGraph is one parsed module import graph. |
+| [`sqlcUnit`](../src/tools/importcheck/main.go#L63) | struct | 63-67 | `type sqlcUnit struct { Schema string Queries []string Output string }` | sqlcUnit is one generation unit parsed from config/sqlc.yaml. |
+| [`scanReport`](../src/tools/importcheck/main.go#L70) | struct | 70-75 | `type scanReport struct { Graph packageGraph Units []sqlcUnit Violations []string UnitFailure []string }` | scanReport is one complete import and transaction graph verification. |
+| [`readModulePath`](../src/tools/importcheck/main.go#L78) | function | 78-90 | `func readModulePath(path string) (string, error)` | readModulePath returns the module path declared by one go.mod file. |
+| [`loadGraph`](../src/tools/importcheck/main.go#L93) | function | 93-186 | `func loadGraph(root string) (packageGraph, error)` | loadGraph parses every maintained Go package under src/ and returns its import graph. |
+| [`(packageGraph).layerOf`](../src/tools/importcheck/main.go#L189) | method | 189-209 | `func (packageGraph).layerOf(path string) layer` | layerOf classifies one package path into its approved layer. |
+| [`(packageGraph).familyRoot`](../src/tools/importcheck/main.go#L212) | method | 212-216 | `func (packageGraph).familyRoot(path string) string` | familyRoot returns the metadata family package root that owns one family package path. |
+| [`(packageGraph).familyShared`](../src/tools/importcheck/main.go#L219) | method | 219-225 | `func (packageGraph).familyShared(target string) bool` | familyShared reports whether one target is a shared low-level package that families may depend on. |
+| [`generatedOwner`](../src/tools/importcheck/main.go#L228) | function | 228-236 | `func generatedOwner(path string) (string, bool)` | generatedOwner returns the package tree that owns one generated internal/sql path. |
+| [`withinSubtree`](../src/tools/importcheck/main.go#L239) | function | 239-241 | `func withinSubtree(root, target string) bool` | withinSubtree reports whether target is the subtree root or one of its descendants. |
+| [`(packageGraph).verifyFamilyEdge`](../src/tools/importcheck/main.go#L244) | method | 244-260 | `func (packageGraph).verifyFamilyEdge(edge importEdge) []string` | verifyFamilyEdge verifies one family import edge and returns its violations. |
+| [`verifyGraph`](../src/tools/importcheck/main.go#L263) | function | 263-295 | `func verifyGraph(graph packageGraph) []string` | verifyGraph returns the deterministic import direction violations for one graph. |
+| [`unitOwner`](../src/tools/importcheck/main.go#L298) | function | 298-306 | `func unitOwner(path string) string` | unitOwner returns the owner directory shared by one sqlc schema, query, or output path. |
+| [`loadSQLCUnits`](../src/tools/importcheck/main.go#L309) | function | 309-334 | `func loadSQLCUnits(root string) ([]sqlcUnit, error)` | loadSQLCUnits parses the generation units declared by config/sqlc.yaml. |
+| [`verifyUnits`](../src/tools/importcheck/main.go#L337) | function | 337-405 | `func verifyUnits(root string, units []sqlcUnit) []string` | verifyUnits returns the deterministic ownership failures for the parsed sqlc units. |
+| [`scanRepository`](../src/tools/importcheck/main.go#L408) | function | 408-423 | `func scanRepository(root string) (scanReport, error)` | scanRepository loads and verifies one repository root. |
+| [`(scanReport).failures`](../src/tools/importcheck/main.go#L426) | method | 426-431 | `func (scanReport).failures() []string` | failures returns the deterministic check failures for one scan. |
+| [`(scanReport).familyProductionImports`](../src/tools/importcheck/main.go#L434) | method | 434-450 | `func (scanReport).familyProductionImports() map[string][]string` | familyProductionImports returns each family's sorted production imports of analysis packages. |
+| [`(scanReport).familyFixtureImports`](../src/tools/importcheck/main.go#L453) | method | 453-470 | `func (scanReport).familyFixtureImports() map[string][]string` | familyFixtureImports returns each family's sorted cross-family test imports. |
+| [`sortedUnique`](../src/tools/importcheck/main.go#L473) | function | 473-484 | `func sortedUnique(values []string) []string` | sortedUnique returns the sorted distinct values of one string slice. |
+| [`(scanReport).packageCounts`](../src/tools/importcheck/main.go#L487) | method | 487-493 | `func (scanReport).packageCounts() map[layer]int` | packageCounts returns the number of maintained packages per layer. |
+| [`writeReport`](../src/tools/importcheck/main.go#L496) | function | 496-537 | `func writeReport(output io.Writer, report scanReport)` | writeReport renders the import and transaction graph report for one scan. |
+| [`sortedKeys`](../src/tools/importcheck/main.go#L540) | function | 540-547 | `func sortedKeys(values map[string][]string) []string` | sortedKeys returns the sorted keys of one family map. |
+| [`parseRoot`](../src/tools/importcheck/main.go#L550) | function | 550-562 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
+| [`runCheck`](../src/tools/importcheck/main.go#L565) | function | 565-585 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
+| [`runReport`](../src/tools/importcheck/main.go#L588) | function | 588-600 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
+| [`run`](../src/tools/importcheck/main.go#L603) | function | 603-619 | `func run(args []string, stdout, stderr io.Writer) int` | run parses the command hierarchy and returns a process exit status. |
+| [`main`](../src/tools/importcheck/main.go#L622) | function | 622-624 | `func main()` | main runs the import and transaction graph command. |
+
+### [`src/tools/importcheck/main_functional_test.go`](../src/tools/importcheck/main_functional_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestRepositoryImportGraphPasses`](../src/tools/importcheck/main_functional_test.go#L15) | test | 15-24 | `func TestRepositoryImportGraphPasses(t *testing.T)` | TestRepositoryImportGraphPasses verifies the committed import and transaction graph satisfies every rule. |
+| [`TestRepositoryReportListsFamiliesUnitsAndInvariants`](../src/tools/importcheck/main_functional_test.go#L27) | test | 27-50 | `func TestRepositoryReportListsFamiliesUnitsAndInvariants(t *testing.T)` | TestRepositoryReportListsFamiliesUnitsAndInvariants verifies the report covers every maintained layer. |
+
+### [`src/tools/importcheck/main_unit_test.go`](../src/tools/importcheck/main_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`writeTestFile`](../src/tools/importcheck/main_unit_test.go#L16) | function | 16-25 | `func writeTestFile(t *testing.T, root, relative, content string)` | writeTestFile creates one maintained source file beneath root. |
+| [`writeSQLCFixture`](../src/tools/importcheck/main_unit_test.go#L28) | function | 28-44 | `func writeSQLCFixture(t *testing.T, root string)` | writeSQLCFixture writes one minimal valid sqlc unit for the work family. |
+| [`writeModuleFixture`](../src/tools/importcheck/main_unit_test.go#L47) | function | 47-52 | `func writeModuleFixture(t *testing.T, root string)` | writeModuleFixture writes one minimal module with two families. |
+| [`graphFixture`](../src/tools/importcheck/main_unit_test.go#L55) | function | 55-62 | `func graphFixture(edges ...importEdge) packageGraph` | graphFixture returns one synthetic graph for rule tests. |
+| [`TestLoadGraphClassifiesPackagesAndEdges`](../src/tools/importcheck/main_unit_test.go#L65) | test | 65-103 | `func TestLoadGraphClassifiesPackagesAndEdges(t *testing.T)` | TestLoadGraphClassifiesPackagesAndEdges verifies family detection and production/test edge separation. |
+| [`TestLoadGraphRejectsMissingFamilies`](../src/tools/importcheck/main_unit_test.go#L106) | test | 106-113 | `func TestLoadGraphRejectsMissingFamilies(t *testing.T)` | TestLoadGraphRejectsMissingFamilies verifies a tree without metadata families cannot be verified. |
+| [`TestVerifyGraphRejectsFamilyProductionImports`](../src/tools/importcheck/main_unit_test.go#L116) | test | 116-130 | `func TestVerifyGraphRejectsFamilyProductionImports(t *testing.T)` | TestVerifyGraphRejectsFamilyProductionImports verifies production family isolation for every forbidden target. |
+| [`TestVerifyGraphAllowsApprovedFamilyImports`](../src/tools/importcheck/main_unit_test.go#L133) | test | 133-145 | `func TestVerifyGraphAllowsApprovedFamilyImports(t *testing.T)` | TestVerifyGraphAllowsApprovedFamilyImports verifies own-subtree and shared low-level imports pass. |
+| [`TestVerifyGraphAllowsFamilyTestComposition`](../src/tools/importcheck/main_unit_test.go#L148) | test | 148-157 | `func TestVerifyGraphAllowsFamilyTestComposition(t *testing.T)` | TestVerifyGraphAllowsFamilyTestComposition verifies fixtures may compose the root and sibling families. |
+| [`TestVerifyGraphRejectsFamilyTestConsumers`](../src/tools/importcheck/main_unit_test.go#L160) | test | 160-169 | `func TestVerifyGraphRejectsFamilyTestConsumers(t *testing.T)` | TestVerifyGraphRejectsFamilyTestConsumers verifies fixtures must not compose consumers or the companion store. |
+| [`TestVerifyGraphRejectsGeneratedOutputLeaks`](../src/tools/importcheck/main_unit_test.go#L172) | test | 172-180 | `func TestVerifyGraphRejectsGeneratedOutputLeaks(t *testing.T)` | TestVerifyGraphRejectsGeneratedOutputLeaks verifies generated output stays inside its owning package tree. |
+| [`TestVerifyGraphRejectsRootCompanionAndSharedDependencies`](../src/tools/importcheck/main_unit_test.go#L183) | test | 183-193 | `func TestVerifyGraphRejectsRootCompanionAndSharedDependencies(t *testing.T)` | TestVerifyGraphRejectsRootCompanionAndSharedDependencies verifies the remaining dependency direction rules. |
+| [`TestVerifyUnitsAcceptsOwnedUnits`](../src/tools/importcheck/main_unit_test.go#L196) | test | 196-206 | `func TestVerifyUnitsAcceptsOwnedUnits(t *testing.T)` | TestVerifyUnitsAcceptsOwnedUnits verifies a consistent generation unit passes. |
+| [`TestVerifyUnitsRejectsOwnershipProblems`](../src/tools/importcheck/main_unit_test.go#L209) | test | 209-224 | `func TestVerifyUnitsRejectsOwnershipProblems(t *testing.T)` | TestVerifyUnitsRejectsOwnershipProblems verifies mismatched owners and undeclared query files fail. |
+| [`TestVerifyUnitsRejectsDuplicatesAndDefinitionsQueries`](../src/tools/importcheck/main_unit_test.go#L227) | test | 227-245 | `func TestVerifyUnitsRejectsDuplicatesAndDefinitionsQueries(t *testing.T)` | TestVerifyUnitsRejectsDuplicatesAndDefinitionsQueries verifies duplicate and definitions query listings fail. |
+| [`TestCheckFailsWithFileAndRemediation`](../src/tools/importcheck/main_unit_test.go#L248) | test | 248-262 | `func TestCheckFailsWithFileAndRemediation(t *testing.T)` | TestCheckFailsWithFileAndRemediation verifies a family production violation fails with actionable output. |
+| [`TestCheckPassesForApprovedGraph`](../src/tools/importcheck/main_unit_test.go#L265) | test | 265-276 | `func TestCheckPassesForApprovedGraph(t *testing.T)` | TestCheckPassesForApprovedGraph verifies a compliant tree exits successfully. |
+| [`TestReportSummarizesLayersFamiliesAndInvariants`](../src/tools/importcheck/main_unit_test.go#L279) | test | 279-293 | `func TestReportSummarizesLayersFamiliesAndInvariants(t *testing.T)` | TestReportSummarizesLayersFamiliesAndInvariants verifies the report content. |
+| [`TestScanRepositoryReportsSQLCErrors`](../src/tools/importcheck/main_unit_test.go#L296) | test | 296-302 | `func TestScanRepositoryReportsSQLCErrors(t *testing.T)` | TestScanRepositoryReportsSQLCErrors verifies a missing sqlc config fails the analysis. |
+| [`TestRunRejectsUnknownCommandAndExtraArguments`](../src/tools/importcheck/main_unit_test.go#L305) | test | 305-315 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies the command hierarchy rejects invalid usage. |
+
 ### [`src/tools/pdf-store/main.go`](../src/tools/pdf-store/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |

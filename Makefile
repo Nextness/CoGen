@@ -4,6 +4,7 @@ PDF_STORE        ?= build/pdf-store
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
 RAWSQL_CHECK     ?= build/rawsqlcheck
+IMPORT_CHECK     ?= build/importcheck
 PREPARE_OSF      ?= build/prepare-osf
 GITLEAKS        ?= build/gitleaks
 GITLEAKS_VERSION ?= v8.30.1
@@ -33,7 +34,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup sql-report
+.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup sql-report import-report
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -65,7 +66,7 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "../$(BIN)" .
 
-tools: something-printer pdf-store doccheck coveragecheck rawsqlcheck prepare-osf ## Build every maintained Go tool under build/.
+tools: something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf ## Build every maintained Go tool under build/.
 
 something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
 	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
@@ -86,6 +87,10 @@ coveragecheck: ## Build build/coveragecheck, the coverage policy tool.
 rawsqlcheck: ## Build build/rawsqlcheck, the raw SQL ownership tool.
 	@mkdir -p "$(dir $(RAWSQL_CHECK))"
 	cd $(GOWD) && $(GO) build -o "../$(RAWSQL_CHECK)" ./tools/rawsqlcheck/
+
+importcheck: ## Build build/importcheck, the import and transaction graph tool.
+	@mkdir -p "$(dir $(IMPORT_CHECK))"
+	cd $(GOWD) && $(GO) build -o "../$(IMPORT_CHECK)" ./tools/importcheck/
 
 prepare-osf: ## Build build/prepare-osf, the copy-only sanitized export tool.
 	@mkdir -p "$(dir $(PREPARE_OSF))"
@@ -110,13 +115,19 @@ format-check: ## Fail if any Go source file needs gofmt.
 vet: ## Run go vet across the module.
 	cd $(GOWD) && $(GO) vet ./...
 
-check: format-check vet check-sql check-docs gitleaks ## Run local Go, SQL ownership, documentation, and secret checks.
+check: format-check vet check-sql check-imports check-docs gitleaks ## Run local Go, SQL ownership, import graph, documentation, and secret checks.
 
 check-sql: rawsqlcheck ## Verify raw SQL calls only appear in approved locations.
 	./$(RAWSQL_CHECK) check
 
 sql-report: rawsqlcheck ## Print the raw SQL ownership report.
 	./$(RAWSQL_CHECK) report
+
+check-imports: importcheck ## Verify the package import and transaction graph follows the approved direction.
+	./$(IMPORT_CHECK) check
+
+import-report: importcheck ## Print the package import and transaction graph report.
+	./$(IMPORT_CHECK) report
 
 check-docs: doccheck ## Validate documentation links, format, catalog, migrations, and acknowledged state.
 	./$(DOC_CHECK) check

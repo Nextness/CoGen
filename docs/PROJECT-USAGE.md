@@ -49,6 +49,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
 | `build/rawsqlcheck` | `make rawsqlcheck`, `make tools`, `make check-sql`, or `make sql-report` | Checks and reports raw SQL ownership across maintained Go sources. |
+| `build/importcheck` | `make importcheck`, `make tools`, `make check-imports`, or `make import-report` | Checks and reports the package import and transaction graph. |
 | `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
 | `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, and preserved review mutation evidence for pipeline-to-viewer verification. |
@@ -57,6 +58,8 @@ All intentional executables are written beneath `build/`; routine work does not 
 `build/coveragecheck` is normally executed by `make coverage`; developers should use the Make target so it receives the correct profile and policy paths.
 
 `build/rawsqlcheck` is normally executed by `make check-sql` or `make sql-report`; developers should use the Make targets so it scans the repository root with the committed ownership table.
+
+`build/importcheck` is normally executed by `make check-imports` or `make import-report`; developers should use the Make targets so it scans the repository root with the committed layer rules.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`).
 
@@ -177,6 +180,8 @@ make test-race
 make coverage
 make check-sql
 make sql-report
+make check-imports
+make import-report
 make check
 ```
 
@@ -184,9 +189,11 @@ make check
 
 `make coverage` writes `build/coverage/coverage.out` and enforces [config/coverage_policy.something](../config/coverage_policy.something). The checker merges duplicate source ranges using the highest hit count and reports current, required, and delta coverage for tracked packages and high-risk files.
 
-`make check` runs the Go formatting check, `go vet`, the raw SQL ownership check, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
+`make check` runs the Go formatting check, `go vet`, the raw SQL ownership check, the import graph check, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
 
 `make check-sql` parses every maintained Go file under `src/` outside generated `internal/sql/` output and requires each Query, QueryRow, Exec, or prepared-statement call to be classified as platform migrations or connection behavior, viewer query-budget plumbing, dynamic table introspection, sanitized export maintenance, cross-database outbox savepoints, a retained `*_dynamic.go` reader, or a direct integrity test. An unclassified call fails with the file, line, method, and expected remediation, and a stale ownership entry fails when its file disappears or keeps no calls. `make sql-report` prints the same classification as a reviewable ownership report with per-file reasons.
+
+`make check-imports` parses every maintained Go package under `src/`, classifies it as a metadata family, the composition root, the companion PDF store, a consumer, or a shared low-level package, and enforces the approved dependency direction. Family production code may depend only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; test fixtures may compose the composition root and sibling families. Generated `internal/sql` output is imported only inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and generated output under one owner directory. `make import-report` prints the layer graph, family production imports, fixture composition, sqlc units, and verified invariants.
 
 ## 11. End-to-end verification
 

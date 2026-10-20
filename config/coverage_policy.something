@@ -117,6 +117,10 @@ coverage_policy: coverage_policy_config = {
             minimum = 90.0,
             rationale = "Raw SQL ownership scanning and classification paths are exercised by focused unit and functional tests."
         },
+        ["analysis/tools/importcheck"] => {
+            minimum = 85.0,
+            rationale = "Import graph scanning, layer classification, and sqlc unit ownership paths are exercised by focused unit and functional tests."
+        },
         ["analysis/validation"]        => { minimum =  92.0 },
         ["analysis/workspace"]         => { minimum =  72.0 },
     },

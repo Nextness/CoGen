@@ -86,6 +86,8 @@ jobs:
         run: make sqlc-check
       - name: Verify raw SQL ownership
         run: make check-sql
+      - name: Verify import and transaction graph
+        run: make check-imports
       - name: Build build/analysis
         run: make build
       - name: Build maintained Go tools
