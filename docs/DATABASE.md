@@ -2,28 +2,50 @@
 
 ## 1. Purpose and authority
 
-This document describes the current SQLite schema after every configured migration has been applied. It covers every maintained table in the metadata database and companion PDF database, their columns and SQL defaults, foreign-key and logical relationships, repository expectations, integrity controls, and operational role. Use [ARCHITECTURE.md](ARCHITECTURE.md) for end-to-end system behavior, [STANDARDS.md](STANDARDS.md) for migration and persistence rules, [PROJECT-USAGE.md](PROJECT-USAGE.md) for supported commands, and [PROJECT_CATALOG.md](PROJECT_CATALOG.md) for repository functions and source locations.
+This document describes the current SQLite schema after every configured migration has been applied. It covers every maintained table in the metadata database and companion PDF database, their columns and SQL defaults, foreign-key and logical relationships, owning-family access expectations, integrity controls, and operational role. Use [ARCHITECTURE.md](ARCHITECTURE.md) for end-to-end system behavior, [STANDARDS.md](STANDARDS.md) for migration and persistence rules, [PROJECT-USAGE.md](PROJECT-USAGE.md) for supported commands, and [PROJECT_CATALOG.md](PROJECT_CATALOG.md) for family functions and source locations.
 
-The authoritative schema sources are [config/database.something](../config/database.something), [config/database.corpus.metadata.something](../config/database.corpus.metadata.something), [config/database.corpus.pdf.something](../config/database.corpus.pdf.something), [migrations/corpus.metadata/](../migrations/corpus.metadata/), and [migrations/corpus.pdf/](../migrations/corpus.pdf/). Repository code under [src/database/](../src/database/) and [src/pdfstore/](../src/pdfstore/) is authoritative for application-level validation and update behavior that SQLite does not encode.
+The authoritative schema sources are [config/database.something](../config/database.something), [config/database.corpus.metadata.something](../config/database.corpus.metadata.something), [config/database.corpus.pdf.something](../config/database.corpus.pdf.something), [migrations/corpus.metadata/](../migrations/corpus.metadata/), and [migrations/corpus.pdf/](../migrations/corpus.pdf/). Handwritten family code under [src/database/](../src/database/) and [src/pdfstore/](../src/pdfstore/) is authoritative for application-level validation and update behavior that SQLite does not encode. Family `schema/` declarations and committed generated `internal/sql/` packages are compile-time inputs for typed queries: they are never migration sources, do not alter either configured chain, and do not change any schema, version, or relationship statement in this document.
 
 The metadata database contains 43 application tables plus `schema_migrations`. The PDF database contains five application tables plus its independent `schema_migrations`. SQLite also creates the internal `sqlite_sequence` table for `AUTOINCREMENT` keys; it is implementation state rather than a project table and is not part of the documented application contract.
 
-In the column summaries below, `NULL` means the column is nullable, and a default is shown only when the DDL declares one. A column without an explicit `DEFAULT` has no SQL default even when repository code normally supplies a value. `PK` means primary key, `FK` means foreign key, and all foreign keys use SQLite's default `NO ACTION` behavior because the migrations declare no cascading action.
+In the column summaries below, `NULL` means the column is nullable, and a default is shown only when the DDL declares one. A column without an explicit `DEFAULT` has no SQL default even when family code normally supplies a value. `PK` means primary key, `FK` means foreign key, and all foreign keys use SQLite's default `NO ACTION` behavior because the migrations declare no cascading action.
 
 ## 2. Database bundle and opening behavior
 
 | Database | Normal filename | Migration chain | Owner | Current role |
 |---|---|---|---|---|
-| Metadata | `corpus.metadata.db` | V00001-V00028 under `migrations/corpus.metadata/` | `src/database/`, `src/workspace/`, and review APIs in `src/server/` | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
+| Metadata | `corpus.metadata.db` | V00001-V00028 under `migrations/corpus.metadata/` | `src/database/` composition root and table families; `src/workspace/`, `src/pdfstore/`, `src/server/`, and maintained tools are consumers | System of record for configuration identity, attempts, source evidence, immutable corpus revisions and relationships, run-scoped immutable review versions and heads, artifacts, cache, metrics, audit, and the PDF-store binding. |
 | PDF | `corpus.pdf.db` | V00001-V00002 under `migrations/corpus.pdf/` | `src/pdfstore/` | Portable companion inventory for normalized DOIs, content-addressed validated PDF bytes, and cross-database audit delivery. |
 
 `config/database.something` selects the two migration configurations independently. Writable opening creates the parent directory, enables WAL, sets a 5,000 millisecond busy timeout, enables foreign keys on every pooled connection, and applies configured migrations in SOMETHING declaration order. Tracking-table creation and each individual migration use `BEGIN IMMEDIATE` to serialize concurrent schema changes.
 
 Migration identity is the filename. An already recorded filename is skipped, and its stored checksum is not revalidated on later opens. The `previous` and `upgrade` configuration fields document chain adjacency but do not determine execution order. The optional `supersedes` field identifies a verified equivalent earlier filename: when that filename is recorded, the migrator records the configured canonical filename and checksum without rerunning its SQL, retains the earlier history row, and reports the adoption. V00026 uses this compatibility path for databases that applied the same anchor-label change under the earlier `V00025_review_anchor_labels.sql` filename. There is no runtime downgrade command even though migration files contain `-- ==DOWN==` sections.
 
-The viewer opens an existing metadata database with one `mode=ro` and `query_only` connection for evidence reads and one existing-only `mode=rw` single connection for review repositories. It never creates a database, never applies migrations, verifies required review tables and append-only triggers during startup, and opens the valid bound companion PDF database read-only.
+The viewer opens an existing metadata database with one `mode=ro` and `query_only` connection for evidence reads and one existing-only `mode=rw` single connection for bounded review and lifecycle mutations. It never creates a database, never applies migrations, verifies required review tables and append-only triggers during startup, and opens the valid bound companion PDF database read-only.
 
 Metadata and PDF files form one portable bundle after PDF inventory begins. `pdf_store_binding.relative_path` is resolved relative to the metadata database directory, while `works.doi`, `pdf_documents.doi`, and `pdf_audit_outbox.pipeline_run_id` are cross-file logical references that SQLite cannot enforce as foreign keys.
+
+### 2.1 Table-family access
+
+Runtime code reaches metadata tables through handwritten family stores bound to an already opened connection. `database.Open` and `OpenConfigured` own the platform: they build the SQLite URI, configure pragmas, apply the configured migration chain, expose connection, health, schema-version, and transaction methods, and bind one store per family (`Run`, `Search`, `Source`, `Artifact`, `Cache`, `Audit`, `Work`, `Author`, `Review`, and `PDFBindings`) to the same `*sql.DB`. Each store calls committed generated queries under `src/database/<family>/internal/sql/`, which execute through `database/sql` and `modernc.org/sqlite`. The workspace pipeline and the `pdf-store` tool use that composition root; the viewer opens its own read-only and existing-only mutation connections and constructs the same family stores directly with `family.New(conn)` without running migrations; `analysis recover` uses the existing-only platform opening; `prepare-osf` reads its source and sanitizes its copy through a private generated export package; and `pdfstore` opens the companion file with the PDF chain and uses the `pdfbinding` family for metadata-side binding and delivered audit.
+
+| Family | Package | Owned tables | Additional tables accessed through named relationship queries |
+|---|---|---|---|
+| Search | `src/database/search/` | `searches`, `search_revisions`, `execution_plans` | `pipeline_runs` |
+| Run | `src/database/run/` | `pipeline_runs`, `pipeline_run_reviewers`, `run_steps`, `pipeline_run_metrics` | `searches`, `search_revisions`, `execution_plans`, `review_contexts`, `audit_events` |
+| Source | `src/database/source/` | `run_sources`, `source_records`, `source_filter_counts` | None |
+| Artifact | `src/database/artifact/` | `artifacts`, `artifact_blobs`, `run_artifacts` | `run_steps`, `cache_entries`, `run_cache_uses`, `author_identity_resolutions`, `author_identity_candidates` |
+| Cache | `src/database/cache/` | `cache_entries`, `run_cache_uses` | None |
+| Work | `src/database/work/` | `works`, `work_identifiers`, `work_revisions`, `run_work_stages`, `run_search_terms`, `work_revision_term_matches`, `run_term_match_reconciliations`, `reference_mentions` | `author_occurrences`, `authorships`, `work_review_versions`, `work_review_version_substatuses`, `review_context_work_heads` |
+| Author | `src/database/author/` | `people`, `author_occurrences`, `authorships`, `author_identity_resolutions`, `author_identity_candidates` | `work_revisions` |
+| Review | `src/database/review/` | `review_settings`, `review_contexts`, `work_review_versions`, `work_review_version_substatuses`, `review_context_work_heads`, `review_notes`, `review_note_versions`, `review_context_note_heads`, `review_note_links`, `review_anchors`, `review_anchor_versions`, `review_context_anchor_heads` | `searches`, `search_revisions`, `execution_plans`, `pipeline_runs`, `pipeline_run_reviewers`, `works`, `work_revisions`, `run_work_stages`, `audit_events` |
+| Audit | `src/database/audit/` | `audit_events` | `work_revisions`, `review_contexts`, `work_review_versions`, `review_notes`, `review_note_versions`, `review_anchors`, `review_anchor_versions` |
+| PDF binding | `src/database/pdfbinding/` | `pdf_store_binding`, `pdf_audit_links` | `pipeline_runs`, `audit_events` |
+| Platform | `src/database/` | `schema_migrations` | None; the composition root owns connection, pragma, migration, schema-version, and transaction behavior rather than a family DAL. |
+
+Normal runtime reaches the PDF database's `schema_migrations`, `pdf_documents`, `pdf_blobs`, and `pdf_audit_outbox` tables through the `src/pdfstore/` companion store over the PDF chain connection; `prepare-osf` copies the companion file as part of its bundle snapshot, and `pdf_gather_runs` and `pdf_download_attempts` remain present schema with no current production writer. `src/database/sqlcprobe/` is generator validation scaffolding over `cache_entries` rather than a production family.
+
+Each application metadata table has exactly one owning family. Another family may access it through a specifically named relationship query when its primary result or mutation requires it, but cross-table writes and transactions stay in the family owning the use case, so no transaction spans two family stores or two databases. `make check-imports` enforces the direction, and generated `internal/sql` output stays inside its owning package tree.
 
 ## 3. Relationship overview
 
@@ -76,7 +98,7 @@ review_contexts 1 ----< review_context_anchor_heads >---- 1 review_anchor_versio
 review_anchors 1 ----< review_anchor_versions
 ```
 
-One explicitly initialized context belongs to one completed non-trashed run. Initialization copies only parent version IDs for stable work matches; bodies and geometry are not duplicated, and later parent edits do not propagate. Review, note, and anchor version tables are immutable, while the three head tables move only through optimistic repository transactions that also append an `audit_events` row. Notes and anchors use tombstone child versions instead of physical deletion.
+One explicitly initialized context belongs to one completed non-trashed run. Initialization copies only parent version IDs for stable work matches; bodies and geometry are not duplicated, and later parent edits do not propagate. Review, note, and anchor version tables are immutable, while the three head tables move only through optimistic family transactions that also append an `audit_events` row. Notes and anchors use tombstone child versions instead of physical deletion.
 
 ### 3.4 Companion PDF inventory and audit delivery
 
@@ -101,14 +123,16 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 ## 4. Shared storage conventions
 
 - Integer `AUTOINCREMENT` primary keys are generated by SQLite; text primary keys are supplied by the application.
-- Timestamps are stored as `TEXT`. SQL defaults use UTC `datetime('now')`; repository-supplied timestamps normally use UTC RFC 3339 with nanosecond support. Consumers must treat them as timestamps rather than assume one textual precision.
+- Timestamps are stored as `TEXT`. SQL defaults use UTC `datetime('now')`; family-supplied timestamps normally use UTC RFC 3339 with nanosecond support. Consumers must treat them as timestamps rather than assume one textual precision.
 - Hash columns hold lowercase hexadecimal SHA-256 values when written through supported code. Only fields with an explicit length check enforce 64 characters in SQLite, and length checks do not independently prove hexadecimal content or recompute the digest.
 - Metadata JSON and serialized fields are `TEXT`. The PDF schema applies `json_valid` to `settings_json`, `selected_workspaces`, and `pdf_audit_outbox.metadata_json`; metadata-side JSON fields and `source_filter_counts.filter_data` rely on supported writers and do not have SQL JSON checks.
 - Boolean configuration is stored as SQLite `INTEGER`; `execution_plans.enrichment_enabled` defaults to `0`, and supported code writes `0` or `1`, but the schema does not add a boolean check.
 - Foreign keys are enforced on writable pooled connections. No table declares `ON DELETE CASCADE`, so parent removal must be explicitly ordered and will fail while dependent rows remain.
-- Tables described as immutable or append-only have the exact enforcement stated in their entry. Some content-addressed tables are treated as immutable by repository behavior but do not have update or delete triggers.
+- Tables described as immutable or append-only have the exact enforcement stated in their entry. Some content-addressed tables are treated as immutable by family behavior but do not have update or delete triggers.
 
 ## 5. Metadata database tables
+
+Section 2.1 maps every table below to its owning family and to any additional family that reaches it through a named relationship query.
 
 ### 5.1 Migration and execution identity
 
@@ -134,7 +158,7 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 
 - Purpose: Stores a reusable, immutable execution identity for one search revision and input policy.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `search_revision_id INTEGER NOT NULL FK search_revisions.id`; `execution_fingerprint TEXT NOT NULL`; `resolved_manifest_hash TEXT NOT NULL`; `created_at TEXT NOT NULL DEFAULT datetime('now')`; `input_manifest_hash TEXT NOT NULL DEFAULT ''`; `enrichment_enabled INTEGER NOT NULL DEFAULT 0`; `UNIQUE(search_revision_id, execution_fingerprint)`.
-- Relationships and expectations: One plan owns numbered `pipeline_runs`. Supported workspace creation requires a nonempty input-manifest hash and treats a reused fingerprint with a different resolved-manifest hash as an integrity error. The lower-level `ExecutionPlanRepository.Create` method can write the empty SQL default when no input manifest is supplied.
+- Relationships and expectations: One plan owns numbered `pipeline_runs`. Supported workspace creation requires a nonempty input-manifest hash and treats a reused fingerprint with a different resolved-manifest hash as an integrity error. The lower-level `search.Store.FindOrCreatePlan` method can write the empty SQL default when no input manifest is supplied; the supported workspace path uses `FindOrCreatePlanWithInputManifest`, which requires a nonempty hash.
 
 #### `pipeline_runs`
 
@@ -390,6 +414,8 @@ PDF registration and byte storage commit with a `pdf_audit_outbox` row in the PD
 
 ## 6. PDF database tables
 
+The `src/pdfstore/` companion store owns every table below and reaches it through the PDF chain connection.
+
 ### 6.1 Migration state
 
 #### `schema_migrations`
@@ -493,12 +519,12 @@ Tables omitted from this index table have no explicit named secondary index and 
 6. A normalized work DOI is registered in `pdf_documents`; a validated manual PDF is stored in `pdf_blobs`; outbox delivery mirrors the mutation into metadata `audit_events` without requiring a transaction spanning both database files.
 7. Each attempt stores one optional reviewer identity row. Starting review explicitly creates at most one context for a completed non-trashed run, freezes selected parent heads for stable work matches, and makes the reviewed run and its lineage purge-ineligible.
 8. Review-decision and Note changes require a completed active run, initialized context, and work membership; PDF anchor creation or restoration additionally requires matching available PDF bytes. Each change appends an immutable version, compare-and-swaps only the selected context head, and appends audit evidence in the same metadata transaction. Review-decision events store the complete previous and new status, optional reason, and sub-statuses in `before_json` and `after_json`; generic review metadata remains identifier-only, and note bodies, selected PDF text, reviewer email, and browser drafts are not duplicated. The viewer never writes the PDF database.
-9. Normal operators and the viewer treat stored pipeline corpus evidence as read-only. Schema migrations are append-only files, immutable table corrections create new rows, and parent deletion requires explicit dependency-aware repository behavior because no foreign key cascades.
+9. Normal operators and the viewer treat stored pipeline corpus evidence as read-only. Schema migrations are append-only files, immutable table corrections create new rows, and parent deletion requires explicit dependency-aware family behavior because no foreign key cascades.
 
 ## 9. Schema change checklist
 
 - Add a new migration under the database-owning directory with both `-- ==UP==` and `-- ==DOWN==` markers, then append its filename to the matching SOMETHING migration chain without editing an applied migration.
-- Put table constraints at the database boundary when they are universally true, and retain repository validation when the rule requires project logic such as DOI normalization, ORCID checksum validation, lifecycle pairing, content hashing, or cross-file path safety.
+- Put table constraints at the database boundary when they are universally true, and retain family validation when the rule requires project logic such as DOI normalization, ORCID checksum validation, lifecycle pairing, content hashing, or cross-file path safety.
 - Preserve foreign keys, append-only triggers, content identity, immutable revision semantics, audit delivery idempotence, and bundle-relative PDF path validation.
 - Update this document, review related architecture and standards, run the focused database tests, run `make docs-state-update`, and then run `make check`, which includes the read-only documentation consistency check.
 
