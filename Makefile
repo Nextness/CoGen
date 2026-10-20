@@ -59,6 +59,13 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'
 	@printf '%s\n' '  make gitleaks'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Family SQL generation:'
+	@printf '%s\n' '  Maintain src/database/<family>/schema/ and src/pdfstore/schema/; committed internal/sql output is generated.'
+	@printf '%s\n' '  make sqlc-install    install the pinned generator to build/sqlc; normal builds do not need it'
+	@printf '%s\n' '  make sqlc-generate   build/sqlc -f config/sqlc.yaml generate'
+	@printf '%s\n' '  make sqlc-check      build/sqlc -f config/sqlc.yaml diff and vet'
+	@printf '%s\n' '  make build           never invokes sqlc; consumes committed internal/sql output'
 
 all: build ## Build build/analysis; the binary contains no frontend assets.
 
@@ -138,13 +145,13 @@ gitleaks-install: ## Install gitleaks to build/gitleaks for local secret scannin
 gitleaks: gitleaks-install ## Run the gitleaks secret scan over the repository.
 	"$(GITLEAKS)" detect --source . --no-banner --redact
 
-sqlc-install: ## Install pinned sqlc to build/sqlc for family SQL code generation.
+sqlc-install: ## Install the pinned generator to build/sqlc; normal builds do not need it.
 	@test -x "$(SQLC)" || { mkdir -p "$(dir $(SQLC))"; cd $(GOWD) && GOBIN="$(abspath $(dir $(SQLC)))" $(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION); }
 
-sqlc-generate: sqlc-install ## Generate committed Go from family SQL inputs with config/sqlc.yaml.
+sqlc-generate: sqlc-install ## Regenerate committed internal/sql output with build/sqlc -f config/sqlc.yaml generate.
 	"$(SQLC)" -f config/sqlc.yaml generate
 
-sqlc-check: sqlc-install ## Verify generated Go is current and maintained queries pass sqlc analysis.
+sqlc-check: sqlc-install ## Diff committed output and vet queries with build/sqlc -f config/sqlc.yaml diff and vet.
 	"$(SQLC)" -f config/sqlc.yaml diff
 	"$(SQLC)" -f config/sqlc.yaml vet
 
