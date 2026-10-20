@@ -1,5 +1,7 @@
 // helpers_test.go provides shared test fixtures and request helpers
 // used by the viewer integration tests.
+//go:build integration
+
 package server
 
 import (
@@ -15,6 +17,9 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/run"
+	"analysis/database/search"
+	"analysis/database/work"
 	"analysis/pdfstore"
 )
 
@@ -105,7 +110,7 @@ func viewerFixture(t *testing.T) (string, int64, int64, int64) {
 		t.Fatal(err)
 	}
 	exec := func(query string, args ...any) sql.Result {
-		result, err := db.DB.Exec(query, args...)
+		result, err := db.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatalf("fixture exec %q: %v", query, err)
 		}
@@ -199,7 +204,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	}
 	createWork := func(doi string) int64 {
 		t.Helper()
-		id, err := db.Works.CreateByDOI(doi)
+		id, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,7 +212,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	}
 	createRevision := func(workID, runID int64, stage, title string) int64 {
 		t.Helper()
-		id, err := db.WorkRevisions.Create(&database.WorkRevision{
+		id, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 			WorkID: workID, PipelineRunID: runID, ProducerStage: stage, Title: title,
 		})
 		if err != nil {
@@ -215,15 +220,17 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		}
 		return id
 	}
-	runID, err := db.PipelineRuns.StartRun("viewer", "reference resolution")
+	runID, err := db.Run.StartRun(context.Background(), "viewer", "reference resolution")
 	if err != nil {
 		t.Fatal(err)
 	}
 	citingWorkID := createWork("10.1000/viewer-citing")
-	citingRevisionID := createRevision(citingWorkID, runID, database.ProducerStageNormalize, "Citing normalized title")
+	citingRevisionID := createRevision(citingWorkID, runID, work.ProducerStageNormalize, "Citing normalized title")
 	targetWorkID := createWork("10.1000/viewer-target")
 	for _, workID := range []int64{citingWorkID, targetWorkID} {
-		if err := db.RunWorkStages.SetOutcome(runID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+		if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{
+			RunID: runID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -231,22 +238,22 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		stage string
 		title string
 	}{
-		{database.ProducerStageParse, "Target parse title"},
-		{database.ProducerStageDeduplicate, "Target deduplicate title"},
-		{database.ProducerStageEnrich, "Target enrich title"},
-		{database.ProducerStageEnrichMetadata, "Target enrich metadata title"},
-		{database.ProducerStageEnrichIdentity, "Target enrich identity title"},
-		{database.ProducerStageValidate, "Target validate title"},
-		{database.ProducerStageNormalize, "Target normalized title"},
+		{work.ProducerStageParse, "Target parse title"},
+		{work.ProducerStageDeduplicate, "Target deduplicate title"},
+		{work.ProducerStageEnrich, "Target enrich title"},
+		{work.ProducerStageEnrichMetadata, "Target enrich metadata title"},
+		{work.ProducerStageEnrichIdentity, "Target enrich identity title"},
+		{work.ProducerStageValidate, "Target validate title"},
+		{work.ProducerStageNormalize, "Target normalized title"},
 	}
 	var normalizedTargetID int64
 	for _, snapshot := range stages {
 		id := createRevision(targetWorkID, runID, snapshot.stage, snapshot.title)
-		if snapshot.stage == database.ProducerStageNormalize {
+		if snapshot.stage == work.ProducerStageNormalize {
 			normalizedTargetID = id
 		}
 	}
-	externalMentionID, err := db.ReferenceMentions.Create(&database.ReferenceMention{
+	externalMentionID, err := db.Work.CreateReference(context.Background(), &work.Reference{
 		WorkRevisionID: citingRevisionID,
 		MentionOrder:   1,
 		RawReference:   "External reference",
@@ -257,7 +264,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolvedMentionID, err := db.ReferenceMentions.Create(&database.ReferenceMention{
+	resolvedMentionID, err := db.Work.CreateReference(context.Background(), &work.Reference{
 		WorkRevisionID: citingRevisionID,
 		ResolvedWorkID: targetWorkID,
 		MentionOrder:   2,
@@ -293,7 +300,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	createWork := func(doi string) int64 {
 		t.Helper()
-		id, err := db.Works.CreateByDOI(doi)
+		id, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -301,7 +308,7 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	createRevision := func(workID, runID int64, stage, title string) int64 {
 		t.Helper()
-		id, err := db.WorkRevisions.Create(&database.WorkRevision{
+		id, err := db.Work.CreateRevision(context.Background(), &work.Revision{
 			WorkID: workID, PipelineRunID: runID, ProducerStage: stage, Title: title,
 		})
 		if err != nil {
@@ -311,24 +318,26 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	}
 	setStage := func(runID, workID int64, stage, outcome, reason string) {
 		t.Helper()
-		if err := db.RunWorkStages.SetOutcome(runID, workID, stage, outcome, reason); err != nil {
+		if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{
+			RunID: runID, WorkID: workID, StageName: stage, Outcome: outcome, Reason: reason,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	insertAudit := func(runID any, entityType string, entityID int64, action, metadata, correlationID string) {
 		t.Helper()
-		if _, err := db.DB.Exec(`INSERT INTO audit_events
+		if _, err := db.RawDBForTest().Exec(`INSERT INTO audit_events
 			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
 			VALUES (datetime('now'), 'fixture', ?, ?, ?, ?, ?, ?)`,
 			runID, entityType, stringID(entityID), action, metadata, correlationID); err != nil {
 			t.Fatal(err)
 		}
 	}
-	previousRunID, err := db.PipelineRuns.StartRun("viewer", "prior article activity")
+	previousRunID, err := db.Run.StartRun(context.Background(), "viewer", "prior article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("viewer", "article activity")
+	runID, err := db.Run.StartRun(context.Background(), "viewer", "article activity")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,23 +348,23 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 		outcome       string
 		title         string
 	}{
-		{database.ProducerStageParse, database.StageNameParse, database.OutcomeParsed, "Activity parse title"},
-		{database.ProducerStageDeduplicate, database.StageNameDeduplicate, database.OutcomeDeduplicated, "Activity deduplicated title"},
-		{database.ProducerStageEnrichMetadata, database.StageNameEnrichMetadata, database.OutcomeEnriched, "Activity metadata title"},
-		{database.ProducerStageEnrichIdentity, database.StageNameEnrichIdentity, database.OutcomeEnriched, "Activity identity title"},
-		{database.ProducerStageValidate, database.StageNameValidate, database.OutcomeValid, "Activity validated title"},
-		{database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, "Activity normalized title"},
+		{work.ProducerStageParse, work.StageNameParse, work.OutcomeParsed, "Activity parse title"},
+		{work.ProducerStageDeduplicate, work.StageNameDeduplicate, work.OutcomeDeduplicated, "Activity deduplicated title"},
+		{work.ProducerStageEnrichMetadata, work.StageNameEnrichMetadata, work.OutcomeEnriched, "Activity metadata title"},
+		{work.ProducerStageEnrichIdentity, work.StageNameEnrichIdentity, work.OutcomeEnriched, "Activity identity title"},
+		{work.ProducerStageValidate, work.StageNameValidate, work.OutcomeValid, "Activity validated title"},
+		{work.ProducerStageNormalize, work.StageNameNormalize, work.OutcomeNormalized, "Activity normalized title"},
 	}
 	var metadataRevisionID, identityRevisionID, normalizedRevisionID int64
 	for _, snapshot := range snapshots {
 		revisionID := createRevision(workID, runID, snapshot.producerStage, snapshot.title)
 		setStage(runID, workID, snapshot.stageName, snapshot.outcome, "")
 		switch snapshot.producerStage {
-		case database.ProducerStageEnrichMetadata:
+		case work.ProducerStageEnrichMetadata:
 			metadataRevisionID = revisionID
-		case database.ProducerStageEnrichIdentity:
+		case work.ProducerStageEnrichIdentity:
 			identityRevisionID = revisionID
-		case database.ProducerStageNormalize:
+		case work.ProducerStageNormalize:
 			normalizedRevisionID = revisionID
 		}
 	}
@@ -366,11 +375,11 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	insertAudit(nil, "work", workID, "pdf_document_inventoried", `{}`, "manual-pdf")
 
 	discardedWorkID := createWork("10.1000/viewer-activity-discarded")
-	createRevision(discardedWorkID, runID, database.ProducerStageParse, "Discarded parse title")
-	setStage(runID, discardedWorkID, database.StageNameParse, database.OutcomeParsed, "")
-	discardedRevisionID := createRevision(discardedWorkID, runID, database.ProducerStageValidate, "Discarded validation title")
+	createRevision(discardedWorkID, runID, work.ProducerStageParse, "Discarded parse title")
+	setStage(runID, discardedWorkID, work.StageNameParse, work.OutcomeParsed, "")
+	discardedRevisionID := createRevision(discardedWorkID, runID, work.ProducerStageValidate, "Discarded validation title")
 	discardedReason := `["DOI is missing","Publication year is invalid"]`
-	setStage(runID, discardedWorkID, database.StageNameValidate, database.OutcomeDiscarded, discardedReason)
+	setStage(runID, discardedWorkID, work.StageNameValidate, work.OutcomeDiscarded, discardedReason)
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +424,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 		t.Fatal(err)
 	}
 	create := func(doi string) int64 {
-		id, err := metadata.Works.CreateByDOI(doi)
+		id, err := metadata.Work.CreateWorkByDOI(ctx, doi)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -423,52 +432,60 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	}
 	availableID := create("10.1000/viewer-available")
 	notAvailableID := create("10.1000/viewer-not-available")
-	unavailableID, err := metadata.Works.CreateWithoutDOI()
+	unavailableID, err := metadata.Work.CreateWorkWithoutDOI(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	searchID, err := metadata.Searches.Create("viewer-pdf-search")
+	searchID, err := metadata.Search.FindOrCreateSearch(ctx, "viewer-pdf-search")
 	if err != nil {
 		t.Fatal(err)
 	}
-	searchRevisionID, _, err := metadata.Revisions.Create(searchID, "r1", "config", "manifest")
+	searchRevisionID, _, err := metadata.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := metadata.Plans.CreateWithInputManifest(searchRevisionID, "viewer-pdf-fingerprint", "manifest", "input", false)
+	planID, err := metadata.Search.FindOrCreatePlanWithInputManifest(ctx, search.PlanInput{
+		SearchRevisionID: searchRevisionID, ExecutionFingerprint: "viewer-pdf-fingerprint",
+		ResolvedManifestHash: "manifest", InputManifestHash: "input",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pipelineRunID, _, err := metadata.PipelineRuns.StartAttempt(planID, "viewer", "query")
+	pipelineRunID, _, err := metadata.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "viewer", SearchQuery: "query"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.PipelineRunReviewers.Insert(pipelineRunID, "Fixture Reviewer", "fixture@example.test"); err != nil {
+	if err := metadata.Run.InsertReviewer(ctx, run.ReviewerInput{RunID: pipelineRunID, Username: "Fixture Reviewer", Email: "fixture@example.test"}); err != nil {
 		t.Fatal(err)
 	}
-	revisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: availableID, PipelineRunID: pipelineRunID, ProducerStage: database.ProducerStageNormalize,
+	revisionID, err := metadata.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: availableID, PipelineRunID: pipelineRunID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Viewer PDF article",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	notAvailableRevisionID, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: notAvailableID, PipelineRunID: pipelineRunID, ProducerStage: database.ProducerStageNormalize,
+	notAvailableRevisionID, err := metadata.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: notAvailableID, PipelineRunID: pipelineRunID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Viewer PDF article without inventory content",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, workID := range []int64{availableID, notAvailableID} {
-		if err := metadata.RunWorkStages.SetOutcome(pipelineRunID, workID, database.StageNameValidate, database.OutcomeValid, ""); err != nil {
+		if err := metadata.Work.SetStageOutcome(ctx, work.StageOutcomeInput{
+			RunID: pipelineRunID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := metadata.PipelineRuns.FinishRun(pipelineRunID, "completed", "fixture complete"); err != nil {
+	if err := metadata.Run.FinishRun(ctx, pipelineRunID, "completed", "fixture complete"); err != nil {
 		t.Fatal(err)
 	}
-	if err := pdfstore.BindStore(ctx, metadata.DB, "corpus.pdf.db"); err != nil {
+	bindings := metadata.PDFBindings
+	if err := bindings.EnsureBinding(ctx, "corpus.pdf.db"); err != nil {
 		t.Fatal(err)
 	}
 	store, err := pdfstore.Open(filepath.Join(tempDir, "corpus.pdf.db"), registry)
@@ -489,7 +506,7 @@ func newPDFViewerFixture(t *testing.T) pdfViewerFixture {
 	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, deterministicFixturePDF("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.FlushAuditOutbox(ctx, metadata.DB); err != nil {
+	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

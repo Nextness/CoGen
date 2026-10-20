@@ -25,7 +25,7 @@ The module targets Go 1.25.0. Use standard Go formatting through `gofmt`, keep p
 - Wrap errors with useful operation context while preserving errors needed by `errors.Is` or `errors.As` callers.
 - Do not swallow errors, log sensitive values, or duplicate nullable, JSON, SQL, hashing, or validation helpers already owned by a package.
 - Close resources at the owning layer, propagate context cancellation, and keep goroutine shutdown and channel ownership deterministic.
-- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` is the only direct production Go dependency.
+- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` is the only direct production Go dependency; the pinned sqlc generator is a development tool and never enters the module graph.
 - Run `gofmt` on changed Go files and use `make format-check` before completion.
 
 ## 4. Source documentation comments
@@ -59,7 +59,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Do not lower a coverage floor merely to accept a regression.
 - Raise a floor only when meaningful tests justify the durable threshold.
 - Inspection tools excluded by the policy do not become exempt from their focused unit suites.
-- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, `make vet` or `make check`, and the `make gitleaks` secret scan that `make check` and the CI merge gate run.
+- The repository has no separate lint target; supported static checks are `gofmt`, `make format-check`, `make vet` or `make check`, the `make check-sql` raw SQL ownership check and the `make check-imports` import and transaction graph check that `make check` and the CI backend gate run, the `make sqlc-check` generated-output freshness and query-analysis check that the CI backend gate runs and every family SQL input change requires, and the `make gitleaks` secret scan that `make check` and the CI merge gate run.
 
 ## 7. SOMETHING standards
 
@@ -82,11 +82,18 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 - Keep provider registration and ordering in code; configuration values customize registered providers but do not create providers.
 - Update documentation and tests whenever a supported configuration field, default, or validation rule changes.
 
-## 9. SQLite and repository standards
+## 9. SQLite, SQL, and generated-code standards
 
 - Use `database.Open` only for migration-running pipeline paths, `database.OpenExisting` for an existing metadata file that must not be migrated or created, and `server.Open` for the viewer's coordinated read, review-write, and read-only PDF lifecycle.
 - Keep foreign keys enabled, retain connection busy timeouts, and preserve `BEGIN IMMEDIATE` migration serialization.
-- Use repository nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
+- Use family-local nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
+- Keep raw SQL calls inside classified ownership locations: platform migrations and connections, the viewer query-budget driver wrapper, dynamic table introspection, sanitized export maintenance, the cross-database outbox, or a retained `*_dynamic.go` reader. Dynamic SQL is an explicit exception rather than a default: prefer finite named query variants, and confine any retained builder to closed SQL fragments, bound values, allowlisted identifiers, and hard limits with injection and ordering tests. Run `make check-sql` after adding or moving a call; an unclassified call or a stale ownership entry fails with the file and the expected remediation, and `make sql-report` prints the current inventory.
+- Keep the package dependency direction: family production code depends only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; the composition root imports families, the companion store coordinates with them, and consumers import both; shared low-level packages never import orchestration. Run `make check-imports` after changing imports; generated `internal/sql` output stays inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and output under one owner directory.
+- Keep every maintained family declaration and named query under `src/database/<family>/schema/` or `src/pdfstore/schema/`, and keep generated Go under the reserved `internal/sql/` package of the same owner; change the inputs, run `make sqlc-generate` from the committed `config/sqlc.yaml`, and review the generated diff instead of editing generated files.
+- Map generated row types to family application types inside the owning package. Generated packages and types stay private to their family tree and never appear in another family's or a consumer's handwritten API.
+- Put relationship SQL with the family that owns the returned resource or the mutation. A family may read another family's table through a specifically named relationship query, but cross-table writes and transactions stay in the family owning the use case and never call a sibling family store.
+- Create integration, fixture, and E2E databases only through the production migration chains. Family `schema/` declarations are compile-time inputs for typed queries and never feed runtime migrations or SOMETHING versioning.
+- Run `make sqlc-check` after changing any family schema declaration or named query; it proves committed generated output is current and every maintained query still passes sqlc analysis. Normal `make build`, `make tools`, `make test`, and `make check` consume committed generated output and never invoke sqlc.
 - Validate dynamic identifiers against discovered or explicit allowlists before quoting them.
 - Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 - Preserve immutable work revisions, authorships, reference mentions, review contexts and versions, append-only audit, and content-addressed artifact invariants. Only context head tables may move, and they move through repository transactions with expected-version compare-and-swap. Review audit metadata remains identifier-only; decision events deliberately record the complete bounded previous and new decision in the audit before/after fields.
@@ -200,4 +207,4 @@ Styles load in cascade order `tokens.css`, `base.css`, `elements.css`, `collecti
 
 ## 19. Verification selection
 
-Use the narrowest relevant test first, then the affected package or frontend layer, then broader required checks. Documentation and tool changes run `make test-docs`, catalog and state updates, `make check-docs`, and `make check`; production changes add package, integration, race, coverage, frontend, or build verification in proportion to risk.
+Use the narrowest relevant test first, then the affected package or frontend layer, then broader required checks. Documentation and tool changes run `make test-docs`, catalog and state updates, `make check-docs`, and `make check`; family SQL input changes additionally run `make sqlc-generate` with a reviewed diff and `make sqlc-check`; production changes add package, integration, race, coverage, frontend, or build verification in proportion to risk.

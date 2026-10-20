@@ -3,9 +3,13 @@ SOMETHING_PRINTER ?= build/something-printer
 PDF_STORE        ?= build/pdf-store
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
+RAWSQL_CHECK     ?= build/rawsqlcheck
+IMPORT_CHECK     ?= build/importcheck
 PREPARE_OSF      ?= build/prepare-osf
 GITLEAKS        ?= build/gitleaks
 GITLEAKS_VERSION ?= v8.30.1
+SQLC             ?= build/sqlc
+SQLC_VERSION     ?= v1.31.1
 GO               ?= go
 GOWD             := src
 DB               ?= corpus.metadata.db
@@ -30,7 +34,7 @@ DB_PDF           ?= corpus.pdf.db
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck prepare-osf gitleaks gitleaks-install docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup
+.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-migration-parity test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit frontend-report database-backup sql-report import-report
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -55,6 +59,13 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'
 	@printf '%s\n' '  make gitleaks'
+	@printf '%s\n' ''
+	@printf '%s\n' 'Family SQL generation:'
+	@printf '%s\n' '  Maintain src/database/<family>/schema/ and src/pdfstore/schema/; committed internal/sql output is generated.'
+	@printf '%s\n' '  make sqlc-install    install the pinned generator to build/sqlc; normal builds do not need it'
+	@printf '%s\n' '  make sqlc-generate   build/sqlc -f config/sqlc.yaml generate'
+	@printf '%s\n' '  make sqlc-check      build/sqlc -f config/sqlc.yaml diff and vet'
+	@printf '%s\n' '  make build           never invokes sqlc; consumes committed internal/sql output'
 
 all: build ## Build build/analysis; the binary contains no frontend assets.
 
@@ -62,7 +73,7 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "../$(BIN)" .
 
-tools: something-printer pdf-store doccheck coveragecheck prepare-osf ## Build every maintained Go tool under build/.
+tools: something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf ## Build every maintained Go tool under build/.
 
 something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
 	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
@@ -79,6 +90,14 @@ doccheck: ## Build build/doccheck, the documentation consistency tool.
 coveragecheck: ## Build build/coveragecheck, the coverage policy tool.
 	@mkdir -p "$(dir $(COVERAGE_CHECK))"
 	cd $(GOWD) && $(GO) build -o "../$(COVERAGE_CHECK)" ./tools/coveragecheck/
+
+rawsqlcheck: ## Build build/rawsqlcheck, the raw SQL ownership tool.
+	@mkdir -p "$(dir $(RAWSQL_CHECK))"
+	cd $(GOWD) && $(GO) build -o "../$(RAWSQL_CHECK)" ./tools/rawsqlcheck/
+
+importcheck: ## Build build/importcheck, the import and transaction graph tool.
+	@mkdir -p "$(dir $(IMPORT_CHECK))"
+	cd $(GOWD) && $(GO) build -o "../$(IMPORT_CHECK)" ./tools/importcheck/
 
 prepare-osf: ## Build build/prepare-osf, the copy-only sanitized export tool.
 	@mkdir -p "$(dir $(PREPARE_OSF))"
@@ -103,7 +122,19 @@ format-check: ## Fail if any Go source file needs gofmt.
 vet: ## Run go vet across the module.
 	cd $(GOWD) && $(GO) vet ./...
 
-check: format-check vet check-docs gitleaks ## Run local Go, documentation, and secret checks.
+check: format-check vet check-sql check-imports check-docs gitleaks ## Run local Go, SQL ownership, import graph, documentation, and secret checks.
+
+check-sql: rawsqlcheck ## Verify raw SQL calls only appear in approved locations.
+	./$(RAWSQL_CHECK) check
+
+sql-report: rawsqlcheck ## Print the raw SQL ownership report.
+	./$(RAWSQL_CHECK) report
+
+check-imports: importcheck ## Verify the package import and transaction graph follows the approved direction.
+	./$(IMPORT_CHECK) check
+
+import-report: importcheck ## Print the package import and transaction graph report.
+	./$(IMPORT_CHECK) report
 
 check-docs: doccheck ## Validate documentation links, format, catalog, migrations, and acknowledged state.
 	./$(DOC_CHECK) check
@@ -113,6 +144,16 @@ gitleaks-install: ## Install gitleaks to build/gitleaks for local secret scannin
 
 gitleaks: gitleaks-install ## Run the gitleaks secret scan over the repository.
 	"$(GITLEAKS)" detect --source . --no-banner --redact
+
+sqlc-install: ## Install the pinned generator to build/sqlc; normal builds do not need it.
+	@test -x "$(SQLC)" || { mkdir -p "$(dir $(SQLC))"; cd $(GOWD) && GOBIN="$(abspath $(dir $(SQLC)))" $(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION); }
+
+sqlc-generate: sqlc-install ## Regenerate committed internal/sql output with build/sqlc -f config/sqlc.yaml generate.
+	"$(SQLC)" -f config/sqlc.yaml generate
+
+sqlc-check: sqlc-install ## Diff committed output and vet queries with build/sqlc -f config/sqlc.yaml diff and vet.
+	"$(SQLC)" -f config/sqlc.yaml diff
+	"$(SQLC)" -f config/sqlc.yaml vet
 
 test: test-go ## Run all Go tests without test-result caching.
 
@@ -141,6 +182,9 @@ test-e2e: build frontend-build something-printer pdf-store ## Run offline pipeli
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2E(Deterministic|Mocked)$$' -count=1
 	cd frontend && E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node scripts/run-playwright.ts --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e.spec.ts
 	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EReviewEvidence$$' -count=1
+
+test-migration-parity: ## Compare frozen pre-sqlc and current implementations offline; requires baseline Git history.
+	cd $(GOWD) && $(GO) test -tags=e2e . -run '^TestE2EDatabaseMigrationParity$$' -count=1 -v
 
 test-e2e-live: build something-printer ## Run opt-in E2E checks against real enrichment providers; requires E2E_LIVE=1.
 	@test "$(E2E_LIVE)" = "1" || (printf '%s\n' 'Set E2E_LIVE=1 to permit real provider requests.' >&2; exit 2)

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/work"
 )
 
 // TestCurrentNormalizedRevisionIsConsistentAcrossConsumers verifies a later duplicate normalize revision replaces the earlier revision everywhere.
@@ -24,26 +25,26 @@ func TestCurrentNormalizedRevisionIsConsistentAcrossConsumers(t *testing.T) {
 	}
 	defer db.Close()
 
-	latestID, err := db.WorkRevisions.Create(&database.WorkRevision{
-		WorkID: fixture.availableID, PipelineRunID: fixture.runID, ProducerStage: database.ProducerStageNormalize,
+	latestID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
+		WorkID: fixture.availableID, PipelineRunID: fixture.runID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Replacement normalized revision",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (?, 'fixture', 'legacy')", fixture.runID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO run_search_terms (pipeline_run_id, source_name, term) VALUES (?, 'fixture', 'legacy')", fixture.runID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.DB.Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, 'title', 'legacy')", fixture.runID, fixture.revisionID); err != nil {
+	if _, err := db.RawDBForTest().Exec("INSERT INTO work_revision_term_matches (pipeline_run_id, work_revision_id, field, term) VALUES (?, ?, 'title', 'legacy')", fixture.runID, fixture.revisionID); err != nil {
 		t.Fatal(err)
 	}
 
-	reviewContext, created, err := db.Reviews.CreateContext(context.Background(), fixture.runID, nil)
+	reviewContext, created, err := db.Review.CreateContext(context.Background(), fixture.runID, nil)
 	if err != nil || !created {
 		t.Fatalf("create review context: context=%+v created=%v err=%v", reviewContext, created, err)
 	}
 	var headRevisionID int64
-	if err := db.DB.QueryRow(`SELECT work_revision_id FROM review_context_work_heads
+	if err := db.RawDBForTest().QueryRow(`SELECT work_revision_id FROM review_context_work_heads
 		WHERE review_context_id=? AND work_id=?`, reviewContext.ID, fixture.availableID).Scan(&headRevisionID); err != nil {
 		t.Fatal(err)
 	}

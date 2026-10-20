@@ -8,6 +8,8 @@ package workspace
 import (
 	"analysis/article"
 	"analysis/database"
+	"analysis/database/pdfbinding"
+	dbwork "analysis/database/work"
 	"analysis/enrich"
 	"analysis/manifest"
 	"analysis/pdfstore"
@@ -80,18 +82,18 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("inventory-sync", "")
+	runID, err := db.Run.StartRun(context.Background(), "inventory-sync", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for index, doi := range []string{"10.1000/normalized-one", "10.1000/normalized-two"} {
-		workID, err := db.Works.CreateByDOI(doi)
+		workID, err := db.Work.CreateWorkByDOI(context.Background(), doi)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.WorkRevisions.Create(&database.WorkRevision{
+		if _, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 			WorkID: workID, PipelineRunID: runID,
-			ProducerStage: database.ProducerStageNormalize,
+			ProducerStage: dbwork.ProducerStageNormalize,
 			Title:         "Normalized article " + strconv.Itoa(index+1),
 		}); err != nil {
 			t.Fatal(err)
@@ -112,7 +114,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 	if registered != 0 || flushed != 0 {
 		t.Fatalf("second inventory sync registered=%d flushed=%d, want 0 and 0", registered, flushed)
 	}
-	store, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), registry)
+	store, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +127,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		t.Fatalf("not-available inventory documents = %d, want 2", documents)
 	}
 	var events int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered' AND pipeline_run_id=?", runID).Scan(&events); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered' AND pipeline_run_id=?", runID).Scan(&events); err != nil {
 		t.Fatal(err)
 	}
 	if events != 2 {
@@ -180,11 +182,11 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("normalization metrics", "")
+	runID, err := db.Run.StartRun(context.Background(), "normalization metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := recordNormalizationMetrics(db, runID, 1, results); err != nil {
+	if err := recordNormalizationMetrics(context.Background(), db, runID, 1, results); err != nil {
 		t.Fatal(err)
 	}
 	for _, check := range []struct {
@@ -202,12 +204,12 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		{"normalization_fields_already_canonical", "publisher", 1},
 		{"normalization_fields_unavailable", "affiliation", 1},
 	} {
-		metric, err := db.Metrics.Get(runID, check.metric, check.source)
+		metric, err := db.Run.GetMetric(context.Background(), runID, check.metric, check.source)
 		if err != nil || metric == nil || metric.Value != check.want {
 			t.Errorf("metric %s/%s = %+v, %v; want %d", check.metric, check.source, metric, err, check.want)
 		}
 	}
-	auditEvents, err := db.AuditEvents.ListByRun(runID)
+	auditEvents, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +225,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("workspace test", "")
+	runID, err := db.Run.StartRun(context.Background(), "workspace test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +246,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 	if len(got.Authors) != 1 || got.Authors[0].CitationName != "Export Author" {
 		t.Fatalf("authors after malformed enrichment = %+v", got.Authors)
 	}
-	if _, _, err := persistWorkspaceStage(db, runID, []*article.Article{got}, database.ProducerStageEnrich, database.StageNameEnrich, database.OutcomeEnriched, nil); err != nil {
+	if _, _, err := persistWorkspaceStage(context.Background(), db, runID, []*article.Article{got}, dbwork.ProducerStageEnrich, dbwork.StageNameEnrich, dbwork.OutcomeEnriched, nil); err != nil {
 		t.Fatalf("persist enriched work: %v", err)
 	}
 }
@@ -355,7 +357,7 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test emit", "")
+	runID, err := db.Run.StartRun(context.Background(), "test emit", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,10 +366,10 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		{DOI: "10.1000/one", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 	}
-	if err := emitFieldEnrichedAuditEvents(db, runID, revisionIDs, changes); err != nil {
+	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
-	events, err := db.AuditEvents.ListByRun(runID)
+	events, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,6 +399,75 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 	}
 }
 
+// TestRecordValidationAuditPreservesStateAndReasons verifies the validation
+// workflow records standalone audit evidence with the current actor, state,
+// reason metadata, run linkage, and correlation identity.
+func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
+	ctx := context.Background()
+	db, err := database.Open(filepath.Join(t.TempDir(), "workspace.db"), filepath.Join("..", "..", "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := db.Run.StartRun(ctx, "validation-audit", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	validWorkID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/valid")
+	if err != nil {
+		t.Fatal(err)
+	}
+	discardedWorkID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/discarded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles := []*article.Article{{DOI: "10.1000/valid"}, {DOI: "10.1000/discarded"}}
+	reasons := map[string][]string{"10.1000/discarded": {"missing title", "invalid year"}}
+	if err := recordValidationAudit(ctx, db, runID, articles, reasons); err != nil {
+		t.Fatal(err)
+	}
+	events, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("validation audit events = %d, want 2", len(events))
+	}
+	valid, discarded := events[0], events[1]
+	if valid.EntityType != "work" || valid.EntityID != strconv.FormatInt(validWorkID, 10) ||
+		valid.Actor != "pipeline" || valid.Action != string(manifest.AuditValidationChanged) {
+		t.Fatalf("valid event identity = %+v", valid)
+	}
+	if valid.AfterJSON != `{"status":"valid"}` || valid.MetadataJSON != "{}" {
+		t.Fatalf("valid event state = after %q metadata %q", valid.AfterJSON, valid.MetadataJSON)
+	}
+	if discarded.EntityID != strconv.FormatInt(discardedWorkID, 10) ||
+		discarded.AfterJSON != `{"status":"discarded"}` ||
+		discarded.MetadataJSON != `{"reasons":["missing title","invalid year"]}` {
+		t.Fatalf("discarded event = %+v", discarded)
+	}
+	for index, event := range events {
+		if event.PipelineRunID == nil || *event.PipelineRunID != runID {
+			t.Fatalf("event[%d] run linkage = %v, want %d", index, event.PipelineRunID, runID)
+		}
+		if event.CorrelationID != "validation-"+strconv.FormatInt(runID, 10) {
+			t.Fatalf("event[%d] correlation = %q", index, event.CorrelationID)
+		}
+	}
+
+	missing := []*article.Article{{DOI: "10.1000/missing"}}
+	if err := recordValidationAudit(ctx, db, runID, missing, nil); err == nil || !strings.Contains(err.Error(), "work missing for validation audit") {
+		t.Fatalf("missing work error = %v", err)
+	}
+	after, err := db.Audit.ListByRun(ctx, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) != 2 {
+		t.Fatalf("missing work wrote %d additional events", len(after)-2)
+	}
+}
+
 // TestRecordFieldEnrichmentMetrics verifies record field enrichment metrics.
 func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 	db, err := database.Open(filepath.Join(t.TempDir(), "workspace.db"), filepath.Join("..", "..", "config", "database.something"))
@@ -404,7 +475,7 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test metrics", "")
+	runID, err := db.Run.StartRun(context.Background(), "test metrics", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,11 +484,11 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 		{DOI: "10.1000/two", Field: "authors", Provider: "openalex"},
 	}
-	if err := recordFieldEnrichmentMetrics(db, runID, changes); err != nil {
+	if err := recordFieldEnrichmentMetrics(context.Background(), db, runID, changes); err != nil {
 		t.Fatal(err)
 	}
 	checkMetric := func(name, source string, want int) {
-		metric, err := db.Metrics.Get(runID, name, source)
+		metric, err := db.Run.GetMetric(context.Background(), runID, name, source)
 		if err != nil || metric == nil || metric.Value != want {
 			t.Fatalf("metric %s/%s = %+v, %v; want %d", name, source, metric, err, want)
 		}
@@ -437,7 +508,7 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	runID, err := db.PipelineRuns.StartRun("test skip", "")
+	runID, err := db.Run.StartRun(context.Background(), "test skip", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -446,10 +517,10 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		{DOI: "10.1000/known", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/unknown", Field: "abstract", Provider: "crossref"},
 	}
-	if err := emitFieldEnrichedAuditEvents(db, runID, revisionIDs, changes); err != nil {
+	if err := emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
-	events, err := db.AuditEvents.ListByRun(runID)
+	events, err := db.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}

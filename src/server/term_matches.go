@@ -6,7 +6,6 @@ package server
 
 import (
 	"context"
-	"strings"
 )
 
 // runSearchTerms returns the stored term inventory for one run ordered by id,
@@ -16,19 +15,16 @@ func (s *Server) runSearchTerms(ctx context.Context, runID int64) ([]map[string]
 	if !s.tableHasColumns("run_search_terms", "pipeline_run_id", "source_name", "term") {
 		return nil, 0, nil
 	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT source_name, term FROM run_search_terms WHERE pipeline_run_id=? ORDER BY id`, runID)
+	terms, err := s.workStore.ListRunTerms(ctx, runID)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, 0, err
+	items := make([]map[string]any, 0, len(terms))
+	for _, term := range terms {
+		items = append(items, map[string]any{"source_name": term.SourceName, "term": term.Term})
 	}
-	var termTotal int64
-	if err := s.db.QueryRowContext(ctx,
-		`SELECT COUNT(DISTINCT term) FROM run_search_terms WHERE pipeline_run_id=?`, runID).Scan(&termTotal); err != nil {
+	termTotal, err := s.workStore.CountDistinctRunTerms(ctx, runID)
+	if err != nil {
 		return nil, 0, err
 	}
 	return items, termTotal, nil
@@ -39,17 +35,7 @@ func (s *Server) revisionTermMatches(ctx context.Context, runID, revisionID int6
 	if !s.tableHasColumns("work_revision_term_matches", "pipeline_run_id", "work_revision_id", "field", "term") {
 		return nil, nil
 	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT field, term FROM work_revision_term_matches WHERE pipeline_run_id=? AND work_revision_id=? ORDER BY id`, runID, revisionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, err
-	}
-	return groupTermMatches(items), nil
+	return s.workStore.GetRevisionMatches(ctx, runID, revisionID)
 }
 
 // revisionTermMatchesBulk returns per-field matched terms for a page of
@@ -61,45 +47,7 @@ func (s *Server) revisionTermMatchesBulk(ctx context.Context, runID int64, revis
 	if !s.tableHasColumns("work_revision_term_matches", "pipeline_run_id", "work_revision_id", "field", "term") {
 		return nil, nil
 	}
-	placeholders := strings.Repeat("?,", len(revisionIDs)-1) + "?"
-	args := make([]any, 0, len(revisionIDs)+1)
-	args = append(args, runID)
-	for _, id := range revisionIDs {
-		args = append(args, id)
-	}
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT work_revision_id, field, term FROM work_revision_term_matches
-		 WHERE pipeline_run_id=? AND work_revision_id IN (`+placeholders+`) ORDER BY id`, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items, err := rowsAsMaps(rows)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int64]map[string][]string)
-	for _, item := range items {
-		revisionID, _ := item["work_revision_id"].(int64)
-		field, _ := item["field"].(string)
-		term, _ := item["term"].(string)
-		if result[revisionID] == nil {
-			result[revisionID] = map[string][]string{}
-		}
-		result[revisionID][field] = append(result[revisionID][field], term)
-	}
-	return result, nil
-}
-
-// groupTermMatches groups (field, term) rows into per-field term lists.
-func groupTermMatches(items []map[string]any) map[string][]string {
-	result := map[string][]string{}
-	for _, item := range items {
-		field, _ := item["field"].(string)
-		term, _ := item["term"].(string)
-		result[field] = append(result[field], term)
-	}
-	return result
+	return s.workStore.GetRevisionMatchesBulk(ctx, runID, revisionIDs)
 }
 
 // detailTermMatches builds the full term-coverage payload for one revision,

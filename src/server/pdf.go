@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"mime"
 	"net/http"
@@ -38,42 +37,33 @@ func (s *Server) workPDFStatus(w http.ResponseWriter, r *http.Request) {
 
 // pdfStatusForWork reads companion PDF availability metadata for one work revision.
 func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string]any, error) {
-	var doi sql.NullString
-	if err := s.db.QueryRowContext(ctx, "SELECT doi FROM works WHERE id=?", workID).Scan(&doi); err == sql.ErrNoRows {
-		return nil, notFound("work not found")
-	} else if err != nil {
+	work, err := s.workStore.GetWorkByID(ctx, workID)
+	if err != nil {
 		return nil, err
 	}
-	if !doi.Valid || doi.String == "" {
+	if work == nil {
+		return nil, notFound("work not found")
+	}
+	if work.DOI == "" {
 		return map[string]any{"work_id": workID, "status": "unavailable", "eligible": false, "store_bound": s.pdfDB != nil}, nil
 	}
-	base := map[string]any{"work_id": workID, "doi": doi.String, "eligible": true, "store_bound": s.pdfDB != nil}
+	base := map[string]any{"work_id": workID, "doi": work.DOI, "eligible": true, "store_bound": s.pdfDB != nil}
 	if s.pdfDB == nil {
 		base["status"] = "not_available"
 		return base, nil
 	}
-	var contentHash, inventoriedAt sql.NullString
-	var byteSize sql.NullInt64
-	err := s.pdfDB.QueryRowContext(ctx, `SELECT d.content_hash,
-		d.inventoried_at, b.byte_size
-		FROM pdf_documents d JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=? AND d.status='available'`, doi.String).Scan(
-		&contentHash, &inventoriedAt, &byteSize)
-	if err == sql.ErrNoRows {
-		base["status"] = "not_available"
-		return base, nil
-	}
+	document, err := s.pdfStore.AvailableDocument(ctx, work.DOI)
 	if err != nil {
 		return nil, err
 	}
-	base["status"] = "available"
-	base["content_hash"] = nullableString(contentHash)
-	base["inventoried_at"] = nullableString(inventoriedAt)
-	if byteSize.Valid {
-		base["byte_size"] = byteSize.Int64
-	} else {
-		base["byte_size"] = nil
+	if document == nil {
+		base["status"] = "not_available"
+		return base, nil
 	}
+	base["status"] = "available"
+	base["content_hash"] = document.ContentHash
+	base["inventoried_at"] = document.InventoriedAt
+	base["byte_size"] = document.ByteSize
 	return base, nil
 }
 
@@ -90,43 +80,42 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	var doi string
-	if err := s.db.QueryRowContext(ctx, "SELECT doi FROM works WHERE id=? AND doi IS NOT NULL", workID).Scan(&doi); err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("work or DOI not found"))
-		return
-	} else if err != nil {
-		s.respond(w, r, nil, err)
-		return
-	}
-	var contentHash, inventoriedAt string
-	var byteSize int64
-	err = s.pdfDB.QueryRowContext(ctx, `SELECT d.content_hash, d.inventoried_at, b.byte_size FROM pdf_documents d
-		JOIN pdf_blobs b ON b.content_hash=d.content_hash
-		WHERE d.doi=? AND d.status='available'`, doi).Scan(&contentHash, &inventoriedAt, &byteSize)
-	if err == sql.ErrNoRows {
-		s.respond(w, r, nil, notFound("PDF is not available"))
-		return
-	}
+	work, err := s.workStore.GetWorkByID(ctx, workID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
+	if work == nil || work.DOI == "" {
+		s.respond(w, r, nil, notFound("work or DOI not found"))
+		return
+	}
+	document, err := s.pdfStore.AvailableDocument(ctx, work.DOI)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if document == nil {
+		s.respond(w, r, nil, notFound("PDF is not available"))
+		return
+	}
+	contentHash, inventoriedAt, byteSize := document.ContentHash, document.InventoriedAt, document.ByteSize
 	s.pdfCacheMu.Lock()
 	var data []byte
 	if s.pdfCache != nil && s.pdfCache.WorkID == workID && s.pdfCache.ContentHash == contentHash {
 		data = s.pdfCache.Data
 	} else {
-		err = s.pdfDB.QueryRowContext(ctx, "SELECT data FROM pdf_blobs WHERE content_hash=?", contentHash).Scan(&data)
-		if err == sql.ErrNoRows {
-			s.pdfCacheMu.Unlock()
-			s.respond(w, r, nil, notFound("PDF content is not available"))
-			return
-		}
+		stored, err := s.pdfStore.BlobData(ctx, contentHash)
 		if err != nil {
 			s.pdfCacheMu.Unlock()
 			s.respond(w, r, nil, err)
 			return
 		}
+		if stored == nil {
+			s.pdfCacheMu.Unlock()
+			s.respond(w, r, nil, notFound("PDF content is not available"))
+			return
+		}
+		data = stored
 		digest := sha256.Sum256(data)
 		if int64(len(data)) != byteSize || len(data) < 5 || string(data[:5]) != "%PDF-" || contentHash != hex.EncodeToString(digest[:]) {
 			s.pdfCacheMu.Unlock()

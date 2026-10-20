@@ -18,6 +18,7 @@ import (
 
 	"analysis/article"
 	"analysis/database"
+	dbcache "analysis/database/cache"
 	"analysis/enrich"
 	"analysis/manifest"
 )
@@ -29,7 +30,7 @@ func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*databas
 	if err != nil {
 		t.Fatal(err)
 	}
-	runID, err := db.PipelineRuns.StartRun("cache-test", "")
+	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		db.Close()
 		t.Fatal(err)
@@ -60,7 +61,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil || response.Layer != "network" || calls != 1 {
 		t.Fatalf("first response = %+v, %v, calls=%d", response, err, calls)
 	}
-	secondRunID, err := db.PipelineRuns.StartRun("cache-test", "")
+	secondRunID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil || response.Layer != "run:"+strconv.FormatInt(firstRunID, 10) || string(response.Body) == "unexpected" || calls != 1 {
 		t.Fatalf("prior-run response = %+v, %v, calls=%d", response, err, calls)
 	}
-	uses, err := db.RunCacheUses.ListByRun(secondRunID)
+	uses, err := db.Cache.ListUsesByRun(context.Background(), secondRunID)
 	if err != nil || len(uses) != 1 || uses[0].CacheLayer != "run:"+strconv.FormatInt(firstRunID, 10) || uses[0].Outcome != string(manifest.CacheHit) {
 		t.Fatalf("prior-run use = %+v, %v", uses, err)
 	}
@@ -156,16 +157,16 @@ func TestWorkspaceCacheStaleNegativeRelooksUp(t *testing.T) {
 	if err != nil || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("negative response = %+v, %v", response, err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil {
 		t.Fatalf("negative entry = %+v, %v", entry, err)
 	}
 	entry.ExpiresAt = "2000-01-01T00:00:00Z"
-	staleID, err := db.CacheEntries.Upsert(entry)
+	staleID, err := db.Cache.AppendEntry(context.Background(), entry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := first.recordUse(staleID, "global", manifest.CacheNegative); err != nil {
+	if err := first.recordUse(context.Background(), staleID, "global", manifest.CacheNegative); err != nil {
 		t.Fatal(err)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"global"}, NegativeTTLDays: 1})
@@ -190,11 +191,11 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(testCachePayload("network")) || calls != 1 {
 		t.Fatalf("network fallback = %+v, %v, calls=%d", response, err, calls)
 	}
-	uses, err := db.RunCacheUses.ListByRun(cache.runID)
+	uses, err := db.Cache.ListUsesByRun(context.Background(), cache.runID)
 	if err != nil || len(uses) != 2 || uses[0].CacheLayer != "active_run" || uses[1].CacheLayer != "global" {
 		t.Fatalf("network cache writes = %+v, %v", uses, err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(testCacheRequest()), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(testCacheRequest()), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("network cache payload linkage = %+v, %v", entry, err)
 	}
@@ -206,7 +207,7 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 		{"cache_misses", "", 1}, {"cache_misses", "crossref", 1},
 		{"cache_network_fetches", "", 1}, {"cache_network_fetches", "crossref", 1},
 	} {
-		got, err := db.Metrics.Get(cache.runID, metric.name, metric.source)
+		got, err := db.Run.GetMetric(context.Background(), cache.runID, metric.name, metric.source)
 		if err != nil || got == nil || got.Value != metric.want {
 			t.Fatalf("metric %s/%s = %+v, %v; want %d", metric.name, metric.source, got, err, metric.want)
 		}
@@ -223,11 +224,11 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	}, nil); err == nil || !strings.Contains(err.Error(), "invalid provider payload") {
 		t.Fatalf("malformed provider response error = %v", err)
 	}
-	entry, err := db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry != nil {
 		t.Fatalf("malformed provider response was cached: entry=%+v err=%v", entry, err)
 	}
-	metric, err := db.Metrics.Get(cache.runID, "cache_invalid_payloads", "crossref")
+	metric, err := db.Run.GetMetric(context.Background(), cache.runID, "cache_invalid_payloads", "crossref")
 	if err != nil || metric == nil || metric.Value != 1 {
 		t.Fatalf("invalid payload metric = %+v, %v", metric, err)
 	}
@@ -239,7 +240,7 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
 		t.Fatalf("valid retry response = %+v, %v", response, err)
 	}
-	entry, err = db.CacheEntries.Get("crossref", "work_by_doi", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err = db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("valid retry cache entry = %+v, %v", entry, err)
 	}
@@ -250,18 +251,18 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	db, writer, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
 	request := testCacheRequest()
-	artifactID, err := persistArtifact(db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
+	artifactID, err := persistArtifact(context.Background(), db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	entryID, err := db.CacheEntries.Upsert(&database.CacheEntry{
+	entryID, err := db.Cache.AppendEntry(context.Background(), &dbcache.Entry{
 		Provider: request.Provider, Namespace: request.Namespace, RequestFingerprint: cacheFingerprint(request),
 		ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: time.Now().UTC().Format(time.RFC3339Nano), ExtractorVersion: cacheExtractorVersion,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.RunCacheUses.Create(&database.RunCacheUse{PipelineRunID: writer.runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
+	if _, err := db.Cache.AppendUse(context.Background(), &dbcache.Use{PipelineRunID: writer.runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -273,7 +274,7 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
 		t.Fatalf("legacy malformed cache response = %+v, %v", response, err)
 	}
-	metric, err := db.Metrics.Get(reader.runID, "cache_invalid_payloads", "crossref")
+	metric, err := db.Run.GetMetric(context.Background(), reader.runID, "cache_invalid_payloads", "crossref")
 	if err != nil || metric == nil || metric.Value != 1 {
 		t.Fatalf("legacy invalid payload metric = %+v, %v", metric, err)
 	}
@@ -290,7 +291,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 	}, negative); err == nil || !strings.Contains(err.Error(), "temporary ORCID outage") {
 		t.Fatalf("transient ORCID error = %v", err)
 	}
-	entry, err := db.CacheEntries.Get("orcid", "author_name_search", cacheFingerprint(request), cacheExtractorVersion)
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: cacheFingerprint(request), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || entry != nil {
 		t.Fatalf("transient ORCID error was cached: entry=%+v err=%v", entry, err)
 	}
@@ -309,7 +310,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 	if err != nil || response.Status != 404 || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("empty ORCID result = %+v, %v", response, err)
 	}
-	emptyEntry, err := db.CacheEntries.Get("orcid", "author_name_search", cacheFingerprint(emptyRequest), cacheExtractorVersion)
+	emptyEntry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: cacheFingerprint(emptyRequest), ExtractorVersion: cacheExtractorVersion})
 	if err != nil || emptyEntry == nil || emptyEntry.ExpiresAt == "" || emptyEntry.PayloadArtifactID != nil {
 		t.Fatalf("empty ORCID negative cache entry = %+v, %v", emptyEntry, err)
 	}
@@ -319,7 +320,7 @@ func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 func TestWorkspaceMetricUnavailableForOlderRun(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run"}})
 	defer db.Close()
-	metric, err := db.Metrics.Get(cache.runID, "cache_hits", "")
+	metric, err := db.Run.GetMetric(context.Background(), cache.runID, "cache_hits", "")
 	if err != nil || metric != nil {
 		t.Fatalf("unrecorded cache metric = %+v, %v", metric, err)
 	}
@@ -386,7 +387,7 @@ func TestWorkspaceOpenAlexReferenceCacheUsesSQLitePolicy(t *testing.T) {
 // openWorkspaceCacheTestForDB supports the package test suite's open workspace cache test for db setup or assertions.
 func openWorkspaceCacheTestForDB(t *testing.T, db *database.Database, policy manifest.CachePolicy) (*database.Database, *workspaceCache, int64) {
 	t.Helper()
-	runID, err := db.PipelineRuns.StartRun("cache-test", "")
+	runID, err := db.Run.StartRun(context.Background(), "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}

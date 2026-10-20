@@ -4,8 +4,15 @@
 package database
 
 import (
+	"context"
 	"testing"
 
+	"analysis/database/artifact"
+	"analysis/database/author"
+	"analysis/database/run"
+	"analysis/database/search"
+	"analysis/database/source"
+	"analysis/database/work"
 	"analysis/manifest"
 )
 
@@ -16,39 +23,46 @@ import (
 func TestSchemaSmokePhase14(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
+	ctx := context.Background()
 
 	// 1. Create one of every entity type (respecting FK order)
 	// -- searches
-	searchID, err := db.Searches.Create("bpmn-optimisation")
+	searchID, err := db.Search.FindOrCreateSearch(ctx, "bpmn-optimisation")
 	if err != nil {
-		t.Fatalf("Searches.Create: %v", err)
+		t.Fatalf("Search.FindOrCreateSearch: %v", err)
 	}
 	if searchID == 0 {
 		t.Fatal("expected non-zero search ID")
 	}
 
 	// -- search_revisions
-	revID, _, err := db.Revisions.Create(searchID, "2026-07-query-expansion", "cfg-hash-a1b2", "manifest-hash-c3d4")
+	revID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "2026-07-query-expansion", ConfigArtifactHash: "cfg-hash-a1b2", ResolvedManifestHash: "manifest-hash-c3d4",
+	})
 	if err != nil {
-		t.Fatalf("Revisions.Create: %v", err)
+		t.Fatalf("Search.UpsertRevision: %v", err)
 	}
 	if revID == 0 {
 		t.Fatal("expected non-zero revision ID")
 	}
 
 	// -- execution_plans
-	planID, err := db.Plans.Create(revID, "exec-fp-001", "manifest-hash-c3d4")
+	planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		SearchRevisionID: revID, ExecutionFingerprint: "exec-fp-001", ResolvedManifestHash: "manifest-hash-c3d4",
+	})
 	if err != nil {
-		t.Fatalf("Plans.Create: %v", err)
+		t.Fatalf("Search.FindOrCreatePlan: %v", err)
 	}
 	if planID == 0 {
 		t.Fatal("expected non-zero plan ID")
 	}
 
 	// -- pipeline_runs (attempt via StartAttempt)
-	runID, attemptNum, err := db.PipelineRuns.StartAttempt(planID, "parse+enrich", "TITLE-ABS-KEY(bpmn)")
+	runID, attemptNum, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{
+		ExecutionPlanID: planID, Step: "parse+enrich", SearchQuery: "TITLE-ABS-KEY(bpmn)",
+	})
 	if err != nil {
-		t.Fatalf("PipelineRuns.StartAttempt: %v", err)
+		t.Fatalf("Run.StartAttempt: %v", err)
 	}
 	if runID == 0 {
 		t.Fatal("expected non-zero run ID")
@@ -58,72 +72,77 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// Finish the run so it has a terminal status
-	if err := db.PipelineRuns.FinishRun(runID, "completed", "ok"); err != nil {
-		t.Fatalf("PipelineRuns.FinishRun: %v", err)
+	if err := db.Run.FinishRun(ctx, runID, "completed", "ok"); err != nil {
+		t.Fatalf("Run.FinishRun: %v", err)
 	}
 
 	// -- run_sources
-	sourceID, err := db.RunSources.Create(runID, "scopus", "csv", "corpus/scopus.csv", "TITLE-ABS-KEY(bpmn)", "title,doi,authors", 3, "")
+	sourceID, err := db.Source.CreateSource(ctx, source.CreateSourceInput{
+		RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "corpus/scopus.csv",
+		Query: "TITLE-ABS-KEY(bpmn)", RequestedFields: "title,doi,authors", ExpectedCount: 3,
+	})
 	if err != nil {
-		t.Fatalf("RunSources.Create: %v", err)
+		t.Fatalf("Source.CreateSource: %v", err)
 	}
 	if sourceID == 0 {
 		t.Fatal("expected non-zero source ID")
 	}
 
 	// -- source_records
-	recID, err := db.SourceRecords.Create(sourceID, 0, `{"title":"Test"}`, "abc123hash")
+	recID, err := db.Source.CreateRecord(ctx, source.CreateRecordInput{
+		RunSourceID: sourceID, RecordIndex: 0, RawPayload: `{"title":"Test"}`, ContentHash: "abc123hash",
+	})
 	if err != nil {
-		t.Fatalf("SourceRecords.Create: %v", err)
+		t.Fatalf("Source.CreateRecord: %v", err)
 	}
 	if recID == 0 {
 		t.Fatal("expected non-zero source record ID")
 	}
 
 	// Update parse status to accepted
-	if err := db.SourceRecords.UpdateParseStatus(recID, "accepted", ""); err != nil {
-		t.Fatalf("SourceRecords.UpdateParseStatus: %v", err)
+	if err := db.Source.UpdateRecordStatus(ctx, source.RecordStatusInput{RecordID: recID, Status: "accepted"}); err != nil {
+		t.Fatalf("Source.UpdateRecordStatus: %v", err)
 	}
 
 	// -- artifacts
-	artifactID, err := db.Artifacts.Create("sha256-content-hash", "application/json", 1024)
+	artifactID, err := db.Artifact.Create(ctx, artifact.CreateInput{ContentHash: "sha256-content-hash", ContentType: "application/json", ByteSize: 1024})
 	if err != nil {
-		t.Fatalf("Artifacts.Create: %v", err)
+		t.Fatalf("Artifact.Create: %v", err)
 	}
 	if artifactID == 0 {
 		t.Fatal("expected non-zero artifact ID")
 	}
 
 	// -- run_steps (with input artifact link)
-	stepID, err := db.RunSteps.Create(runID, "parse")
+	stepID, err := db.Run.CreateStep(ctx, runID, "parse")
 	if err != nil {
-		t.Fatalf("RunSteps.Create: %v", err)
+		t.Fatalf("Run.CreateStep: %v", err)
 	}
 	if stepID == 0 {
 		t.Fatal("expected non-zero step ID")
 	}
 
-	if err := db.RunSteps.LinkInputArtifact(stepID, artifactID); err != nil {
-		t.Fatalf("RunSteps.LinkInputArtifact: %v", err)
+	if err := db.Run.LinkStepInputArtifact(ctx, run.StepArtifactInput{StepID: stepID, ArtifactID: artifactID}); err != nil {
+		t.Fatalf("Run.LinkStepInputArtifact: %v", err)
 	}
-	if err := db.RunSteps.UpdateStatus(stepID, "completed"); err != nil {
-		t.Fatalf("RunSteps.UpdateStatus: %v", err)
+	if err := db.Run.UpdateStepStatus(ctx, stepID, "completed"); err != nil {
+		t.Fatalf("Run.UpdateStepStatus: %v", err)
 	}
 
 	// -- pipeline_run_metrics
-	if err := db.Metrics.Set(runID, "input_records", "scopus", 10); err != nil {
-		t.Fatalf("Metrics.Set: %v", err)
+	if err := db.Run.SetMetric(ctx, run.MetricInput{RunID: runID, Metric: "input_records", Source: "scopus", Value: 10}); err != nil {
+		t.Fatalf("Run.SetMetric: %v", err)
 	}
-	m, err := db.Metrics.Get(runID, "input_records", "scopus")
+	m, err := db.Run.GetMetric(ctx, runID, "input_records", "scopus")
 	if err != nil {
-		t.Fatalf("Metrics.Get: %v", err)
+		t.Fatalf("Run.GetMetric: %v", err)
 	}
 	if m == nil || m.Value != 10 {
 		t.Fatalf("expected metric value 10, got %+v", m)
 	}
 
 	// -- audit_events
-	auditID, err := db.AuditEvents.Insert(&manifest.AuditEvent{
+	auditID, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
 		OccurredAt:    "2026-07-21T12:00:00Z",
 		Actor:         "pipeline",
 		PipelineRunID: runID,
@@ -133,7 +152,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 		MetadataJSON:  `{"attempt":1}`,
 	})
 	if err != nil {
-		t.Fatalf("AuditEvents.Insert: %v", err)
+		t.Fatalf("Audit.Insert: %v", err)
 	}
 	if auditID == 0 {
 		t.Fatal("expected non-zero audit event ID")
@@ -141,10 +160,10 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	// 2. Trash and restore the run
 	// Trash
-	if err := db.PipelineRuns.Trash(runID, "test-purge"); err != nil {
-		t.Fatalf("PipelineRuns.Trash: %v", err)
+	if err := db.Run.Trash(ctx, runID, "test-purge"); err != nil {
+		t.Fatalf("Run.Trash: %v", err)
 	}
-	trashedRun, err := db.PipelineRuns.GetByID(runID)
+	trashedRun, err := db.Run.GetByID(ctx, runID)
 	if err != nil {
 		t.Fatalf("GetByID after trash: %v", err)
 	}
@@ -162,10 +181,10 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// Restore
-	if err := db.PipelineRuns.Restore(runID); err != nil {
-		t.Fatalf("PipelineRuns.Restore: %v", err)
+	if err := db.Run.Restore(ctx, runID); err != nil {
+		t.Fatalf("Run.Restore: %v", err)
 	}
-	restoredRun, err := db.PipelineRuns.GetByID(runID)
+	restoredRun, err := db.Run.GetByID(ctx, runID)
 	if err != nil {
 		t.Fatalf("GetByID after restore: %v", err)
 	}
@@ -183,7 +202,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 	}
 
 	// 3. Verify foreign keys with real SQLite
-	fkViolations, err := db.DB.Query("PRAGMA foreign_key_check")
+	fkViolations, err := db.RawDBForTest().Query("PRAGMA foreign_key_check")
 	if err != nil {
 		t.Fatalf("PRAGMA foreign_key_check query failed: %v", err)
 	}
@@ -227,7 +246,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	for _, name := range expectedIndexes {
 		var count int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?", name,
 		).Scan(&count)
 		if err != nil {
@@ -240,7 +259,7 @@ func TestSchemaSmokePhase14(t *testing.T) {
 
 	for _, name := range expectedTriggers {
 		var count int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = ?", name,
 		).Scan(&count)
 		if err != nil {
@@ -257,30 +276,40 @@ func TestSchemaSmokePhase14(t *testing.T) {
 func TestCorpusModelSmokePhase25(t *testing.T) {
 	db := openTestDB(t)
 	defer db.Close()
+	ctx := context.Background()
 
 	createRun := func(searchName, revisionLabel, fingerprint string) (int64, int64) {
 		t.Helper()
-		searchID, err := db.Searches.Create(searchName)
+		searchID, err := db.Search.FindOrCreateSearch(ctx, searchName)
 		if err != nil {
 			t.Fatalf("create search %s: %v", searchName, err)
 		}
-		revisionID, _, err := db.Revisions.Create(searchID, revisionLabel, "config-"+searchName, "manifest-"+searchName)
+		revisionID, _, err := db.Search.UpsertRevision(ctx, search.RevisionInput{
+			SearchID: searchID, RevisionLabel: revisionLabel, ConfigArtifactHash: "config-" + searchName, ResolvedManifestHash: "manifest-" + searchName,
+		})
 		if err != nil {
 			t.Fatalf("create revision %s: %v", searchName, err)
 		}
-		planID, err := db.Plans.Create(revisionID, fingerprint, "manifest-"+searchName)
+		planID, err := db.Search.FindOrCreatePlan(ctx, search.PlanInput{
+			SearchRevisionID: revisionID, ExecutionFingerprint: fingerprint, ResolvedManifestHash: "manifest-" + searchName,
+		})
 		if err != nil {
 			t.Fatalf("create plan %s: %v", searchName, err)
 		}
-		runID, _, err := db.PipelineRuns.StartAttempt(planID, "pipeline", searchName)
+		runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "pipeline", SearchQuery: searchName})
 		if err != nil {
 			t.Fatalf("start attempt %s: %v", searchName, err)
 		}
-		runSourceID, err := db.RunSources.Create(runID, "source-"+searchName, "csv", searchName+".csv", "query", "title,doi", 1, "")
+		runSourceID, err := db.Source.CreateSource(ctx, source.CreateSourceInput{
+			RunID: runID, Name: "source-" + searchName, Type: "csv", ExpectedFile: searchName + ".csv",
+			Query: "query", RequestedFields: "title,doi", ExpectedCount: 1,
+		})
 		if err != nil {
 			t.Fatalf("create source %s: %v", searchName, err)
 		}
-		if _, err := db.SourceRecords.Create(runSourceID, 0, `{"doi":"10.1000/shared"}`, "hash-"+searchName); err != nil {
+		if _, err := db.Source.CreateRecord(ctx, source.CreateRecordInput{
+			RunSourceID: runSourceID, RecordIndex: 0, RawPayload: `{"doi":"10.1000/shared"}`, ContentHash: "hash-" + searchName,
+		}); err != nil {
 			t.Fatalf("create source record %s: %v", searchName, err)
 		}
 		return runID, revisionID
@@ -288,15 +317,15 @@ func TestCorpusModelSmokePhase25(t *testing.T) {
 
 	runOne, _ := createRun("search-one", "r1", "plan-one")
 	runTwo, _ := createRun("search-two", "r1", "plan-two")
-	sharedWorkID, err := db.Works.CreateByDOI("10.1000/shared")
+	sharedWorkID, err := db.Work.CreateWorkByDOI(ctx, "10.1000/shared")
 	if err != nil {
 		t.Fatalf("create shared work: %v", err)
 	}
-	firstRevision, err := db.WorkRevisions.Create(&WorkRevision{WorkID: sharedWorkID, PipelineRunID: runOne, ProducerStage: ProducerStageParse, Title: "Search one title"})
+	firstRevision, err := db.Work.CreateRevision(ctx, &work.Revision{WorkID: sharedWorkID, PipelineRunID: runOne, ProducerStage: work.ProducerStageParse, Title: "Search one title"})
 	if err != nil {
 		t.Fatalf("create first work revision: %v", err)
 	}
-	secondRevision, err := db.WorkRevisions.Create(&WorkRevision{WorkID: sharedWorkID, PipelineRunID: runTwo, ProducerStage: ProducerStageParse, Title: "Search two title"})
+	secondRevision, err := db.Work.CreateRevision(ctx, &work.Revision{WorkID: sharedWorkID, PipelineRunID: runTwo, ProducerStage: work.ProducerStageParse, Title: "Search two title"})
 	if err != nil {
 		t.Fatalf("create second work revision: %v", err)
 	}
@@ -304,40 +333,40 @@ func TestCorpusModelSmokePhase25(t *testing.T) {
 		t.Fatal("each search run must retain its own revision")
 	}
 
-	firstAuthor, err := db.AuthorOccs.Create(&AuthorOccurrence{CitationName: "One, Author"})
+	firstAuthor, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "One, Author"})
 	if err != nil {
 		t.Fatalf("create first author: %v", err)
 	}
-	secondAuthor, err := db.AuthorOccs.Create(&AuthorOccurrence{CitationName: "Two, Author"})
+	secondAuthor, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Two, Author"})
 	if err != nil {
 		t.Fatalf("create second author: %v", err)
 	}
-	if _, err := db.Authorships.Create(&Authorship{WorkRevisionID: firstRevision, AuthorOccurrenceID: firstAuthor, AuthorOrder: 1}); err != nil {
+	if _, err := db.Author.CreateAuthorship(ctx, &author.Authorship{WorkRevisionID: firstRevision, AuthorOccurrenceID: firstAuthor, AuthorOrder: 1}); err != nil {
 		t.Fatalf("create first authorship: %v", err)
 	}
-	if _, err := db.Authorships.Create(&Authorship{WorkRevisionID: secondRevision, AuthorOccurrenceID: secondAuthor, AuthorOrder: 1}); err != nil {
+	if _, err := db.Author.CreateAuthorship(ctx, &author.Authorship{WorkRevisionID: secondRevision, AuthorOccurrenceID: secondAuthor, AuthorOrder: 1}); err != nil {
 		t.Fatalf("create second authorship: %v", err)
 	}
-	if _, err := db.ReferenceMentions.Create(&ReferenceMention{WorkRevisionID: firstRevision, MentionOrder: 1, DOI: "10.2000/one"}); err != nil {
+	if _, err := db.Work.CreateReference(ctx, &work.Reference{WorkRevisionID: firstRevision, MentionOrder: 1, DOI: "10.2000/one"}); err != nil {
 		t.Fatalf("create first reference: %v", err)
 	}
-	if _, err := db.ReferenceMentions.Create(&ReferenceMention{WorkRevisionID: secondRevision, MentionOrder: 1, DOI: "10.2000/two"}); err != nil {
+	if _, err := db.Work.CreateReference(ctx, &work.Reference{WorkRevisionID: secondRevision, MentionOrder: 1, DOI: "10.2000/two"}); err != nil {
 		t.Fatalf("create second reference: %v", err)
 	}
 
-	firstAuthorships, err := db.Authorships.GetByRevisionID(firstRevision)
+	firstAuthorships, err := db.Author.ListAuthorshipsByRevisionID(ctx, firstRevision)
 	if err != nil || len(firstAuthorships) != 1 || firstAuthorships[0].AuthorOccurrenceID != firstAuthor {
 		t.Fatalf("first authorship snapshot: %v, %+v", err, firstAuthorships)
 	}
-	secondAuthorships, err := db.Authorships.GetByRevisionID(secondRevision)
+	secondAuthorships, err := db.Author.ListAuthorshipsByRevisionID(ctx, secondRevision)
 	if err != nil || len(secondAuthorships) != 1 || secondAuthorships[0].AuthorOccurrenceID != secondAuthor {
 		t.Fatalf("second authorship snapshot: %v, %+v", err, secondAuthorships)
 	}
-	firstReferences, err := db.ReferenceMentions.GetByRevisionID(firstRevision)
+	firstReferences, err := db.Work.ListReferencesByRevisionID(ctx, firstRevision)
 	if err != nil || len(firstReferences) != 1 || firstReferences[0].DOI != "10.2000/one" {
 		t.Fatalf("first reference snapshot: %v, %+v", err, firstReferences)
 	}
-	secondReferences, err := db.ReferenceMentions.GetByRevisionID(secondRevision)
+	secondReferences, err := db.Work.ListReferencesByRevisionID(ctx, secondRevision)
 	if err != nil || len(secondReferences) != 1 || secondReferences[0].DOI != "10.2000/two" {
 		t.Fatalf("second reference snapshot: %v, %+v", err, secondReferences)
 	}

@@ -31,7 +31,7 @@ func TestExistingDatabaseLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tables int
-	if err := existing.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tables); err != nil {
+	if err := existing.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tables); err != nil {
 		t.Fatal(err)
 	}
 	if tables != 0 {
@@ -49,7 +49,7 @@ func TestExistingDatabaseLifecycle(t *testing.T) {
 	}
 	defer migrated.Close()
 	var migrations int
-	if err := migrated.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil || migrations != 28 {
+	if err := migrated.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&migrations); err != nil || migrations != 28 {
 		t.Fatalf("migrations=%d err=%v", migrations, err)
 	}
 }

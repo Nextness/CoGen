@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/pdfbinding"
+	"analysis/database/work"
 	"analysis/pdfstore"
 )
 
@@ -24,40 +26,41 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	workID, err := metadata.Works.CreateByDOI("10.1000/manual")
+	workID, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual")
 	if err != nil {
 		t.Fatal(err)
 	}
-	duplicateWorkID, err := metadata.Works.CreateByDOI("10.1000/manual-duplicate")
+	duplicateWorkID, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-duplicate")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.Works.CreateByDOI("10.1000/manual-unnormalized"); err != nil {
+	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-unnormalized"); err != nil {
 		t.Fatal(err)
 	}
-	runID, err := metadata.PipelineRuns.StartRun("manual-pdf-test", "")
+	runID, err := metadata.Run.StartRun(context.Background(), "manual-pdf-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, work := range []struct {
+	for _, item := range []struct {
 		id    int64
 		title string
 	}{
 		{workID, "Manual PDF"},
 		{duplicateWorkID, "Manual duplicate PDF"},
 	} {
-		if _, err := metadata.WorkRevisions.Create(&database.WorkRevision{
-			WorkID: work.id, PipelineRunID: runID,
-			ProducerStage: database.ProducerStageNormalize, Title: work.title,
+		if _, err := metadata.Work.CreateRevision(context.Background(), &work.Revision{
+			WorkID: item.id, PipelineRunID: runID,
+			ProducerStage: work.ProducerStageNormalize, Title: item.title,
 		}); err != nil {
 			t.Fatal(err)
 		}
 	}
 	ctx := context.Background()
-	if err := pdfstore.BindStore(ctx, metadata.DB, pdfstore.DefaultStoreFilename); err != nil {
+	bindings := metadata.PDFBindings
+	if err := bindings.EnsureBinding(ctx, pdfbinding.DefaultStoreFilename); err != nil {
 		t.Fatal(err)
 	}
-	store, err := pdfstore.Open(filepath.Join(tempDir, pdfstore.DefaultStoreFilename), registry)
+	store, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +73,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.FlushAuditOutbox(ctx, metadata.DB); err != nil {
+	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
 		store.Close()
 		t.Fatal(err)
 	}
@@ -155,14 +158,14 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	}
 	defer metadata.Close()
 	var addedEvents int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
 		t.Fatal(err)
 	}
 	if addedEvents != 1 {
 		t.Fatalf("manual add audit events = %d, want 1", addedEvents)
 	}
 	var duplicateEvents int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
 		t.Fatal(err)
 	}
 	if duplicateEvents != 1 {
@@ -179,7 +182,7 @@ func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.Works.CreateByDOI("10.1000/manual-invalid"); err != nil {
+	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-invalid"); err != nil {
 		t.Fatal(err)
 	}
 	metadata.Close()

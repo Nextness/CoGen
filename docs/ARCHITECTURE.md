@@ -39,20 +39,23 @@ Source exports + SOMETHING configuration
 | `src/go.mod`, `src/go.sum` | Go module and dependency lock; Go commands execute with `src/` as the module directory. |
 | `src/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
 | `src/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
-| `src/database/` | Writable and existing-only metadata SQLite connections, migrations, repositories, immutable relationships and review versions, mutable review heads, attempts, artifacts, cache, metrics, audit, and derived per-run search-term data. |
+| `src/database/` | Metadata composition root: writable and existing-only connections, SQLite URI and pragma configuration, the migration registry and runner, schema version, health, close, and one handwritten store per table family bound to the opened connection. |
+| `src/database/<family>/` | Handwritten table-family DALs for search, run, source, artifact, cache, work, author, review, audit, and PDF binding; each owns its `schema/` SQL inputs, private generated `internal/sql/` package, application models, validation, error mapping, and transactions. |
 | `src/enrich/` | Rate-limited provider HTTP client, payload-envelope validation, provider URL construction, and response decoding without database access. |
 | `src/logging/` | Process-wide structured logger and compile-time logging threshold. |
 | `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
-| `src/pdfstore/` | Companion PDF SQLite store, normalized DOI registration, PDF validation, content blobs, and transactional audit outbox. |
+| `src/pdfstore/` | Companion PDF SQLite store with its own `schema/` inputs and generated `internal/sql/` package: normalized DOI registration, PDF validation, content blobs, read-only delivery, and the transactional audit outbox. |
 | `src/searchterms/` | Search-term extraction from source query strings and deterministic case-insensitive field matching that stems every word with the English snowball stemmer before whole-word matching, with wildcard support. |
 | `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
 | `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
 | `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
 | `src/tools/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
 | `src/tools/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
+| `src/tools/importcheck/` | Package import and transaction graph scanning, classification, enforcement, and reporting. |
 | `src/tools/pdf-store/` | Validated manual PDF insertion command. |
 | `src/tools/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
+| `src/tools/rawsqlcheck/` | Raw SQL ownership scanning, classification, enforcement, and reporting for maintained Go sources. |
 | `src/tools/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
 | `src/validation/` | Shared article field validation rules. |
 | `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
@@ -65,38 +68,81 @@ Source exports + SOMETHING configuration
 | `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
 
-The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, and `build/coveragecheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
+The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, `build/coveragecheck`, `build/rawsqlcheck`, and `build/importcheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
 
 ## 4. Dependency direction and component boundaries
 
-The internal production import direction is intentionally narrow: foundation packages such as `manifest`, `something`, `logging`, `article`, `notes`, `normalization`, and `validation` do not depend on orchestration; `database`, `enrich`, and `pdfstore` own infrastructure boundaries; `workspace` composes pipeline concerns; `server` uses database repositories but does not import workspace orchestration; and `main` imports `database`, `logging`, `server`, and `workspace`.
+The internal production import direction is intentionally narrow. Shared low-level packages such as `manifest`, `something`, `logging`, `article`, `notes`, `normalization`, `validation`, and `internal/` helpers do not depend on orchestration. `src/database/` is the metadata composition root and must not import consumers or the companion store; table-family packages under `src/database/<family>/` own their SQL inputs, private generated output, application models, validation, error mapping, and transactions and depend only on their own subtree plus those shared packages, so sibling families never call one another inside a transaction. `workspace`, `server`, `tools/`, and `main` are consumers that import the composition root and the family packages whose application types they need. `enrich` owns provider HTTP without database access, `workspace` composes pipeline concerns, `server` uses family stores but does not import workspace orchestration or call migration-running `database.Open`, and `pdfstore` is the companion store that must not import consumers.
 
 ```text
-                          +------------------+
-                          |     main.go      |
-                          +--------+---------+
-                                   |
-                    +--------------+--------------+
-                    v                             v
-             +-------------+                +-----------+
-             |  workspace  |                |  server   |
-             +------+------+                +-----+-----+
-                    |                             |
-       +------------+-------------+               v
-       v            v             v        existing metadata SQLite
-  database       enrich       pdfstore
-       ^            ^             ^
-       +------------+-------------+
-                    |
-   article, bibtex, manifest, normalization,
-   validation, something, logging
+                    +------------------+
+                    |     main.go      |
+                    +--------+---------+
+                             |
+              +--------------+--------------+
+              v                             v
+       +-------------+                +-----------+
+       |  workspace  |                |  server   |
+       +------+------+                +-----+-----+
+              |                             |
+              |--> enrich (HTTP only)       |
+              |                             |
+              +--------------+--------------+
+                             v
+                   +-------------------+        +-------------------+
+                   | database (root)   |<-------| pdfstore          |
+                   | composition root  |        | companion store   |
+                   +---------+---------+        +---------+---------+
+                             |                            |
+                             v                            v
+        database/<family> handwritten DALs       pdfstore/internal/sql
+        artifact, audit, author, cache,
+        pdfbinding, review, run, search,
+        source, work
+                             |
+                             v
+             <family>/internal/sql generated queries
+                             |
+                             v
+            database/sql + modernc.org/sqlite
 ```
 
-`src/main.go` is the only production entry point. Pipeline behavior belongs in `src/workspace/`; provider gatherers do not call database repositories, repository and store functions do not perform provider HTTP requests, and `src/server/` does not import workspace orchestration or call migration-running `database.Open`.
+`src/main.go` is the only production entry point. Pipeline behavior belongs in `src/workspace/`; provider gatherers do not call family stores, family and companion store functions do not perform provider HTTP requests, and `src/server/` does not import workspace orchestration or call migration-running `database.Open`.
 
 SQLite is the sole persisted pipeline record. Immutable `work_revisions`, ordered `authorships`, and ordered `reference_mentions` are the canonical corpus representation. `run_work_stages` records per-run, per-work outcomes independently from revision rows, so rejected work remains inspectable even though only valid normalized revisions enter the analysis-ready corpus.
 
 Provider responses live in content-addressed `artifacts` and inline `artifact_blobs`; immutable response versions, request identity, and expiry live in `cache_entries`, and per-run use lives in `run_cache_uses`. The PDF store is a companion database rather than a metadata table family. The viewer opens metadata once in read-only mode and once in existing-only bounded-mutation mode, never creates a database or runs migrations, and keeps the companion PDF connection read-only.
+
+### 4.1 Table-family data access
+
+`src/database/database.go` is the metadata composition root. It opens or creates the metadata database, configures the SQLite URI and pragmas, applies the configured migration chain behind an immediate lock, exposes platform methods for close, health, writability, schema version, and transactions, and binds one handwritten store per table family to that single connection. Consumers that need only the stores use the root fields; consumers that need family application types, filters, or errors import the owning family package directly, which is why `workspace` and `server` appear as importers of both the root and individual families.
+
+| Family | Package | Primary tables and relationships |
+|---|---|---|
+| Search | `src/database/search/` | `searches`, `search_revisions`, `execution_plans`; search revision and reusable plan hierarchy. |
+| Run | `src/database/run/` | `pipeline_runs`, `pipeline_run_reviewers`, `run_steps`, `pipeline_run_metrics`; attempt lifecycle, reviewer attribution, steps, and counters. |
+| Source | `src/database/source/` | `run_sources`, `source_records`, `source_filter_counts`; source acquisition, raw records, parse outcomes, and ordered filter evidence. |
+| Artifact | `src/database/artifact/` | `artifacts`, `artifact_blobs`, `run_artifacts`; content identity, bytes, and run, step, cache, and candidate links. |
+| Cache | `src/database/cache/` | `cache_entries`, `run_cache_uses`; response versioning, selection, expiry, and per-run use evidence. |
+| Work | `src/database/work/` | `works`, `work_identifiers`, `work_revisions`, `run_work_stages`, `reference_mentions`, `run_search_terms`, `work_revision_term_matches`, `run_term_match_reconciliations`; stable works, immutable revisions, stage outcomes, references, term coverage, and corpus, detail, evaluation, graph, and server-read projections. |
+| Author | `src/database/author/` | `people`, `author_occurrences`, `authorships`, `author_identity_resolutions`, `author_identity_candidates`; confirmed identity, observed names, ordered authorship, and uncertain candidate evidence. |
+| Review | `src/database/review/` | Review settings and contexts, immutable work-review versions and version children, mutable context heads, logical notes, note versions, note links, logical anchors, and anchor versions; compare-and-swap review mutation workflows. |
+| Audit | `src/database/audit/` | `audit_events`; append-only insertion, filtering, and provenance relationships whose primary result is audit evidence. |
+| PDF binding | `src/database/pdfbinding/` | Metadata `pdf_store_binding` and `pdf_audit_links`; companion binding and delivered-event links. |
+
+Each family owns its maintained declarations and named queries under `src/database/<family>/schema/`, its committed sqlc-generated package under the reserved `src/database/<family>/internal/sql/` path, and its handwritten models, validation, error mapping, and transactions under `src/database/<family>/`; generated row types are mapped to application types inside the family, never cross a handwritten family API, and neither the schema declarations nor the generated output feeds runtime migrations or SOMETHING versioning. The companion store follows the same shape with `src/pdfstore/schema/` and `src/pdfstore/internal/sql/`, `src/database/sqlcprobe/` is generator validation scaffolding rather than a production family, and `src/tools/prepare-osf/` keeps a private generated export package because its statements are maintenance orchestration.
+
+Relationship SQL lives with the family that owns the returned resource or the mutation, in a specifically named Go and SQL file such as `cache/cache_use.go` with `cache/schema/cache_use.sql`, `artifact/run_artifact.go` with `artifact/schema/run_artifact.sql`, or `work/reference.go` with `work/schema/reference.sql`. A family may declare the external table shapes its relationship queries need to compile without taking ownership of those tables.
+
+There is no generic read-model package. Every cross-table read belongs to the family owning its primary result: hierarchy and overview to `search` or `run`; corpus, details, evaluation, graph, references, and term matches to `work`; identity evidence to `author`; review navigation to `review`; audit and artifact evidence to `audit` or `artifact`; and companion inventory to `pdfstore`. Cross-table writes and transactions stay in the family owning the use case; they may run a specifically named relationship query that touches another family's table but never call a sibling DAL method, so abandoned-run recovery, artifact linking, cache-use recording, and review mutations with audit insertion each keep one transaction. `make check-imports` enforces this graph: family production code depends only on its own subtree and shared `internal`, `logging`, `manifest`, or `notes` packages, generated `internal/sql` output is imported only inside its owning package tree, and every generation unit keeps its schema, queries, and output under one owner directory.
+
+Every public family operation takes `context.Context` as its first parameter and passes it to the generated context-aware method, so handler deadlines and cancellation reach SQLite and the viewer's statement-budget driver keeps counting generated calls. Multi-statement mutations remain handwritten Go: a family `withTx` helper opens `s.db.BeginTx(ctx, nil)`, binds the same generated queries with `WithTx(tx)`, runs validation, current-head checks, inserts, compare-and-swap updates, and audit evidence, rolls back on error or panic, and commits only after every invariant succeeds. No transaction spans two family stores or two databases.
+
+### 4.2 Metadata and companion PDF coordination
+
+Metadata and PDF state remain two independently migrated SQLite databases because document bytes and manual inventory have a different lifecycle from research metadata and SQLite cannot provide one transaction across separate files. `src/pdfstore/` owns the companion connection, its `schema/` inputs, its generated `internal/sql` package, PDF validation, content-addressed blobs, and the audit outbox, while `src/database/pdfbinding/` owns the metadata-side `pdf_store_binding` and `pdf_audit_links` tables and the typed operations that resolve and validate the relative binding, begin the metadata transaction, and record delivered events.
+
+The cross-database protocol stays deliberately non-atomic. A flush loads a bounded companion outbox batch, isolates each event with a per-event savepoint, writes metadata audit plus `pdf_audit_links` in one metadata transaction through the binding store, commits metadata before marking companion events delivered, and retries idempotently after a crash between those commits. Section 13 describes the full inventory, binding, and outbox behavior, and [DATABASE.md](DATABASE.md) lists both schemas.
 
 ## 5. Executable boundaries
 
@@ -110,7 +156,7 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 
-`build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-printer [--json|--yaml|--something] <path>` evaluates a SOMETHING file and writes the evaluated public values in SOMETHING setup syntax by default, or JSON or YAML when selected by a flag. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy.
+`build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-printer [--json|--yaml|--something] <path>` evaluates a SOMETHING file and writes the evaluated public values in SOMETHING setup syntax by default, or JSON or YAML when selected by a flag. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy. `build/rawsqlcheck check` scans maintained Go sources for unclassified raw SQL calls, and `build/rawsqlcheck report` prints the per-file ownership inventory; both are normally invoked through `make check-sql` and `make sql-report`. `build/importcheck check` enforces the package import and transaction graph, and `build/importcheck report` prints the layer graph, family imports, fixture composition, and sqlc units; both are normally invoked through `make check-imports` and `make import-report`.
 
 The process logger is installed as the standard `slog` default and package loggers come from `logging.Logger(component)`. The compile-time minimum is `slog.LevelInfo`; there is no runtime `--log-level` option.
 
@@ -195,7 +241,7 @@ parse -> deduplicate -> enrich metadata -> enrich identity -> validate -> normal
                      DOI inventory sync + term-match reconciliation
 ```
 
-Stages use repository operations and scoped transactions rather than one transaction for an entire run. A late failure marks the attempt failed but intentionally preserves earlier immutable evidence.
+Stages use family store operations and scoped transactions rather than one transaction for an entire run. A late failure marks the attempt failed but intentionally preserves earlier immutable evidence.
 
 ## 9. Lifecycle and work states
 
@@ -263,7 +309,7 @@ The metadata schema includes pipeline planning and evidence, corpus revisions an
 
 The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated manual inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
 
-Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through repository transactions. A reviewed run or a run used in review lineage is purge-ineligible.
+Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through family transactions. A reviewed run or a run used in review lineage is purge-ineligible.
 
 ## 12. Cache and network behavior
 
@@ -446,7 +492,7 @@ The rendering and frontend extension rules live in [STANDARDS.md](STANDARDS.md),
 
 Go tests use `testing` with `unit`, `functional`, `integration`, and isolated `e2e` build tags. `make test` and `make test-go` enable the first three tag families without cached results; `make test-e2e` alone selects the offline E2E tests, builds and invokes `build/analysis`, evaluates generated SOMETHING configuration through `build/something-printer`, and writes deterministic and mocked database bundles beneath `build/e2e/`. Real-database integration and E2E tests use production migrations.
 
-`make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` writes an atomic whole-module profile and enforces the SOMETHING coverage policy. `make format-check`, `make vet`, and `make check` cover formatting, static checks, and complete read-only documentation consistency.
+`make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` writes an atomic whole-module profile and enforces the SOMETHING coverage policy. `make format-check`, `make vet`, `make check-sql`, `make check-imports`, and `make check` cover formatting, static checks, raw SQL ownership, the import and transaction graph, and complete read-only documentation consistency.
 
 Frontend unit tests use `node:test`, `node:assert`, and jsdom without a browser or server. Playwright configuration and browser specs are authored in TypeScript and split each invocation into a read-only suite and a serial mutation suite, each with its own copied fixture pair and isolated viewer on an operating-system-assigned loopback port, and write unique output under `build/playwright/`; `viewer.spec.ts` covers fixture evidence, serial `review.spec.ts` covers local mutations and PDF rendering, `ui-quality.spec.ts` covers axe, responsive behavior, and reviewed visual snapshots, and the environment-guarded `e2e.spec.ts` mutates and verifies A1 and A2 review lineage over a database generated by the real pipeline binary.
 
@@ -505,7 +551,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
-- Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow repository transaction, required state checks, and identifier-only audit metadata; review-decision mutations additionally record the bounded complete previous and new decision in audit before/after fields while preserving the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
+- Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow family transaction, required state checks, and identifier-only audit metadata; review-decision mutations additionally record the bounded complete previous and new decision in audit before/after fields while preserving the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
 - Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in `scripts/build.ts`, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.

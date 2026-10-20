@@ -52,6 +52,30 @@ func TestCollectGoDeclarationsClassifiesTests(t *testing.T) {
 	}
 }
 
+// TestCollectGoDeclarationsExcludesGeneratedInternalSQLPaths verifies generated internal sql paths are omitted while neighboring paths remain cataloged.
+func TestCollectGoDeclarationsExcludesGeneratedInternalSQLPaths(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "src/database/cache/internal/sql/db.go", "package sql\nfunc generatedDirect() {}\n")
+	writeTestFile(t, root, "src/database/cache/internal/sql/nested/models.go", "package nested\nfunc generatedNested() {}\n")
+	writeTestFile(t, root, "src/database/cache/internal/sqltest/db.go", "package sqltest\n// nearMiss documents the near-miss package.\nfunc nearMiss() {}\n")
+	writeTestFile(t, root, "src/database/cache/internal/other/db.go", "package other\n// otherInternal documents another internal package.\nfunc otherInternal() {}\n")
+	writeTestFile(t, root, "src/database/cache/internal/sql.go", "package cache\n// sqlFile documents a file named sql.go outside the reserved directory.\nfunc sqlFile() {}\n")
+	writeTestFile(t, root, "src/database/cache/cache.go", "package cache\n// handwritten documents the owning family file.\nfunc handwritten() {}\n")
+	entries, err := collectGoDeclarations(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := renderCatalogEntries(entries)
+	if strings.Contains(output, "generatedDirect") || strings.Contains(output, "generatedNested") {
+		t.Fatalf("generated internal/sql declarations leaked into the catalog:\n%s", output)
+	}
+	for _, expected := range []string{"nearMiss", "otherInternal", "sqlFile", "handwritten"} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("near-miss declaration %q missing from the catalog:\n%s", expected, output)
+		}
+	}
+}
+
 // TestCollectJavaScriptDeclarationsIncludesJSDocClassesMethodsAndTests verifies collect java script declarations includes js doc classes methods and tests.
 func TestCollectJavaScriptDeclarationsIncludesJSDocClassesMethodsAndTests(t *testing.T) {
 	root := t.TempDir()

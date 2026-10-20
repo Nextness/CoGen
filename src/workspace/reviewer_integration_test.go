@@ -3,6 +3,7 @@
 package workspace
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -22,7 +23,7 @@ func TestFailedAttemptRetainsReviewer(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.DB.Exec(`CREATE TRIGGER fail_run_metric BEFORE INSERT ON pipeline_run_metrics
+	if _, err := db.RawDBForTest().Exec(`CREATE TRIGGER fail_run_metric BEFORE INSERT ON pipeline_run_metrics
 		BEGIN SELECT RAISE(ABORT, 'forced metric failure'); END`); err != nil {
 		t.Fatal(err)
 	}
@@ -33,13 +34,13 @@ func TestFailedAttemptRetainsReviewer(t *testing.T) {
 	}
 	var runID int64
 	var status string
-	if err := db.DB.QueryRow("SELECT id, status FROM pipeline_runs ORDER BY id DESC LIMIT 1").Scan(&runID, &status); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT id, status FROM pipeline_runs ORDER BY id DESC LIMIT 1").Scan(&runID, &status); err != nil {
 		t.Fatal(err)
 	}
 	if status != "failed" {
 		t.Fatalf("run status=%q", status)
 	}
-	reviewer, err := db.PipelineRunReviewers.Get(runID)
+	reviewer, err := db.Run.GetReviewer(context.Background(), runID)
 	if err != nil || reviewer == nil || reviewer.Username != "Fixture Reviewer" || reviewer.Email != "reviewer@example.test" {
 		t.Fatalf("reviewer=%+v err=%v", reviewer, err)
 	}

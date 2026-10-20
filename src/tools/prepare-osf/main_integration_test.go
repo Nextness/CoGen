@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/run"
 	"analysis/pdfstore"
 )
 
@@ -38,29 +39,29 @@ func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := pdfstore.BindStore(context.Background(), metadata.DB, filepath.Base(pdfPath)); err != nil {
+	if err := metadata.PDFBindings.EnsureBinding(context.Background(), filepath.Base(pdfPath)); err != nil {
 		t.Fatal(err)
 	}
 	rawConfig := []byte(`workspace = { reviewer = reviewer_config { username = "Sensitive Researcher", email = "sensitive@example.test", }, };`)
 	digest := sha256.Sum256(rawConfig)
 	rawHash := hex.EncodeToString(digest[:])
-	searchResult := mustExec(t, metadata.DB, "INSERT INTO searches (search_id) VALUES ('export-search')")
+	searchResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO searches (search_id) VALUES ('export-search')")
 	searchID, _ := searchResult.LastInsertId()
-	revisionResult := mustExec(t, metadata.DB, "INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r1', ?, 'manifest')", searchID, rawHash)
+	revisionResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r1', ?, 'manifest')", searchID, rawHash)
 	revisionID, _ := revisionResult.LastInsertId()
-	planResult := mustExec(t, metadata.DB, "INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'fingerprint', 'manifest', 'input')", revisionID)
+	planResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'fingerprint', 'manifest', 'input')", revisionID)
 	planID, _ := planResult.LastInsertId()
-	runResult := mustExec(t, metadata.DB, "INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('export', '2026-01-01', '2026-01-01', 'completed', ?, 1)", planID)
+	runResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('export', '2026-01-01', '2026-01-01', 'completed', ?, 1)", planID)
 	runID, _ := runResult.LastInsertId()
-	if err := metadata.PipelineRunReviewers.Insert(runID, "Sensitive Researcher", "sensitive@example.test"); err != nil {
+	if err := metadata.Run.InsertReviewer(context.Background(), run.ReviewerInput{RunID: runID, Username: "Sensitive Researcher", Email: "sensitive@example.test"}); err != nil {
 		t.Fatal(err)
 	}
-	artifactResult := mustExec(t, metadata.DB, "INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'text/plain')", rawHash, len(rawConfig))
+	artifactResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'text/plain')", rawHash, len(rawConfig))
 	artifactID, _ := artifactResult.LastInsertId()
-	mustExec(t, metadata.DB, "INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, rawConfig)
-	mustExec(t, metadata.DB, "INSERT INTO run_artifacts (pipeline_run_id, artifact_id, artifact_role) VALUES (?, ?, 'workspace_config')", runID, artifactID)
+	mustExec(t, metadata.RawDBForTest(), "INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, rawConfig)
+	mustExec(t, metadata.RawDBForTest(), "INSERT INTO run_artifacts (pipeline_run_id, artifact_id, artifact_role) VALUES (?, ?, 'workspace_config')", runID, artifactID)
 	var sourceCorpusID string
-	if err := metadata.DB.QueryRow("SELECT corpus_id FROM review_settings WHERE id=1").Scan(&sourceCorpusID); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT corpus_id FROM review_settings WHERE id=1").Scan(&sourceCorpusID); err != nil {
 		t.Fatal(err)
 	}
 	if err := pdf.Close(); err != nil {
@@ -243,10 +244,10 @@ func TestPrepareRealPipelineReviewerEvidence(t *testing.T) {
 			}
 			defer exported.Close()
 			var invalid int
-			if err := exported.DB.QueryRow(`SELECT COUNT(*) FROM run_steps step JOIN artifacts artifact ON artifact.id=step.input_artifact_id WHERE step.step_name='preflight' AND step.input_fingerprint != artifact.content_hash`).Scan(&invalid); err != nil || invalid != 0 {
+			if err := exported.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM run_steps step JOIN artifacts artifact ON artifact.id=step.input_artifact_id WHERE step.step_name='preflight' AND step.input_fingerprint != artifact.content_hash`).Scan(&invalid); err != nil || invalid != 0 {
 				t.Fatalf("preflight hash mismatch: %d %v", invalid, err)
 			}
-			if err := exported.DB.QueryRow("SELECT COUNT(*) FROM artifact_blobs WHERE instr(CAST(data AS TEXT), 'SyntheticExportMarker') > 0").Scan(&invalid); err != nil || invalid != 0 {
+			if err := exported.RawDBForTest().QueryRow("SELECT COUNT(*) FROM artifact_blobs WHERE instr(CAST(data AS TEXT), 'SyntheticExportMarker') > 0").Scan(&invalid); err != nil || invalid != 0 {
 				t.Fatalf("live identity blobs: %d %v", invalid, err)
 			}
 			data, err := os.ReadFile(exportedPath)

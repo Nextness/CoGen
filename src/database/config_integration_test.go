@@ -4,6 +4,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 
 	// Verify schema_migrations has all configured migrations.
 	var count int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+	err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	}
 	for _, name := range expectedTables {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -80,7 +81,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	}
 	for _, name := range expectedIndexes {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -109,7 +110,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	}
 	for _, name := range expectedTriggers {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -123,7 +124,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	// Verify producer_stage has no default (fresh baseline has no sentinel)
 	var notNull bool
 	var dflt interface{}
-	err = db.DB.QueryRow(
+	err = db.RawDBForTest().QueryRow(
 		"SELECT \"notnull\", dflt_value FROM pragma_table_info('work_revisions') WHERE name='producer_stage'",
 	).Scan(&notNull, &dflt)
 	if err != nil {
@@ -139,7 +140,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	// Verify updated_at exists on run_work_stages with a SQL function default
 	var colCount int
 	var uaDflt string
-	err = db.DB.QueryRow(
+	err = db.RawDBForTest().QueryRow(
 		"SELECT COUNT(*), dflt_value FROM pragma_table_info('run_work_stages') WHERE name='updated_at'",
 	).Scan(&colCount, &uaDflt)
 	if err != nil {
@@ -154,7 +155,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 
 	// Verify pipeline_runs has the extended columns
 	for _, col := range []string{"execution_plan_id", "attempt_number", "visibility_state", "trashed_at", "trash_reason"} {
-		err = db.DB.QueryRow(
+		err = db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM pragma_table_info('pipeline_runs') WHERE name=?", col,
 		).Scan(&colCount)
 		if err != nil {
@@ -167,22 +168,22 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 
 	// Regression: a direct INSERT into run_work_stages must get a non-empty
 	// updated_at from the datetime('now') default.
-	workID, err := db.Works.CreateByDOI("10.1000/baseline-updated-at")
+	workID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/baseline-updated-at")
 	if err != nil {
-		t.Fatalf("CreateByDOI: %v", err)
+		t.Fatalf("CreateWorkByDOI: %v", err)
 	}
-	runID, err := db.PipelineRuns.StartRun("baseline test", "q")
+	runID, err := db.Run.StartRun(context.Background(), "baseline test", "q")
 	if err != nil {
 		t.Fatalf("StartRun: %v", err)
 	}
-	_, err = db.DB.Exec(
+	_, err = db.RawDBForTest().Exec(
 		"INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome, reason) VALUES (?, ?, 'parse', 'parsed', 'baseline default')",
 		runID, workID)
 	if err != nil {
 		t.Fatalf("insert stage: %v", err)
 	}
 	var ua string
-	err = db.DB.QueryRow("SELECT updated_at FROM run_work_stages WHERE pipeline_run_id=? AND work_id=?", runID, workID).Scan(&ua)
+	err = db.RawDBForTest().QueryRow("SELECT updated_at FROM run_work_stages WHERE pipeline_run_id=? AND work_id=?", runID, workID).Scan(&ua)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +200,7 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 	defer db2.Close()
 
 	var count2 int
-	err = db2.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
+	err = db2.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +258,7 @@ db_migration: setup = {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	db := &Database{DB: conn, migrations: migrationsDir}
+	db := &Database{db: conn, migrations: migrationsDir}
 	if err := db.runMigrations(configPath); err == nil {
 		t.Fatal("expected broken future migration to fail")
 	}
@@ -303,7 +304,7 @@ func TestV00003MigrationApplies(t *testing.T) {
 
 	// Five migrations should be applied: V00001 through V00005.
 	var count int
-	err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
+	err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +319,7 @@ func TestV00003MigrationApplies(t *testing.T) {
 	}
 	for _, name := range expectedTriggers {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -396,7 +397,7 @@ db_migration: setup = {
 		"authorships_abort_update", "authorships_abort_delete",
 	} {
 		var n int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
 			t.Fatalf("query trigger %s: %v", name, err)
 		}
 		if n != 0 {
@@ -448,7 +449,7 @@ db_migration: setup = {
 
 	// Verify three migrations are now applied
 	var count int
-	if err := db2.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
+	if err := db2.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 3 {
@@ -462,7 +463,7 @@ db_migration: setup = {
 	}
 	for _, name := range expectedTriggers {
 		var n int
-		if err := db2.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
+		if err := db2.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
 			t.Fatalf("query trigger %s: %v", name, err)
 		}
 		if n != 1 {
@@ -531,7 +532,7 @@ db_migration: setup = {
 
 	for _, name := range []string{"people_abort_blank_orcid_insert", "people_abort_blank_orcid_update"} {
 		var n int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
 			t.Fatalf("query trigger %s: %v", name, err)
 		}
 		if n != 0 {
@@ -564,7 +565,7 @@ db_migration: setup = {
 	defer db.Close()
 
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 4 {
@@ -572,7 +573,7 @@ db_migration: setup = {
 	}
 	for _, name := range []string{"people_abort_blank_orcid_insert", "people_abort_blank_orcid_update"} {
 		var n int
-		if err := db.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
+		if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='trigger' AND name=?", name).Scan(&n); err != nil {
 			t.Fatalf("query trigger %s: %v", name, err)
 		}
 		if n != 1 {
@@ -580,7 +581,7 @@ db_migration: setup = {
 		}
 	}
 
-	_, err = db.DB.Exec("INSERT INTO people (orcid) VALUES ('   ')")
+	_, err = db.RawDBForTest().Exec("INSERT INTO people (orcid) VALUES ('   ')")
 	if err == nil || !strings.Contains(err.Error(), "people.orcid must not be null, empty, or whitespace") {
 		t.Fatalf("expected non-blank ORCID guard after upgrade, got: %v", err)
 	}
@@ -595,7 +596,7 @@ func TestV00002MigrationApplies(t *testing.T) {
 
 	// Five migrations should be applied: V00001 through V00005.
 	var count int
-	if err := db.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
+	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 28 {
@@ -606,7 +607,7 @@ func TestV00002MigrationApplies(t *testing.T) {
 	expectedTables := []string{"people", "author_occurrences", "authorships"}
 	for _, name := range expectedTables {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -624,7 +625,7 @@ func TestV00002MigrationApplies(t *testing.T) {
 	}
 	for _, name := range expectedIndexes {
 		var n int
-		err := db.DB.QueryRow(
+		err := db.RawDBForTest().QueryRow(
 			"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?", name,
 		).Scan(&n)
 		if err != nil {
@@ -668,7 +669,7 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	}
 	defer metadata.Close()
 	var metadataMigrations int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&metadataMigrations); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&metadataMigrations); err != nil {
 		t.Fatal(err)
 	}
 	if metadataMigrations != 28 {
@@ -676,7 +677,7 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	}
 	for _, table := range []string{"pdf_store_binding", "pdf_audit_links"} {
 		var found int
-		if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&found); err != nil || found != 1 {
+		if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&found); err != nil || found != 1 {
 			t.Fatalf("metadata table %s: found=%d err=%v", table, found, err)
 		}
 	}
@@ -784,7 +785,7 @@ func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.DB.Exec(`DROP TABLE pdf_audit_links;
+	if _, err := metadata.RawDBForTest().Exec(`DROP TABLE pdf_audit_links;
 		DROP TABLE pdf_store_binding;
 		DELETE FROM schema_migrations WHERE filename IN
 		('V00019_pdf_store_binding.sql', 'V00020_pdf_gather_audit_links.sql', 'V00021_rename_pdf_audit_links.sql')`); err != nil {
@@ -801,14 +802,14 @@ func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T) {
 	}
 	defer metadata.Close()
 	var total, historical, additions int
-	if err := metadata.DB.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&total); err != nil {
+	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&total); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations
+	if err := metadata.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM schema_migrations
 		WHERE filename='V00018_source_filter_counts.sql'`).Scan(&historical); err != nil {
 		t.Fatal(err)
 	}
-	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations
+	if err := metadata.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM schema_migrations
 		WHERE filename IN ('V00019_pdf_store_binding.sql', 'V00020_pdf_gather_audit_links.sql',
 		'V00021_rename_pdf_audit_links.sql')`).Scan(&additions); err != nil {
 		t.Fatal(err)
@@ -826,7 +827,7 @@ func TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := metadata.DB.Exec(`DELETE FROM schema_migrations WHERE filename='V00026_review_anchor_labels.sql';
+	if _, err := metadata.RawDBForTest().Exec(`DELETE FROM schema_migrations WHERE filename='V00026_review_anchor_labels.sql';
 		INSERT INTO schema_migrations (filename, checksum) VALUES ('V00025_review_anchor_labels.sql', 'legacy-anchor-label-migration');`); err != nil {
 		metadata.Close()
 		t.Fatal(err)
@@ -842,7 +843,7 @@ func TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration(t *testing.T) {
 	defer metadata.Close()
 
 	var adopted int
-	if err := metadata.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE filename IN
+	if err := metadata.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE filename IN
 		('V00025_review_anchor_labels.sql', 'V00026_review_anchor_labels.sql')`).Scan(&adopted); err != nil {
 		t.Fatal(err)
 	}

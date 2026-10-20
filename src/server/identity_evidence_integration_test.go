@@ -37,7 +37,7 @@ func TestIdentityEvidenceRevisionLinks(t *testing.T) {
 	}
 	defer viewer.Close()
 	insert := func(query string, args ...any) int64 {
-		result, err := viewer.writeDB.DB.Exec(query, args...)
+		result, err := viewer.writeDB.RawDBForTest().Exec(query, args...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,13 +118,13 @@ func TestIdentityCandidatePages(t *testing.T) {
 	}
 	defer viewer.Close()
 	var resolutionID int64
-	if err := viewer.writeDB.DB.QueryRow(`SELECT id FROM author_identity_resolutions
+	if err := viewer.writeDB.RawDBForTest().QueryRow(`SELECT id FROM author_identity_resolutions
 		WHERE pipeline_run_id=? AND status='orcid_is_unclear'`, runID).Scan(&resolutionID); err != nil {
 		t.Fatal(err)
 	}
 	for rank := 3; rank <= 105; rank++ {
 		orcid := "0000-0000-0000-" + stringID(int64(1000+rank))
-		if _, err := viewer.writeDB.DB.Exec(`INSERT INTO author_identity_candidates
+		if _, err := viewer.writeDB.RawDBForTest().Exec(`INSERT INTO author_identity_candidates
 			(identity_resolution_id, candidate_orcid, query_url, provider_rank)
 			VALUES (?, ?, 'https://orcid.example/search', ?)`, resolutionID, orcid, rank); err != nil {
 			t.Fatal(err)

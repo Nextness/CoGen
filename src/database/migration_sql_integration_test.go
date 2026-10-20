@@ -37,7 +37,7 @@ func TestRunMigrationsRejectsInvalidMarkersWithoutTrackingRow(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	db := &Database{DB: conn, migrations: migrationsDir}
+	db := &Database{db: conn, migrations: migrationsDir}
 	if err := db.runMigrations(configPath); err == nil {
 		t.Fatal("expected invalid migration marker error")
 	}
@@ -75,7 +75,7 @@ func TestRunMigrationsRejectsEmptyConfiguredFilename(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	db := &Database{DB: conn, migrations: migrationsDir}
+	db := &Database{db: conn, migrations: migrationsDir}
 	if err := db.runMigrations(configPath); err == nil {
 		t.Fatal("expected empty migration filename error")
 	}

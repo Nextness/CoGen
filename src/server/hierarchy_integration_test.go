@@ -21,22 +21,22 @@ func TestHierarchyProvidesBoundedIndependentHomeSections(t *testing.T) {
 		t.Fatal(err)
 	}
 	for index := 1; index <= 105; index++ {
-		search, err := db.DB.Exec("INSERT INTO searches (search_id) VALUES (?)", fmt.Sprintf("scale-search-%03d", index))
+		search, err := db.RawDBForTest().Exec("INSERT INTO searches (search_id) VALUES (?)", fmt.Sprintf("scale-search-%03d", index))
 		if err != nil {
 			t.Fatal(err)
 		}
 		searchID, _ := search.LastInsertId()
-		revision, err := db.DB.Exec("INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, ?, ?, ?)", searchID, fmt.Sprintf("scale-r-%03d", index), fmt.Sprintf("config-%03d", index), fmt.Sprintf("manifest-%03d", index))
+		revision, err := db.RawDBForTest().Exec("INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, ?, ?, ?)", searchID, fmt.Sprintf("scale-r-%03d", index), fmt.Sprintf("config-%03d", index), fmt.Sprintf("manifest-%03d", index))
 		if err != nil {
 			t.Fatal(err)
 		}
 		revisionID, _ := revision.LastInsertId()
-		plan, err := db.DB.Exec("INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash, enrichment_enabled) VALUES (?, ?, ?, ?, 0)", revisionID, fmt.Sprintf("fingerprint-%03d", index), fmt.Sprintf("manifest-%03d", index), fmt.Sprintf("input-%03d", index))
+		plan, err := db.RawDBForTest().Exec("INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash, enrichment_enabled) VALUES (?, ?, ?, ?, 0)", revisionID, fmt.Sprintf("fingerprint-%03d", index), fmt.Sprintf("manifest-%03d", index), fmt.Sprintf("input-%03d", index))
 		if err != nil {
 			t.Fatal(err)
 		}
 		planID, _ := plan.LastInsertId()
-		if _, err := db.DB.Exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('workspace', ?, ?, 'completed', ?, 1)", fmt.Sprintf("2026-07-%02d 10:00:00", (index%28)+1), fmt.Sprintf("2026-07-%02d 10:05:00", (index%28)+1), planID); err != nil {
+		if _, err := db.RawDBForTest().Exec("INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('workspace', ?, ?, 'completed', ?, 1)", fmt.Sprintf("2026-07-%02d 10:00:00", (index%28)+1), fmt.Sprintf("2026-07-%02d 10:05:00", (index%28)+1), planID); err != nil {
 			t.Fatal(err)
 		}
 	}

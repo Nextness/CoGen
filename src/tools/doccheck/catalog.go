@@ -80,6 +80,17 @@ func goDeclarationKind(spec *ast.TypeSpec) string {
 	}
 }
 
+// generatedGoPath reports whether a repository-relative Go path lives under a reserved internal/sql directory.
+func generatedGoPath(relativePath string) bool {
+	segments := strings.Split(relativePath, "/")
+	for index := 0; index+1 < len(segments); index++ {
+		if segments[index] == "internal" && segments[index+1] == "sql" {
+			return true
+		}
+	}
+	return false
+}
+
 // collectGoDeclarations walks src and returns named functions, methods, types, and tests.
 func collectGoDeclarations(root string) ([]catalogEntry, error) {
 	files := token.NewFileSet()
@@ -92,15 +103,18 @@ func collectGoDeclarations(root string) ([]catalogEntry, error) {
 		if item.IsDir() || filepath.Ext(path) != ".go" {
 			return nil
 		}
-		file, err := parser.ParseFile(files, path, nil, parser.ParseComments)
-		if err != nil {
-			return fmt.Errorf("parse %s: %w", path, err)
-		}
 		relativePath, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 		relativePath = filepath.ToSlash(relativePath)
+		if generatedGoPath(relativePath) {
+			return nil
+		}
+		file, err := parser.ParseFile(files, path, nil, parser.ParseComments)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
 		isTestFile := strings.HasSuffix(path, "_test.go")
 		for _, declaration := range file.Decls {
 			switch value := declaration.(type) {

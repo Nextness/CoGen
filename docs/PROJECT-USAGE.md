@@ -48,12 +48,21 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/prepare-osf` | `make prepare-osf` or `make tools` | Creates one sanitized copy-only metadata, PDF, and optional configuration export. |
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
+| `build/rawsqlcheck` | `make rawsqlcheck`, `make tools`, `make check-sql`, or `make sql-report` | Checks and reports raw SQL ownership across maintained Go sources. |
+| `build/importcheck` | `make importcheck`, `make tools`, `make check-imports`, or `make import-report` | Checks and reports the package import and transaction graph. |
+| `build/sqlc` | `make sqlc-install` | Pinned sqlc development generator used only for family SQL code generation and freshness checking; normal builds, tests, and checks never invoke it. |
 | `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
 | `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, and preserved review mutation evidence for pipeline-to-viewer verification. |
 | `build/playwright/run-*/` | Browser test targets | Isolated traces, screenshots, results, and HTML reports. |
 
 `build/coveragecheck` is normally executed by `make coverage`; developers should use the Make target so it receives the correct profile and policy paths.
+
+`build/rawsqlcheck` is normally executed by `make check-sql` or `make sql-report`; developers should use the Make targets so it scans the repository root with the committed ownership table.
+
+`build/importcheck` is normally executed by `make check-imports` or `make import-report`; developers should use the Make targets so it scans the repository root with the committed layer rules.
+
+`build/sqlc` is normally executed by `make sqlc-generate` or `make sqlc-check`; both targets pass `-f config/sqlc.yaml` from the repository root. Section 11 documents the generation workflow, maintained versus generated files, and common inference problems.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`).
 
@@ -171,17 +180,62 @@ make vet
 make test-go PACKAGE=./server TEST='^TestGraph$'
 make test
 make test-race
+make test-migration-parity
 make coverage
+make check-sql
+make sql-report
+make check-imports
+make import-report
+make sqlc-check
 make check
 ```
 
 `make test-go` enables unit, functional, and integration tags for the selected package and disables result caching. `make test` runs the same tag set across the module. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes.
 
+`make test-migration-parity` independently builds the frozen pre-sqlc revision `f06e5f90eb09b187988a952660cf2323248ad51e` and the working source, then runs the same run, artifact, cache, review, and PDF failure/retry scenarios against cloned production-migrated fixtures. It preserves exact null, empty, zero, relationship, audit, and query-count values while normalizing call-time clocks and generated identities consistently. The baseline Git object and cached Go dependencies must already exist locally; the target never fetches history or downloads dependencies. It is separate from default tests and writes unique evidence, source hashes, logs, and comparison JSON under `build/e2e/migration-parity/`.
+
 `make coverage` writes `build/coverage/coverage.out` and enforces [config/coverage_policy.something](../config/coverage_policy.something). The checker merges duplicate source ranges using the highest hit count and reports current, required, and delta coverage for tracked packages and high-risk files.
 
-`make check` runs the Go formatting check, `go vet`, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
+`make check` runs the Go formatting check, `go vet`, the raw SQL ownership check, the import graph check, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
 
-## 11. End-to-end verification
+`make check-sql` parses every maintained Go file under `src/` outside generated `internal/sql/` output and requires each Query, QueryRow, Exec, or prepared-statement call to be classified as platform migrations or connection behavior, viewer query-budget plumbing, dynamic table introspection, sanitized export maintenance, cross-database outbox savepoints, a retained `*_dynamic.go` reader, or a direct integrity test. An unclassified call fails with the file, line, method, and expected remediation, and a stale ownership entry fails when its file disappears or keeps no calls. `make sql-report` prints the same classification as a reviewable ownership report with per-file reasons.
+
+`make check-imports` parses every maintained Go package under `src/`, classifies it as a metadata family, the composition root, the companion PDF store, a consumer, or a shared low-level package, and enforces the approved dependency direction. Family production code may depend only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; test fixtures may compose the composition root and sibling families. Generated `internal/sql` output is imported only inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and generated output under one owner directory. `make import-report` prints the layer graph, family production imports, fixture composition, sqlc units, and verified invariants.
+
+`make sqlc-check` proves committed family generated output is current and every maintained query passes sqlc analysis; section 11 documents generation, maintained versus generated files, and common inference problems.
+
+## 11. Family SQL code generation
+
+Family typed queries are generated by the pinned sqlc development generator, which is installed to `build/sqlc` at the `SQLC_VERSION` declared in the root Makefile and is not a Go module dependency:
+
+```sh
+make sqlc-install
+make sqlc-generate
+make sqlc-check
+```
+
+The equivalent direct commands from the repository root are:
+
+```sh
+./build/sqlc -f config/sqlc.yaml generate
+./build/sqlc -f config/sqlc.yaml diff
+./build/sqlc -f config/sqlc.yaml vet
+```
+
+Maintained inputs are `config/sqlc.yaml` with one v2 generation unit per owner, the family declarations and named queries under `src/database/<family>/schema/` and `src/pdfstore/schema/`, and the private export queries under `src/tools/prepare-osf/schema/`. Generated outputs are the matching committed `internal/sql/` packages under `src/database/<family>/`, `src/pdfstore/`, and `src/tools/prepare-osf/`; change the maintained inputs, run `make sqlc-generate`, and review the generated diff instead of editing generated files.
+
+`make sqlc-check` runs `diff` to prove committed generated Go matches the current inputs and `vet` to analyze every maintained query without writing files. Run it after any family schema or query change and treat either failure as blocking. Normal `make build`, `make tools`, `make test`, and `make check` consume committed generated output and never invoke sqlc or require network access; `make -n build tools` shows no sqlc command.
+
+Common generation and analysis problems:
+
+- A `diff` failure means committed generated output is stale: run `make sqlc-generate`, review the generated diff, and rerun `make sqlc-check`.
+- A `vet` failure names the maintained query file and statement: correct the SQL under the owning `schema/` directory and rerun the focused family tests.
+- A missing table or column means the owning `schema/definitions.sql` does not declare the smallest shape the query needs: add the declaration without connecting it to runtime migrations.
+- SQLite analysis is weak for expressions, recursive CTEs, and nullable joins, so an output field can become `interface{}` or the wrong nullable form: select explicit columns with aliases, or use `CAST` and `COALESCE`, then inspect the generated signature and cover complex queries with real-database integration tests.
+- Keep SQL comments ASCII-only for the pinned generator, and never point sqlc at `migrations/` or `config/database*.something`; those remain the only runtime schema and versioning sources.
+- A query that needs discovered identifiers is not a generation problem: retain the explicit `*_dynamic.go` exception and run `make check-sql`.
+
+## 12. End-to-end verification
 
 Run the deterministic and mocked-provider pipeline through persisted SQLite, the viewer APIs, and the Chromium review workflow:
 
@@ -199,7 +253,7 @@ make test-e2e-live E2E_LIVE=1
 
 The live target contacts public Crossref, OpenAlex, and ORCID endpoints, uses structural rather than exact remote-data assertions, writes `build/e2e/live/`, and is not reachable from `make test`, `make test-race`, `make test-integration`, `make test-all`, `make coverage`, or frontend targets. Provider availability, rate limiting, and remote payload changes can make this opt-in target fail independently of offline repository behavior.
 
-## 12. Viewer fixture
+## 13. Viewer fixture
 
 Regenerate the ignored viewer fixture pair only when the intended test data contract changes:
 
@@ -209,7 +263,7 @@ make fixture
 
 The target runs `TestGenerateFixture` with `FORCE_FIXTURE=1`, uses production migrations, and rewrites `src/server/testdata/workspace.fixture.db` plus its bound PDF companion. The fixture includes a deterministic valid multi-page PDF with selectable text. Both database files are generated and ignored; authoritative changes belong in the fixture code.
 
-## 13. Frontend unit verification
+## 14. Frontend unit verification
 
 ```sh
 make test-frontend-unit
@@ -217,7 +271,7 @@ make test-frontend-unit
 
 The target runs every `frontend/tests/unit/**/*.test.ts` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests are authored in TypeScript and import the TypeScript sources under `frontend/src` directly with explicit `.ts` or `.tsx` specifiers; Node's native type stripping executes `.ts` sources and an esbuild loader hook executes `.tsx` sources, so no build step is required (Node 22.18+).
 
-## 14. Playwright verification
+## 15. Playwright verification
 
 ```sh
 make test-frontend
@@ -239,7 +293,7 @@ make frontend-report REPORT_DIR=build/playwright/run-<id>/report
 
 `WORKERS` controls Playwright worker count. Read-oriented specs may run in parallel. `review.spec.ts` is serial because it mutates only its invocation's isolated copy. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
 
-## 15. Frontend dependency and vendor maintenance
+## 16. Frontend dependency and vendor maintenance
 
 The checked-in D3-force browser module means normal Go builds do not invoke npm. Rebuild it only after an approved dependency or frontend entry change:
 
@@ -258,7 +312,7 @@ make frontend-pdfjs-vendor-check
 
 Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.ts`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
 
-## 16. Documentation workflow
+## 17. Documentation workflow
 
 Build the unified documentation tool and run all non-mutating checks:
 
@@ -294,7 +348,7 @@ Catalog update changes only the generated region in [PROJECT_CATALOG.md](PROJECT
 
 `make check-docs` checks local Markdown links, single-line Markdown formatting, exact obsolete references, migration filenames and boundaries, source catalog freshness and description completeness, documentation hashes, and dependency-table integrity. It does not validate external URLs, Markdown anchors, or semantic correctness beyond these executable contracts.
 
-## 17. Output and data safety
+## 18. Output and data safety
 
 `corpus/`, `cache/`, `intermidiate/`, SQLite databases, and `build/` are ignored but may contain real inputs, expensive state, or generated evidence. Inspect them read-only by default and do not clear, migrate, rename, or regenerate them unless the task explicitly requires it. The `intermidiate` spelling is intentional current behavior.
 
