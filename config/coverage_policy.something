@@ -113,6 +113,10 @@ coverage_policy: coverage_policy_config = {
             minimum = 80.0,
             rationale = "Generated export queries are exercised through the handwritten prepare-osf integration tests."
         },
+        ["analysis/tools/rawsqlcheck"] => {
+            minimum = 90.0,
+            rationale = "Raw SQL ownership scanning and classification paths are exercised by focused unit and functional tests."
+        },
         ["analysis/validation"]        => { minimum =  92.0 },
         ["analysis/workspace"]         => { minimum =  72.0 },
     },

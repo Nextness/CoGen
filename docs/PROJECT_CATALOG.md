@@ -4715,6 +4715,55 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestPrepareRealPipelineReviewerEvidence`](../src/tools/prepare-osf/main_integration_test.go#L201) | test | 201-259 | `func TestPrepareRealPipelineReviewerEvidence(t *testing.T)` | TestPrepareRealPipelineReviewerEvidence verifies preflight references, hashes, and exported file bytes are sanitized together. |
 | [`TestSanitizeRejectsIndirectFieldExpressions`](../src/tools/prepare-osf/main_integration_test.go#L262) | test | 262-269 | `func TestSanitizeRejectsIndirectFieldExpressions(t *testing.T)` | TestSanitizeRejectsIndirectFieldExpressions verifies references and interpolation fail closed without publishing identity declarations. |
 
+### [`src/tools/rawsqlcheck/main.go`](../src/tools/rawsqlcheck/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`category`](../src/tools/rawsqlcheck/main.go#L40) | type | 40 | `type category string` | category identifies the approved ownership class of one raw SQL location. |
+| [`approvedLocation`](../src/tools/rawsqlcheck/main.go#L81) | struct | 81-86 | `type approvedLocation struct { Path string Category category Builder string Reason string }` | approvedLocation declares one maintained file allowed to contain raw SQL. Dynamic locations name the sibling *_dynamic.go builder that owns their closed SQL fragments. |
+| [`callSite`](../src/tools/rawsqlcheck/main.go#L180) | struct | 180-186 | `type callSite struct { Path string Line int Method string Category category Reason string }` | callSite records one raw SQL call found in maintained source. |
+| [`builderFailure`](../src/tools/rawsqlcheck/main.go#L189) | struct | 189-192 | `type builderFailure struct { Location string Builder string }` | builderFailure records one dynamic location whose declared builder sibling is absent. |
+| [`scanReport`](../src/tools/rawsqlcheck/main.go#L195) | struct | 195-201 | `type scanReport struct { Calls []callSite Unclassified []callSite Missing []string Unused []string InvalidBuilders []builderFailure }` | scanReport is one complete raw SQL ownership scan. |
+| [`generatedGoPath`](../src/tools/rawsqlcheck/main.go#L204) | function | 204-212 | `func generatedGoPath(relativePath string) bool` | generatedGoPath reports whether a repository-relative Go path lives under a reserved internal/sql directory. |
+| [`isURLQueryReceiver`](../src/tools/rawsqlcheck/main.go#L215) | function | 215-223 | `func isURLQueryReceiver(receiver ast.Expr) bool` | isURLQueryReceiver reports whether a Query receiver is an HTTP request URL or a URL value. |
+| [`scanRepository`](../src/tools/rawsqlcheck/main.go#L226) | function | 226-340 | `func scanRepository(root string, locations []approvedLocation) (scanReport, error)` | scanRepository parses maintained Go sources under root and classifies every raw SQL call. |
+| [`(scanReport).failures`](../src/tools/rawsqlcheck/main.go#L343) | method | 343-358 | `func (scanReport).failures() []string` | failures returns the deterministic ownership failures for one scan. |
+| [`(scanReport).callsForCategory`](../src/tools/rawsqlcheck/main.go#L361) | method | 361-369 | `func (scanReport).callsForCategory(value category) []callSite` | callsForCategory returns the calls classified under one category. |
+| [`(scanReport).callsForPath`](../src/tools/rawsqlcheck/main.go#L372) | method | 372-380 | `func (scanReport).callsForPath(path string) []callSite` | callsForPath returns the calls recorded for one repository-relative path. |
+| [`fileCount`](../src/tools/rawsqlcheck/main.go#L383) | function | 383-389 | `func fileCount(calls []callSite) int` | fileCount returns the number of distinct files among the supplied calls. |
+| [`writeReport`](../src/tools/rawsqlcheck/main.go#L392) | function | 392-416 | `func writeReport(output io.Writer, report scanReport)` | writeReport renders the ownership report for one scan. |
+| [`parseRoot`](../src/tools/rawsqlcheck/main.go#L419) | function | 419-431 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
+| [`checkLocations`](../src/tools/rawsqlcheck/main.go#L434) | function | 434-450 | `func checkLocations(root string, locations []approvedLocation, stdout, stderr io.Writer) int` | checkLocations scans root with the supplied ownership table and reports the result. |
+| [`runCheck`](../src/tools/rawsqlcheck/main.go#L453) | function | 453-459 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
+| [`runReport`](../src/tools/rawsqlcheck/main.go#L462) | function | 462-474 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the ownership report, and returns a process exit status. |
+| [`run`](../src/tools/rawsqlcheck/main.go#L477) | function | 477-493 | `func run(args []string, stdout, stderr io.Writer) int` | run parses the command hierarchy and returns a process exit status. |
+| [`main`](../src/tools/rawsqlcheck/main.go#L496) | function | 496-498 | `func main()` | main runs the raw SQL ownership command. |
+
+### [`src/tools/rawsqlcheck/main_functional_test.go`](../src/tools/rawsqlcheck/main_functional_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestRepositoryOwnershipCheckPasses`](../src/tools/rawsqlcheck/main_functional_test.go#L15) | test | 15-24 | `func TestRepositoryOwnershipCheckPasses(t *testing.T)` | TestRepositoryOwnershipCheckPasses verifies the committed ownership table classifies every maintained raw SQL call. |
+| [`TestRepositoryOwnershipReportHasNoUnclassifiedCalls`](../src/tools/rawsqlcheck/main_functional_test.go#L27) | test | 27-42 | `func TestRepositoryOwnershipReportHasNoUnclassifiedCalls(t *testing.T)` | TestRepositoryOwnershipReportHasNoUnclassifiedCalls verifies the report covers every category without unclassified calls. |
+
+### [`src/tools/rawsqlcheck/main_unit_test.go`](../src/tools/rawsqlcheck/main_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`writeSourceFile`](../src/tools/rawsqlcheck/main_unit_test.go#L16) | function | 16-25 | `func writeSourceFile(t *testing.T, root, relative, content string)` | writeSourceFile creates one maintained source file beneath root. |
+| [`TestScanClassifiesApprovedAndTestCalls`](../src/tools/rawsqlcheck/main_unit_test.go#L28) | test | 28-46 | `func TestScanClassifiesApprovedAndTestCalls(t *testing.T)` | TestScanClassifiesApprovedAndTestCalls verifies approved and test locations are classified without failures. |
+| [`TestScanExcludesGeneratedOutputAndNearMisses`](../src/tools/rawsqlcheck/main_unit_test.go#L49) | test | 49-64 | `func TestScanExcludesGeneratedOutputAndNearMisses(t *testing.T)` | TestScanExcludesGeneratedOutputAndNearMisses verifies reserved internal/sql output is excluded while near-miss paths remain scanned. |
+| [`TestScanExcludesRequestURLQuery`](../src/tools/rawsqlcheck/main_unit_test.go#L67) | test | 67-77 | `func TestScanExcludesRequestURLQuery(t *testing.T)` | TestScanExcludesRequestURLQuery verifies HTTP request URL parsing is not treated as SQL. |
+| [`TestScanDetectsEveryRawSQLMethod`](../src/tools/rawsqlcheck/main_unit_test.go#L80) | test | 80-90 | `func TestScanDetectsEveryRawSQLMethod(t *testing.T)` | TestScanDetectsEveryRawSQLMethod verifies Query, QueryRow, Exec, and prepared-statement calls are all detected. |
+| [`TestCheckFailsWithFileMethodAndRemediation`](../src/tools/rawsqlcheck/main_unit_test.go#L93) | test | 93-105 | `func TestCheckFailsWithFileMethodAndRemediation(t *testing.T)` | TestCheckFailsWithFileMethodAndRemediation verifies an unclassified call fails with actionable output. |
+| [`TestCheckPassesForClassifiedRepository`](../src/tools/rawsqlcheck/main_unit_test.go#L108) | test | 108-120 | `func TestCheckPassesForClassifiedRepository(t *testing.T)` | TestCheckPassesForClassifiedRepository verifies a fully classified tree exits successfully. |
+| [`TestScanRejectsStaleApprovedLocations`](../src/tools/rawsqlcheck/main_unit_test.go#L123) | test | 123-145 | `func TestScanRejectsStaleApprovedLocations(t *testing.T)` | TestScanRejectsStaleApprovedLocations verifies missing and unused approved entries fail with remediation. |
+| [`TestDynamicLocationRequiresBuilderSibling`](../src/tools/rawsqlcheck/main_unit_test.go#L148) | test | 148-167 | `func TestDynamicLocationRequiresBuilderSibling(t *testing.T)` | TestDynamicLocationRequiresBuilderSibling verifies dynamic entries resolve their declared builder file. |
+| [`TestScanRejectsIncompleteOrDuplicateLocations`](../src/tools/rawsqlcheck/main_unit_test.go#L170) | test | 170-191 | `func TestScanRejectsIncompleteOrDuplicateLocations(t *testing.T)` | TestScanRejectsIncompleteOrDuplicateLocations verifies malformed ownership tables are rejected. |
+| [`TestCheckReportsParseFailure`](../src/tools/rawsqlcheck/main_unit_test.go#L194) | test | 194-204 | `func TestCheckReportsParseFailure(t *testing.T)` | TestCheckReportsParseFailure verifies malformed Go source exits with the could-not-run status. |
+| [`TestReportPrintsCategoriesAndUnclassifiedCalls`](../src/tools/rawsqlcheck/main_unit_test.go#L207) | test | 207-219 | `func TestReportPrintsCategoriesAndUnclassifiedCalls(t *testing.T)` | TestReportPrintsCategoriesAndUnclassifiedCalls verifies the ownership report summarizes classifications. |
+| [`TestRunRejectsUnknownCommandAndExtraArguments`](../src/tools/rawsqlcheck/main_unit_test.go#L222) | test | 222-232 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies the command hierarchy rejects invalid usage. |
+
 ### [`src/tools/something-printer/main.go`](../src/tools/something-printer/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |

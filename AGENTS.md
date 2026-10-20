@@ -36,6 +36,8 @@ make test-race
 make coverage
 make check
 make gitleaks
+make check-sql
+make sql-report
 make test-docs
 make check-docs
 make docs-catalog-update
@@ -61,10 +63,12 @@ Run built tools from the repository root:
 ./build/pdf-store add --db ./corpus.metadata.db --doi 10.1000/example --file ./paper.pdf
 ./build/something-printer --json ./config/workspace.something
 ./build/doccheck check
+./build/rawsqlcheck check
+./build/rawsqlcheck report
 ./build/prepare-osf --db ./corpus.metadata.db --config ./config/workspace.something --out ./build/osf-export
 ```
 
-There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers a gitleaks secret scan before backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target after its own gitleaks gate. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes.
+There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers a gitleaks secret scan before backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target after its own gitleaks gate. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes. Raw SQL calls outside generated `internal/sql/` output must be classified by `make check-sql`; `make sql-report` prints the current ownership inventory.
 
 ## 4. Runtime and configuration essentials
 
