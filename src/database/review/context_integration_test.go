@@ -19,6 +19,9 @@ import (
 func TestReviewParentSelection(t *testing.T) {
 	db, a1Run, a2Run, _, _ := newReviewLineageFixture(t)
 	ctx := context.Background()
+	if missing, err := db.Review.GetContextByRun(ctx, 999); err != nil || missing != nil {
+		t.Fatalf("missing context = %+v err=%v, want nil without error", missing, err)
+	}
 	if proposed, err := db.Review.ProposeParent(ctx, a1Run); err != nil || proposed != nil {
 		t.Fatalf("first run proposed parent=%+v err=%v", proposed, err)
 	}

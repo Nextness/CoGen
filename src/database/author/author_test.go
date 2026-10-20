@@ -100,6 +100,9 @@ func TestPersonCreateByORCID(t *testing.T) {
 	if missing, err := store.GetPersonByORCID(ctx, ""); err != nil || missing != nil {
 		t.Fatalf("empty ORCID lookup = %+v err=%v, want nil without error", missing, err)
 	}
+	if missing, err := store.GetPersonByORCID(ctx, "0000-0002-1825-0097"); err != nil || missing != nil {
+		t.Fatalf("missing person by ORCID = %+v err=%v, want nil without error", missing, err)
+	}
 }
 
 // TestPersonByORCIDNormalizesInput verifies that ORCID normalization is

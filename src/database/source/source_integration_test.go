@@ -92,11 +92,11 @@ func TestStoreCreateSourceAndListPreservesNullableFieldsAndOrdering(t *testing.T
 		t.Fatalf("full source counts = %+v", full)
 	}
 	minimal := sources[1]
-	if minimal.Query != "" || minimal.RequestedFields != "" || minimal.ExportDate != "" {
+	if minimal.Query != "" || minimal.RequestedFields != "" || minimal.ExportDate != "" || minimal.ResultCountComparison != "" {
 		t.Fatalf("minimal optional text = %+v", minimal)
 	}
-	if minimal.ExpectedResultCount == nil || *minimal.ExpectedResultCount != 0 {
-		t.Fatalf("minimal expected count = %v, want stored zero", minimal.ExpectedResultCount)
+	if minimal.ExpectedResultCount == nil || *minimal.ExpectedResultCount != 0 || minimal.ObservedResultCount != nil {
+		t.Fatalf("minimal counts = %+v, want stored expected zero and absent observed count", minimal)
 	}
 
 	empty, err := store.ListSourcesByRun(ctx, 999)

@@ -97,13 +97,13 @@ func TestStoreRevisionsOrderAndEmptyIdentity(t *testing.T) {
 	}
 
 	first, _, err := store.UpsertRevision(ctx, search.RevisionInput{
-		SearchID: searchID, RevisionLabel: "v1", ConfigArtifactHash: "hash-a", ResolvedManifestHash: "hash-a",
+		SearchID: searchID, RevisionLabel: "zeta", ConfigArtifactHash: "hash-a", ResolvedManifestHash: "hash-a",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	second, _, err := store.UpsertRevision(ctx, search.RevisionInput{
-		SearchID: searchID, RevisionLabel: "v2", ConfigArtifactHash: "hash-b", ResolvedManifestHash: "hash-b",
+		SearchID: searchID, RevisionLabel: "alpha", ConfigArtifactHash: "hash-b", ResolvedManifestHash: "hash-b",
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -211,6 +211,9 @@ func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T) {
 	if byPair == nil || byPair.ID != id {
 		t.Fatalf("identifier by pair = %+v", byPair)
 	}
+	if missing, err := store.GetIdentifierByNamespaceAndIdentifier(ctx, "absent", "absent"); err != nil || missing != nil {
+		t.Fatalf("missing identifier by pair = %+v err=%v, want nil without error", missing, err)
+	}
 	if missing, err := store.GetIdentifierByID(ctx, 99999); err != nil || missing != nil {
 		t.Fatalf("missing identifier = %+v err=%v, want nil without error", missing, err)
 	}

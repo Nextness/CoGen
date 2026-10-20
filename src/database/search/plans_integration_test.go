@@ -130,7 +130,7 @@ func TestStorePlansOrderAndEmptyIdentity(t *testing.T) {
 	}
 
 	first, err := store.FindOrCreatePlan(ctx, search.PlanInput{
-		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-a", ResolvedManifestHash: "manifest-a",
+		SearchRevisionID: revisionID, ExecutionFingerprint: "fp-z", ResolvedManifestHash: "manifest-a",
 	})
 	if err != nil {
 		t.Fatal(err)

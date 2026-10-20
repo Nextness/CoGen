@@ -268,14 +268,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`openFamilyStore`](../src/database/audit/audit_integration_test.go#L24) | function | 24-33 | `func openFamilyStore(t *testing.T) (*audit.Store, *database.Database)` | openFamilyStore returns an audit store over a database created by the production migration runner. |
 | [`createTestRun`](../src/database/audit/audit_integration_test.go#L36) | function | 36-43 | `func createTestRun(t *testing.T, db *database.Database, step string) int64` | createTestRun creates one pipeline run for audit linkage and returns its ID. |
-| [`TestStoreInsertAndListPreservesOrderingAndNullableFields`](../src/database/audit/audit_integration_test.go#L46) | test | 46-101 | `func TestStoreInsertAndListPreservesOrderingAndNullableFields(t *testing.T)` | TestStoreInsertAndListPreservesOrderingAndNullableFields verifies append-only insertion and ordered reads. |
-| [`TestStoreInsertRejectsInvalidAction`](../src/database/audit/audit_integration_test.go#L104) | test | 104-113 | `func TestStoreInsertRejectsInvalidAction(t *testing.T)` | TestStoreInsertRejectsInvalidAction verifies the manifest lifecycle gate runs before any row is written. |
-| [`TestStoreInsertPropagatesAppendOnlyFailure`](../src/database/audit/audit_integration_test.go#L117) | test | 117-138 | `func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T)` | TestStoreInsertPropagatesAppendOnlyFailure verifies a rejected insert reports the wrapped database failure and leaves no audit row behind. |
-| [`TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes`](../src/database/audit/audit_integration_test.go#L142) | test | 142-165 | `func TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes(t *testing.T)` | TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes verifies the production audit_events triggers reject direct UPDATE and DELETE statements. |
-| [`TestStoreListSummaryAndFacetsApplyFilters`](../src/database/audit/audit_integration_test.go#L169) | test | 169-219 | `func TestStoreListSummaryAndFacetsApplyFilters(t *testing.T)` | TestStoreListSummaryAndFacetsApplyFilters verifies the dynamic filter builder and the bounded summary and facet reads. |
-| [`TestStoreListCursorPaginatesAndRejectsUnknownCursor`](../src/database/audit/audit_integration_test.go#L222) | test | 222-251 | `func TestStoreListCursorPaginatesAndRejectsUnknownCursor(t *testing.T)` | TestStoreListCursorPaginatesAndRejectsUnknownCursor verifies keyset pagination and the cursor contract. |
-| [`TestStoreRecordedDataAndEnrichmentSummary`](../src/database/audit/audit_integration_test.go#L254) | test | 254-294 | `func TestStoreRecordedDataAndEnrichmentSummary(t *testing.T)` | TestStoreRecordedDataAndEnrichmentSummary verifies the evidence reads. |
-| [`TestStoreDetailEventPagesFilterPageAndScope`](../src/database/audit/audit_integration_test.go#L299) | test | 299-384 | `func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T)` | TestStoreDetailEventPagesFilterPageAndScope verifies the article and author detail event pages apply their logical-work and author scope, order by descending ID, report exact totals, and honor a continuation cursor. |
+| [`TestStoreInsertAndListPreservesOrderingAndNullableFields`](../src/database/audit/audit_integration_test.go#L46) | test | 46-109 | `func TestStoreInsertAndListPreservesOrderingAndNullableFields(t *testing.T)` | TestStoreInsertAndListPreservesOrderingAndNullableFields verifies append-only insertion and ordered reads. |
+| [`TestStoreInsertRejectsInvalidAction`](../src/database/audit/audit_integration_test.go#L112) | test | 112-121 | `func TestStoreInsertRejectsInvalidAction(t *testing.T)` | TestStoreInsertRejectsInvalidAction verifies the manifest lifecycle gate runs before any row is written. |
+| [`TestStoreInsertPropagatesAppendOnlyFailure`](../src/database/audit/audit_integration_test.go#L125) | test | 125-146 | `func TestStoreInsertPropagatesAppendOnlyFailure(t *testing.T)` | TestStoreInsertPropagatesAppendOnlyFailure verifies a rejected insert reports the wrapped database failure and leaves no audit row behind. |
+| [`TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes`](../src/database/audit/audit_integration_test.go#L150) | test | 150-173 | `func TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes(t *testing.T)` | TestStoreAppendOnlyTriggersRejectUpdatesAndDeletes verifies the production audit_events triggers reject direct UPDATE and DELETE statements. |
+| [`TestStoreListSummaryAndFacetsApplyFilters`](../src/database/audit/audit_integration_test.go#L177) | test | 177-227 | `func TestStoreListSummaryAndFacetsApplyFilters(t *testing.T)` | TestStoreListSummaryAndFacetsApplyFilters verifies the dynamic filter builder and the bounded summary and facet reads. |
+| [`TestStoreListCursorPaginatesAndRejectsUnknownCursor`](../src/database/audit/audit_integration_test.go#L230) | test | 230-259 | `func TestStoreListCursorPaginatesAndRejectsUnknownCursor(t *testing.T)` | TestStoreListCursorPaginatesAndRejectsUnknownCursor verifies keyset pagination and the cursor contract. |
+| [`TestStoreRecordedDataAndEnrichmentSummary`](../src/database/audit/audit_integration_test.go#L262) | test | 262-302 | `func TestStoreRecordedDataAndEnrichmentSummary(t *testing.T)` | TestStoreRecordedDataAndEnrichmentSummary verifies the evidence reads. |
+| [`TestStoreDetailEventPagesFilterPageAndScope`](../src/database/audit/audit_integration_test.go#L307) | test | 307-392 | `func TestStoreDetailEventPagesFilterPageAndScope(t *testing.T)` | TestStoreDetailEventPagesFilterPageAndScope verifies the article and author detail event pages apply their logical-work and author scope, order by descending ID, report exact totals, and honor a continuation cursor. |
 
 ### [`src/database/audit/dynamic_integration_test.go`](../src/database/audit/dynamic_integration_test.go)
 
@@ -360,12 +360,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`openFamilyStore`](../src/database/author/author_test.go#L22) | function | 22-31 | `func openFamilyStore(t *testing.T) (*author.Store, *database.Database)` | openFamilyStore returns an author store over a database created by the production migration runner. |
 | [`createTestRevision`](../src/database/author/author_test.go#L34) | function | 34-52 | `func createTestRevision(t *testing.T, db *database.Database, doi, stage string) int64` | createTestRevision creates one work revision for authorship linkage and returns its ID. |
-| [`TestPersonCreateByORCID`](../src/database/author/author_test.go#L56) | test | 56-103 | `func TestPersonCreateByORCID(t *testing.T)` | TestPersonCreateByORCID verifies that a person can be created by ORCID and retrieved by ID and ORCID, and that duplicate ORCIDs return the same ID. |
-| [`TestPersonByORCIDNormalizesInput`](../src/database/author/author_test.go#L107) | test | 107-122 | `func TestPersonByORCIDNormalizesInput(t *testing.T)` | TestPersonByORCIDNormalizesInput verifies that ORCID normalization is consistent between CreatePersonByORCID and GetPersonByORCID. |
-| [`TestPersonEmptyORCID`](../src/database/author/author_test.go#L125) | test | 125-132 | `func TestPersonEmptyORCID(t *testing.T)` | TestPersonEmptyORCID verifies that empty ORCID is rejected for person creation. |
-| [`TestPersonMalformedORCIDRejected`](../src/database/author/author_test.go#L135) | test | 135-142 | `func TestPersonMalformedORCIDRejected(t *testing.T)` | TestPersonMalformedORCIDRejected verifies that a malformed ORCID is rejected. |
-| [`TestPersonInvalidChecksumORCIDRejected`](../src/database/author/author_test.go#L146) | test | 146-153 | `func TestPersonInvalidChecksumORCIDRejected(t *testing.T)` | TestPersonInvalidChecksumORCIDRejected verifies that a well-formed ORCID with a wrong checksum is rejected. |
-| [`TestPeopleORCIDGuardTriggers`](../src/database/author/author_test.go#L157) | test | 157-198 | `func TestPeopleORCIDGuardTriggers(t *testing.T)` | TestPeopleORCIDGuardTriggers verifies that direct SQL cannot insert or update a person to a null, empty, or whitespace-only ORCID. |
+| [`TestPersonCreateByORCID`](../src/database/author/author_test.go#L56) | test | 56-106 | `func TestPersonCreateByORCID(t *testing.T)` | TestPersonCreateByORCID verifies that a person can be created by ORCID and retrieved by ID and ORCID, and that duplicate ORCIDs return the same ID. |
+| [`TestPersonByORCIDNormalizesInput`](../src/database/author/author_test.go#L110) | test | 110-125 | `func TestPersonByORCIDNormalizesInput(t *testing.T)` | TestPersonByORCIDNormalizesInput verifies that ORCID normalization is consistent between CreatePersonByORCID and GetPersonByORCID. |
+| [`TestPersonEmptyORCID`](../src/database/author/author_test.go#L128) | test | 128-135 | `func TestPersonEmptyORCID(t *testing.T)` | TestPersonEmptyORCID verifies that empty ORCID is rejected for person creation. |
+| [`TestPersonMalformedORCIDRejected`](../src/database/author/author_test.go#L138) | test | 138-145 | `func TestPersonMalformedORCIDRejected(t *testing.T)` | TestPersonMalformedORCIDRejected verifies that a malformed ORCID is rejected. |
+| [`TestPersonInvalidChecksumORCIDRejected`](../src/database/author/author_test.go#L149) | test | 149-156 | `func TestPersonInvalidChecksumORCIDRejected(t *testing.T)` | TestPersonInvalidChecksumORCIDRejected verifies that a well-formed ORCID with a wrong checksum is rejected. |
+| [`TestPeopleORCIDGuardTriggers`](../src/database/author/author_test.go#L160) | test | 160-201 | `func TestPeopleORCIDGuardTriggers(t *testing.T)` | TestPeopleORCIDGuardTriggers verifies that direct SQL cannot insert or update a person to a null, empty, or whitespace-only ORCID. |
 
 ### [`src/database/author/author_unit_test.go`](../src/database/author/author_unit_test.go)
 
@@ -558,16 +558,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`openFamilyStore`](../src/database/cache/cache_integration_test.go#L23) | function | 23-32 | `func openFamilyStore(t *testing.T) (*cache.Store, *database.Database)` | openFamilyStore returns a cache store over a database created by the production migration runner. |
 | [`appendTestEntry`](../src/database/cache/cache_integration_test.go#L35) | function | 35-49 | `func appendTestEntry(t *testing.T, store *cache.Store, key cache.Key, status int) int64` | appendTestEntry appends one entry for a key with the supplied status and returns its ID. |
-| [`TestStoreAppendEntryPreservesImmutableHistory`](../src/database/cache/cache_integration_test.go#L52) | test | 52-100 | `func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T)` | TestStoreAppendEntryPreservesImmutableHistory verifies appends create new immutable versions and latest reads map nullable fields. |
-| [`TestStoreAppendEntrySeparatesKeysAndNullableFields`](../src/database/cache/cache_integration_test.go#L103) | test | 103-129 | `func TestStoreAppendEntrySeparatesKeysAndNullableFields(t *testing.T)` | TestStoreAppendEntrySeparatesKeysAndNullableFields verifies provider, request, and extractor keys stay independent with nullable round trips. |
-| [`TestStoreGlobalEntryRequiresPublishedUse`](../src/database/cache/cache_integration_test.go#L132) | test | 132-165 | `func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T)` | TestStoreGlobalEntryRequiresPublishedUse verifies global reads only see entries a run published to the global layer. |
-| [`TestStoreFindEntryReplaysRecordedResponse`](../src/database/cache/cache_integration_test.go#L168) | test | 168-200 | `func TestStoreFindEntryReplaysRecordedResponse(t *testing.T)` | TestStoreFindEntryReplaysRecordedResponse verifies layer-scoped and any-layer replay return the exact recorded entry after a newer version exists. |
-| [`TestStoreFindAnyEntryMatchesRunScopedExtractorVersions`](../src/database/cache/cache_integration_test.go#L203) | test | 203-236 | `func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T)` | TestStoreFindAnyEntryMatchesRunScopedExtractorVersions verifies the prior-run read accepts run-scoped extractor version suffixes. |
-| [`TestStoreListUsesByRunPreservesOrderAndEmptyIdentity`](../src/database/cache/cache_integration_test.go#L239) | test | 239-269 | `func TestStoreListUsesByRunPreservesOrderAndEmptyIdentity(t *testing.T)` | TestStoreListUsesByRunPreservesOrderAndEmptyIdentity verifies insertion ordering and the non-nil empty slice contract. |
-| [`TestStoreRejectsInvalidInputs`](../src/database/cache/cache_integration_test.go#L272) | test | 272-299 | `func TestStoreRejectsInvalidInputs(t *testing.T)` | TestStoreRejectsInvalidInputs verifies family validation runs before any row is written. |
-| [`TestStoreConcurrentAppendsRetainEveryVersion`](../src/database/cache/cache_integration_test.go#L302) | test | 302-336 | `func TestStoreConcurrentAppendsRetainEveryVersion(t *testing.T)` | TestStoreConcurrentAppendsRetainEveryVersion verifies concurrent appends keep every immutable version and valid foreign keys. |
-| [`TestStoreContextCancellationLeavesNoRows`](../src/database/cache/cache_integration_test.go#L339) | test | 339-359 | `func TestStoreContextCancellationLeavesNoRows(t *testing.T)` | TestStoreContextCancellationLeavesNoRows verifies canceled contexts fail reads and writes without partial rows. |
-| [`TestStoreListCacheUsesForRunOrdersSearchesAndPaginates`](../src/database/cache/cache_integration_test.go#L364) | test | 364-404 | `func TestStoreListCacheUsesForRunOrdersSearchesAndPaginates(t *testing.T)` | TestStoreListCacheUsesForRunOrdersSearchesAndPaginates verifies the joined cache-use page preserves ordering, nullable entry fields, search binding, and exact totals. |
+| [`TestStoreAppendEntryPreservesImmutableHistory`](../src/database/cache/cache_integration_test.go#L52) | test | 52-105 | `func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T)` | TestStoreAppendEntryPreservesImmutableHistory verifies appends create new immutable versions and latest reads map nullable fields. |
+| [`TestStoreAppendEntrySeparatesKeysAndNullableFields`](../src/database/cache/cache_integration_test.go#L108) | test | 108-134 | `func TestStoreAppendEntrySeparatesKeysAndNullableFields(t *testing.T)` | TestStoreAppendEntrySeparatesKeysAndNullableFields verifies provider, request, and extractor keys stay independent with nullable round trips. |
+| [`TestStoreGlobalEntryRequiresPublishedUse`](../src/database/cache/cache_integration_test.go#L137) | test | 137-170 | `func TestStoreGlobalEntryRequiresPublishedUse(t *testing.T)` | TestStoreGlobalEntryRequiresPublishedUse verifies global reads only see entries a run published to the global layer. |
+| [`TestStoreFindEntryReplaysRecordedResponse`](../src/database/cache/cache_integration_test.go#L173) | test | 173-213 | `func TestStoreFindEntryReplaysRecordedResponse(t *testing.T)` | TestStoreFindEntryReplaysRecordedResponse verifies layer-scoped and any-layer replay return the exact recorded entry after a newer version exists. |
+| [`TestStoreFindAnyEntryMatchesRunScopedExtractorVersions`](../src/database/cache/cache_integration_test.go#L216) | test | 216-249 | `func TestStoreFindAnyEntryMatchesRunScopedExtractorVersions(t *testing.T)` | TestStoreFindAnyEntryMatchesRunScopedExtractorVersions verifies the prior-run read accepts run-scoped extractor version suffixes. |
+| [`TestStoreListUsesByRunPreservesOrderAndEmptyIdentity`](../src/database/cache/cache_integration_test.go#L252) | test | 252-282 | `func TestStoreListUsesByRunPreservesOrderAndEmptyIdentity(t *testing.T)` | TestStoreListUsesByRunPreservesOrderAndEmptyIdentity verifies insertion ordering and the non-nil empty slice contract. |
+| [`TestStoreRejectsInvalidInputs`](../src/database/cache/cache_integration_test.go#L285) | test | 285-312 | `func TestStoreRejectsInvalidInputs(t *testing.T)` | TestStoreRejectsInvalidInputs verifies family validation runs before any row is written. |
+| [`TestStoreConcurrentAppendsRetainEveryVersion`](../src/database/cache/cache_integration_test.go#L315) | test | 315-349 | `func TestStoreConcurrentAppendsRetainEveryVersion(t *testing.T)` | TestStoreConcurrentAppendsRetainEveryVersion verifies concurrent appends keep every immutable version and valid foreign keys. |
+| [`TestStoreContextCancellationLeavesNoRows`](../src/database/cache/cache_integration_test.go#L352) | test | 352-372 | `func TestStoreContextCancellationLeavesNoRows(t *testing.T)` | TestStoreContextCancellationLeavesNoRows verifies canceled contexts fail reads and writes without partial rows. |
+| [`TestStoreListCacheUsesForRunOrdersSearchesAndPaginates`](../src/database/cache/cache_integration_test.go#L377) | test | 377-417 | `func TestStoreListCacheUsesForRunOrdersSearchesAndPaginates(t *testing.T)` | TestStoreListCacheUsesForRunOrdersSearchesAndPaginates verifies the joined cache-use page preserves ordering, nullable entry fields, search binding, and exact totals. |
 
 ### [`src/database/cache/cache_unit_test.go`](../src/database/cache/cache_unit_test.go)
 
@@ -637,31 +637,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity`](../src/database/cache_integration_test.go#L20) | test | 20-106 | `func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.T)` | TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity verifies concurrent database instances preserve cache and attempt integrity. |
 | [`TestImmutableCacheMigrationPreservesHistory`](../src/database/cache_integration_test.go#L109) | test | 109-172 | `func TestImmutableCacheMigrationPreservesHistory(t *testing.T)` | TestImmutableCacheMigrationPreservesHistory verifies V00028 preserves legacy IDs, payloads, and foreign keys during a real upgrade. |
 
-### [`src/database/characterization_integration_test.go`](../src/database/characterization_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestCharacterizationReadNotFoundReturnsNilError`](../src/database/characterization_integration_test.go#L24) | test | 24-128 | `func TestCharacterizationReadNotFoundReturnsNilError(t *testing.T)` | TestCharacterizationReadNotFoundReturnsNilError verifies every representative optional read keeps the current (nil, nil) not-found identity instead of leaking sql.ErrNoRows or a typed not-found error. |
-| [`TestCharacterizationEmptyListSliceIdentity`](../src/database/characterization_integration_test.go#L133) | test | 133-258 | `func TestCharacterizationEmptyListSliceIdentity(t *testing.T)` | TestCharacterizationEmptyListSliceIdentity verifies each representative list read keeps its exact nil-versus-empty slice behavior so later generated queries cannot silently change API JSON from null to [] or the reverse. |
-| [`TestCharacterizationNullableScanningRoundTrip`](../src/database/characterization_integration_test.go#L262) | test | 262-392 | `func TestCharacterizationNullableScanningRoundTrip(t *testing.T)` | TestCharacterizationNullableScanningRoundTrip verifies nullable text and integer columns scan into the documented zero values and pointers. |
-| [`TestCharacterizationExplicitOrdering`](../src/database/characterization_integration_test.go#L396) | test | 396-603 | `func TestCharacterizationExplicitOrdering(t *testing.T)` | TestCharacterizationExplicitOrdering verifies representative list reads use their declared ORDER BY rather than insertion or primary-key accident. |
-| [`TestCharacterizationCacheReplayIdentity`](../src/database/characterization_integration_test.go#L607) | test | 607-660 | `func TestCharacterizationCacheReplayIdentity(t *testing.T)` | TestCharacterizationCacheReplayIdentity verifies replay returns the exact immutable response recorded for a run even after a newer version exists. |
-
 ### [`src/database/config_integration_test.go`](../src/database/config_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestBaselineAppliesCorrectly`](../src/database/config_integration_test.go#L18) | test | 18-210 | `func TestBaselineAppliesCorrectly(t *testing.T)` | TestBaselineAppliesCorrectly verifies that a new temporary database opens with the single workspace baseline, has all required tables, indexes, and triggers, and reopens without reapplying the baseline. |
+| [`TestBaselineAppliesCorrectly`](../src/database/config_integration_test.go#L18) | test | 18-210 | `func TestBaselineAppliesCorrectly(t *testing.T)` | TestBaselineAppliesCorrectly verifies that a new temporary database opens with the production metadata migration chain, has all required tables, indexes, and triggers, and reopens without reapplying migrations. |
 | [`TestFutureMigrationRollsBackAtomically`](../src/database/config_integration_test.go#L216) | test | 216-297 | `func TestFutureMigrationRollsBackAtomically(t *testing.T)` | TestFutureMigrationRollsBackAtomically verifies that a deliberately broken future migration (V00002) applies its schema changes atomically: if the migration SQL fails, the new table does not persist and the tracking row is not recorded. |
-| [`TestV00003MigrationApplies`](../src/database/config_integration_test.go#L301) | test | 301-332 | `func TestV00003MigrationApplies(t *testing.T)` | TestV00003MigrationApplies verifies that the V00003 migration is applied after V00002, creating the four append-only triggers. |
-| [`TestV00002ToV00003Upgrade`](../src/database/config_integration_test.go#L338) | test | 338-473 | `func TestV00002ToV00003Upgrade(t *testing.T)` | TestV00002ToV00003Upgrade verifies that an existing database with V00001 and V00002 upgrades correctly when V00003 is added to the config. This is a true upgrade regression test, distinct from TestV00003MigrationApplies which opens a fresh database with all three migrations already configured. |
-| [`TestV00003ToV00004Upgrade`](../src/database/config_integration_test.go#L477) | test | 477-588 | `func TestV00003ToV00004Upgrade(t *testing.T)` | TestV00003ToV00004Upgrade verifies that an existing V00003 database gains the non-blank people.orcid guards when V00004 is added to the config. |
-| [`TestV00002MigrationApplies`](../src/database/config_integration_test.go#L593) | test | 593-638 | `func TestV00002MigrationApplies(t *testing.T)` | TestV00002MigrationApplies verifies that the V00002 migration is applied after the baseline, creating the people, author_occurrences, and authorships tables with their indexes. |
-| [`TestProductionDatabaseRegistryResolvesIndependentMigrationChains`](../src/database/config_integration_test.go#L645) | test | 645-661 | `func TestProductionDatabaseRegistryResolvesIndependentMigrationChains(t *testing.T)` | TestProductionDatabaseRegistryResolvesIndependentMigrationChains verifies production database registry resolves independent migration chains. |
-| [`TestProductionRegistryCreatesMetadataAndPDFStores`](../src/database/config_integration_test.go#L664) | test | 664-709 | `func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T)` | TestProductionRegistryCreatesMetadataAndPDFStores verifies production registry creates metadata and pdf stores. |
-| [`TestPDFInventoryMigrationPreservesLegacyDocumentStates`](../src/database/config_integration_test.go#L712) | test | 712-778 | `func TestPDFInventoryMigrationPreservesLegacyDocumentStates(t *testing.T)` | TestPDFInventoryMigrationPreservesLegacyDocumentStates verifies pdf inventory migration preserves legacy document states. |
-| [`TestProductionMetadataUpgradePreservesAppliedBasenames`](../src/database/config_integration_test.go#L781) | test | 781-820 | `func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T)` | TestProductionMetadataUpgradePreservesAppliedBasenames verifies production metadata upgrade preserves applied basenames. |
-| [`TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration`](../src/database/config_integration_test.go#L823) | test | 823-860 | `func TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration(t *testing.T)` | TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration verifies that databases which applied the anchor-label migration under its earlier V00025 filename do not execute the renamed V00026 SQL a second time. |
+| [`TestV00002ToV00003Upgrade`](../src/database/config_integration_test.go#L301) | test | 301-436 | `func TestV00002ToV00003Upgrade(t *testing.T)` | TestV00002ToV00003Upgrade verifies that an existing database with V00001 and V00002 upgrades correctly when V00003 is added to the config. |
+| [`TestV00003ToV00004Upgrade`](../src/database/config_integration_test.go#L440) | test | 440-551 | `func TestV00003ToV00004Upgrade(t *testing.T)` | TestV00003ToV00004Upgrade verifies that an existing V00003 database gains the non-blank people.orcid guards when V00004 is added to the config. |
+| [`TestProductionDatabaseRegistryResolvesIndependentMigrationChains`](../src/database/config_integration_test.go#L558) | test | 558-574 | `func TestProductionDatabaseRegistryResolvesIndependentMigrationChains(t *testing.T)` | TestProductionDatabaseRegistryResolvesIndependentMigrationChains verifies production database registry resolves independent migration chains. |
+| [`TestProductionRegistryCreatesMetadataAndPDFStores`](../src/database/config_integration_test.go#L577) | test | 577-622 | `func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T)` | TestProductionRegistryCreatesMetadataAndPDFStores verifies production registry creates metadata and pdf stores. |
+| [`TestPDFInventoryMigrationPreservesLegacyDocumentStates`](../src/database/config_integration_test.go#L625) | test | 625-691 | `func TestPDFInventoryMigrationPreservesLegacyDocumentStates(t *testing.T)` | TestPDFInventoryMigrationPreservesLegacyDocumentStates verifies pdf inventory migration preserves legacy document states. |
+| [`TestProductionMetadataUpgradePreservesAppliedBasenames`](../src/database/config_integration_test.go#L694) | test | 694-733 | `func TestProductionMetadataUpgradePreservesAppliedBasenames(t *testing.T)` | TestProductionMetadataUpgradePreservesAppliedBasenames verifies production metadata upgrade preserves applied basenames. |
+| [`TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration`](../src/database/config_integration_test.go#L736) | test | 736-773 | `func TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration(t *testing.T)` | TestProductionMetadataUpgradeAdoptsRenamedAnchorMigration verifies that databases which applied the anchor-label migration under its earlier V00025 filename do not execute the renamed V00026 SQL a second time. |
 
 ### [`src/database/config_security_integration_test.go`](../src/database/config_security_integration_test.go)
 
@@ -717,8 +705,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`openTestDB`](../src/database/helpers_test.go#L16) | function | 16-24 | `func openTestDB(t *testing.T) *Database` | openTestDB supports the package test suite's open test db setup or assertions. |
-| [`createReferenceMentionTestRevision`](../src/database/helpers_test.go#L27) | function | 27-45 | `func createReferenceMentionTestRevision(t *testing.T, db *Database, doi string) int64` | createReferenceMentionTestRevision supports the package test suite's create reference mention test revision setup or assertions. |
+| [`openTestDB`](../src/database/helpers_test.go#L13) | function | 13-21 | `func openTestDB(t *testing.T) *Database` | openTestDB supports the package test suite's open test db setup or assertions. |
 
 ### [`src/database/migration_config.go`](../src/database/migration_config.go)
 
@@ -847,18 +834,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestDatabasePingContext`](../src/database/platform_methods_integration_test.go#L14) | test | 14-26 | `func TestDatabasePingContext(t *testing.T)` | TestDatabasePingContext verifies the platform ping reports open and closed connections. |
 | [`TestDatabaseWritableReflectsQueryOnly`](../src/database/platform_methods_integration_test.go#L29) | test | 29-56 | `func TestDatabaseWritableReflectsQueryOnly(t *testing.T)` | TestDatabaseWritableReflectsQueryOnly verifies the platform writability check follows the connection-local pragma. |
 
-### [`src/database/reference_mentions_integration_test.go`](../src/database/reference_mentions_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestV00005ReferenceMentionsMigrationApplies`](../src/database/reference_mentions_integration_test.go#L12) | test | 12-37 | `func TestV00005ReferenceMentionsMigrationApplies(t *testing.T)` | TestV00005ReferenceMentionsMigrationApplies verifies the reference-mentions migration remains applied in the current chain. |
-
-### [`src/database/repository_input_integration_test.go`](../src/database/repository_input_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestRepositoriesRejectNilInputs`](../src/database/repository_input_integration_test.go#L14) | test | 14-33 | `func TestRepositoriesRejectNilInputs(t *testing.T)` | TestRepositoriesRejectNilInputs verifies invalid pointer inputs return errors instead of panicking. |
-
 ### [`src/database/review/anchor.go`](../src/database/review/anchor.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -885,8 +860,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestReviewAnchorCopyOnWriteLineage`](../src/database/review/anchor_integration_test.go#L17) | test | 17-48 | `func TestReviewAnchorCopyOnWriteLineage(t *testing.T)` | TestReviewAnchorCopyOnWriteLineage verifies inherited anchors, stable parent heads, and tombstones. |
-| [`TestReviewAnchorRejectsInvalidLabel`](../src/database/review/anchor_integration_test.go#L51) | test | 51-62 | `func TestReviewAnchorRejectsInvalidLabel(t *testing.T)` | TestReviewAnchorRejectsInvalidLabel verifies anchor labels must satisfy the note-language grammar. |
+| [`TestReviewAnchorCopyOnWriteLineage`](../src/database/review/anchor_integration_test.go#L17) | test | 17-60 | `func TestReviewAnchorCopyOnWriteLineage(t *testing.T)` | TestReviewAnchorCopyOnWriteLineage verifies inherited anchors, stable parent heads, and tombstones. |
+| [`TestReviewAnchorRejectsInvalidLabel`](../src/database/review/anchor_integration_test.go#L63) | test | 63-74 | `func TestReviewAnchorRejectsInvalidLabel(t *testing.T)` | TestReviewAnchorRejectsInvalidLabel verifies anchor labels must satisfy the note-language grammar. |
 
 ### [`src/database/review/audit.go`](../src/database/review/audit.go)
 
@@ -945,8 +920,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestReviewParentSelection`](../src/database/review/context_integration_test.go#L19) | test | 19-108 | `func TestReviewParentSelection(t *testing.T)` | TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection. |
-| [`TestReviewContextCopyOnWriteLineage`](../src/database/review/context_integration_test.go#L112) | test | 112-141 | `func TestReviewContextCopyOnWriteLineage(t *testing.T)` | TestReviewContextCopyOnWriteLineage verifies parent conflicts, frozen work heads, and review-context purge protection. |
+| [`TestReviewParentSelection`](../src/database/review/context_integration_test.go#L19) | test | 19-111 | `func TestReviewParentSelection(t *testing.T)` | TestReviewParentSelection verifies same-plan preference, same-search fallback, explicit cross-search parents, and later-parent rejection. |
+| [`TestReviewContextCopyOnWriteLineage`](../src/database/review/context_integration_test.go#L115) | test | 115-144 | `func TestReviewContextCopyOnWriteLineage(t *testing.T)` | TestReviewContextCopyOnWriteLineage verifies parent conflicts, frozen work heads, and review-context purge protection. |
 
 ### [`src/database/review/contract_integration_test.go`](../src/database/review/contract_integration_test.go)
 
@@ -979,8 +954,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestReviewDecisionCopyOnWriteLineage`](../src/database/review/decision_integration_test.go#L16) | test | 16-53 | `func TestReviewDecisionCopyOnWriteLineage(t *testing.T)` | TestReviewDecisionCopyOnWriteLineage verifies inherited decisions, stale conflicts, and stable parent heads. |
-| [`TestReviewDecisionValidationAndNoOp`](../src/database/review/decision_integration_test.go#L56) | test | 56-70 | `func TestReviewDecisionValidationAndNoOp(t *testing.T)` | TestReviewDecisionValidationAndNoOp verifies default no-op saves and vocabulary compatibility. |
+| [`TestReviewDecisionCopyOnWriteLineage`](../src/database/review/decision_integration_test.go#L16) | test | 16-59 | `func TestReviewDecisionCopyOnWriteLineage(t *testing.T)` | TestReviewDecisionCopyOnWriteLineage verifies inherited decisions, stale conflicts, and stable parent heads. |
+| [`TestReviewDecisionValidationAndNoOp`](../src/database/review/decision_integration_test.go#L62) | test | 62-76 | `func TestReviewDecisionValidationAndNoOp(t *testing.T)` | TestReviewDecisionValidationAndNoOp verifies default no-op saves and vocabulary compatibility. |
 
 ### [`src/database/review/errors.go`](../src/database/review/errors.go)
 
@@ -1008,7 +983,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`reviewFilterFixture`](../src/database/review/filters_integration_test.go#L27) | struct | 27-35 | `type reviewFilterFixture struct { db *database.Database run1, run2 int64 revision1, revision2 int64 context1, context2 int64 note1, note2 int64 note1Version, note2Version int64 workID int64 }` | reviewFilterFixture is one migrated database with two completed runs, an inherited review context, and two logical notes. |
 | [`newReviewFilterFixture`](../src/database/review/filters_integration_test.go#L38) | function | 38-126 | `func newReviewFilterFixture(t *testing.T) *reviewFilterFixture` | newReviewFilterFixture builds the two-run review fixture through production migrations. |
 | [`TestReviewGeneratedParentCandidateFilters`](../src/database/review/filters_integration_test.go#L129) | test | 129-158 | `func TestReviewGeneratedParentCandidateFilters(t *testing.T)` | TestReviewGeneratedParentCandidateFilters verifies scope, cursor, and search filters. |
-| [`TestReviewGeneratedNoteFilters`](../src/database/review/filters_integration_test.go#L162) | test | 162-229 | `func TestReviewGeneratedNoteFilters(t *testing.T)` | TestReviewGeneratedNoteFilters verifies state, work-revision, search, cursor, link resolution, and backlink filters on inherited notes. |
+| [`TestReviewGeneratedNoteFilters`](../src/database/review/filters_integration_test.go#L162) | test | 162-232 | `func TestReviewGeneratedNoteFilters(t *testing.T)` | TestReviewGeneratedNoteFilters verifies state, work-revision, search, cursor, link resolution, and backlink filters on inherited notes. |
 
 ### [`src/database/review/fixture_integration_test.go`](../src/database/review/fixture_integration_test.go)
 
@@ -1061,8 +1036,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestReviewNoteCopyOnWriteLineage`](../src/database/review/note_integration_test.go#L16) | test | 16-55 | `func TestReviewNoteCopyOnWriteLineage(t *testing.T)` | TestReviewNoteCopyOnWriteLineage verifies inherited notes, edits, tombstones, restoration, and stable parent heads. |
-| [`TestReviewNoteRejectsUnsafeLink`](../src/database/review/note_integration_test.go#L58) | test | 58-73 | `func TestReviewNoteRejectsUnsafeLink(t *testing.T)` | TestReviewNoteRejectsUnsafeLink verifies save-blocking note-language validation. |
+| [`TestReviewNoteCopyOnWriteLineage`](../src/database/review/note_integration_test.go#L16) | test | 16-67 | `func TestReviewNoteCopyOnWriteLineage(t *testing.T)` | TestReviewNoteCopyOnWriteLineage verifies inherited notes, edits, tombstones, restoration, and stable parent heads. |
+| [`TestReviewNoteRejectsUnsafeLink`](../src/database/review/note_integration_test.go#L70) | test | 70-85 | `func TestReviewNoteRejectsUnsafeLink(t *testing.T)` | TestReviewNoteRejectsUnsafeLink verifies save-blocking note-language validation. |
 
 ### [`src/database/review/relationships.go`](../src/database/review/relationships.go)
 
@@ -1710,10 +1685,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreCreateReferenceNormalizesAndResolvesDOI`](../src/database/work/reference_integration_test.go#L16) | test | 16-82 | `func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T)` | TestStoreCreateReferenceNormalizesAndResolvesDOI verifies DOI normalization, best-effort resolution to a known work, and source ordering. |
-| [`TestStoreCreateReferenceKeepsExternalMentionsDistinct`](../src/database/work/reference_integration_test.go#L87) | test | 87-146 | `func TestStoreCreateReferenceKeepsExternalMentionsDistinct(t *testing.T)` | TestStoreCreateReferenceKeepsExternalMentionsDistinct verifies repeated external references stay separate, explicit resolution is preserved, and duplicate mention order is rejected. |
-| [`TestStoreCreateReferenceValidatesInput`](../src/database/work/reference_integration_test.go#L150) | test | 150-173 | `func TestStoreCreateReferenceValidatesInput(t *testing.T)` | TestStoreCreateReferenceValidatesInput verifies required identity and order are enforced before any write. |
-| [`TestStoreReferencesAreAppendOnly`](../src/database/work/reference_integration_test.go#L177) | test | 177-200 | `func TestStoreReferencesAreAppendOnly(t *testing.T)` | TestStoreReferencesAreAppendOnly verifies the database trigger rejects mutation of an immutable reference snapshot. |
+| [`TestStoreCreateReferenceNormalizesAndResolvesDOI`](../src/database/work/reference_integration_test.go#L16) | test | 16-86 | `func TestStoreCreateReferenceNormalizesAndResolvesDOI(t *testing.T)` | TestStoreCreateReferenceNormalizesAndResolvesDOI verifies DOI normalization, best-effort resolution to a known work, and source ordering. |
+| [`TestStoreCreateReferenceKeepsExternalMentionsDistinct`](../src/database/work/reference_integration_test.go#L91) | test | 91-150 | `func TestStoreCreateReferenceKeepsExternalMentionsDistinct(t *testing.T)` | TestStoreCreateReferenceKeepsExternalMentionsDistinct verifies repeated external references stay separate, explicit resolution is preserved, and duplicate mention order is rejected. |
+| [`TestStoreCreateReferenceValidatesInput`](../src/database/work/reference_integration_test.go#L154) | test | 154-177 | `func TestStoreCreateReferenceValidatesInput(t *testing.T)` | TestStoreCreateReferenceValidatesInput verifies required identity and order are enforced before any write. |
+| [`TestStoreReferencesAreAppendOnly`](../src/database/work/reference_integration_test.go#L181) | test | 181-204 | `func TestStoreReferencesAreAppendOnly(t *testing.T)` | TestStoreReferencesAreAppendOnly verifies the database trigger rejects mutation of an immutable reference snapshot. |
 
 ### [`src/database/work/relationships_integration_test.go`](../src/database/work/relationships_integration_test.go)
 
@@ -1764,11 +1739,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields`](../src/database/work/revision_integration_test.go#L16) | test | 16-70 | `func TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields(t *testing.T)` | TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields verifies the payload hash, schema default, nullable round trip, and identity reads. |
-| [`TestStoreRevisionsAreImmutableAndOrdered`](../src/database/work/revision_integration_test.go#L74) | test | 74-121 | `func TestStoreRevisionsAreImmutableAndOrdered(t *testing.T)` | TestStoreRevisionsAreImmutableAndOrdered verifies revisions accumulate in chronological order for a work and a run. |
-| [`TestStoreRevisionsAreAppendOnly`](../src/database/work/revision_integration_test.go#L125) | test | 125-152 | `func TestStoreRevisionsAreAppendOnly(t *testing.T)` | TestStoreRevisionsAreAppendOnly verifies the database trigger rejects mutation of an immutable revision snapshot. |
-| [`TestStoreCreateRevisionValidatesProducerStage`](../src/database/work/revision_integration_test.go#L156) | test | 156-193 | `func TestStoreCreateRevisionValidatesProducerStage(t *testing.T)` | TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage vocabulary gates new immutable revisions. |
-| [`TestStoreCreateRevisionHashIgnoresProvenance`](../src/database/work/revision_integration_test.go#L197) | test | 197-216 | `func TestStoreCreateRevisionHashIgnoresProvenance(t *testing.T)` | TestStoreCreateRevisionHashIgnoresProvenance verifies the persisted payload hash covers content only, not producer stage. |
+| [`TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields`](../src/database/work/revision_integration_test.go#L16) | test | 16-80 | `func TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields(t *testing.T)` | TestStoreCreateRevisionPreservesHashDefaultsAndNullableFields verifies the payload hash, schema default, nullable round trip, and identity reads. |
+| [`TestStoreRevisionsAreImmutableAndOrdered`](../src/database/work/revision_integration_test.go#L84) | test | 84-134 | `func TestStoreRevisionsAreImmutableAndOrdered(t *testing.T)` | TestStoreRevisionsAreImmutableAndOrdered verifies revisions accumulate in chronological order for a work and a run. |
+| [`TestStoreRevisionsAreAppendOnly`](../src/database/work/revision_integration_test.go#L138) | test | 138-165 | `func TestStoreRevisionsAreAppendOnly(t *testing.T)` | TestStoreRevisionsAreAppendOnly verifies the database trigger rejects mutation of an immutable revision snapshot. |
+| [`TestStoreCreateRevisionValidatesProducerStage`](../src/database/work/revision_integration_test.go#L169) | test | 169-206 | `func TestStoreCreateRevisionValidatesProducerStage(t *testing.T)` | TestStoreCreateRevisionValidatesProducerStage verifies the producer-stage vocabulary gates new immutable revisions. |
+| [`TestStoreCreateRevisionHashIgnoresProvenance`](../src/database/work/revision_integration_test.go#L210) | test | 210-229 | `func TestStoreCreateRevisionHashIgnoresProvenance(t *testing.T)` | TestStoreCreateRevisionHashIgnoresProvenance verifies the persisted payload hash covers content only, not producer stage. |
 
 ### [`src/database/work/stage.go`](../src/database/work/stage.go)
 
@@ -1788,10 +1763,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestStoreSetStageOutcomeUpsertsAndPreservesIdentity`](../src/database/work/stage_integration_test.go#L17) | test | 17-60 | `func TestStoreSetStageOutcomeUpsertsAndPreservesIdentity(t *testing.T)` | TestStoreSetStageOutcomeUpsertsAndPreservesIdentity verifies the unique (run, work, stage) row identity survives progressive outcome updates. |
-| [`TestStoreStageOutcomesScopeAndOrder`](../src/database/work/stage_integration_test.go#L64) | test | 64-126 | `func TestStoreStageOutcomesScopeAndOrder(t *testing.T)` | TestStoreStageOutcomesScopeAndOrder verifies run and work scoping plus declared ordering. |
-| [`TestStoreSetStageOutcomeValidatesVocabulary`](../src/database/work/stage_integration_test.go#L130) | test | 130-162 | `func TestStoreSetStageOutcomeValidatesVocabulary(t *testing.T)` | TestStoreSetStageOutcomeValidatesVocabulary verifies invalid stage and outcome pairs are rejected before any write. |
-| [`TestStoreSetStageOutcomeAcceptsEveryValidPair`](../src/database/work/stage_integration_test.go#L166) | test | 166-214 | `func TestStoreSetStageOutcomeAcceptsEveryValidPair(t *testing.T)` | TestStoreSetStageOutcomeAcceptsEveryValidPair verifies the complete stage/outcome vocabulary is accepted and impossible pairs are rejected. |
-| [`TestStoreSetStageOutcomeAdvancesUpdatedAt`](../src/database/work/stage_integration_test.go#L218) | test | 218-258 | `func TestStoreSetStageOutcomeAdvancesUpdatedAt(t *testing.T)` | TestStoreSetStageOutcomeAdvancesUpdatedAt verifies progressive outcome updates preserve row identity while advancing updated_at. |
+| [`TestStoreStageOutcomesScopeAndOrder`](../src/database/work/stage_integration_test.go#L64) | test | 64-129 | `func TestStoreStageOutcomesScopeAndOrder(t *testing.T)` | TestStoreStageOutcomesScopeAndOrder verifies run and work scoping plus declared ordering. |
+| [`TestStoreSetStageOutcomeValidatesVocabulary`](../src/database/work/stage_integration_test.go#L133) | test | 133-165 | `func TestStoreSetStageOutcomeValidatesVocabulary(t *testing.T)` | TestStoreSetStageOutcomeValidatesVocabulary verifies invalid stage and outcome pairs are rejected before any write. |
+| [`TestStoreSetStageOutcomeAcceptsEveryValidPair`](../src/database/work/stage_integration_test.go#L169) | test | 169-217 | `func TestStoreSetStageOutcomeAcceptsEveryValidPair(t *testing.T)` | TestStoreSetStageOutcomeAcceptsEveryValidPair verifies the complete stage/outcome vocabulary is accepted and impossible pairs are rejected. |
+| [`TestStoreSetStageOutcomeAdvancesUpdatedAt`](../src/database/work/stage_integration_test.go#L221) | test | 221-261 | `func TestStoreSetStageOutcomeAdvancesUpdatedAt(t *testing.T)` | TestStoreSetStageOutcomeAdvancesUpdatedAt verifies progressive outcome updates preserve row identity while advancing updated_at. |
 
 ### [`src/database/work/term_match.go`](../src/database/work/term_match.go)
 
@@ -1910,8 +1885,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`createTestRun`](../src/database/work/work_integration_test.go#L35) | function | 35-42 | `func createTestRun(t *testing.T, db *database.Database, step string) int64` | createTestRun creates one pipeline run for work-family linkage and returns its ID. |
 | [`TestStoreCreateWorkByDOIAndLookupPreservesIdentity`](../src/database/work/work_integration_test.go#L46) | test | 46-133 | `func TestStoreCreateWorkByDOIAndLookupPreservesIdentity(t *testing.T)` | TestStoreCreateWorkByDOIAndLookupPreservesIdentity verifies DOI normalization, idempotent reuse, and ordered reads. |
 | [`TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows`](../src/database/work/work_integration_test.go#L137) | test | 137-159 | `func TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows(t *testing.T)` | TestStoreCreateWorkWithoutDOIAlwaysCreatesDistinctRows verifies uncertain title-only records are never globally merged. |
-| [`TestStoreInsertIdentifierPreservesOwnershipAndReuse`](../src/database/work/work_integration_test.go#L163) | test | 163-235 | `func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T)` | TestStoreInsertIdentifierPreservesOwnershipAndReuse verifies alternate identifiers are idempotent per work and cannot be reassigned silently. |
-| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/work/work_integration_test.go#L239) | test | 239-295 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
+| [`TestStoreInsertIdentifierPreservesOwnershipAndReuse`](../src/database/work/work_integration_test.go#L163) | test | 163-238 | `func TestStoreInsertIdentifierPreservesOwnershipAndReuse(t *testing.T)` | TestStoreInsertIdentifierPreservesOwnershipAndReuse verifies alternate identifiers are idempotent per work and cannot be reassigned silently. |
+| [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../src/database/work/work_integration_test.go#L242) | test | 242-298 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
 
 ### [`src/database/work/work_unit_test.go`](../src/database/work/work_unit_test.go)
 

@@ -59,10 +59,15 @@ func TestStoreAppendEntryPreservesImmutableHistory(t *testing.T) {
 	firstID, err := store.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a",
 		ResponseStatus: 200, PayloadArtifactID: &artifactID,
-		FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1",
+		FetchedAt: "2026-07-22T00:00:00Z", ExpiresAt: "2026-07-24T00:00:00Z", ExtractorVersion: "1",
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	first, err := store.LatestEntry(ctx, cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
+	if err != nil || first == nil || first.ID != firstID || first.PayloadArtifactID == nil ||
+		*first.PayloadArtifactID != artifactID || first.ExpiresAt != "2026-07-24T00:00:00Z" {
+		t.Fatalf("first entry = %+v err=%v, want payload %d and explicit expiry", first, err, artifactID)
 	}
 	secondID, err := store.AppendEntry(ctx, &cache.Entry{
 		Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a",
@@ -196,6 +201,14 @@ func TestStoreFindEntryReplaysRecordedResponse(t *testing.T) {
 	}
 	if entry, err := store.FindAnyEntry(ctx, runID+999, key); err != nil || entry != nil {
 		t.Fatalf("run mismatch = %+v err=%v, want nil without error", entry, err)
+	}
+	latest, err := store.LatestEntry(ctx, key)
+	if err != nil || latest == nil || latest.ID != newerID || latest.ResponseStatus != 404 {
+		t.Fatalf("latest entry = %+v err=%v, want newer %d", latest, err, newerID)
+	}
+	uses, err := store.ListUsesByRun(ctx, runID)
+	if err != nil || len(uses) != 1 || uses[0].CacheEntryID != recordedID {
+		t.Fatalf("recorded uses = %+v err=%v, want original entry %d", uses, err, recordedID)
 	}
 }
 

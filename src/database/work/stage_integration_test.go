@@ -108,6 +108,9 @@ func TestStoreStageOutcomesScopeAndOrder(t *testing.T) {
 	if absent, err := store.ListStageOutcomesByRun(ctx, 99999); err != nil || absent != nil {
 		t.Fatalf("absent stage list = %+v err=%v, want nil without error", absent, err)
 	}
+	if absent, err := store.ListStageOutcomesByWork(ctx, 99999); err != nil || absent != nil {
+		t.Fatalf("absent work stage list = %+v err=%v, want nil without error", absent, err)
+	}
 
 	count, err := store.CountStageOutcomes(ctx, firstRun, work.StageNameParse, work.OutcomeParsed)
 	if err != nil {

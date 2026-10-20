@@ -50,6 +50,12 @@ func TestReviewDecisionCopyOnWriteLineage(t *testing.T) {
 	if err != nil || a2AfterParentEdit.Version.ID != a2State.Version.ID {
 		t.Fatalf("A2 moved after parent edit: %+v err=%v", a2AfterParentEdit, err)
 	}
+	if missing, err := db.Review.GetWorkReviewVersion(ctx, 999, 999, 999); err != nil || missing != nil {
+		t.Fatalf("missing work review version = %+v err=%v, want nil without error", missing, err)
+	}
+	if empty, err := db.Review.ListWorkReviewVersions(ctx, 999, 999, 0, 10); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent work review versions = %+v err=%v, want non-nil empty slice", empty, err)
+	}
 }
 
 // TestReviewDecisionValidationAndNoOp verifies default no-op saves and vocabulary compatibility.

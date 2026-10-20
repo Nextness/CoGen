@@ -203,8 +203,11 @@ func TestReviewGeneratedNoteFilters(t *testing.T) {
 		t.Fatalf("scoped backlinks=%+v err=%v, want one", scoped, err)
 	}
 	unscoped, err := fixture.db.Review.ListBacklinks(ctx, fixture.context2, "note", strconv.FormatInt(fixture.note2, 10), fixture.workID+999, 0, 10)
-	if err != nil || len(unscoped) != 0 {
-		t.Fatalf("unscoped backlinks=%+v err=%v, want none", unscoped, err)
+	if err != nil || unscoped == nil || len(unscoped) != 0 {
+		t.Fatalf("unscoped backlinks=%+v err=%v, want non-nil empty slice", unscoped, err)
+	}
+	if empty, err := fixture.db.Review.ListBacklinks(ctx, 999, "pdf_page", "1", 0, 0, 10); err != nil || empty == nil || len(empty) != 0 {
+		t.Fatalf("absent backlinks=%+v err=%v, want non-nil empty slice", empty, err)
 	}
 
 	if _, _, err := fixture.db.Review.AppendNoteVersion(ctx, fixture.context2, fixture.note2, fixture.note2Version+999, "deleted", ""); err == nil {
