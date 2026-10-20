@@ -8,14 +8,14 @@ cache/
 artifacts/
 intermidiate/
 
-# The sqlc cache table family lives under src/database/cache/; keep it tracked
+# The sqlc cache table family lives under backend/database/cache/; keep it tracked
 # while the runtime cache/ directory stays ignored.
-!src/database/cache/
-!src/database/cache/**
+!backend/database/cache/
+!backend/database/cache/**
 
 # Build artifacts
 build/
-src/analysis
+backend/analysis
 corpus.db*
 corpus.metadata.db*
 corpus.pdf.db*
@@ -23,11 +23,11 @@ workspace.fixture.pdf.db
 workspace.fixture.db
 
 # Go test coverage
-src/coverage.out
+coverage.out
 coverage.out
 
 # Frontend dev tooling (development only)
-frontend/node_modules/
+node_modules/
 frontend/test-results/
 frontend/playwright-report/
 

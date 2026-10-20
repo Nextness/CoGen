@@ -1,0 +1,17 @@
+{
+  "name": "@cogen/tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:unit": "node --import ./support/node/tsx-loader.ts --test \"frontend/**/unit/*.test.ts\"",
+    "test:functional": "node --import ./support/node/tsx-loader.ts --test \"frontend/**/functional/*.test.ts\"",
+    "test": "playwright test --config playwright.config.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@axe-core/playwright": "^4.12.1",
+    "jsdom": "^26.0.0",
+    "esbuild": "^0.28.1"
+  }
+}

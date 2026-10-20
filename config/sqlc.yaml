@@ -7,14 +7,14 @@
 version: "2"
 sql:
   - engine: "sqlite"
-    schema: "../src/database/cache/schema/definitions.sql"
+    schema: "../backend/database/cache/schema/definitions.sql"
     queries:
-      - "../src/database/cache/schema/cache.sql"
-      - "../src/database/cache/schema/cache_use.sql"
+      - "../backend/database/cache/schema/cache.sql"
+      - "../backend/database/cache/schema/cache_use.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/cache/internal/sql"
+        out: "../backend/database/cache/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -22,16 +22,16 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/search/schema/definitions.sql"
+    schema: "../backend/database/search/schema/definitions.sql"
     queries:
-      - "../src/database/search/schema/search.sql"
-      - "../src/database/search/schema/revisions.sql"
-      - "../src/database/search/schema/plans.sql"
-      - "../src/database/search/schema/hierarchy.sql"
+      - "../backend/database/search/schema/search.sql"
+      - "../backend/database/search/schema/revisions.sql"
+      - "../backend/database/search/schema/plans.sql"
+      - "../backend/database/search/schema/hierarchy.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/search/internal/sql"
+        out: "../backend/database/search/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -39,19 +39,19 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/run/schema/definitions.sql"
+    schema: "../backend/database/run/schema/definitions.sql"
     queries:
-      - "../src/database/run/schema/run.sql"
-      - "../src/database/run/schema/lifecycle.sql"
-      - "../src/database/run/schema/reviewer.sql"
-      - "../src/database/run/schema/step.sql"
-      - "../src/database/run/schema/metric.sql"
-      - "../src/database/run/schema/overview.sql"
-      - "../src/database/run/schema/audit.sql"
+      - "../backend/database/run/schema/run.sql"
+      - "../backend/database/run/schema/lifecycle.sql"
+      - "../backend/database/run/schema/reviewer.sql"
+      - "../backend/database/run/schema/step.sql"
+      - "../backend/database/run/schema/metric.sql"
+      - "../backend/database/run/schema/overview.sql"
+      - "../backend/database/run/schema/audit.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/run/internal/sql"
+        out: "../backend/database/run/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -59,16 +59,16 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/source/schema/definitions.sql"
+    schema: "../backend/database/source/schema/definitions.sql"
     queries:
-      - "../src/database/source/schema/source.sql"
-      - "../src/database/source/schema/record.sql"
-      - "../src/database/source/schema/filter_count.sql"
-      - "../src/database/source/schema/viewer.sql"
+      - "../backend/database/source/schema/source.sql"
+      - "../backend/database/source/schema/record.sql"
+      - "../backend/database/source/schema/filter_count.sql"
+      - "../backend/database/source/schema/viewer.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/source/internal/sql"
+        out: "../backend/database/source/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -76,16 +76,16 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/artifact/schema/definitions.sql"
+    schema: "../backend/database/artifact/schema/definitions.sql"
     queries:
-      - "../src/database/artifact/schema/artifact.sql"
-      - "../src/database/artifact/schema/blob.sql"
-      - "../src/database/artifact/schema/run_artifact.sql"
-      - "../src/database/artifact/schema/relationships.sql"
+      - "../backend/database/artifact/schema/artifact.sql"
+      - "../backend/database/artifact/schema/blob.sql"
+      - "../backend/database/artifact/schema/run_artifact.sql"
+      - "../backend/database/artifact/schema/relationships.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/artifact/internal/sql"
+        out: "../backend/database/artifact/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -93,14 +93,14 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/audit/schema/definitions.sql"
+    schema: "../backend/database/audit/schema/definitions.sql"
     queries:
-      - "../src/database/audit/schema/audit.sql"
-      - "../src/database/audit/schema/evidence.sql"
+      - "../backend/database/audit/schema/audit.sql"
+      - "../backend/database/audit/schema/evidence.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/audit/internal/sql"
+        out: "../backend/database/audit/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -108,21 +108,21 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/work/schema/definitions.sql"
+    schema: "../backend/database/work/schema/definitions.sql"
     queries:
-      - "../src/database/work/schema/work.sql"
-      - "../src/database/work/schema/revision.sql"
-      - "../src/database/work/schema/stage.sql"
-      - "../src/database/work/schema/reference.sql"
-      - "../src/database/work/schema/term_match.sql"
-      - "../src/database/work/schema/authorship.sql"
-      - "../src/database/work/schema/details.sql"
-      - "../src/database/work/schema/evaluation.sql"
-      - "../src/database/work/schema/corpus.sql"
+      - "../backend/database/work/schema/work.sql"
+      - "../backend/database/work/schema/revision.sql"
+      - "../backend/database/work/schema/stage.sql"
+      - "../backend/database/work/schema/reference.sql"
+      - "../backend/database/work/schema/term_match.sql"
+      - "../backend/database/work/schema/authorship.sql"
+      - "../backend/database/work/schema/details.sql"
+      - "../backend/database/work/schema/evaluation.sql"
+      - "../backend/database/work/schema/corpus.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/work/internal/sql"
+        out: "../backend/database/work/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -130,17 +130,17 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/author/schema/definitions.sql"
+    schema: "../backend/database/author/schema/definitions.sql"
     queries:
-      - "../src/database/author/schema/author.sql"
-      - "../src/database/author/schema/occurrence.sql"
-      - "../src/database/author/schema/authorship.sql"
-      - "../src/database/author/schema/identity.sql"
-      - "../src/database/author/schema/evidence.sql"
+      - "../backend/database/author/schema/author.sql"
+      - "../backend/database/author/schema/occurrence.sql"
+      - "../backend/database/author/schema/authorship.sql"
+      - "../backend/database/author/schema/identity.sql"
+      - "../backend/database/author/schema/evidence.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/author/internal/sql"
+        out: "../backend/database/author/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -148,18 +148,18 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/review/schema/definitions.sql"
+    schema: "../backend/database/review/schema/definitions.sql"
     queries:
-      - "../src/database/review/schema/context.sql"
-      - "../src/database/review/schema/decision.sql"
-      - "../src/database/review/schema/note.sql"
-      - "../src/database/review/schema/anchor.sql"
-      - "../src/database/review/schema/relationships.sql"
-      - "../src/database/review/schema/audit.sql"
+      - "../backend/database/review/schema/context.sql"
+      - "../backend/database/review/schema/decision.sql"
+      - "../backend/database/review/schema/note.sql"
+      - "../backend/database/review/schema/anchor.sql"
+      - "../backend/database/review/schema/relationships.sql"
+      - "../backend/database/review/schema/audit.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/review/internal/sql"
+        out: "../backend/database/review/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -167,14 +167,14 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/database/pdfbinding/schema/definitions.sql"
+    schema: "../backend/database/pdfbinding/schema/definitions.sql"
     queries:
-      - "../src/database/pdfbinding/schema/binding.sql"
-      - "../src/database/pdfbinding/schema/delivery.sql"
+      - "../backend/database/pdfbinding/schema/binding.sql"
+      - "../backend/database/pdfbinding/schema/delivery.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/database/pdfbinding/internal/sql"
+        out: "../backend/database/pdfbinding/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -182,13 +182,13 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/pdfstore/schema/definitions.sql"
+    schema: "../backend/pdfstore/schema/definitions.sql"
     queries:
-      - "../src/pdfstore/schema/queries.sql"
+      - "../backend/pdfstore/schema/queries.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/pdfstore/internal/sql"
+        out: "../backend/pdfstore/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false
@@ -196,13 +196,13 @@ sql:
         emit_interface: false
         omit_unused_structs: true
   - engine: "sqlite"
-    schema: "../src/tools/prepare-osf/schema/definitions.sql"
+    schema: "../tooling/go/prepare-osf/schema/definitions.sql"
     queries:
-      - "../src/tools/prepare-osf/schema/export.sql"
+      - "../tooling/go/prepare-osf/schema/export.sql"
     gen:
       go:
         package: "sql"
-        out: "../src/tools/prepare-osf/internal/sql"
+        out: "../tooling/go/prepare-osf/internal/sql"
         sql_package: "database/sql"
         emit_json_tags: false
         emit_prepared_queries: false

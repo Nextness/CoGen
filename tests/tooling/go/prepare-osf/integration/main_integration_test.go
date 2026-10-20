@@ -1,0 +1,271 @@
+package prepareosf_test
+
+import "analysis/tests/support/go/testenv"
+
+import subject "analysis/tooling/go/prepare-osf"
+
+import (
+	"analysis/backend/manifest"
+	"analysis/backend/workspace"
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"analysis/backend/database"
+	"analysis/backend/database/run"
+	"analysis/backend/pdfstore"
+)
+
+// TestPrepareCopiesAndSanitizesWithoutMutatingSources verifies the atomic copy-only export boundary.
+func TestPrepareCopiesAndSanitizesWithoutMutatingSources(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "bundle with ? and #")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	metadataPath := filepath.Join(directory, "corpus.metadata.db")
+	pdfPath := filepath.Join(directory, "corpus.pdf.db")
+	registry := testenv.Path("config", "database.something")
+	metadata, err := database.Open(metadataPath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pdf, err := pdfstore.Open(pdfPath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.PDFBindings.EnsureBinding(context.Background(), filepath.Base(pdfPath)); err != nil {
+		t.Fatal(err)
+	}
+	rawConfig := []byte(`workspace = { reviewer = reviewer_config { username = "Sensitive Researcher", email = "sensitive@example.test", }, };`)
+	digest := sha256.Sum256(rawConfig)
+	rawHash := hex.EncodeToString(digest[:])
+	searchResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO searches (search_id) VALUES ('export-search')")
+	searchID, _ := searchResult.LastInsertId()
+	revisionResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO search_revisions (search_id, revision_label, config_artifact_hash, resolved_manifest_hash) VALUES (?, 'r1', ?, 'manifest')", searchID, rawHash)
+	revisionID, _ := revisionResult.LastInsertId()
+	planResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO execution_plans (search_revision_id, execution_fingerprint, resolved_manifest_hash, input_manifest_hash) VALUES (?, 'fingerprint', 'manifest', 'input')", revisionID)
+	planID, _ := planResult.LastInsertId()
+	runResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO pipeline_runs (step, started_at, finished_at, status, execution_plan_id, attempt_number) VALUES ('export', '2026-01-01', '2026-01-01', 'completed', ?, 1)", planID)
+	runID, _ := runResult.LastInsertId()
+	if err := metadata.Run.InsertReviewer(context.Background(), run.ReviewerInput{RunID: runID, Username: "Sensitive Researcher", Email: "sensitive@example.test"}); err != nil {
+		t.Fatal(err)
+	}
+	artifactResult := mustExec(t, metadata.RawDBForTest(), "INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'text/plain')", rawHash, len(rawConfig))
+	artifactID, _ := artifactResult.LastInsertId()
+	mustExec(t, metadata.RawDBForTest(), "INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, rawConfig)
+	mustExec(t, metadata.RawDBForTest(), "INSERT INTO run_artifacts (pipeline_run_id, artifact_id, artifact_role) VALUES (?, ?, 'workspace_config')", runID, artifactID)
+	var sourceCorpusID string
+	if err := metadata.RawDBForTest().QueryRow("SELECT corpus_id FROM review_settings WHERE id=1").Scan(&sourceCorpusID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pdf.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Close(); err != nil {
+		t.Fatal(err)
+	}
+	metadataBefore, _ := subject.fileHash(metadataPath)
+	pdfBefore, _ := subject.fileHash(pdfPath)
+	out := filepath.Join(directory, "export")
+	if err := subject.prepare(context.Background(), subject.options{DB: metadataPath, Out: out}); err != nil {
+		t.Fatal(err)
+	}
+	metadataAfter, _ := subject.fileHash(metadataPath)
+	pdfAfter, _ := subject.fileHash(pdfPath)
+	if metadataBefore != metadataAfter || pdfBefore != pdfAfter {
+		t.Fatal("prepare changed a source database")
+	}
+	copy, err := sql.Open("sqlite", subject.sqliteReadURI(filepath.Join(out, filepath.Base(metadataPath))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer copy.Close()
+	var corpusID string
+	if err := copy.QueryRow("SELECT corpus_id FROM review_settings WHERE id=1").Scan(&corpusID); err != nil || len(corpusID) != 32 || corpusID == sourceCorpusID {
+		t.Fatalf("export corpus ID: %q, %v", corpusID, err)
+	}
+	var username, email, sanitizedHash string
+	if err := copy.QueryRow("SELECT username, email FROM pipeline_run_reviewers WHERE pipeline_run_id=?", runID).Scan(&username, &email); err != nil || username != "" || email != "" {
+		t.Fatalf("redacted reviewer: %q %q %v", username, email, err)
+	}
+	if err := copy.QueryRow("SELECT config_artifact_hash FROM search_revisions WHERE id=?", revisionID).Scan(&sanitizedHash); err != nil || sanitizedHash == rawHash {
+		t.Fatalf("sanitized config hash: %q %v", sanitizedHash, err)
+	}
+	metadataBytes, err := os.ReadFile(filepath.Join(out, filepath.Base(metadataPath)))
+	if err != nil || strings.Contains(string(metadataBytes), "Sensitive Researcher") || strings.Contains(string(metadataBytes), "sensitive@example.test") {
+		t.Fatalf("export metadata retained reviewer bytes: %v", err)
+	}
+	manifestBytes, err := os.ReadFile(filepath.Join(out, "export-manifest.json"))
+	var manifest subject.exportManifest
+	if err == nil {
+		err = json.Unmarshal(manifestBytes, &manifest)
+	}
+	if err != nil || !strings.Contains(manifest.BrowserDraftDisclaimer, "Browser-local drafts") {
+		t.Fatalf("export manifest: %v\n%s", err, manifestBytes)
+	}
+	if manifest.SourceSchemaVersions["metadata"] == "" || manifest.SourceSchemaVersions["pdf"] == "" || manifest.SourceSchemaVersions["metadata"] != manifest.SanitizedSchemaVersions["metadata"] || manifest.SourceSchemaVersions["pdf"] != manifest.SanitizedSchemaVersions["pdf"] {
+		t.Fatalf("export schema versions: %#v %#v", manifest.SourceSchemaVersions, manifest.SanitizedSchemaVersions)
+	}
+	if manifest.Files[filepath.Base(metadataPath)] == "" || manifest.Files[filepath.Base(pdfPath)] == "" {
+		t.Fatalf("export file hashes: %#v", manifest.Files)
+	}
+	if err := subject.prepare(context.Background(), subject.options{DB: metadataPath, Out: out}); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("existing output error=%v", err)
+	}
+}
+
+// mustExec runs one fixture statement and fails the current test on error.
+func mustExec(t *testing.T, db *sql.DB, query string, args ...any) sql.Result {
+	t.Helper()
+	result, err := db.Exec(query, args...)
+	if err != nil {
+		t.Fatalf("exec %q: %v", query, err)
+	}
+	return result
+}
+
+// TestSanitizeReviewerAssignments verifies inline redaction and fail-closed references.
+func TestSanitizeReviewerAssignments(t *testing.T) {
+	source := []byte("workspace = { reviewer = reviewer_config { username = \"Researcher\", email = \"person@example.test\", }, title = \"reviewer = untouched\", query = #multiline RAW\nreviewer = reviewer_config { username = \"research text\" }\nRAW, };")
+	redacted, changed, err := subject.sanitizeReviewerAssignments(source)
+	if err != nil || !changed {
+		t.Fatalf("sanitize: changed=%v err=%v", changed, err)
+	}
+	if strings.Contains(string(redacted), "Researcher") || strings.Contains(string(redacted), "person@example.test") || !strings.Contains(string(redacted), `title = "reviewer = untouched"`) || !strings.Contains(string(redacted), `username = "research text"`) {
+		t.Fatalf("unexpected sanitized source: %s", redacted)
+	}
+	if _, _, err := subject.sanitizeReviewerAssignments([]byte(`workspace = { reviewer = make_reviewer!(), };`)); err == nil {
+		t.Fatal("expected macro-backed reviewer to fail closed")
+	}
+}
+
+// TestSanitizeReviewerAfterCommentedMultiline verifies redaction continues after a multiline block whose closing tag has a trailing comment.
+func TestSanitizeReviewerAfterCommentedMultiline(t *testing.T) {
+	source := []byte("workspace = { query = #multiline RAW\ncontent\nRAW; // done\nreviewer = reviewer_config { username = \"Researcher\", email = \"person@example.test\", }, };")
+	redacted, changed, err := subject.sanitizeReviewerAssignments(source)
+	if err != nil || !changed {
+		t.Fatalf("sanitize: changed=%v err=%v", changed, err)
+	}
+	if strings.Contains(string(redacted), "Researcher") || strings.Contains(string(redacted), "person@example.test") {
+		t.Fatalf("reviewer after commented multiline was not redacted: %s", redacted)
+	}
+}
+
+// TestConfigurationCopyRejectsSymlinkEscape verifies that configuration includes cannot follow links outside the copied root.
+func TestConfigurationCopyRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.something")
+	if err := os.WriteFile(outside, []byte(`workspace = { reviewer = reviewer_config { username = "Sensitive", email = "", }, };`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	linkPath := filepath.Join(root, "outside.something")
+	if err := os.Symlink(outside, linkPath); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	mainPath := filepath.Join(root, "main.something")
+	if err := os.WriteFile(mainPath, []byte(`#include("outside.something");`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := subject.copyAndSanitizeConfiguration(mainPath, t.TempDir()); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+		t.Fatalf("expected symlink escape rejection, got %v", err)
+	}
+}
+
+// TestSafeCompanionPathRejectsSymlinkEscape verifies a bundle-local link
+// cannot select a companion database outside the selected metadata directory.
+func TestSafeCompanionPathRejectsSymlinkEscape(t *testing.T) {
+	bundle := t.TempDir()
+	metadataPath := filepath.Join(bundle, "corpus.metadata.db")
+	if err := os.WriteFile(metadataPath, []byte("metadata"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.pdf.db")
+	if err := os.WriteFile(outside, []byte("pdf"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(bundle, "corpus.pdf.db")); err != nil {
+		t.Skipf("symbolic links unavailable: %v", err)
+	}
+	if _, err := subject.safeCompanionPath(metadataPath, "corpus.pdf.db"); err == nil || !strings.Contains(err.Error(), "escapes metadata bundle") {
+		t.Fatalf("safeCompanionPath() error = %v, want symlink escape rejection", err)
+	}
+}
+
+// TestPrepareRealPipelineReviewerEvidence verifies preflight references, hashes, and exported file bytes are sanitized together.
+func TestPrepareRealPipelineReviewerEvidence(t *testing.T) {
+	root, err := filepath.Abs(testenv.Root())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+	for _, indirect := range []bool{false, true} {
+		t.Run(fmt.Sprint(indirect), func(t *testing.T) {
+			dir := t.TempDir()
+			csvPath := filepath.Join(dir, "source.csv")
+			if err := os.WriteFile(csvPath, []byte("doi,title,year,publisher,authors,cited_references\n10.1000/example,Synthetic article,2024,IEEE,Example Author,A reference\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			raw := []byte(`workspace = { reviewer = reviewer_config { username = "SyntheticExportMarker", email = "", }, };`)
+			if indirect {
+				raw = []byte(`identity := "SyntheticExportMarker"; workspace = { reviewer = reviewer_config { username = identity, email = "", }, };`)
+			}
+			run := &workspace.Run{Reviewer: workspace.Reviewer{Username: "SyntheticExportMarker"}, Manifest: &manifest.ResolvedManifest{
+				FormatVersion: 2, SearchID: "export", SearchRevision: "r1", ReusePolicy: "reuse_completed",
+				Sources: []manifest.SourceManifest{{Name: "synthetic", FileType: "csv", ExpectedFile: csvPath, ExpectedResultCount: 1, KeepFields: []string{"doi", "title", "year", "publisher", "authors", "cited_references"}}},
+			}}
+			path := filepath.Join(dir, "corpus.metadata.db")
+			if err := workspace.RunPipeline(path, raw, run, false); err != nil {
+				t.Fatal(err)
+			}
+			out := filepath.Join(dir, "export")
+			err = subject.prepare(context.Background(), subject.options{DB: path, Out: out})
+			if indirect {
+				if err == nil || !strings.Contains(err.Error(), "indirect reviewer") {
+					t.Fatalf("expected fail-closed redaction: %v", err)
+				}
+				if _, err := os.Stat(out); !os.IsNotExist(err) {
+					t.Fatalf("failed export published output: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			exportedPath := filepath.Join(out, "corpus.metadata.db")
+			exported, err := database.OpenExisting(exportedPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer exported.Close()
+			var invalid int
+			if err := exported.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM run_steps step JOIN artifacts artifact ON artifact.id=step.input_artifact_id WHERE step.step_name='preflight' AND step.input_fingerprint != artifact.content_hash`).Scan(&invalid); err != nil || invalid != 0 {
+				t.Fatalf("preflight hash mismatch: %d %v", invalid, err)
+			}
+			if err := exported.RawDBForTest().QueryRow("SELECT COUNT(*) FROM artifact_blobs WHERE instr(CAST(data AS TEXT), 'SyntheticExportMarker') > 0").Scan(&invalid); err != nil || invalid != 0 {
+				t.Fatalf("live identity blobs: %d %v", invalid, err)
+			}
+			data, err := os.ReadFile(exportedPath)
+			if err != nil || bytes.Contains(data, []byte("SyntheticExportMarker")) {
+				t.Fatalf("exported file contains identity: %v", err)
+			}
+		})
+	}
+}
+
+// TestSanitizeRejectsIndirectFieldExpressions verifies references and interpolation fail closed without publishing identity declarations.
+func TestSanitizeRejectsIndirectFieldExpressions(t *testing.T) {
+	for _, value := range []string{"identity", `"{identity}"`, `"prefix" + identity`, "make_identity!()"} {
+		_, _, err := subject.sanitizeReviewerAssignments([]byte(`reviewer = reviewer_config { username = ` + value + `, email = "", };`))
+		if err == nil {
+			t.Errorf("accepted indirect reviewer expression %s", value)
+		}
+	}
+}

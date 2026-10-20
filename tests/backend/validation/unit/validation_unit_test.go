@@ -1,0 +1,58 @@
+// validation_unit_test.go tests the shared validation rules for DOIs,
+// file paths, and other workspace input constraints.
+
+package validation_test
+
+import subject "analysis/backend/validation"
+
+import (
+	"reflect"
+	"testing"
+)
+
+// TestIsRealDOI verifies is real doi.
+func TestIsRealDOI(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  bool
+	}{
+		{"10.1000/test", true},
+		{"10.1016/j.is.2021.101765", true},
+		{"  10.1000/test  ", true},
+		{"", false},
+		{"not-a-doi", false},
+		{"https://doi.org/10.1000/test", false},
+		{"10.1000/has space", false},
+	} {
+		if got := subject.IsRealDOI(test.input); got != test.want {
+			t.Errorf("IsRealDOI(%q) = %v, want %v", test.input, got, test.want)
+		}
+	}
+}
+
+// TestValidateFields verifies validate fields.
+func TestValidateFields(t *testing.T) {
+	valid := subject.Fields{DOI: "10.1000/test", Title: "Title", Year: 2024, Publisher: "Publisher", ReferenceCount: 1}
+	if reasons := subject.ValidateFields(valid, 1); len(reasons) != 0 {
+		t.Fatalf("valid fields returned reasons: %v", reasons)
+	}
+	invalid := subject.Fields{DOI: "invalid", Year: 0}
+	want := []string{"missing title", "missing authors", "invalid year (0)", "invalid DOI (invalid)", "missing publisher", "missing references"}
+	if got := subject.ValidateFields(invalid, 0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("ValidateFields invalid = %v, want %v", got, want)
+	}
+	negativeCounts := valid
+	negativeCounts.ReferenceCount = -1
+	if got := subject.ValidateFields(negativeCounts, -1); !reflect.DeepEqual(got, []string{"missing authors", "missing references"}) {
+		t.Fatalf("ValidateFields negative counts = %v", got)
+	}
+}
+
+// TestSortedReasons verifies sorted reasons.
+func TestSortedReasons(t *testing.T) {
+	got := subject.sortedReasons(map[string]int{"b": 1, "a": 1, "c": 2})
+	want := []string{"c", "a", "b"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("sortedReasons = %v, want %v", got, want)
+	}
+}

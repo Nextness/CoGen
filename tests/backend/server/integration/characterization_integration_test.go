@@ -1,0 +1,39 @@
+// characterization_integration_test.go verifies canceled viewer requests leave
+// no partial review mutations across the HTTP-to-store boundary.
+
+package server_test
+
+import testhelpers "analysis/tests/support/go/backend/server"
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+// TestCharacterizationRequestContextCancellationDoesNotMutate verifies a
+// canceled request context fails the mutation before any row is committed.
+func TestCharacterizationRequestContextCancellationDoesNotMutate(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	handler := fixture.Server.Handler()
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/api/runs/%d/review-context", fixture.RunID),
+		bytes.NewBufferString(`{"parent_context_id":null}`)).WithContext(canceled)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("canceled mutation status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var contexts int
+	if err := fixture.Server.writeDB.Conn.QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id=?", fixture.RunID).Scan(&contexts); err != nil {
+		t.Fatal(err)
+	}
+	if contexts != 0 {
+		t.Fatalf("canceled mutation wrote %d review contexts", contexts)
+	}
+}
