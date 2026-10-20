@@ -33,7 +33,7 @@ The dependency table expresses review impact rather than link direction. When a 
 | Document | SHA-256 | Review dependents |
 |---|---|---|
 | [docs/APP-USAGE.md](APP-USAGE.md) | `17580425754b79bc31f0db508261c43955bb86180304265e066e429f47d106f4` | None |
-| [docs/ARCHITECTURE.md](ARCHITECTURE.md) | `15b466598c6cd6b630d6bbfc0967b247a625f0ec93b911da0f546cc4207b2ddb` | [docs/DATABASE.md](DATABASE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/DESIGN.md](DESIGN.md), [docs/APP-USAGE.md](APP-USAGE.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
+| [docs/ARCHITECTURE.md](ARCHITECTURE.md) | `6bf6d8ffac94f118e7a2105e23f474006ad97044f383912c75c4df50d41800a6` | [docs/DATABASE.md](DATABASE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/DESIGN.md](DESIGN.md), [docs/APP-USAGE.md](APP-USAGE.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 | [docs/CSS-REFERENCE.md](CSS-REFERENCE.md) | `1e320a35b78eaca14dee333ad7c33220c5abfc1f8cae33bc8e41a99769301f7e` | None |
 | [docs/DATABASE.md](DATABASE.md) | `74c3f551ab870d924680cdcf6dfcc7b5e7df12887659c7cf231256852ca518a5` | [docs/ARCHITECTURE.md](ARCHITECTURE.md), [docs/STANDARDS.md](STANDARDS.md), [docs/PROJECT-USAGE.md](PROJECT-USAGE.md) |
 | [docs/DESIGN.md](DESIGN.md) | `173ea10abd6b42464b92db068dcb7e52c51257c397754dd16d97d20137c181f0` | [docs/CSS-REFERENCE.md](CSS-REFERENCE.md), [docs/APP-USAGE.md](APP-USAGE.md) |
