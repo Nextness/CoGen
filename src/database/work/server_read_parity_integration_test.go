@@ -1,8 +1,7 @@
 // server_read_parity_integration_test.go verifies the work family reads return
 // the same values as the viewer's former raw queries for normalized revisions,
 // ordered authors, references, graph edges, evaluation rows, and term-match
-// payloads. The family maps SQL NULL to application zero values, so the
-// comparison normalizes both sides to the legacy NULL marker.
+// payloads. Comparisons preserve SQL NULL, empty text, and zero independently.
 //go:build integration
 
 package work_test
@@ -10,7 +9,8 @@ package work_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"encoding/json"
+	"reflect"
 	"slices"
 	"sort"
 	"testing"
@@ -47,7 +47,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if revision == nil || revision.ID != legacyRevisionID || revision.WorkID != legacyWorkID || revision.Title != legacyTitle || revision.DOI != legacyDOI {
+	if revision == nil || revision.ID != legacyRevisionID || revision.WorkID != legacyWorkID || !pointsTo(revision.Title, legacyTitle) || !pointsTo(revision.DOI, legacyDOI) {
 		t.Fatalf("revision parity: legacy=(%d,%d,%q,%q) family=%+v", legacyRevisionID, legacyWorkID, legacyTitle, legacyDOI, revision)
 	}
 
@@ -62,9 +62,9 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyAuthors := make([][]string, 0, len(authorPage.Items))
 	for _, author := range authorPage.Items {
 		familyAuthors = append(familyAuthors, []string{
-			formatDatabaseValue(author.ID), familyNullableInt(author.PersonID), familyText(author.CitationName),
-			familyText(author.FirstName), familyText(author.LastName), familyText(author.ORCID),
-			formatDatabaseValue(author.AuthorOrder), familyText(author.Affiliation),
+			formatDatabaseValue(author.ID), familyValue(author.PersonID), familyValue(author.CitationName),
+			familyValue(author.FirstName), familyValue(author.LastName), familyValue(author.ORCID),
+			formatDatabaseValue(author.AuthorOrder), familyValue(author.Affiliation),
 		})
 	}
 	if !rowsEqual(legacyAuthors, familyAuthors) {
@@ -94,10 +94,10 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyReferences := make([][]string, 0, len(referencePage.Items))
 	for _, reference := range referencePage.Items {
 		familyReferences = append(familyReferences, []string{
-			formatDatabaseValue(reference.ID), formatDatabaseValue(reference.WorkRevisionID), familyNullableInt(reference.ResolvedWorkID),
-			formatDatabaseValue(reference.MentionOrder), familyText(reference.DOI), familyText(reference.Title), familyText(reference.Author),
-			familyInt(reference.Year), familyText(reference.Source), familyText(reference.CreatedAt),
-			familyNullableInt(reference.ResolvedRevisionID), familyText(reference.ResolvedTitle),
+			formatDatabaseValue(reference.ID), formatDatabaseValue(reference.WorkRevisionID), familyValue(reference.ResolvedWorkID),
+			formatDatabaseValue(reference.MentionOrder), familyValue(reference.DOI), familyValue(reference.Title), familyValue(reference.Author),
+			familyValue(reference.Year), familyValue(reference.Source), familyValue(reference.CreatedAt),
+			familyValue(reference.ResolvedRevisionID), familyValue(reference.ResolvedTitle),
 		})
 	}
 	if !rowsEqual(legacyReferences, familyReferences) {
@@ -115,8 +115,8 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyGraphArticles := make([][]string, 0, len(graphArticles))
 	for _, article := range graphArticles {
 		familyGraphArticles = append(familyGraphArticles, []string{
-			formatDatabaseValue(article.ID), formatDatabaseValue(article.WorkID), familyText(article.Title),
-			familyInt(article.Year), familyText(article.Source), familyText(article.DOI),
+			formatDatabaseValue(article.ID), formatDatabaseValue(article.WorkID), familyValue(article.Title),
+			familyValue(article.Year), familyValue(article.Source), familyValue(article.DOI),
 		})
 	}
 	if !rowsEqual(legacyGraphArticles, familyGraphArticles) {
@@ -139,8 +139,8 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyGraphAuthorships := make([][]string, 0, len(graphAuthorships))
 	for _, authorship := range graphAuthorships {
 		familyGraphAuthorships = append(familyGraphAuthorships, []string{
-			formatDatabaseValue(authorship.WorkRevisionID), formatDatabaseValue(authorship.AuthorID), familyText(authorship.CitationName),
-			familyText(authorship.ORCID), formatDatabaseValue(authorship.AuthorOrder), familyText(authorship.Affiliation),
+			formatDatabaseValue(authorship.WorkRevisionID), formatDatabaseValue(authorship.AuthorID), familyValue(authorship.CitationName),
+			familyValue(authorship.ORCID), formatDatabaseValue(authorship.AuthorOrder), familyValue(authorship.Affiliation),
 		})
 	}
 	if !rowsEqual(legacyGraphAuthorships, familyGraphAuthorships) {
@@ -171,12 +171,12 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyEvaluation := make([][]string, 0, len(evaluationPage.Items))
 	for _, row := range evaluationPage.Items {
 		familyEvaluation = append(familyEvaluation, []string{
-			formatDatabaseValue(row.ID), formatDatabaseValue(row.WorkID), familyText(row.Title), familyInt(row.Year),
-			familyText(row.Journal), familyText(row.Publisher), familyText(row.Source), familyText(row.DOI), familyText(row.ValidationStatus),
-			familyInt(row.CitationCount), familyInt(row.ReferenceCount), familyText(row.ProducerStage), familyText(row.CreatedAt),
-			familyText(row.Abstract), familyText(row.Keywords), familyText(row.KeywordsPlus), familyText(row.Authors), formatDatabaseValue(row.WorkRevisionID),
-			familyText(row.ReviewStatus), formatDatabaseValue(boolInt(row.ReviewInherited)), familyNullableInt(row.ReviewVersionID),
-			familyNullableInt(row.ReviewCreatedInContextID),
+			formatDatabaseValue(row.ID), formatDatabaseValue(row.WorkID), familyValue(row.Title), familyValue(row.Year),
+			familyValue(row.Journal), familyValue(row.Publisher), familyValue(row.Source), familyValue(row.DOI), familyValue(row.ValidationStatus),
+			familyValue(row.CitationCount), familyValue(row.ReferenceCount), familyValue(row.ProducerStage), familyValue(row.CreatedAt),
+			familyValue(row.Abstract), familyValue(row.Keywords), familyValue(row.KeywordsPlus), familyValue(row.Authors), formatDatabaseValue(row.WorkRevisionID),
+			familyValue(row.ReviewStatus), formatDatabaseValue(boolInt(row.ReviewInherited)), familyValue(row.ReviewVersionID),
+			familyValue(row.ReviewCreatedInContextID),
 		})
 	}
 	if !rowsEqual(legacyEvaluation, familyEvaluation) {
@@ -194,7 +194,7 @@ func TestWorkReadParityWithLegacyServerQueries(t *testing.T) {
 	familyMatchRows := make([][]string, 0)
 	for _, field := range []string{"title", "abstract", "keywords", "keywords_plus"} {
 		for _, term := range familyMatches[field] {
-			familyMatchRows = append(familyMatchRows, []string{field, term})
+			familyMatchRows = append(familyMatchRows, []string{formatDatabaseValue(field), formatDatabaseValue(term)})
 		}
 	}
 	sortRows(legacyMatches)
@@ -221,28 +221,17 @@ func sortRows(rows [][]string) {
 	})
 }
 
-// familyText renders a family string value with empty mapped to the legacy NULL marker.
-func familyText(value string) string {
-	if value == "" {
-		return "<null>"
+// familyValue renders optional or required application values with exact
+// JSON null, string, and number identity for the legacy query comparison.
+func familyValue(value any) string {
+	reflected := reflect.ValueOf(value)
+	if reflected.IsValid() && reflected.Kind() == reflect.Pointer {
+		if reflected.IsNil() {
+			return formatDatabaseValue(nil)
+		}
+		value = reflected.Elem().Interface()
 	}
-	return value
-}
-
-// familyInt renders a family integer value with zero mapped to the legacy NULL marker.
-func familyInt(value int) string {
-	if value == 0 {
-		return "<null>"
-	}
-	return formatDatabaseValue(int64(value))
-}
-
-// familyNullableInt renders an optional family integer with nil mapped to the legacy NULL marker.
-func familyNullableInt(value *int64) string {
-	if value == nil {
-		return "<null>"
-	}
-	return formatDatabaseValue(*value)
+	return formatDatabaseValue(value)
 }
 
 // boolInt renders a boolean as the legacy integer representation.
@@ -289,14 +278,12 @@ func queryRowValues(t *testing.T, db *sql.DB, query string, args ...any) [][]str
 
 // formatDatabaseValue renders one scanned SQLite value as comparable text.
 func formatDatabaseValue(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return "<null>"
-	case []byte:
-		return string(typed)
-	case string:
-		return typed
-	default:
-		return fmt.Sprint(typed)
+	if bytes, ok := value.([]byte); ok {
+		value = string(bytes)
 	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
 }

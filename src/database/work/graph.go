@@ -29,10 +29,10 @@ func (s *Store) ListGraphArticles(ctx context.Context, filter GraphFilter) ([]*G
 		items = append(items, &GraphArticle{
 			ID:     int64Value(row["id"]),
 			WorkID: int64Value(row["work_id"]),
-			Title:  stringValue(row["title"]),
-			Year:   int(int64Value(row["year"])),
-			Source: stringValue(row["source"]),
-			DOI:    stringValue(row["doi"]),
+			Title:  rowText(row["title"]),
+			Year:   rowNumber(row["year"]),
+			Source: rowText(row["source"]),
+			DOI:    rowText(row["doi"]),
 		})
 	}
 	return items, matches, nil
@@ -58,9 +58,9 @@ func (s *Store) ListGraphAuthorships(ctx context.Context, revisionIDs []int64, a
 			WorkRevisionID: int64Value(row["work_revision_id"]),
 			AuthorID:       int64Value(row["author_id"]),
 			CitationName:   stringValue(row["citation_name"]),
-			ORCID:          stringValue(row["orcid"]),
+			ORCID:          rowText(row["orcid"]),
 			AuthorOrder:    int(int64Value(row["author_order"])),
-			Affiliation:    stringValue(row["affiliation"]),
+			Affiliation:    rowText(row["affiliation"]),
 		})
 	}
 	return items, nil
@@ -109,11 +109,11 @@ func (s *Store) ListGraphReferences(ctx context.Context, revisionIDs []int64, ro
 		items = append(items, &GraphReference{
 			ID:             int64Value(row["reference_id"]),
 			WorkRevisionID: int64Value(row["work_revision_id"]),
-			DOI:            stringValue(row["doi"]),
-			Title:          stringValue(row["title"]),
-			Author:         stringValue(row["author"]),
-			Year:           int(int64Value(row["year"])),
-			Source:         stringValue(row["source"]),
+			DOI:            rowText(row["doi"]),
+			Title:          rowText(row["title"]),
+			Author:         rowText(row["author"]),
+			Year:           rowNumber(row["year"]),
+			Source:         rowText(row["source"]),
 		})
 	}
 	return items, nil

@@ -168,11 +168,11 @@ type ArticleAuthor struct {
 	ID           int64
 	PersonID     *int64
 	CitationName string
-	FirstName    string
-	LastName     string
-	ORCID        string
+	FirstName    *string
+	LastName     *string
+	ORCID        *string
 	AuthorOrder  int
-	Affiliation  string
+	Affiliation  *string
 }
 
 // ArticleAuthorPageInput selects one bounded page of article authors.
@@ -197,20 +197,20 @@ type ArticleRevision struct {
 	PipelineRunID      int64
 	FieldSchemaVersion string
 	PayloadHash        string
-	Title              string
-	Abstract           string
-	Year               int
-	Journal            string
-	Publisher          string
-	Source             string
-	Keywords           string
-	KeywordsPlus       string
-	CitationCount      int
-	ReferenceCount     int
-	ExtensionData      string
+	Title              *string
+	Abstract           *string
+	Year               *int64
+	Journal            *string
+	Publisher          *string
+	Source             *string
+	Keywords           *string
+	KeywordsPlus       *string
+	CitationCount      *int64
+	ReferenceCount     *int64
+	ExtensionData      *string
 	ProducerStage      string
 	CreatedAt          string
-	DOI                string
+	DOI                *string
 }
 
 // ArticleReference is one cited reference with its resolved-work context.
@@ -219,14 +219,14 @@ type ArticleReference struct {
 	WorkRevisionID     int64
 	ResolvedWorkID     *int64
 	MentionOrder       int
-	DOI                string
-	Title              string
-	Author             string
-	Year               int
-	Source             string
+	DOI                *string
+	Title              *string
+	Author             *string
+	Year               *int64
+	Source             *string
 	CreatedAt          string
 	ResolvedRevisionID *int64
-	ResolvedTitle      string
+	ResolvedTitle      *string
 }
 
 // ArticleReferencePageInput selects one bounded page of article references.
@@ -254,7 +254,7 @@ type ArticleStagePageInput struct {
 
 // ArticleStagePage is one bounded page of article stage outcomes with its exact total.
 type ArticleStagePage struct {
-	Items        []*StageOutcome
+	Items        []*StageRow
 	Total        int64
 	HasMore      bool
 	NextCursorID int64
@@ -292,12 +292,22 @@ type AuthorArticlePage struct {
 
 // ReferenceDetail is one reference mention with its citing and resolved-work context.
 type ReferenceDetail struct {
-	Reference
+	ID                 int64
+	WorkRevisionID     int64
+	ResolvedWorkID     *int64
+	MentionOrder       int
+	RawReference       *string
+	DOI                *string
+	Title              *string
+	Author             *string
+	Year               *int64
+	Source             *string
+	CreatedAt          string
 	WorkID             int64
-	CitingTitle        string
+	CitingTitle        *string
 	PipelineRunID      int64
 	ResolvedRevisionID *int64
-	ResolvedTitle      string
+	ResolvedTitle      *string
 }
 
 // EvaluationFilter selects one bounded evaluation page and its review facets.
@@ -323,21 +333,21 @@ type EvaluationFilter struct {
 type EvaluationRow struct {
 	ID                       int64
 	WorkID                   int64
-	Title                    string
-	Year                     int
-	Journal                  string
-	Publisher                string
-	Source                   string
-	DOI                      string
-	ValidationStatus         string
-	CitationCount            int
-	ReferenceCount           int
+	Title                    *string
+	Year                     *int64
+	Journal                  *string
+	Publisher                *string
+	Source                   *string
+	DOI                      *string
+	ValidationStatus         *string
+	CitationCount            *int64
+	ReferenceCount           *int64
 	ProducerStage            string
 	CreatedAt                string
-	Abstract                 string
-	Keywords                 string
-	KeywordsPlus             string
-	Authors                  string
+	Abstract                 *string
+	Keywords                 *string
+	KeywordsPlus             *string
+	Authors                  *string
 	WorkRevisionID           int64
 	ReviewStatus             string
 	ReviewInherited          bool
@@ -405,10 +415,10 @@ type GraphFilter struct {
 type GraphArticle struct {
 	ID     int64
 	WorkID int64
-	Title  string
-	Year   int
-	Source string
-	DOI    string
+	Title  *string
+	Year   *int64
+	Source *string
+	DOI    *string
 }
 
 // GraphAuthorship is one article-author relationship row.
@@ -416,9 +426,9 @@ type GraphAuthorship struct {
 	WorkRevisionID int64
 	AuthorID       int64
 	CitationName   string
-	ORCID          string
+	ORCID          *string
 	AuthorOrder    int
-	Affiliation    string
+	Affiliation    *string
 }
 
 // GraphCitation is one resolved citation relationship row.
@@ -431,11 +441,11 @@ type GraphCitation struct {
 type GraphReference struct {
 	ID             int64
 	WorkRevisionID int64
-	DOI            string
-	Title          string
-	Author         string
-	Year           int
-	Source         string
+	DOI            *string
+	Title          *string
+	Author         *string
+	Year           *int64
+	Source         *string
 }
 
 // Coverage is the work-revision and journal coverage for one run.
@@ -458,13 +468,13 @@ type CorpusReference struct {
 	ID             int64
 	WorkRevisionID int64
 	MentionOrder   int
-	DOI            string
-	Title          string
-	Author         string
-	Year           int
-	Source         string
+	DOI            *string
+	Title          *string
+	Author         *string
+	Year           *int64
+	Source         *string
 	ResolvedWorkID *int64
-	CitingTitle    string
+	CitingTitle    *string
 	CreatedAt      string
 }
 
@@ -489,9 +499,9 @@ type CorpusReferencePage struct {
 type CorpusAuthor struct {
 	ID               int64
 	CitationName     string
-	FirstName        string
-	LastName         string
-	ORCID            string
+	FirstName        *string
+	LastName         *string
+	ORCID            *string
 	PersonID         *int64
 	ArticleCount     int64
 	AffiliationCount int64
@@ -526,7 +536,7 @@ type RunStageFilter struct {
 
 // RunStagePage is one bounded page of run stage outcomes with its exact total.
 type RunStagePage struct {
-	Items []*StageOutcome
+	Items []*StageRow
 	Total int64
 }
 
@@ -537,4 +547,17 @@ type StageSummary struct {
 	Outcomes        map[string]int64
 	FirstRecordedAt string
 	LastRecordedAt  string
+}
+
+// StageRow is a viewer stage projection that preserves an absent reason independently
+// of empty text. Pipeline StageOutcome reads retain their established zero values.
+type StageRow struct {
+	ID            int64
+	PipelineRunID int64
+	WorkID        int64
+	StageName     string
+	Outcome       string
+	Reason        *string
+	CreatedAt     string
+	UpdatedAt     string
 }

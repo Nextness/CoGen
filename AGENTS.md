@@ -48,6 +48,7 @@ make check-docs
 make docs-catalog-update
 make docs-state-update
 make test-e2e
+make test-migration-parity
 make test-e2e-live E2E_LIVE=1
 make frontend-build
 make frontend-classes

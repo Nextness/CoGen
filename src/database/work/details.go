@@ -107,9 +107,18 @@ func (s *Store) ListArticleStages(ctx context.Context, input ArticleStagePageInp
 	if hasMore {
 		rows = rows[:input.Limit]
 	}
-	items := make([]*StageOutcome, 0, len(rows))
+	items := make([]*StageRow, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, stageOutcomeFromGenerated(row))
+		items = append(items, &StageRow{
+			ID:            row.ID,
+			PipelineRunID: row.PipelineRunID,
+			WorkID:        row.WorkID,
+			StageName:     row.StageName,
+			Outcome:       row.Outcome,
+			Reason:        textPointer(row.Reason),
+			CreatedAt:     row.CreatedAt,
+			UpdatedAt:     row.UpdatedAt,
+		})
 	}
 	var nextCursorID int64
 	if hasMore && len(items) > 0 {
@@ -198,7 +207,7 @@ func (s *Store) GetReferenceDetail(ctx context.Context, referenceID, runID int64
 // articleRevisionFromGenerated maps one generated article revision row into an
 // application revision and makes every nullable field explicit.
 func articleRevisionFromGenerated(row generated.GetArticleRevisionRow) *ArticleRevision {
-	revision := &ArticleRevision{
+	return &ArticleRevision{
 		ID:                 row.ID,
 		WorkID:             row.WorkID,
 		PipelineRunID:      row.PipelineRunID,
@@ -206,127 +215,59 @@ func articleRevisionFromGenerated(row generated.GetArticleRevisionRow) *ArticleR
 		PayloadHash:        row.PayloadHash,
 		ProducerStage:      row.ProducerStage,
 		CreatedAt:          row.CreatedAt,
+		Title:              textPointer(row.Title),
+		Abstract:           textPointer(row.Abstract),
+		Year:               numberPointer(row.Year),
+		Journal:            textPointer(row.Journal),
+		Publisher:          textPointer(row.Publisher),
+		Source:             textPointer(row.Source),
+		Keywords:           textPointer(row.Keywords),
+		KeywordsPlus:       textPointer(row.KeywordsPlus),
+		CitationCount:      numberPointer(row.CitationCount),
+		ReferenceCount:     numberPointer(row.ReferenceCount),
+		ExtensionData:      textPointer(row.ExtensionData),
+		DOI:                textPointer(row.Doi),
 	}
-	if row.Title.Valid {
-		revision.Title = row.Title.String
-	}
-	if row.Abstract.Valid {
-		revision.Abstract = row.Abstract.String
-	}
-	if row.Year.Valid {
-		revision.Year = int(row.Year.Int64)
-	}
-	if row.Journal.Valid {
-		revision.Journal = row.Journal.String
-	}
-	if row.Publisher.Valid {
-		revision.Publisher = row.Publisher.String
-	}
-	if row.Source.Valid {
-		revision.Source = row.Source.String
-	}
-	if row.Keywords.Valid {
-		revision.Keywords = row.Keywords.String
-	}
-	if row.KeywordsPlus.Valid {
-		revision.KeywordsPlus = row.KeywordsPlus.String
-	}
-	if row.CitationCount.Valid {
-		revision.CitationCount = int(row.CitationCount.Int64)
-	}
-	if row.ReferenceCount.Valid {
-		revision.ReferenceCount = int(row.ReferenceCount.Int64)
-	}
-	if row.ExtensionData.Valid {
-		revision.ExtensionData = row.ExtensionData.String
-	}
-	if row.Doi.Valid {
-		revision.DOI = row.Doi.String
-	}
-	return revision
 }
 
 // articleReferenceFromGenerated maps one generated reference row into an
 // application reference and makes every nullable field explicit.
 func articleReferenceFromGenerated(row generated.ListArticleReferencesRow) *ArticleReference {
-	reference := &ArticleReference{
-		ID:             row.ID,
-		WorkRevisionID: row.WorkRevisionID,
-		MentionOrder:   int(row.MentionOrder),
-		CreatedAt:      row.CreatedAt,
+	return &ArticleReference{
+		ID:                 row.ID,
+		WorkRevisionID:     row.WorkRevisionID,
+		MentionOrder:       int(row.MentionOrder),
+		CreatedAt:          row.CreatedAt,
+		ResolvedWorkID:     numberPointer(row.ResolvedWorkID),
+		DOI:                textPointer(row.Doi),
+		Title:              textPointer(row.Title),
+		Author:             textPointer(row.Author),
+		Year:               numberPointer(row.Year),
+		Source:             textPointer(row.Source),
+		ResolvedRevisionID: numberPointer(row.ResolvedRevisionID),
+		ResolvedTitle:      textPointer(row.ResolvedTitle),
 	}
-	if row.ResolvedWorkID.Valid {
-		value := row.ResolvedWorkID.Int64
-		reference.ResolvedWorkID = &value
-	}
-	if row.Doi.Valid {
-		reference.DOI = row.Doi.String
-	}
-	if row.Title.Valid {
-		reference.Title = row.Title.String
-	}
-	if row.Author.Valid {
-		reference.Author = row.Author.String
-	}
-	if row.Year.Valid {
-		reference.Year = int(row.Year.Int64)
-	}
-	if row.Source.Valid {
-		reference.Source = row.Source.String
-	}
-	if row.ResolvedRevisionID.Valid {
-		value := row.ResolvedRevisionID.Int64
-		reference.ResolvedRevisionID = &value
-	}
-	if row.ResolvedTitle.Valid {
-		reference.ResolvedTitle = row.ResolvedTitle.String
-	}
-	return reference
 }
 
 // referenceDetailFromGenerated maps one generated reference-detail row into an
 // application reference detail and makes every nullable field explicit.
 func referenceDetailFromGenerated(row generated.GetReferenceDetailRow) *ReferenceDetail {
-	detail := &ReferenceDetail{
-		Reference: Reference{
-			ID:             row.ID,
-			WorkRevisionID: row.WorkRevisionID,
-			MentionOrder:   int(row.MentionOrder),
-			CreatedAt:      row.CreatedAt,
-		},
-		WorkID:        row.WorkID,
-		PipelineRunID: row.PipelineRunID,
+	return &ReferenceDetail{
+		ID:                 row.ID,
+		WorkRevisionID:     row.WorkRevisionID,
+		MentionOrder:       int(row.MentionOrder),
+		CreatedAt:          row.CreatedAt,
+		WorkID:             row.WorkID,
+		PipelineRunID:      row.PipelineRunID,
+		ResolvedWorkID:     numberPointer(row.ResolvedWorkID),
+		RawReference:       textPointer(row.RawReference),
+		DOI:                textPointer(row.Doi),
+		Title:              textPointer(row.Title),
+		Author:             textPointer(row.Author),
+		Year:               numberPointer(row.Year),
+		Source:             textPointer(row.Source),
+		CitingTitle:        textPointer(row.CitingTitle),
+		ResolvedRevisionID: numberPointer(row.ResolvedRevisionID),
+		ResolvedTitle:      textPointer(row.ResolvedTitle),
 	}
-	if row.ResolvedWorkID.Valid {
-		detail.ResolvedWorkID = row.ResolvedWorkID.Int64
-	}
-	if row.RawReference.Valid {
-		detail.RawReference = row.RawReference.String
-	}
-	if row.Doi.Valid {
-		detail.DOI = row.Doi.String
-	}
-	if row.Title.Valid {
-		detail.Title = row.Title.String
-	}
-	if row.Author.Valid {
-		detail.Author = row.Author.String
-	}
-	if row.Year.Valid {
-		detail.Year = int(row.Year.Int64)
-	}
-	if row.Source.Valid {
-		detail.Source = row.Source.String
-	}
-	if row.CitingTitle.Valid {
-		detail.CitingTitle = row.CitingTitle.String
-	}
-	if row.ResolvedRevisionID.Valid {
-		value := row.ResolvedRevisionID.Int64
-		detail.ResolvedRevisionID = &value
-	}
-	if row.ResolvedTitle.Valid {
-		detail.ResolvedTitle = row.ResolvedTitle.String
-	}
-	return detail
 }

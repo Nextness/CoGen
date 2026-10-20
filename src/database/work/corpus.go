@@ -166,7 +166,7 @@ func (s *Store) ListRunStages(ctx context.Context, filter RunStageFilter) (*RunS
 	if err != nil {
 		return nil, fmt.Errorf("list run stages: %w", err)
 	}
-	items := make([]*StageOutcome, 0, len(rows))
+	items := make([]*StageRow, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, stageOutcomeFromRow(row))
 	}
@@ -233,12 +233,12 @@ func corpusReferenceFromRow(row map[string]any) *CorpusReference {
 		ID:             int64Value(row["id"]),
 		WorkRevisionID: int64Value(row["work_revision_id"]),
 		MentionOrder:   int(int64Value(row["mention_order"])),
-		DOI:            stringValue(row["doi"]),
-		Title:          stringValue(row["title"]),
-		Author:         stringValue(row["author"]),
-		Year:           int(int64Value(row["year"])),
-		Source:         stringValue(row["source"]),
-		CitingTitle:    stringValue(row["citing_title"]),
+		DOI:            rowText(row["doi"]),
+		Title:          rowText(row["title"]),
+		Author:         rowText(row["author"]),
+		Year:           rowNumber(row["year"]),
+		Source:         rowText(row["source"]),
+		CitingTitle:    rowText(row["citing_title"]),
 		CreatedAt:      stringValue(row["created_at"]),
 	}
 	if value, ok := row["resolved_work_id"].(int64); ok {
@@ -252,9 +252,9 @@ func corpusAuthorFromRow(row map[string]any) *CorpusAuthor {
 	author := &CorpusAuthor{
 		ID:               int64Value(row["id"]),
 		CitationName:     stringValue(row["citation_name"]),
-		FirstName:        stringValue(row["first_name"]),
-		LastName:         stringValue(row["last_name"]),
-		ORCID:            stringValue(row["orcid"]),
+		FirstName:        rowText(row["first_name"]),
+		LastName:         rowText(row["last_name"]),
+		ORCID:            rowText(row["orcid"]),
 		ArticleCount:     int64Value(row["article_count"]),
 		AffiliationCount: int64Value(row["affiliation_count"]),
 		CreatedAt:        stringValue(row["created_at"]),
@@ -266,14 +266,14 @@ func corpusAuthorFromRow(row map[string]any) *CorpusAuthor {
 }
 
 // stageOutcomeFromRow maps one dynamic stage row into an application stage outcome.
-func stageOutcomeFromRow(row map[string]any) *StageOutcome {
-	return &StageOutcome{
+func stageOutcomeFromRow(row map[string]any) *StageRow {
+	return &StageRow{
 		ID:            int64Value(row["id"]),
 		PipelineRunID: int64Value(row["pipeline_run_id"]),
 		WorkID:        int64Value(row["work_id"]),
 		StageName:     stringValue(row["stage_name"]),
 		Outcome:       stringValue(row["outcome"]),
-		Reason:        stringValue(row["reason"]),
+		Reason:        rowText(row["reason"]),
 		CreatedAt:     stringValue(row["created_at"]),
 		UpdatedAt:     stringValue(row["updated_at"]),
 	}

@@ -199,10 +199,10 @@ func TestStoreListArticleAuthorsOrdersAndPaginates(t *testing.T) {
 	if page.Total != 2 || len(page.Items) != 1 || !page.HasMore {
 		t.Fatalf("first author page = %+v", page)
 	}
-	if page.Items[0].CitationName != "Doe, Jane" || page.Items[0].AuthorOrder != 1 || page.Items[0].Affiliation != "University" {
+	if page.Items[0].CitationName != "Doe, Jane" || page.Items[0].AuthorOrder != 1 || !pointsTo(page.Items[0].Affiliation, "University") {
 		t.Fatalf("first author = %+v", page.Items[0])
 	}
-	if page.Items[0].ORCID != "0000-0002-1825-0097" || page.Items[0].FirstName != "Jane" || page.Items[0].LastName != "Doe" {
+	if !pointsTo(page.Items[0].ORCID, "0000-0002-1825-0097") || !pointsTo(page.Items[0].FirstName, "Jane") || !pointsTo(page.Items[0].LastName, "Doe") {
 		t.Fatalf("first author identity = %+v", page.Items[0])
 	}
 	if page.NextCursorID != page.Items[0].RelationID {
@@ -218,10 +218,10 @@ func TestStoreListArticleAuthorsOrdersAndPaginates(t *testing.T) {
 	if second.Total != 2 || len(second.Items) != 1 || second.HasMore {
 		t.Fatalf("second author page = %+v", second)
 	}
-	if second.Items[0].CitationName != "Smith, John" || second.Items[0].AuthorOrder != 2 || second.Items[0].Affiliation != "" {
+	if second.Items[0].CitationName != "Smith, John" || second.Items[0].AuthorOrder != 2 || second.Items[0].Affiliation != nil {
 		t.Fatalf("second author = %+v", second.Items[0])
 	}
-	if second.Items[0].PersonID != nil || second.Items[0].ORCID != "" {
+	if second.Items[0].PersonID != nil || second.Items[0].ORCID != nil {
 		t.Fatalf("second author nullable identity = %+v", second.Items[0])
 	}
 
@@ -284,11 +284,11 @@ func TestStoreGetArticleRevisionHonorsNormalizedVisibility(t *testing.T) {
 	if visible == nil {
 		t.Fatal("current normalized revision was not visible")
 	}
-	if visible.Title != "Normalized article" || visible.Year != 2024 || visible.Journal != "Journal" ||
-		visible.Source != "scopus" || visible.Abstract != "Abstract text" || visible.Keywords != `["kw"]` {
+	if !pointsTo(visible.Title, "Normalized article") || !pointsTo(visible.Year, 2024) || !pointsTo(visible.Journal, "Journal") ||
+		!pointsTo(visible.Source, "scopus") || !pointsTo(visible.Abstract, "Abstract text") || !pointsTo(visible.Keywords, `["kw"]`) {
 		t.Fatalf("visible revision = %+v", visible)
 	}
-	if visible.DOI != "10.1000/relationship" || visible.ProducerStage != work.ProducerStageNormalize {
+	if !pointsTo(visible.DOI, "10.1000/relationship") || visible.ProducerStage != work.ProducerStageNormalize {
 		t.Fatalf("visible revision identity = %+v", visible)
 	}
 
@@ -304,7 +304,7 @@ func TestStoreGetArticleRevisionHonorsNormalizedVisibility(t *testing.T) {
 	if err != nil || parse == nil {
 		t.Fatalf("parse revision = %+v err=%v, want visible", parse, err)
 	}
-	if parse.Year != 2024 || parse.Abstract != "" || parse.Keywords != "" {
+	if !pointsTo(parse.Year, 2024) || parse.Abstract != nil || parse.Keywords != nil {
 		t.Fatalf("parse revision nullable fields = %+v", parse)
 	}
 	missing, err := fixture.store.GetArticleRevision(ctx, 99999, fixture.runID)
@@ -348,7 +348,7 @@ func TestStoreListArticleReferencesResolvesTargetAndPaginates(t *testing.T) {
 		t.Fatalf("reference page = %+v", page)
 	}
 	reference := page.Items[0]
-	if reference.ID != fixture.referenceID || reference.MentionOrder != 1 || reference.DOI != "10.1000/relationship-second" {
+	if reference.ID != fixture.referenceID || reference.MentionOrder != 1 || !pointsTo(reference.DOI, "10.1000/relationship-second") {
 		t.Fatalf("reference = %+v", reference)
 	}
 	if reference.ResolvedWorkID == nil || *reference.ResolvedWorkID != fixture.secondWorkID {
@@ -357,8 +357,8 @@ func TestStoreListArticleReferencesResolvesTargetAndPaginates(t *testing.T) {
 	if reference.ResolvedRevisionID == nil || *reference.ResolvedRevisionID != fixture.secondNormalizeRevisionID {
 		t.Fatalf("resolved revision = %+v", reference.ResolvedRevisionID)
 	}
-	if reference.ResolvedTitle != "Second article" {
-		t.Fatalf("resolved title = %q", reference.ResolvedTitle)
+	if !pointsTo(reference.ResolvedTitle, "Second article") {
+		t.Fatalf("resolved title = %v", reference.ResolvedTitle)
 	}
 
 	empty, err := fixture.store.ListArticleReferences(ctx, work.ArticleReferencePageInput{RevisionID: fixture.secondNormalizeRevisionID, Limit: 10})
@@ -414,13 +414,13 @@ func TestStoreGetReferenceDetailResolvesTarget(t *testing.T) {
 	if detail == nil {
 		t.Fatal("reference detail was not found")
 	}
-	if detail.WorkID != fixture.workID || detail.CitingTitle != "Normalized article" || detail.PipelineRunID != fixture.runID {
+	if detail.WorkID != fixture.workID || !pointsTo(detail.CitingTitle, "Normalized article") || detail.PipelineRunID != fixture.runID {
 		t.Fatalf("reference detail context = %+v", detail)
 	}
 	if detail.ResolvedRevisionID == nil || *detail.ResolvedRevisionID != fixture.secondNormalizeRevisionID {
 		t.Fatalf("reference detail resolved revision = %+v", detail.ResolvedRevisionID)
 	}
-	if detail.ResolvedTitle != "Second article" || detail.RawReference != "raw reference" {
+	if !pointsTo(detail.ResolvedTitle, "Second article") || !pointsTo(detail.RawReference, "raw reference") {
 		t.Fatalf("reference detail = %+v", detail)
 	}
 	missing, err := fixture.store.GetReferenceDetail(ctx, 99999, fixture.runID)
@@ -474,7 +474,7 @@ func TestStoreListEvaluationFiltersAndOrders(t *testing.T) {
 	if page.Total != 2 || len(page.Items) != 2 {
 		t.Fatalf("evaluation page = %+v", page)
 	}
-	if page.Items[0].Title != "Normalized article" || page.Items[1].Title != "Second article" {
+	if !pointsTo(page.Items[0].Title, "Normalized article") || !pointsTo(page.Items[1].Title, "Second article") {
 		t.Fatalf("evaluation order = %+v", page.Items)
 	}
 	if page.Items[0].ReviewStatus != "not_approved" || page.Items[0].ReviewInherited {
@@ -494,7 +494,7 @@ func TestStoreListEvaluationFiltersAndOrders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filtered.Total != 1 || len(filtered.Items) != 1 || filtered.Items[0].Title != "Normalized article" {
+	if filtered.Total != 1 || len(filtered.Items) != 1 || !pointsTo(filtered.Items[0].Title, "Normalized article") {
 		t.Fatalf("filtered evaluation page = %+v", filtered)
 	}
 
@@ -505,7 +505,7 @@ func TestStoreListEvaluationFiltersAndOrders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if searched.Total != 1 || searched.Items[0].Title != "Second article" {
+	if searched.Total != 1 || !pointsTo(searched.Items[0].Title, "Second article") {
 		t.Fatalf("searched evaluation page = %+v", searched)
 	}
 }
@@ -558,7 +558,7 @@ func TestStoreGraphArticlesFilters(t *testing.T) {
 	if matches != 2 || len(articles) != 2 {
 		t.Fatalf("graph articles = %d matches=%d", len(articles), matches)
 	}
-	if articles[0].Title != "Normalized article" || articles[0].DOI != "10.1000/relationship" {
+	if !pointsTo(articles[0].Title, "Normalized article") || !pointsTo(articles[0].DOI, "10.1000/relationship") {
 		t.Fatalf("first graph article = %+v", articles[0])
 	}
 
@@ -568,7 +568,7 @@ func TestStoreGraphArticlesFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if matches != 1 || len(filtered) != 1 || filtered[0].Title != "Second article" {
+	if matches != 1 || len(filtered) != 1 || !pointsTo(filtered[0].Title, "Second article") {
 		t.Fatalf("filtered graph articles = %+v matches=%d", filtered, matches)
 	}
 
@@ -578,7 +578,7 @@ func TestStoreGraphArticlesFilters(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if matches != 1 || len(byAuthor) != 1 || byAuthor[0].Title != "Normalized article" {
+	if matches != 1 || len(byAuthor) != 1 || !pointsTo(byAuthor[0].Title, "Normalized article") {
 		t.Fatalf("author graph articles = %+v matches=%d", byAuthor, matches)
 	}
 }
@@ -596,7 +596,7 @@ func TestStoreGraphRelationshipRows(t *testing.T) {
 	if len(authorships) != 2 || authorships[0].CitationName != "Doe, Jane" || authorships[1].CitationName != "Smith, John" {
 		t.Fatalf("graph authorships = %+v", authorships)
 	}
-	if authorships[0].ORCID != "0000-0002-1825-0097" || authorships[0].Affiliation != "University" {
+	if !pointsTo(authorships[0].ORCID, "0000-0002-1825-0097") || !pointsTo(authorships[0].Affiliation, "University") {
 		t.Fatalf("graph authorship identity = %+v", authorships[0])
 	}
 
@@ -612,7 +612,7 @@ func TestStoreGraphRelationshipRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(references) != 1 || references[0].ID != fixture.referenceID || references[0].Title != "Second article" {
+	if len(references) != 1 || references[0].ID != fixture.referenceID || !pointsTo(references[0].Title, "Second article") {
 		t.Fatalf("graph references = %+v", references)
 	}
 
@@ -684,7 +684,7 @@ func TestStoreListCorpusReferencesSortsAndSearches(t *testing.T) {
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != fixture.referenceID {
 		t.Fatalf("corpus references = %+v", page)
 	}
-	if page.Items[0].CitingTitle != "Normalized article" || page.Items[0].ResolvedWorkID == nil {
+	if !pointsTo(page.Items[0].CitingTitle, "Normalized article") || page.Items[0].ResolvedWorkID == nil {
 		t.Fatalf("corpus reference projection = %+v", page.Items[0])
 	}
 
@@ -874,4 +874,10 @@ func TestStoreEvaluationSummaryEmptyRun(t *testing.T) {
 	if summary.Total != 0 || summary.PercentReviewed != nil {
 		t.Fatalf("empty evaluation summary = %+v", summary)
 	}
+}
+
+// pointsTo compares a present optional value without conflating absence with
+// the type's zero value.
+func pointsTo[T comparable](value *T, expected T) bool {
+	return value != nil && *value == expected
 }

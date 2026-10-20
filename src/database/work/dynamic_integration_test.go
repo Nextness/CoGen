@@ -47,14 +47,14 @@ func TestStoreCorpusBuildersConstrainDynamicInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(references.Items) != 2 || references.Items[0].Title != "Second article" || references.Items[1].Title != `x' OR '1'='1` {
+	if len(references.Items) != 2 || !pointsTo(references.Items[0].Title, "Second article") || !pointsTo(references.Items[1].Title, `x' OR '1'='1`) {
 		t.Fatalf("ascending reference order = %+v", references.Items)
 	}
 	literalReferences, err := fixture.store.ListCorpusReferences(ctx, work.CorpusReferenceFilter{RunID: fixture.runID, Query: `' OR '1'='1`, Sort: "id", Order: "ASC", Page: 1, PerPage: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if literalReferences.Total != 1 || len(literalReferences.Items) != 1 || literalReferences.Items[0].Title != `x' OR '1'='1` {
+	if literalReferences.Total != 1 || len(literalReferences.Items) != 1 || !pointsTo(literalReferences.Items[0].Title, `x' OR '1'='1`) {
 		t.Fatalf("literal reference search = %+v", literalReferences.Items)
 	}
 
@@ -84,7 +84,7 @@ func TestStoreCorpusBuildersConstrainDynamicInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if literalStages.Total != 1 || len(literalStages.Items) != 1 || literalStages.Items[0].Reason != `x' OR '1'='1` {
+	if literalStages.Total != 1 || len(literalStages.Items) != 1 || !pointsTo(literalStages.Items[0].Reason, `x' OR '1'='1`) {
 		t.Fatalf("literal stage search = %+v", literalStages.Items)
 	}
 
@@ -133,7 +133,7 @@ func TestStoreEvaluationBuilderConstrainsDynamicInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ascending.Items) != 2 || ascending.Items[0].Title != "Normalized article" || ascending.Items[1].Title != "Second article" {
+	if len(ascending.Items) != 2 || !pointsTo(ascending.Items[0].Title, "Normalized article") || !pointsTo(ascending.Items[1].Title, "Second article") {
 		t.Fatalf("ascending evaluation order = %+v", ascending.Items)
 	}
 	descending := base
@@ -142,7 +142,7 @@ func TestStoreEvaluationBuilderConstrainsDynamicInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(reversed.Items) != 2 || reversed.Items[0].Title != "Second article" || reversed.Items[1].Title != "Normalized article" {
+	if len(reversed.Items) != 2 || !pointsTo(reversed.Items[0].Title, "Second article") || !pointsTo(reversed.Items[1].Title, "Normalized article") {
 		t.Fatalf("descending evaluation order = %+v", reversed.Items)
 	}
 

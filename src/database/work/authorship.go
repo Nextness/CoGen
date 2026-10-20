@@ -46,27 +46,15 @@ func (s *Store) ListArticleAuthors(ctx context.Context, input ArticleAuthorPageI
 // articleAuthorFromGenerated maps one generated authorship row into an
 // application author and makes every nullable field explicit.
 func articleAuthorFromGenerated(row generated.ListArticleAuthorsRow) *ArticleAuthor {
-	author := &ArticleAuthor{
+	return &ArticleAuthor{
 		RelationID:   row.RelationID,
 		ID:           row.ID,
 		CitationName: row.CitationName,
 		AuthorOrder:  int(row.AuthorOrder),
+		PersonID:     numberPointer(row.PersonID),
+		FirstName:    textPointer(row.FirstName),
+		LastName:     textPointer(row.LastName),
+		ORCID:        textPointer(row.Orcid),
+		Affiliation:  textPointer(row.Affiliation),
 	}
-	if row.PersonID.Valid {
-		value := row.PersonID.Int64
-		author.PersonID = &value
-	}
-	if row.FirstName.Valid {
-		author.FirstName = row.FirstName.String
-	}
-	if row.LastName.Valid {
-		author.LastName = row.LastName.String
-	}
-	if row.Orcid.Valid {
-		author.ORCID = row.Orcid.String
-	}
-	if row.Affiliation.Valid {
-		author.Affiliation = row.Affiliation.String
-	}
-	return author
 }

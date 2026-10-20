@@ -13,12 +13,12 @@ func corpusReferenceRow(reference *work.CorpusReference) map[string]any {
 		"id":               reference.ID,
 		"work_revision_id": reference.WorkRevisionID,
 		"mention_order":    reference.MentionOrder,
-		"doi":              reference.DOI,
-		"title":            reference.Title,
-		"author":           reference.Author,
-		"year":             reference.Year,
-		"source":           reference.Source,
-		"citing_title":     reference.CitingTitle,
+		"doi":              nullableText(reference.DOI),
+		"title":            nullableText(reference.Title),
+		"author":           nullableText(reference.Author),
+		"year":             nullableIDPointer(reference.Year),
+		"source":           nullableText(reference.Source),
+		"citing_title":     nullableText(reference.CitingTitle),
 		"created_at":       reference.CreatedAt,
 	}
 	if reference.ResolvedWorkID != nil {
@@ -34,9 +34,9 @@ func corpusAuthorRow(author *work.CorpusAuthor) map[string]any {
 	row := map[string]any{
 		"id":                author.ID,
 		"citation_name":     author.CitationName,
-		"first_name":        author.FirstName,
-		"last_name":         author.LastName,
-		"orcid":             author.ORCID,
+		"first_name":        nullableText(author.FirstName),
+		"last_name":         nullableText(author.LastName),
+		"orcid":             nullableText(author.ORCID),
 		"article_count":     author.ArticleCount,
 		"affiliation_count": author.AffiliationCount,
 		"created_at":        author.CreatedAt,
@@ -50,13 +50,13 @@ func corpusAuthorRow(author *work.CorpusAuthor) map[string]any {
 }
 
 // stageOutcomeRow maps one work family stage outcome into a viewer row.
-func stageOutcomeRow(outcome *work.StageOutcome) map[string]any {
+func stageOutcomeRow(outcome *work.StageRow) map[string]any {
 	return map[string]any{
 		"id":         outcome.ID,
 		"work_id":    outcome.WorkID,
 		"stage_name": outcome.StageName,
 		"outcome":    outcome.Outcome,
-		"reason":     outcome.Reason,
+		"reason":     nullableText(outcome.Reason),
 		"created_at": outcome.CreatedAt,
 		"updated_at": outcome.UpdatedAt,
 	}
@@ -82,21 +82,21 @@ func evaluationRow(row *work.EvaluationRow) map[string]any {
 	result := map[string]any{
 		"id":                  row.ID,
 		"work_id":             row.WorkID,
-		"title":               row.Title,
-		"year":                row.Year,
-		"journal":             row.Journal,
-		"publisher":           row.Publisher,
-		"source":              row.Source,
-		"doi":                 row.DOI,
-		"validation_status":   row.ValidationStatus,
-		"citation_count":      row.CitationCount,
-		"reference_count":     row.ReferenceCount,
+		"title":               nullableText(row.Title),
+		"year":                nullableIDPointer(row.Year),
+		"journal":             nullableText(row.Journal),
+		"publisher":           nullableText(row.Publisher),
+		"source":              nullableText(row.Source),
+		"doi":                 nullableText(row.DOI),
+		"validation_status":   nullableText(row.ValidationStatus),
+		"citation_count":      nullableIDPointer(row.CitationCount),
+		"reference_count":     nullableIDPointer(row.ReferenceCount),
 		"producer_stage":      row.ProducerStage,
 		"created_at":          row.CreatedAt,
-		"abstract":            row.Abstract,
-		"keywords":            row.Keywords,
-		"keywords_plus":       row.KeywordsPlus,
-		"authors":             row.Authors,
+		"abstract":            nullableText(row.Abstract),
+		"keywords":            nullableText(row.Keywords),
+		"keywords_plus":       nullableText(row.KeywordsPlus),
+		"authors":             nullableText(row.Authors),
 		"work_revision_id":    row.WorkRevisionID,
 		"review_status":       row.ReviewStatus,
 		"review_inherited":    row.ReviewInherited,
@@ -148,10 +148,10 @@ func graphArticleRow(article *work.GraphArticle) map[string]any {
 	return map[string]any{
 		"id":      article.ID,
 		"work_id": article.WorkID,
-		"title":   article.Title,
-		"year":    article.Year,
-		"source":  article.Source,
-		"doi":     article.DOI,
+		"title":   nullableText(article.Title),
+		"year":    nullableIDPointer(article.Year),
+		"source":  nullableText(article.Source),
+		"doi":     nullableText(article.DOI),
 	}
 }
 
@@ -161,9 +161,9 @@ func graphAuthorshipItem(authorship *work.GraphAuthorship) map[string]any {
 		"work_revision_id": authorship.WorkRevisionID,
 		"author_id":        authorship.AuthorID,
 		"citation_name":    authorship.CitationName,
-		"orcid":            authorship.ORCID,
+		"orcid":            nullableText(authorship.ORCID),
 		"author_order":     int64(authorship.AuthorOrder),
-		"affiliation":      authorship.Affiliation,
+		"affiliation":      nullableText(authorship.Affiliation),
 	}
 }
 
@@ -180,11 +180,11 @@ func graphReferenceItem(reference *work.GraphReference) map[string]any {
 	return map[string]any{
 		"reference_id":     reference.ID,
 		"work_revision_id": reference.WorkRevisionID,
-		"doi":              reference.DOI,
-		"title":            reference.Title,
-		"author":           reference.Author,
-		"year":             reference.Year,
-		"source":           reference.Source,
+		"doi":              nullableText(reference.DOI),
+		"title":            nullableText(reference.Title),
+		"author":           nullableText(reference.Author),
+		"year":             nullableIDPointer(reference.Year),
+		"source":           nullableText(reference.Source),
 	}
 }
 
@@ -196,20 +196,20 @@ func articleRevisionRow(revision *work.ArticleRevision) map[string]any {
 		"pipeline_run_id":      revision.PipelineRunID,
 		"field_schema_version": revision.FieldSchemaVersion,
 		"payload_hash":         revision.PayloadHash,
-		"title":                revision.Title,
-		"abstract":             revision.Abstract,
-		"year":                 revision.Year,
-		"journal":              revision.Journal,
-		"publisher":            revision.Publisher,
-		"source":               revision.Source,
-		"keywords":             revision.Keywords,
-		"keywords_plus":        revision.KeywordsPlus,
-		"citation_count":       revision.CitationCount,
-		"reference_count":      revision.ReferenceCount,
-		"extension_data":       revision.ExtensionData,
+		"title":                nullableText(revision.Title),
+		"abstract":             nullableText(revision.Abstract),
+		"year":                 nullableIDPointer(revision.Year),
+		"journal":              nullableText(revision.Journal),
+		"publisher":            nullableText(revision.Publisher),
+		"source":               nullableText(revision.Source),
+		"keywords":             nullableText(revision.Keywords),
+		"keywords_plus":        nullableText(revision.KeywordsPlus),
+		"citation_count":       nullableIDPointer(revision.CitationCount),
+		"reference_count":      nullableIDPointer(revision.ReferenceCount),
+		"extension_data":       nullableText(revision.ExtensionData),
 		"producer_stage":       revision.ProducerStage,
 		"created_at":           revision.CreatedAt,
-		"doi":                  revision.DOI,
+		"doi":                  nullableText(revision.DOI),
 	}
 }
 
@@ -218,11 +218,11 @@ func articleAuthorRow(author *work.ArticleAuthor) map[string]any {
 	row := map[string]any{
 		"id":            author.ID,
 		"citation_name": author.CitationName,
-		"first_name":    author.FirstName,
-		"last_name":     author.LastName,
-		"orcid":         author.ORCID,
+		"first_name":    nullableText(author.FirstName),
+		"last_name":     nullableText(author.LastName),
+		"orcid":         nullableText(author.ORCID),
 		"author_order":  author.AuthorOrder,
-		"affiliation":   author.Affiliation,
+		"affiliation":   nullableText(author.Affiliation),
 	}
 	if author.PersonID != nil {
 		row["person_id"] = *author.PersonID
@@ -233,12 +233,12 @@ func articleAuthorRow(author *work.ArticleAuthor) map[string]any {
 }
 
 // articleStageRow maps one work family article stage outcome into a viewer row.
-func articleStageRow(outcome *work.StageOutcome) map[string]any {
+func articleStageRow(outcome *work.StageRow) map[string]any {
 	return map[string]any{
 		"id":         outcome.ID,
 		"stage_name": outcome.StageName,
 		"outcome":    outcome.Outcome,
-		"reason":     outcome.Reason,
+		"reason":     nullableText(outcome.Reason),
 		"created_at": outcome.CreatedAt,
 		"updated_at": outcome.UpdatedAt,
 	}
@@ -250,11 +250,11 @@ func articleReferenceRow(reference *work.ArticleReference) map[string]any {
 		"id":               reference.ID,
 		"work_revision_id": reference.WorkRevisionID,
 		"mention_order":    reference.MentionOrder,
-		"doi":              reference.DOI,
-		"title":            reference.Title,
-		"author":           reference.Author,
-		"year":             reference.Year,
-		"source":           reference.Source,
+		"doi":              nullableText(reference.DOI),
+		"title":            nullableText(reference.Title),
+		"author":           nullableText(reference.Author),
+		"year":             nullableIDPointer(reference.Year),
+		"source":           nullableText(reference.Source),
 		"created_at":       reference.CreatedAt,
 	}
 	if reference.ResolvedWorkID != nil {
@@ -264,7 +264,7 @@ func articleReferenceRow(reference *work.ArticleReference) map[string]any {
 	}
 	if reference.ResolvedRevisionID != nil {
 		row["resolved_revision_id"] = *reference.ResolvedRevisionID
-		row["resolved_title"] = reference.ResolvedTitle
+		row["resolved_title"] = nullableText(reference.ResolvedTitle)
 	} else {
 		row["resolved_revision_id"] = nil
 		row["resolved_title"] = nil
@@ -278,25 +278,21 @@ func referenceDetailRow(detail *work.ReferenceDetail) map[string]any {
 		"id":               detail.ID,
 		"work_revision_id": detail.WorkRevisionID,
 		"mention_order":    detail.MentionOrder,
-		"raw_reference":    detail.RawReference,
-		"doi":              detail.DOI,
-		"title":            detail.Title,
-		"author":           detail.Author,
-		"year":             detail.Year,
-		"source":           detail.Source,
+		"raw_reference":    nullableText(detail.RawReference),
+		"doi":              nullableText(detail.DOI),
+		"title":            nullableText(detail.Title),
+		"author":           nullableText(detail.Author),
+		"year":             nullableIDPointer(detail.Year),
+		"source":           nullableText(detail.Source),
 		"created_at":       detail.CreatedAt,
 		"work_id":          detail.WorkID,
-		"citing_title":     detail.CitingTitle,
+		"citing_title":     nullableText(detail.CitingTitle),
 		"pipeline_run_id":  detail.PipelineRunID,
 	}
-	if detail.ResolvedWorkID != 0 {
-		row["resolved_work_id"] = detail.ResolvedWorkID
-	} else {
-		row["resolved_work_id"] = nil
-	}
+	row["resolved_work_id"] = nullableIDPointer(detail.ResolvedWorkID)
 	if detail.ResolvedRevisionID != nil {
 		row["resolved_revision_id"] = *detail.ResolvedRevisionID
-		row["resolved_title"] = detail.ResolvedTitle
+		row["resolved_title"] = nullableText(detail.ResolvedTitle)
 	} else {
 		row["resolved_revision_id"] = nil
 		row["resolved_title"] = nil
