@@ -14,7 +14,7 @@ import (
 	"analysis/backend/database/pdfbinding"
 )
 
-// openTestStore supports the package test suite's open test store setup or assertions.
+// OpenTestStore supports the package test suite's open test store setup or assertions.
 func OpenTestStore(t *testing.T) *subject.Store {
 	t.Helper()
 	store, err := subject.Open(filepath.Join(t.TempDir(), pdfbinding.DefaultStoreFilename), testenv.Path("config", "database.something"))

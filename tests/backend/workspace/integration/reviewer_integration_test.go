@@ -31,7 +31,7 @@ func TestFailedAttemptRetainsReviewer(t *testing.T) {
 	}
 	run := testWorkspaceRun(source)
 	run.Reviewer = subject.Reviewer{Username: "Fixture Reviewer", Email: "reviewer@example.test"}
-	if _, err := subject.StartWorkspaceAttempt(db, []byte("reviewer fixture"), run, false); err == nil {
+	if _, err := subject.StartWorkspaceAttempt(db.Database, []byte("reviewer fixture"), run, false); err == nil {
 		t.Fatal("expected forced attempt failure")
 	}
 	var runID int64

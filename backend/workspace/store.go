@@ -5,27 +5,35 @@
 package workspace
 
 import (
+	"analysis/backend/workspace/enrichment"
+	"analysis/backend/workspace/normalizer"
+	"analysis/backend/workspace/pdfsync"
+	"analysis/backend/workspace/providers"
+	"analysis/backend/workspace/revisions"
+	"analysis/backend/workspace/validator"
+
 	"analysis/backend/article"
 	"analysis/backend/database"
 	dbauthor "analysis/backend/database/author"
 	dbrun "analysis/backend/database/run"
 	dbsource "analysis/backend/database/source"
 	dbwork "analysis/backend/database/work"
-	"analysis/backend/enrich"
+
 	"analysis/backend/manifest"
-	"analysis/backend/normalization"
-	"analysis/backend/pdfstore"
-	"analysis/backend/validation"
+
+	"analysis/backend/workspace/providercache"
+	"analysis/backend/workspace/termindex"
+	"analysis/internal/filehash"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
+
 	"path/filepath"
-	"regexp"
+
 	"slices"
-	"sort"
+
 	"strconv"
-	"strings"
+
 	"time"
 )
 
@@ -60,10 +68,10 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return err
 	}
 	if runID == 0 {
-		if _, _, err := syncNormalizedPDFInventory(ctx, db, dbPath, databaseRegistryPath()); err != nil {
+		if _, _, err := pdfsync.Sync(ctx, db, dbPath, databaseRegistryPath()); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
-		reconcileStoredTermMatchesBestEffort(ctx, db)
+		termindex.BestEffort(ctx, db)
 		log.Info("reused completed execution plan", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision))
 		return nil
 	}
@@ -156,7 +164,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err != nil {
 				return fmt.Errorf("marshal source record %s[%d]: %w", source.Name, index, err)
 			}
-			recordID, err := db.Source.CreateRecord(ctx, dbsource.CreateRecordInput{RunSourceID: runSourceID, RecordIndex: index, RawPayload: string(raw), ContentHash: contentHash(raw)})
+			recordID, err := db.Source.CreateRecord(ctx, dbsource.CreateRecordInput{RunSourceID: runSourceID, RecordIndex: index, RawPayload: string(raw), ContentHash: filehash.Bytes(raw)})
 			if err != nil {
 				return fmt.Errorf("create source record %s[%d]: %w", source.Name, index, err)
 			}
@@ -186,14 +194,14 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := recordWorkspaceStage(ctx, db, run, runID, "parse", nil, parsed); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, parsed, dbwork.ProducerStageParse, dbwork.StageNameParse, dbwork.OutcomeParsed, nil); err != nil {
+	if _, _, err := revisions.Persist(ctx, db, runID, parsed, dbwork.ProducerStageParse, dbwork.StageNameParse, dbwork.OutcomeParsed, nil); err != nil {
 		return fmt.Errorf("persist parsed works: %w", err)
 	}
 	unique, duplicates := article.MergeBySource(bySource)
 	if err := recordWorkspaceStage(ctx, db, run, runID, "deduplicate", parsed, unique); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageDeduplicate, dbwork.StageNameDeduplicate, dbwork.OutcomeDeduplicated, nil); err != nil {
+	if _, _, err := revisions.Persist(ctx, db, runID, unique, dbwork.ProducerStageDeduplicate, dbwork.StageNameDeduplicate, dbwork.OutcomeDeduplicated, nil); err != nil {
 		return fmt.Errorf("persist deduplicated works: %w", err)
 	}
 	if err := setRunMetrics(ctx, db, runID,
@@ -214,11 +222,11 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_metadata", metadataInput, unique); err != nil {
 			return err
 		}
-		_, metadataRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageEnrichMetadata, dbwork.StageNameEnrichMetadata, dbwork.OutcomeEnriched, nil)
+		_, metadataRevisionIDs, err := revisions.Persist(ctx, db, runID, unique, dbwork.ProducerStageEnrichMetadata, dbwork.StageNameEnrichMetadata, dbwork.OutcomeEnriched, nil)
 		if err != nil {
 			return fmt.Errorf("persist metadata-enriched works: %w", err)
 		}
-		if err := emitFieldEnrichedAuditEvents(ctx, db, runID, metadataRevisionIDs, metadataChanges); err != nil {
+		if err := enrichment.RecordAudit(ctx, db, runID, metadataRevisionIDs, metadataChanges); err != nil {
 			return err
 		}
 
@@ -228,7 +236,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			identityInput := snapshotArticles(unique)
 			identityUpdated, identityChanges, uncertainORCIDEvidence, err := enrichWorkspaceIdentity(ctx, db, runID, run, unique)
 			if err != nil {
-				if persistErr := persistUncertainORCIDEvidence(ctx, db, runID, metadataRevisionIDs, uncertainORCIDEvidence); persistErr != nil {
+				if persistErr := providers.PersistIdentityEvidence(ctx, db, runID, metadataRevisionIDs, uncertainORCIDEvidence); persistErr != nil {
 					return fmt.Errorf("identity enrichment failed: %v; persist partial ORCID evidence: %w", err, persistErr)
 				}
 				if stageErr := setWorkspaceStageOutcome(ctx, db, runID, articlesWithFailedIdentityEvidence(unique, uncertainORCIDEvidence), dbwork.StageNameEnrichIdentity, dbwork.OutcomeFailed, err.Error()); stageErr != nil {
@@ -239,14 +247,14 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_identity", identityInput, unique); err != nil {
 				return err
 			}
-			_, identityRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageEnrichIdentity, dbwork.StageNameEnrichIdentity, dbwork.OutcomeEnriched, nil)
+			_, identityRevisionIDs, err := revisions.Persist(ctx, db, runID, unique, dbwork.ProducerStageEnrichIdentity, dbwork.StageNameEnrichIdentity, dbwork.OutcomeEnriched, nil)
 			if err != nil {
 				return fmt.Errorf("persist identity-enriched works: %w", err)
 			}
-			if err := emitFieldEnrichedAuditEvents(ctx, db, runID, identityRevisionIDs, identityChanges); err != nil {
+			if err := enrichment.RecordAudit(ctx, db, runID, identityRevisionIDs, identityChanges); err != nil {
 				return err
 			}
-			if err := persistUncertainORCIDEvidence(ctx, db, runID, metadataRevisionIDs, uncertainORCIDEvidence); err != nil {
+			if err := providers.PersistIdentityEvidence(ctx, db, runID, metadataRevisionIDs, uncertainORCIDEvidence); err != nil {
 				return err
 			}
 			updated += identityUpdated
@@ -254,7 +262,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		} else if err := setWorkspaceStageOutcome(ctx, db, runID, unique, dbwork.StageNameEnrichIdentity, dbwork.OutcomeSkipped, "ORCID provider is not configured"); err != nil {
 			return err
 		}
-		if err := recordFieldEnrichmentMetrics(ctx, db, runID, allChanges); err != nil {
+		if err := enrichment.RecordMetrics(ctx, db, runID, allChanges); err != nil {
 			return err
 		}
 		if err := setRunMetrics(ctx, db, runID,
@@ -282,14 +290,14 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	valid, discarded, reasons := validateWorkspaceArticles(unique)
+	valid, discarded, reasons := validator.Validate(unique)
 	if err := recordWorkspaceStage(ctx, db, run, runID, "validate", unique, unique); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageValidate, dbwork.StageNameValidate, dbwork.OutcomeValid, reasons); err != nil {
+	if _, _, err := revisions.Persist(ctx, db, runID, unique, dbwork.ProducerStageValidate, dbwork.StageNameValidate, dbwork.OutcomeValid, reasons); err != nil {
 		return fmt.Errorf("persist validated works: %w", err)
 	}
-	if err := recordValidationAudit(ctx, db, runID, unique, reasons); err != nil {
+	if err := validator.RecordAudit(ctx, db, runID, unique, reasons); err != nil {
 		return err
 	}
 	if err := setRunMetrics(ctx, db, runID, "valid_articles", len(valid), "discarded_articles", len(discarded)); err != nil {
@@ -298,22 +306,22 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	log.Info("validation completed", "run_id", runID, "valid", len(valid), "discarded", len(discarded))
 
 	normalizeInput := snapshotArticles(valid)
-	normalizationResults := normalizeWorkspaceArticles(valid)
-	if err := recordNormalizationMetrics(ctx, db, runID, len(valid), normalizationResults); err != nil {
+	normalizationResults := normalizer.Normalize(valid)
+	if err := normalizer.RecordMetrics(ctx, db, runID, len(valid), normalizationResults); err != nil {
 		return err
 	}
 	if err := recordWorkspaceStage(ctx, db, run, runID, "normalize", normalizeInput, valid); err != nil {
 		return err
 	}
-	_, normalizeRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, valid, dbwork.ProducerStageNormalize, dbwork.StageNameNormalize, dbwork.OutcomeNormalized, nil)
+	_, normalizeRevisionIDs, err := revisions.Persist(ctx, db, runID, valid, dbwork.ProducerStageNormalize, dbwork.StageNameNormalize, dbwork.OutcomeNormalized, nil)
 	if err != nil {
 		return fmt.Errorf("persist normalized works: %w", err)
 	}
-	termsBySource, termMatches := computeRunTermMatches(run, valid, normalizeRevisionIDs)
-	if err := persistRunTermMatches(ctx, db, runID, termsBySource, termMatches); err != nil {
+	termsBySource, termMatches := termindex.Compute(run.Manifest.Sources, valid, normalizeRevisionIDs)
+	if err := termindex.Persist(ctx, db, runID, termsBySource, termMatches); err != nil {
 		return err
 	}
-	registered, auditEventsFlushed, err := syncNormalizedPDFInventory(ctx, db, dbPath, databaseRegistryPath())
+	registered, auditEventsFlushed, err := pdfsync.Sync(ctx, db, dbPath, databaseRegistryPath())
 	if err != nil {
 		return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 	}
@@ -326,73 +334,13 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return err
 	}
 	completed = true
-	reconcileStoredTermMatchesBestEffort(ctx, db)
+	termindex.BestEffort(ctx, db)
 	log.Info("workspace pipeline completed", "workspace", Selector(run.Manifest.SearchID, run.Manifest.SearchRevision), "run_id", runID)
 	return nil
 }
 
-const normalizedInventoryBatchSize = 100
-
-// syncNormalizedPDFInventory reconciles the companion inventory from the
-// authoritative normalized revisions. It is safe to call after a new run or
-// when a completed execution plan is reused.
-func syncNormalizedPDFInventory(ctx context.Context, db *database.Database, dbPath, registryPath string) (int, int, error) {
-	bindings := db.PDFBindings
-	storePath, err := bindings.ResolveBinding(ctx, dbPath)
-	if err != nil {
-		return 0, 0, err
-	}
-	store, err := pdfstore.Open(storePath, registryPath)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer store.Close()
-
-	flushed, err := store.FlushAuditOutbox(ctx, bindings)
-	if err != nil {
-		return 0, flushed, err
-	}
-	registered := 0
-	lastWorkID := int64(0)
-	for {
-		works, err := normalizedInventoryBatch(ctx, db, lastWorkID)
-		if err != nil {
-			return registered, flushed, err
-		}
-		if len(works) == 0 {
-			break
-		}
-		for _, work := range works {
-			added, err := store.Register(ctx, work.DOI, work.WorkID, work.PipelineRunID)
-			if err != nil {
-				return registered, flushed, err
-			}
-			if added {
-				registered++
-			}
-		}
-		lastWorkID = works[len(works)-1].WorkID
-	}
-	newlyFlushed, err := store.FlushAuditOutbox(ctx, bindings)
-	flushed += newlyFlushed
-	if err != nil {
-		return registered, flushed, err
-	}
-	return registered, flushed, nil
-}
-
-// normalizedInventoryBatch reads one bounded, deterministic inventory page and
-// closes the metadata cursor before callers touch the companion database.
-func normalizedInventoryBatch(ctx context.Context, db *database.Database, afterWorkID int64) ([]dbwork.NormalizedInventoryWork, error) {
-	works, err := db.Work.ListNormalizedInventoryBatch(ctx, afterWorkID, normalizedInventoryBatchSize)
-	if err != nil {
-		return nil, fmt.Errorf("read normalized works: %w", err)
-	}
-	return works, nil
-}
-
 // articlesWithFailedIdentityEvidence selects articles whose identity provider search failed.
-func articlesWithFailedIdentityEvidence(articles []*article.Article, evidence []uncertainORCIDSearchEvidence) []*article.Article {
+func articlesWithFailedIdentityEvidence(articles []*article.Article, evidence []providers.IdentitySearchEvidence) []*article.Article {
 	failedDOIs := make(map[string]struct{})
 	for _, search := range evidence {
 		if search.Status == dbauthor.IdentityStatusProviderFailed {
@@ -439,35 +387,6 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
-}
-
-// persistWorkspaceStage persists workspace stage through the owning repository.
-func persistWorkspaceStage(ctx context.Context, db *database.Database, runID int64, articles []*article.Article, producerStage, stage, outcome string, reasons map[string][]string) (map[string]int64, map[string]int64, error) {
-	workIDs := make(map[string]int64, len(articles))
-	revisionIDs := make(map[string]int64, len(articles))
-	for _, a := range articles {
-		reason := ""
-		stageOutcome := outcome
-		if reasons != nil && len(reasons[a.DOI]) > 0 {
-			reasonBytes, _ := json.Marshal(reasons[a.DOI])
-			reason = string(reasonBytes)
-			if stage == dbwork.StageNameValidate {
-				stageOutcome = dbwork.OutcomeDiscarded
-			}
-		}
-		workID, revisionID, err := persistWorkSnapshot(ctx, db, runID, a, producerStage, workspaceExtension(a, reasons[a.DOI]))
-		if err != nil {
-			return nil, nil, err
-		}
-		workIDs[a.DOI] = workID
-		revisionIDs[a.DOI] = revisionID
-		if err := db.Work.SetStageOutcome(ctx, dbwork.StageOutcomeInput{
-			RunID: runID, WorkID: workID, StageName: stage, Outcome: stageOutcome, Reason: reason,
-		}); err != nil {
-			return nil, nil, err
-		}
-	}
-	return workIDs, revisionIDs, nil
 }
 
 // setWorkspaceStageOutcome sets workspace stage outcome using the supplied values.
@@ -526,11 +445,11 @@ func recordWorkspaceStage(ctx context.Context, db *database.Database, run *Run, 
 	if err != nil {
 		return fmt.Errorf("marshal %s output: %w", name, err)
 	}
-	inputArtifactID, err := persistArtifact(ctx, db, runID, inputBytes, "application/json")
+	inputArtifactID, err := db.Artifact.StorePayload(ctx, runID, inputBytes, "application/json")
 	if err != nil {
 		return err
 	}
-	outputArtifactID, err := persistArtifact(ctx, db, runID, outputBytes, "application/json")
+	outputArtifactID, err := db.Artifact.StorePayload(ctx, runID, outputBytes, "application/json")
 	if err != nil {
 		return err
 	}
@@ -544,207 +463,16 @@ func recordWorkspaceStage(ctx context.Context, db *database.Database, run *Run, 
 	if err := db.Run.LinkStepOutputArtifact(ctx, dbrun.StepArtifactInput{StepID: stepID, ArtifactID: outputArtifactID}); err != nil {
 		return err
 	}
-	if err := db.Run.SetStepFingerprints(ctx, dbrun.StepFingerprintInput{StepID: stepID, InputFingerprint: contentHash(inputBytes), OutputFingerprint: contentHash(outputBytes)}); err != nil {
+	if err := db.Run.SetStepFingerprints(ctx, dbrun.StepFingerprintInput{StepID: stepID, InputFingerprint: filehash.Bytes(inputBytes), OutputFingerprint: filehash.Bytes(outputBytes)}); err != nil {
 		return err
 	}
 	return db.Run.UpdateStepStatus(ctx, stepID, string(manifest.StageCompleted))
 }
 
-// persistWorkSnapshot persists work snapshot through the owning repository.
-func persistWorkSnapshot(ctx context.Context, db *database.Database, runID int64, a *article.Article, producerStage, extensionData string) (int64, int64, error) {
-	if a == nil {
-		return 0, 0, fmt.Errorf("persist work snapshot: article is nil")
-	}
-	workID, err := db.Work.CreateWorkByDOI(ctx, a.DOI)
-	if err != nil {
-		return 0, 0, err
-	}
-	keywords, err := json.Marshal(a.Keywords)
-	if err != nil {
-		return 0, 0, err
-	}
-	keywordsPlus, err := json.Marshal(a.KeywordsAdditional)
-	if err != nil {
-		return 0, 0, err
-	}
-	revisionID, err := db.Work.CreateRevision(ctx, &dbwork.Revision{
-		WorkID: workID, PipelineRunID: runID, ProducerStage: producerStage,
-		Title: a.Title, Abstract: a.Abstract, Year: a.Year, Journal: a.Journal,
-		Publisher: a.Publisher, Source: a.Source, Keywords: string(keywords),
-		KeywordsPlus: string(keywordsPlus), CitationCount: a.CitationCount,
-		ReferenceCount: len(a.CitedReferences), ExtensionData: extensionData,
-	})
-	if err != nil {
-		return 0, 0, err
-	}
-	for order, authorRecord := range a.Authors {
-		occurrenceID, err := db.Author.CreateOccurrence(ctx, &dbauthor.Occurrence{
-			CitationName: authorRecord.CitationName, FirstName: authorRecord.FirstName,
-			LastName: authorRecord.LastName, ORCID: authorRecord.Orcid,
-		})
-		if err != nil {
-			return 0, 0, err
-		}
-		if _, err := db.Author.CreateAuthorship(ctx, &dbauthor.Authorship{
-			WorkRevisionID: revisionID, AuthorOccurrenceID: occurrenceID,
-			AuthorOrder: order + 1, Affiliation: authorRecord.Affiliation,
-		}); err != nil {
-			return 0, 0, err
-		}
-	}
-	for order, reference := range a.CitedReferences {
-		if _, err := db.Work.CreateReference(ctx, &dbwork.Reference{
-			WorkRevisionID: revisionID, MentionOrder: order + 1, RawReference: reference.Raw,
-			DOI: reference.DOI, Title: reference.Title, Author: reference.Author,
-			Year: reference.Year, Source: reference.Source,
-		}); err != nil {
-			return 0, 0, err
-		}
-	}
-	return workID, revisionID, nil
-}
-
-// workspaceRevisionExtension stores normalized values and validation evidence outside canonical revision columns.
-type workspaceRevisionExtension struct {
-	NormalizedJournal string            `json:"normalized_journal,omitempty"`
-	ValidationReasons []string          `json:"validation_reasons,omitempty"`
-	NormalizedAuthors map[string]string `json:"normalized_authors,omitempty"`
-}
-
-// workspaceExtension serializes normalized journal, author names, and validation reasons for a revision.
-func workspaceExtension(a *article.Article, reasons []string) string {
-	names := make(map[string]string)
-	for _, author := range a.Authors {
-		if author.NormalizedName != "" {
-			names[author.CitationName] = author.NormalizedName
-		}
-	}
-	data, _ := json.Marshal(workspaceRevisionExtension{NormalizedJournal: normalization.NormalizeJournal(a.Journal), ValidationReasons: reasons, NormalizedAuthors: names})
-	return string(data)
-}
-
-// validateWorkspaceArticles partitions articles by validation outcome and records discard reasons by DOI.
-func validateWorkspaceArticles(articles []*article.Article) (valid, discarded []*article.Article, reasons map[string][]string) {
-	reasons = make(map[string][]string)
-	for _, a := range articles {
-		problems := validation.ValidateFields(validation.Fields{DOI: a.DOI, Title: a.Title, Year: a.Year, Publisher: a.Publisher, ReferenceCount: len(a.CitedReferences)}, len(a.Authors))
-		if len(problems) == 0 {
-			valid = append(valid, a)
-			continue
-		}
-		discarded = append(discarded, a)
-		reasons[a.DOI] = problems
-	}
-	return valid, discarded, reasons
-}
-
-// normalizationFieldResult records one field's normalization outcome for an article DOI.
-type normalizationFieldResult struct {
-	DOI     string
-	Field   string
-	Outcome string
-}
-
-const (
-	normalizationOutcomeChanged          = "changed"
-	normalizationOutcomeAlreadyCanonical = "already_canonical"
-	normalizationOutcomeUnavailable      = "unavailable"
-)
-
-var normalizationFields = []string{"publisher", "journal", "author_name", "affiliation"}
-
-var normalizationOutcomes = []string{
-	normalizationOutcomeChanged,
-	normalizationOutcomeAlreadyCanonical,
-	normalizationOutcomeUnavailable,
-}
-
-// normalizeWorkspaceArticles applies each normalizer and records one outcome
-// for every checked field. Journal normalization is retained in revision
-// extension data, so its result is measured here but not assigned to Journal.
-func normalizeWorkspaceArticles(articles []*article.Article) []normalizationFieldResult {
-	results := make([]normalizationFieldResult, 0, len(articles)*2)
-	for _, a := range articles {
-		publisher := normalization.NormalizePublisher(a.Publisher)
-		results = append(results, normalizationResult(a.DOI, "publisher", a.Publisher, publisher))
-		a.Publisher = publisher
-
-		journal := normalization.NormalizeJournal(a.Journal)
-		results = append(results, normalizationResult(a.DOI, "journal", a.Journal, journal))
-
-		for index := range a.Authors {
-			author := &a.Authors[index]
-			name := normalization.NormalizeAuthorName(author.CitationName)
-			results = append(results, normalizationResult(a.DOI, "author_name", author.CitationName, name))
-			author.NormalizedName = name
-
-			affiliation := normalization.NormalizeAffiliation(author.Affiliation)
-			results = append(results, normalizationResult(a.DOI, "affiliation", author.Affiliation, affiliation))
-			author.Affiliation = affiliation
-		}
-	}
-	return results
-}
-
-// normalizationResult classifies a field as changed, already canonical, or unavailable.
-func normalizationResult(doi, field, input, output string) normalizationFieldResult {
-	outcome := normalizationOutcomeChanged
-	if strings.TrimSpace(input) == "" {
-		outcome = normalizationOutcomeUnavailable
-	} else if input == output {
-		outcome = normalizationOutcomeAlreadyCanonical
-	}
-	return normalizationFieldResult{DOI: doi, Field: field, Outcome: outcome}
-}
-
-// recordNormalizationMetrics stores mutually exclusive outcomes for each
-// checked field. No per-field audit events are emitted: the immutable
-// normalized revision already records the output, and the prior revision is
-// retained as the corresponding input evidence.
-func recordNormalizationMetrics(ctx context.Context, db *database.Database, runID int64, processedArticles int, results []normalizationFieldResult) error {
-	totals := make(map[string]int, len(normalizationOutcomes))
-	byField := make(map[string]map[string]int, len(normalizationFields))
-	for _, field := range normalizationFields {
-		byField[field] = make(map[string]int, len(normalizationOutcomes))
-	}
-	for _, result := range results {
-		totals[result.Outcome]++
-		byField[result.Field][result.Outcome]++
-	}
-	if err := setRunMetrics(ctx, db, runID,
-		"normalized_articles_processed", processedArticles,
-		"normalization_fields_processed", len(results),
-		"normalization_fields_changed", totals[normalizationOutcomeChanged],
-		"normalization_fields_already_canonical", totals[normalizationOutcomeAlreadyCanonical],
-		"normalization_fields_unavailable", totals[normalizationOutcomeUnavailable]); err != nil {
-		return err
-	}
-	for _, field := range normalizationFields {
-		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "normalization_fields_processed", Source: field, Value: sumNormalizationOutcomes(byField[field])}); err != nil {
-			return err
-		}
-		for _, outcome := range normalizationOutcomes {
-			if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "normalization_fields_" + outcome, Source: field, Value: byField[field][outcome]}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// sumNormalizationOutcomes totals the recognized mutually exclusive normalization outcomes.
-func sumNormalizationOutcomes(outcomes map[string]int) int {
-	total := 0
-	for _, outcome := range normalizationOutcomes {
-		total += outcomes[outcome]
-	}
-	return total
-}
-
 // enrichWorkspaceMetadata applies article-level providers. Its output is
 // persisted before identity enrichment so an ORCID provider failure cannot
 // erase the metadata and authorship evidence already gathered for the run.
-func enrichWorkspaceMetadata(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, error) {
+func enrichWorkspaceMetadata(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []enrichment.Change, error) {
 	if !run.Manifest.EnrichmentEnabled {
 		return 0, nil, nil
 	}
@@ -755,24 +483,24 @@ func enrichWorkspaceMetadata(ctx context.Context, db *database.Database, runID i
 	for _, a := range articles {
 		byDOI[a.DOI] = a
 	}
-	cache := &workspaceCache{db: db, runID: runID, policy: run.Manifest.CachePolicy}
+	cache := providercache.New(db, runID, run.Manifest.CachePolicy)
 	updated := 0
-	var allChanges []fieldChange
+	var allChanges []enrichment.Change
 	if source, ok := run.Enrichment.Sources["crossref"]; ok {
-		result, err := gatherCachedCrossref(ctx, cache, source, articles)
+		result, err := providers.Crossref(ctx, cache, source, articles)
 		if err != nil {
 			return 0, nil, err
 		}
-		n, changes := applyConfiguredArticleEnrichment(byDOI, source, result)
+		n, changes := enrichment.ApplyArticles(byDOI, source, result)
 		updated += n
 		allChanges = append(allChanges, changes...)
 	}
 	if source, ok := run.Enrichment.Sources["openalex"]; ok {
-		result, err := gatherCachedOpenAlex(ctx, cache, source, articles)
+		result, err := providers.OpenAlex(ctx, cache, source, articles)
 		if err != nil {
 			return 0, nil, err
 		}
-		n, changes := applyConfiguredArticleEnrichment(byDOI, source, result)
+		n, changes := enrichment.ApplyArticles(byDOI, source, result)
 		updated += n
 		allChanges = append(allChanges, changes...)
 	}
@@ -782,7 +510,7 @@ func enrichWorkspaceMetadata(ctx context.Context, db *database.Database, runID i
 // enrichWorkspaceIdentity applies exact observed-ORCID profiles and records
 // name-search evidence. The caller persists this evidence against the prior
 // enrich_metadata snapshot, including when this function returns an error.
-func enrichWorkspaceIdentity(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error) {
+func enrichWorkspaceIdentity(ctx context.Context, db *database.Database, runID int64, run *Run, articles []*article.Article) (int, []enrichment.Change, []providers.IdentitySearchEvidence, error) {
 	if !run.Manifest.EnrichmentEnabled || run.Enrichment == nil {
 		return 0, nil, nil, nil
 	}
@@ -790,555 +518,10 @@ func enrichWorkspaceIdentity(ctx context.Context, db *database.Database, runID i
 	if !ok {
 		return 0, nil, nil, nil
 	}
-	cache := &workspaceCache{db: db, runID: runID, policy: run.Manifest.CachePolicy}
+	cache := providercache.New(db, runID, run.Manifest.CachePolicy)
 	openAlexSource, hasOpenAlex := run.Enrichment.Sources["openalex"]
 	hasOpenAlex = hasOpenAlex && openAlexSource.AllowsField("authors")
-	return enrichCachedORCID(ctx, cache, source, openAlexSource, hasOpenAlex, articles)
-}
-
-// gatherCachedCrossref gathers cached crossref from the supplied inputs.
-func gatherCachedCrossref(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error) {
-	client, err := enrich.NewClient(source)
-	if err != nil {
-		return nil, fmt.Errorf("create crossref client: %w", err)
-	}
-	defer client.Close()
-	result := &enrich.GatherResult{Source: "crossref", Articles: make(map[string]*enrich.ArticleEnrichment)}
-	for _, a := range articles {
-		if a.DOI == "" {
-			continue
-		}
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "crossref", Namespace: "work_by_doi", Identity: strings.ToLower(a.DOI), URL: source.BaseURL + url.PathEscape(a.DOI)}, func(ctx context.Context) *enrich.FetchResult {
-			return client.Fetch(ctx, source.BaseURL+url.PathEscape(a.DOI))
-		}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("resolve crossref DOI %q: %w", a.DOI, err)
-		}
-		if response.Status == 404 {
-			result.DOINotFound = append(result.DOINotFound, a.DOI)
-			continue
-		}
-		if enrichment := enrich.DecodeCrossrefResponse(response.Body, a.DOI); enrichment != nil {
-			result.Articles[a.DOI] = enrichment
-		}
-	}
-	return result, nil
-}
-
-// gatherCachedOpenAlex gathers cached open alex from the supplied inputs.
-func gatherCachedOpenAlex(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, articles []*article.Article) (*enrich.GatherResult, error) {
-	client, err := enrich.NewClient(source)
-	if err != nil {
-		return nil, fmt.Errorf("create openalex client: %w", err)
-	}
-	defer client.Close()
-	result := &enrich.GatherResult{Source: "openalex", Articles: make(map[string]*enrich.ArticleEnrichment)}
-	refIDsByDOI := make(map[string][]string)
-	for _, a := range articles {
-		if a.DOI == "" {
-			continue
-		}
-		url := source.BaseURL + "doi:" + url.PathEscape(a.DOI)
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "openalex", Namespace: "work_by_doi", Identity: strings.ToLower(a.DOI), URL: url}, func(ctx context.Context) *enrich.FetchResult {
-			return client.Fetch(ctx, url)
-		}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("resolve openalex DOI %q: %w", a.DOI, err)
-		}
-		if response.Status == 404 {
-			result.DOINotFound = append(result.DOINotFound, a.DOI)
-			continue
-		}
-		if enrichment, referenceIDs := enrich.DecodeOpenAlexResponse(response.Body, a.DOI); enrichment != nil {
-			result.Articles[a.DOI] = enrichment
-			if source.AllowsField("references") {
-				refIDsByDOI[a.DOI] = referenceIDs
-			}
-		}
-	}
-	references, err := resolveCachedOpenAlexReferences(ctx, cache, client, source, refIDsByDOI)
-	if err != nil {
-		return nil, err
-	}
-	for doi, ids := range refIDsByDOI {
-		enrichment := result.Articles[doi]
-		if enrichment == nil {
-			continue
-		}
-		for _, id := range ids {
-			if reference, ok := references[id]; ok {
-				enrichment.References = append(enrichment.References, reference)
-			}
-		}
-	}
-	return result, nil
-}
-
-// resolveCachedOpenAlexReferences resolves cached open alex references from the supplied context.
-func resolveCachedOpenAlexReferences(ctx context.Context, cache *workspaceCache, client *enrich.Client, source enrich.SourceConfig, refIDsByDOI map[string][]string) (map[string]enrich.EnrichedReference, error) {
-	seen := make(map[string]struct{})
-	ids := make([]string, 0)
-	for _, articleIDs := range refIDsByDOI {
-		for _, id := range articleIDs {
-			if _, exists := seen[id]; !exists {
-				seen[id] = struct{}{}
-				ids = append(ids, id)
-			}
-		}
-	}
-	sort.Strings(ids)
-	result := make(map[string]enrich.EnrichedReference)
-	batchSize := source.BatchSize
-	if batchSize < 1 {
-		batchSize = 50
-	}
-	for start := 0; start < len(ids); start += batchSize {
-		end := start + batchSize
-		if end > len(ids) {
-			end = len(ids)
-		}
-		batch := ids[start:end]
-		identity := strings.Join(batch, "|")
-		url := fmt.Sprintf("%s?filter=openalex_id:%s&select=id,doi,title,publication_year&per_page=%d", strings.TrimRight(source.BaseURL, "/"), identity, batchSize)
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "openalex", Namespace: "work_references", Identity: identity, URL: url}, func(ctx context.Context) *enrich.FetchResult {
-			return client.Fetch(ctx, url)
-		}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("resolve openalex reference batch: %w", err)
-		}
-		if response.Status == 404 {
-			continue
-		}
-		for id, reference := range enrich.DecodeOpenAlexReferenceResponse(response.Body) {
-			result[id] = reference
-		}
-	}
-	return result, nil
-}
-
-// uncertainORCIDCandidate stores one unconfirmed ORCID name-search result and its provenance.
-type uncertainORCIDCandidate struct {
-	ORCID             string
-	ProviderDisplay   string
-	QueryURL          string
-	PayloadArtifactID int64
-	ProviderRank      int
-}
-
-// uncertainORCIDSearchEvidence records candidate-search results or provider failure for one author occurrence.
-type uncertainORCIDSearchEvidence struct {
-	DOI          string
-	AuthorIndex  int
-	CitationName string
-	Candidates   []uncertainORCIDCandidate
-	Status       string
-	ErrorMessage string
-}
-
-// enrichCachedORCID gathers confirmed ORCID records and uncertain name-search evidence through the workspace cache.
-func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, openAlexSource enrich.SourceConfig, hasOpenAlex bool, articles []*article.Article) (int, []fieldChange, []uncertainORCIDSearchEvidence, error) {
-	orcidClient, err := enrich.NewClient(orcidSource)
-	if err != nil {
-		return 0, nil, nil, fmt.Errorf("create ORCID client: %w", err)
-	}
-	defer orcidClient.Close()
-	var openAlexClient *enrich.Client
-	if hasOpenAlex {
-		openAlexClient, err = enrich.NewClient(openAlexSource)
-		if err != nil {
-			return 0, nil, nil, fmt.Errorf("create OpenAlex client: %w", err)
-		}
-		defer openAlexClient.Close()
-	}
-	updated := 0
-	var changes []fieldChange
-
-	// Build per-author provenance so mutation and audit evidence share one source.
-	authorProvenance := make(map[*article.Author]authorProfileProvenance)
-	for _, a := range articles {
-		for i := range a.Authors {
-			authorProvenance[&a.Authors[i]] = authorProfileProvenance{DOI: a.DOI, Index: i}
-		}
-	}
-
-	byORCID := make(map[string][]*article.Author)
-	for _, a := range articles {
-		for index := range a.Authors {
-			author := &a.Authors[index]
-			if author.Orcid != "" {
-				byORCID[author.Orcid] = append(byORCID[author.Orcid], author)
-			}
-		}
-	}
-	for orcid, authors := range byORCID {
-		profile, err := resolveCachedORCIDProfile(ctx, cache, orcidSource, orcidClient, openAlexSource, openAlexClient, hasOpenAlex, orcid)
-		if err != nil {
-			return 0, nil, nil, err
-		}
-		if profile != nil {
-			if !orcidSource.AllowsField("display_name") {
-				profile.FirstName, profile.LastName, profile.CitationName, profile.DisplayName = "", "", "", ""
-			}
-			if !orcidSource.AllowsField("institution") {
-				profile.Institution, profile.Affiliation = "", ""
-			}
-			changed, observedChanges := applyAuthorProfile(authors, profile, "", authorProvenance)
-			if changed {
-				updated++
-				changes = append(changes, observedChanges...)
-			}
-		}
-	}
-	var evidence []uncertainORCIDSearchEvidence
-	for _, a := range articles {
-		for authorIndex := range a.Authors {
-			author := &a.Authors[authorIndex]
-			if !orcidSource.AllowsField("orcid") || author.Orcid != "" || author.CitationName == "" {
-				continue
-			}
-			candidates, err := resolveCachedORCIDNameCandidates(ctx, cache, orcidSource, orcidClient, author.CitationName)
-			searchEvidence := uncertainORCIDSearchEvidence{DOI: a.DOI, AuthorIndex: authorIndex, CitationName: author.CitationName, Candidates: candidates}
-			if err != nil {
-				searchEvidence.Status = dbauthor.IdentityStatusProviderFailed
-				searchEvidence.ErrorMessage = err.Error()
-				evidence = append(evidence, searchEvidence)
-				return updated, changes, evidence, err
-			}
-			evidence = append(evidence, searchEvidence)
-		}
-	}
-	return updated, changes, evidence, nil
-}
-
-// resolveCachedORCIDProfile resolves cached orcid profile from the supplied context.
-func resolveCachedORCIDProfile(ctx context.Context, cache *workspaceCache, orcidSource enrich.SourceConfig, orcidClient *enrich.Client, openAlexSource enrich.SourceConfig, openAlexClient *enrich.Client, hasOpenAlex bool, orcid string) (*enrich.EnrichedAuthor, error) {
-	if hasOpenAlex {
-		baseURL := openAlexSource.ExtraURLs["author"]
-		if baseURL == "" {
-			baseURL = "https://api.openalex.org/authors/"
-		}
-		url := baseURL + "orcid:" + orcid
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "openalex", Namespace: "author_by_orcid", Identity: strings.ToLower(orcid), URL: url}, func(ctx context.Context) *enrich.FetchResult {
-			return openAlexClient.Fetch(ctx, url)
-		}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("resolve openalex ORCID %q: %w", orcid, err)
-		}
-		if response.Status == 200 {
-			return enrich.DecodeOpenAlexAuthorResponse(response.Body, orcid), nil
-		}
-	}
-	url := orcidSource.BaseURL + orcid
-	response, err := cache.resolve(ctx, cacheRequest{Provider: "orcid", Namespace: "author_by_orcid", Identity: strings.ToLower(orcid), URL: url}, func(ctx context.Context) *enrich.FetchResult {
-		return orcidClient.Fetch(ctx, url)
-	}, nil)
-	if err != nil {
-		return nil, fmt.Errorf("resolve ORCID %q: %w", orcid, err)
-	}
-	if response.Status == 404 {
-		return nil, nil
-	}
-	return enrich.DecodeORCIDRecordResponse(response.Body, orcid), nil
-}
-
-// resolveCachedORCIDNameCandidates resolves cached orcid name candidates from the supplied context.
-func resolveCachedORCIDNameCandidates(ctx context.Context, cache *workspaceCache, source enrich.SourceConfig, client *enrich.Client, name string) ([]uncertainORCIDCandidate, error) {
-	seen := make(map[string]struct{})
-	candidates := make([]uncertainORCIDCandidate, 0)
-	for _, url := range enrich.ORCIDNameSearchURLs(source, name) {
-		response, err := cache.resolve(ctx, cacheRequest{Provider: "orcid", Namespace: "author_name_search", Identity: normalizeCacheName(name) + "|" + url, URL: url}, func(ctx context.Context) *enrich.FetchResult {
-			return client.Fetch(ctx, url)
-		}, func(body []byte) bool { return len(enrich.DecodeORCIDNameSearchCandidates(body)) == 0 })
-		if err != nil {
-			return candidates, fmt.Errorf("resolve ORCID name %q: %w", name, err)
-		}
-		if response.Status != 200 {
-			continue
-		}
-		for _, decoded := range enrich.DecodeORCIDNameSearchCandidates(response.Body) {
-			orcid := strings.TrimSpace(decoded.ORCID)
-			if orcid == "" {
-				continue
-			}
-			key := strings.ToLower(orcid)
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
-			candidates = append(candidates, uncertainORCIDCandidate{
-				ORCID: orcid, QueryURL: url, PayloadArtifactID: response.PayloadArtifactID,
-				ProviderRank: len(candidates) + 1,
-			})
-		}
-	}
-	return candidates, nil
-}
-
-// persistUncertainORCIDEvidence persists uncertain orcid evidence through the owning repository.
-func persistUncertainORCIDEvidence(ctx context.Context, db *database.Database, runID int64, revisionIDs map[string]int64, evidence []uncertainORCIDSearchEvidence) error {
-	for _, search := range evidence {
-		revisionID, ok := revisionIDs[search.DOI]
-		if !ok {
-			return fmt.Errorf("persist uncertain ORCID evidence: missing metadata-enriched revision for DOI %q", search.DOI)
-		}
-		authorships, err := db.Author.ListAuthorshipsByRevisionID(ctx, revisionID)
-		if err != nil {
-			return err
-		}
-		if search.AuthorIndex < 0 || search.AuthorIndex >= len(authorships) {
-			return fmt.Errorf("persist uncertain ORCID evidence: author index %d is missing from metadata-enriched revision %d", search.AuthorIndex, revisionID)
-		}
-		status := search.Status
-		if status == "" && len(search.Candidates) > 0 {
-			status = dbauthor.IdentityStatusORCIDUnclear
-		}
-		if status == "" {
-			status = dbauthor.IdentityStatusNoORCIDCandidate
-		}
-		resolutionID, err := db.Author.CreateIdentityResolution(ctx, &dbauthor.IdentityResolution{
-			PipelineRunID: runID, AuthorOccurrenceID: authorships[search.AuthorIndex].AuthorOccurrenceID,
-			Status: status, Provider: "orcid", QueriedCitationName: search.CitationName,
-			ErrorMessage: search.ErrorMessage,
-			ResolvedAt:   time.Now().UTC().Format(time.RFC3339Nano),
-		})
-		if err != nil {
-			return err
-		}
-		for _, candidate := range search.Candidates {
-			if _, err := db.Author.CreateIdentityCandidate(ctx, &dbauthor.IdentityCandidate{
-				IdentityResolutionID: resolutionID, CandidateORCID: candidate.ORCID,
-				ProviderDisplayName: candidate.ProviderDisplay, QueryURL: candidate.QueryURL,
-				PayloadArtifactID: candidate.PayloadArtifactID, ProviderRank: candidate.ProviderRank,
-			}); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// normalizeCacheName normalizes cache name.
-func normalizeCacheName(name string) string {
-	return strings.ToLower(strings.Join(strings.Fields(name), " "))
-}
-
-// authorProfileProvenance identifies the persisted article location of one author.
-type authorProfileProvenance struct {
-	DOI   string
-	Index int
-}
-
-// applyAuthorProfile fills missing author values and returns exactly the fields
-// it changed, using the supplied provenance for audit and metric evidence.
-func applyAuthorProfile(authors []*article.Author, profile *enrich.EnrichedAuthor, matchedORCID string, provenance map[*article.Author]authorProfileProvenance) (bool, []fieldChange) {
-	changed := false
-	changes := make([]fieldChange, 0)
-	record := func(author *article.Author, field string) {
-		location, ok := provenance[author]
-		if ok && location.DOI != "" {
-			changes = append(changes, fieldChange{DOI: location.DOI, Field: fmt.Sprintf("author_%s_%d", field, location.Index), Provider: "orcid"})
-		}
-	}
-	for _, author := range authors {
-		if author.Orcid == "" && matchedORCID != "" {
-			author.Orcid = matchedORCID
-			changed = true
-			record(author, "orcid")
-		}
-		if author.FirstName == "" && profile.FirstName != "" {
-			author.FirstName = profile.FirstName
-			changed = true
-			record(author, "first_name")
-		}
-		if author.LastName == "" && profile.LastName != "" {
-			author.LastName = profile.LastName
-			changed = true
-			record(author, "last_name")
-		}
-		if author.CitationName == "" && profile.CitationName != "" {
-			author.CitationName = profile.CitationName
-			changed = true
-			record(author, "citation_name")
-		}
-		if author.Affiliation == "" && profile.Institution != "" {
-			author.Affiliation = profile.Institution
-			changed = true
-			record(author, "affiliation")
-		}
-	}
-	return changed, changes
-}
-
-// fieldChange records one enriched field change for audit purposes.
-type fieldChange struct {
-	DOI      string
-	Field    string
-	Provider string
-}
-
-// applyArticleEnrichment applies article enrichment to the supplied state.
-func applyArticleEnrichment(articles map[string]*article.Article, result *enrich.GatherResult) (int, []fieldChange) {
-	if result == nil {
-		return 0, nil
-	}
-	updated := 0
-	var changes []fieldChange
-	for doi, enrichment := range result.Articles {
-		a := articles[doi]
-		if a == nil || enrichment == nil {
-			continue
-		}
-		changed := false
-		allow := func(existing string) bool { return !result.FillMissingOnly || existing == "" }
-		if enrichment.Title != "" && enrichment.Title != a.Title && allow(a.Title) {
-			a.Title, changed = enrichment.Title, true
-			changes = append(changes, fieldChange{DOI: doi, Field: "title", Provider: result.Source})
-		}
-		if enrichment.Abstract != "" && enrichment.Abstract != a.Abstract && allow(a.Abstract) {
-			a.Abstract, changed = enrichment.Abstract, true
-			changes = append(changes, fieldChange{DOI: doi, Field: "abstract", Provider: result.Source})
-		}
-		if enrichment.Publisher != "" && enrichment.Publisher != a.Publisher && allow(a.Publisher) {
-			a.Publisher, changed = enrichment.Publisher, true
-			changes = append(changes, fieldChange{DOI: doi, Field: "publisher", Provider: result.Source})
-		}
-		if enrichment.CitationCount > 0 && enrichment.CitationCount != a.CitationCount && (!result.FillMissingOnly || a.CitationCount == 0) {
-			a.CitationCount, changed = enrichment.CitationCount, true
-			changes = append(changes, fieldChange{DOI: doi, Field: "citation_count", Provider: result.Source})
-		}
-		if len(enrichment.References) > 0 && (!result.FillMissingOnly || len(a.CitedReferences) == 0) {
-			a.CitedReferences = make([]article.Reference, len(enrichment.References))
-			for i, ref := range enrichment.References {
-				a.CitedReferences[i] = article.Reference{Raw: ref.Raw, DOI: ref.DOI, Title: ref.Title, Author: ref.Author, Year: ref.Year, Source: ref.Source}
-			}
-			changed = true
-			changes = append(changes, fieldChange{DOI: doi, Field: "references", Provider: result.Source})
-		}
-		if len(enrichment.Authors) > 0 && (!result.FillMissingOnly || len(a.Authors) == 0) {
-			authors := usableEnrichedAuthors(enrichment.Authors)
-			if len(authors) > 0 {
-				a.Authors = authors
-				changed = true
-				changes = append(changes, fieldChange{DOI: doi, Field: "authors", Provider: result.Source})
-			}
-		}
-		if changed {
-			updated++
-		}
-	}
-	return updated, changes
-}
-
-// usableEnrichedAuthors converts enriched authors that contain a non-empty citation name.
-func usableEnrichedAuthors(enriched []enrich.EnrichedAuthor) []article.Author {
-	authors := make([]article.Author, 0, len(enriched))
-	for _, author := range enriched {
-		citationName := strings.TrimSpace(author.CitationName)
-		if citationName == "" {
-			continue
-		}
-		authors = append(authors, article.Author{
-			Orcid: author.ORCID, FirstName: author.FirstName, LastName: author.LastName,
-			CitationName: citationName, Affiliation: author.Affiliation,
-		})
-	}
-	return authors
-}
-
-// applyConfiguredArticleEnrichment applies configured article enrichment to the supplied state.
-func applyConfiguredArticleEnrichment(articles map[string]*article.Article, source enrich.SourceConfig, result *enrich.GatherResult) (int, []fieldChange) {
-	if result != nil {
-		result.FillMissingOnly = source.FillMissingOnly
-		for _, value := range result.Articles {
-			if value == nil {
-				continue
-			}
-			if !source.AllowsField("title") {
-				value.Title = ""
-			}
-			if !source.AllowsField("abstract") {
-				value.Abstract = ""
-			}
-			if !source.AllowsField("publisher") {
-				value.Publisher = ""
-			}
-			if !source.AllowsField("citation_count") {
-				value.CitationCount = 0
-			}
-			if !source.AllowsField("reference_count") {
-				value.ReferenceCount = 0
-			}
-			if !source.AllowsField("references") {
-				value.References = nil
-			}
-			if !source.AllowsField("authors") {
-				value.Authors = nil
-			}
-		}
-	}
-	return applyArticleEnrichment(articles, result)
-}
-
-// emitFieldEnrichedAuditEvents records one field_enriched audit event per field
-// change. revisionIDs maps DOI -> work_revision ID.
-func emitFieldEnrichedAuditEvents(ctx context.Context, db *database.Database, runID int64, revisionIDs map[string]int64, changes []fieldChange) error {
-	for _, c := range changes {
-		revID, ok := revisionIDs[c.DOI]
-		if !ok {
-			continue
-		}
-		metadata, err := json.Marshal(map[string]string{
-			"field":    c.Field,
-			"provider": c.Provider,
-		})
-		if err != nil {
-			return err
-		}
-		correlationID := fmt.Sprintf("enrich-%d-%d-%s", runID, revID, c.Field)
-		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{
-			OccurredAt:    time.Now().UTC().Format(time.RFC3339Nano),
-			Actor:         c.Provider,
-			PipelineRunID: runID,
-			EntityType:    "work_revision",
-			EntityID:      strconv.FormatInt(revID, 10),
-			Action:        manifest.AuditFieldEnriched,
-			MetadataJSON:  string(metadata),
-			CorrelationID: correlationID,
-		}); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// recordFieldEnrichmentMetrics records per-field and per-provider enrichment
-// metrics to pipeline_run_metrics. Per-author-index fields (e.g.
-// author_orcid_0, author_first_name_1) are aggregated into a single count
-// per field type (author_orcid, author_first_name, etc.).
-func recordFieldEnrichmentMetrics(ctx context.Context, db *database.Database, runID int64, changes []fieldChange) error {
-	fieldCounts := make(map[string]int)
-	providerCounts := make(map[string]int)
-	authorFieldSuffix := regexp.MustCompile(`_\d+$`)
-	for _, c := range changes {
-		// Aggregate per-author-index fields by stripping the trailing _N suffix.
-		field := authorFieldSuffix.ReplaceAllString(c.Field, "")
-		fieldCounts[field]++
-		providerCounts[c.Provider]++
-	}
-	if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields_total", Value: len(changes)}); err != nil {
-		return err
-	}
-	for field, count := range fieldCounts {
-		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields_" + field, Value: count}); err != nil {
-			return err
-		}
-	}
-	for provider, count := range providerCounts {
-		if err := db.Run.SetMetric(ctx, dbrun.MetricInput{RunID: runID, Metric: "enriched_fields", Source: provider, Value: count}); err != nil {
-			return err
-		}
-	}
-	return nil
+	return providers.ORCID(ctx, cache, source, openAlexSource, hasOpenAlex, articles)
 }
 
 // completePipelineRun completes pipeline run and records its terminal state.
@@ -1348,31 +531,4 @@ func completePipelineRun(ctx context.Context, db *database.Database, runID int64
 	}
 	_, err := db.Audit.Insert(ctx, &manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "pipeline_run", EntityID: strconv.FormatInt(runID, 10), Action: manifest.AuditRunCompleted, CorrelationID: "run-complete-" + strconv.FormatInt(runID, 10)})
 	return err
-}
-
-// recordValidationAudit records validation audit.
-func recordValidationAudit(ctx context.Context, db *database.Database, runID int64, articles []*article.Article, reasons map[string][]string) error {
-	for _, a := range articles {
-		work, err := db.Work.GetWorkByDOI(ctx, a.DOI)
-		if err != nil {
-			return err
-		}
-		if work == nil {
-			return fmt.Errorf("work missing for validation audit DOI %q", a.DOI)
-		}
-		status := "valid"
-		metadata := "{}"
-		if problems := reasons[a.DOI]; len(problems) > 0 {
-			status = "discarded"
-			data, err := json.Marshal(map[string]any{"reasons": problems})
-			if err != nil {
-				return err
-			}
-			metadata = string(data)
-		}
-		if _, err := db.Audit.Insert(ctx, &manifest.AuditEvent{OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "pipeline", PipelineRunID: runID, EntityType: "work", EntityID: strconv.FormatInt(work.ID, 10), Action: manifest.AuditValidationChanged, AfterJSON: fmt.Sprintf(`{"status":%q}`, status), MetadataJSON: metadata, CorrelationID: "validation-" + strconv.FormatInt(runID, 10)}); err != nil {
-			return err
-		}
-	}
-	return nil
 }

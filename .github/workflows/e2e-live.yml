@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
+          go-version-file: go.mod
           cache: true
       - name: Install gitleaks
         run: make gitleaks-install
@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: src/go.mod
+          go-version-file: go.mod
           cache: true
       - name: Build build/analysis
         run: make build

@@ -1,6 +1,5 @@
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -19,7 +18,7 @@ var nanoTimestampPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d
 // TestRunVisibilityLifecycle verifies that Home can trash and restore terminal runs without deleting their immutable evidence.
 func TestRunVisibilityLifecycle(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +36,7 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 	if status, body := testhelpers.RequestJSON(t, handler, "/api/runs?include_trashed=true"); status != http.StatusOK || !containsRun(body, runID) {
 		t.Fatalf("all runs after trash: status=%d body=%v", status, body)
 	}
-	trashedRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	trashedRun, err := viewer.Metadata.Run.GetByID(context.Background(), runID)
 	if err != nil || trashedRun == nil || trashedRun.TrashReason == nil || *trashedRun.TrashReason != "Superseded test attempt" {
 		t.Fatalf("stored trash reason=%v err=%v", trashedRun, err)
 	}
@@ -54,7 +53,7 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 	if status != http.StatusOK || restored["changed"] != true || restored["visibility_state"] != "active" {
 		t.Fatalf("restore run: status=%d body=%v", status, restored)
 	}
-	restoredRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	restoredRun, err := viewer.Metadata.Run.GetByID(context.Background(), runID)
 	if err != nil || restoredRun == nil || restoredRun.VisibilityState != "active" || restoredRun.TrashReason != nil {
 		t.Fatalf("restored run=%+v err=%v", restoredRun, err)
 	}
@@ -67,7 +66,7 @@ func TestRunVisibilityLifecycle(t *testing.T) {
 // TestRunVisibilityValidation verifies lifecycle input, origin, and running-attempt protections.
 func TestRunVisibilityValidation(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +89,7 @@ func TestRunVisibilityValidation(t *testing.T) {
 			}
 		})
 	}
-	runningRunID, err := testfixture.Run(context.Background(), viewer.writeDB.Conn, "run_lifecycle", "")
+	runningRunID, err := testfixture.Run(context.Background(), viewer.Metadata.Conn, "run_lifecycle", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +103,7 @@ func TestRunVisibilityValidation(t *testing.T) {
 // TestRunVisibilityAuditEvidence verifies the endpoint persists exact audit evidence with nanosecond timestamp precision.
 func TestRunVisibilityAuditEvidence(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,12 +115,12 @@ func TestRunVisibilityAuditEvidence(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("trash run status=%d", status)
 	}
-	trashedRun, err := viewer.writeDB.Run.GetByID(context.Background(), runID)
+	trashedRun, err := viewer.Metadata.Run.GetByID(context.Background(), runID)
 	if err != nil || trashedRun == nil || trashedRun.TrashedAt == nil {
 		t.Fatalf("trashed run=%+v err=%v", trashedRun, err)
 	}
 	trashedAt := *trashedRun.TrashedAt
-	events, err := viewer.writeDB.Audit.ListByRun(context.Background(), runID)
+	events, err := viewer.Metadata.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,9 +146,9 @@ func TestRunVisibilityAuditEvidence(t *testing.T) {
 }
 
 // countRunAuditEvents counts audit rows for one run action through the audit family store.
-func countRunAuditEvents(t *testing.T, viewer *subject.Server, runID int64, action string) int {
+func countRunAuditEvents(t *testing.T, viewer *testhelpers.Viewer, runID int64, action string) int {
 	t.Helper()
-	events, err := viewer.writeDB.Audit.ListByRun(context.Background(), runID)
+	events, err := viewer.Metadata.Audit.ListByRun(context.Background(), runID)
 	if err != nil {
 		t.Fatal(err)
 	}

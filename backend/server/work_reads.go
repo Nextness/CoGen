@@ -5,6 +5,7 @@ package server
 
 import (
 	"analysis/backend/database/work"
+	"analysis/internal/jsonvalue"
 )
 
 // corpusReferenceRow maps one work family corpus reference into a viewer row.
@@ -13,12 +14,12 @@ func corpusReferenceRow(reference *work.CorpusReference) map[string]any {
 		"id":               reference.ID,
 		"work_revision_id": reference.WorkRevisionID,
 		"mention_order":    reference.MentionOrder,
-		"doi":              nullableText(reference.DOI),
-		"title":            nullableText(reference.Title),
-		"author":           nullableText(reference.Author),
-		"year":             nullableIDPointer(reference.Year),
-		"source":           nullableText(reference.Source),
-		"citing_title":     nullableText(reference.CitingTitle),
+		"doi":              jsonvalue.Optional(reference.DOI),
+		"title":            jsonvalue.Optional(reference.Title),
+		"author":           jsonvalue.Optional(reference.Author),
+		"year":             jsonvalue.Optional(reference.Year),
+		"source":           jsonvalue.Optional(reference.Source),
+		"citing_title":     jsonvalue.Optional(reference.CitingTitle),
 		"created_at":       reference.CreatedAt,
 	}
 	if reference.ResolvedWorkID != nil {
@@ -34,9 +35,9 @@ func corpusAuthorRow(author *work.CorpusAuthor) map[string]any {
 	row := map[string]any{
 		"id":                author.ID,
 		"citation_name":     author.CitationName,
-		"first_name":        nullableText(author.FirstName),
-		"last_name":         nullableText(author.LastName),
-		"orcid":             nullableText(author.ORCID),
+		"first_name":        jsonvalue.Optional(author.FirstName),
+		"last_name":         jsonvalue.Optional(author.LastName),
+		"orcid":             jsonvalue.Optional(author.ORCID),
 		"article_count":     author.ArticleCount,
 		"affiliation_count": author.AffiliationCount,
 		"created_at":        author.CreatedAt,
@@ -56,7 +57,7 @@ func stageOutcomeRow(outcome *work.StageRow) map[string]any {
 		"work_id":    outcome.WorkID,
 		"stage_name": outcome.StageName,
 		"outcome":    outcome.Outcome,
-		"reason":     nullableText(outcome.Reason),
+		"reason":     jsonvalue.Optional(outcome.Reason),
 		"created_at": outcome.CreatedAt,
 		"updated_at": outcome.UpdatedAt,
 	}
@@ -82,21 +83,21 @@ func evaluationRow(row *work.EvaluationRow) map[string]any {
 	result := map[string]any{
 		"id":                  row.ID,
 		"work_id":             row.WorkID,
-		"title":               nullableText(row.Title),
-		"year":                nullableIDPointer(row.Year),
-		"journal":             nullableText(row.Journal),
-		"publisher":           nullableText(row.Publisher),
-		"source":              nullableText(row.Source),
-		"doi":                 nullableText(row.DOI),
-		"validation_status":   nullableText(row.ValidationStatus),
-		"citation_count":      nullableIDPointer(row.CitationCount),
-		"reference_count":     nullableIDPointer(row.ReferenceCount),
+		"title":               jsonvalue.Optional(row.Title),
+		"year":                jsonvalue.Optional(row.Year),
+		"journal":             jsonvalue.Optional(row.Journal),
+		"publisher":           jsonvalue.Optional(row.Publisher),
+		"source":              jsonvalue.Optional(row.Source),
+		"doi":                 jsonvalue.Optional(row.DOI),
+		"validation_status":   jsonvalue.Optional(row.ValidationStatus),
+		"citation_count":      jsonvalue.Optional(row.CitationCount),
+		"reference_count":     jsonvalue.Optional(row.ReferenceCount),
 		"producer_stage":      row.ProducerStage,
 		"created_at":          row.CreatedAt,
-		"abstract":            nullableText(row.Abstract),
-		"keywords":            nullableText(row.Keywords),
-		"keywords_plus":       nullableText(row.KeywordsPlus),
-		"authors":             nullableText(row.Authors),
+		"abstract":            jsonvalue.Optional(row.Abstract),
+		"keywords":            jsonvalue.Optional(row.Keywords),
+		"keywords_plus":       jsonvalue.Optional(row.KeywordsPlus),
+		"authors":             jsonvalue.Optional(row.Authors),
 		"work_revision_id":    row.WorkRevisionID,
 		"review_status":       row.ReviewStatus,
 		"review_inherited":    row.ReviewInherited,
@@ -148,43 +149,10 @@ func graphArticleRow(article *work.GraphArticle) map[string]any {
 	return map[string]any{
 		"id":      article.ID,
 		"work_id": article.WorkID,
-		"title":   nullableText(article.Title),
-		"year":    nullableIDPointer(article.Year),
-		"source":  nullableText(article.Source),
-		"doi":     nullableText(article.DOI),
-	}
-}
-
-// graphAuthorshipItem maps one work family graph authorship into a viewer row.
-func graphAuthorshipItem(authorship *work.GraphAuthorship) map[string]any {
-	return map[string]any{
-		"work_revision_id": authorship.WorkRevisionID,
-		"author_id":        authorship.AuthorID,
-		"citation_name":    authorship.CitationName,
-		"orcid":            nullableText(authorship.ORCID),
-		"author_order":     int64(authorship.AuthorOrder),
-		"affiliation":      nullableText(authorship.Affiliation),
-	}
-}
-
-// graphCitationItem maps one work family graph citation into a viewer row.
-func graphCitationItem(citation *work.GraphCitation) map[string]any {
-	return map[string]any{
-		"work_revision_id": citation.WorkRevisionID,
-		"resolved_work_id": citation.ResolvedWorkID,
-	}
-}
-
-// graphReferenceItem maps one work family graph reference into a viewer row.
-func graphReferenceItem(reference *work.GraphReference) map[string]any {
-	return map[string]any{
-		"reference_id":     reference.ID,
-		"work_revision_id": reference.WorkRevisionID,
-		"doi":              nullableText(reference.DOI),
-		"title":            nullableText(reference.Title),
-		"author":           nullableText(reference.Author),
-		"year":             nullableIDPointer(reference.Year),
-		"source":           nullableText(reference.Source),
+		"title":   jsonvalue.Optional(article.Title),
+		"year":    jsonvalue.Optional(article.Year),
+		"source":  jsonvalue.Optional(article.Source),
+		"doi":     jsonvalue.Optional(article.DOI),
 	}
 }
 
@@ -196,20 +164,20 @@ func articleRevisionRow(revision *work.ArticleRevision) map[string]any {
 		"pipeline_run_id":      revision.PipelineRunID,
 		"field_schema_version": revision.FieldSchemaVersion,
 		"payload_hash":         revision.PayloadHash,
-		"title":                nullableText(revision.Title),
-		"abstract":             nullableText(revision.Abstract),
-		"year":                 nullableIDPointer(revision.Year),
-		"journal":              nullableText(revision.Journal),
-		"publisher":            nullableText(revision.Publisher),
-		"source":               nullableText(revision.Source),
-		"keywords":             nullableText(revision.Keywords),
-		"keywords_plus":        nullableText(revision.KeywordsPlus),
-		"citation_count":       nullableIDPointer(revision.CitationCount),
-		"reference_count":      nullableIDPointer(revision.ReferenceCount),
-		"extension_data":       nullableText(revision.ExtensionData),
+		"title":                jsonvalue.Optional(revision.Title),
+		"abstract":             jsonvalue.Optional(revision.Abstract),
+		"year":                 jsonvalue.Optional(revision.Year),
+		"journal":              jsonvalue.Optional(revision.Journal),
+		"publisher":            jsonvalue.Optional(revision.Publisher),
+		"source":               jsonvalue.Optional(revision.Source),
+		"keywords":             jsonvalue.Optional(revision.Keywords),
+		"keywords_plus":        jsonvalue.Optional(revision.KeywordsPlus),
+		"citation_count":       jsonvalue.Optional(revision.CitationCount),
+		"reference_count":      jsonvalue.Optional(revision.ReferenceCount),
+		"extension_data":       jsonvalue.Optional(revision.ExtensionData),
 		"producer_stage":       revision.ProducerStage,
 		"created_at":           revision.CreatedAt,
-		"doi":                  nullableText(revision.DOI),
+		"doi":                  jsonvalue.Optional(revision.DOI),
 	}
 }
 
@@ -218,11 +186,11 @@ func articleAuthorRow(author *work.ArticleAuthor) map[string]any {
 	row := map[string]any{
 		"id":            author.ID,
 		"citation_name": author.CitationName,
-		"first_name":    nullableText(author.FirstName),
-		"last_name":     nullableText(author.LastName),
-		"orcid":         nullableText(author.ORCID),
+		"first_name":    jsonvalue.Optional(author.FirstName),
+		"last_name":     jsonvalue.Optional(author.LastName),
+		"orcid":         jsonvalue.Optional(author.ORCID),
 		"author_order":  author.AuthorOrder,
-		"affiliation":   nullableText(author.Affiliation),
+		"affiliation":   jsonvalue.Optional(author.Affiliation),
 	}
 	if author.PersonID != nil {
 		row["person_id"] = *author.PersonID
@@ -238,7 +206,7 @@ func articleStageRow(outcome *work.StageRow) map[string]any {
 		"id":         outcome.ID,
 		"stage_name": outcome.StageName,
 		"outcome":    outcome.Outcome,
-		"reason":     nullableText(outcome.Reason),
+		"reason":     jsonvalue.Optional(outcome.Reason),
 		"created_at": outcome.CreatedAt,
 		"updated_at": outcome.UpdatedAt,
 	}
@@ -250,11 +218,11 @@ func articleReferenceRow(reference *work.ArticleReference) map[string]any {
 		"id":               reference.ID,
 		"work_revision_id": reference.WorkRevisionID,
 		"mention_order":    reference.MentionOrder,
-		"doi":              nullableText(reference.DOI),
-		"title":            nullableText(reference.Title),
-		"author":           nullableText(reference.Author),
-		"year":             nullableIDPointer(reference.Year),
-		"source":           nullableText(reference.Source),
+		"doi":              jsonvalue.Optional(reference.DOI),
+		"title":            jsonvalue.Optional(reference.Title),
+		"author":           jsonvalue.Optional(reference.Author),
+		"year":             jsonvalue.Optional(reference.Year),
+		"source":           jsonvalue.Optional(reference.Source),
 		"created_at":       reference.CreatedAt,
 	}
 	if reference.ResolvedWorkID != nil {
@@ -264,7 +232,7 @@ func articleReferenceRow(reference *work.ArticleReference) map[string]any {
 	}
 	if reference.ResolvedRevisionID != nil {
 		row["resolved_revision_id"] = *reference.ResolvedRevisionID
-		row["resolved_title"] = nullableText(reference.ResolvedTitle)
+		row["resolved_title"] = jsonvalue.Optional(reference.ResolvedTitle)
 	} else {
 		row["resolved_revision_id"] = nil
 		row["resolved_title"] = nil
@@ -278,21 +246,21 @@ func referenceDetailRow(detail *work.ReferenceDetail) map[string]any {
 		"id":               detail.ID,
 		"work_revision_id": detail.WorkRevisionID,
 		"mention_order":    detail.MentionOrder,
-		"raw_reference":    nullableText(detail.RawReference),
-		"doi":              nullableText(detail.DOI),
-		"title":            nullableText(detail.Title),
-		"author":           nullableText(detail.Author),
-		"year":             nullableIDPointer(detail.Year),
-		"source":           nullableText(detail.Source),
+		"raw_reference":    jsonvalue.Optional(detail.RawReference),
+		"doi":              jsonvalue.Optional(detail.DOI),
+		"title":            jsonvalue.Optional(detail.Title),
+		"author":           jsonvalue.Optional(detail.Author),
+		"year":             jsonvalue.Optional(detail.Year),
+		"source":           jsonvalue.Optional(detail.Source),
 		"created_at":       detail.CreatedAt,
 		"work_id":          detail.WorkID,
-		"citing_title":     nullableText(detail.CitingTitle),
+		"citing_title":     jsonvalue.Optional(detail.CitingTitle),
 		"pipeline_run_id":  detail.PipelineRunID,
 	}
-	row["resolved_work_id"] = nullableIDPointer(detail.ResolvedWorkID)
+	row["resolved_work_id"] = jsonvalue.Optional(detail.ResolvedWorkID)
 	if detail.ResolvedRevisionID != nil {
 		row["resolved_revision_id"] = *detail.ResolvedRevisionID
-		row["resolved_title"] = nullableText(detail.ResolvedTitle)
+		row["resolved_title"] = jsonvalue.Optional(detail.ResolvedTitle)
 	} else {
 		row["resolved_revision_id"] = nil
 		row["resolved_title"] = nil

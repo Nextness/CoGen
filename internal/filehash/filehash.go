@@ -13,6 +13,8 @@ func SHA256(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	return fmt.Sprintf("%x", sum), nil
+	return Bytes(data), nil
 }
+
+// Bytes returns the lowercase hexadecimal SHA-256 identity of immutable payload bytes.
+func Bytes(data []byte) string { sum := sha256.Sum256(data); return fmt.Sprintf("%x", sum) }

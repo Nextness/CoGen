@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-// testData supports the package test suite's test data setup or assertions.
+// TestData supports the package test suite's test data setup or assertions.
 func TestData() map[string]any {
 	return map[string]any{
 		"name":     "test",
@@ -42,7 +42,7 @@ func TestData() map[string]any {
 	}
 }
 
-// evalText supports the package test suite's eval text setup or assertions.
+// EvalText supports the package test suite's eval text setup or assertions.
 func EvalText(t *testing.T, text string) map[string]any {
 	t.Helper()
 	tokens := subject.NewLexer(text, "").Tokenize()
@@ -50,10 +50,10 @@ func EvalText(t *testing.T, text string) map[string]any {
 	expanded := subject.NewDirectiveGenerator("").Expand(syntax)
 	checked := subject.NewTypeChecker(expanded, "").Check()
 	ev := subject.NewEvaluator(checked, "")
-	return ev.evaluate()
+	return ev.Evaluate()
 }
 
-// evalTextErr supports the package test suite's eval text err setup or assertions.
+// EvalTextErr supports the package test suite's eval text err setup or assertions.
 func EvalTextErr(t *testing.T, text string) string {
 	t.Helper()
 	defer func() {
@@ -68,7 +68,7 @@ func EvalTextErr(t *testing.T, text string) string {
 	expanded := subject.NewDirectiveGenerator("").Expand(syntax)
 	checked := subject.NewTypeChecker(expanded, "").Check()
 	ev := subject.NewEvaluator(checked, "")
-	ev.evaluate()
+	ev.Evaluate()
 	return ""
 }
 
@@ -153,7 +153,7 @@ type ScopeDecl struct {
 	Body []any
 }
 
-// parsedAssignmentView is a fixture type used by the package test suite.
+// ParsedAssignmentView is a fixture type used by the package test suite.
 type ParsedAssignmentView struct {
 	LValue any
 	RValue any
@@ -188,31 +188,7 @@ type MacroDecl struct {
 // Priv supplies IncludeDecl test-fixture behavior.
 func (*IncludeDecl) Priv() bool { return false }
 
-// scopeBodyItemMarker supplies VarDecl test-fixture behavior.
-func (*VarDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies ForDecl test-fixture behavior.
-func (*ForDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies InsertDecl test-fixture behavior.
-func (*InsertDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies IncludeDecl test-fixture behavior.
-func (*IncludeDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies IterationDecl test-fixture behavior.
-func (*IterationDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies AsLvalueDecl test-fixture behavior.
-func (*AsLvalueDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies ScopeDecl test-fixture behavior.
-func (*ScopeDecl) scopeBodyItemMarker() {}
-
-// scopeBodyItemMarker supplies MacroDecl test-fixture behavior.
-func (*MacroDecl) scopeBodyItemMarker() {}
-
-// getLocation supports the package test suite's get location setup or assertions.
+// GetLocation supports the package test suite's get location setup or assertions.
 func GetLocation(value any) *subject.SourceLocation {
 	switch value := value.(type) {
 	case *VarDecl:
@@ -225,10 +201,10 @@ func GetLocation(value any) *subject.SourceLocation {
 	return nil
 }
 
-// validExprKindsForType supports the package test suite's valid expr kinds for type setup or assertions.
+// ValidExprKindsForType supports the package test suite's valid expr kinds for type setup or assertions.
 func ValidExprKindsForType(subject.TypeRef) []NodeKind { return nil }
 
-// kindName supports the package test suite's kind name setup or assertions.
+// KindName supports the package test suite's kind name setup or assertions.
 func KindName(kind NodeKind) string {
 	switch kind {
 	case KindString:
@@ -258,7 +234,7 @@ func KindName(kind NodeKind) string {
 	}
 }
 
-// parsedProgramView is a fixture type used by the package test suite.
+// ParsedProgramView is a fixture type used by the package test suite.
 type ParsedProgramView struct {
 	Enums              []*EnumDecl
 	Setups             []*SetupDecl
@@ -273,14 +249,15 @@ type ParsedProgramView struct {
 	Macros             []*MacroDecl
 }
 
-// parsedValue supports the package test suite's parsed value setup or assertions.
+// ParsedValue supports the package test suite's parsed value setup or assertions.
 func ParsedValue(expression subject.Expression) *ValueNode {
 	if expression == nil {
 		return nil
 	}
-	value := &ValueNode{Location: expression.expressionLocation()}
+	value := &ValueNode{}
 	switch expression := expression.(type) {
 	case *subject.StringExpression:
+		value.Location = expression.Location
 		value.Kind = KindString
 		value.Raw = expression.Literal
 		if expression.Multiline != "" {
@@ -288,18 +265,23 @@ func ParsedValue(expression subject.Expression) *ValueNode {
 			value.Resolved = expression.Multiline
 		}
 	case *subject.IntegerExpression:
+		value.Location = expression.Location
 		value.Kind = KindInteger
 		value.Resolved = expression.Value
 	case *subject.FloatExpression:
+		value.Location = expression.Location
 		value.Kind = KindFloat
 		value.Resolved = expression.Value
 	case *subject.BooleanExpression:
+		value.Location = expression.Location
 		value.Kind = KindBoolean
 		value.Resolved = expression.Value
 	case *subject.ReferenceExpression:
+		value.Location = expression.Location
 		value.Kind = KindReference
 		value.Raw = ParsedReferencePath(expression)
 	case *subject.ArrayExpression:
+		value.Location = expression.Location
 		value.Kind = KindArray
 		elements := make([]*ValueNode, len(expression.Elements))
 		for index, element := range expression.Elements {
@@ -307,18 +289,22 @@ func ParsedValue(expression subject.Expression) *ValueNode {
 		}
 		value.Resolved = elements
 	case *subject.MappingExpression:
+		value.Location = expression.Location
 		value.Kind = KindMapping
 		value.Resolved = expression
 	case *subject.StructExpression:
+		value.Location = expression.Location
 		value.Kind = KindStruct
 		if expression.TypeName != "" {
 			value.Raw = expression.TypeName
 		}
 		value.Resolved = expression.Fields
 	case *subject.IncludeExpression:
+		value.Location = expression.Location
 		value.Kind = KindInclude
 		value.Raw = expression.Filepath
 	case *subject.MacroCallExpression:
+		value.Location = expression.Location
 		value.Kind = KindMacroCall
 		value.Raw = expression.Name
 		arguments := make([]*ValueNode, len(expression.Arguments))
@@ -330,7 +316,7 @@ func ParsedValue(expression subject.Expression) *ValueNode {
 	return value
 }
 
-// parsedReferencePath supports the package test suite's parsed reference path setup or assertions.
+// ParsedReferencePath supports the package test suite's parsed reference path setup or assertions.
 func ParsedReferencePath(reference *subject.ReferenceExpression) string {
 	var result strings.Builder
 	result.WriteString(reference.Root)
@@ -355,7 +341,7 @@ func ParsedReferencePath(reference *subject.ReferenceExpression) string {
 	return result.String()
 }
 
-// stringLiteralToStringValue supports the package test suite's string literal to string value setup or assertions.
+// StringLiteralToStringValue supports the package test suite's string literal to string value setup or assertions.
 func StringLiteralToStringValue(expression *subject.StringExpression) string {
 	if expression.Multiline != "" {
 		return expression.Multiline
@@ -369,7 +355,7 @@ func StringLiteralToStringValue(expression *subject.StringExpression) string {
 	return result.String()
 }
 
-// assignmentName supports the package test suite's assignment name setup or assertions.
+// AssignmentName supports the package test suite's assignment name setup or assertions.
 func AssignmentName(target subject.LValue) string {
 	if identifier, ok := target.(*subject.IdentifierLValue); ok {
 		return identifier.Name
@@ -377,7 +363,7 @@ func AssignmentName(target subject.LValue) string {
 	return ""
 }
 
-// explicitType supports the package test suite's explicit type setup or assertions.
+// ExplicitType supports the package test suite's explicit type setup or assertions.
 func ExplicitType(assignment *subject.Assignment) string {
 	if assignment.DeclaredType == nil {
 		if _, ok := assignment.Value.(*subject.IncludeExpression); ok {
@@ -391,10 +377,10 @@ func ExplicitType(assignment *subject.Assignment) string {
 	case *subject.MappingType:
 		return "mapping"
 	}
-	return subject.typeRefString(assignment.DeclaredType)
+	return fmt.Sprint(assignment.DeclaredType)
 }
 
-// parsedBody supports the package test suite's parsed body setup or assertions.
+// ParsedBody supports the package test suite's parsed body setup or assertions.
 func ParsedBody(statements []subject.Statement) []any {
 	items := make([]any, 0, len(statements))
 	for _, statement := range statements {
@@ -427,7 +413,7 @@ func ParsedBody(statements []subject.Statement) []any {
 	return items
 }
 
-// parsedView supports the package test suite's parsed view setup or assertions.
+// ParsedView supports the package test suite's parsed view setup or assertions.
 func ParsedView(program *subject.Program) *ParsedProgramView {
 	view := &ParsedProgramView{}
 	for _, statement := range program.Statements {
@@ -477,13 +463,13 @@ func ParsedView(program *subject.Program) *ParsedProgramView {
 	return view
 }
 
-// tokenize supports the package test suite's tokenize setup or assertions.
+// Tokenize supports the package test suite's tokenize setup or assertions.
 func Tokenize(t *testing.T, text string) []subject.Token {
 	t.Helper()
 	return subject.NewLexer(text, "").Tokenize()
 }
 
-// tokenKinds supports the package test suite's token kinds setup or assertions.
+// TokenKinds supports the package test suite's token kinds setup or assertions.
 func TokenKinds(t *testing.T, text string) []subject.TokenKind {
 	t.Helper()
 	ts := Tokenize(t, text)
@@ -494,7 +480,7 @@ func TokenKinds(t *testing.T, text string) []subject.TokenKind {
 	return kinds
 }
 
-// assertKind supports the package test suite's assert kind setup or assertions.
+// AssertKind supports the package test suite's assert kind setup or assertions.
 func AssertKind(t *testing.T, tok subject.Token, expected subject.TokenKind) {
 	t.Helper()
 	if tok.Kind != expected {
@@ -502,7 +488,7 @@ func AssertKind(t *testing.T, tok subject.Token, expected subject.TokenKind) {
 	}
 }
 
-// assertPanic supports the package test suite's assert panic setup or assertions.
+// AssertPanic supports the package test suite's assert panic setup or assertions.
 func AssertPanic(t *testing.T, fn func(), msgContains string) {
 	t.Helper()
 	defer func() {
@@ -523,7 +509,7 @@ func AssertPanic(t *testing.T, fn func(), msgContains string) {
 	fn()
 }
 
-// parseText builds a parsed program view from source text.
+// ParseText builds a parsed program view from source text.
 func ParseText(t *testing.T, text string) *ParsedProgramView {
 	t.Helper()
 	tokens := subject.NewLexer(text, "").Tokenize()

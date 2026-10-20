@@ -1,6 +1,7 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
 	"errors"
 	"net/http"
 	"strings"
@@ -14,7 +15,7 @@ const runTrashReasonLimit = 1000
 // updateRunVisibility moves one terminal run into or out of the reversible trash lifecycle and appends matching audit evidence atomically.
 func (s *Server) updateRunVisibility(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -30,11 +31,11 @@ func (s *Server) updateRunVisibility(w http.ResponseWriter, r *http.Request) {
 	request.VisibilityState = strings.TrimSpace(request.VisibilityState)
 	request.Reason = strings.TrimSpace(request.Reason)
 	if request.VisibilityState != run.VisibilityActive && request.VisibilityState != run.VisibilityTrashed {
-		s.respond(w, r, nil, badRequest("visibility_state must be active or trashed"))
+		s.respond(w, r, nil, viewrequest.BadRequest("visibility_state must be active or trashed"))
 		return
 	}
 	if len([]byte(request.Reason)) > runTrashReasonLimit {
-		s.respond(w, r, nil, badRequest("reason must not exceed 1000 UTF-8 bytes"))
+		s.respond(w, r, nil, viewrequest.BadRequest("reason must not exceed 1000 UTF-8 bytes"))
 		return
 	}
 	if request.VisibilityState == run.VisibilityTrashed && request.Reason == "" {
@@ -49,7 +50,7 @@ func (s *Server) updateRunVisibility(w http.ResponseWriter, r *http.Request) {
 		Reason:          request.Reason,
 	})
 	if errors.Is(err, run.ErrRunActive) {
-		s.respond(w, r, nil, &apiProblem{Status: http.StatusConflict, Code: "run_active", Message: err.Error()})
+		s.respond(w, r, nil, &viewrequest.Problem{Status: http.StatusConflict, Code: "run_active", Message: err.Error()})
 		return
 	}
 	if err != nil {
@@ -57,7 +58,7 @@ func (s *Server) updateRunVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result == nil {
-		s.respond(w, r, nil, notFound("run not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("run not found"))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{

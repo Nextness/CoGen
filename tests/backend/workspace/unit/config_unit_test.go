@@ -355,69 +355,50 @@ workspace_config: setup = {
 `
 }
 
-// TestConfigHelpers verifies config helpers.
-func TestConfigHelpers(t *testing.T) {
-	t.Run("optionalStringMap", func(t *testing.T) {
-		val, err := subject.optionalStringMap(map[string]any{"key": map[string]any{"a": "1", "b": "2"}}, "key")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(val) != 2 || val["a"] != "1" || val["b"] != "2" {
-			t.Fatalf("got %v, want map[a:1 b:2]", val)
-		}
-
-		val, err = subject.optionalStringMap(map[string]any{}, "key")
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(val) != 0 {
-			t.Fatalf("got %v, want empty map", val)
-		}
-
-		_, err = subject.optionalStringMap(map[string]any{"key": "not-a-map"}, "key")
-		if err == nil || !strings.Contains(err.Error(), "key is required") {
-			t.Fatalf("expected error for wrong type, got %v", err)
-		}
-
-		_, err = subject.optionalStringMap(map[string]any{"key": map[string]any{"a": 1}}, "key")
-		if err == nil || !strings.Contains(err.Error(), `key["a"] must be a string`) {
-			t.Fatalf("expected error for non-string value, got %v", err)
-		}
-	})
-
-	t.Run("enumIntList", func(t *testing.T) {
-		names := []string{"A", "B", "C"}
-		val, err := subject.enumIntList(map[string]any{"key": []any{0, 1, 2}}, "key", names)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(val) != 3 || val[0] != 0 || val[1] != 1 || val[2] != 2 {
-			t.Fatalf("got %v, want [0 1 2]", val)
-		}
-
-		_, err = subject.enumIntList(map[string]any{}, "key", names)
-		if err == nil || !strings.Contains(err.Error(), "key is required") {
-			t.Fatalf("expected error for missing key, got %v", err)
-		}
-
-		_, err = subject.enumIntList(map[string]any{"key": "not-a-list"}, "key", names)
-		if err == nil || !strings.Contains(err.Error(), "key is required") {
-			t.Fatalf("expected error for wrong type, got %v", err)
-		}
-
-		_, err = subject.enumIntList(map[string]any{"key": []any{"x"}}, "key", names)
-		if err == nil || !strings.Contains(err.Error(), "key[0] must be an enum value") {
-			t.Fatalf("expected error for non-int element, got %v", err)
-		}
-
-		_, err = subject.enumIntList(map[string]any{"key": []any{5}}, "key", names)
-		if err == nil || !strings.Contains(err.Error(), "key[0] enum ordinal 5 out of range") {
-			t.Fatalf("expected error for out-of-range ordinal, got %v", err)
-		}
-
-		_, err = subject.enumIntList(map[string]any{"key": []any{-1}}, "key", names)
-		if err == nil || !strings.Contains(err.Error(), "key[0] enum ordinal -1 out of range") {
-			t.Fatalf("expected error for negative ordinal, got %v", err)
-		}
-	})
+// TestLoadValidatesOptionalMapsAndEnumLists verifies the typed boundary through evaluated public workspace configurations.
+func TestLoadValidatesOptionalMapsAndEnumLists(t *testing.T) {
+	for _, test := range []struct {
+		name, reads, extra string
+		valid              bool
+	}{
+		{"map entries", `reads:=[]integer{0,1,2};`, `extra_urls:=mapping(string,string){["a"]=>"https://a.example/",["b"]=>"https://b.example/"};`, true},
+		{"map omitted", `reads:=[]integer{0,1,2};`, "", true},
+		{"map wrong type", `reads:=[]integer{0,1,2};`, `extra_urls:="not-a-map";`, false},
+		{"map nonstring value", `reads:=[]integer{0,1,2};`, `extra_urls:=mapping(string,integer){["a"]=>1};`, false},
+		{"enum list omitted", "", "", false},
+		{"enum wrong type", `reads:="not-a-list";`, "", false},
+		{"enum noninteger element", `reads:=[]string{"x"};`, "", false},
+		{"enum out of range", `reads:=[]integer{5};`, "", false},
+		{"enum negative", `reads:=[]integer{-1};`, "", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			text := `source:scope={name:="fixture";date:="2026-01-01 00:00:00";expected_file:="input.csv";file_type:="csv";query:="TITLE(test)";expected_result_count:=1;requested_fields:=[]string{"doi"};patch_fields:=mapping(string,string){};keep_fields:=[]string{"doi"};}
+provider:scope={name:="crossref";base_url:="https://example.test/works/";fields:=[]string{"title"};fill_missing_only:=false;rate_per_second:=10;concurrency:=1;timeout_seconds:=5;max_retries:=1;batch_size:=1;` + test.extra + `}
+#iteration("_workspace"):scope={workspace:scope={format_version:=2;search_id:="typed-boundary";search_revision:="r1";enrichment_enabled:=true;
+reuse_policy:scope={policy:="reuse_completed";}
+cache_policy:scope={` + test.reads + `writes:=[]integer{0};negative_ttl_days:=7;}
+sources:=[]scope{source};enrichment_providers:=[]scope{provider};}}
+`
+			loaded, err := subject.Load(writeConfig(t, text))
+			if (err == nil) != test.valid {
+				t.Fatalf("valid=%v error=%v", test.valid, err)
+			}
+			if !test.valid && err != nil && strings.Contains(err.Error(), "evaluate workspace config") {
+				t.Fatalf("invalid fixture syntax: %v", err)
+			}
+			if test.valid {
+				got := loaded.Runs[0]
+				if len(got.Manifest.CachePolicy.Reads) != 3 {
+					t.Fatalf("reads=%v", got.Manifest.CachePolicy.Reads)
+				}
+				extra := got.Enrichment.Sources["crossref"].ExtraURLs
+				if test.extra != "" && (len(extra) != 2 || extra["a"] != "https://a.example/" || extra["b"] != "https://b.example/") {
+					t.Fatalf("extra URLs=%v", extra)
+				}
+				if test.extra == "" && len(extra) != 0 {
+					t.Fatalf("omitted optional map=%v", extra)
+				}
+			}
+		})
+	}
 }

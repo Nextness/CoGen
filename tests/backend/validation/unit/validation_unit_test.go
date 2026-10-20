@@ -47,12 +47,3 @@ func TestValidateFields(t *testing.T) {
 		t.Fatalf("ValidateFields negative counts = %v", got)
 	}
 }
-
-// TestSortedReasons verifies sorted reasons.
-func TestSortedReasons(t *testing.T) {
-	got := subject.sortedReasons(map[string]int{"b": 1, "a": 1, "c": 2})
-	want := []string{"c", "a", "b"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("sortedReasons = %v, want %v", got, want)
-	}
-}

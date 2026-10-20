@@ -6,6 +6,7 @@ import subject "analysis/backend/something"
 import testhelpers "analysis/tests/support/go/backend/something"
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,59 +39,32 @@ func assertExpandedAssignments(t *testing.T, statements []subject.Statement) {
 	}
 }
 
-// TestOrderedASTInterfaceMarkers verifies ordered ast interface markers.
-func TestOrderedASTInterfaceMarkers(t *testing.T) {
-	subject.PrimScope.typeRefMarker()
-	subject.PrimNamespace.typeRefMarker()
-	(&subject.ScopeType{}).typeRefMarker()
-	(&subject.NamespaceType{}).typeRefMarker()
-	subject.StringText("").stringPartMarker()
-	(&subject.InterpolationRef{}).stringPartMarker()
-
-	(&subject.Assignment{}).statementMarker()
-	(&subject.IncludeDirective{}).statementMarker()
-	(&subject.ForDirective{}).statementMarker()
-	(&subject.InsertDirective{}).statementMarker()
-	(&subject.MacroDirective{}).statementMarker()
-	(&subject.AssertDirective{}).statementMarker()
-	(&subject.IfDirective{}).statementMarker()
-	(&subject.ErrorDirective{}).statementMarker()
-	(&subject.IdentifierLValue{}).lvalueMarker()
-	(&subject.MemberLValue{}).lvalueMarker()
-	(&subject.IterationLValue{}).lvalueMarker()
-	(&subject.AsLValue{}).lvalueMarker()
-	(&subject.FieldAccess{}).accessMarker()
-	(&subject.IndexAccess{}).accessMarker()
-
-	expressions := []subject.Expression{
-		&subject.StringExpression{},
-		&subject.IntegerExpression{},
-		&subject.FloatExpression{},
-		&subject.BooleanExpression{},
-		&subject.ReferenceExpression{},
-		&subject.ArrayExpression{},
-		&subject.MappingExpression{},
-		&subject.StructExpression{},
-		&subject.IncludeExpression{},
-		&subject.IterationExpression{},
-		&subject.MacroCallExpression{},
-		&subject.NamespaceExpression{},
-		&subject.TypedExpression{},
-		&subject.BinaryOpExpression{},
-		&subject.UnaryOpExpression{},
-		&subject.MatchExpression{},
-		&subject.LenExpression{},
-		&subject.IntrinsicExpression{},
-	}
-	for _, expression := range expressions {
-		expression.assignmentValueMarker()
-		expression.expressionMarker()
-		expression.expressionLocation()
-	}
-	(&subject.ScopeExpression{}).assignmentValueMarker()
-	(&subject.SetupDefinition{}).assignmentValueMarker()
-	(&subject.EnumDefinition{}).assignmentValueMarker()
-}
+// Ordered AST interface assertions verify sealed node membership at compile time.
+var (
+	_ subject.TypeRef         = subject.PrimScope
+	_ subject.TypeRef         = subject.PrimNamespace
+	_ subject.TypeRef         = (&subject.ScopeType{})
+	_ subject.TypeRef         = (&subject.NamespaceType{})
+	_ subject.StringPart      = subject.StringText("")
+	_ subject.StringPart      = (&subject.InterpolationRef{})
+	_ subject.Statement       = (&subject.Assignment{})
+	_ subject.Statement       = (&subject.IncludeDirective{})
+	_ subject.Statement       = (&subject.ForDirective{})
+	_ subject.Statement       = (&subject.InsertDirective{})
+	_ subject.Statement       = (&subject.MacroDirective{})
+	_ subject.Statement       = (&subject.AssertDirective{})
+	_ subject.Statement       = (&subject.IfDirective{})
+	_ subject.Statement       = (&subject.ErrorDirective{})
+	_ subject.LValue          = (&subject.IdentifierLValue{})
+	_ subject.LValue          = (&subject.MemberLValue{})
+	_ subject.LValue          = (&subject.IterationLValue{})
+	_ subject.LValue          = (&subject.AsLValue{})
+	_ subject.Access          = (&subject.FieldAccess{})
+	_ subject.Access          = (&subject.IndexAccess{})
+	_ subject.AssignmentValue = (&subject.ScopeExpression{})
+	_ subject.AssignmentValue = (&subject.SetupDefinition{})
+	_ subject.AssignmentValue = (&subject.EnumDefinition{})
+)
 
 // TestPipelinePreservesSyntaxOrderThenRemovesDirectives verifies pipeline preserves syntax order then removes directives.
 func TestPipelinePreservesSyntaxOrderThenRemovesDirectives(t *testing.T) {
@@ -376,8 +350,8 @@ func TestMacroExpansionPreservesDeclaredResultTypes(t *testing.T) {
 value := timestamp_value!();
 `)
 	valueAssignment := expanded.Statements[0].(*subject.Assignment)
-	if subject.typeRefString(checked.AssignmentTypes[valueAssignment]) != "timestamp" {
-		t.Fatalf("inferred macro result type was not preserved: %s", subject.typeRefString(checked.AssignmentTypes[valueAssignment]))
+	if fmt.Sprint(checked.AssignmentTypes[valueAssignment]) != "timestamp" {
+		t.Fatalf("inferred macro result type was not preserved: %s", fmt.Sprint(checked.AssignmentTypes[valueAssignment]))
 	}
 
 	result := testhelpers.EvalText(t, `
@@ -398,41 +372,24 @@ selected := items[.green];
 	}
 }
 
-// TestRuntimeDiagnosticTypeNamesAndKeyEquality verifies runtime diagnostic type names and key equality.
+// TestRuntimeDiagnosticTypeNamesAndKeyEquality verifies public macro diagnostics and enum-key lookups preserve runtime value identity.
 func TestRuntimeDiagnosticTypeNamesAndKeyEquality(t *testing.T) {
-	values := []struct {
-		value any
-		name  string
-	}{
-		{"value", "string"},
-		{1, "integer"},
-		{1.5, "float"},
-		{true, "boolean"},
-		{[]any{}, "array"},
-		{&subject.runtimeMapping{}, "mapping"},
-		{&subject.runtimeObject{}, "object"},
-		{&subject.EnumValue{}, "enum"},
-		{struct{}{}, "struct {}"},
+	for _, test := range []struct{ value, expected, name string }{
+		{`"value"`, "integer", "string"}, {`1`, "string", "integer"}, {`1.5`, "string", "float"}, {`true`, "string", "boolean"},
+		{`[]string{}`, "string", "array"}, {`mapping(string,string){}`, "string", "mapping"},
+		{`Point{x=1}`, "string", "object"}, {`Color.red`, "string", "enum"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			source := `Point:setup={x:integer;}Color:enum={red;blue;}#macro accept := (value: ` + test.expected + `) -> string { #set "ok"; } result:=accept!(` + test.value + `);`
+			_, err := subject.LoadSomethingBytes([]byte(source), "runtime.something")
+			if err == nil || !strings.Contains(err.Error(), "got "+test.name) {
+				t.Fatalf("diagnostic=%v, want runtime type %q", err, test.name)
+			}
+		})
 	}
-	for _, test := range values {
-		if actual := subject.runtimeTypeName(test.value); actual != test.name {
-			t.Fatalf("runtimeTypeName(%T) = %q, expected %q", test.value, actual, test.name)
-		}
-	}
-
-	red := &subject.EnumValue{EnumName: "Color", Ordinal: 0}
-	otherRed := &subject.EnumValue{EnumName: "Color", Ordinal: 0}
-	blue := &subject.EnumValue{EnumName: "Color", Ordinal: 1}
-	if !subject.runtimeKeysEqual(red, otherRed) || !subject.runtimeKeysEqual(red, 0) || !subject.runtimeKeysEqual(0, red) {
-		t.Fatal("equivalent enum runtime keys did not compare equal")
-	}
-	if subject.runtimeKeysEqual(red, blue) || subject.runtimeKeysEqual("0", 0) {
-		t.Fatal("different runtime keys compared equal")
-	}
-
-	keys := subject.sortedKeys(map[string]*subject.BindingType{"z": {}, "a": {}})
-	if strings.Join(keys, ",") != "a,z" {
-		t.Fatalf("binding type keys are not sorted: %v", keys)
+	values := testhelpers.EvalText(t, `Color:enum={red;blue;}items:mapping(Color,string)=mapping(Color,string){[.red]=>"red",[.blue]=>"blue"};red:=items[Color.red];blue:=items[Color.blue];`)
+	if values["red"] != "red" || values["blue"] != "blue" {
+		t.Fatalf("enum keys lost identity: %v", values)
 	}
 }
 

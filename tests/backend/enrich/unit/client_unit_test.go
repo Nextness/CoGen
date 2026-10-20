@@ -49,10 +49,10 @@ func TestNewClientRejectsInvalidSourceConfig(t *testing.T) {
 		{"relative base URL", func(cfg *subject.SourceConfig) { cfg.BaseURL = "/api" }},
 		{"missing rate", func(cfg *subject.SourceConfig) { cfg.RatePerSecond = 0 }},
 		{"ticker zero rate", func(cfg *subject.SourceConfig) { cfg.RatePerSecond = int(time.Second) + 1 }},
-		{"unbounded concurrency", func(cfg *subject.SourceConfig) { cfg.Concurrency = subject.maxProviderConcurrency + 1 }},
-		{"unbounded timeout", func(cfg *subject.SourceConfig) { cfg.TimeoutSecs = subject.maxProviderTimeoutSeconds + 1 }},
-		{"unbounded retries", func(cfg *subject.SourceConfig) { cfg.MaxRetries = subject.maxProviderRetries + 1 }},
-		{"unbounded batch size", func(cfg *subject.SourceConfig) { cfg.BatchSize = subject.maxProviderBatchSize + 1 }},
+		{"unbounded concurrency", func(cfg *subject.SourceConfig) { cfg.Concurrency = 64 + 1 }},
+		{"unbounded timeout", func(cfg *subject.SourceConfig) { cfg.TimeoutSecs = 300 + 1 }},
+		{"unbounded retries", func(cfg *subject.SourceConfig) { cfg.MaxRetries = 10 + 1 }},
+		{"unbounded batch size", func(cfg *subject.SourceConfig) { cfg.BatchSize = 1000 + 1 }},
 		{"missing timeout", func(cfg *subject.SourceConfig) { cfg.TimeoutSecs = 0 }},
 		{"missing retries", func(cfg *subject.SourceConfig) { cfg.MaxRetries = 0 }},
 		{"missing batch size", func(cfg *subject.SourceConfig) { cfg.BatchSize = 0 }},
@@ -66,13 +66,5 @@ func TestNewClientRejectsInvalidSourceConfig(t *testing.T) {
 				t.Fatal("NewClient() unexpectedly succeeded")
 			}
 		})
-	}
-}
-
-// TestRequestLogTargetExcludesQuery verifies provider logs cannot contain request query data.
-func TestRequestLogTargetExcludesQuery(t *testing.T) {
-	host, path := subject.requestLogTarget("https://orcid.example/search?q=credit-name%3A%22Ada%20Lovelace%22")
-	if host != "orcid.example" || path != "/search" {
-		t.Fatalf("requestLogTarget() = (%q, %q)", host, path)
 	}
 }

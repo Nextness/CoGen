@@ -6,7 +6,6 @@ package server_test
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -99,8 +98,8 @@ func TestArticleIncludesManualPDFAuditEvent(t *testing.T) {
 // TestViewerPDFConnectionIsReadOnly verifies viewer pdf connection is read only.
 func TestViewerPDFConnectionIsReadOnly(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
-	if _, err := fixture.Server.pdfDB.Exec(`INSERT INTO pdf_blobs
-		(content_hash, byte_size, content, created_at) VALUES ('write-test', 1, x'00', '2026-01-01T00:00:00Z')`); err == nil {
+	if _, err := fixture.Server.PDF.Exec(`INSERT INTO pdf_blobs
+		(content_hash, byte_size, data, created_at) VALUES ('write-test', 1, x'00', '2026-01-01T00:00:00Z')`); err == nil {
 		t.Fatal("viewer PDF connection accepted a write")
 	}
 }
@@ -132,7 +131,7 @@ func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := subject.Open(fixture.MetadataPath)
+	viewer, err := testhelpers.OpenViewer(t, fixture.MetadataPath)
 	if err != nil {
 		t.Fatal(err)
 	}

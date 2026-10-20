@@ -4,7 +4,7 @@
 package server
 
 import (
-	"bytes"
+	viewrequest "analysis/backend/server/request"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -16,7 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
+
 	"strings"
 	"sync"
 	"time"
@@ -34,11 +34,19 @@ import (
 	"analysis/backend/database/work"
 	"analysis/backend/logging"
 	"analysis/backend/pdfstore"
+	"analysis/internal/httpbudget"
 	"analysis/internal/pathpolicy"
-	"analysis/internal/sqliteuri"
+	"analysis/internal/querybudget"
+	"analysis/internal/sqliteread"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
 )
+
+// queryBudgetDriverName selects the viewer's context-budgeted SQLite connections.
+const queryBudgetDriverName = "analysis-viewer-budgeted-sqlite"
+
+// init registers the viewer's production driver once per process.
+func init() { sql.Register(queryBudgetDriverName, querybudget.WrapDriver(&sqlite.Driver{})) }
 
 const requestTimeout = 5 * time.Second
 
@@ -123,16 +131,10 @@ func Open(path string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
-	uri := sqliteuri.File(absolute, map[string][]string{
-		"mode":    {"ro"},
-		"_pragma": {"query_only(1)"},
-	})
-	db, err := sql.Open(queryBudgetDriverName, uri)
+	db, err := sqliteread.Open(absolute, queryBudgetDriverName)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace database read-only: %w", err)
 	}
-	db.SetMaxOpenConns(1)
-	db.SetConnMaxLifetime(0)
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
@@ -300,87 +302,11 @@ func apiQueryBudget(path string) int {
 	return compactAPIQueries
 }
 
-// responseBudgetWriter buffers one bounded JSON response before it is committed.
-type responseBudgetWriter struct {
-	header   http.Header
-	body     bytes.Buffer
-	status   int
-	limit    int
-	exceeded bool
-}
-
-// Header implements http.ResponseWriter.
-func (w *responseBudgetWriter) Header() http.Header { return w.header }
-
-// WriteHeader records the first response status without committing it.
-func (w *responseBudgetWriter) WriteHeader(status int) {
-	if w.status == 0 {
-		w.status = status
-	}
-}
-
-// Write retains at most the configured byte budget and reports a complete write.
-func (w *responseBudgetWriter) Write(data []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	remaining := w.limit - w.body.Len()
-	if remaining < len(data) {
-		w.exceeded = true
-		if remaining > 0 {
-			_, _ = w.body.Write(data[:remaining])
-		}
-		return len(data), nil
-	}
-	_, _ = w.body.Write(data)
-	return len(data), nil
-}
-
-// withAPIResponseBudgets enforces route-specific serialized JSON limits.
+// withAPIResponseBudgets applies the viewer's route policy and stable error envelope.
 func withAPIResponseBudgets(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limit := apiResponseByteBudget(r.URL.Path)
-		queryLimit := apiQueryBudget(r.URL.Path)
-		if limit == 0 && queryLimit == 0 {
-			next.ServeHTTP(w, r)
-			return
-		}
-		ctx, queryState := withQueryBudget(r.Context(), queryLimit)
-		r = r.WithContext(ctx)
-		if limit == 0 {
-			w.Header().Set("X-Query-Count-Limit", strconv.Itoa(queryLimit))
-			w.Header().Add("Trailer", "X-Query-Count-Used")
-			next.ServeHTTP(w, r)
-			w.Header().Set("X-Query-Count-Used", strconv.FormatInt(queryState.used.Load(), 10))
-			return
-		}
-		buffered := &responseBudgetWriter{header: make(http.Header), limit: limit}
-		next.ServeHTTP(buffered, r)
-		if limit > 0 {
-			w.Header().Set("X-Response-Byte-Limit", strconv.Itoa(limit))
-		}
-		w.Header().Set("X-Query-Count-Limit", strconv.Itoa(queryLimit))
-		w.Header().Set("X-Query-Count-Used", strconv.FormatInt(queryState.used.Load(), 10))
-		if queryState.exceeded.Load() {
-			writeDetailedError(w, http.StatusInternalServerError, "query_budget_exceeded", "the request exceeded its SQL statement budget", map[string]any{"query_limit": queryLimit})
-			return
-		}
-		if buffered.exceeded {
-			writeDetailedError(w, http.StatusInternalServerError, "response_budget_exceeded", "the bounded response exceeded its serialized byte limit", map[string]any{"byte_limit": limit})
-			return
-		}
-		for key, values := range buffered.header {
-			for _, value := range values {
-				w.Header().Add(key, value)
-			}
-		}
-		status := buffered.status
-		if status == 0 {
-			status = http.StatusOK
-		}
-		w.WriteHeader(status)
-		_, _ = w.Write(buffered.body.Bytes())
-	})
+	return httpbudget.Middleware(next, func(path string) httpbudget.Limits {
+		return httpbudget.Limits{Bytes: apiResponseByteBudget(path), Queries: apiQueryBudget(path)}
+	}, writeDetailedError)
 }
 
 // openBoundPDFStore resolves and opens the companion PDF database declared by metadata.
@@ -409,16 +335,10 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) erro
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("bound PDF store path is not a regular file")
 	}
-	uri := sqliteuri.File(resolvedStorePath, map[string][]string{
-		"mode":    {"ro"},
-		"_pragma": {"query_only(1)"},
-	})
-	pdfDB, err := sql.Open(queryBudgetDriverName, uri)
+	pdfDB, err := sqliteread.Open(resolvedStorePath, queryBudgetDriverName)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
 	}
-	pdfDB.SetMaxOpenConns(1)
-	pdfDB.SetConnMaxLifetime(0)
 	if err := pdfDB.PingContext(ctx); err != nil {
 		pdfDB.Close()
 		return fmt.Errorf("read PDF store: %w", err)
@@ -494,26 +414,6 @@ type apiError struct {
 	} `json:"error"`
 }
 
-// apiProblem carries an HTTP status and safe client-facing error message.
-type apiProblem struct {
-	Code, Message string
-	Status        int
-	Details       any
-}
-
-// Error returns the receiver's diagnostic message.
-func (e *apiProblem) Error() string { return e.Message }
-
-// badRequest constructs an API problem with HTTP status 400.
-func badRequest(message string) error {
-	return &apiProblem{Code: "invalid_request", Message: message, Status: http.StatusBadRequest}
-}
-
-// notFound constructs an API problem with HTTP status 404.
-func notFound(message string) error {
-	return &apiProblem{Code: "not_found", Message: message, Status: http.StatusNotFound}
-}
-
 // withJSONErrors converts handler-returned errors into the server's JSON error response.
 func withJSONErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -552,7 +452,7 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, value any, err 
 		writeJSON(w, http.StatusOK, value)
 		return
 	}
-	var problem *apiProblem
+	var problem *viewrequest.Problem
 	if errors.As(err, &problem) {
 		writeDetailedError(w, problem.Status, problem.Code, problem.Message, problem.Details)
 		return
@@ -564,13 +464,4 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, value any, err 
 // queryContext derives a request context bounded by the server query timeout.
 func queryContext(r *http.Request) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), requestTimeout)
-}
-
-// positiveID parses a strictly positive decimal identifier or returns a bad-request problem.
-func positiveID(raw string) (int64, error) {
-	id, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || id < 1 {
-		return 0, badRequest("id must be a positive integer")
-	}
-	return id, nil
 }

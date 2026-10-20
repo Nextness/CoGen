@@ -10,6 +10,8 @@ import subject "analysis/tooling/go/rawsqlcheck"
 import (
 	"bytes"
 
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -40,6 +42,31 @@ func TestRepositoryOwnershipReportHasNoUnclassifiedCalls(t *testing.T) {
 	for _, want := range []string{"Raw SQL ownership report", "platform", "plumbing", "introspection", "export", "outbox", "dynamic", "test", "generated"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("report does not mention %q:\n%s", want, output)
+		}
+	}
+}
+
+// TestCommandValidationAndDefaultDispatch verifies the public command preserves failures and both default check forms.
+func TestCommandValidationAndDefaultDispatch(t *testing.T) {
+	root := testenv.Root()
+	t.Chdir(root)
+	for _, args := range [][]string{nil, {"--root", root}} {
+		var stdout, stderr bytes.Buffer
+		if code := subject.Run(args, &stdout, &stderr); code != 0 || !strings.Contains(stdout.String(), "check passed") {
+			t.Fatalf("args=%q code=%d stdout=%s stderr=%s", args, code, &stdout, &stderr)
+		}
+	}
+	malformed := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(malformed, "backend"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(malformed, "backend/broken.go"), []byte("package broken\nfunc bad(\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"report", "--bad-flag"}, {"report", "--root", malformed}, {"check", "positional"}} {
+		var stdout, stderr bytes.Buffer
+		if code := subject.Run(args, &stdout, &stderr); code != 2 || stderr.Len() == 0 {
+			t.Fatalf("args=%q code=%d stderr=%s", args, code, &stderr)
 		}
 	}
 }

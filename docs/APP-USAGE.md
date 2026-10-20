@@ -11,7 +11,7 @@ From the repository root, migrate the database as needed, build the frontend ass
 ```sh
 make migrate DB=corpus.metadata.db
 make frontend-build
-make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=frontend/dist
+make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=build/frontend/dist
 ```
 
 Open `http://127.0.0.1:8080`. The server requires an exact loopback IP address and rejects a different Host authority. It has no authentication or authorization, so local users and processes with host access remain inside the trust boundary.
@@ -116,7 +116,7 @@ Local actions such as loading older audit events, inspecting an artifact prefix,
 - Do not treat the application as authenticated, authorized, encrypted, multi-user, or safe for untrusted networks.
 - Review databases and artifact contents before sharing screenshots, reports, downloads, URLs, or browser profiles.
 - The frontend escapes dynamic content and the server bounds previews, but the viewer can still reveal the research data stored in the selected database.
-- Production assets are served from the assembled `frontend/dist` directory and make no CDN request; provider APIs are not contacted while serving the viewer.
+- Production assets are served from the assembled `build/frontend/dist` directory and make no CDN request; provider APIs are not contacted while serving the viewer.
 - Credentials, tokens, private keys, and sensitive environment values must never be stored as artifacts intended for viewing.
 - Review version attribution displays the optional reviewer username only. Reviewer email is retained in local run metadata but is not returned in review version responses or copied into audit metadata. Empty or sanitized reviewer identity displays as `Anonymous or redacted`; review the bundle before sharing screenshots or browser profiles.
 

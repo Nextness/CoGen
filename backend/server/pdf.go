@@ -4,6 +4,7 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -24,7 +25,7 @@ type cachedPDF struct {
 
 // workPDFStatus returns normalized DOI inventory status for the requested work.
 func (s *Server) workPDFStatus(w http.ResponseWriter, r *http.Request) {
-	workID, err := positiveID(r.PathValue("work_id"))
+	workID, err := viewrequest.PositiveID(r.PathValue("work_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -42,7 +43,7 @@ func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string
 		return nil, err
 	}
 	if work == nil {
-		return nil, notFound("work not found")
+		return nil, viewrequest.NotFound("work not found")
 	}
 	if work.DOI == "" {
 		return map[string]any{"work_id": workID, "status": "unavailable", "eligible": false, "store_bound": s.pdfDB != nil}, nil
@@ -69,13 +70,13 @@ func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string
 
 // workPDF streams the validated PDF associated with the requested work revision.
 func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
-	workID, err := positiveID(r.PathValue("work_id"))
+	workID, err := viewrequest.PositiveID(r.PathValue("work_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	if s.pdfDB == nil {
-		s.respond(w, r, nil, notFound("PDF store is not configured"))
+		s.respond(w, r, nil, viewrequest.NotFound("PDF store is not configured"))
 		return
 	}
 	ctx, cancel := queryContext(r)
@@ -86,7 +87,7 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if work == nil || work.DOI == "" {
-		s.respond(w, r, nil, notFound("work or DOI not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("work or DOI not found"))
 		return
 	}
 	document, err := s.pdfStore.AvailableDocument(ctx, work.DOI)
@@ -95,7 +96,7 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if document == nil {
-		s.respond(w, r, nil, notFound("PDF is not available"))
+		s.respond(w, r, nil, viewrequest.NotFound("PDF is not available"))
 		return
 	}
 	contentHash, inventoriedAt, byteSize := document.ContentHash, document.InventoriedAt, document.ByteSize
@@ -112,14 +113,14 @@ func (s *Server) workPDF(w http.ResponseWriter, r *http.Request) {
 		}
 		if stored == nil {
 			s.pdfCacheMu.Unlock()
-			s.respond(w, r, nil, notFound("PDF content is not available"))
+			s.respond(w, r, nil, viewrequest.NotFound("PDF content is not available"))
 			return
 		}
 		data = stored
 		digest := sha256.Sum256(data)
 		if int64(len(data)) != byteSize || len(data) < 5 || string(data[:5]) != "%PDF-" || contentHash != hex.EncodeToString(digest[:]) {
 			s.pdfCacheMu.Unlock()
-			s.respond(w, r, nil, &apiProblem{Status: http.StatusUnprocessableEntity, Code: "pdf_integrity_error", Message: "stored PDF content failed integrity validation"})
+			s.respond(w, r, nil, &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_integrity_error", Message: "stored PDF content failed integrity validation"})
 			return
 		}
 		s.pdfCache = &cachedPDF{WorkID: workID, ContentHash: contentHash, InventoriedAt: inventoriedAt, Data: data}

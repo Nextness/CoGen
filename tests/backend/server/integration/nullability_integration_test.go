@@ -5,7 +5,6 @@ package server_test
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -75,7 +74,7 @@ func TestViewerMetadataPreservesNullEmptyAndZero(t *testing.T) {
 			referenceID := exec(`INSERT INTO reference_mentions
 				(work_revision_id, mention_order, raw_reference, doi, title, author, year, source)
 				VALUES (?, 1, ?, ?, ?, ?, ?, ?)`, revisionID, test.text, test.text, test.text, test.text, test.number, test.text)
-			viewer, err := subject.Open(path)
+			viewer, err := testhelpers.OpenViewer(t, path)
 			if err != nil {
 				t.Fatal(err)
 			}

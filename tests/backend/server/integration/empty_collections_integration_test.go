@@ -6,10 +6,10 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 )
@@ -18,15 +18,15 @@ import (
 // page still marshals its collection key as an empty array rather than null.
 func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	run := subject.stringID(runID)
+	run := fmt.Sprint(runID)
 
-	work, err := viewer.writeDB.Conn.Exec("INSERT INTO works (doi) VALUES ('10.1000/empty-collections')")
+	work, err := viewer.Metadata.Conn.Exec("INSERT INTO works (doi) VALUES ('10.1000/empty-collections')")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	revision, err := viewer.writeDB.Conn.Exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage)
+	revision, err := viewer.Metadata.Conn.Exec(`INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage)
 		VALUES (?, ?, 'empty-collections', 'normalize')`, workID, runID)
 	if err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := viewer.writeDB.Conn.Exec(`INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome)
+	if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome)
 		VALUES (?, ?, 'validate', 'valid')`, runID, workID); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestMovedViewerReadsPreserveEmptyCollectionShapes(t *testing.T) {
 		{"/api/runs/" + run + "/cache-uses?q=no-match", "cache_uses"},
 		{"/api/runs/" + run + "/identity-evidence?q=no-match", "rows"},
 		{"/api/runs/" + run + "/corpus/sources?q=no-match", "rows"},
-		{"/api/articles/" + subject.stringID(emptyRevisionID) + "/collections/audit?run_id=" + run + "&limit=1", "items"},
+		{"/api/articles/" + fmt.Sprint(emptyRevisionID) + "/collections/audit?run_id=" + run + "&limit=1", "items"},
 	}
 	for _, test := range cases {
 		status, body := testhelpers.RequestJSON(t, handler, test.path)

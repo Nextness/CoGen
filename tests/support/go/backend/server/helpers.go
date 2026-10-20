@@ -8,7 +8,8 @@ import "analysis/tests/support/go/testenv"
 import subject "analysis/backend/server"
 
 import (
-	"bytes"
+	"analysis/tests/support/go/pdffixture"
+
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -16,65 +17,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"strings"
+
 	"testing"
 
+	"analysis/backend/database"
 	"analysis/backend/database/run"
 	"analysis/backend/database/search"
 	"analysis/backend/database/work"
 	"analysis/backend/pdfstore"
+	"analysis/internal/sqliteread"
 	"analysis/tests/support/go/testfixture"
 )
 
-// deterministicFixturePDF returns a structurally valid multi-page PDF with selectable Helvetica text.
-func DeterministicFixturePDF(pageText ...string) []byte {
-	if len(pageText) == 0 {
-		pageText = []string{"Selectable fixture PDF text"}
-	}
-	objects := make([]string, 0, 3+len(pageText)*2)
-	pageIDs := make([]int, len(pageText))
-	contentIDs := make([]int, len(pageText))
-	fontID := 3 + len(pageText)
-	for index := range pageText {
-		pageIDs[index] = 3 + index
-		contentIDs[index] = fontID + 1 + index
-	}
-	kids := make([]string, len(pageIDs))
-	for index, id := range pageIDs {
-		kids[index] = fmt.Sprintf("%d 0 R", id)
-	}
-	objects = append(objects,
-		"<< /Type /Catalog /Pages 2 0 R >>",
-		fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(pageIDs)),
-	)
-	for index := range pageText {
-		objects = append(objects, fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 %d 0 R >> >> /Contents %d 0 R >>", fontID, contentIDs[index]))
-	}
-	objects = append(objects, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
-	for _, text := range pageText {
-		escaped := strings.NewReplacer("\\", "\\\\", "(", "\\(", ")", "\\)").Replace(text)
-		stream := "BT /F1 18 Tf 72 720 Td (" + escaped + ") Tj ET\n"
-		objects = append(objects, fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(stream), stream))
-	}
-	var output bytes.Buffer
-	output.WriteString("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
-	offsets := make([]int, len(objects)+1)
-	for index, object := range objects {
-		offsets[index+1] = output.Len()
-		fmt.Fprintf(&output, "%d 0 obj\n%s\nendobj\n", index+1, object)
-	}
-	xref := output.Len()
-	fmt.Fprintf(&output, "xref\n0 %d\n0000000000 65535 f \n", len(objects)+1)
-	for index := 1; index < len(offsets); index++ {
-		fmt.Fprintf(&output, "%010d 00000 n \n", offsets[index])
-	}
-	fmt.Fprintf(&output, "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", len(objects)+1, xref)
-	return output.Bytes()
-}
-
-// pdfViewerFixture is a fixture type used by the package test suite.
+// PdfViewerFixture is a fixture type used by the package test suite.
 type PdfViewerFixture struct {
-	Server                 *subject.Server
+	Server                 *Viewer
 	MetadataPath           string
 	RunID                  int64
 	AvailableID            int64
@@ -84,7 +41,7 @@ type PdfViewerFixture struct {
 	NotAvailableRevisionID int64
 }
 
-// referenceResolutionFixture is a fixture type used by the package test suite.
+// ReferenceResolutionFixture is a fixture type used by the package test suite.
 type ReferenceResolutionFixture struct {
 	Path                  string
 	RunID                 int64
@@ -95,7 +52,7 @@ type ReferenceResolutionFixture struct {
 	NormalizedTargetTitle string
 }
 
-// articleActivityFixture is a fixture type used by the package test suite.
+// ArticleActivityFixture is a fixture type used by the package test suite.
 type ArticleActivityFixture struct {
 	Path                 string
 	RunID                int64
@@ -104,7 +61,7 @@ type ArticleActivityFixture struct {
 	DiscardedReason      string
 }
 
-// viewerFixture supports the package test suite's viewer fixture setup or assertions.
+// ViewerFixture supports the package test suite's viewer fixture setup or assertions.
 func ViewerFixture(t *testing.T) (string, int64, int64, int64) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "workspace.db")
@@ -185,7 +142,7 @@ func ViewerFixture(t *testing.T) (string, int64, int64, int64) {
 	exec("INSERT INTO pipeline_run_metrics (pipeline_run_id, metric, source, value) VALUES (?, 'enriched_fields_abstract', '', 1)", runID)
 	exec("INSERT INTO pipeline_run_metrics (pipeline_run_id, metric, source, value) VALUES (?, 'enriched_fields', 'crossref', 2)", runID)
 	for index := int64(1); index <= 21; index++ {
-		cacheEntry := exec("INSERT INTO cache_entries (provider, namespace, request_fingerprint, response_status, payload_artifact_id, fetched_at, extractor_version) VALUES ('crossref', 'doi', ?, 200, ?, datetime('now'), 'v1')", "request-"+subject.stringID(index), configArtifactID)
+		cacheEntry := exec("INSERT INTO cache_entries (provider, namespace, request_fingerprint, response_status, payload_artifact_id, fetched_at, extractor_version) VALUES ('crossref', 'doi', ?, 200, ?, datetime('now'), 'v1')", "request-"+fmt.Sprint(index), configArtifactID)
 		cacheEntryID, _ := cacheEntry.LastInsertId()
 		exec("INSERT INTO run_cache_uses (pipeline_run_id, cache_entry_id, cache_layer, outcome) VALUES (?, ?, 'global', 'hit')", runID, cacheEntryID)
 	}
@@ -197,7 +154,7 @@ func ViewerFixture(t *testing.T) (string, int64, int64, int64) {
 	return path, runID, revisionOne, mentionID
 }
 
-// viewerReferenceResolutionFixture supports the package test suite's viewer reference resolution fixture setup or assertions.
+// ViewerReferenceResolutionFixture supports the package test suite's viewer reference resolution fixture setup or assertions.
 func ViewerReferenceResolutionFixture(t *testing.T) ReferenceResolutionFixture {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "workspace.db")
@@ -293,7 +250,7 @@ func ViewerReferenceResolutionFixture(t *testing.T) ReferenceResolutionFixture {
 	}
 }
 
-// viewerArticleActivityFixture supports the package test suite's viewer article activity fixture setup or assertions.
+// ViewerArticleActivityFixture supports the package test suite's viewer article activity fixture setup or assertions.
 func ViewerArticleActivityFixture(t *testing.T) ArticleActivityFixture {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "workspace.db")
@@ -332,7 +289,7 @@ func ViewerArticleActivityFixture(t *testing.T) ArticleActivityFixture {
 		if _, err := db.Conn.Exec(`INSERT INTO audit_events
 			(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json, correlation_id)
 			VALUES (datetime('now'), 'fixture', ?, ?, ?, ?, ?, ?)`,
-			runID, entityType, subject.stringID(entityID), action, metadata, correlationID); err != nil {
+			runID, entityType, fmt.Sprint(entityID), action, metadata, correlationID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -395,7 +352,7 @@ func ViewerArticleActivityFixture(t *testing.T) ArticleActivityFixture {
 	}
 }
 
-// viewerRequest supports the package test suite's viewer request setup or assertions.
+// ViewerRequest supports the package test suite's viewer request setup or assertions.
 func ViewerRequest(t *testing.T, handler http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	response := httptest.NewRecorder()
@@ -403,7 +360,7 @@ func ViewerRequest(t *testing.T, handler http.Handler, path string) *httptest.Re
 	return response
 }
 
-// requestJSON supports the package test suite's request json setup or assertions.
+// RequestJSON supports the package test suite's request json setup or assertions.
 func RequestJSON(t *testing.T, handler http.Handler, path string) (int, map[string]any) {
 	t.Helper()
 	recorder := httptest.NewRecorder()
@@ -415,7 +372,7 @@ func RequestJSON(t *testing.T, handler http.Handler, path string) (int, map[stri
 	return recorder.Code, body
 }
 
-// newPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions.
+// NewPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions.
 func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 	t.Helper()
 	ctx := context.Background()
@@ -506,7 +463,7 @@ func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, DeterministicFixturePDF("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
+	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
@@ -518,7 +475,7 @@ func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 	if err := metadata.Close(); err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := subject.Open(metadataPath)
+	viewer, err := OpenViewer(t, metadataPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -528,4 +485,58 @@ func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 		NotAvailableID: notAvailableID, UnavailableID: unavailableID, RevisionID: revisionID,
 		NotAvailableRevisionID: notAvailableRevisionID,
 	}
+}
+
+// Viewer keeps the real server separate from test-owned fixture and committed-state inspection connections.
+type Viewer struct {
+	*subject.Server
+	Metadata   *testfixture.Database
+	Read       *sql.DB
+	ReadStores *database.Database
+	PDF        *sql.DB
+}
+
+// OpenViewer exercises the actual existing-only server opener before allocating independent test-owned inspection handles.
+func OpenViewer(t *testing.T, path string) (*Viewer, error) {
+	t.Helper()
+	actual, err := subject.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	metadata, err := testfixture.ConnectExisting(path, "sqlite")
+	if err != nil {
+		_ = actual.Close()
+		return nil, err
+	}
+	read, err := sqliteread.Open(path, "analysis-viewer-budgeted-sqlite")
+	if err != nil {
+		_ = actual.Close()
+		_ = metadata.Close()
+		return nil, err
+	}
+	viewer := &Viewer{Server: actual, Metadata: metadata, Read: read, ReadStores: database.New(read)}
+	if actual.PDFStoreBound() {
+		relative, _, err := metadata.PDFBindings.Binding(t.Context())
+		if err != nil {
+			_ = viewer.Close()
+			return nil, err
+		}
+		viewer.PDF, err = sqliteread.Open(filepath.Join(filepath.Dir(path), relative), "analysis-viewer-budgeted-sqlite")
+		if err != nil {
+			_ = viewer.Close()
+			return nil, err
+		}
+	}
+	t.Cleanup(func() { _ = viewer.Close() })
+	return viewer, nil
+}
+
+// Close releases test-owned handles and the actual server's independent connections.
+func (v *Viewer) Close() error {
+	if v.PDF != nil {
+		_ = v.PDF.Close()
+	}
+	_ = v.Read.Close()
+	_ = v.Metadata.Close()
+	return v.Server.Close()
 }

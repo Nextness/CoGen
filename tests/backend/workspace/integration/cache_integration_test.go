@@ -6,9 +6,13 @@ package workspace_test
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/workspace"
-
 import (
+	"analysis/backend/workspace/providercache"
+	"analysis/backend/workspace/providers"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+
 	"context"
 	"errors"
 	"net/http"
@@ -28,7 +32,7 @@ import (
 )
 
 // openWorkspaceCacheTest supports the package test suite's open workspace cache test setup or assertions.
-func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*testfixture.Database, *subject.workspaceCache, int64) {
+func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*testfixture.Database, *cacheFixture, int64) {
 	t.Helper()
 	db, err := testfixture.Open(filepath.Join(t.TempDir(), "cache.db"), testenv.Path("config", "database.something"))
 	if err != nil {
@@ -39,12 +43,12 @@ func openWorkspaceCacheTest(t *testing.T, policy manifest.CachePolicy) (*testfix
 		db.Close()
 		t.Fatal(err)
 	}
-	return db, &subject.workspaceCache{db: db, runID: runID, policy: policy}, runID
+	return db, fixtureCache(db, runID, policy), runID
 }
 
 // testCacheRequest supports the package test suite's test cache request setup or assertions.
-func testCacheRequest() subject.cacheRequest {
-	return subject.cacheRequest{Provider: "crossref", Namespace: "work_by_doi", Identity: "10.1000/example", URL: "https://provider.test/works/10.1000/example"}
+func testCacheRequest() providercache.Request {
+	return providercache.Request{Provider: "crossref", Namespace: "work_by_doi", Identity: "10.1000/example", URL: "https://provider.test/works/10.1000/example"}
 }
 
 // testCachePayload supports the package test suite's test cache payload setup or assertions.
@@ -58,7 +62,7 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	defer db.Close()
 	request := testCacheRequest()
 	calls := 0
-	response, err := first.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := first.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte(`{"message":{"title":["first"]}}`)}
 	}, nil)
@@ -69,8 +73,8 @@ func TestWorkspaceCacheNamedPriorRunReproduction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := &subject.workspaceCache{db: db, runID: secondRunID, policy: manifest.CachePolicy{Reads: []string{"run:" + strconv.FormatInt(firstRunID, 10)}, Writes: []string{"active_run"}}}
-	response, err = second.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	second := fixtureCache(db, secondRunID, manifest.CachePolicy{Reads: []string{"run:" + strconv.FormatInt(firstRunID, 10)}, Writes: []string{"active_run"}})
+	response, err = second.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte("unexpected")}
 	}, nil)
@@ -89,14 +93,14 @@ func TestWorkspaceCacheGlobalReuseAcrossRuns(t *testing.T) {
 	defer db.Close()
 	request := testCacheRequest()
 	calls := 0
-	if _, err := first.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	if _, err := first.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte(`{"message":{"title":["global"]}}`)}
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"active_run"}})
-	response, err := second.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := second.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte("unexpected")}
 	}, nil)
@@ -109,7 +113,7 @@ func TestWorkspaceCacheGlobalReuseAcrossRuns(t *testing.T) {
 func TestWorkspaceCacheOfflineMiss(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"active_run", "global"}, Writes: []string{"active_run"}})
 	defer db.Close()
-	_, err := cache.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
+	_, err := cache.Resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
 		t.Fatal("offline policy attempted network")
 		return nil
 	}, nil)
@@ -124,14 +128,14 @@ func TestWorkspaceCacheFreshBypassesGlobal(t *testing.T) {
 	defer db.Close()
 	request := testCacheRequest()
 	calls := 0
-	if _, err := first.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	if _, err := first.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("global")}
 	}, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, fresh, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run"}})
-	response, err := fresh.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := fresh.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("fresh")}
 	}, nil)
@@ -139,7 +143,7 @@ func TestWorkspaceCacheFreshBypassesGlobal(t *testing.T) {
 		t.Fatalf("fresh response = %+v, %v, calls=%d", response, err, calls)
 	}
 	_, globalReader, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global"}, Writes: []string{"active_run"}})
-	response, err = globalReader.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err = globalReader.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte("unexpected")}
 	}, nil)
@@ -154,14 +158,14 @@ func TestWorkspaceCacheStaleNegativeRelooksUp(t *testing.T) {
 	defer db.Close()
 	request := testCacheRequest()
 	calls := 0
-	response, err := first.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := first.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 404}
 	}, nil)
 	if err != nil || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("negative response = %+v, %v", response, err)
 	}
-	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: subject.cacheFingerprint(request), ExtractorVersion: subject.cacheExtractorVersion})
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: fixtureFingerprint(request), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || entry == nil {
 		t.Fatalf("negative entry = %+v, %v", entry, err)
 	}
@@ -174,7 +178,7 @@ func TestWorkspaceCacheStaleNegativeRelooksUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"global"}, NegativeTTLDays: 1})
-	response, err = second.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err = second.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("relooked")}
 	}, nil)
@@ -188,7 +192,7 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"active_run", "global"}})
 	defer db.Close()
 	calls := 0
-	response, err := cache.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
+	response, err := cache.Resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
 		calls++
 		return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("network")}
 	}, nil)
@@ -199,7 +203,7 @@ func TestWorkspaceCacheNetworkFallback(t *testing.T) {
 	if err != nil || len(uses) != 2 || uses[0].CacheLayer != "active_run" || uses[1].CacheLayer != "global" {
 		t.Fatalf("network cache writes = %+v, %v", uses, err)
 	}
-	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: subject.cacheFingerprint(testCacheRequest()), ExtractorVersion: subject.cacheExtractorVersion})
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: fixtureFingerprint(testCacheRequest()), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("network cache payload linkage = %+v, %v", entry, err)
 	}
@@ -223,12 +227,12 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
 	request := testCacheRequest()
-	if _, err := cache.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	if _, err := cache.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte(`{"error":"temporary provider response"}`)}
 	}, nil); err == nil || !strings.Contains(err.Error(), "invalid provider payload") {
 		t.Fatalf("malformed provider response error = %v", err)
 	}
-	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: subject.cacheFingerprint(request), ExtractorVersion: subject.cacheExtractorVersion})
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: fixtureFingerprint(request), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || entry != nil {
 		t.Fatalf("malformed provider response was cached: entry=%+v err=%v", entry, err)
 	}
@@ -238,13 +242,13 @@ func TestWorkspaceCacheRejectsMalformedSuccessAndRecovers(t *testing.T) {
 	}
 
 	valid := testCachePayload("recovered")
-	response, err := cache.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := cache.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{StatusCode: 200, Body: valid}
 	}, nil)
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
 		t.Fatalf("valid retry response = %+v, %v", response, err)
 	}
-	entry, err = db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: subject.cacheFingerprint(request), ExtractorVersion: subject.cacheExtractorVersion})
+	entry, err = db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: fixtureFingerprint(request), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || entry == nil || entry.PayloadArtifactID == nil {
 		t.Fatalf("valid retry cache entry = %+v, %v", entry, err)
 	}
@@ -255,13 +259,13 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 	db, writer, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}})
 	defer db.Close()
 	request := testCacheRequest()
-	artifactID, err := subject.persistArtifact(context.Background(), db, writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
+	artifactID, err := db.Artifact.StorePayload(context.Background(), writer.runID, []byte(`{"error":"legacy malformed payload"}`), "application/json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	entryID, err := db.Cache.AppendEntry(context.Background(), &dbcache.Entry{
-		Provider: request.Provider, Namespace: request.Namespace, RequestFingerprint: subject.cacheFingerprint(request),
-		ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: time.Now().UTC().Format(time.RFC3339Nano), ExtractorVersion: subject.cacheExtractorVersion,
+		Provider: request.Provider, Namespace: request.Namespace, RequestFingerprint: fixtureFingerprint(request),
+		ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: time.Now().UTC().Format(time.RFC3339Nano), ExtractorVersion: "workspace-cache-v1",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -272,7 +276,7 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 
 	_, reader, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"active_run"}})
 	valid := testCachePayload("recovered from legacy entry")
-	response, err := reader.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := reader.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{StatusCode: 200, Body: valid}
 	}, nil)
 	if err != nil || response.Layer != "network" || string(response.Body) != string(valid) {
@@ -288,33 +292,33 @@ func TestWorkspaceCacheSkipsStoredMalformedPayload(t *testing.T) {
 func TestWorkspaceCacheORCIDNameFailureAndEmptyMatchPolicies(t *testing.T) {
 	db, cache, _ := openWorkspaceCacheTest(t, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"global"}, NegativeTTLDays: 14})
 	defer db.Close()
-	request := subject.cacheRequest{Provider: "orcid", Namespace: "author_name_search", Identity: "ada lovelace|query-one", URL: "https://provider.test/search?q=ada"}
+	request := providercache.Request{Provider: "orcid", Namespace: "author_name_search", Identity: "ada lovelace|query-one", URL: "https://provider.test/search?q=ada"}
 	negative := func(body []byte) bool { return len(enrich.DecodeORCIDNameSearchCandidates(body)) == 0 }
-	if _, err := cache.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	if _, err := cache.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{Err: errors.New("temporary ORCID outage")}
 	}, negative); err == nil || !strings.Contains(err.Error(), "temporary ORCID outage") {
 		t.Fatalf("transient ORCID error = %v", err)
 	}
-	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: subject.cacheFingerprint(request), ExtractorVersion: subject.cacheExtractorVersion})
+	entry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: fixtureFingerprint(request), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || entry != nil {
 		t.Fatalf("transient ORCID error was cached: entry=%+v err=%v", entry, err)
 	}
 
-	response, err := cache.resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
+	response, err := cache.Resolve(context.Background(), request, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte(`{"result":[{"orcid-identifier":{"path":"0000-0001-2345-6789"}}]}`)}
 	}, negative)
 	if err != nil || response.Status != 200 {
 		t.Fatalf("ORCID retry response = %+v, %v", response, err)
 	}
 
-	emptyRequest := subject.cacheRequest{Provider: "orcid", Namespace: "author_name_search", Identity: "no match|query-two", URL: "https://provider.test/search?q=none"}
-	response, err = cache.resolve(context.Background(), emptyRequest, func(context.Context) *enrich.FetchResult {
+	emptyRequest := providercache.Request{Provider: "orcid", Namespace: "author_name_search", Identity: "no match|query-two", URL: "https://provider.test/search?q=none"}
+	response, err = cache.Resolve(context.Background(), emptyRequest, func(context.Context) *enrich.FetchResult {
 		return &enrich.FetchResult{StatusCode: 200, Body: []byte(`{"result":null,"num-found":0}`)}
 	}, negative)
 	if err != nil || response.Status != 404 || response.Outcome != manifest.CacheNegative {
 		t.Fatalf("empty ORCID result = %+v, %v", response, err)
 	}
-	emptyEntry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: subject.cacheFingerprint(emptyRequest), ExtractorVersion: subject.cacheExtractorVersion})
+	emptyEntry, err := db.Cache.LatestEntry(context.Background(), dbcache.Key{Provider: "orcid", Namespace: "author_name_search", RequestFingerprint: fixtureFingerprint(emptyRequest), ExtractorVersion: "workspace-cache-v1"})
 	if err != nil || emptyEntry == nil || emptyEntry.ExpiresAt == "" || emptyEntry.PayloadArtifactID != nil {
 		t.Fatalf("empty ORCID negative cache entry = %+v, %v", emptyEntry, err)
 	}
@@ -345,12 +349,12 @@ func TestWorkspaceCrossrefCacheUsesSQLitePolicy(t *testing.T) {
 	defer db.Close()
 	source := enrich.SourceConfig{Name: "crossref", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1, BatchSize: 1}
 	articles := []*article.Article{{DOI: "10.1000/example"}}
-	result, err := subject.gatherCachedCrossref(context.Background(), first, source, articles)
+	result, err := providers.Crossref(context.Background(), first.Cache, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || result.Articles["10.1000/example"].Title != "Cached title" || requests != 1 {
 		t.Fatalf("first cached gather = %+v, %v, requests=%d", result, err, requests)
 	}
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"active_run"}})
-	result, err = subject.gatherCachedCrossref(context.Background(), second, source, articles)
+	result, err = providers.Crossref(context.Background(), second.Cache, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || requests != 1 {
 		t.Fatalf("global cached gather = %+v, %v, requests=%d", result, err, requests)
 	}
@@ -376,26 +380,26 @@ func TestWorkspaceOpenAlexReferenceCacheUsesSQLitePolicy(t *testing.T) {
 	defer db.Close()
 	source := enrich.SourceConfig{Name: "openalex", BaseURL: server.URL + "/works/", RatePerSecond: 1000, Concurrency: 1, TimeoutSecs: 1, MaxRetries: 1, BatchSize: 1}
 	articles := []*article.Article{{DOI: "10.1000/example"}}
-	result, err := subject.gatherCachedOpenAlex(context.Background(), first, source, articles)
+	result, err := providers.OpenAlex(context.Background(), first.Cache, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || len(result.Articles["10.1000/example"].References) != 1 || result.Articles["10.1000/example"].References[0].DOI != "10.1000/reference" || requests != 2 {
 		t.Fatalf("first OpenAlex gather = %+v, %v, requests=%d", result, err, requests)
 	}
 
 	_, second, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global", "network"}, Writes: []string{"active_run"}})
-	result, err = subject.gatherCachedOpenAlex(context.Background(), second, source, articles)
+	result, err = providers.OpenAlex(context.Background(), second.Cache, source, articles)
 	if err != nil || result.Articles["10.1000/example"] == nil || len(result.Articles["10.1000/example"].References) != 1 || requests != 2 {
 		t.Fatalf("global OpenAlex gather = %+v, %v, requests=%d", result, err, requests)
 	}
 }
 
 // openWorkspaceCacheTestForDB supports the package test suite's open workspace cache test for db setup or assertions.
-func openWorkspaceCacheTestForDB(t *testing.T, db *testfixture.Database, policy manifest.CachePolicy) (*testfixture.Database, *subject.workspaceCache, int64) {
+func openWorkspaceCacheTestForDB(t *testing.T, db *testfixture.Database, policy manifest.CachePolicy) (*testfixture.Database, *cacheFixture, int64) {
 	t.Helper()
 	runID, err := testfixture.Run(context.Background(), db.Conn, "cache-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return db, &subject.workspaceCache{db: db, runID: runID, policy: policy}, runID
+	return db, fixtureCache(db, runID, policy), runID
 }
 
 // TestWorkspaceGlobalRefreshPreservesConsumedResponses verifies global-only hits and negative responses remain stable in named-run replay.
@@ -408,25 +412,53 @@ func TestWorkspaceGlobalRefreshPreservesConsumedResponses(t *testing.T) {
 			if negative {
 				status, body = 404, nil
 			}
-			original, err := first.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult { return &enrich.FetchResult{StatusCode: status, Body: body} }, nil)
+			original, err := first.Resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult { return &enrich.FetchResult{StatusCode: status, Body: body} }, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 			_, reader, readerID := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"global"}})
-			if _, err := reader.resolve(context.Background(), testCacheRequest(), nil, nil); err != nil {
+			if _, err := reader.Resolve(context.Background(), testCacheRequest(), nil, nil); err != nil {
 				t.Fatal(err)
 			}
 			_, refresher, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"network"}, Writes: []string{"active_run", "global"}, NegativeTTLDays: 1})
-			if _, err := refresher.resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
+			if _, err := refresher.Resolve(context.Background(), testCacheRequest(), func(context.Context) *enrich.FetchResult {
 				return &enrich.FetchResult{StatusCode: 200, Body: testCachePayload("replacement")}
 			}, nil); err != nil {
 				t.Fatal(err)
 			}
 			_, replay, _ := openWorkspaceCacheTestForDB(t, db, manifest.CachePolicy{Reads: []string{"run:" + strconv.FormatInt(readerID, 10)}})
-			got, err := replay.resolve(context.Background(), testCacheRequest(), nil, nil)
+			got, err := replay.Resolve(context.Background(), testCacheRequest(), nil, nil)
 			if err != nil || got.Status != original.Status || string(got.Body) != string(original.Body) {
 				t.Fatalf("historical response changed: %+v %v", got, err)
 			}
 		})
 	}
+}
+
+// cacheFixture retains constructor inputs owned by the test alongside the real policy resolver.
+type cacheFixture struct {
+	*providercache.Cache
+	db    *testfixture.Database
+	runID int64
+}
+
+// fixtureCache binds the production resolver and records only fixture-owned metadata.
+func fixtureCache(db *testfixture.Database, runID int64, policy manifest.CachePolicy) *cacheFixture {
+	return &cacheFixture{Cache: providercache.New(db.Database, runID, policy), db: db, runID: runID}
+}
+
+// recordUse seeds historical use evidence through the public family store.
+func (c *cacheFixture) recordUse(ctx context.Context, id int64, layer string, outcome manifest.CacheOutcome) error {
+	_, err := c.db.Cache.AppendUse(ctx, &dbcache.Use{PipelineRunID: c.runID, CacheEntryID: id, CacheLayer: layer, Outcome: string(outcome)})
+	return err
+}
+
+// fixtureFingerprint constructs the persisted request identity used by historical cache fixture rows.
+func fixtureFingerprint(request providercache.Request) string {
+	data, err := json.Marshal(request)
+	if err != nil {
+		panic(err)
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum)
 }

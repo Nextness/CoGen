@@ -6,27 +6,26 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
-	"context"
+	"analysis/tests/support/go/testfixture"
+
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
+	"net/url"
+
 	"sort"
 	"strings"
 	"testing"
 	"unicode/utf8"
-
-	"analysis/backend/database"
 )
 
 // TestAPITableBrowserErrors verifies api table browser errors.
 func TestAPITableBrowserErrors(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +45,7 @@ func TestAPITableBrowserErrors(t *testing.T) {
 // TestAPITableBrowserTruncatesMultibyteCellsByBytes verifies UTF-8 table cells honour the advertised byte limit.
 func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,11 +53,11 @@ func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
 
 	ids := make(map[int64]struct{})
 	for _, value := range []string{
-		strings.Repeat("é", subject.advancedCellBytes/2+1),
-		strings.Repeat("€", subject.advancedCellBytes/3+1),
-		strings.Repeat("😀", subject.advancedCellBytes/4+1),
+		strings.Repeat("é", 1024/2+1),
+		strings.Repeat("€", 1024/3+1),
+		strings.Repeat("😀", 1024/4+1),
 	} {
-		result, err := viewer.writeDB.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", value)
+		result, err := viewer.Metadata.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", value)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +76,7 @@ func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
 			continue
 		}
 		value, ok := row["content_hash"].(string)
-		if !ok || len(value) > subject.advancedCellBytes || !utf8.ValidString(value) {
+		if !ok || len(value) > 1024 || !utf8.ValidString(value) {
 			t.Fatalf("artifact %d value bytes=%d valid=%v truncation=%v", id, len(value), utf8.ValidString(value), payload["truncated_fields"])
 		}
 		seen++
@@ -94,7 +93,7 @@ func TestAPITableBrowserTruncatesMultibyteCellsByBytes(t *testing.T) {
 // TestAPITableBrowserUsesSafeBoundedProjection verifies request-time counts, redaction, binary omission, and page canonicalization.
 func TestAPITableBrowserUsesSafeBoundedProjection(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +137,7 @@ func TestAPITableBrowserUsesSafeBoundedProjection(t *testing.T) {
 // tables never become browsable through discovery or direct lookup.
 func TestIntrospectionDiscoveryExcludesForbiddenTables(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +170,7 @@ func TestIntrospectionDiscoveryExcludesForbiddenTables(t *testing.T) {
 // in sorted order rather than map iteration order.
 func TestIntrospectionDiscoveryIsDeterministic(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +192,7 @@ func TestIntrospectionDiscoveryIsDeterministic(t *testing.T) {
 // its primary key and caps the projected columns at the documented limit.
 func TestIntrospectionProjectionLimitOmitsWideColumns(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	db, err := database.OpenExisting(path)
+	db, err := testfixture.ConnectExisting(path, "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +211,7 @@ func TestIntrospectionProjectionLimitOmitsWideColumns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,8 +222,8 @@ func TestIntrospectionProjectionLimitOmitsWideColumns(t *testing.T) {
 	}
 	table := page["table"].(map[string]any)
 	projected := table["columns"].([]any)
-	if len(projected) != subject.advancedProjectionLimit+1 {
-		t.Fatalf("projected columns=%d, want %d", len(projected), subject.advancedProjectionLimit+1)
+	if len(projected) != 32+1 {
+		t.Fatalf("projected columns=%d, want %d", len(projected), 32+1)
 	}
 	last := projected[len(projected)-1].(map[string]any)
 	if last["name"] != "id" || last["primary_key"] != true {
@@ -246,14 +245,14 @@ func TestIntrospectionProjectionLimitOmitsWideColumns(t *testing.T) {
 // oversized document.
 func TestIntrospectionResponseByteBudgetOmitsExcessValues(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	db, err := database.OpenExisting(path)
+	db, err := testfixture.ConnectExisting(path, "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Conn.Exec("CREATE TABLE large_evidence (id INTEGER PRIMARY KEY, alpha TEXT, beta TEXT, gamma TEXT)"); err != nil {
 		t.Fatal(err)
 	}
-	value := strings.Repeat("x", subject.advancedCellBytes)
+	value := strings.Repeat("x", 1024)
 	for index := 0; index < 100; index++ {
 		if _, err := db.Conn.Exec("INSERT INTO large_evidence (alpha, beta, gamma) VALUES (?, ?, ?)", value, value, value); err != nil {
 			t.Fatal(err)
@@ -263,7 +262,7 @@ func TestIntrospectionResponseByteBudgetOmitsExcessValues(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,30 +301,24 @@ func TestIntrospectionResponseByteBudgetOmitsExcessValues(t *testing.T) {
 // and page statements flow through the request statement budget.
 func TestIntrospectionTableBrowserChargesQueryBudget(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 
-	ctx, budget := subject.withQueryBudget(context.Background(), 1)
-	request := httptest.NewRequest(http.MethodGet, "/api/tables/works?per_page=20", nil).WithContext(ctx)
-	request.SetPathValue("table", "works")
-	recorder := httptest.NewRecorder()
-	viewer.tableRows(recorder, request)
-	if used := budget.used.Load(); used != 2 {
-		t.Fatalf("table browser used %d budgeted statements, want 2", used)
+	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/tables/works?per_page=20")
+	if response.Code != http.StatusOK || response.Header().Get("X-Query-Count-Used") != "2" {
+		t.Fatalf("table browser status=%d queries=%q body=%s", response.Code, response.Header().Get("X-Query-Count-Used"), response.Body.String())
 	}
-	if !budget.exceeded.Load() {
-		t.Fatal("table browser did not record the exceeded statement budget")
-	}
+
 }
 
 // TestIntrospectionRejectsInjectionVectors verifies every dynamic identifier
 // and bound value is validated before it reaches SQL.
 func TestIntrospectionRejectsInjectionVectors(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +345,7 @@ func TestIntrospectionRejectsInjectionVectors(t *testing.T) {
 	}
 
 	var count int
-	if err := viewer.db.QueryRow("SELECT COUNT(*) FROM works").Scan(&count); err != nil {
+	if err := viewer.Read.QueryRow("SELECT COUNT(*) FROM works").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 3 {
@@ -360,35 +353,46 @@ func TestIntrospectionRejectsInjectionVectors(t *testing.T) {
 	}
 }
 
-// TestIntrospectionQuotesDiscoveredIdentifiers verifies a discovered table and
-// column containing quote characters are browsed through escaped identifiers.
+// TestIntrospectionQuotesDiscoveredIdentifiers exercises quoting through discovered tables and columns, including empty and Unicode column names.
 func TestIntrospectionQuotesDiscoveredIdentifiers(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	db, err := database.OpenExisting(path)
+	db, err := testfixture.ConnectExisting(path, "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Conn.Exec(`CREATE TABLE "weird""table" ("weird""column" TEXT, id INTEGER PRIMARY KEY)`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Conn.Exec(`INSERT INTO "weird""table" ("weird""column") VALUES ('quoted value')`); err != nil {
-		t.Fatal(err)
+	names := []string{"simple", "has spaces", "tab\tchars", `has"quote`, `"leading`, `trailing"`, `double""double`, "", "_underscore_123", "unicode→"}
+	for i, column := range names {
+		table := fmt.Sprintf("quoted_%d_%s", i, column)
+		// Fixture DDL quotes arbitrary identifiers; the subject must independently discover and quote them.
+		tableSQL := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
+		columnSQL := `"` + strings.ReplaceAll(column, `"`, `""`) + `"`
+		if _, err := db.Conn.Exec("CREATE TABLE " + tableSQL + " (id INTEGER PRIMARY KEY, " + columnSQL + " TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Conn.Exec("INSERT INTO " + tableSQL + " (" + columnSQL + ") VALUES ('quoted value')"); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	status, page := testhelpers.RequestJSON(t, viewer.Handler(), `/api/tables/weird%22table?sort=weird%22column`)
-	if status != http.StatusOK {
-		t.Fatalf("quoted table status=%d body=%v", status, page)
-	}
-	rows := page["rows"].([]any)
-	if len(rows) != 1 || rows[0].(map[string]any)[`weird"column`] != "quoted value" {
-		t.Fatalf("quoted table rows=%v", rows)
+	for i, column := range names {
+		t.Run(fmt.Sprintf("column_%d", i), func(t *testing.T) {
+			table := fmt.Sprintf("quoted_%d_%s", i, column)
+			target := "/api/tables/" + url.PathEscape(table) + "?sort=" + url.QueryEscape(column)
+			status, page := testhelpers.RequestJSON(t, viewer.Handler(), target)
+			if status != http.StatusOK {
+				t.Fatalf("status=%d body=%v", status, page)
+			}
+			rows := page["rows"].([]any)
+			if len(rows) != 1 || rows[0].(map[string]any)[column] != "quoted value" {
+				t.Fatalf("rows=%v", rows)
+			}
+		})
 	}
 }

@@ -5,9 +5,10 @@
 package workspace
 
 import (
+	"analysis/internal/filehash"
 	"bufio"
 	"context"
-	"crypto/sha256"
+
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -103,7 +104,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 	if err != nil {
 		return 0, err
 	}
-	configHash := contentHash(originalConfig)
+	configHash := filehash.Bytes(originalConfig)
 	manifestHash, err := run.Manifest.Hash()
 	if err != nil {
 		return 0, err
@@ -143,7 +144,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 			log.Warn("record revision config change audit", "revision_id", revisionID, "error", err)
 		}
 	}
-	inputManifestHash := contentHash(inputManifestBytes)
+	inputManifestHash := filehash.Bytes(inputManifestBytes)
 	existingPlan, err := db.Search.GetPlanByFingerprint(ctx, revisionID, string(fingerprint))
 	if err != nil {
 		return 0, err
@@ -224,7 +225,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	configArtifactID, err := persistArtifact(ctx, db, runID, originalConfig, "application/x-something-config")
+	configArtifactID, err := db.Artifact.StorePayload(ctx, runID, originalConfig, "application/x-something-config")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
@@ -238,7 +239,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, fmt.Errorf("marshal resolved manifest: %w", err)
 	}
-	resolvedManifestArtifactID, err := persistArtifact(ctx, db, runID, resolvedBytes, "application/json")
+	resolvedManifestArtifactID, err := db.Artifact.StorePayload(ctx, runID, resolvedBytes, "application/json")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
@@ -247,7 +248,7 @@ func StartWorkspaceAttemptContext(ctx context.Context, db *database.Database, or
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
 	}
-	inputManifestArtifactID, err := persistArtifact(ctx, db, runID, inputManifestBytes, "application/json")
+	inputManifestArtifactID, err := db.Artifact.StorePayload(ctx, runID, inputManifestBytes, "application/json")
 	if err != nil {
 		finishPipelineRun(ctx, db, runID, "failed", err.Error())
 		return 0, err
@@ -342,7 +343,7 @@ func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputMan
 			readFailures = append(readFailures, fmt.Sprintf("source %q at %q: %v", source.Name, source.ExpectedFile, err))
 			continue
 		}
-		files[source.Name] = manifest.SourceFileInfo{Path: source.ExpectedFile, SHA256: contentHash(data), Size: int64(len(data))}
+		files[source.Name] = manifest.SourceFileInfo{Path: source.ExpectedFile, SHA256: filehash.Bytes(data), Size: int64(len(data))}
 	}
 	inputManifest, err := manifest.NewInputManifest(resolved, files)
 	if err != nil {
@@ -352,24 +353,6 @@ func buildInputManifest(resolved *manifest.ResolvedManifest) (*manifest.InputMan
 		return inputManifest, fmt.Errorf("read configured source files: %s", strings.Join(readFailures, "; "))
 	}
 	return inputManifest, nil
-}
-
-// persistArtifact stores content-addressed artifact metadata and bytes for a run.
-func persistArtifact(ctx context.Context, db *database.Database, runID int64, data []byte, contentType string) (int64, error) {
-	hash := contentHash(data)
-	return db.Artifact.CreateWithBlob(ctx, artifact.CreateWithBlobInput{
-		ContentHash:   hash,
-		ContentType:   contentType,
-		ByteSize:      int64(len(data)),
-		PipelineRunID: runID,
-		Data:          data,
-	})
-}
-
-// contentHash returns the lowercase hexadecimal SHA-256 digest of data.
-func contentHash(data []byte) string {
-	digest := sha256.Sum256(data)
-	return fmt.Sprintf("%x", digest)
 }
 
 // freshReason returns the persisted reason for starting a non-reused attempt.

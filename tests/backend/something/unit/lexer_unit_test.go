@@ -456,7 +456,7 @@ func TestLexerFallbackChar(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.ch), func(t *testing.T) {
 			lex := subject.NewLexer(string(tt.ch), "")
-			tok := lex.fallbackChar()
+			tok := lex.Tokenize()[0]
 			if tok.Kind != tt.kind {
 				t.Errorf("expected %v, got %v", tt.kind, tok.Kind)
 			}

@@ -8,13 +8,13 @@ Before frontend work, read [docs/DESIGN.md](docs/DESIGN.md), [docs/CSS-REFERENCE
 
 ## 2. Project and stack
 
-The repository builds a Go 1.25.0 research-corpus pipeline and a loopback-only local viewer with writable run-scoped review evidence. The Go module is `src/`, but the root Makefile is the supported interface and production relative paths assume the repository root.
+The repository builds a Go 1.25.0 research-corpus pipeline and a loopback-only local viewer with writable run-scoped review evidence. The Go module and npm workspace are at the repository root; the root Makefile is the supported interface and production relative paths assume the repository root.
 
 The stack is Go, SQLite through `modernc.org/sqlite`, the project-specific SOMETHING configuration language, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend tests use Node's built-in test runner with jsdom plus Playwright and axe-core. D3-force and PDF.js are pinned frontend development dependencies delivered through checked-in generated browser assets.
 
 Node.js 22.18 or later and npm are required for frontend development, unit tests, and Playwright. Node's native type stripping executes `.ts` modules in unit tests, and an esbuild loader hook executes `.tsx` modules; type checking is a separate `tsc --noEmit` step via `make check-frontend`.
 
-`modernc.org/sqlite` is the only direct Go runtime dependency. Maintained command-line and repository tools are Go packages under `src/tools/`. Do not add dependencies when the standard library or an existing project capability is adequate.
+`modernc.org/sqlite` is the only direct Go runtime dependency. Maintained command-line and repository tools have importable implementations under `tooling/go/` and thin commands under `tooling/go/cmd/`; Node developer scripts live under `tooling/node/`. Do not add dependencies when the standard library or an existing project capability is adequate.
 
 ## 3. Supported commands
 
@@ -27,11 +27,11 @@ make run
 make run FRESH=1
 make migrate DB=./corpus.metadata.db
 make serve DB=./corpus.metadata.db
-make serve DB=./corpus.metadata.db ASSETS_DIR=./frontend/dist
+make serve DB=./corpus.metadata.db ASSETS_DIR=./build/frontend/dist
 make dev
 make prepare-to-osf DB=./corpus.metadata.db CONFIG=./config/workspace.something OUT=./build/osf-export
 make test
-make test-go PACKAGE=./server TEST='^TestGraph$'
+make test-go DOMAIN=backend COMPONENT=server TEST='^TestGraph$'
 make test-race
 make coverage
 make check
@@ -54,7 +54,8 @@ make frontend-classes
 make frontend-classes-check
 make check-frontend
 make test-frontend-unit
-make test-frontend BROWSER=chromium TEST_FILE=tests/viewer.spec.ts
+make test-frontend-functional
+make test-frontend BROWSER=chromium TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-visual
 make frontend-pdfjs-vendor-check
 ```
@@ -77,7 +78,7 @@ Run built tools from the repository root:
 
 There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers a gitleaks secret scan before backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target after its own gitleaks gate. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes. Raw SQL calls outside generated `internal/sql/` output must be classified by `make check-sql`, and the package import and transaction graph is enforced by `make check-imports`; `make sql-report` and `make import-report` print the current ownership inventories.
 
-Family SQL is compiled by sqlc, a pinned development generator installed to `build/sqlc` by `make sqlc-install` at the version declared in the root Makefile. Maintained declarations and named queries stay under `src/database/<family>/schema/` and `src/pdfstore/schema/`, and generated Go is committed under reserved `internal/sql/` paths, stays private to its owning package tree, and never crosses handwritten family APIs; change the inputs, run `make sqlc-generate` from the repository root with the committed `config/sqlc.yaml` configuration, and review the generated diff instead of editing generated files.
+Family SQL is compiled by sqlc, a pinned development generator installed to `build/sqlc` by `make sqlc-install` at the version declared in the root Makefile. Maintained declarations and named queries stay under `backend/database/<family>/schema/` and `backend/pdfstore/schema/`, and generated Go is committed under reserved `internal/sql/` paths, stays private to its owning package tree, and never crosses handwritten family APIs; change the inputs, run `make sqlc-generate` from the repository root with the committed `config/sqlc.yaml` configuration, and review the generated diff instead of editing generated files.
 
 Normal builds and tests stay offline: `make build`, `make tools`, `make test`, and `make check` consume committed generated output without invoking sqlc, while `make sqlc-check` proves generated output is current and every maintained query still passes sqlc analysis after any SQL input change. sqlc is not a Go module dependency and never feeds runtime migrations or SOMETHING database versioning, and `modernc.org/sqlite` remains the only direct runtime database dependency.
 
@@ -89,23 +90,23 @@ Normal builds and tests stay offline: `make build`, `make tools`, `make test`, a
 
 `config/workspace.something` includes `config/baseline.something` and declares format-version-2 workspaces, optional reviewer identity, sources, filters, providers, reuse, and cache policy. Reviewer identity is captured per attempt but excluded from manifests and execution fingerprints. `config/database.something` independently selects metadata and PDF migration chains. `config/coverage_policy.something` defines coverage floors.
 
-`src/main.go` moves one directory upward only when its current directory ends in `/src`; do not rely on automatic path discovery elsewhere. The process logging threshold is compile-time `logging.MinLevel`, currently `slog.LevelInfo`, and there is no `--log-level` flag.
+Runtime commands execute from the repository root and resolve explicit path flags from that working directory. The executable entrypoint is `backend/cmd/analysis/main.go`, which delegates to `backend/cli/`; runtime code does not discover or change the working directory. The process logging threshold is compile-time `logging.MinLevel`, currently `slog.LevelInfo`, and there is no `--log-level` flag.
 
 ## 5. Architecture boundaries
 
-- `src/main.go` is the only production executable entry and delegates pipeline work to `src/workspace/` and viewing to `src/server/`.
-- `src/workspace/` owns typed configuration, preflight, attempts, cache policy, ingestion, enrichment orchestration, validation, normalization, metrics, artifacts, audit, and PDF synchronization.
-- `src/database/` owns writable metadata SQLite, migrations, repositories, immutable revisions and relationships, run-scoped review contexts and immutable review versions, cache records, artifacts, metrics, and append-only audit.
-- `src/pdfstore/` owns normalized DOI registration, validated manual PDF insertion, content-addressed bytes, companion migrations, and cross-database audit outbox.
-- `src/server/` owns existing-only metadata connections, bounded read and review-mutation APIs, table browsing, read-only PDF delivery, and frontend asset serving; it does not import workspace orchestration, run migrations, create databases, or write the PDF companion.
-- `src/enrich/` owns provider HTTP and decoding; gather code has no database calls, and workspace storage does not bypass the rate-limited public client.
-- `src/manifest/` owns canonical manifests, fingerprints, lifecycle values, and audit actions without internal application dependencies.
-- `src/something/` owns the language compiler and evaluator; [docs/something.spec.md](docs/something.spec.md) is its behavioral specification.
-- `src/article/`, `src/bibtex/`, `src/validation/`, and `src/normalization/` own parsing, constrained BibTeX, validation, and canonicalization.
+- `backend/cmd/analysis/main.go` delegates command dispatch to `backend/cli/`, which delegates pipeline work to `backend/workspace/` and viewing to `backend/server/`.
+- `backend/workspace/` owns typed configuration, preflight, attempts, cache policy, ingestion, enrichment orchestration, validation, normalization, metrics, artifacts, audit, and PDF synchronization.
+- `backend/database/` owns writable metadata SQLite, migrations, repositories, immutable revisions and relationships, run-scoped review contexts and immutable review versions, cache records, artifacts, metrics, and append-only audit.
+- `backend/pdfstore/` owns normalized DOI registration, validated manual PDF insertion, content-addressed bytes, companion migrations, and cross-database audit outbox.
+- `backend/server/` owns existing-only metadata connections, bounded read and review-mutation APIs, table browsing, read-only PDF delivery, and frontend asset serving; it does not import workspace orchestration, run migrations, create databases, or write the PDF companion.
+- `backend/enrich/` owns provider HTTP and decoding; gather code has no database calls, and workspace storage does not bypass the rate-limited public client.
+- `backend/manifest/` owns canonical manifests, fingerprints, lifecycle values, and audit actions without internal application dependencies.
+- `backend/something/` owns the language compiler and evaluator; [docs/something.spec.md](docs/something.spec.md) is its behavioral specification.
+- `backend/article/`, `backend/bibtex/`, `backend/validation/`, and `backend/normalization/` own parsing, constrained BibTeX, validation, and canonicalization.
 
 SQLite is the pipeline system of record. Work metadata changes create immutable `work_revisions`; ordered `authorships` and `reference_mentions` are canonical relationships. Validation gates normalization, and discarded work remains inspectable through stage and provenance evidence.
 
-The viewer is a URL-state SPA assembled into `frontend/dist` from `frontend/src` and served with `serve --assets-dir`. `search_id`, `search_revision_id`, `plan_id`, `run_id`, `note_id`, `anchor_id`, and `pdf_page` are persistent context. Every internal link uses the shared `link` helper; hard-coded `?view=...` links discard context.
+The viewer is a URL-state SPA assembled into `build/frontend/dist` from `frontend/src` and served with `serve --assets-dir`. `search_id`, `search_revision_id`, `plan_id`, `run_id`, `note_id`, `anchor_id`, and `pdf_page` are persistent context. Every internal link uses the shared `link` helper; hard-coded `?view=...` links discard context.
 
 ## 6. Data, migration, and security essentials
 
@@ -119,15 +120,15 @@ Keep authentication, authorization, input validation, certificate validation, in
 
 ## 7. Tests and frontend essentials
 
-Go tests use `unit`, `functional`, and `integration` build tags. Real-database integration tests use temporary SQLite and production migrations. Provider tests use controlled mock servers and never live APIs. Test counts are derived from source and are not maintained here.
+Ordinary tests live under `tests/<domain>/<component>/{unit,functional,integration}/`; directories select layers without build tags. `backend/`, `frontend/`, `tooling/`, and `internal/` contain no test suites or test-only hooks. Production packages never import `tests/`. `make test` runs all ordinary Go, Node, and browser suites; `make test-go` selects Go only, and `DOMAIN`, `COMPONENT`, and `LAYER` narrow supported selections. Invalid or empty selections and unmatched Go `TEST` expressions fail. Real-database integration tests use temporary SQLite and production migrations. Provider tests use controlled mock servers and never live APIs. Test counts are derived from source and are not maintained here.
 
-Frontend unit tests live under `frontend/tests/unit/` and use Node, jsdom, and `setup.js` where DOM support is required. Playwright tests live under `frontend/tests/`, run against isolated fixture copies on an operating-system-assigned loopback port, and write unique output under `build/playwright/`. Review mutation specs are serial and never write the generated base fixture.
+Frontend unit and functional tests live below `tests/frontend/` and use Node, jsdom, and `tests/support/node/setup.ts` where DOM support is required. Playwright viewer and quality suites live under `tests/frontend/`, shared API contracts under `tests/contracts/http/integration/`, and configuration and harnesses under `tests/` and `tests/support/node/`; browser suites run against isolated fixture copies on an operating-system-assigned loopback port, and write unique output under `build/playwright/`. Review mutation specs are serial and never write the generated base fixture.
 
-The `e2e` Go build tag is reserved for the supported pipeline-to-viewer flow. `make test-e2e` builds and invokes `build/analysis`, keeps deterministic and mocked-provider traffic offline, writes generated database bundles under `build/e2e/`, and runs the guarded Playwright continuity spec. `make test-e2e-live E2E_LIVE=1` is the only test target permitted to contact real Crossref, OpenAlex, and ORCID services; it is opt-in and is not part of default, race, integration, coverage, or frontend targets.
+The `e2e` Go build tag selects `tests/e2e/offline/`; live-provider tests additionally require `e2e_live` and `E2E_LIVE=1`. `make test-e2e` builds and invokes `build/analysis`, keeps deterministic and mocked-provider traffic offline, writes generated database bundles under `build/e2e/`, and runs the guarded Playwright continuity spec. `make test-e2e-live E2E_LIVE=1` is the only test target permitted to contact real Crossref, OpenAlex, and ORCID services; it is opt-in and is not part of default, race, integration, coverage, or frontend targets.
 
-When changing `frontend/`, follow the code style in [docs/FRONTEND-CODE-STYLE-GUIDE.md](docs/FRONTEND-CODE-STYLE-GUIDE.md), then run `make test-frontend-unit`, `make test-go PACKAGE=./server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
+When changing `frontend/`, follow the code style in [docs/FRONTEND-CODE-STYLE-GUIDE.md](docs/FRONTEND-CODE-STYLE-GUIDE.md), then run `make test-frontend-unit`, `make test-go DOMAIN=backend COMPONENT=server`, and the focused Playwright viewer suite. Run `make test-frontend-visual` for visual or accessibility changes and review snapshot changes rather than replacing them blindly.
 
-The checked-in `frontend/vendor/d3-force.js` is generated by `make frontend-vendor`. The checked-in PDF.js core, worker, CMaps, standard fonts, and license assets under `frontend/vendor/pdfjs/` are generated by `make frontend-pdfjs-vendor`. Edit dependency or generation inputs, not the generated assets. `frontend/dist` is assembled by `make frontend-build` and is required by `serve`, `dev`, and Playwright targets.
+The checked-in `frontend/vendor/d3-force.js` is generated by `make frontend-vendor`. The checked-in PDF.js core, worker, CMaps, standard fonts, and license assets under `frontend/vendor/pdfjs/` are generated by `make frontend-pdfjs-vendor`. Edit dependency or generation inputs, not the generated assets. `build/frontend/dist` is assembled by `make frontend-build` and is required by `serve`, `dev`, and Playwright targets.
 
 ## 8. File and source-control safety
 

@@ -4,6 +4,8 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
+	"analysis/internal/jsonvalue"
 	"context"
 	"net/http"
 	"strconv"
@@ -17,20 +19,20 @@ const identityCandidatePreviewLimit = 3
 // it as an author identity. The endpoint is unavailable for databases created
 // before the evidence migration, preserving the viewer's read-only behavior.
 func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	if !s.tableHasColumns("author_identity_resolutions", "pipeline_run_id", "author_occurrence_id", "status") || !s.tableHasColumns("author_identity_candidates", "identity_resolution_id", "candidate_orcid") {
-		s.respond(w, r, nil, notFound("author identity evidence is unavailable for this database"))
+		s.respond(w, r, nil, viewrequest.NotFound("author identity evidence is unavailable for this database"))
 		return
 	}
 	fields := map[string]string{
 		"id": "r.id", "status": "r.status", "citation_name": "r.queried_citation_name",
 		"article_title": "article_title", "doi": "doi", "candidate_count": "candidate_count", "resolved_at": "r.resolved_at",
 	}
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, fields, "id")
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, fields, "id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -65,7 +67,7 @@ func (s *Server) runIdentityEvidence(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, map[string]any{
 		"run_id":  runID,
 		"columns": []string{"resolution_id", "status", "queried_citation_name", "article_title", "doi", "candidate_count", "resolved_at"},
-		"rows":    items, "pagination": scopedPagination(page, perPage, result.Total, sort, order), "stats": stats,
+		"rows":    items, "pagination": viewrequest.Pagination(page, perPage, result.Total, sort, order), "stats": stats,
 	}, nil)
 }
 
@@ -76,16 +78,16 @@ func identityEvidenceRow(row *author.IdentityEvidenceRow) map[string]any {
 		"status":                row.Status,
 		"provider":              row.Provider,
 		"queried_citation_name": row.QueriedCitationName,
-		"error_message":         nullableText(row.ErrorMessage),
+		"error_message":         jsonvalue.Optional(row.ErrorMessage),
 		"resolved_at":           row.ResolvedAt,
 		"author_occurrence_id":  row.AuthorOccurrenceID,
-		"observed_orcid":        nullableText(row.ObservedORCID),
-		"person_id":             nullableIDPointer(row.PersonID),
-		"article_title":         nullableText(row.ArticleTitle),
-		"doi":                   nullableText(row.DOI),
-		"work_revision_id":      nullableIDPointer(row.WorkRevisionID),
-		"evidence_revision_id":  nullableIDPointer(row.EvidenceRevisionID),
-		"evidence_stage":        nullableText(row.EvidenceStage),
+		"observed_orcid":        jsonvalue.Optional(row.ObservedORCID),
+		"person_id":             jsonvalue.Optional(row.PersonID),
+		"article_title":         jsonvalue.Optional(row.ArticleTitle),
+		"doi":                   jsonvalue.Optional(row.DOI),
+		"work_revision_id":      jsonvalue.Optional(row.WorkRevisionID),
+		"evidence_revision_id":  jsonvalue.Optional(row.EvidenceRevisionID),
+		"evidence_stage":        jsonvalue.Optional(row.EvidenceStage),
 		"candidate_count":       row.CandidateCount,
 	}
 }
@@ -114,7 +116,7 @@ func (s *Server) attachIdentityCandidatePreviews(ctx context.Context, resolution
 	for _, resolution := range resolutions {
 		resolutionID, ok := resolution["resolution_id"].(int64)
 		if !ok {
-			return &apiProblem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "identity evidence has an invalid resolution identifier"}
+			return &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "internal_error", Message: "identity evidence has an invalid resolution identifier"}
 		}
 		ids = append(ids, resolutionID)
 		resolution["candidates"] = []map[string]any{}
@@ -146,17 +148,17 @@ func identityCandidateRow(candidate *author.IdentityCandidatePreview) map[string
 	return map[string]any{
 		"id":                    candidate.ID,
 		"candidate_orcid":       candidate.CandidateORCID,
-		"provider_display_name": nullableText(candidate.ProviderDisplayName),
+		"provider_display_name": jsonvalue.Optional(candidate.ProviderDisplayName),
 		"query_url":             candidate.QueryURL,
-		"payload_artifact_id":   nullableIDPointer(candidate.PayloadArtifactID),
-		"provider_rank":         nullableIDPointer(candidate.ProviderRank),
+		"payload_artifact_id":   jsonvalue.Optional(candidate.PayloadArtifactID),
+		"provider_rank":         jsonvalue.Optional(candidate.ProviderRank),
 		"created_at":            candidate.CreatedAt,
 	}
 }
 
 // identityCandidates returns one cursor-paginated ranked candidate page for a run-owned resolution.
 func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id", "limit", "cursor"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id", "limit", "cursor"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -165,7 +167,7 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	resolutionID, err := positiveID(r.PathValue("id"))
+	resolutionID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -183,13 +185,13 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 	cursorRank := int64(0)
 	if r.URL.Query().Get("cursor") != "" && cursor.Text == "" {
-		s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
+		s.respond(w, r, nil, viewrequest.BadRequest("cursor is invalid for this collection"))
 		return
 	}
 	if cursor.Text != "" {
 		cursorRank, err = strconv.ParseInt(cursor.Text, 10, 64)
 		if err != nil || cursorRank < 0 || cursor.ID < 1 {
-			s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
+			s.respond(w, r, nil, viewrequest.BadRequest("cursor is invalid for this collection"))
 			return
 		}
 	}
@@ -201,7 +203,7 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
-		s.respond(w, r, nil, notFound("identity resolution not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("identity resolution not found"))
 		return
 	}
 	candidates, err := s.authorStore.ListIdentityCandidates(ctx, author.IdentityCandidateFilter{
@@ -229,10 +231,10 @@ func (s *Server) identityCandidates(w http.ResponseWriter, r *http.Request) {
 		items = append(items, map[string]any{
 			"id":                    candidate.ID,
 			"candidate_orcid":       candidate.CandidateORCID,
-			"provider_display_name": nullableText(candidate.ProviderDisplayName),
+			"provider_display_name": jsonvalue.Optional(candidate.ProviderDisplayName),
 			"query_url":             candidate.QueryURL,
-			"payload_artifact_id":   nullableIDPointer(candidate.PayloadArtifactID),
-			"provider_rank":         nullableIDPointer(candidate.ProviderRank),
+			"payload_artifact_id":   jsonvalue.Optional(candidate.PayloadArtifactID),
+			"provider_rank":         jsonvalue.Optional(candidate.ProviderRank),
 			"created_at":            candidate.CreatedAt,
 		})
 	}

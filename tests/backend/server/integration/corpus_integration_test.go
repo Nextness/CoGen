@@ -3,11 +3,11 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -16,13 +16,13 @@ import (
 // TestRunScopedCorpusAndStages verifies run scoped corpus and stages.
 func TestRunScopedCorpusAndStages(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	base := "/api/runs/" + subject.stringID(runID)
+	base := "/api/runs/" + fmt.Sprint(runID)
 	for _, collection := range []string{"articles", "authors", "references", "sources"} {
 		response := testhelpers.ViewerRequest(t, handler, base+"/corpus/"+collection+"?page=1&per_page=20&sort=id&order=asc")
 		if response.Code != http.StatusOK {
@@ -54,7 +54,7 @@ func TestRunScopedCorpusAndStages(t *testing.T) {
 	if articles.Code != http.StatusOK || !strings.Contains(articles.Body.String(), "Article One") || strings.Contains(articles.Body.String(), "Other Run Article") || strings.Contains(articles.Body.String(), "Article Two") {
 		t.Fatalf("analysis-ready corpus included a non-normalized/other-run article: status=%d body=%s", articles.Code, articles.Body.String())
 	}
-	if _, err := viewer.writeDB.Conn.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, started_at, finished_at) VALUES (?, 'subsecond', 'completed', '2026-08-22T00:00:00.100000Z', '2026-08-22T00:00:00.350000Z')", runID); err != nil {
+	if _, err := viewer.Metadata.Conn.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, started_at, finished_at) VALUES (?, 'subsecond', 'completed', '2026-08-22T00:00:00.100000Z', '2026-08-22T00:00:00.350000Z')", runID); err != nil {
 		t.Fatal(err)
 	}
 	stages := testhelpers.ViewerRequest(t, handler, base+"/stages?page=1&per_page=20&sort=id&order=asc")
@@ -72,13 +72,13 @@ func TestRunScopedCorpusAndStages(t *testing.T) {
 // TestCorpusPaginationUsesStableTiesAndClamps verifies deterministic complete traversal and populated out-of-range pages.
 func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	for index := 0; index < 41; index++ {
-		work, err := viewer.writeDB.Conn.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/tied-"+subject.stringID(int64(index)))
+		work, err := viewer.Metadata.Conn.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/tied-"+fmt.Sprint(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -86,12 +86,12 @@ func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := viewer.writeDB.Conn.Exec(`INSERT INTO work_revisions
+		if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO work_revisions
 			(work_id, pipeline_run_id, payload_hash, title, producer_stage)
-			VALUES (?, ?, ?, 'Tied title', 'normalize')`, workID, runID, "tied-"+subject.stringID(int64(index))); err != nil {
+			VALUES (?, ?, ?, 'Tied title', 'normalize')`, workID, runID, "tied-"+fmt.Sprint(int64(index))); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := viewer.writeDB.Conn.Exec(`INSERT INTO run_work_stages
+		if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO run_work_stages
 			(pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')`, runID, workID); err != nil {
 			t.Fatal(err)
 		}
@@ -100,7 +100,7 @@ func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 	handler := viewer.Handler()
 	seen := make(map[int64]bool)
 	for page := 1; page <= 3; page++ {
-		response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/corpus/articles?page="+subject.stringID(int64(page))+"&per_page=20&sort=title&order=asc")
+		response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/corpus/articles?page="+fmt.Sprint(int64(page))+"&per_page=20&sort=title&order=asc")
 		if response.Code != http.StatusOK {
 			t.Fatalf("corpus page %d status=%d body=%s", page, response.Code, response.Body.String())
 		}
@@ -128,7 +128,7 @@ func TestCorpusPaginationUsesStableTiesAndClamps(t *testing.T) {
 	if len(seen) != 42 {
 		t.Fatalf("traversed %d corpus revisions, want 42", len(seen))
 	}
-	outOfRange := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/corpus/articles?page=999&per_page=20&sort=title&order=asc")
+	outOfRange := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/corpus/articles?page=999&per_page=20&sort=title&order=asc")
 	if outOfRange.Code != http.StatusOK {
 		t.Fatalf("out-of-range corpus status=%d body=%s", outOfRange.Code, outOfRange.Body.String())
 	}

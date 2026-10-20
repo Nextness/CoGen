@@ -18,7 +18,7 @@ import (
 type Options struct {
 	Domain, Layer, Component, Package, Runner, Test, TestFile string
 	Browser, Workers                                          string
-	Race                                                      bool
+	Race, Headed, Debug                                       bool
 }
 
 // Selection contains canonical repository-relative packages and test files.
@@ -53,6 +53,9 @@ func Select(root string, options Options) (Selection, error) {
 	runners := map[string]bool{"all": true, "go": true, "node": true, "browser": true}
 	if !domains[options.Domain] || !layers[options.Layer] || !runners[options.Runner] {
 		return selected, fmt.Errorf("unknown domain, layer, or runner: %q/%q/%q", options.Domain, options.Layer, options.Runner)
+	}
+	if (options.Headed || options.Debug) && options.Runner != "browser" {
+		return selected, fmt.Errorf("headed and debug controls require browser-only selection")
 	}
 	if options.Component != "" && (options.Domain == "all" || !validRelative(options.Component)) {
 		return selected, fmt.Errorf("COMPONENT requires an explicit domain and a canonical relative component path")
@@ -271,6 +274,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	flags.StringVar(&options.Browser, "browser", "chromium", "browser project, or all")
 	flags.StringVar(&options.Workers, "workers", "", "browser workers")
 	flags.BoolVar(&options.Race, "race", false, "Go race detector")
+	flags.BoolVar(&options.Headed, "headed", false, "headed browser")
+	flags.BoolVar(&options.Debug, "debug", false, "browser debugger")
 	if flags.Parse(args) != nil || flags.NArg() != 0 {
 		return 2
 	}
@@ -299,12 +304,44 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		if code := execute(root, "make", []string{"build", "frontend-build"}, stdout, stderr); code != 0 {
 			return code
 		}
-		if _, err := os.Stat(filepath.Join(root, "build/fixtures/viewer/workspace.fixture.db")); os.IsNotExist(err) {
-			if code := execute(root, "make", []string{"fixture"}, stdout, stderr); code != 0 {
-				return code
+		defaultFixture := filepath.Join(root, "build/fixtures/viewer/workspace.fixture.db")
+		fixture := os.Getenv("FIXTURE_DB")
+		if fixture == "" {
+			fixture = defaultFixture
+		}
+		if !filepath.IsAbs(fixture) {
+			fixture = filepath.Join(root, fixture)
+		}
+		companion := strings.TrimSuffix(fixture, ".db") + ".pdf.db"
+		if strings.HasSuffix(fixture, ".metadata.db") {
+			companion = strings.TrimSuffix(fixture, ".metadata.db") + ".pdf.db"
+		}
+		if explicit := os.Getenv("FIXTURE_PDF_DB"); explicit != "" {
+			companion = explicit
+		}
+		for _, filename := range []string{fixture, companion} {
+			if _, err := os.Stat(filename); os.IsNotExist(err) {
+				// Only generate the disposable default pair automatically; custom inputs belong to the caller.
+				if filepath.Clean(fixture) != defaultFixture || os.Getenv("FIXTURE_PDF_DB") != "" {
+					fmt.Fprintf(stderr, "fixture input %s is missing; run make fixture FIXTURE_DB=<metadata path> or provide an existing pair\n", filename)
+					return 1
+				}
+				if code := execute(root, "make", []string{"fixture"}, stdout, stderr); code != 0 {
+					return code
+				}
+				break
+			} else if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
 			}
 		}
 		browserArgs := []string{"tests/support/node/run-playwright.ts"}
+		if options.Headed {
+			browserArgs = append(browserArgs, "--headed")
+		}
+		if options.Debug {
+			browserArgs = append(browserArgs, "--debug")
+		}
 		if options.Browser != "all" {
 			browserArgs = append(browserArgs, "--project="+options.Browser)
 		}

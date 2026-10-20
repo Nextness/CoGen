@@ -13,7 +13,7 @@ const SimpleBib = `@article{key1,
 }
 `
 
-// parser supports the package test suite's parser setup or assertions.
+// Parser supports the package test suite's parser setup or assertions.
 func Parser() *subject.Parser {
 	return subject.NewParser(nil)
 }

@@ -3,7 +3,7 @@
 # or SOMETHING database versioning. Paths resolve relative to this file, so run
 # every command from the repository root with -f config/sqlc.yaml.
 # Add one SQLite generation block per table family as its schema and query
-# files land under src/database/<family>/schema/.
+# files land under backend/database/<family>/schema/.
 version: "2"
 sql:
   - engine: "sqlite"

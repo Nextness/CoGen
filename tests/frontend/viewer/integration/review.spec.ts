@@ -93,6 +93,9 @@ test.describe('isolated review mutation lifecycle', () => {
     });
     const articleAuditPanel = auditHeading.locator("xpath=../../..");
     const reviewAuditEvents = articleAuditPanel.locator(".rw-audit-event--review");
+    // Anchor creation refreshes the article audit after the anchor list updates.
+    // Observe that completed refresh before taking the exact decision-change baseline.
+    await expect(reviewAuditEvents.first()).toContainText('Review Anchor Created');
     const reviewAuditCount = await reviewAuditEvents.count();
     await expect(articleAuditPanel).toContainText("Work Review Version Created");
     const updatedReason = `${reason} saved from the review form`;

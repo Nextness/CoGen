@@ -386,17 +386,17 @@ func TestReviewOpenAlexPublisherIsNotJournal(t *testing.T) {
 func TestReviewInterruptedAttemptRecoverable(t *testing.T) {
 	db, path := reviewDB(t)
 	run := reviewRun(t, filepath.Dir(path), "")
-	runID, err := workspace.StartWorkspaceAttempt(db, []byte("// synthetic abandoned attempt"), run, false)
+	runID, err := workspace.StartWorkspaceAttempt(db.Database, []byte("// synthetic abandoned attempt"), run, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspace.StartWorkspaceAttempt(db, []byte("// synthetic abandoned attempt"), run, true); err == nil {
+	if _, err := workspace.StartWorkspaceAttempt(db.Database, []byte("// synthetic abandoned attempt"), run, true); err == nil {
 		t.Fatal("fresh must not bypass a running attempt")
 	}
 	if err := workspace.RecoverAbandonedRun(context.Background(), path, runID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := workspace.StartWorkspaceAttempt(db, []byte("// synthetic abandoned attempt"), run, true); err != nil {
+	if _, err := workspace.StartWorkspaceAttempt(db.Database, []byte("// synthetic abandoned attempt"), run, true); err != nil {
 		t.Fatal(err)
 	}
 	var failed, audits int

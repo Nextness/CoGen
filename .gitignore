@@ -24,15 +24,9 @@ workspace.fixture.db
 
 # Go test coverage
 coverage.out
-coverage.out
 
 # Frontend dev tooling (development only)
 node_modules/
-frontend/test-results/
-frontend/playwright-report/
-
-# Playwright visual baseline snapshots (regenerated on demand)
-frontend/tests/*-snapshots/
 
 # References
 docs/ref/

@@ -43,7 +43,7 @@ func LoadSomethingBytes(data []byte, filepath string) (result map[string]any, er
 	expanded := NewDirectiveGenerator(filepath).Expand(syntax)
 	checked := NewTypeChecker(expanded, filepath).Check()
 	ev := NewEvaluator(checked, filepath)
-	result = ev.evaluate()
+	result = ev.Evaluate()
 	return result, nil
 }
 

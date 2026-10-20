@@ -6,6 +6,7 @@
 package artifact
 
 import (
+	"analysis/internal/filehash"
 	"bytes"
 	"context"
 	"database/sql"
@@ -154,4 +155,9 @@ func (s *Store) withTx(ctx context.Context, fn func(*generated.Queries) error) e
 		return err
 	}
 	return tx.Commit()
+}
+
+// StorePayload derives a payload's content identity and atomically persists its metadata and bytes.
+func (s *Store) StorePayload(ctx context.Context, runID int64, data []byte, contentType string) (int64, error) {
+	return s.CreateWithBlob(ctx, CreateWithBlobInput{ContentHash: filehash.Bytes(data), ContentType: contentType, ByteSize: int64(len(data)), PipelineRunID: runID, Data: data})
 }

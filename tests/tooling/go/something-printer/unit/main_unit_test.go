@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -137,7 +138,13 @@ func TestQuoteString(t *testing.T) {
 		{`back\slash`, `"back\\slash"`},
 	}
 	for _, c := range cases {
-		got := subject.quoteString(c.input)
+		source := strings.ReplaceAll(strings.ReplaceAll(c.input, "{", "{{"), "}", "}}")
+		path := writeConfig(t, "quoted.something", "x := "+strconv.Quote(source)+";")
+		var stdout, stderr bytes.Buffer
+		if code := subject.Run("something-printer", []string{"--something", path}, &stdout, &stderr); code != 0 {
+			t.Fatalf("quote exit=%d: %s", code, stderr.String())
+		}
+		got := strings.TrimSuffix(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(stdout.String()), "x = ")), ",")
 		if got != c.want {
 			t.Errorf("quoteString(%q) = %q, want %q", c.input, got, c.want)
 		}
@@ -146,11 +153,12 @@ func TestQuoteString(t *testing.T) {
 
 // TestPrintSomethingNested verifies nested object and list rendering.
 func TestPrintSomethingNested(t *testing.T) {
-	input := map[string]any{
-		"items": []any{"a", 1, true},
-		"inner": map[string]any{"x": 2},
+	path := writeConfig(t, "nested.something", `items := []string{"a","b"}; inner:scope={x:=2;}`)
+	var stdout, stderr bytes.Buffer
+	if code := subject.Run("something-printer", []string{"--something", path}, &stdout, &stderr); code != 0 {
+		t.Fatalf("nested exit=%d: %s", code, stderr.String())
 	}
-	out := subject.printSomething(input)
+	out := stdout.String()
 	if !strings.Contains(out, "inner = {") {
 		t.Errorf("missing inner object: %s", out)
 	}

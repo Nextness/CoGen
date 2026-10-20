@@ -14,11 +14,12 @@ import (
 	"strings"
 	"testing"
 
-	"analysis/backend/database"
 	"analysis/backend/database/pdfbinding"
 	"analysis/backend/database/work"
 	"analysis/backend/pdfstore"
 	"analysis/tests/support/go/testfixture"
+	"bytes"
+	"fmt"
 )
 
 // TestAddRequiresCorpusDOIAndPreservesExistingDownload verifies add requires corpus doi and preserves existing download.
@@ -26,7 +27,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	registry := testenv.Path("config", "database.something")
 	tempDir := t.TempDir()
 	metadataPath := filepath.Join(tempDir, "corpus.metadata.db")
-	metadata, err := database.Open(metadataPath, registry)
+	metadata, err := testfixture.Open(metadataPath, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +42,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if _, err := metadata.Work.CreateWorkByDOI(context.Background(), "10.1000/manual-unnormalized"); err != nil {
 		t.Fatal(err)
 	}
-	runID, err := testfixture.Run(context.Background(), metadata.RawDBForTest(), "manual-pdf-test", "")
+	runID, err := testfixture.Run(context.Background(), metadata.Conn, "manual-pdf-test", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +92,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if err := os.WriteFile(firstPath, []byte("%PDF-1.7\nmanual first"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "https://doi.org/10.1000/MANUAL", firstPath, registry); err != nil {
+	if err := addPDF(t, metadataPath, "https://doi.org/10.1000/MANUAL", firstPath, registry); err != nil {
 		t.Fatal(err)
 	}
 	store, err = pdfstore.Open(filepath.Join(tempDir, "corpus.pdf.db"), registry)
@@ -114,7 +115,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if err := os.WriteFile(secondPath, []byte("%PDF-1.7\nmanual replacement"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "10.1000/manual", secondPath, registry); err != nil {
+	if err := addPDF(t, metadataPath, "10.1000/manual", secondPath, registry); err != nil {
 		t.Fatal(err)
 	}
 	store, err = pdfstore.Open(filepath.Join(tempDir, "corpus.pdf.db"), registry)
@@ -131,7 +132,7 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "10.1000/manual-duplicate", firstPath, registry); err != nil {
+	if err := addPDF(t, metadataPath, "10.1000/manual-duplicate", firstPath, registry); err != nil {
 		t.Fatal(err)
 	}
 	store, err = pdfstore.Open(filepath.Join(tempDir, "corpus.pdf.db"), registry)
@@ -150,26 +151,26 @@ func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T) {
 		t.Fatalf("manual deduplication state: blobs=%d documents=%d", blobs, documents)
 	}
 
-	if err := subject.addWithRegistry(metadataPath, "10.1000/unknown", firstPath, registry); err == nil || !strings.Contains(err.Error(), "does not belong") {
+	if err := addPDF(t, metadataPath, "10.1000/unknown", firstPath, registry); err == nil || !strings.Contains(err.Error(), "does not belong") {
 		t.Fatalf("unknown DOI error = %v", err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "10.1000/manual-unnormalized", firstPath, registry); err == nil || !strings.Contains(err.Error(), "not registered") {
+	if err := addPDF(t, metadataPath, "10.1000/manual-unnormalized", firstPath, registry); err == nil || !strings.Contains(err.Error(), "not registered") {
 		t.Fatalf("unnormalized DOI error = %v", err)
 	}
-	metadata, err = database.Open(metadataPath, registry)
+	metadata, err = testfixture.Open(metadataPath, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer metadata.Close()
 	var addedEvents int
-	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", workID).Scan(&addedEvents); err != nil {
 		t.Fatal(err)
 	}
 	if addedEvents != 1 {
 		t.Fatalf("manual add audit events = %d, want 1", addedEvents)
 	}
 	var duplicateEvents int
-	if err := metadata.RawDBForTest().QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events WHERE entity_type='work' AND entity_id=? AND action='pdf_document_inventoried'", duplicateWorkID).Scan(&duplicateEvents); err != nil {
 		t.Fatal(err)
 	}
 	if duplicateEvents != 1 {
@@ -182,7 +183,7 @@ func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T) {
 	registry := testenv.Path("config", "database.something")
 	tempDir := t.TempDir()
 	metadataPath := filepath.Join(tempDir, "corpus.metadata.db")
-	metadata, err := database.Open(metadataPath, registry)
+	metadata, err := testfixture.Open(metadataPath, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +195,7 @@ func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T) {
 	if err := os.WriteFile(invalidPath, []byte("not a PDF"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "10.1000/manual-invalid", invalidPath, registry); err == nil || !strings.Contains(err.Error(), "PDF header") {
+	if err := addPDF(t, metadataPath, "10.1000/manual-invalid", invalidPath, registry); err == nil || !strings.Contains(err.Error(), "PDF header") {
 		t.Fatalf("invalid PDF error = %v", err)
 	}
 	oversizedPath := filepath.Join(tempDir, "oversized.pdf")
@@ -202,7 +203,21 @@ func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T) {
 	if err := os.WriteFile(oversizedPath, oversized, 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.addWithRegistry(metadataPath, "10.1000/manual-invalid", oversizedPath, registry); err == nil || !strings.Contains(err.Error(), "exceeds") {
+	if err := addPDF(t, metadataPath, "10.1000/manual-invalid", oversizedPath, registry); err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("oversized PDF error = %v", err)
 	}
+}
+
+// addPDF exercises command dispatch from the supported working directory.
+func addPDF(t *testing.T, metadata, doi, file, registry string) error {
+	t.Helper()
+	t.Chdir(testenv.Root())
+	var stdout, stderr bytes.Buffer
+	if code := subject.Run([]string{"add", "--db", metadata, "--doi", doi, "--file", file}, &stdout, &stderr); code != 0 {
+		return fmt.Errorf("exit %d: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `"doi":`) {
+		t.Fatalf("missing command JSON: %s", stdout.String())
+	}
+	return nil
 }

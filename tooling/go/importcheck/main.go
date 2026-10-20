@@ -202,7 +202,7 @@ func (g packageGraph) layerOf(path string) layer {
 		return layerFamily
 	case relative == "backend/pdfstore" || strings.HasPrefix(relative, "backend/pdfstore/"):
 		return layerCompanion
-	case relative == "backend/workspace" || relative == "backend/server" || strings.HasPrefix(relative, "tooling/go/"):
+	case withinSubtree("backend/workspace", relative) || withinSubtree("backend/server", relative) || strings.HasPrefix(relative, "tooling/go/"):
 		return layerConsumer
 	default:
 		return layerShared

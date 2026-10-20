@@ -3,12 +3,12 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,13 +18,13 @@ import (
 // TestAPIDetailsArtifactsAndAudit verifies api details artifacts and audit.
 func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	artifacts := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts")
+	artifacts := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts")
 	if artifacts.Code != http.StatusOK || !strings.Contains(artifacts.Body.String(), "workspace_config") || !strings.Contains(artifacts.Body.String(), "resolved_manifest") || !strings.Contains(artifacts.Body.String(), "input_manifest") || !strings.Contains(artifacts.Body.String(), "research") || !strings.Contains(artifacts.Body.String(), "preflight") || !strings.Contains(artifacts.Body.String(), "cache_payload") || !strings.Contains(artifacts.Body.String(), "identity_candidate_payload") {
 		t.Fatalf("run artifacts response: status=%d body=%s", artifacts.Code, artifacts.Body.String())
 	}
@@ -50,7 +50,7 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
 		}
 	}
-	cachePage := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/cache-uses?page=2&per_page=20&sort=id&order=asc")
+	cachePage := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/cache-uses?page=2&per_page=20&sort=id&order=asc")
 	var cachePayload struct {
 		Rows       []map[string]any `json:"rows"`
 		Pagination struct {
@@ -64,15 +64,15 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 	if cachePage.Code != http.StatusOK || cachePayload.Pagination.Page != 2 || cachePayload.Pagination.TotalRows != 21 || len(cachePayload.Rows) != 1 {
 		t.Fatalf("paginated cache response: status=%d payload=%#v body=%s", cachePage.Code, cachePayload, cachePage.Body.String())
 	}
-	validationAudit := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=validation&limit=1")
+	validationAudit := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=validation&limit=1")
 	if validationAudit.Code != http.StatusOK || !strings.Contains(validationAudit.Body.String(), "validation_changed") || !strings.Contains(validationAudit.Body.String(), `"total_events":1`) {
 		t.Fatalf("filtered audit response: status=%d body=%s", validationAudit.Code, validationAudit.Body.String())
 	}
-	multiCategoryAudit := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=validation,enrichment&limit=25")
+	multiCategoryAudit := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=validation,enrichment&limit=25")
 	if multiCategoryAudit.Code != http.StatusOK || !strings.Contains(multiCategoryAudit.Body.String(), "validation_changed") || !strings.Contains(multiCategoryAudit.Body.String(), "field_enriched") {
 		t.Fatalf("multi-category audit response: status=%d body=%s", multiCategoryAudit.Code, multiCategoryAudit.Body.String())
 	}
-	firstAuditPage := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&limit=1")
+	firstAuditPage := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&limit=1")
 	var auditPayload struct {
 		Events     []map[string]any `json:"events"`
 		HasMore    bool             `json:"has_more"`
@@ -87,7 +87,7 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 	if auditPayload.Events[0]["action"] != "field_enriched" {
 		t.Fatalf("audit page is not ordered by event time: %#v", auditPayload.Events[0])
 	}
-	secondAuditPage := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&limit=1&cursor="+subject.stringID(auditPayload.NextCursor))
+	secondAuditPage := testhelpers.ViewerRequest(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&limit=1&cursor="+fmt.Sprint(auditPayload.NextCursor))
 	var secondAuditPayload struct {
 		Events []map[string]any `json:"events"`
 	}
@@ -112,14 +112,14 @@ func TestAPIDetailsArtifactsAndAudit(t *testing.T) {
 // TestArtifactDownloadLargeBodyFailsBeforeCommit verifies an artifact beyond the former chunk-query budget is never silently truncated.
 func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 
-	payload := bytes.Repeat([]byte("x"), 64*1024*(subject.collectionAPIQueries+1))
-	result, err := viewer.writeDB.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
+	payload := bytes.Repeat([]byte("x"), 64*1024*(256+1))
+	result, err := viewer.Metadata.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, ?, 'application/octet-stream')", "large-artifact", len(payload))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,11 +127,11 @@ func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := viewer.writeDB.Conn.Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
+	if _, err := viewer.Metadata.Conn.Exec("INSERT INTO artifact_blobs (artifact_id, pipeline_run_id, data) VALUES (?, ?, ?)", artifactID, runID, payload); err != nil {
 		t.Fatal(err)
 	}
 
-	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/artifacts/"+subject.stringID(artifactID)+"/content")
+	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/artifacts/"+fmt.Sprint(artifactID)+"/content")
 	if response.Code == http.StatusOK {
 		if !bytes.Equal(response.Body.Bytes(), payload) {
 			t.Fatalf("large artifact response was truncated: got %d bytes, want %d", response.Body.Len(), len(payload))
@@ -146,43 +146,43 @@ func TestArtifactDownloadLargeBodyFailsBeforeCommit(t *testing.T) {
 // TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact verifies the complete bounded inventory contract.
 func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	var focusedID int64
 	for index := 0; index < 30; index++ {
-		artifact, err := viewer.writeDB.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", "paged-artifact-"+subject.stringID(int64(index)))
+		artifact, err := viewer.Metadata.Conn.Exec("INSERT INTO artifacts (content_hash, byte_size, content_type) VALUES (?, 0, 'text/plain')", "paged-artifact-"+fmt.Sprint(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		artifactID, _ := artifact.LastInsertId()
 		focusedID = artifactID
-		if _, err := viewer.writeDB.Conn.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, output_artifact_id) VALUES (?, ?, 'completed', ?)", runID, "paged-step-"+subject.stringID(int64(index)), artifactID); err != nil {
+		if _, err := viewer.Metadata.Conn.Exec("INSERT INTO run_steps (pipeline_run_id, step_name, step_status, output_artifact_id) VALUES (?, ?, 'completed', ?)", runID, "paged-step-"+fmt.Sprint(int64(index)), artifactID); err != nil {
 			t.Fatal(err)
 		}
 	}
 	handler := viewer.Handler()
-	status, first := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts?limit=25")
+	status, first := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts?limit=25")
 	if status != http.StatusOK || len(first["artifacts"].([]any)) != 25 || first["has_more"] != true {
 		t.Fatalf("first artifact page status=%d body=%v", status, first)
 	}
 	cursor := first["next_cursor"].(string)
-	status, second := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts?limit=25&cursor="+url.QueryEscape(cursor))
+	status, second := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts?limit=25&cursor="+url.QueryEscape(cursor))
 	if status != http.StatusOK || len(second["artifacts"].([]any)) < 1 {
 		t.Fatalf("second artifact page status=%d body=%v", status, second)
 	}
-	status, numbered := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts?page=2&per_page=20")
+	status, numbered := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts?page=2&per_page=20")
 	pagination, paginationOK := numbered["pagination"].(map[string]any)
 	if status != http.StatusOK || !paginationOK || pagination["page"] != float64(2) || pagination["total_pages"].(float64) < 2 || len(numbered["artifacts"].([]any)) < 1 {
 		t.Fatalf("numbered artifact page status=%d body=%v", status, numbered)
 	}
-	status, focused := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts?limit=25&artifact_id="+subject.stringID(focusedID))
+	status, focused := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts?limit=25&artifact_id="+fmt.Sprint(focusedID))
 	if status != http.StatusOK || int64(focused["artifacts"].([]any)[0].(map[string]any)["id"].(float64)) != focusedID {
 		t.Fatalf("focused artifact was not sequenced first: status=%d body=%v", status, focused)
 	}
-	status, cache := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/artifacts?role=cache_payload&limit=25")
+	status, cache := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/artifacts?role=cache_payload&limit=25")
 	if status != http.StatusOK || len(cache["artifacts"].([]any)) != 1 {
 		t.Fatalf("cache artifact relationship filter status=%d body=%v", status, cache)
 	}
@@ -191,54 +191,54 @@ func TestRunArtifactsPaginatesEveryRelationshipAndFocusesAnExactArtifact(t *test
 // TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence verifies category support, first-page metadata, and PDF membership isolation.
 func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T) {
 	path, runID, revisionID, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	var workID int64
-	if err := viewer.writeDB.Conn.QueryRow("SELECT work_id FROM work_revisions WHERE id=?", revisionID).Scan(&workID); err != nil {
+	if err := viewer.Metadata.Conn.QueryRow("SELECT work_id FROM work_revisions WHERE id=?", revisionID).Scan(&workID); err != nil {
 		t.Fatal(err)
 	}
-	otherWork, err := viewer.writeDB.Conn.Exec("INSERT INTO works (doi) VALUES ('10.1/audit-other')")
+	otherWork, err := viewer.Metadata.Conn.Exec("INSERT INTO works (doi) VALUES ('10.1/audit-other')")
 	if err != nil {
 		t.Fatal(err)
 	}
 	otherWorkID, _ := otherWork.LastInsertId()
-	if _, err := viewer.writeDB.Conn.Exec(`INSERT INTO audit_events
+	if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO audit_events
 		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, metadata_json)
 		VALUES
 		(datetime('now'), 'reviewer', ?, 'work_review_version', '1', 'work_review_version_created', '{"status":"approved"}'),
 		(datetime('now', '-1 second'), 'reviewer', ?, 'review_note', '1', 'review_note_created', '{}'),
 		(datetime('now'), 'pdf-store', NULL, 'work', ?, 'pdf_document_inventoried', '{}'),
-		(datetime('now'), 'pdf-store', NULL, 'work', ?, 'pdf_document_inventoried', '{}')`, runID, runID, subject.stringID(workID), subject.stringID(otherWorkID)); err != nil {
+		(datetime('now'), 'pdf-store', NULL, 'work', ?, 'pdf_document_inventoried', '{}')`, runID, runID, fmt.Sprint(workID), fmt.Sprint(otherWorkID)); err != nil {
 		t.Fatal(err)
 	}
 	handler := viewer.Handler()
 
-	status, review := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=review&limit=1")
+	status, review := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=review&limit=1")
 	if status != http.StatusOK || len(review["events"].([]any)) != 1 || review["summary"] == nil || review["facets"] == nil {
 		t.Fatalf("review first page status=%d body=%v", status, review)
 	}
 	cursor := review["next_cursor"]
 	if cursor != nil {
-		status, older := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=review&limit=1&cursor="+subject.stringID(int64(cursor.(float64))))
+		status, older := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=review&limit=1&cursor="+fmt.Sprint(int64(cursor.(float64))))
 		if status != http.StatusOK || older["summary"] != nil || older["facets"] != nil {
 			t.Fatalf("older audit page recomputed first-page metadata: status=%d body=%v", status, older)
 		}
 	}
 
-	status, pdfRun := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=pdf&limit=100")
+	status, pdfRun := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=pdf&limit=100")
 	if status != http.StatusOK {
 		t.Fatalf("run PDF audit status=%d body=%v", status, pdfRun)
 	}
 	for _, raw := range pdfRun["events"].([]any) {
 		event := raw.(map[string]any)
-		if event["entity_id"] == subject.stringID(otherWorkID) {
+		if event["entity_id"] == fmt.Sprint(otherWorkID) {
 			t.Fatalf("unrelated global PDF event contaminated run audit: %v", event)
 		}
 	}
-	status, workspacePDF := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=pdf&pdf_scope=workspace&limit=100")
+	status, workspacePDF := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=pdf&pdf_scope=workspace&limit=100")
 	if status != http.StatusOK || len(workspacePDF["events"].([]any)) <= len(pdfRun["events"].([]any)) {
 		t.Fatalf("workspace PDF scope did not expose separate global history: status=%d body=%v", status, workspacePDF)
 	}
@@ -247,7 +247,7 @@ func TestAuditSeparatesReviewPagesAndRunScopedPDFEvidence(t *testing.T) {
 // TestAuditRecordedDataIsLazyBoundedAndPrivate verifies structured review filtering and the explicit payload endpoint.
 func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,11 +260,11 @@ func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata, err := json.Marshal(map[string]any{"provider": "review", "oversized": strings.Repeat("x", subject.auditDetailPayloadBytes+1)})
+	metadata, err := json.Marshal(map[string]any{"provider": "review", "oversized": strings.Repeat("x", 65536+1)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := viewer.writeDB.Conn.Exec(`INSERT INTO audit_events
+	result, err := viewer.Metadata.Conn.Exec(`INSERT INTO audit_events
 		(occurred_at, actor, pipeline_run_id, entity_type, entity_id, action, before_json, after_json, metadata_json)
 		VALUES (datetime('now', '+1 minute'), 'reviewer', ?, 'work_review_version', '999', 'work_review_version_created', ?, ?, ?)`, runID, string(before), string(after), string(metadata))
 	if err != nil {
@@ -272,12 +272,12 @@ func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 	}
 	eventID, _ := result.LastInsertId()
 	handler := viewer.Handler()
-	status, page := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+subject.stringID(runID)+"&category=review&review_status=approved&review_reason=verified&review_substatus=duplicate&limit=25")
+	status, page := testhelpers.RequestJSON(t, handler, "/api/audit?run_id="+fmt.Sprint(runID)+"&category=review&review_status=approved&review_reason=verified&review_substatus=duplicate&limit=25")
 	if status != http.StatusOK || len(page["events"].([]any)) != 1 {
 		t.Fatalf("structured review audit status=%d body=%v", status, page)
 	}
 	encodedPage, _ := json.Marshal(page)
-	if strings.Contains(string(encodedPage), "private note") || strings.Contains(string(encodedPage), "private@example.test") || strings.Contains(string(encodedPage), "private selection") || strings.Contains(string(encodedPage), strings.Repeat("x", subject.auditListPayloadBytes)) {
+	if strings.Contains(string(encodedPage), "private note") || strings.Contains(string(encodedPage), "private@example.test") || strings.Contains(string(encodedPage), "private selection") || strings.Contains(string(encodedPage), strings.Repeat("x", 4096)) {
 		t.Fatalf("audit list exposed private or oversized recorded data: %s", encodedPage)
 	}
 	event := page["events"].([]any)[0].(map[string]any)
@@ -285,7 +285,7 @@ func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 		t.Fatalf("audit list truncation metadata=%v", event)
 	}
 
-	status, recorded := testhelpers.RequestJSON(t, handler, "/api/audit/"+subject.stringID(eventID)+"/recorded-data?run_id="+subject.stringID(runID))
+	status, recorded := testhelpers.RequestJSON(t, handler, "/api/audit/"+fmt.Sprint(eventID)+"/recorded-data?run_id="+fmt.Sprint(runID))
 	if status != http.StatusOK || recorded["event_id"] != float64(eventID) {
 		t.Fatalf("recorded data status=%d body=%v", status, recorded)
 	}
@@ -296,7 +296,7 @@ func TestAuditRecordedDataIsLazyBoundedAndPrivate(t *testing.T) {
 	if len(recorded["truncated_fields"].([]any)) != 1 || recorded["after"].(map[string]any)["status"] != "approved" {
 		t.Fatalf("recorded data bounds or structured state=%v", recorded)
 	}
-	wrongRun := testhelpers.ViewerRequest(t, handler, "/api/audit/"+subject.stringID(eventID)+"/recorded-data?run_id="+subject.stringID(runID+1))
+	wrongRun := testhelpers.ViewerRequest(t, handler, "/api/audit/"+fmt.Sprint(eventID)+"/recorded-data?run_id="+fmt.Sprint(runID+1))
 	if wrongRun.Code != http.StatusNotFound {
 		t.Fatalf("cross-run recorded data status=%d body=%s", wrongRun.Code, wrongRun.Body.String())
 	}

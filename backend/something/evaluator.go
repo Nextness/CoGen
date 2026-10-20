@@ -152,8 +152,8 @@ func NewEvaluator(checked *CheckedProgram, filepath string) *Evaluator {
 	return &Evaluator{checked: checked, filepath: filepath, state: newRuntimeState(filepath, assignmentTypes)}
 }
 
-// evaluate executes a checked program and returns its public configuration map.
-func (evaluator *Evaluator) evaluate() map[string]any {
+// Evaluate executes a checked program and returns its public configuration map.
+func (evaluator *Evaluator) Evaluate() map[string]any {
 	if evaluator.checked == nil || evaluator.checked.Program == nil {
 		return map[string]any{}
 	}

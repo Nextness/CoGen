@@ -4,6 +4,8 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
+	"analysis/internal/jsonvalue"
 	"context"
 	"errors"
 	"net/http"
@@ -21,16 +23,16 @@ const detailCollectionPreviewLimit = 25
 // projection.
 func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	if err := validateKnownQuery(r, "run_id"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	runID, err := requiredQueryID(r, "run_id")
+	runID, err := viewrequest.RequiredID(r, "run_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	id, err := positiveID(r.PathValue("id"))
+	id, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -43,7 +45,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if revision == nil {
-		s.respond(w, r, nil, notFound("article revision not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("article revision not found"))
 		return
 	}
 	workID := revision.WorkID
@@ -115,16 +117,16 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 
 // authorDetail returns one author occurrence with its articles, audit evidence, and optional run-scoped identity candidates.
 func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
-	id, err := positiveID(r.PathValue("id"))
+	id, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "run_id"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	runID, err := requiredQueryID(r, "run_id")
+	runID, err := viewrequest.RequiredID(r, "run_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -137,7 +139,7 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if author == nil {
-		s.respond(w, r, nil, notFound("author occurrence not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("author occurrence not found"))
 		return
 	}
 	articles, err := s.authorDetailCollectionData(ctx, id, runID, "articles", "author_detail_articles_"+stringID(runID)+"_"+stringID(id), 0, detailCollectionPreviewLimit)
@@ -160,16 +162,16 @@ func (s *Server) authorDetail(w http.ResponseWriter, r *http.Request) {
 
 // referenceDetail returns one reference mention with its citing and resolved-work context.
 func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	runID, err := requiredQueryID(r, "run_id")
+	runID, err := viewrequest.RequiredID(r, "run_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	id, err := positiveID(r.PathValue("id"))
+	id, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -182,7 +184,7 @@ func (s *Server) referenceDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if detail == nil {
-		s.respond(w, r, nil, notFound("reference mention not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("reference mention not found"))
 		return
 	}
 	s.respond(w, r, map[string]any{"reference": referenceDetailRow(detail)}, nil)
@@ -204,7 +206,7 @@ func (s *Server) articleEnrichmentSummary(ctx context.Context, workID, runID int
 
 // articleDetailCollection returns one bounded page of a large article relationship or event collection.
 func (s *Server) articleDetailCollection(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id", "limit", "cursor"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id", "limit", "cursor"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -213,7 +215,7 @@ func (s *Server) articleDetailCollection(w http.ResponseWriter, r *http.Request)
 		s.respond(w, r, nil, err)
 		return
 	}
-	revisionID, err := positiveID(r.PathValue("id"))
+	revisionID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -238,7 +240,7 @@ func (s *Server) articleDetailCollection(w http.ResponseWriter, r *http.Request)
 
 // authorDetailCollection returns one bounded page of run-owned author relationships or evidence.
 func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id", "limit", "cursor"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id", "limit", "cursor"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -247,7 +249,7 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 		s.respond(w, r, nil, err)
 		return
 	}
-	authorID, err := positiveID(r.PathValue("id"))
+	authorID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -267,7 +269,7 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if author == nil {
-		s.respond(w, r, nil, notFound("author occurrence not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("author occurrence not found"))
 		return
 	}
 	result, err := s.authorDetailCollectionData(ctx, authorID, runID, kind, cursorKind, cursorID, limit)
@@ -278,7 +280,7 @@ func (s *Server) authorDetailCollection(w http.ResponseWriter, r *http.Request) 
 func (s *Server) articleDetailWorkID(ctx context.Context, revisionID, runID int64) (int64, error) {
 	workID, err := s.workStore.GetArticleDetailWorkID(ctx, revisionID, runID)
 	if errors.Is(err, work.ErrArticleRevisionNotFound) {
-		return 0, notFound("article revision not found")
+		return 0, viewrequest.NotFound("article revision not found")
 	}
 	return workID, err
 }
@@ -330,7 +332,7 @@ func (s *Server) articleDetailCollectionData(ctx context.Context, revisionID, wo
 		boundAuditEventPayloads(items, auditListPayloadBytes)
 		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	default:
-		return nil, notFound("article detail collection not found")
+		return nil, viewrequest.NotFound("article detail collection not found")
 	}
 }
 
@@ -390,7 +392,7 @@ func (s *Server) authorDetailCollectionData(ctx context.Context, authorID, runID
 		}
 		return detailCollectionPage(items, page.Total, limit, page.HasMore, page.NextCursorID, cursorKind), nil
 	default:
-		return nil, notFound("author detail collection not found")
+		return nil, viewrequest.NotFound("author detail collection not found")
 	}
 }
 
@@ -398,13 +400,13 @@ func (s *Server) authorDetailCollectionData(ctx context.Context, authorID, runID
 func authorArticleRow(item *work.AuthorArticle) map[string]any {
 	return map[string]any{
 		"author_order":     item.AuthorOrder,
-		"affiliation":      nullableText(item.Affiliation),
+		"affiliation":      jsonvalue.Optional(item.Affiliation),
 		"work_revision_id": item.WorkRevisionID,
 		"work_id":          item.WorkID,
-		"title":            nullableText(item.Title),
-		"year":             nullableIDPointer(item.Year),
+		"title":            jsonvalue.Optional(item.Title),
+		"year":             jsonvalue.Optional(item.Year),
 		"pipeline_run_id":  item.PipelineRunID,
-		"doi":              nullableText(item.DOI),
+		"doi":              jsonvalue.Optional(item.DOI),
 	}
 }
 
@@ -417,7 +419,7 @@ func authorIdentityEvidenceRow(item *author.AuthorIdentityEvidenceRow) map[strin
 		"status":                item.Status,
 		"provider":              item.Provider,
 		"queried_citation_name": item.QueriedCitationName,
-		"error_message":         nullableText(item.ErrorMessage),
+		"error_message":         jsonvalue.Optional(item.ErrorMessage),
 		"resolved_at":           item.ResolvedAt,
 		"candidate_count":       item.CandidateCount,
 	}

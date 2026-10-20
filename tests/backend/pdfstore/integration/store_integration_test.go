@@ -198,7 +198,7 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer metadata.Close()
-	for index := 0; index < subject.auditOutboxBatchSize+2; index++ {
+	for index := 0; index < 100+2; index++ {
 		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
 			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
 			VALUES (?, ?, 'test', 'work', ?, 'pdf_inventory_registered', '{}', ?)`,
@@ -210,8 +210,8 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if flushed != subject.auditOutboxBatchSize+2 {
-		t.Fatalf("flushed=%d, want %d", flushed, subject.auditOutboxBatchSize+2)
+	if flushed != 100+2 {
+		t.Fatalf("flushed=%d, want %d", flushed, 100+2)
 	}
 	var remaining, events int
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NULL`).Scan(&remaining); err != nil {
@@ -220,7 +220,7 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 	if err := metadata.Conn.QueryRow(`SELECT COUNT(*) FROM audit_events WHERE actor='test'`).Scan(&events); err != nil {
 		t.Fatal(err)
 	}
-	if remaining != 0 || events != subject.auditOutboxBatchSize+2 {
+	if remaining != 0 || events != 100+2 {
 		t.Fatalf("batch drain remaining=%d events=%d", remaining, events)
 	}
 }

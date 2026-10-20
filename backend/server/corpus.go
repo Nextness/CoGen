@@ -4,10 +4,10 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
+	"analysis/internal/jsonvalue"
 	"context"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"analysis/backend/database/source"
 	"analysis/backend/database/work"
@@ -60,16 +60,16 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 		return
 	case "sources":
 	default:
-		s.respond(w, r, nil, notFound("corpus collection not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("corpus collection not found"))
 		return
 	}
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	definition := runCorpusDefinitions["sources"]
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, definition.sortFields, definition.columns[0])
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -97,7 +97,7 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 		"collection": "sources",
 		"columns":    definition.columns,
 		"rows":       items,
-		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+		"pagination": viewrequest.Pagination(page, perPage, result.Total, sort, order),
 	}
 	sourceResultCounts, sourceErr := s.sourceResultCounts(ctx, runID)
 	if sourceErr != nil {
@@ -110,13 +110,13 @@ func (s *Server) runCorpus(w http.ResponseWriter, r *http.Request) {
 
 // runCorpusAuthors returns one bounded page of run-scoped author occurrences.
 func (s *Server) runCorpusAuthors(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	definition := runCorpusDefinitions["authors"]
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, definition.sortFields, definition.columns[0])
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -144,19 +144,19 @@ func (s *Server) runCorpusAuthors(w http.ResponseWriter, r *http.Request) {
 		"collection": "authors",
 		"columns":    definition.columns,
 		"rows":       items,
-		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+		"pagination": viewrequest.Pagination(page, perPage, result.Total, sort, order),
 	}, nil)
 }
 
 // runCorpusReferences returns one bounded page of run-scoped reference mentions.
 func (s *Server) runCorpusReferences(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	definition := runCorpusDefinitions["references"]
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, definition.sortFields, definition.columns[0])
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, definition.sortFields, definition.columns[0])
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -184,7 +184,7 @@ func (s *Server) runCorpusReferences(w http.ResponseWriter, r *http.Request) {
 		"collection": "references",
 		"columns":    definition.columns,
 		"rows":       items,
-		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+		"pagination": viewrequest.Pagination(page, perPage, result.Total, sort, order),
 	}, nil)
 }
 
@@ -226,7 +226,7 @@ func corpusSourceRow(item *source.CorpusRecord) map[string]any {
 		"source_type":   item.SourceType,
 		"record_index":  item.RecordIndex,
 		"parse_status":  item.ParseStatus,
-		"reject_reason": nullableText(item.RejectReason),
+		"reject_reason": jsonvalue.Optional(item.RejectReason),
 		"content_hash":  item.ContentHash,
 		"created_at":    item.CreatedAt,
 	}
@@ -234,7 +234,7 @@ func corpusSourceRow(item *source.CorpusRecord) map[string]any {
 
 // runStages returns detailed work-stage outcomes for the selected run.
 func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -248,7 +248,7 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 		"created_at": "rws.created_at",
 		"updated_at": "rws.updated_at",
 	}
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, fields, "id")
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, fields, "id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -287,7 +287,7 @@ func (s *Server) runStages(w http.ResponseWriter, r *http.Request) {
 	}
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "columns": []string{"id", "work_id", "stage_name", "outcome", "reason", "created_at", "updated_at"}, "rows": items,
-		"pagination":      scopedPagination(page, perPage, result.Total, sort, order),
+		"pagination":      viewrequest.Pagination(page, perPage, result.Total, sort, order),
 		"stage_summaries": stageSummaries, "run_steps": stepRows,
 	}, nil)
 }
@@ -303,66 +303,6 @@ func (s *Server) runStageSummaries(ctx context.Context, runID int64) ([]map[stri
 		result = append(result, stageSummaryRow(summary))
 	}
 	return result, nil
-}
-
-// maxSearchQueryLength bounds one viewer search string before it reaches a
-// family builder.
-const maxSearchQueryLength = 200
-
-// scopedRowsRequest parses and validates the context, filters, sorting, and pagination for a corpus request.
-func scopedRowsRequest(r *http.Request, fields map[string]string, fallback string, additionalQueryKeys ...string) (int, int, string, string, string, error) {
-	queryKeys := []string{"page", "per_page", "sort", "order", "q"}
-	queryKeys = append(queryKeys, additionalQueryKeys...)
-	if err := validateKnownQuery(r, queryKeys...); err != nil {
-		return 0, 0, "", "", "", err
-	}
-	page, perPage := 1, 50
-	if raw := r.URL.Query().Get("page"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 {
-			return 0, 0, "", "", "", badRequest("page must be a positive integer")
-		}
-		page = parsed
-	}
-	if raw := r.URL.Query().Get("per_page"); raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || !permittedPageSizes[parsed] {
-			return 0, 0, "", "", "", badRequest("per_page must be one of 20, 50, 100, 200, 500")
-		}
-		perPage = parsed
-	}
-	sort := r.URL.Query().Get("sort")
-	if sort == "" {
-		sort = fallback
-	}
-	if _, ok := fields[sort]; !ok {
-		return 0, 0, "", "", "", badRequest("sort must be a supported field")
-	}
-	order := strings.ToUpper(r.URL.Query().Get("order"))
-	if order == "" {
-		order = "ASC"
-	}
-	if order != "ASC" && order != "DESC" {
-		return 0, 0, "", "", "", badRequest("order must be asc or desc")
-	}
-	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if len(query) > maxSearchQueryLength {
-		return 0, 0, "", "", "", badRequest("q must be at most 200 characters")
-	}
-	return page, perPage, sort, order, query, nil
-}
-
-// scopedPagination returns validated page, page-size, offset, and limit values.
-func scopedPagination(page, perPage int, total int64, sort, order string) map[string]any {
-	return map[string]any{
-		"page":        page,
-		"per_page":    perPage,
-		"total_rows":  total,
-		"total_pages": (total + int64(perPage) - 1) / int64(perPage),
-		"has_next":    int64(page*perPage) < total,
-		"sort":        sort,
-		"order":       strings.ToLower(order),
-	}
 }
 
 // clampScopedPage maps an offset request past the end to the final populated page.
@@ -394,7 +334,7 @@ func (s *Server) requireRun(ctx context.Context, runID int64) error {
 		return err
 	}
 	if !exists {
-		return notFound("run not found")
+		return viewrequest.NotFound("run not found")
 	}
 	return nil
 }

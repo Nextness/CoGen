@@ -33,21 +33,10 @@ func TestEvalErrorLocation(t *testing.T) {
 	}
 }
 
-// TestErrAtHelper verifies err at helper.
-func TestErrAtHelper(t *testing.T) {
-	// Direct test of the errAt helper
-	tok := subject.Token{Kind: subject.TkIDENTIFIER, Value: "x", Line: 3, Col: 7}
-	err := subject.errAt("test error", tok, "file.something", "try this")
-	if err == nil {
-		t.Fatal("expected non-nil error")
-	}
-	if err.Message != "test error" {
-		t.Errorf("expected 'test error', got %q", err.Message)
-	}
-	if err.Line != 3 || err.Col != 7 {
-		t.Errorf("expected line=3, col=7, got line=%d, col=%d", err.Line, err.Col)
-	}
-	if err.Filepath != "file.something" {
-		t.Errorf("expected 'file.something', got %q", err.Filepath)
+// TestParserErrorsRetainTokenCoordinates verifies public parser failures retain the source token's location and suggestion.
+func TestParserErrorsRetainTokenCoordinates(t *testing.T) {
+	_, problem := checkSource("\n\n      value: string = ;")
+	if problem == nil || problem.Line != 3 || problem.Col == 0 || problem.Filepath != "fixture.something" || problem.Message == "" || problem.Suggestion == "" {
+		t.Fatalf("diagnostic=%v", problem)
 	}
 }

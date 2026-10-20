@@ -1,6 +1,7 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -29,12 +30,12 @@ var reviewBacklinkTargetTypes = map[string]bool{
 // runReviewContext returns the initialized context or the deterministic proposed parent.
 func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -66,12 +67,12 @@ func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
 // reviewContextCandidates returns bounded eligible parent contexts.
 func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "scope", "cursor", "limit", "q"); err != nil {
+	if err := viewrequest.KnownQuery(r, "scope", "cursor", "limit", "q"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -92,7 +93,7 @@ func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if r.URL.Query().Get("cursor") != "" && (cursor.StartedAt == "" || cursor.ID < 1) {
-		s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
+		s.respond(w, r, nil, viewrequest.BadRequest("cursor is invalid for this collection"))
 		return
 	}
 	items, err := s.writeDB.Review.ListParentCandidates(ctx, runID, scope, cursor.StartedAt, cursor.ID, limit+1, r.URL.Query().Get("q"))
@@ -120,12 +121,12 @@ func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request)
 
 // createReviewContext explicitly initializes a completed run's review context.
 func (s *Server) createReviewContext(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -137,7 +138,7 @@ func (s *Server) createReviewContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.ParentContextID != nil && *request.ParentContextID < 1 {
-		s.respond(w, r, nil, badRequest("parent_context_id must be positive or null"))
+		s.respond(w, r, nil, viewrequest.BadRequest("parent_context_id must be positive or null"))
 		return
 	}
 	ctx, cancel := queryContext(r)
@@ -165,7 +166,7 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -274,7 +275,7 @@ func (s *Server) articleReviewVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -315,9 +316,9 @@ func (s *Server) articleReviewVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versionID, err := positiveID(r.PathValue("version_id"))
-	if err != nil || validateKnownQuery(r) != nil {
-		s.respond(w, r, nil, badRequest("version_id must be positive and query parameters are not supported"))
+	versionID, err := viewrequest.PositiveID(r.PathValue("version_id"))
+	if err != nil || viewrequest.KnownQuery(r) != nil {
+		s.respond(w, r, nil, viewrequest.BadRequest("version_id must be positive and query parameters are not supported"))
 		return
 	}
 	ctx, cancel := queryContext(r)
@@ -329,7 +330,7 @@ func (s *Server) articleReviewVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	version, err := s.writeDB.Review.GetWorkReviewVersion(ctx, contextRecord.ID, workRevisionID, versionID)
 	if err == nil && version == nil {
-		err = notFound("review version not found in selected context")
+		err = viewrequest.NotFound("review version not found in selected context")
 	}
 	s.respond(w, r, map[string]any{"version": version}, mapReviewError(err))
 }
@@ -342,7 +343,7 @@ func (s *Server) articleNotes(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit", "state", "q"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit", "state", "q"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -382,12 +383,12 @@ func (s *Server) articleNotes(w http.ResponseWriter, r *http.Request) {
 // runNotes returns a searchable run-scoped index of active and removed note heads.
 func (s *Server) runNotes(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit", "state", "q"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit", "state", "q"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -456,7 +457,7 @@ func (s *Server) createArticleNote(w http.ResponseWriter, r *http.Request) {
 // note returns an explicitly addressed current head, including a tombstone.
 func (s *Server) note(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -468,7 +469,7 @@ func (s *Server) note(w http.ResponseWriter, r *http.Request) {
 	}
 	note, err := s.writeDB.Review.GetNote(ctx, contextRecord.ID, noteID)
 	if err == nil && note == nil {
-		err = notFound("review note not found in selected context")
+		err = viewrequest.NotFound("review note not found in selected context")
 	}
 	s.respond(w, r, map[string]any{
 		"run_id": runID,
@@ -485,7 +486,7 @@ func (s *Server) noteVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -521,14 +522,14 @@ func (s *Server) noteVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versionID, err := positiveID(r.PathValue("version_id"))
-	if err != nil || validateKnownQuery(r) != nil {
-		s.respond(w, r, nil, badRequest("version_id must be positive and query parameters are not supported"))
+	versionID, err := viewrequest.PositiveID(r.PathValue("version_id"))
+	if err != nil || viewrequest.KnownQuery(r) != nil {
+		s.respond(w, r, nil, viewrequest.BadRequest("version_id must be positive and query parameters are not supported"))
 		return
 	}
 	version, err := s.writeDB.Review.GetNoteVersion(ctx, contextRecord.ID, noteID, versionID)
 	if err == nil && version == nil {
-		err = notFound("note version not found in selected context")
+		err = viewrequest.NotFound("note version not found in selected context")
 	}
 	s.respond(w, r, map[string]any{
 		"run_id":  runID,
@@ -554,12 +555,12 @@ func (s *Server) createNoteVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.ExpectedVersionID < 1 {
-		s.respond(w, r, nil, badRequest("expected_version_id must be positive"))
+		s.respond(w, r, nil, viewrequest.BadRequest("expected_version_id must be positive"))
 		return
 	}
 	current, err := s.writeDB.Review.GetNote(ctx, contextRecord.ID, noteID)
 	if err != nil || current == nil {
-		s.respond(w, r, nil, notFound("review note not found in selected context"))
+		s.respond(w, r, nil, viewrequest.NotFound("review note not found in selected context"))
 		return
 	}
 	note, changed, err := s.writeDB.Review.AppendNoteVersion(ctx, contextRecord.ID, noteID,
@@ -586,7 +587,7 @@ func (s *Server) articleAnchors(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -680,7 +681,7 @@ func (s *Server) anchorVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "cursor", "limit"); err != nil {
+	if err := viewrequest.KnownQuery(r, "cursor", "limit"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -703,7 +704,7 @@ func (s *Server) anchorVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if anchor == nil {
-		s.respond(w, r, nil, notFound("review anchor not found in selected context"))
+		s.respond(w, r, nil, viewrequest.NotFound("review anchor not found in selected context"))
 		return
 	}
 	s.respond(w, r, map[string]any{
@@ -726,14 +727,14 @@ func (s *Server) anchorVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versionID, err := positiveID(r.PathValue("version_id"))
-	if err != nil || validateKnownQuery(r) != nil {
-		s.respond(w, r, nil, badRequest("version_id must be positive and query parameters are not supported"))
+	versionID, err := viewrequest.PositiveID(r.PathValue("version_id"))
+	if err != nil || viewrequest.KnownQuery(r) != nil {
+		s.respond(w, r, nil, viewrequest.BadRequest("version_id must be positive and query parameters are not supported"))
 		return
 	}
 	version, err := s.writeDB.Review.GetAnchorVersion(ctx, contextRecord.ID, anchorID, versionID)
 	if err == nil && version == nil {
-		err = notFound("anchor version not found in selected context")
+		err = viewrequest.NotFound("anchor version not found in selected context")
 	}
 	s.respond(w, r, map[string]any{
 		"run_id":  runID,
@@ -762,7 +763,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.ExpectedVersionID < 1 {
-		s.respond(w, r, nil, badRequest("expected_version_id must be positive"))
+		s.respond(w, r, nil, viewrequest.BadRequest("expected_version_id must be positive"))
 		return
 	}
 	workID, err := s.reviewStore.AnchorWorkID(ctx, contextRecord.ID, anchorID)
@@ -771,7 +772,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if workID == nil {
-		s.respond(w, r, nil, notFound("review anchor not found in selected context"))
+		s.respond(w, r, nil, viewrequest.NotFound("review anchor not found in selected context"))
 		return
 	}
 	_, contentHash, err := s.requireAvailableWorkPDF(ctx, runID, *workID)
@@ -781,7 +782,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.RestoreFromID != nil {
 		if request.State != "active" || *request.RestoreFromID < 1 {
-			s.respond(w, r, nil, badRequest("restore_from_version_id requires a positive active anchor version"))
+			s.respond(w, r, nil, viewrequest.BadRequest("restore_from_version_id requires a positive active anchor version"))
 			return
 		}
 		restored, err := s.reviewStore.ActiveAnchorVersion(ctx, anchorID, *request.RestoreFromID)
@@ -790,11 +791,11 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if restored == nil {
-			s.respond(w, r, nil, notFound("restorable anchor version not found"))
+			s.respond(w, r, nil, viewrequest.NotFound("restorable anchor version not found"))
 			return
 		}
 		if restored.PDFContentHash != contentHash {
-			s.respond(w, r, nil, &apiProblem{
+			s.respond(w, r, nil, &viewrequest.Problem{
 				Status:  http.StatusConflict,
 				Code:    "anchor_pdf_changed",
 				Message: "the selected anchor version belongs to different PDF content",
@@ -827,22 +828,22 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 // reviewBacklinks returns bounded current-version backlinks.
 func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if err := validateKnownQuery(r, "target_type", "target_id", "work_revision_id", "cursor", "limit"); err != nil {
+	if err := viewrequest.KnownQuery(r, "target_type", "target_id", "work_revision_id", "cursor", "limit"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	targetType, targetID := r.URL.Query().Get("target_type"), r.URL.Query().Get("target_id")
 	if !reviewBacklinkTargetTypes[targetType] || targetID == "" {
-		s.respond(w, r, nil, badRequest("target_type and target_id are required"))
+		s.respond(w, r, nil, viewrequest.BadRequest("target_type and target_id are required"))
 		return
 	}
 	if targetType == "pdf_page" && r.URL.Query().Get("work_revision_id") == "" {
-		s.respond(w, r, nil, badRequest("work_revision_id is required for PDF page backlinks"))
+		s.respond(w, r, nil, viewrequest.BadRequest("work_revision_id is required for PDF page backlinks"))
 		return
 	}
 	cursor, limit, err := reviewIDPage(r, "backlinks")
@@ -859,9 +860,9 @@ func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 	}
 	var sourceWorkID int64
 	if raw := r.URL.Query().Get("work_revision_id"); raw != "" {
-		workRevisionID, parseErr := positiveID(raw)
+		workRevisionID, parseErr := viewrequest.PositiveID(raw)
 		if parseErr != nil {
-			s.respond(w, r, nil, badRequest("work_revision_id must be positive"))
+			s.respond(w, r, nil, viewrequest.BadRequest("work_revision_id must be positive"))
 			return
 		}
 		sourceWorkID, _, err = s.reviewArticlePDF(ctx, runID, workRevisionID)
@@ -897,7 +898,7 @@ func (s *Server) loadReviewRun(ctx context.Context, runID int64) (reviewRunRecor
 		return reviewRunRecord{}, err
 	}
 	if visibility == nil {
-		return reviewRunRecord{}, notFound("pipeline run not found")
+		return reviewRunRecord{}, viewrequest.NotFound("pipeline run not found")
 	}
 	return reviewRunRecord{Status: visibility.Status, Visibility: visibility.VisibilityState}, nil
 }
@@ -909,7 +910,7 @@ func (s *Server) requireReviewableRun(ctx context.Context, runID int64) (reviewR
 		return run, err
 	}
 	if run.Status != "completed" || run.Visibility == "trashed" {
-		return run, &apiProblem{
+		return run, &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "run_not_reviewable",
 			Message: "only completed non-trashed runs can be reviewed",
@@ -928,7 +929,7 @@ func (s *Server) requireContextForRead(ctx context.Context, runID int64) (*revie
 		return nil, err
 	}
 	if contextRecord == nil {
-		return nil, &apiProblem{
+		return nil, &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "review_context_required",
 			Message: "start review for this run before reading review history",
@@ -947,7 +948,7 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*r
 		return nil, err
 	}
 	if contextRecord == nil {
-		return nil, &apiProblem{
+		return nil, &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "review_context_required",
 			Message: "start review for this run before saving",
@@ -960,7 +961,7 @@ func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*r
 func (s *Server) reviewArticlePDF(ctx context.Context, runID, workRevisionID int64) (int64, map[string]any, error) {
 	workID, err := s.workStore.GetCurrentNormalizedRevisionWorkID(ctx, workRevisionID, runID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil, notFound("article revision does not belong to selected run")
+		return 0, nil, viewrequest.NotFound("article revision does not belong to selected run")
 	}
 	if err != nil {
 		return 0, nil, err
@@ -976,7 +977,7 @@ func (s *Server) requireAvailableArticlePDF(ctx context.Context, runID, workRevi
 		return 0, "", err
 	}
 	if status["status"] != "available" {
-		return 0, "", &apiProblem{
+		return 0, "", &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "pdf_unavailable",
 			Message: "an available PDF is required for anchor changes",
@@ -993,14 +994,14 @@ func (s *Server) requireAvailableWorkPDF(ctx context.Context, runID, workID int6
 		return 0, "", err
 	}
 	if count == 0 {
-		return 0, "", notFound("work does not belong to selected run")
+		return 0, "", viewrequest.NotFound("work does not belong to selected run")
 	}
 	status, err := s.pdfStatusForWork(ctx, workID)
 	if err != nil {
 		return 0, "", err
 	}
 	if status["status"] != "available" {
-		return 0, "", &apiProblem{
+		return 0, "", &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "pdf_unavailable",
 			Message: "an available PDF is required for anchor changes",
@@ -1025,22 +1026,22 @@ func (s *Server) reviewSummaryCounts(ctx context.Context, contextID, workID int6
 
 // reviewArticleIDs parses the positive run and revision identifiers from one review route.
 func reviewArticleIDs(r *http.Request) (int64, int64, error) {
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		return 0, 0, err
 	}
-	revisionID, err := positiveID(r.PathValue("work_revision_id"))
+	revisionID, err := viewrequest.PositiveID(r.PathValue("work_revision_id"))
 	return runID, revisionID, err
 }
 
 // reviewNoteRequest prepares a bounded request context and resolves one logical note route.
 func (s *Server) reviewNoteRequest(r *http.Request) (int64, int64, *review.Context, context.Context, context.CancelFunc, error) {
 	ctx, cancel := queryContext(r)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		return 0, 0, nil, ctx, cancel, err
 	}
-	noteID, err := positiveID(r.PathValue("note_id"))
+	noteID, err := viewrequest.PositiveID(r.PathValue("note_id"))
 	if err != nil {
 		return 0, 0, nil, ctx, cancel, err
 	}
@@ -1051,13 +1052,13 @@ func (s *Server) reviewNoteRequest(r *http.Request) (int64, int64, *review.Conte
 // reviewAnchorRequest prepares a bounded request context and resolves one safe anchor route.
 func (s *Server) reviewAnchorRequest(r *http.Request) (int64, string, *review.Context, context.Context, context.CancelFunc, error) {
 	ctx, cancel := queryContext(r)
-	runID, err := positiveID(r.PathValue("run_id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
 	if err != nil {
 		return 0, "", nil, ctx, cancel, err
 	}
 	anchorID := r.PathValue("anchor_id")
 	if anchorID == "" || len(anchorID) > 64 {
-		return 0, "", nil, ctx, cancel, badRequest("anchor_id has an invalid format")
+		return 0, "", nil, ctx, cancel, viewrequest.BadRequest("anchor_id has an invalid format")
 	}
 	contextRecord, err := s.requireContextForRead(ctx, runID)
 	return runID, anchorID, contextRecord, ctx, cancel, err
@@ -1077,7 +1078,7 @@ func reviewLimit(r *http.Request) (int, error) {
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || value < 1 || value > 100 {
-			return 0, badRequest("limit must be between 1 and 100")
+			return 0, viewrequest.BadRequest("limit must be between 1 and 100")
 		}
 		limit = value
 	}
@@ -1095,7 +1096,7 @@ func reviewIDPage(r *http.Request, kind string) (int64, int, error) {
 		return 0, 0, err
 	}
 	if r.URL.Query().Get("cursor") != "" && cursor.ID < 1 {
-		return 0, 0, badRequest("cursor is invalid for this collection")
+		return 0, 0, viewrequest.BadRequest("cursor is invalid for this collection")
 	}
 	return cursor.ID, limit, nil
 }
@@ -1107,11 +1108,11 @@ func decodeReviewCursor(raw, kind string) (reviewCursor, error) {
 	}
 	encoded, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return reviewCursor{}, badRequest("cursor is invalid for this collection")
+		return reviewCursor{}, viewrequest.BadRequest("cursor is invalid for this collection")
 	}
 	var cursor reviewCursor
 	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.Kind != kind {
-		return reviewCursor{}, badRequest("cursor is invalid for this collection")
+		return reviewCursor{}, viewrequest.BadRequest("cursor is invalid for this collection")
 	}
 	return cursor, nil
 }
@@ -1131,19 +1132,19 @@ func reviewIDItems[T any](items []T, limit int, kind string, id func(T) int64) (
 
 // decodeMutationJSON enforces media type, body bound, single value, and known JSON fields.
 func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any) error {
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		return err
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusUnsupportedMediaType,
 			Code:    "unsupported_media_type",
 			Message: "Content-Type must be application/json",
 		}
 	}
 	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusForbidden,
 			Code:    "origin_rejected",
 			Message: "request Origin must match the local viewer origin",
@@ -1155,17 +1156,17 @@ func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any)
 	if err := decoder.Decode(destination); err != nil {
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
-			return &apiProblem{
+			return &viewrequest.Problem{
 				Status:  http.StatusRequestEntityTooLarge,
 				Code:    "request_too_large",
 				Message: fmt.Sprintf("request body exceeds %d bytes", reviewMutationBodyLimit),
 			}
 		}
-		return badRequest("request body must be one valid JSON object with known fields")
+		return viewrequest.BadRequest("request body must be one valid JSON object with known fields")
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); err != io.EOF {
-		return badRequest("request body must contain exactly one JSON value")
+		return viewrequest.BadRequest("request body must contain exactly one JSON value")
 	}
 	return nil
 }
@@ -1177,7 +1178,7 @@ func mapReviewError(err error) error {
 	}
 	var conflict *review.ConflictError
 	if errors.As(err, &conflict) {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "version_conflict",
 			Message: conflict.Error(),
@@ -1189,7 +1190,7 @@ func mapReviewError(err error) error {
 	}
 	var parentConflict *review.ContextParentConflictError
 	if errors.As(err, &parentConflict) {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "context_parent_conflict",
 			Message: parentConflict.Error(),
@@ -1201,7 +1202,7 @@ func mapReviewError(err error) error {
 	}
 	var labelConflict *review.AnchorLabelConflictError
 	if errors.As(err, &labelConflict) {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusConflict,
 			Code:    "anchor_label_conflict",
 			Message: labelConflict.Error(),
@@ -1212,7 +1213,7 @@ func mapReviewError(err error) error {
 	}
 	var syntax *review.NoteSyntaxError
 	if errors.As(err, &syntax) {
-		return &apiProblem{
+		return &viewrequest.Problem{
 			Status:  http.StatusBadRequest,
 			Code:    "note_syntax_error",
 			Message: syntax.Error(),
@@ -1225,19 +1226,19 @@ func mapReviewError(err error) error {
 	if errors.As(err, &repositoryError) {
 		switch repositoryError.Kind {
 		case "validation":
-			return &apiProblem{
+			return &viewrequest.Problem{
 				Status:  http.StatusBadRequest,
 				Code:    "invalid_review_request",
 				Message: repositoryError.Message,
 			}
 		case "not_found":
-			return &apiProblem{
+			return &viewrequest.Problem{
 				Status:  http.StatusNotFound,
 				Code:    "review_record_not_found",
 				Message: repositoryError.Message,
 			}
 		case "lifecycle":
-			return &apiProblem{
+			return &viewrequest.Problem{
 				Status:  http.StatusConflict,
 				Code:    "review_read_only",
 				Message: repositoryError.Message,

@@ -92,6 +92,8 @@ func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T) {
 		"browser outside scope":     {Domain: "frontend", Runner: "browser", TestFile: "tests/contracts/http/integration/api-shapes.spec.ts"},
 		"browser escape":            {Domain: "frontend", Runner: "browser", TestFile: "../viewer.spec.ts"},
 		"race across runners":       {Race: true},
+		"headed across runners":     {Headed: true},
+		"debug across runners":      {Debug: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if got, err := testselect.Select(root, options); err == nil {

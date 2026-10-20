@@ -11,10 +11,16 @@ import subject "analysis/backend/database"
 import testhelpers "analysis/tests/support/go/backend/database"
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
+	"modernc.org/sqlite"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -71,23 +77,24 @@ func TestOpenExistingConnectionContract(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := testfixture.OpenExistingPlatform(t, path)
+	probe := &connectionProbe{}
+	driverName := fmt.Sprintf("test-existing-contract-%d", connectionProbeID.Add(1))
+	sql.Register(driverName, probe)
+	db, err := subject.OpenExistingWithDriver(path, driverName)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Conn.Exec("INSERT INTO searches (search_id) VALUES ('contract')"); err != nil {
+	if _, err := db.Search.FindOrCreateSearch(context.Background(), "contract"); err != nil {
 		t.Fatalf("existing-only connection rejected a write: %v", err)
 	}
-	var foreignKeys, busyTimeout int
-	if err := db.Conn.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
-		t.Fatal(err)
+	probe.mu.Lock()
+	defer probe.mu.Unlock()
+	if probe.foreignKeys != int64(1) || probe.busyTimeout != int64(5000) {
+		t.Fatalf("production connection pragmas foreign_keys=%v busy_timeout=%v", probe.foreignKeys, probe.busyTimeout)
 	}
-	if err := db.Conn.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
-		t.Fatal(err)
-	}
-	if foreignKeys != 1 || busyTimeout != 5000 {
-		t.Fatalf("pragmas foreign_keys=%d busy_timeout=%d, want 1 and 5000", foreignKeys, busyTimeout)
+	if !strings.Contains(probe.uri, "mode=rw") || !strings.Contains(probe.uri, "_txlock=immediate") {
+		t.Fatalf("existing-only URI=%q", probe.uri)
 	}
 }
 
@@ -200,4 +207,46 @@ func TestConcurrentOpenAppliesMigrationsOnce(t *testing.T) {
 	if applied != len(entries) {
 		t.Fatalf("applied migrations = %d, want %d", applied, len(entries))
 	}
+}
+
+// connectionProbeID gives each standard-driver probe its own registration.
+var connectionProbeID atomic.Uint64
+
+// connectionProbe inspects the actual connection returned to the production composition root.
+type connectionProbe struct {
+	mu                       sync.Mutex
+	uri                      string
+	foreignKeys, busyTimeout driver.Value
+}
+
+// Open records configured pragmas before handing the same SQLite connection to the application.
+func (p *connectionProbe) Open(uri string) (driver.Conn, error) {
+	conn, err := (&sqlite.Driver{}).Open(uri)
+	if err != nil {
+		return nil, err
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.uri = uri
+	for _, item := range []struct {
+		query  string
+		target *driver.Value
+	}{
+		{"PRAGMA foreign_keys", &p.foreignKeys}, {"PRAGMA busy_timeout", &p.busyTimeout},
+	} {
+		rows, queryErr := conn.(driver.QueryerContext).QueryContext(context.Background(), item.query, nil)
+		if queryErr != nil {
+			_ = conn.Close()
+			return nil, queryErr
+		}
+		values := make([]driver.Value, 1)
+		queryErr = rows.Next(values)
+		_ = rows.Close()
+		if queryErr != nil {
+			_ = conn.Close()
+			return nil, queryErr
+		}
+		*item.target = values[0]
+	}
+	return conn, nil
 }

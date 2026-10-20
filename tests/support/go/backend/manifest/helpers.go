@@ -3,7 +3,7 @@ package testhelpers
 
 import subject "analysis/backend/manifest"
 
-// baseResolvedManifest supports the package test suite's base resolved manifest setup or assertions.
+// BaseResolvedManifest supports the package test suite's base resolved manifest setup or assertions.
 func BaseResolvedManifest() *subject.ResolvedManifest {
 	return &subject.ResolvedManifest{
 		FormatVersion:     2,
@@ -64,7 +64,7 @@ func BaseResolvedManifest() *subject.ResolvedManifest {
 	}
 }
 
-// baseInputManifest supports the package test suite's base input manifest setup or assertions.
+// BaseInputManifest supports the package test suite's base input manifest setup or assertions.
 func BaseInputManifest(rm *subject.ResolvedManifest) *subject.InputManifest {
 	im, err := subject.NewInputManifest(rm, map[string]subject.SourceFileInfo{
 		"scopus": {
@@ -84,7 +84,7 @@ func BaseInputManifest(rm *subject.ResolvedManifest) *subject.InputManifest {
 	return im
 }
 
-// cloneMap returns a shallow copy of a string-keyed map.
+// CloneMap returns a shallow copy of a string-keyed map.
 func CloneMap[V any](m map[string]V) map[string]V {
 	out := make(map[string]V, len(m))
 	for k, v := range m {
@@ -93,7 +93,7 @@ func CloneMap[V any](m map[string]V) map[string]V {
 	return out
 }
 
-// cloneStrings returns a copy of a string slice.
+// CloneStrings returns a copy of a string slice.
 func CloneStrings(s []string) []string {
 	out := make([]string, len(s))
 	copy(out, s)

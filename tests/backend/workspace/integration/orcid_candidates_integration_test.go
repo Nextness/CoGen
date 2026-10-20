@@ -9,6 +9,9 @@ import "analysis/tests/support/go/testfixture"
 import subject "analysis/backend/workspace"
 
 import (
+	"analysis/backend/workspace/providers"
+	"analysis/tests/support/go/testenv"
+
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +42,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 	defer db.Close()
 	articles := []*article.Article{{DOI: "10.1000/orcid-candidate", Authors: []article.Author{{CitationName: "Lovelace, Ada"}}}}
 	source := enrich.SourceConfig{Name: "orcid", BaseURL: provider.URL + "/record/", ExtraURLs: map[string]string{"search": provider.URL + "/search"}, Concurrency: 1, BatchSize: 1, TimeoutSecs: 5, MaxRetries: 1, RatePerSecond: 1000}
-	updated, changes, evidence, err := subject.enrichCachedORCID(context.Background(), cache, source, enrich.SourceConfig{}, false, articles)
+	updated, changes, evidence, err := providers.ORCID(context.Background(), cache.Cache, source, enrich.SourceConfig{}, false, articles)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,11 +59,11 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 		t.Fatalf("candidate evidence omitted raw provider payload reference: %#v", evidence[0])
 	}
 
-	_, revisionID, err := subject.persistWorkSnapshot(context.Background(), db, runID, articles[0], dbwork.ProducerStageEnrich, "")
+	_, revisionID, err := persistTestSnapshot(t, db, runID, articles[0], dbwork.ProducerStageEnrich, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.persistUncertainORCIDEvidence(context.Background(), db, runID, map[string]int64{articles[0].DOI: revisionID}, evidence); err != nil {
+	if err := providers.PersistIdentityEvidence(context.Background(), db.Database, runID, map[string]int64{articles[0].DOI: revisionID}, evidence); err != nil {
 		t.Fatal(err)
 	}
 	var status, observedORCID string
@@ -88,6 +91,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 
 // TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence verifies workspace pipeline preserves metadata and provider failure evidence.
 func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing.T) {
+	t.Chdir(testenv.Root())
 	request := 0
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		request++
@@ -119,7 +123,7 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 	if err == nil || !strings.Contains(err.Error(), "invalid provider payload") {
 		t.Fatalf("pipeline error = %v, want ORCID payload failure", err)
 	}
-	db, err := testfixture.Open(dbPath, subject.databaseRegistryPath())
+	db, err := testfixture.Open(dbPath, testenv.Path("config", "database.something"))
 	if err != nil {
 		t.Fatal(err)
 	}

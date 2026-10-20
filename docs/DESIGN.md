@@ -301,7 +301,7 @@ Frontend unit tests use `node:test`, `node:assert`, and jsdom. The suite verifie
 
 The main Playwright suite runs against an isolated fixture copy and verifies context selection, native page navigation, browser history, page markers, URL preservation, focus, table controls, details, graph behavior, provenance, article review, error states, responsive layouts, dark/light preferences, landmarks, and interaction semantics. The serial review suite verifies status, note, anchor, custom PDF rendering, and reload persistence without mutating the base fixture. The UI-quality suite adds axe-core checks for the canonical Home root and clean per-view paths plus reviewed screenshots for core views.
 
-Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go PACKAGE=./server` and `make test-frontend TEST_FILE=tests/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
+Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go DOMAIN=backend COMPONENT=server` and `make test-frontend TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
 Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review and run-visibility controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
 

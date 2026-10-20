@@ -7,7 +7,11 @@ import subject "analysis/backend/pdfstore"
 import testhelpers "analysis/tests/support/go/backend/pdfstore"
 
 import (
+	"analysis/tests/support/go/testenv"
+	"analysis/tests/support/go/testfixture"
 	"context"
+	"fmt"
+	"path/filepath"
 	"testing"
 )
 
@@ -59,18 +63,54 @@ func TestCharacterizationPDFStoreTypedQueries(t *testing.T) {
 		}
 	}
 
-	first, err := store.pendingAuditEvents(ctx, 2, "", "")
+	// Fill the first batch with equal timestamps; event-a and event-b must be
+	// reached by the key tie-breaker on the subsequent public flush batch.
+	for i := 0; i < 100; i++ {
+		key := fmt.Sprintf("event-%03d", i)
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+   (event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+   VALUES (?, '2026-01-01T00:00:00Z', 'test', 'work', '1', 'pdf_inventory_registered', '{}', ?)`, key, key); err != nil {
+			t.Fatal(err)
+		}
+	}
+	metadata, err := testfixture.Open(filepath.Join(t.TempDir(), "metadata.db"), testenv.Path("config", "database.something"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(first) != 2 || first[0].EventKey != "event-a" || first[1].EventKey != "event-b" {
-		t.Fatalf("first pending batch = %+v", first)
+	defer metadata.Close()
+	delivered, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings)
+	if err != nil || delivered != 103 {
+		t.Fatalf("flush=(%d,%v), want 103 deliveries", delivered, err)
 	}
-	second, err := store.pendingAuditEvents(ctx, 2, first[1].OccurredAt, first[1].EventKey)
+	rows, err := metadata.Conn.Query(`SELECT correlation_id FROM audit_events ORDER BY id`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(second) != 1 || second[0].EventKey != "event-c" {
-		t.Fatalf("cursor pending batch = %+v", second)
+	defer rows.Close()
+	var actual []string
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			t.Fatal(err)
+		}
+		actual = append(actual, key)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(actual) != 103 {
+		t.Fatalf("delivered keys=%v", actual)
+	}
+	for i, key := range actual {
+		want := fmt.Sprintf("event-%03d", i)
+		if i >= 100 {
+			want = []string{"event-a", "event-b", "event-c"}[i-100]
+		}
+		if key != want {
+			t.Fatalf("delivery %d=%q, want %q", i, key, want)
+		}
+	}
+	if repeated, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil || repeated != 0 {
+		t.Fatalf("repeat flush=(%d,%v)", repeated, err)
 	}
 }

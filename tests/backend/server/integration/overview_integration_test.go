@@ -7,11 +7,11 @@ import "analysis/tests/support/go/testfixture"
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -22,12 +22,12 @@ import (
 // TestOverviewReportsUnavailableMetricsAndFrontendContract verifies overview reports unavailable metrics and frontend contract.
 func TestOverviewReportsUnavailableMetricsAndFrontendContract(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/overview?run_id="+subject.stringID(runID))
+	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/overview?run_id="+fmt.Sprint(runID))
 	if response.Code != http.StatusOK {
 		t.Fatalf("overview status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -136,12 +136,12 @@ func TestOverviewReportsMalformedSourceFilterEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	status, body := testhelpers.RequestJSON(t, viewer.Handler(), "/api/overview?run_id="+subject.stringID(runID))
+	status, body := testhelpers.RequestJSON(t, viewer.Handler(), "/api/overview?run_id="+fmt.Sprint(runID))
 	if status != http.StatusOK {
 		t.Fatalf("overview status=%d body=%v", status, body)
 	}
@@ -172,12 +172,12 @@ func TestOverviewSupportsPreResultCountRunSources(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/overview?run_id="+subject.stringID(runID))
+	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/overview?run_id="+fmt.Sprint(runID))
 	if response.Code != http.StatusOK {
 		t.Fatalf("overview status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -189,5 +189,57 @@ func TestOverviewSupportsPreResultCountRunSources(t *testing.T) {
 	}
 	if len(payload.SourceResultCounts) != 1 || payload.SourceResultCounts[0]["expected_result_count"] != nil || payload.SourceResultCounts[0]["observed_result_count"] != nil || payload.SourceResultCounts[0]["result_count_comparison"] != nil {
 		t.Fatalf("legacy source count summary = %#v, want unavailable values", payload.SourceResultCounts)
+	}
+}
+
+// TestOverviewDistinguishesInvalidFilterStages verifies absent, malformed, and recorded filter evidence keep separate meanings.
+func TestOverviewDistinguishesInvalidFilterStages(t *testing.T) {
+	path, runID, _, _ := testhelpers.ViewerFixture(t)
+	viewer, err := testhelpers.OpenViewer(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	for _, fixture := range []struct{ name, data string }{
+		{"absent", ""}, {"empty", "[]"},
+		{"invalid", `[{"filters":[],"count":1},{"filters":["title"]},{"filters":["title"],"count":-1}]`},
+		{"recorded", `[{"filters":["title"],"count":0}]`},
+	} {
+		if _, err := viewer.Metadata.Conn.Exec("INSERT INTO source_filter_counts (pipeline_run_id, source_name, filter_data) VALUES (?, ?, ?)", runID, fixture.name, fixture.data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, body := testhelpers.RequestJSON(t, viewer.Handler(), fmt.Sprintf("/api/overview?run_id=%d", runID))
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	diagnostics := body["source_filter_diagnostics"].([]any)
+	if len(diagnostics) != 3 {
+		t.Fatalf("diagnostics=%v", diagnostics)
+	}
+	for _, raw := range diagnostics {
+		diagnostic := raw.(map[string]any)
+		if diagnostic["code"] != "invalid_stage" || diagnostic["source"] != "invalid" {
+			t.Fatalf("diagnostic=%v", diagnostic)
+		}
+	}
+	found := false
+	for _, raw := range body["source_filter_counts"].([]any) {
+		item := raw.(map[string]any)
+		if item["source"] == "recorded" {
+			found = item["count"] == float64(0) && item["state"] == "recorded"
+		}
+		if item["source"] == "absent" || item["source"] == "empty" || item["source"] == "invalid" {
+			t.Fatalf("fabricated count=%v", item)
+		}
+	}
+	if !found {
+		t.Fatalf("recorded zero missing: %v", body)
+	}
+	for _, target := range []string{"/api/overview", "/api/overview?run_id=9223372036854775807"} {
+		status, body := testhelpers.RequestJSON(t, viewer.Handler(), target)
+		if status != http.StatusBadRequest && status != http.StatusNotFound {
+			t.Fatalf("target=%s status=%d body=%v", target, status, body)
+		}
 	}
 }

@@ -5,12 +5,12 @@ package server_test
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -24,7 +24,7 @@ import (
 
 // termMatchesFixture is a viewer fixture with stored term data.
 type termMatchesFixture struct {
-	server          *subject.Server
+	server          *testhelpers.Viewer
 	runID           int64
 	normalizedID    int64
 	parseRevisionID int64
@@ -108,7 +108,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 func TestArticleDetailTermMatches(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fx.normalizedID)+"?run_id="+subject.stringID(fx.runID))
+	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fx.normalizedID)+"?run_id="+fmt.Sprint(fx.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -165,7 +165,7 @@ func TestArticleDetailTermMatches(t *testing.T) {
 func TestArticleDetailTermMatchesNullForNonNormalize(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fx.parseRevisionID)+"?run_id="+subject.stringID(fx.runID))
+	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fx.parseRevisionID)+"?run_id="+fmt.Sprint(fx.runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -178,7 +178,7 @@ func TestArticleDetailTermMatchesNullForNonNormalize(t *testing.T) {
 func TestArticleDetailTermMatchesNullForEmptyRun(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fx.emptyRevisionID)+"?run_id="+subject.stringID(fx.emptyRunID))
+	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fx.emptyRevisionID)+"?run_id="+fmt.Sprint(fx.emptyRunID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
@@ -191,7 +191,7 @@ func TestArticleDetailTermMatchesNullForEmptyRun(t *testing.T) {
 func TestRunCorpusArticlesTermMatches(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(fx.runID)+"/corpus/articles?page=1&per_page=20&sort=id&order=asc")
+	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(fx.runID)+"/corpus/articles?page=1&per_page=20&sort=id&order=asc")
 	if response.Code != http.StatusOK {
 		t.Fatalf("run corpus status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -220,7 +220,7 @@ func TestRunCorpusArticlesTermMatches(t *testing.T) {
 func TestRunCorpusArticlesTermMatchesNullForEmptyRun(t *testing.T) {
 	fx := newTermMatchesFixture(t)
 	handler := fx.server.Handler()
-	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(fx.emptyRunID)+"/corpus/articles?page=1&per_page=20&sort=id&order=asc")
+	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(fx.emptyRunID)+"/corpus/articles?page=1&per_page=20&sort=id&order=asc")
 	if response.Code != http.StatusOK {
 		t.Fatalf("run corpus status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -276,20 +276,20 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(revisionID)+"?run_id="+subject.stringID(runID))
+	code, body := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(revisionID)+"?run_id="+fmt.Sprint(runID))
 	if code != http.StatusOK {
 		t.Fatalf("article detail status=%d body=%v", code, body)
 	}
 	if body["term_matches"] != nil {
 		t.Fatalf("term_matches = %#v, want null on an unmigrated database", body["term_matches"])
 	}
-	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/corpus/articles")
+	response := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/corpus/articles")
 	if response.Code != http.StatusOK {
 		t.Fatalf("run corpus status=%d body=%s", response.Code, response.Body.String())
 	}

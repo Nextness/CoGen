@@ -4,11 +4,13 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"testing"
@@ -17,16 +19,16 @@ import (
 // TestAPIDetailsArticleAuthorReference verifies api details article author reference.
 func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 	path, runID, revisionID, mentionID := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
 	for _, path := range []string{
-		"/api/articles/" + subject.stringID(revisionID) + "?run_id=" + subject.stringID(runID),
-		"/api/authors/1?run_id=" + subject.stringID(runID),
-		"/api/references/" + subject.stringID(mentionID) + "?run_id=" + subject.stringID(runID),
+		"/api/articles/" + fmt.Sprint(revisionID) + "?run_id=" + fmt.Sprint(runID),
+		"/api/authors/1?run_id=" + fmt.Sprint(runID),
+		"/api/references/" + fmt.Sprint(mentionID) + "?run_id=" + fmt.Sprint(runID),
 	} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
@@ -46,7 +48,7 @@ func TestAPIDetailsArticleAuthorReference(t *testing.T) {
 // TestAPIDetailsRejectCrossRunRecords verifies crafted identifiers cannot escape the selected run.
 func TestAPIDetailsRejectCrossRunRecords(t *testing.T) {
 	path, runID, revisionID, mentionID := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,9 +56,9 @@ func TestAPIDetailsRejectCrossRunRecords(t *testing.T) {
 	handler := viewer.Handler()
 
 	for _, path := range []string{
-		"/api/articles/" + subject.stringID(revisionID) + "?run_id=" + subject.stringID(runID+1),
-		"/api/authors/1?run_id=" + subject.stringID(runID+1),
-		"/api/references/" + subject.stringID(mentionID) + "?run_id=" + subject.stringID(runID+1),
+		"/api/articles/" + fmt.Sprint(revisionID) + "?run_id=" + fmt.Sprint(runID+1),
+		"/api/authors/1?run_id=" + fmt.Sprint(runID+1),
+		"/api/references/" + fmt.Sprint(mentionID) + "?run_id=" + fmt.Sprint(runID+1),
 	} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusNotFound {
@@ -64,9 +66,9 @@ func TestAPIDetailsRejectCrossRunRecords(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/api/articles/" + subject.stringID(revisionID),
+		"/api/articles/" + fmt.Sprint(revisionID),
 		"/api/authors/1",
-		"/api/references/" + subject.stringID(mentionID),
+		"/api/references/" + fmt.Sprint(mentionID),
 	} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusBadRequest {
@@ -78,18 +80,18 @@ func TestAPIDetailsRejectCrossRunRecords(t *testing.T) {
 // TestArticleDetailCollectionsTraverseBeyondOneHundred verifies endpoint-bound cursor paging and ownership.
 func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	path, runID, revisionID, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	for index := 0; index < 103; index++ {
-		author, err := viewer.writeDB.Conn.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", "Paged author "+subject.stringID(int64(index)))
+		author, err := viewer.Metadata.Conn.Exec("INSERT INTO author_occurrences (citation_name) VALUES (?)", "Paged author "+fmt.Sprint(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		authorID, _ := author.LastInsertId()
-		if _, err := viewer.writeDB.Conn.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, authorID, index+10); err != nil {
+		if _, err := viewer.Metadata.Conn.Exec("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, ?)", revisionID, authorID, index+10); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -97,7 +99,7 @@ func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	seen := make(map[int64]bool)
 	cursor := ""
 	for {
-		requestPath := "/api/articles/" + subject.stringID(revisionID) + "/collections/authors?run_id=" + subject.stringID(runID)
+		requestPath := "/api/articles/" + fmt.Sprint(revisionID) + "/collections/authors?run_id=" + fmt.Sprint(runID)
 		if cursor != "" {
 			requestPath += "&cursor=" + url.QueryEscape(cursor)
 		}
@@ -135,11 +137,11 @@ func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	if len(seen) != 106 {
 		t.Fatalf("traversed %d article authors, want 106", len(seen))
 	}
-	badCursor := testhelpers.ViewerRequest(t, handler, "/api/articles/"+subject.stringID(revisionID)+"/collections/references?run_id="+subject.stringID(runID)+"&cursor="+url.QueryEscape(cursor))
+	badCursor := testhelpers.ViewerRequest(t, handler, "/api/articles/"+fmt.Sprint(revisionID)+"/collections/references?run_id="+fmt.Sprint(runID)+"&cursor="+url.QueryEscape(cursor))
 	if badCursor.Code != http.StatusBadRequest {
 		t.Fatalf("cross-collection cursor status=%d body=%s", badCursor.Code, badCursor.Body.String())
 	}
-	crossRun := testhelpers.ViewerRequest(t, handler, "/api/articles/"+subject.stringID(revisionID)+"/collections/authors?run_id="+subject.stringID(runID+1))
+	crossRun := testhelpers.ViewerRequest(t, handler, "/api/articles/"+fmt.Sprint(revisionID)+"/collections/authors?run_id="+fmt.Sprint(runID+1))
 	if crossRun.Code != http.StatusNotFound {
 		t.Fatalf("cross-run collection status=%d body=%s", crossRun.Code, crossRun.Body.String())
 	}
@@ -148,13 +150,13 @@ func TestArticleDetailCollectionsTraverseBeyondOneHundred(t *testing.T) {
 // TestAPIAuthorDetailIncludesRunScopedIdentityCandidates verifies candidate evidence moved from the corpus table into author detail.
 func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 
-	status, body := testhelpers.RequestJSON(t, viewer.Handler(), "/api/authors/2?run_id="+subject.stringID(runID))
+	status, body := testhelpers.RequestJSON(t, viewer.Handler(), "/api/authors/2?run_id="+fmt.Sprint(runID))
 	if status != http.StatusOK {
 		t.Fatalf("author detail: status=%d body=%v", status, body)
 	}
@@ -179,25 +181,25 @@ func TestAPIAuthorDetailIncludesRunScopedIdentityCandidates(t *testing.T) {
 // TestAuthorDetailCollectionsValidateScopeAndCursor verifies each bounded author subresource route.
 func TestAuthorDetailCollectionsValidateScopeAndCursor(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
 	for _, kind := range []string{"articles", "audit", "identity"} {
-		response := testhelpers.ViewerRequest(t, handler, "/api/authors/2/collections/"+kind+"?run_id="+subject.stringID(runID)+"&limit=1")
+		response := testhelpers.ViewerRequest(t, handler, "/api/authors/2/collections/"+kind+"?run_id="+fmt.Sprint(runID)+"&limit=1")
 		if response.Code != http.StatusOK {
 			t.Errorf("author %s collection: status=%d body=%s", kind, response.Code, response.Body.String())
 		}
 	}
 	for _, requestPath := range []string{
 		"/api/authors/2/collections/articles",
-		"/api/authors/not-a-number/collections/articles?run_id=" + subject.stringID(runID),
-		"/api/authors/999999/collections/articles?run_id=" + subject.stringID(runID),
-		"/api/authors/2/collections/articles?run_id=" + subject.stringID(runID) + "&unknown=1",
-		"/api/authors/2/collections/articles?run_id=" + subject.stringID(runID) + "&cursor=invalid",
-		"/api/authors/2/collections/unknown?run_id=" + subject.stringID(runID),
+		"/api/authors/not-a-number/collections/articles?run_id=" + fmt.Sprint(runID),
+		"/api/authors/999999/collections/articles?run_id=" + fmt.Sprint(runID),
+		"/api/authors/2/collections/articles?run_id=" + fmt.Sprint(runID) + "&unknown=1",
+		"/api/authors/2/collections/articles?run_id=" + fmt.Sprint(runID) + "&cursor=invalid",
+		"/api/authors/2/collections/unknown?run_id=" + fmt.Sprint(runID),
 	} {
 		response := testhelpers.ViewerRequest(t, handler, requestPath)
 		if response.Code != http.StatusBadRequest && response.Code != http.StatusNotFound {
@@ -209,14 +211,14 @@ func TestAuthorDetailCollectionsValidateScopeAndCursor(t *testing.T) {
 // TestAPIReferenceResolutionUsesFinalRevision verifies api reference resolution uses final revision.
 func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 	fixture := testhelpers.ViewerReferenceResolutionFixture(t)
-	viewer, err := subject.Open(fixture.Path)
+	viewer, err := testhelpers.OpenViewer(t, fixture.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
 
-	code, article := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fixture.CitingRevisionID)+"?run_id="+subject.stringID(fixture.RunID))
+	code, article := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fixture.CitingRevisionID)+"?run_id="+fmt.Sprint(fixture.RunID))
 	if code != http.StatusOK {
 		t.Fatalf("article response: code=%d body=%v", code, article)
 	}
@@ -243,7 +245,7 @@ func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 		}
 	}
 
-	code, detail := testhelpers.RequestJSON(t, handler, "/api/references/"+subject.stringID(fixture.ResolvedMentionID)+"?run_id="+subject.stringID(fixture.RunID))
+	code, detail := testhelpers.RequestJSON(t, handler, "/api/references/"+fmt.Sprint(fixture.ResolvedMentionID)+"?run_id="+fmt.Sprint(fixture.RunID))
 	if code != http.StatusOK {
 		t.Fatalf("reference response: code=%d body=%v", code, detail)
 	}
@@ -259,14 +261,14 @@ func TestAPIReferenceResolutionUsesFinalRevision(t *testing.T) {
 // TestAPIArticleDetailIncludesRunScopedActivityHistory verifies api article detail includes run scoped activity history.
 func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 	fixture := testhelpers.ViewerArticleActivityFixture(t)
-	viewer, err := subject.Open(fixture.Path)
+	viewer, err := testhelpers.OpenViewer(t, fixture.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
 
-	code, article := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fixture.NormalizedRevisionID)+"?run_id="+subject.stringID(fixture.RunID))
+	code, article := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fixture.NormalizedRevisionID)+"?run_id="+fmt.Sprint(fixture.RunID))
 	if code != http.StatusOK {
 		t.Fatalf("article response: code=%d body=%v", code, article)
 	}
@@ -314,7 +316,7 @@ func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 		t.Errorf("enrichment summary providers=%v fields=%v", providers, fields)
 	}
 
-	code, discarded := testhelpers.RequestJSON(t, handler, "/api/articles/"+subject.stringID(fixture.DiscardedRevisionID)+"?run_id="+subject.stringID(fixture.RunID))
+	code, discarded := testhelpers.RequestJSON(t, handler, "/api/articles/"+fmt.Sprint(fixture.DiscardedRevisionID)+"?run_id="+fmt.Sprint(fixture.RunID))
 	if code != http.StatusOK {
 		t.Fatalf("discarded response: code=%d body=%v", code, discarded)
 	}
@@ -328,4 +330,50 @@ func TestAPIArticleDetailIncludesRunScopedActivityHistory(t *testing.T) {
 		}
 	}
 	t.Errorf("discarded validation stage missing: %#v", discarded["stage_outcomes"])
+}
+
+// TestArticleCollectionCursorPreservesLargeIdentifiers verifies decimal cursor context survives identifiers beyond JavaScript number precision.
+func TestArticleCollectionCursorPreservesLargeIdentifiers(t *testing.T) {
+	path, runID, revisionID, _ := testhelpers.ViewerFixture(t)
+	viewer, err := testhelpers.OpenViewer(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	const largeID int64 = math.MaxInt64
+	if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO work_revisions (id, work_id, pipeline_run_id, payload_hash, title, producer_stage)
+ SELECT ?, work_id, pipeline_run_id, 'large-id-revision', title, producer_stage FROM work_revisions WHERE id=?`, largeID, revisionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order, affiliation)
+ SELECT ?, author_occurrence_id, author_order, affiliation FROM authorships WHERE work_revision_id=?`, largeID, revisionID); err != nil {
+		t.Fatal(err)
+	}
+	target := fmt.Sprintf("/api/articles/%d/collections/authors?run_id=%d&limit=1", largeID, runID)
+	status, body := testhelpers.RequestJSON(t, viewer.Handler(), target)
+	if status != http.StatusOK {
+		t.Fatalf("status=%d body=%v", status, body)
+	}
+	cursor, ok := body["next_cursor"].(string)
+	if !ok || cursor == "" {
+		t.Fatalf("missing continuation=%v", body)
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var context struct {
+		Kind string `json:"k"`
+	}
+	if err := json.Unmarshal(decoded, &context); err != nil {
+		t.Fatal(err)
+	}
+	want := fmt.Sprintf("article_detail_authors_%d_9223372036854775807", runID)
+	if context.Kind != want {
+		t.Fatalf("cursor context=%q want %q", context.Kind, want)
+	}
+	status, body = testhelpers.RequestJSON(t, viewer.Handler(), target+"&cursor="+url.QueryEscape(cursor))
+	if status != http.StatusOK {
+		t.Fatalf("large-ID continuation status=%d body=%v", status, body)
+	}
 }

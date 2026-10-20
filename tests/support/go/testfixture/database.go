@@ -71,3 +71,18 @@ func ClosedDB() *sql.DB {
 	}
 	return conn
 }
+
+// ConnectExisting owns a writable inspection connection without configuring or applying migrations.
+// Only fixtures and committed-state inspections use this connection; it is independent of the viewer's private pools.
+func ConnectExisting(path, driverName string) (*Database, error) {
+	conn, err := sql.Open(driverName, sqliteuri.File(path, map[string][]string{"mode": {"rw"}, "_pragma": {"foreign_keys(1)", "busy_timeout(5000)"}, "_txlock": {"immediate"}}))
+	if err != nil {
+		return nil, err
+	}
+	conn.SetMaxOpenConns(1)
+	if err := conn.Ping(); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return &Database{Database: database.New(conn), Conn: conn, Path: path}, nil
+}

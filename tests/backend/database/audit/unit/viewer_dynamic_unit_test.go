@@ -1,152 +1,115 @@
-// viewer_dynamic_unit_test.go verifies the retained dynamic audit filter
-// builder without a database.
-
+// viewer_dynamic_unit_test.go verifies bounded audit SQL and bindings through public evidence reads.
 package audit_test
 
-import subject "analysis/backend/database/audit"
-
 import (
+	"database/sql/driver"
+	"reflect"
 	"strings"
 	"testing"
+
+	"analysis/backend/database/audit"
+	"analysis/tests/support/go/sqlprobe"
+	"analysis/tests/support/go/testfixture"
 )
 
-// TestAuditInClauseBuildsParameterizedMarkers verifies every value is bound and
-// no caller value is interpolated into SQL text.
-func TestAuditInClauseBuildsParameterizedMarkers(t *testing.T) {
-	t.Run("single value", func(t *testing.T) {
-		clause, args := subject.auditInClause("col", []string{"val1"})
-		if clause != "col IN (?)" {
-			t.Errorf("clause = %q, want %q", clause, "col IN (?)")
+// auditQuery records the exact query and bindings produced by the public List operation.
+func auditQuery(t *testing.T, filter audit.Filter) sqlprobe.Call {
+	t.Helper()
+	var call sqlprobe.Call
+	d := &sqlprobe.Driver{Query: func(c sqlprobe.Call) (driver.Rows, error) {
+		call = c
+		return &sqlprobe.Rows{Names: []string{"id"}}, nil
+	}}
+	db := d.OpenDB()
+	defer db.Close()
+	if _, err := audit.New(db).List(t.Context(), filter); err != nil {
+		t.Fatal(err)
+	}
+	return call
+}
+
+// TestAuditListBindsFacetValues verifies single, multiple, empty, and hostile values are never interpolated.
+func TestAuditListBindsFacetValues(t *testing.T) {
+	for _, values := range [][]string{{"val1"}, {"a", "b", "c"}, {}, {"x') OR 1=1 --"}} {
+		call := auditQuery(t, audit.Filter{Actors: values})
+		if len(call.Args) != len(values)+1 {
+			t.Fatalf("bindings=%v, values=%v", call.Args, values)
 		}
-		if len(args) != 1 || args[0] != "val1" {
-			t.Errorf("args = %v, want [val1]", args)
-		}
-	})
-	t.Run("multiple values", func(t *testing.T) {
-		clause, args := subject.auditInClause("actor", []string{"a", "b", "c"})
-		if clause != "actor IN (?,?,?)" {
-			t.Errorf("clause = %q, want %q", clause, "actor IN (?,?,?)")
-		}
-		if len(args) != 3 {
-			t.Fatalf("len(args) = %d, want 3", len(args))
-		}
-		for i, want := range []string{"a", "b", "c"} {
-			if args[i] != want {
-				t.Errorf("args[%d] = %v, want %v", i, args[i], want)
+		for i, value := range values {
+			if call.Args[i].Value != value {
+				t.Fatalf("binding %d=%v, want %q", i, call.Args[i].Value, value)
+			}
+			if strings.Contains(call.SQL, "'"+value+"'") {
+				t.Fatalf("unbound actor in %q", call.SQL)
 			}
 		}
-	})
-	t.Run("empty", func(t *testing.T) {
-		clause, args := subject.auditInClause("col", []string{})
-		if clause != "col IN ()" {
-			t.Errorf("clause = %q, want %q", clause, "col IN ()")
-		}
-		if len(args) != 0 {
-			t.Errorf("args = %v, want empty", args)
-		}
-	})
-}
-
-// TestAuditWhereJoinsPredicates verifies the optional WHERE clause assembly.
-func TestAuditWhereJoinsPredicates(t *testing.T) {
-	tests := []struct {
-		clauses []string
-		want    string
-	}{
-		{nil, ""},
-		{[]string{}, ""},
-		{[]string{"a = 1"}, " WHERE a = 1"},
-		{[]string{"a = 1", "b = 2"}, " WHERE a = 1 AND b = 2"},
-		{[]string{"x IN (?,?,?)", "y IS NULL"}, " WHERE x IN (?,?,?) AND y IS NULL"},
-	}
-	for _, tc := range tests {
-		got := subject.auditWhere(tc.clauses)
-		if got != tc.want {
-			t.Errorf("auditWhere(%v) = %q, want %q", tc.clauses, got, tc.want)
-		}
-	}
-}
-
-// TestAuditFilterClausesBindEveryValue verifies the dynamic builder maps closed
-// categories and binds every user value.
-func TestAuditFilterClausesBindEveryValue(t *testing.T) {
-	clauses, args := subject.auditFilterClauses(subject.Filter{
-		EntityID:        "42",
-		EntityTypes:     []string{"work", "work_revision"},
-		Actions:         []string{"field_enriched"},
-		Actors:          []string{"crossref"},
-		Categories:      []string{"enrichment", "unknown"},
-		Stage:           "enrich",
-		Outcome:         "completed",
-		ReviewStatus:    "accepted",
-		ReviewReason:    "looks good",
-		ReviewSubstatus: "methodology",
-		Query:           "Title",
-		RunID:           7,
-	})
-	if len(clauses) != 12 {
-		t.Fatalf("clause count = %d, want 12: %v", len(clauses), clauses)
-	}
-	if len(args) != 15 {
-		t.Fatalf("arg count = %d, want 15: %v", len(args), args)
-	}
-	for _, clause := range clauses {
-		if clause == "" {
-			t.Fatalf("empty clause in %v", clauses)
-		}
-	}
-	if clauses[4] != "(action IN ('field_enriched','cache_hit','network_fetch'))" {
-		t.Fatalf("category clause = %q", clauses[4])
-	}
-	if args[0] != "42" || args[1] != "work" || args[2] != "work_revision" {
-		t.Fatalf("leading args = %v", args[:3])
-	}
-	if args[len(args)-1] != int64(7) {
-		t.Fatalf("run scope arg = %v, want 7", args[len(args)-1])
-	}
-}
-
-// TestValidateAuditFilterCapsInputs verifies the retained builder rejects
-// oversized value lists and filter strings.
-func TestValidateAuditFilterCapsInputs(t *testing.T) {
-	oversizedValues := make([]string, 101)
-	for index := range oversizedValues {
-		oversizedValues[index] = "value"
-	}
-	for _, test := range []struct {
-		name   string
-		filter subject.Filter
-	}{
-		{"value list", subject.Filter{Actors: oversizedValues}},
-		{"value length", subject.Filter{Actors: []string{strings.Repeat("x", 201)}}},
-		{"entity id", subject.Filter{EntityID: strings.Repeat("x", 201)}},
-		{"stage", subject.Filter{Stage: strings.Repeat("x", 201)}},
-		{"outcome", subject.Filter{Outcome: strings.Repeat("x", 201)}},
-		{"review status", subject.Filter{ReviewStatus: strings.Repeat("x", 201)}},
-		{"review reason", subject.Filter{ReviewReason: strings.Repeat("x", 1001)}},
-		{"review substatus", subject.Filter{ReviewSubstatus: strings.Repeat("x", 201)}},
-		{"query", subject.Filter{Query: strings.Repeat("x", 201)}},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			if err := subject.validateAuditFilter(test.filter); err == nil {
-				t.Fatal("expected the retained builder to reject the input")
+		if len(values) == 0 {
+			if strings.Contains(call.SQL, " WHERE ") {
+				t.Fatalf("unexpected WHERE: %q", call.SQL)
 			}
-		})
-	}
-	if err := subject.validateAuditFilter(subject.Filter{Actors: []string{"crossref"}, Query: "title"}); err != nil {
-		t.Fatalf("valid filter rejected: %v", err)
+		} else if !strings.Contains(call.SQL, "actor IN ("+strings.TrimSuffix(strings.Repeat("?,", len(values)), ",")+")") {
+			t.Fatalf("unexpected markers: %q", call.SQL)
+		}
 	}
 }
 
-// TestAuditFacetColumnsAllowlist verifies only the three supported facet
-// columns are available to the dynamic facet builder.
-func TestAuditFacetColumnsAllowlist(t *testing.T) {
-	for _, facet := range []string{"actor", "action", "entity_type"} {
-		if _, ok := subject.auditFacetColumns[facet]; !ok {
-			t.Fatalf("facet %q is missing from the allowlist", facet)
+// TestAuditListCombinesFilters verifies all predicates and values survive the public list boundary.
+func TestAuditListCombinesFilters(t *testing.T) {
+	call := auditQuery(t, audit.Filter{EntityID: "42", EntityTypes: []string{"work", "work_revision"}, Actions: []string{"field_enriched"}, Actors: []string{"crossref"}, Categories: []string{"enrichment", "unknown"}, Stage: "enrich", Outcome: "completed", ReviewStatus: "accepted", ReviewReason: "looks good", ReviewSubstatus: "methodology", Query: "Title", RunID: 7})
+	var got []any
+	for _, arg := range call.Args {
+		got = append(got, arg.Value)
+	}
+	want := []any{"42", "work", "work_revision", "field_enriched", "crossref", "enrich", "completed", "accepted", "looks good", "methodology", "%title%", "%title%", "%title%", "%title%", int64(7), int64(1)}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("bindings=%v, want %v", got, want)
+	}
+	for _, clause := range []string{" WHERE entity_id=? AND ", "(action IN ('field_enriched','cache_hit','network_fetch'))", "pipeline_run_id=?", "json_each(after_json, '$.sub_statuses')"} {
+		if !strings.Contains(call.SQL, clause) {
+			t.Fatalf("missing %q in %q", clause, call.SQL)
 		}
 	}
-	if len(subject.auditFacetColumns) != 3 {
-		t.Fatalf("facet allowlist = %v, want exactly three entries", subject.auditFacetColumns)
+}
+
+// TestAuditReadsValidateBeforeStorage verifies each public read rejects oversized filters before touching a closed connection.
+func TestAuditReadsValidateBeforeStorage(t *testing.T) {
+	values := make([]string, 101)
+	for i := range values {
+		values[i] = "value"
+	}
+	for _, filter := range []audit.Filter{{Actors: values}, {Actors: []string{strings.Repeat("x", 201)}}, {EntityID: strings.Repeat("x", 201)}, {Stage: strings.Repeat("x", 201)}, {Outcome: strings.Repeat("x", 201)}, {ReviewStatus: strings.Repeat("x", 201)}, {ReviewReason: strings.Repeat("x", 1001)}, {ReviewSubstatus: strings.Repeat("x", 201)}, {Query: strings.Repeat("x", 201)}} {
+		store := audit.New(testfixture.ClosedDB())
+		_, a := store.List(t.Context(), filter)
+		_, b := store.Summary(t.Context(), filter)
+		_, c := store.Facets(t.Context(), filter)
+		for _, err := range []error{a, b, c} {
+			if err == nil || !strings.HasPrefix(err.Error(), "audit filter:") {
+				t.Fatalf("validation=%v", err)
+			}
+		}
+	}
+	auditQuery(t, audit.Filter{Actors: []string{"crossref"}, Query: "title"})
+}
+
+// TestAuditFacetsUseOnlySupportedColumns verifies the public facet operation queries exactly its closed column set.
+func TestAuditFacetsUseOnlySupportedColumns(t *testing.T) {
+	var queries []string
+	d := &sqlprobe.Driver{Query: func(call sqlprobe.Call) (driver.Rows, error) {
+		queries = append(queries, call.SQL)
+		return &sqlprobe.Rows{Names: []string{"value"}}, nil
+	}}
+	db := d.OpenDB()
+	defer db.Close()
+	if _, err := audit.New(db).Facets(t.Context(), audit.Filter{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(queries) != 3 {
+		t.Fatalf("facet queries=%v", queries)
+	}
+	for i, column := range []string{"actor", "action", "entity_type"} {
+		want := "SELECT DISTINCT COALESCE(" + column + ", '') FROM audit_events ORDER BY " + column + " LIMIT 101"
+		if queries[i] != want {
+			t.Fatalf("facet query=%q, want %q", queries[i], want)
+		}
 	}
 }

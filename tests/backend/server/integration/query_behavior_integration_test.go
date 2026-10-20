@@ -8,7 +8,6 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -36,14 +35,14 @@ type apiQueryCountCase struct {
 func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 	t.Run("metadata fixture", func(t *testing.T) {
 		path, runID, revisionID, mentionID := testhelpers.ViewerFixture(t)
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer viewer.Close()
-		run := subject.stringID(runID)
-		revision := subject.stringID(revisionID)
-		mention := subject.stringID(mentionID)
+		run := fmt.Sprint(runID)
+		revision := fmt.Sprint(revisionID)
+		mention := fmt.Sprint(mentionID)
 		assertAPIQueryCounts(t, viewer.Handler(), []apiQueryCountCase{
 			{"health", "/api/health", 2},
 			{"hierarchy summary", "/api/hierarchy", 2},
@@ -84,11 +83,11 @@ func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 
 	t.Run("pdf fixture", func(t *testing.T) {
 		fixture := testhelpers.NewPDFViewerFixture(t)
-		if _, _, err := fixture.Server.writeDB.Review.CreateContext(t.Context(), fixture.RunID, nil); err != nil {
+		if _, _, err := fixture.Server.Metadata.Review.CreateContext(t.Context(), fixture.RunID, nil); err != nil {
 			t.Fatal(err)
 		}
-		run := subject.stringID(fixture.RunID)
-		revision := subject.stringID(fixture.RevisionID)
+		run := fmt.Sprint(fixture.RunID)
+		revision := fmt.Sprint(fixture.RevisionID)
 		assertAPIQueryCounts(t, fixture.Server.Handler(), []apiQueryCountCase{
 			{"review context", "/api/runs/" + run + "/review-context", 2},
 			{"review context candidates", "/api/runs/" + run + "/review-context-candidates?scope=same_search", 2},
@@ -98,7 +97,7 @@ func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 			{"run notes", "/api/runs/" + run + "/notes", 3},
 			{"article anchors", "/api/runs/" + run + "/articles/" + revision + "/anchors", 3},
 			{"backlinks", "/api/runs/" + run + "/links/backlinks?target_type=article&target_id=10.1000/viewer-available", 3},
-			{"work PDF status", "/api/works/" + subject.stringID(fixture.AvailableID) + "/pdf-status", 2},
+			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", 2},
 		})
 	})
 }
@@ -112,8 +111,8 @@ func assertAPIQueryCounts(t *testing.T, handler http.Handler, cases []apiQueryCo
 			if response.Code != http.StatusOK {
 				t.Fatalf("GET %s status=%d body=%s", test.path, response.Code, response.Body.String())
 			}
-			if got := response.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(subject.apiQueryBudget(routePath(test.path))) {
-				t.Fatalf("GET %s X-Query-Count-Limit=%q, want %d", test.path, got, subject.apiQueryBudget(routePath(test.path)))
+			if got := response.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(contractQueryLimit(test.name)) {
+				t.Fatalf("GET %s X-Query-Count-Limit=%q, want %d", test.path, got, contractQueryLimit(test.name))
 			}
 			if got := response.Header().Get("X-Query-Count-Used"); got != fmt.Sprint(test.used) {
 				t.Fatalf("GET %s X-Query-Count-Used=%q, want %d", test.path, got, test.used)
@@ -136,7 +135,7 @@ func routePath(route string) string {
 // content deliver their statement count as a trailer instead of a header.
 func TestAPIStreamedQueryCountsUseTrailers(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +144,7 @@ func TestAPIStreamedQueryCountsUseTrailers(t *testing.T) {
 	if artifact.Code != http.StatusOK {
 		t.Fatalf("artifact content status=%d body=%s", artifact.Code, artifact.Body.String())
 	}
-	if got := artifact.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(subject.apiQueryBudget("/api/artifacts/1/content")) {
+	if got := artifact.Header().Get("X-Query-Count-Limit"); got != "256" {
 		t.Fatalf("artifact content X-Query-Count-Limit=%q", got)
 	}
 	if got := artifact.Result().Trailer.Get("X-Query-Count-Used"); got != "1" {
@@ -153,11 +152,11 @@ func TestAPIStreamedQueryCountsUseTrailers(t *testing.T) {
 	}
 
 	fixture := testhelpers.NewPDFViewerFixture(t)
-	pdf := testhelpers.ViewerRequest(t, fixture.Server.Handler(), "/api/pdf/"+subject.stringID(fixture.AvailableID))
+	pdf := testhelpers.ViewerRequest(t, fixture.Server.Handler(), "/api/pdf/"+fmt.Sprint(fixture.AvailableID))
 	if pdf.Code != http.StatusOK {
 		t.Fatalf("PDF content status=%d body=%s", pdf.Code, pdf.Body.String())
 	}
-	if got := pdf.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(subject.apiQueryBudget("/api/pdf/"+subject.stringID(fixture.AvailableID))) {
+	if got := pdf.Header().Get("X-Query-Count-Limit"); got != fmt.Sprint(64) {
 		t.Fatalf("PDF content X-Query-Count-Limit=%q", got)
 	}
 	if got := pdf.Result().Trailer.Get("X-Query-Count-Used"); got != "3" {
@@ -170,7 +169,7 @@ func TestAPIStreamedQueryCountsUseTrailers(t *testing.T) {
 // envelope instead of a partial document.
 func TestCanceledReadRequestFailsWithoutPartialJSON(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +177,7 @@ func TestCanceledReadRequestFailsWithoutPartialJSON(t *testing.T) {
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	request := httptest.NewRequest(http.MethodGet, "/api/runs/"+subject.stringID(runID)+"/context", nil).WithContext(canceled)
+	request := httptest.NewRequest(http.MethodGet, "/api/runs/"+fmt.Sprint(runID)+"/context", nil).WithContext(canceled)
 	recorder := httptest.NewRecorder()
 	viewer.Handler().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusInternalServerError {
@@ -194,13 +193,13 @@ func TestCanceledReadRequestFailsWithoutPartialJSON(t *testing.T) {
 // run-scoped reads and the hierarchy.
 func TestSelectedRunContextIsConsistentAcrossEndpoints(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	run := subject.stringID(runID)
+	run := fmt.Sprint(runID)
 
 	status, context := testhelpers.RequestJSON(t, handler, "/api/runs/"+run+"/context")
 	if status != http.StatusOK {
@@ -230,7 +229,7 @@ func TestSelectedRunContextIsConsistentAcrossEndpoints(t *testing.T) {
 		}
 	}
 
-	status, attempts := testhelpers.RequestJSON(t, handler, "/api/hierarchy?section=attempts&plan_id="+subject.stringID(planID))
+	status, attempts := testhelpers.RequestJSON(t, handler, "/api/hierarchy?section=attempts&plan_id="+fmt.Sprint(planID))
 	if status != http.StatusOK {
 		t.Fatalf("hierarchy attempts status=%d body=%v", status, attempts)
 	}
@@ -248,7 +247,7 @@ func TestSelectedRunContextIsConsistentAcrossEndpoints(t *testing.T) {
 		t.Errorf("hierarchy attempts did not include run %d", runID)
 	}
 
-	status, runs := testhelpers.RequestJSON(t, handler, "/api/runs?search_revision_id="+subject.stringID(revisionID)+"&plan_id="+subject.stringID(planID))
+	status, runs := testhelpers.RequestJSON(t, handler, "/api/runs?search_revision_id="+fmt.Sprint(revisionID)+"&plan_id="+fmt.Sprint(planID))
 	if status != http.StatusOK {
 		t.Fatalf("legacy runs status=%d body=%v", status, runs)
 	}
@@ -271,15 +270,15 @@ func TestSelectedRunContextIsConsistentAcrossEndpoints(t *testing.T) {
 // the exact top-level JSON keys the frontend contract consumes.
 func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 	path, runID, revisionID, mentionID := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	run := subject.stringID(runID)
-	revision := subject.stringID(revisionID)
-	mention := subject.stringID(mentionID)
+	run := fmt.Sprint(runID)
+	revision := fmt.Sprint(revisionID)
+	mention := fmt.Sprint(mentionID)
 
 	cases := []struct {
 		name string
@@ -333,12 +332,12 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 
 	t.Run("pdf fixture", func(t *testing.T) {
 		fixture := testhelpers.NewPDFViewerFixture(t)
-		if _, _, err := fixture.Server.writeDB.Review.CreateContext(t.Context(), fixture.RunID, nil); err != nil {
+		if _, _, err := fixture.Server.Metadata.Review.CreateContext(t.Context(), fixture.RunID, nil); err != nil {
 			t.Fatal(err)
 		}
 		pdfHandler := fixture.Server.Handler()
-		pdfRun := subject.stringID(fixture.RunID)
-		pdfRevision := subject.stringID(fixture.RevisionID)
+		pdfRun := fmt.Sprint(fixture.RunID)
+		pdfRevision := fmt.Sprint(fixture.RevisionID)
 		pdfCases := []struct {
 			name string
 			path string
@@ -352,7 +351,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 			{"run notes", "/api/runs/" + pdfRun + "/notes", []string{"has_more", "items", "limit", "next_cursor", "notes"}},
 			{"article anchors", "/api/runs/" + pdfRun + "/articles/" + pdfRevision + "/anchors", []string{"anchors", "has_more", "items", "limit", "next_cursor"}},
 			{"backlinks", "/api/runs/" + pdfRun + "/links/backlinks?target_type=article&target_id=10.1000/viewer-available", []string{"backlinks", "has_more", "items", "limit", "next_cursor"}},
-			{"work PDF status", "/api/works/" + subject.stringID(fixture.AvailableID) + "/pdf-status", []string{"byte_size", "content_hash", "doi", "eligible", "inventoried_at", "status", "store_bound", "work_id"}},
+			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", []string{"byte_size", "content_hash", "doi", "eligible", "inventoried_at", "status", "store_bound", "work_id"}},
 		}
 		for _, test := range pdfCases {
 			t.Run(test.name, func(t *testing.T) {
@@ -377,4 +376,57 @@ func assertTopLevelKeys(t *testing.T, path string, body map[string]any, expected
 	if !slices.Equal(keys, expected) {
 		t.Errorf("GET %s top-level keys = %v, want %v", path, keys, expected)
 	}
+}
+
+// contractQueryLimit pins an independent expected ceiling for each named HTTP contract case.
+func contractQueryLimit(name string) int {
+	limits := map[string]int{
+		"health":                    64,
+		"legacy searches":           64,
+		"legacy plans":              64,
+		"legacy runs":               64,
+		"run context":               64,
+		"overview":                  64,
+		"identity candidates":       64,
+		"table discovery":           64,
+		"work PDF status":           64,
+		"hierarchy summary":         256,
+		"hierarchy runs":            256,
+		"hierarchy searches":        256,
+		"hierarchy revisions":       256,
+		"hierarchy plans":           256,
+		"hierarchy attempts":        256,
+		"run artifacts":             256,
+		"artifact inspection":       256,
+		"run cache uses":            256,
+		"corpus articles":           256,
+		"corpus authors":            256,
+		"corpus references":         256,
+		"corpus sources":            256,
+		"evaluation":                256,
+		"identity evidence":         256,
+		"run stages":                256,
+		"audit":                     256,
+		"audit recorded data":       256,
+		"table rows":                1024,
+		"article detail":            1024,
+		"article authors":           1024,
+		"author detail":             1024,
+		"author articles":           1024,
+		"reference detail":          1024,
+		"graph":                     1024,
+		"review context":            1024,
+		"review context candidates": 1024,
+		"article review":            1024,
+		"review versions":           1024,
+		"article notes":             1024,
+		"run notes":                 1024,
+		"article anchors":           1024,
+		"backlinks":                 1024,
+	}
+	value, ok := limits[name]
+	if !ok {
+		panic("missing query-ceiling expectation: " + name)
+	}
+	return value
 }

@@ -4,6 +4,9 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
+	"analysis/internal/artifactmedia"
+	"analysis/internal/jsonvalue"
 	"context"
 	"encoding/json"
 	"errors"
@@ -25,25 +28,25 @@ const auditDetailPayloadBytes = 64 * 1024
 
 // audit validates filters and returns a cursor-paginated audit timeline with summary and facets.
 func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id", "entity_type", "entity_id", "action", "actor", "category", "stage", "outcome", "q", "limit", "cursor", "pdf_scope", "review_status", "review_reason", "review_substatus"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id", "entity_type", "entity_id", "action", "actor", "category", "stage", "outcome", "q", "limit", "cursor", "pdf_scope", "review_status", "review_reason", "review_substatus"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	filter := audit.Filter{EntityID: r.URL.Query().Get("entity_id")}
 	var err error
-	if filter.EntityTypes, err = auditMultiValues(r.URL.Query().Get("entity_type"), "entity_type"); err != nil {
+	if filter.EntityTypes, err = viewrequest.MultiValues(r.URL.Query().Get("entity_type"), "entity_type"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if filter.Actions, err = auditMultiValues(r.URL.Query().Get("action"), "action"); err != nil {
+	if filter.Actions, err = viewrequest.MultiValues(r.URL.Query().Get("action"), "action"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if filter.Actors, err = auditMultiValues(r.URL.Query().Get("actor"), "actor"); err != nil {
+	if filter.Actors, err = viewrequest.MultiValues(r.URL.Query().Get("actor"), "actor"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if filter.Categories, err = auditMultiValues(r.URL.Query().Get("category"), "category"); err != nil {
+	if filter.Categories, err = viewrequest.MultiValues(r.URL.Query().Get("category"), "category"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -51,7 +54,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		switch category {
 		case "pipeline", "enrichment", "validation", "pdf", "review":
 		default:
-			s.respond(w, r, nil, badRequest("category values must be pipeline, enrichment, validation, review, or pdf"))
+			s.respond(w, r, nil, viewrequest.BadRequest("category values must be pipeline, enrichment, validation, review, or pdf"))
 			return
 		}
 		if category == "pdf" {
@@ -62,22 +65,22 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	filter.Outcome = r.URL.Query().Get("outcome")
 	filter.ReviewStatus = strings.TrimSpace(r.URL.Query().Get("review_status"))
 	if len(filter.ReviewStatus) > 100 {
-		s.respond(w, r, nil, badRequest("review_status is too long"))
+		s.respond(w, r, nil, viewrequest.BadRequest("review_status is too long"))
 		return
 	}
 	filter.ReviewReason = strings.TrimSpace(r.URL.Query().Get("review_reason"))
 	if len(filter.ReviewReason) > 1000 {
-		s.respond(w, r, nil, badRequest("review_reason is too long"))
+		s.respond(w, r, nil, viewrequest.BadRequest("review_reason is too long"))
 		return
 	}
 	filter.ReviewSubstatus = strings.TrimSpace(r.URL.Query().Get("review_substatus"))
 	if len(filter.ReviewSubstatus) > 100 {
-		s.respond(w, r, nil, badRequest("review_substatus is too long"))
+		s.respond(w, r, nil, viewrequest.BadRequest("review_substatus is too long"))
 		return
 	}
 	filter.Query = strings.TrimSpace(r.URL.Query().Get("q"))
-	if len(filter.Query) > maxSearchQueryLength {
-		s.respond(w, r, nil, badRequest("q must be at most 200 characters"))
+	if len(filter.Query) > viewrequest.SearchLimit {
+		s.respond(w, r, nil, viewrequest.BadRequest("q must be at most 200 characters"))
 		return
 	}
 	ctx, cancel := queryContext(r)
@@ -87,15 +90,15 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 		filter.PDFScope = "run"
 	}
 	if filter.PDFScope != "run" && filter.PDFScope != "workspace" {
-		s.respond(w, r, nil, badRequest("pdf_scope must be run or workspace"))
+		s.respond(w, r, nil, viewrequest.BadRequest("pdf_scope must be run or workspace"))
 		return
 	}
 	if filter.PDFScope == "workspace" && !filter.PDFSelected {
-		s.respond(w, r, nil, badRequest("pdf_scope=workspace requires the PDF category"))
+		s.respond(w, r, nil, viewrequest.BadRequest("pdf_scope=workspace requires the PDF category"))
 		return
 	}
 	if raw := r.URL.Query().Get("run_id"); raw != "" {
-		runID, err := positiveID(raw)
+		runID, err := viewrequest.PositiveID(raw)
 		if err != nil {
 			s.respond(w, r, nil, err)
 			return
@@ -108,17 +111,17 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	}
 	filter.Limit = 100
 	if raw := r.URL.Query().Get("limit"); raw != "" {
-		parsed, err := parseOptionalInt(raw, "limit")
+		parsed, err := viewrequest.OptionalInt(raw, "limit")
 		if err != nil || parsed < 1 || parsed > 100 {
-			s.respond(w, r, nil, badRequest("limit must be between 1 and 100"))
+			s.respond(w, r, nil, viewrequest.BadRequest("limit must be between 1 and 100"))
 			return
 		}
 		filter.Limit = int(parsed)
 	}
 	if raw := r.URL.Query().Get("cursor"); raw != "" {
-		cursor, err := positiveID(raw)
+		cursor, err := viewrequest.PositiveID(raw)
 		if err != nil {
-			s.respond(w, r, nil, badRequest("cursor must be a positive audit event ID"))
+			s.respond(w, r, nil, viewrequest.BadRequest("cursor must be a positive audit event ID"))
 			return
 		}
 		filter.Cursor = cursor
@@ -141,7 +144,7 @@ func (s *Server) audit(w http.ResponseWriter, r *http.Request) {
 	}
 	events, err := s.auditStore.List(ctx, filter)
 	if errors.Is(err, audit.ErrCursorNotFound) {
-		s.respond(w, r, nil, badRequest("cursor must identify an audit event"))
+		s.respond(w, r, nil, viewrequest.BadRequest("cursor must identify an audit event"))
 		return
 	}
 	if err != nil {
@@ -208,16 +211,16 @@ func auditSummaryPayload(summary *audit.Summary) map[string]any {
 
 // auditRecordedData returns one privacy-scrubbed, byte-bounded payload only after explicit expansion.
 func (s *Server) auditRecordedData(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "run_id"); err != nil {
+	if err := viewrequest.KnownQuery(r, "run_id"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	eventID, err := positiveID(r.PathValue("id"))
+	eventID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	runID, err := requiredQueryID(r, "run_id")
+	runID, err := viewrequest.RequiredID(r, "run_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -234,7 +237,7 @@ func (s *Server) auditRecordedData(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if data == nil {
-		s.respond(w, r, nil, notFound("audit event not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("audit event not found"))
 		return
 	}
 	payload := map[string]any{"event_id": eventID, "byte_limit": auditDetailPayloadBytes}
@@ -332,29 +335,6 @@ func scrubAuditValue(raw any) any {
 	}
 }
 
-// auditMultiValues parses, deduplicates, and bounds a comma-separated audit facet filter.
-func auditMultiValues(raw, parameter string) ([]string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-	seen := make(map[string]bool)
-	values := make([]string, 0)
-	for _, item := range strings.Split(raw, ",") {
-		value := strings.TrimSpace(item)
-		if value == "" || len(value) > 200 {
-			return nil, badRequest(parameter + " contains an invalid value")
-		}
-		if !seen[value] {
-			seen[value] = true
-			values = append(values, value)
-		}
-		if len(values) > 100 {
-			return nil, badRequest(parameter + " accepts at most 100 values")
-		}
-	}
-	return values, nil
-}
-
 // nullableRunScope preserves an invariant null-or-string scope value in audit responses.
 func nullableRunScope(raw string) any {
 	if raw == "" {
@@ -365,7 +345,7 @@ func nullableRunScope(raw string) any {
 
 // runArtifacts returns artifact metadata linked to the selected run.
 func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -378,7 +358,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if runContext == nil {
-		s.respond(w, r, nil, notFound("run not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("run not found"))
 		return
 	}
 	pageMode := r.URL.Query().Has("page") || r.URL.Query().Has("per_page")
@@ -387,7 +367,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 	searchQuery := strings.TrimSpace(r.URL.Query().Get("q"))
 	if pageMode {
 		fields := map[string]string{"id": "a.id"}
-		parsedPage, parsedPerPage, _, parsedOrder, parsedQuery, parseErr := scopedRowsRequest(r, fields, "id", "role", "artifact_id")
+		parsedPage, parsedPerPage, _, parsedOrder, parsedQuery, parseErr := viewrequest.Rows(r, fields, "id", "role", "artifact_id")
 		if parseErr != nil {
 			s.respond(w, r, nil, parseErr)
 			return
@@ -395,7 +375,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		page, perPage, order, searchQuery = parsedPage, parsedPerPage, parsedOrder, parsedQuery
 		limit = perPage
 	} else {
-		if err := validateKnownQuery(r, "limit", "cursor", "q", "role", "artifact_id"); err != nil {
+		if err := viewrequest.KnownQuery(r, "limit", "cursor", "q", "role", "artifact_id"); err != nil {
 			s.respond(w, r, nil, err)
 			return
 		}
@@ -437,7 +417,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 			"produced_by_steps":  record.ProducedBySteps,
 			"consumed_by_steps":  record.ConsumedBySteps,
 		}
-		item["preview_available"] = record.HasBlob && inlineArtifactContentType(record.ContentType)
+		item["preview_available"] = record.HasBlob && artifactmedia.Inspect(record.ContentType).Inline
 		item["preview_limit_bytes"] = defaultInlineArtifactPreviewBytes
 		items = append(items, item)
 	}
@@ -453,7 +433,7 @@ func (s *Server) runArtifacts(w http.ResponseWriter, r *http.Request) {
 		"filters": map[string]any{"q": searchQuery, "role": role, "artifact_id": nullablePositiveID(focusID)},
 	}
 	if pageMode {
-		payload["pagination"] = scopedPagination(page, perPage, result.Total, "id", order)
+		payload["pagination"] = viewrequest.Pagination(page, perPage, result.Total, "id", order)
 	}
 	s.respond(w, r, payload, nil)
 }
@@ -468,7 +448,7 @@ func nullablePositiveID(id int64) any {
 
 // artifactContent streams one stored artifact blob with a safe content disposition.
 func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
-	artifactID, err := positiveID(r.PathValue("id"))
+	artifactID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -477,7 +457,7 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	content, err := s.artifact.GetContent(ctx, artifactID)
 	if errors.Is(err, artifact.ErrNoBlob) {
-		s.respond(w, r, nil, notFound(err.Error()))
+		s.respond(w, r, nil, viewrequest.NotFound(err.Error()))
 		return
 	}
 	if err != nil {
@@ -485,11 +465,11 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if content == nil {
-		s.respond(w, r, nil, notFound("artifact not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("artifact not found"))
 		return
 	}
 	storedSize := int64(len(content.Data))
-	w.Header().Set("Content-Type", normalizedArtifactContentType(content.ContentType))
+	w.Header().Set("Content-Type", artifactmedia.Inspect(content.ContentType).MediaType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": artifactFilename(artifactID, content.Role, content.ContentType)}))
 	w.Header().Set("Content-Length", strconv.FormatInt(storedSize, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -500,11 +480,11 @@ func (s *Server) artifactContent(w http.ResponseWriter, r *http.Request) {
 
 // artifactInspection returns bounded metadata and preview content for one artifact.
 func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "preview_bytes"); err != nil {
+	if err := viewrequest.KnownQuery(r, "preview_bytes"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	artifactID, err := positiveID(r.PathValue("id"))
+	artifactID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -515,7 +495,7 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("preview_bytes"); raw != "" {
 		parsed, parseErr := strconv.Atoi(raw)
 		if parseErr != nil || parsed < 1 || parsed > maxInlineArtifactBytes {
-			s.respond(w, r, nil, badRequest("preview_bytes must be between 1 and 262144"))
+			s.respond(w, r, nil, viewrequest.BadRequest("preview_bytes must be between 1 and 262144"))
 			return
 		}
 		previewBytes = parsed
@@ -525,23 +505,23 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	if !inlineArtifactContentType(contentType) {
-		s.respond(w, r, nil, badRequest("artifact is not available for inline inspection; download it instead"))
+	if !artifactmedia.Inspect(contentType).Inline {
+		s.respond(w, r, nil, viewrequest.BadRequest("artifact is not available for inline inspection; download it instead"))
 		return
 	}
 	originalLength := len(data)
 	data = textlimit.UTF8PrefixBytes(data, len(data))
 	if originalLength > 0 && len(data) == 0 {
-		s.respond(w, r, nil, badRequest("artifact preview is not valid UTF-8; download it instead"))
+		s.respond(w, r, nil, viewrequest.BadRequest("artifact preview is not valid UTF-8; download it instead"))
 		return
 	}
 	format := "text"
-	if jsonArtifactContentType(contentType) {
+	if artifactmedia.Inspect(contentType).JSON {
 		format = "json"
 	}
 	s.respond(w, r, map[string]any{
 		"artifact_id":         artifactID,
-		"content_type":        normalizedArtifactContentType(contentType),
+		"content_type":        artifactmedia.Inspect(contentType).MediaType,
 		"byte_size":           byteSize,
 		"stored_byte_size":    blobSize,
 		"preview_byte_size":   len(data),
@@ -556,39 +536,15 @@ func (s *Server) artifactInspection(w http.ResponseWriter, r *http.Request) {
 func (s *Server) artifactPreviewBlob(ctx context.Context, artifactID int64, previewBytes int) (string, int64, int64, []byte, error) {
 	preview, err := s.artifact.GetPreview(ctx, artifactID, previewBytes)
 	if errors.Is(err, artifact.ErrNoBlob) {
-		return "", 0, 0, nil, notFound(err.Error())
+		return "", 0, 0, nil, viewrequest.NotFound(err.Error())
 	}
 	if err != nil {
 		return "", 0, 0, nil, err
 	}
 	if preview == nil {
-		return "", 0, 0, nil, notFound("artifact not found")
+		return "", 0, 0, nil, viewrequest.NotFound("artifact not found")
 	}
 	return preview.ContentType, preview.ByteSize, preview.BlobSize, preview.Data, nil
-}
-
-// normalizedArtifactContentType parses and lowercases an artifact media type without parameters.
-func normalizedArtifactContentType(contentType string) string {
-	mediaType, _, err := mime.ParseMediaType(contentType)
-	if err != nil || mediaType == "" {
-		return "application/octet-stream"
-	}
-	return mediaType
-}
-
-// jsonArtifactContentType reports whether a normalized media type carries JSON.
-func jsonArtifactContentType(contentType string) bool {
-	mediaType := normalizedArtifactContentType(contentType)
-	return mediaType == "application/json" || strings.HasSuffix(mediaType, "+json")
-}
-
-// inlineArtifactContentType reports whether a normalized media type is safe for inline display.
-func inlineArtifactContentType(contentType string) bool {
-	mediaType := normalizedArtifactContentType(contentType)
-	if mediaType == "text/html" || mediaType == "application/xhtml+xml" {
-		return false
-	}
-	return strings.HasPrefix(mediaType, "text/") || jsonArtifactContentType(mediaType) || mediaType == "application/x-something-config"
 }
 
 // artifactFilename derives a safe download filename from an artifact role and media type.
@@ -602,11 +558,11 @@ func artifactFilename(artifactID int64, role, contentType string) string {
 	case "input_manifest":
 		name = "input-manifest-" + strconv.FormatInt(artifactID, 10)
 	}
-	mediaType := normalizedArtifactContentType(contentType)
+	mediaType := artifactmedia.Inspect(contentType).MediaType
 	switch {
 	case role == "workspace_config" || mediaType == "application/x-something-config":
 		return name + ".something"
-	case jsonArtifactContentType(mediaType):
+	case artifactmedia.Inspect(mediaType).JSON:
 		return name + ".json"
 	case strings.HasPrefix(mediaType, "text/"):
 		return name + ".txt"
@@ -617,7 +573,7 @@ func artifactFilename(artifactID int64, role, contentType string) string {
 
 // runCacheUses returns cache-use evidence recorded for the selected run.
 func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -633,7 +589,7 @@ func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
 		"cache_entry_id": "ce.id", "provider": "ce.provider", "namespace": "ce.namespace", "request_fingerprint": "ce.request_fingerprint",
 		"response_status": "ce.response_status", "payload_artifact_id": "ce.payload_artifact_id", "fetched_at": "ce.fetched_at", "expires_at": "ce.expires_at", "extractor_version": "ce.extractor_version",
 	}
-	page, perPage, sort, order, query, err := scopedRowsRequest(r, fields, "id")
+	page, perPage, sort, order, query, err := viewrequest.Rows(r, fields, "id")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -657,9 +613,9 @@ func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
 			"namespace":           record.Namespace,
 			"request_fingerprint": record.RequestFingerprint,
 			"response_status":     record.ResponseStatus,
-			"payload_artifact_id": nullableIDPointer(record.PayloadArtifactID),
+			"payload_artifact_id": jsonvalue.Optional(record.PayloadArtifactID),
 			"fetched_at":          record.FetchedAt,
-			"expires_at":          nullableText(record.ExpiresAt),
+			"expires_at":          jsonvalue.Optional(record.ExpiresAt),
 			"extractor_version":   record.ExtractorVersion,
 		})
 	}
@@ -667,6 +623,6 @@ func (s *Server) runCacheUses(w http.ResponseWriter, r *http.Request) {
 	columns := []string{"id", "cache_layer", "outcome", "used_at", "cache_entry_id", "provider", "namespace", "request_fingerprint", "response_status", "payload_artifact_id", "fetched_at", "expires_at", "extractor_version"}
 	s.respond(w, r, map[string]any{
 		"run_id": runID, "columns": columns, "rows": items, "cache_uses": items,
-		"pagination": scopedPagination(page, perPage, result.Total, sort, order),
+		"pagination": viewrequest.Pagination(page, perPage, result.Total, sort, order),
 	}, nil)
 }

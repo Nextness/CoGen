@@ -4,6 +4,7 @@
 package rawsqlcheck_test
 
 import subject "analysis/tooling/go/rawsqlcheck"
+import "analysis/tooling/go/rawsqlcheck/ownership"
 
 import (
 	"bytes"
@@ -30,18 +31,18 @@ func TestScanClassifiesApprovedAndTestCalls(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/database/platform.go", "package database\n\nfunc configure(db handle) {\n\tdb.Exec(\"PRAGMA foreign_keys=ON\")\n}\n")
 	writeSourceFile(t, root, "backend/database/family_test.go", "package database\n\nfunc TestFamily(t *testing.T) {\n\tdb.RawDBForTest().QueryRow(\"SELECT 1\")\n}\n")
-	locations := []subject.approvedLocation{{Path: "backend/database/platform.go", Category: subject.categoryPlatform, Reason: "platform behavior."}}
-	report, err := subject.scanRepository(root, locations)
+	locations := []ownership.Location{{Path: "backend/database/platform.go", Category: "platform", Reason: "platform behavior."}}
+	report, err := ownership.Analyze(root, locations)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(report.Calls) != 2 || len(report.Unclassified) != 0 {
 		t.Fatalf("calls=%d unclassified=%d, want 2 and 0", len(report.Calls), len(report.Unclassified))
 	}
-	if failures := report.failures(); len(failures) != 0 {
+	if failures := report.Failures(); len(failures) != 0 {
 		t.Fatalf("failures = %v, want none", failures)
 	}
-	if report.Calls[0].Category != subject.categoryTest && report.Calls[0].Category != subject.categoryPlatform {
+	if report.Calls[0].Category != "test" && report.Calls[0].Category != "platform" {
 		t.Fatalf("unexpected category %q", report.Calls[0].Category)
 	}
 }
@@ -52,7 +53,7 @@ func TestScanExcludesGeneratedOutputAndNearMisses(t *testing.T) {
 	writeSourceFile(t, root, "backend/database/cache/internal/sql/db.go", "package sql\n\nfunc generated(q handle) {\n\tq.QueryContext(\"SELECT 1\")\n}\n")
 	writeSourceFile(t, root, "backend/database/cache/internal/sql/nested/models.go", "package nested\n\nfunc nestedGenerated(q handle) {\n\tq.QueryRow(\"SELECT 1\")\n}\n")
 	writeSourceFile(t, root, "backend/database/cache/internal/sqltest/db.go", "package sqltest\n\nfunc nearMiss(q handle) {\n\tq.QueryContext(\"SELECT 1\")\n}\n")
-	report, err := subject.scanRepository(root, nil)
+	report, err := ownership.Analyze(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestScanExcludesGeneratedOutputAndNearMisses(t *testing.T) {
 func TestScanExcludesRequestURLQuery(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/server/handler.go", "package server\n\nfunc handle(r *request) string {\n\treturn r.URL.Query().Get(\"q\")\n}\n")
-	report, err := subject.scanRepository(root, nil)
+	report, err := ownership.Analyze(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +82,7 @@ func TestScanExcludesRequestURLQuery(t *testing.T) {
 func TestScanDetectsEveryRawSQLMethod(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/server/mixed.go", "package server\n\nfunc mixed(db handle) {\n\tdb.Query(\"SELECT 1\")\n\tdb.QueryContext(nil, \"SELECT 1\")\n\tdb.QueryRow(\"SELECT 1\")\n\tdb.QueryRowContext(nil, \"SELECT 1\")\n\tdb.Exec(\"UPDATE t SET x=1\")\n\tdb.ExecContext(nil, \"UPDATE t SET x=1\")\n\tdb.Prepare(\"SELECT 1\")\n\tdb.PrepareContext(nil, \"SELECT 1\")\n}\n")
-	report, err := subject.scanRepository(root, nil)
+	report, err := ownership.Analyze(root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func TestCheckFailsWithFileMethodAndRemediation(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/database/foo.go", "package database\n\nfunc load(db handle) {\n\tdb.QueryRowContext(nil, \"SELECT 1\")\n}\n")
 	var stdout, stderr bytes.Buffer
-	if status := subject.checkLocations(root, nil, &stdout, &stderr); status != 1 {
+	if status := ownership.Check(root, nil, &stdout, &stderr); status != 1 {
 		t.Fatalf("status = %d, want 1; stderr=%s", status, stderr.String())
 	}
 	for _, want := range []string{"backend/database/foo.go:4", "QueryRowContext", "approvedLocations", "failed with 1 error(s)"} {
@@ -110,9 +111,9 @@ func TestCheckPassesForClassifiedRepository(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/database/platform.go", "package database\n\nfunc configure(db handle) {\n\tdb.Exec(\"PRAGMA foreign_keys=ON\")\n}\n")
 	writeSourceFile(t, root, "backend/database/family_test.go", "package database\n\nfunc TestFamily(t *testing.T) {\n\tdb.RawDBForTest().QueryRow(\"SELECT 1\")\n}\n")
-	locations := []subject.approvedLocation{{Path: "backend/database/platform.go", Category: subject.categoryPlatform, Reason: "platform behavior."}}
+	locations := []ownership.Location{{Path: "backend/database/platform.go", Category: "platform", Reason: "platform behavior."}}
 	var stdout, stderr bytes.Buffer
-	if status := subject.checkLocations(root, locations, &stdout, &stderr); status != 0 {
+	if status := ownership.Check(root, locations, &stdout, &stderr); status != 0 {
 		t.Fatalf("status = %d, want 0; stderr=%s", status, stderr.String())
 	}
 	if !strings.Contains(stdout.String(), "passed: 2 classified calls") {
@@ -124,17 +125,17 @@ func TestCheckPassesForClassifiedRepository(t *testing.T) {
 func TestScanRejectsStaleApprovedLocations(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/database/platform.go", "package database\n\nfunc configure(db handle) {\n\tdb.Exec(\"PRAGMA foreign_keys=ON\")\n}\n")
-	locations := []subject.approvedLocation{
-		{Path: "backend/database/platform.go", Category: subject.categoryPlatform, Reason: "platform behavior."},
-		{Path: "backend/database/missing.go", Category: subject.categoryPlatform, Reason: "removed file."},
-		{Path: "backend/database/unused.go", Category: subject.categoryPlatform, Reason: "no calls."},
+	locations := []ownership.Location{
+		{Path: "backend/database/platform.go", Category: "platform", Reason: "platform behavior."},
+		{Path: "backend/database/missing.go", Category: "platform", Reason: "removed file."},
+		{Path: "backend/database/unused.go", Category: "platform", Reason: "no calls."},
 	}
 	writeSourceFile(t, root, "backend/database/unused.go", "package database\n\nfunc idle() {}\n")
-	report, err := subject.scanRepository(root, locations)
+	report, err := ownership.Analyze(root, locations)
 	if err != nil {
 		t.Fatal(err)
 	}
-	failures := report.failures()
+	failures := report.Failures()
 	if len(failures) != 2 {
 		t.Fatalf("failures = %v, want missing and unused entries", failures)
 	}
@@ -149,20 +150,20 @@ func TestScanRejectsStaleApprovedLocations(t *testing.T) {
 func TestDynamicLocationRequiresBuilderSibling(t *testing.T) {
 	root := t.TempDir()
 	writeSourceFile(t, root, "backend/database/work/corpus.go", "package work\n\nfunc corpus(db handle) {\n\tdb.QueryRowContext(nil, \"SELECT 1\")\n}\n")
-	locations := []subject.approvedLocation{{Path: "backend/database/work/corpus.go", Category: subject.categoryDynamic, Builder: "corpus_dynamic.go", Reason: "dynamic fragments."}}
-	report, err := subject.scanRepository(root, locations)
+	locations := []ownership.Location{{Path: "backend/database/work/corpus.go", Category: "dynamic", Builder: "corpus_dynamic.go", Reason: "dynamic fragments."}}
+	report, err := ownership.Analyze(root, locations)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failures := report.failures(); len(failures) != 1 || !strings.Contains(failures[0], "corpus_dynamic.go") {
+	if failures := report.Failures(); len(failures) != 1 || !strings.Contains(failures[0], "corpus_dynamic.go") {
 		t.Fatalf("failures = %v, want one missing builder failure", failures)
 	}
 	writeSourceFile(t, root, "backend/database/work/corpus_dynamic.go", "package work\n\nfunc corpusFilterClauses() string { return \"\" }\n")
-	report, err = subject.scanRepository(root, locations)
+	report, err = ownership.Analyze(root, locations)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if failures := report.failures(); len(failures) != 0 {
+	if failures := report.Failures(); len(failures) != 0 {
 		t.Fatalf("failures = %v, want none after the builder exists", failures)
 	}
 }
@@ -170,23 +171,23 @@ func TestDynamicLocationRequiresBuilderSibling(t *testing.T) {
 // TestScanRejectsIncompleteOrDuplicateLocations verifies malformed ownership tables are rejected.
 func TestScanRejectsIncompleteOrDuplicateLocations(t *testing.T) {
 	root := t.TempDir()
-	if _, err := subject.scanRepository(root, []subject.approvedLocation{{Path: "backend/database/foo.go"}}); err == nil {
+	if _, err := ownership.Analyze(root, []ownership.Location{{Path: "backend/database/foo.go"}}); err == nil {
 		t.Fatal("expected a missing category and reason to be rejected")
 	}
-	if _, err := subject.scanRepository(root, []subject.approvedLocation{{Path: "backend/database/foo.go", Category: subject.categoryDynamic, Reason: "dynamic."}}); err == nil {
+	if _, err := ownership.Analyze(root, []ownership.Location{{Path: "backend/database/foo.go", Category: "dynamic", Reason: "dynamic."}}); err == nil {
 		t.Fatal("expected a dynamic entry without a builder to be rejected")
 	}
-	if _, err := subject.scanRepository(root, []subject.approvedLocation{{Path: "backend/database/foo.go", Category: "unknown", Reason: "unknown."}}); err == nil {
+	if _, err := ownership.Analyze(root, []ownership.Location{{Path: "backend/database/foo.go", Category: "unknown", Reason: "unknown."}}); err == nil {
 		t.Fatal("expected an unknown category to be rejected")
 	}
-	if _, err := subject.scanRepository(root, []subject.approvedLocation{{Path: "backend/database/family_test.go", Category: subject.categoryPlatform, Reason: "test."}}); err == nil {
+	if _, err := ownership.Analyze(root, []ownership.Location{{Path: "backend/database/family_test.go", Category: "platform", Reason: "test."}}); err == nil {
 		t.Fatal("expected a test-file location to be rejected")
 	}
-	duplicate := []subject.approvedLocation{
-		{Path: "backend/database/foo.go", Category: subject.categoryPlatform, Reason: "first."},
-		{Path: "backend/database/foo.go", Category: subject.categoryPlatform, Reason: "second."},
+	duplicate := []ownership.Location{
+		{Path: "backend/database/foo.go", Category: "platform", Reason: "first."},
+		{Path: "backend/database/foo.go", Category: "platform", Reason: "second."},
 	}
-	if _, err := subject.scanRepository(root, duplicate); err == nil {
+	if _, err := ownership.Analyze(root, duplicate); err == nil {
 		t.Fatal("expected a duplicate path to be rejected")
 	}
 }

@@ -8,7 +8,6 @@ import "analysis/tests/support/go/testfixture"
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -30,7 +29,7 @@ import (
 // accepted work, a discarded work, a superseded work, and a work without a
 // normalize revision.
 type normalizedRevisionConformanceFixture struct {
-	server                     *subject.Server
+	server                     *testhelpers.Viewer
 	db                         *testfixture.Database
 	runID                      int64
 	acceptedWorkID             int64
@@ -159,7 +158,7 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(metadataPath)
+	viewer, err := testhelpers.OpenViewer(t, metadataPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +451,7 @@ func (f *normalizedRevisionConformanceFixture) assertAuthorIdentityEvidenceRevis
 	discardedResolution := seed("Discarded Evidence", f.discardedRevisionID, 1)
 	missingResolution := seed("Missing Evidence", f.missingRevisionID, 1)
 
-	page, err := f.server.authorStore.ListIdentityEvidence(context.Background(), author.IdentityEvidenceFilter{
+	page, err := f.server.ReadStores.Author.ListIdentityEvidence(context.Background(), author.IdentityEvidenceFilter{
 		RunID: f.runID, Sort: "id", Order: "ASC", Page: 1, PerPage: 20,
 	})
 	if err != nil {

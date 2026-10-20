@@ -8,13 +8,13 @@ import "analysis/tests/support/go/testfixture"
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
+	"analysis/backend/server/graphview"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"net/http/httptest"
 
 	"strings"
 	"testing"
@@ -23,25 +23,25 @@ import (
 // TestAPIDetailsGraphModes verifies api details graph modes.
 func TestAPIDetailsGraphModes(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
 	for _, path := range []string{
-		"/api/graph?run_id=" + subject.stringID(runID) + "&mode=article_author",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&mode=citation",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&mode=article_reference",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&mode=research_network",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&q=One",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&mode=article_author",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&mode=citation",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&mode=article_reference",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&mode=research_network",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&q=One",
 	} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
 			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
 		}
 	}
-	researchNetwork := testhelpers.ViewerRequest(t, handler, "/api/graph?run_id="+subject.stringID(runID)+"&mode=research_network")
+	researchNetwork := testhelpers.ViewerRequest(t, handler, "/api/graph?run_id="+fmt.Sprint(runID)+"&mode=research_network")
 	for _, expected := range []string{`"type":"article"`, `"type":"author"`, `"type":"reference"`, `"type":"referenced_author"`, `"type":"coauthor"`, `"type":"reference_author"`, `"node_types"`, `"edge_types"`} {
 		if !strings.Contains(researchNetwork.Body.String(), expected) {
 			t.Errorf("research network response is missing %s: %s", expected, researchNetwork.Body.String())
@@ -49,9 +49,9 @@ func TestAPIDetailsGraphModes(t *testing.T) {
 	}
 	for _, path := range []string{
 		"/api/graph?mode=article_author",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&mode=unsupported",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&article_limit=2001",
-		"/api/graph?run_id=" + subject.stringID(runID) + "&status=valid",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&mode=unsupported",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&article_limit=2001",
+		"/api/graph?run_id=" + fmt.Sprint(runID) + "&status=valid",
 	} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusBadRequest {
@@ -84,13 +84,13 @@ func TestAPIGraphFiltersAndTruncation(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	base := "/api/graph?run_id=" + subject.stringID(runID)
+	base := "/api/graph?run_id=" + fmt.Sprint(runID)
 	for _, test := range []struct {
 		query string
 		nodes int
@@ -137,7 +137,7 @@ func TestAPIGraphFiltersAndTruncation(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if !payload.Truncated || payload.TruncationReason != "article_limit" || payload.Limits["article_nodes"] != subject.maxArticleLimit {
+	if !payload.Truncated || payload.TruncationReason != "article_limit" || payload.Limits["article_nodes"] != 2000 {
 		t.Fatalf("graph did not report truncation metadata: %#v", payload)
 	}
 	full := testhelpers.ViewerRequest(t, handler, base+"&mode=article_author")
@@ -153,34 +153,43 @@ func TestAPIGraphFiltersAndTruncation(t *testing.T) {
 // TestGraphEdgeBudgets verifies empty and exhausted relationship budgets without large fixtures.
 func TestGraphEdgeBudgets(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	request := httptest.NewRequest(http.MethodGet, "/api/graph?run_id="+subject.stringID(runID), nil)
-	articles, _, err := viewer.graphArticles(request.Context(), request, runID, 10)
+	status, body := testhelpers.RequestJSON(t, viewer.Handler(), "/api/graph?run_id="+fmt.Sprint(runID)+"&article_limit=10")
+	if status != http.StatusOK {
+		t.Fatalf("graph status=%d body=%v", status, body)
+	}
+	var articles []map[string]any
+	for _, raw := range body["nodes"].([]any) {
+		node := raw.(map[string]any)
+		if node["type"] == "article" {
+			articles = append(articles, map[string]any{"id": int64(node["revision_id"].(float64)), "work_id": int64(node["work_id"].(float64)), "title": node["label"], "doi": node["doi"]})
+		}
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(articles) == 0 {
 		t.Fatal("fixture has no graph articles")
 	}
-	nodes, edges, truncated, err := viewer.graphEdgesWithinBudget(request.Context(), "article_author", nil, -1, -1)
+	nodes, edges, truncated, err := graphview.Build(t.Context(), viewer.ReadStores.Work, "article_author", nil, -1, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(nodes) != 0 || len(edges) != 0 || truncated {
 		t.Fatalf("empty graph nodes=%d edges=%d truncated=%v", len(nodes), len(edges), truncated)
 	}
-	nodes, edges, truncated, err = viewer.graphEdgesWithinBudget(request.Context(), "article_author", articles, 0, 10)
+	nodes, edges, truncated, err = graphview.Build(t.Context(), viewer.ReadStores.Work, "article_author", articles, 0, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(nodes) != len(articles) || len(edges) != 0 || !truncated {
 		t.Fatalf("related budget graph nodes=%d articles=%d edges=%d truncated=%v", len(nodes), len(articles), len(edges), truncated)
 	}
-	_, edges, truncated, err = viewer.graphEdgesWithinBudget(request.Context(), "article_author", articles, 10, 0)
+	_, edges, truncated, err = graphview.Build(t.Context(), viewer.ReadStores.Work, "article_author", articles, 10, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +201,7 @@ func TestGraphEdgeBudgets(t *testing.T) {
 // TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget verifies irrelevant citations cannot consume the renderable edge limit.
 func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,12 +209,12 @@ func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.
 
 	createArticle := func(doi, hash, title string) (int64, int64) {
 		t.Helper()
-		work, err := viewer.writeDB.Conn.Exec("INSERT INTO works (doi) VALUES (?)", doi)
+		work, err := viewer.Metadata.Conn.Exec("INSERT INTO works (doi) VALUES (?)", doi)
 		if err != nil {
 			t.Fatal(err)
 		}
 		workID, _ := work.LastInsertId()
-		revision, err := viewer.writeDB.Conn.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage) VALUES (?, ?, ?, ?, 'normalize')", workID, runID, hash, title)
+		revision, err := viewer.Metadata.Conn.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, title, producer_stage) VALUES (?, ?, ?, ?, 'normalize')", workID, runID, hash, title)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -215,27 +224,27 @@ func TestCitationGraphFiltersExternalTargetsBeforeApplyingEdgeBudget(t *testing.
 	sourceWorkID, sourceRevisionID := createArticle("10.1/graph-source", "graph-source", "Graph source")
 	targetWorkID, targetRevisionID := createArticle("10.1/graph-target", "graph-target", "Graph target")
 	for index := 0; index < 3; index++ {
-		work, err := viewer.writeDB.Conn.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/graph-external-"+subject.stringID(int64(index)))
+		work, err := viewer.Metadata.Conn.Exec("INSERT INTO works (doi) VALUES (?)", "10.1/graph-external-"+fmt.Sprint(int64(index)))
 		if err != nil {
 			t.Fatal(err)
 		}
 		externalWorkID, _ := work.LastInsertId()
-		if _, err := viewer.writeDB.Conn.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, ?)", sourceRevisionID, externalWorkID, index+1); err != nil {
+		if _, err := viewer.Metadata.Conn.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, ?)", sourceRevisionID, externalWorkID, index+1); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := viewer.writeDB.Conn.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, 4)", sourceRevisionID, targetWorkID); err != nil {
+	if _, err := viewer.Metadata.Conn.Exec("INSERT INTO reference_mentions (work_revision_id, resolved_work_id, mention_order) VALUES (?, ?, 4)", sourceRevisionID, targetWorkID); err != nil {
 		t.Fatal(err)
 	}
 	articles := []map[string]any{
 		{"id": sourceRevisionID, "work_id": sourceWorkID, "title": "Graph source", "doi": "10.1/graph-source"},
 		{"id": targetRevisionID, "work_id": targetWorkID, "title": "Graph target", "doi": "10.1/graph-target"},
 	}
-	_, edges, truncated, err := viewer.graphEdgesWithinBudget(t.Context(), "citation", articles, 0, 1)
+	_, edges, truncated, err := graphview.Build(t.Context(), viewer.ReadStores.Work, "citation", articles, 0, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if truncated || len(edges) != 1 || edges[0]["source"] != "article:"+subject.stringID(sourceRevisionID) || edges[0]["target"] != "article:"+subject.stringID(targetRevisionID) {
+	if truncated || len(edges) != 1 || edges[0]["source"] != "article:"+fmt.Sprint(sourceRevisionID) || edges[0]["target"] != "article:"+fmt.Sprint(targetRevisionID) {
 		t.Fatalf("citation edge selection = edges=%v truncated=%v", edges, truncated)
 	}
 }

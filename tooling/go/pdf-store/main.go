@@ -36,20 +36,16 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "pdf-store add requires --db, --doi, and --file")
 		return 2
 	}
-	if err := add(*dbPath, *doi, *filePath); err != nil {
+	if err := add(*dbPath, *doi, *filePath, stdout); err != nil {
 		fmt.Fprintf(stderr, "pdf-store add: %v\n", err)
 		return 1
 	}
 	return 0
 }
 
-// add validates command arguments and adds one manual PDF through the configured database registry.
-func add(metadataPath, doi, filePath string) error {
-	return addWithRegistry(metadataPath, doi, filePath, "config/database.something")
-}
-
-// addWithRegistry opens the metadata and PDF stores, inserts content, and drains the audit outbox.
-func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
+// add validates and inventories one manual PDF through the configured stores.
+func add(metadataPath, doi, filePath string, stdout io.Writer) error {
+	const registryPath = "config/database.something"
 	if _, err := os.Stat(metadataPath); err != nil {
 		return fmt.Errorf("inspect metadata corpus: %w", err)
 	}
@@ -115,7 +111,7 @@ func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
 	if result.Added {
 		status = "inventoried"
 	}
-	return json.NewEncoder(os.Stdout).Encode(map[string]any{
+	return json.NewEncoder(stdout).Encode(map[string]any{
 		"doi": found.DOI, "status": status, "content_hash": result.ContentHash,
 		"byte_size": result.ByteSize, "audit_events_flushed": flushed,
 	})

@@ -11,87 +11,30 @@ import (
 	"testing"
 )
 
-// walkOnce returns the single value reached by the test path.
-func walkOnce(data map[string]any, segments []string) (any, error) {
-	values, err := subject.walkFrom(data, segments, subject.walkOne, 0)
-	if err != nil {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-// walkIndex returns the indexed value reached by the test path.
-func walkIndex(data map[string]any, index int, segments []string) (any, error) {
-	values, err := subject.walkFrom(data, segments, subject.walkAtIndex, index)
-	if err != nil {
-		return nil, err
-	}
-	return values[0], nil
-}
-
-// walkAll returns every value reached by the test path.
-func walkAll(data map[string]any, segments []string) ([]any, error) {
-	return subject.walkFrom(data, segments, subject.walkEvery, 0)
-}
-
-// TestMatchIterationKeysPlain verifies match iteration keys plain.
-func TestMatchIterationKeysPlain(t *testing.T) {
+// TestAccessorIterationSelection verifies exact keys, wildcard ordering, labels, and absent matches through public accessors.
+func TestAccessorIterationSelection(t *testing.T) {
 	data := testhelpers.TestData()
-	keys := subject.matchIterationKeys(data, "name")
-	if len(keys) != 1 || keys[0] != "name" {
-		t.Fatalf("expected ['name'], got %v", keys)
+	if values, err := subject.GetStringAll(data, "name"); err != nil || len(values) != 1 || values[0] != "test" {
+		t.Fatalf("plain=%v error=%v", values, err)
 	}
-}
-
-// TestMatchIterationKeysPlainMissing verifies match iteration keys plain missing.
-func TestMatchIterationKeysPlainMissing(t *testing.T) {
-	data := testhelpers.TestData()
-	keys := subject.matchIterationKeys(data, "nonexistent")
-	if len(keys) != 0 {
-		t.Fatalf("expected empty, got %v", keys)
+	if _, err := subject.GetStringAll(data, "nonexistent"); err == nil {
+		t.Fatal("missing plain key accepted")
 	}
-}
-
-// TestMatchIterationKeysWildcard verifies match iteration keys wildcard.
-func TestMatchIterationKeysWildcard(t *testing.T) {
-	data := testhelpers.TestData()
-	keys := subject.matchIterationKeys(data, "[iteration]")
-	if len(keys) != 3 {
-		t.Fatalf("expected 3 iteration keys, got %d: %v", len(keys), keys)
+	if values, err := subject.GetIntegerAll(data, "[iteration]", "value"); err != nil || len(values) != 3 || values[0] != 100 || values[2] != 300 {
+		t.Fatalf("ordered iterations=%v error=%v", values, err)
 	}
-	if keys[0] != "iteration_0000000000" {
-		t.Errorf("expected first key 'iteration_0000000000', got %q", keys[0])
+	if values, err := subject.GetStringAll(data, "[iteration]_label", "x"); err != nil || len(values) != 2 || values[0] != "labeled" || values[1] != "labeled2" {
+		t.Fatalf("labels=%v error=%v", values, err)
 	}
-	if keys[2] != "iteration_0000000002" {
-		t.Errorf("expected third key 'iteration_0000000002', got %q", keys[2])
-	}
-}
-
-// TestMatchIterationKeysWildcardWithSuffix verifies match iteration keys wildcard with suffix.
-func TestMatchIterationKeysWildcardWithSuffix(t *testing.T) {
-	data := testhelpers.TestData()
-	keys := subject.matchIterationKeys(data, "[iteration]_label")
-	if len(keys) != 2 {
-		t.Fatalf("expected 2 iteration keys with '_label' suffix, got %d: %v", len(keys), keys)
-	}
-	if keys[0] != "iteration_0000000000_label" {
-		t.Errorf("expected 'iteration_0000000000_label', got %q", keys[0])
-	}
-}
-
-// TestMatchIterationKeysWildcardNoMatch verifies match iteration keys wildcard no match.
-func TestMatchIterationKeysWildcardNoMatch(t *testing.T) {
-	data := testhelpers.TestData()
-	keys := subject.matchIterationKeys(data, "[iteration]_nonexistent")
-	if len(keys) != 0 {
-		t.Fatalf("expected empty, got %v", keys)
+	if values, err := subject.GetStringAll(data, "[iteration]_nonexistent"); err != nil || len(values) != 0 {
+		t.Fatalf("missing wildcard=%v error=%v", values, err)
 	}
 }
 
 // TestWalkOnceSimple verifies walk once simple.
 func TestWalkOnceSimple(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkOnce(data, []string{"name"})
+	val, err := subject.GetStringOnce(data, "name")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,7 +46,7 @@ func TestWalkOnceSimple(t *testing.T) {
 // TestWalkOnceNested verifies walk once nested.
 func TestWalkOnceNested(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkOnce(data, []string{"metadata", "version"})
+	val, err := subject.GetIntegerOnce(data, "metadata", "version")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -116,7 +59,7 @@ func TestWalkOnceNested(t *testing.T) {
 func TestWalkOnceIteration(t *testing.T) {
 	data := testhelpers.TestData()
 	// Use a specific iteration key (exact match) to test walkOnce
-	val, err := walkOnce(data, []string{"iteration_0000000000", "title"})
+	val, err := subject.GetStringOnce(data, "iteration_0000000000", "title")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -128,7 +71,7 @@ func TestWalkOnceIteration(t *testing.T) {
 // TestWalkOnceIterationWithSuffix verifies walk once iteration with suffix.
 func TestWalkOnceIterationWithSuffix(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkOnce(data, []string{"iteration_0000000000_label", "x"})
+	val, err := subject.GetStringOnce(data, "iteration_0000000000_label", "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,7 +83,7 @@ func TestWalkOnceIterationWithSuffix(t *testing.T) {
 // TestWalkOncePathNotValid verifies walk once path not valid.
 func TestWalkOncePathNotValid(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkOnce(data, []string{"nonexistent"})
+	_, err := subject.GetStringOnce(data, "nonexistent")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -152,7 +95,7 @@ func TestWalkOncePathNotValid(t *testing.T) {
 // TestWalkOncePathCannotBeReached verifies walk once path cannot be reached.
 func TestWalkOncePathCannotBeReached(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkOnce(data, []string{"name", "inner"})
+	_, err := subject.GetStringOnce(data, "name", "inner")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -164,7 +107,7 @@ func TestWalkOncePathCannotBeReached(t *testing.T) {
 // TestWalkOnceMultipleMatches verifies walk once multiple matches.
 func TestWalkOnceMultipleMatches(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkOnce(data, []string{"[iteration]"})
+	_, err := subject.GetStringOnce(data, "[iteration]")
 	if err == nil {
 		t.Fatal("expected error for multiple matches")
 	}
@@ -176,7 +119,7 @@ func TestWalkOnceMultipleMatches(t *testing.T) {
 // TestWalkIndexSimple verifies walk index simple.
 func TestWalkIndexSimple(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkIndex(data, 0, []string{"name"})
+	val, err := subject.GetStringIndex(data, 0, "name")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -188,7 +131,7 @@ func TestWalkIndexSimple(t *testing.T) {
 // TestWalkIndexIteration verifies walk index iteration.
 func TestWalkIndexIteration(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkIndex(data, 1, []string{"[iteration]", "title"})
+	val, err := subject.GetStringIndex(data, 1, "[iteration]", "title")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -200,7 +143,7 @@ func TestWalkIndexIteration(t *testing.T) {
 // TestWalkIndexIterationLast verifies walk index iteration last.
 func TestWalkIndexIterationLast(t *testing.T) {
 	data := testhelpers.TestData()
-	val, err := walkIndex(data, 2, []string{"[iteration]", "value"})
+	val, err := subject.GetIntegerIndex(data, 2, "[iteration]", "value")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -212,7 +155,7 @@ func TestWalkIndexIterationLast(t *testing.T) {
 // TestWalkIndexOutOfBounds verifies walk index out of bounds.
 func TestWalkIndexOutOfBounds(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkIndex(data, 5, []string{"[iteration]"})
+	_, err := subject.GetStringIndex(data, 5, "[iteration]")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -224,7 +167,7 @@ func TestWalkIndexOutOfBounds(t *testing.T) {
 // TestWalkIndexNegative verifies walk index negative.
 func TestWalkIndexNegative(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkIndex(data, -1, []string{"[iteration]"})
+	_, err := subject.GetStringIndex(data, -1, "[iteration]")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -236,7 +179,7 @@ func TestWalkIndexNegative(t *testing.T) {
 // TestWalkIndexPathNotValid verifies walk index path not valid.
 func TestWalkIndexPathNotValid(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkIndex(data, 0, []string{"nonexistent"})
+	_, err := subject.GetStringIndex(data, 0, "nonexistent")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -248,7 +191,7 @@ func TestWalkIndexPathNotValid(t *testing.T) {
 // TestWalkAllSimple verifies walk all simple.
 func TestWalkAllSimple(t *testing.T) {
 	data := testhelpers.TestData()
-	vals, err := walkAll(data, []string{"name"})
+	vals, err := subject.GetStringAll(data, "name")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -260,7 +203,7 @@ func TestWalkAllSimple(t *testing.T) {
 // TestWalkAllIteration verifies walk all iteration.
 func TestWalkAllIteration(t *testing.T) {
 	data := testhelpers.TestData()
-	vals, err := walkAll(data, []string{"[iteration]", "title"})
+	vals, err := subject.GetStringAll(data, "[iteration]", "title")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -275,7 +218,7 @@ func TestWalkAllIteration(t *testing.T) {
 // TestWalkAllIterationWithSuffix verifies walk all iteration with suffix.
 func TestWalkAllIterationWithSuffix(t *testing.T) {
 	data := testhelpers.TestData()
-	vals, err := walkAll(data, []string{"[iteration]_label", "x"})
+	vals, err := subject.GetStringAll(data, "[iteration]_label", "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,7 +230,7 @@ func TestWalkAllIterationWithSuffix(t *testing.T) {
 // TestWalkAllEmptyResult verifies walk all empty result.
 func TestWalkAllEmptyResult(t *testing.T) {
 	data := testhelpers.TestData()
-	vals, err := walkAll(data, []string{"[iteration]_nonexistent"})
+	vals, err := subject.GetStringAll(data, "[iteration]_nonexistent")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -299,7 +242,7 @@ func TestWalkAllEmptyResult(t *testing.T) {
 // TestWalkAllPathNotValid verifies walk all path not valid.
 func TestWalkAllPathNotValid(t *testing.T) {
 	data := testhelpers.TestData()
-	_, err := walkAll(data, []string{"nonexistent"})
+	_, err := subject.GetStringAll(data, "nonexistent")
 	if err == nil {
 		t.Fatal("expected error")
 	}

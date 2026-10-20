@@ -5,10 +5,10 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
+	"analysis/internal/querybudget"
 	"context"
 	"errors"
 	"testing"
@@ -26,53 +26,53 @@ type viewerDALRead struct {
 
 // viewerDALReads returns one single-statement read per viewer-facing family
 // store over the fixture run.
-func viewerDALReads(viewer *subject.Server, runID int64) []viewerDALRead {
+func viewerDALReads(viewer *testhelpers.Viewer, runID int64) []viewerDALRead {
 	return []viewerDALRead{
 		{"search", func(ctx context.Context) error {
-			_, err := viewer.searchStore.GetSearchByID(ctx, 1)
+			_, err := viewer.ReadStores.Search.GetSearchByID(ctx, 1)
 			return err
 		}},
 		{"run", func(ctx context.Context) error {
-			_, err := viewer.runStore.GetByID(ctx, runID)
+			_, err := viewer.ReadStores.Run.GetByID(ctx, runID)
 			return err
 		}},
 		{"source", func(ctx context.Context) error {
-			_, err := viewer.sourceStore.ListSourcesByRun(ctx, runID)
+			_, err := viewer.ReadStores.Source.ListSourcesByRun(ctx, runID)
 			return err
 		}},
 		{"work", func(ctx context.Context) error {
-			_, err := viewer.workStore.GetWorkByID(ctx, 1)
+			_, err := viewer.ReadStores.Work.GetWorkByID(ctx, 1)
 			return err
 		}},
 		{"author", func(ctx context.Context) error {
-			_, err := viewer.authorStore.GetOccurrenceByID(ctx, 1)
+			_, err := viewer.ReadStores.Author.GetOccurrenceByID(ctx, 1)
 			return err
 		}},
 		{"review", func(ctx context.Context) error {
-			_, err := viewer.reviewStore.GetContextByRun(ctx, runID)
+			_, err := viewer.ReadStores.Review.GetContextByRun(ctx, runID)
 			return err
 		}},
 		{"cache", func(ctx context.Context) error {
-			_, err := viewer.cacheStore.ListUsesByRun(ctx, runID)
+			_, err := viewer.ReadStores.Cache.ListUsesByRun(ctx, runID)
 			return err
 		}},
 		{"audit", func(ctx context.Context) error {
-			_, err := viewer.auditStore.List(ctx, audit.Filter{Limit: 1})
+			_, err := viewer.ReadStores.Audit.List(ctx, audit.Filter{Limit: 1})
 			return err
 		}},
 		{"artifact", func(ctx context.Context) error {
-			_, err := viewer.artifact.GetByID(ctx, 1)
+			_, err := viewer.ReadStores.Artifact.GetByID(ctx, 1)
 			return err
 		}},
 	}
 }
 
-// TestViewerDALsBindBudgetedReadOnlyConnection verifies every viewer-facing
-// family DAL executes through the server's statement-budgeted connection
-// instead of an independently opened one.
-func TestViewerDALsBindBudgetedReadOnlyConnection(t *testing.T) {
+// TestFamilyConstructorsBindBudgetedReadOnlyConnection verifies every viewer-facing
+// family constructor preserves the supplied statement-budgeted connection.
+// HTTP query-count tests separately verify the viewer's production wiring.
+func TestFamilyConstructorsBindBudgetedReadOnlyConnection(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,29 +80,29 @@ func TestViewerDALsBindBudgetedReadOnlyConnection(t *testing.T) {
 
 	for _, read := range viewerDALReads(viewer, runID) {
 		t.Run(read.name, func(t *testing.T) {
-			ctx, budget := subject.withQueryBudget(context.Background(), 1)
+			ctx, budget := querybudget.With(context.Background(), 1)
 			if err := read.read(ctx); err != nil {
 				t.Fatalf("first %s read: %v", read.name, err)
 			}
-			if used := budget.used.Load(); used != 1 {
-				t.Fatalf("%s read used %d budgeted statements, want 1; the DAL is not bound to the server's budgeted connection", read.name, used)
+			if used := budget.Used(); used != 1 {
+				t.Fatalf("%s read used %d budgeted statements, want 1; the DAL is not bound to the supplied budgeted connection", read.name, used)
 			}
-			if err := read.read(ctx); !errors.Is(err, subject.errQueryBudgetExceeded) {
+			if err := read.read(ctx); !errors.Is(err, querybudget.ErrExceeded) {
 				t.Fatalf("second %s read error=%v, want the query budget rejection", read.name, err)
 			}
-			if !budget.exceeded.Load() {
+			if !budget.Exceeded() {
 				t.Fatalf("%s read did not record the exceeded statement budget", read.name)
 			}
 		})
 	}
 }
 
-// TestViewerDALsPropagateHandlerCancellation verifies every viewer-facing
+// TestFamilyConstructorsPropagateCancellation verifies every viewer-facing
 // family DAL passes the handler context into its call so canceled requests
 // stop before touching the database.
-func TestViewerDALsPropagateHandlerCancellation(t *testing.T) {
+func TestFamilyConstructorsPropagateCancellation(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,36 +119,35 @@ func TestViewerDALsPropagateHandlerCancellation(t *testing.T) {
 	}
 }
 
-// TestViewerCompanionDALBindsBudgetedReadOnlyConnection verifies the viewer's
-// companion PDF DAL executes through the server's statement-budgeted read-only
-// PDF connection and receives handler contexts.
-func TestViewerCompanionDALBindsBudgetedReadOnlyConnection(t *testing.T) {
+// TestCompanionConstructorBindsBudgetedReadOnlyConnection verifies the viewer's
+// companion PDF constructor preserves a supplied budgeted read-only pool and request context.
+func TestCompanionConstructorBindsBudgetedReadOnlyConnection(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
-	if fixture.Server.pdfStore == nil {
+	if pdfstore.New(fixture.Server.PDF) == nil {
 		t.Fatal("viewer did not construct a companion PDF DAL for the bound store")
 	}
 
-	ctx, budget := subject.withQueryBudget(context.Background(), 1)
-	document, err := fixture.Server.pdfStore.Document(ctx, "10.1000/viewer-available")
+	ctx, budget := querybudget.With(context.Background(), 1)
+	document, err := pdfstore.New(fixture.Server.PDF).Document(ctx, "10.1000/viewer-available")
 	if err != nil {
 		t.Fatalf("first companion read: %v", err)
 	}
 	if document == nil || document.Status != pdfstore.StatusAvailable {
 		t.Fatalf("companion document = %+v", document)
 	}
-	if used := budget.used.Load(); used != 1 {
-		t.Fatalf("companion read used %d budgeted statements, want 1; the DAL is not bound to the server's budgeted PDF connection", used)
+	if used := budget.Used(); used != 1 {
+		t.Fatalf("companion read used %d budgeted statements, want 1; the DAL is not bound to the supplied budgeted PDF connection", used)
 	}
-	if _, err := fixture.Server.pdfStore.Document(ctx, "10.1000/viewer-available"); !errors.Is(err, subject.errQueryBudgetExceeded) {
+	if _, err := pdfstore.New(fixture.Server.PDF).Document(ctx, "10.1000/viewer-available"); !errors.Is(err, querybudget.ErrExceeded) {
 		t.Fatalf("second companion read error=%v, want the query budget rejection", err)
 	}
-	if !budget.exceeded.Load() {
+	if !budget.Exceeded() {
 		t.Fatal("companion read did not record the exceeded statement budget")
 	}
 
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := fixture.Server.pdfStore.Document(canceled, "10.1000/viewer-available"); !errors.Is(err, context.Canceled) {
+	if _, err := pdfstore.New(fixture.Server.PDF).Document(canceled, "10.1000/viewer-available"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled companion read error=%v, want context.Canceled", err)
 	}
 }

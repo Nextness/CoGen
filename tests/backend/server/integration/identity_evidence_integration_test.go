@@ -3,11 +3,11 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -17,13 +17,13 @@ import (
 // TestRunScopedIdentityEvidence verifies run scoped identity evidence.
 func TestRunScopedIdentityEvidence(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	base := "/api/runs/" + subject.stringID(runID)
+	base := "/api/runs/" + fmt.Sprint(runID)
 	identityEvidence := testhelpers.ViewerRequest(t, handler, base+"/identity-evidence?page=1&per_page=20&sort=id&order=asc")
 	if identityEvidence.Code != http.StatusOK || !strings.Contains(identityEvidence.Body.String(), "orcid_is_unclear") || !strings.Contains(identityEvidence.Body.String(), "provider_failed") || !strings.Contains(identityEvidence.Body.String(), "\"provider_failed\":1") || !strings.Contains(identityEvidence.Body.String(), "Charles Babbage") || !strings.Contains(identityEvidence.Body.String(), "0000-0001-2345-6789") {
 		t.Fatalf("identity evidence response: status=%d body=%s", identityEvidence.Code, identityEvidence.Body.String())
@@ -33,13 +33,13 @@ func TestRunScopedIdentityEvidence(t *testing.T) {
 // TestIdentityEvidenceRevisionLinks verifies coherent article pairs and bounded author evidence across immutable snapshots.
 func TestIdentityEvidenceRevisionLinks(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	insert := func(query string, args ...any) int64 {
-		result, err := viewer.writeDB.Conn.Exec(query, args...)
+		result, err := viewer.Metadata.Conn.Exec(query, args...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +74,7 @@ func TestIdentityEvidenceRevisionLinks(t *testing.T) {
 	insert("INSERT INTO authorships (work_revision_id, author_occurrence_id, author_order) VALUES (?, ?, 1)", changedRevision, changedAuthor)
 
 	handler := viewer.Handler()
-	code, body := testhelpers.RequestJSON(t, handler, "/api/runs/"+subject.stringID(runID)+"/identity-evidence?q=Revision+Author&per_page=20")
+	code, body := testhelpers.RequestJSON(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/identity-evidence?q=Revision+Author&per_page=20")
 	if code != http.StatusOK {
 		t.Fatalf("identity response status=%d body=%v", code, body)
 	}
@@ -99,7 +99,7 @@ func TestIdentityEvidenceRevisionLinks(t *testing.T) {
 		authorID int64
 		want     int
 	}{{author, 1}, {currentAuthor, 1}, {wrongPosition, 0}, {unrelatedAuthor, 0}, {changedAuthor, 0}} {
-		code, detail := testhelpers.RequestJSON(t, handler, "/api/authors/"+subject.stringID(test.authorID)+"?run_id="+subject.stringID(runID))
+		code, detail := testhelpers.RequestJSON(t, handler, "/api/authors/"+fmt.Sprint(test.authorID)+"?run_id="+fmt.Sprint(runID))
 		if code != http.StatusOK {
 			t.Fatalf("author detail status=%d body=%v", code, detail)
 		}
@@ -114,26 +114,26 @@ func TestIdentityEvidenceRevisionLinks(t *testing.T) {
 // run ownership, and collection-bound cursor validation.
 func TestIdentityCandidatePages(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	var resolutionID int64
-	if err := viewer.writeDB.Conn.QueryRow(`SELECT id FROM author_identity_resolutions
+	if err := viewer.Metadata.Conn.QueryRow(`SELECT id FROM author_identity_resolutions
 		WHERE pipeline_run_id=? AND status='orcid_is_unclear'`, runID).Scan(&resolutionID); err != nil {
 		t.Fatal(err)
 	}
 	for rank := 3; rank <= 105; rank++ {
-		orcid := "0000-0000-0000-" + subject.stringID(int64(1000+rank))
-		if _, err := viewer.writeDB.Conn.Exec(`INSERT INTO author_identity_candidates
+		orcid := "0000-0000-0000-" + fmt.Sprint(int64(1000+rank))
+		if _, err := viewer.Metadata.Conn.Exec(`INSERT INTO author_identity_candidates
 			(identity_resolution_id, candidate_orcid, query_url, provider_rank)
 			VALUES (?, ?, 'https://orcid.example/search', ?)`, resolutionID, orcid, rank); err != nil {
 			t.Fatal(err)
 		}
 	}
 	handler := viewer.Handler()
-	evidence := testhelpers.ViewerRequest(t, handler, "/api/runs/"+subject.stringID(runID)+"/identity-evidence?page=1&per_page=20&sort=id&order=asc")
+	evidence := testhelpers.ViewerRequest(t, handler, "/api/runs/"+fmt.Sprint(runID)+"/identity-evidence?page=1&per_page=20&sort=id&order=asc")
 	if evidence.Code != http.StatusOK {
 		t.Fatalf("identity evidence status=%d body=%s", evidence.Code, evidence.Body.String())
 	}
@@ -154,7 +154,7 @@ func TestIdentityCandidatePages(t *testing.T) {
 			continue
 		}
 		found = true
-		if row.CandidateCount != 105 || len(row.Candidates) != subject.identityCandidatePreviewLimit || !row.CandidatesTruncated {
+		if row.CandidateCount != 105 || len(row.Candidates) != 3 || !row.CandidatesTruncated {
 			t.Fatalf("candidate preview: count=%d preview=%d truncated=%v", row.CandidateCount, len(row.Candidates), row.CandidatesTruncated)
 		}
 	}
@@ -165,7 +165,7 @@ func TestIdentityCandidatePages(t *testing.T) {
 	seen := make(map[int64]bool)
 	cursor := ""
 	for {
-		requestPath := "/api/identity-resolutions/" + subject.stringID(resolutionID) + "/candidates?run_id=" + subject.stringID(runID) + "&limit=20"
+		requestPath := "/api/identity-resolutions/" + fmt.Sprint(resolutionID) + "/candidates?run_id=" + fmt.Sprint(runID) + "&limit=20"
 		if cursor != "" {
 			requestPath += "&cursor=" + url.QueryEscape(cursor)
 		}
@@ -200,11 +200,11 @@ func TestIdentityCandidatePages(t *testing.T) {
 		t.Fatalf("traversed %d candidates, want 105", len(seen))
 	}
 
-	wrongRun := testhelpers.ViewerRequest(t, handler, "/api/identity-resolutions/"+subject.stringID(resolutionID)+"/candidates?run_id="+subject.stringID(runID+1))
+	wrongRun := testhelpers.ViewerRequest(t, handler, "/api/identity-resolutions/"+fmt.Sprint(resolutionID)+"/candidates?run_id="+fmt.Sprint(runID+1))
 	if wrongRun.Code != http.StatusNotFound {
 		t.Fatalf("wrong-run candidate status=%d body=%s", wrongRun.Code, wrongRun.Body.String())
 	}
-	badCursor := testhelpers.ViewerRequest(t, handler, "/api/identity-resolutions/"+subject.stringID(resolutionID)+"/candidates?run_id="+subject.stringID(runID)+"&cursor=not-a-cursor")
+	badCursor := testhelpers.ViewerRequest(t, handler, "/api/identity-resolutions/"+fmt.Sprint(resolutionID)+"/candidates?run_id="+fmt.Sprint(runID)+"&cursor=not-a-cursor")
 	if badCursor.Code != http.StatusBadRequest {
 		t.Fatalf("invalid candidate cursor status=%d body=%s", badCursor.Code, badCursor.Body.String())
 	}

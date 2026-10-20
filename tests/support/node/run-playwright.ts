@@ -37,15 +37,26 @@ await mkdir(runDir, { recursive: true });
 
 const requestedArguments = process.argv.slice(2);
 const selectedSuites = suitesForArguments(requestedArguments);
+const projectArguments = withoutOptions(requestedArguments, ['project']);
+const projects = projectsForArguments(requestedArguments);
 let result = 0;
 try {
-  if (selectedSuites.includes('read')) {
-    result = Math.max(result, await runSuite('read', requestedArguments));
-  }
-  if (selectedSuites.includes('mutation')) {
-    const mutationArguments = withoutOptions(requestedArguments, ['workers']);
-    mutationArguments.push('--workers=1');
-    result = Math.max(result, await runSuite('mutation', mutationArguments));
+  for (const project of projects) {
+    const argumentsForProject = [...projectArguments, `--project=${project}`];
+    if (selectedSuites.includes('read')) {
+      result = Math.max(result, await runSuite('read', argumentsForProject, `${project}/read`));
+    }
+    if (selectedSuites.includes('mutation')) {
+      const requestedSpecs = projectArguments.filter((argument) => argument.endsWith('.spec.ts'));
+      const mutationFiles = requestedSpecs.length > 0
+        ? requestedSpecs.filter((filename) => mutationSpecs.includes(path.basename(filename)))
+        : ['tests/frontend/viewer/integration/review.spec.ts', 'tests/contracts/http/integration/api-shapes.spec.ts', ...(process.env.E2E_SPEC === '1' ? ['tests/e2e/offline/e2e.spec.ts'] : [])];
+      for (const filename of mutationFiles) {
+        const mutationArguments = withoutOptions(argumentsForProject.filter((argument) => !argument.endsWith('.spec.ts')), ['workers']);
+        mutationArguments.push('--workers=1', filename);
+        result = Math.max(result, await runSuite('mutation', mutationArguments, `${project}/${path.basename(filename, '.spec.ts')}`));
+      }
+    }
   }
   process.exitCode = result;
 } catch (error) {
@@ -53,18 +64,29 @@ try {
   process.exitCode = 1;
 }
 
+/** Selects concrete browser projects so each browser receives its own database copies. */
+function projectsForArguments(args: readonly string[]): string[] {
+  const projects: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument.startsWith('--project=')) projects.push(argument.slice('--project='.length));
+    else if (argument === '--project' && args[index + 1]) projects.push(args[++index]);
+  }
+  return projects.length > 0 ? [...new Set(projects)] : ['chromium', 'firefox'];
+}
+
 /** Runs one Playwright suite against its own fixture copy and viewer process. */
-async function runSuite(suite: Suite, args: readonly string[]): Promise<number> {
-  const reportDir = path.join(runDir, 'report', suite);
-  const resultDir = path.join(runDir, 'results', suite);
-  const isolatedDB = await copyFixturePair(path.join(runDir, 'fixture', suite));
+async function runSuite(suite: Suite, args: readonly string[], scope: string): Promise<number> {
+  const reportDir = path.join(runDir, 'report', scope);
+  const resultDir = path.join(runDir, 'results', scope);
+  const isolatedDB = await copyFixturePair(path.join(runDir, 'fixture', scope));
   const server = await startServer(isolatedDB);
   try {
     const baseURL = server.baseURL;
     await waitForHealth(baseURL);
     console.log(`Playwright ${suite} server: ${baseURL}`);
     console.log(`Playwright ${suite} report: ${path.relative(rootDir, reportDir)}`);
-    const playwright = spawn(npmCommand(), ["exec", "--workspace", "tests", "--", "playwright", "test", "--config", "tests/playwright.config.ts", ...args], {
+    const playwright = spawn(npmCommand(), ["exec", "--workspace", "tests", "--", "playwright", "test", "--config", path.join(rootDir, 'tests', 'playwright.config.ts'), ...args], {
       cwd: rootDir,
       env: {
         ...process.env,

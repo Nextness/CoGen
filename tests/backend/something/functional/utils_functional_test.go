@@ -22,7 +22,7 @@ x := Point { x = 10, y = 20 };
 	expanded := subject.NewDirectiveGenerator("").Expand(syntax)
 	checked := subject.NewTypeChecker(expanded, "").Check()
 	ev := subject.NewEvaluator(checked, "")
-	data := ev.evaluate()
+	data := ev.Evaluate()
 
 	// Test _index with iteration wildcard
 	v2, err := subject.GetStringIndex(data, 0, "[iteration]_db")

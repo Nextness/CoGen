@@ -13,7 +13,7 @@ import (
 // configPath is resolved relative to src/ (where tests run).
 var TestConfigPath = testenv.Path("config", "database.something")
 
-// openTestDB supports the package test suite's open test db setup or assertions.
+// OpenTestDB supports the package test suite's open test db setup or assertions.
 func OpenTestDB(t *testing.T) *testfixture.Database {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")

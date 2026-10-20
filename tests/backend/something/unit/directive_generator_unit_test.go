@@ -1,684 +1,133 @@
-// directive_generator_unit_test.go contains unit tests for directive_generator.go
-// that exercise pure functions and methods on DirectiveGenerator directly,
-// without going through the full SOMETHING pipeline.
-
+// directive_generator_unit_test.go verifies expansion outputs, source ownership, and lexical state through Expand.
 package something_test
 
-import subject "analysis/backend/something"
-import testhelpers "analysis/tests/support/go/backend/something"
+import (
+	"reflect"
+	"testing"
 
-import "testing"
+	subject "analysis/backend/something"
+	testhelpers "analysis/tests/support/go/backend/something"
+)
 
-// TestNewDirectiveGenerator verifies new directive generator.
-func TestNewDirectiveGenerator(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("test.something")
-	if gen == nil {
-		t.Fatal("expected non-nil DirectiveGenerator")
-	}
-	if gen.filepath != "test.something" {
-		t.Errorf("expected filepath 'test.something', got %q", gen.filepath)
-	}
-	if gen.runtime == nil {
-		t.Error("expected non-nil runtime")
-	}
-	if gen.macros == nil {
-		t.Error("expected non-nil macro environment")
-	}
-	if gen.iterationCount != 0 {
-		t.Errorf("expected iterationCount 0, got %d", gen.iterationCount)
-	}
-	if len(gen.iterationCounters) != 0 {
-		t.Errorf("expected empty iterationCounters, got %d", len(gen.iterationCounters))
-	}
+// expandSource expands one in-memory source through the public directive phase.
+func expandSource(source string) *subject.Program {
+	program := subject.NewParser(subject.NewLexer(source, "expansion.something").Tokenize(), "expansion.something").ParseProgram()
+	return subject.NewDirectiveGenerator("expansion.something").Expand(program)
 }
 
-// TestNextIterationKeyDefault verifies next iteration key default.
-func TestNextIterationKeyDefault(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	key := gen.nextIterationKey("")
-	if key != "iteration_0000000000" {
-		t.Errorf("expected 'iteration_0000000000', got %q", key)
-	}
-	key2 := gen.nextIterationKey("")
-	if key2 != "iteration_0000000001" {
-		t.Errorf("expected 'iteration_0000000001', got %q", key2)
-	}
-}
-
-// TestNextIterationKeyLabeled verifies next iteration key labeled.
-func TestNextIterationKeyLabeled(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	key := gen.nextIterationKey("_my_label")
-	if key != "iteration_0000000000_my_label" {
-		t.Errorf("expected 'iteration_0000000000_my_label', got %q", key)
-	}
-	key2 := gen.nextIterationKey("_my_label")
-	if key2 != "iteration_0000000001_my_label" {
-		t.Errorf("expected 'iteration_0000000001_my_label', got %q", key2)
-	}
-}
-
-// TestNextIterationKeyIndependentCounters verifies next iteration key independent counters.
-func TestNextIterationKeyIndependentCounters(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	// Default counter advances independently from labeled counters
-	k1 := gen.nextIterationKey("")
-	kA1 := gen.nextIterationKey("_a")
-	k2 := gen.nextIterationKey("")
-	if k1 != "iteration_0000000000" {
-		t.Errorf("expected 'iteration_0000000000', got %q", k1)
-	}
-	if kA1 != "iteration_0000000000_a" {
-		t.Errorf("expected 'iteration_0000000000_a', got %q", kA1)
-	}
-	if k2 != "iteration_0000000001" {
-		t.Errorf("expected 'iteration_0000000001', got %q", k2)
-	}
-}
-
-// TestPeekIterationKey verifies peek iteration key.
-func TestPeekIterationKey(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	// Peek before any iteration returns 0
-	key := gen.peekIterationKey("")
-	if key != "iteration_0000000000" {
-		t.Errorf("expected 'iteration_0000000000' before any iteration, got %q", key)
-	}
-	// After one default iteration, peek should return 1 (nextIterationKey advances then peek reads current)
-	gen.nextIterationKey("")
-	key2 := gen.peekIterationKey("")
-	if key2 != "iteration_0000000001" {
-		t.Errorf("expected 'iteration_0000000001' after one nextIterationKey, got %q", key2)
-	}
-	// Advance again to 2, peek should read 2
-	gen.nextIterationKey("")
-	key3 := gen.peekIterationKey("")
-	if key3 != "iteration_0000000002" {
-		t.Errorf("expected 'iteration_0000000002', got %q", key3)
-	}
-}
-
-// TestPeekIterationKeyLabeled verifies peek iteration key labeled.
-func TestPeekIterationKeyLabeled(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	gen.nextIterationKey("_x")
-	key := gen.peekIterationKey("_x")
-	if key != "iteration_0000000001_x" {
-		t.Errorf("expected 'iteration_0000000001_x', got %q", key)
-	}
-}
-
-// TestPathInIncludeStackEmpty verifies path in include stack empty.
-func TestPathInIncludeStackEmpty(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	if gen.pathInIncludeStack("/any/path") {
-		t.Error("expected false for empty include stack")
-	}
-}
-
-// TestPathInIncludeStackFound verifies path in include stack found.
-func TestPathInIncludeStackFound(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	gen.includeStack = []string{"/first", "/second"}
-	if !gen.pathInIncludeStack("/first") {
-		t.Error("expected true for '/first' in stack")
-	}
-	if !gen.pathInIncludeStack("/second") {
-		t.Error("expected true for '/second' in stack")
-	}
-}
-
-// TestPathInIncludeStackNotFound verifies path in include stack not found.
-func TestPathInIncludeStackNotFound(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	gen.includeStack = []string{"/first", "/second"}
-	if gen.pathInIncludeStack("/third") {
-		t.Error("expected false for '/third' not in stack")
-	}
-}
-
-// TestCleanKnownPathAlreadyClean verifies clean known path already clean.
-func TestCleanKnownPathAlreadyClean(t *testing.T) {
-	result := subject.cleanKnownPath("/a/b/c")
-	if len(result) == 0 {
-		t.Error("expected non-empty result")
-	}
-}
-
-// TestCleanKnownPathWithRelative verifies clean known path with relative.
-func TestCleanKnownPathWithRelative(t *testing.T) {
-	result := subject.cleanKnownPath("/a/b/../c")
-	if len(result) == 0 {
-		t.Error("expected non-empty result")
-	}
-}
-
-// TestNewMacroEnvironmentNoParent verifies new macro environment no parent.
-func TestNewMacroEnvironmentNoParent(t *testing.T) {
-	env := subject.newMacroEnvironment(nil)
-	if env == nil {
-		t.Fatal("expected non-nil environment")
-	}
-	if env.parent != nil {
-		t.Error("expected nil parent")
-	}
-	if env.definitions == nil {
-		t.Error("expected non-nil definitions map")
-	}
-	if _, ok := env.lookup("nonexistent"); ok {
-		t.Error("expected false for nonexistent macro")
-	}
-}
-
-// TestNewMacroEnvironmentWithParent verifies new macro environment with parent.
-func TestNewMacroEnvironmentWithParent(t *testing.T) {
-	parent := subject.newMacroEnvironment(nil)
-	child := subject.newMacroEnvironment(parent)
-	if child.parent != parent {
-		t.Error("expected parent to be set")
-	}
-}
-
-// TestStringExpressionBasic verifies string expression basic.
-func TestStringExpressionBasic(t *testing.T) {
-	loc := &subject.SourceLocation{Line: 1, Col: 5}
-	expr := subject.stringExpression("hello", loc)
-	if expr == nil {
-		t.Fatal("expected non-nil expression")
-	}
-	if expr.Literal != nil {
-		combined := ""
-		for _, part := range expr.Literal.Parts {
-			if text, ok := part.(subject.StringText); ok {
-				combined += string(text)
-			}
-		}
-		if combined != "hello" {
-			t.Errorf("expected 'hello', got %q", combined)
+// TestIterationExpansionPreservesIndependentCountersAndPeeks verifies concrete lvalues and non-advancing rvalues for default and labeled iterations.
+func TestIterationExpansionPreservesIndependentCountersAndPeeks(t *testing.T) {
+	expanded := expandSource(`before:=#iteration;#iteration: string="first";
+ before_label:=#iteration("_a");#iteration("_a"):=1;
+ after:=#iteration;again:=#iteration;#iteration:=2;
+ after_label:=#iteration("_a");#iteration("_a"):=3;#iteration("tag"):=4;`)
+	checked := subject.NewTypeChecker(expanded, "").Check()
+	values := subject.NewEvaluator(checked, "").Evaluate()
+	for name, want := range map[string]any{
+		"before": "iteration_0000000000", "iteration_0000000000": "first",
+		"before_label": "iteration_0000000000_a", "iteration_0000000000_a": 1,
+		"after": "iteration_0000000001", "again": "iteration_0000000001", "iteration_0000000001": 2,
+		"after_label": "iteration_0000000001_a", "iteration_0000000001_a": 3, "iteration_0000000000tag": 4,
+	} {
+		if values[name] != want {
+			t.Errorf("%s=%v, want %v", name, values[name], want)
 		}
 	}
 }
 
-// TestExpressionFromRuntimeString verifies expression from runtime string.
-func TestExpressionFromRuntimeString(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	expr := gen.expressionFromRuntime("hello", nil)
-	se, ok := expr.(*subject.StringExpression)
-	if !ok {
-		t.Fatalf("expected *StringExpression, got %T", expr)
+// TestExpansionCopiesDefinitionsAndLocations verifies public expansion copies nested setup and enum declarations without mutating syntax.
+func TestExpansionCopiesDefinitionsAndLocations(t *testing.T) {
+	loc := &subject.SourceLocation{Filepath: "definition.something", Line: 3, Col: 7}
+	setup := &subject.SetupDefinition{Fields: []*subject.FieldDefinition{
+		{Name: "x", DeclaredType: subject.PrimString},
+		{Name: "y", DeclaredType: subject.PrimInteger, DefaultValue: &subject.IntegerExpression{Value: 42, Location: loc}},
+	}}
+	enum := &subject.EnumDefinition{ValueType: subject.PrimString, Members: []*subject.EnumMember{{Name: "ok", Value: &subject.StringExpression{Multiline: "good", Location: loc}}}}
+	plain := &subject.EnumDefinition{Members: []*subject.EnumMember{{Name: "red"}, {Name: "green"}}}
+	program := &subject.Program{Statements: []subject.Statement{
+		&subject.Assignment{StatementBase: subject.StatementBase{Location: loc}, Target: &subject.IdentifierLValue{Name: "Config"}, Value: setup},
+		&subject.Assignment{StatementBase: subject.StatementBase{Location: loc}, Target: &subject.IdentifierLValue{Name: "Status"}, Value: enum},
+		&subject.Assignment{StatementBase: subject.StatementBase{Location: loc}, Target: &subject.IdentifierLValue{Name: "Color"}, Value: plain},
+	}}
+	expanded := subject.NewDirectiveGenerator("").Expand(program)
+	copiedSetup := expanded.Statements[0].(*subject.Assignment).Value.(*subject.SetupDefinition)
+	copiedEnum := expanded.Statements[1].(*subject.Assignment).Value.(*subject.EnumDefinition)
+	copiedPlain := expanded.Statements[2].(*subject.Assignment).Value.(*subject.EnumDefinition)
+	if copiedSetup == setup || copiedSetup.Fields[0] == setup.Fields[0] || copiedEnum == enum || copiedEnum.Members[0] == enum.Members[0] {
+		t.Fatal("expanded declarations alias syntax")
 	}
-	if se.Location != nil {
-		t.Error("expected nil location")
+	if len(copiedSetup.Fields) != 2 || copiedSetup.Fields[0].DefaultValue != nil {
+		t.Fatalf("setup fields=%v", copiedSetup.Fields)
 	}
-}
-
-// TestExpressionFromRuntimeInteger verifies expression from runtime integer.
-func TestExpressionFromRuntimeInteger(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	expr := gen.expressionFromRuntime(42, nil)
-	ie, ok := expr.(*subject.IntegerExpression)
-	if !ok {
-		t.Fatalf("expected *IntegerExpression, got %T", expr)
+	integer := copiedSetup.Fields[1].DefaultValue.(*subject.IntegerExpression)
+	if integer.Value != 42 || integer.Location != loc || copiedEnum.ValueType != subject.PrimString || copiedEnum.Members[0].Name != "ok" {
+		t.Fatal("expanded values or source location changed")
 	}
-	if ie.Value != 42 {
-		t.Errorf("expected 42, got %d", ie.Value)
+	if len(copiedPlain.Members) != 2 || copiedPlain.Members[0].Name != "red" || copiedPlain.Members[1].Name != "green" || copiedPlain.Members[1].Value != nil {
+		t.Fatalf("plain enum=%v", copiedPlain)
 	}
-}
-
-// TestExpressionFromRuntimeFloat verifies expression from runtime float.
-func TestExpressionFromRuntimeFloat(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	expr := gen.expressionFromRuntime(3.14, nil)
-	fe, ok := expr.(*subject.FloatExpression)
-	if !ok {
-		t.Fatalf("expected *FloatExpression, got %T", expr)
-	}
-	if fe.Value != 3.14 {
-		t.Errorf("expected 3.14, got %f", fe.Value)
-	}
-}
-
-// TestExpressionFromRuntimeBool verifies expression from runtime bool.
-func TestExpressionFromRuntimeBool(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	expr := gen.expressionFromRuntime(true, nil)
-	be, ok := expr.(*subject.BooleanExpression)
-	if !ok {
-		t.Fatalf("expected *BooleanExpression, got %T", expr)
-	}
-	if be.Value != true {
-		t.Errorf("expected true, got %v", be.Value)
+	setup.Fields[0].Name = "changed"
+	enum.Members[0].Name = "changed"
+	if copiedSetup.Fields[0].Name != "x" || copiedEnum.Members[0].Name != "ok" {
+		t.Fatal("syntax mutation changed expansion")
 	}
 }
 
-// TestExpressionFromRuntimeArray verifies expression from runtime array.
-func TestExpressionFromRuntimeArray(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	expr := gen.expressionFromRuntime([]any{"a", 1}, nil)
-	ae, ok := expr.(*subject.ArrayExpression)
-	if !ok {
-		t.Fatalf("expected *ArrayExpression, got %T", expr)
+// TestExpansionPreservesReferenceAccesses verifies field and index access nodes and locations survive the public phase.
+func TestExpansionPreservesReferenceAccesses(t *testing.T) {
+	expanded := expandSource(`s:scope={items:=[]string{"a","b"};}value:=s.items[0];`)
+	assignment := expanded.Statements[1].(*subject.Assignment)
+	ref := assignment.Value.(*subject.ReferenceExpression)
+	if ref.Root != "s" || len(ref.Accesses) != 2 {
+		t.Fatalf("reference=%+v", ref)
 	}
-	if len(ae.Elements) != 2 {
-		t.Fatalf("expected 2 elements, got %d", len(ae.Elements))
-	}
-}
-
-// TestConstantStackPushPopLookup verifies constant stack push pop lookup.
-func TestConstantStackPushPopLookup(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	// Empty stack lookup
-	if _, ok := gen.lookupConstant("x"); ok {
-		t.Error("expected false for empty stack")
-	}
-	// Push and lookup
-	gen.pushConstants(map[string]any{"x": 1, "y": "two"})
-	val, ok := gen.lookupConstant("x")
-	if !ok {
-		t.Fatal("expected true for 'x'")
-	}
-	if val != 1 {
-		t.Errorf("expected 1, got %v", val)
-	}
-	val2, ok := gen.lookupConstant("y")
-	if !ok {
-		t.Fatal("expected true for 'y'")
-	}
-	if val2 != "two" {
-		t.Errorf("expected 'two', got %v", val2)
-	}
-	// Push another layer, shadows
-	gen.pushConstants(map[string]any{"x": 999})
-	val3, _ := gen.lookupConstant("x")
-	if val3 != 999 {
-		t.Errorf("expected 999 (shadowed), got %v", val3)
-	}
-	// Pop, original restored
-	gen.popConstants()
-	val4, _ := gen.lookupConstant("x")
-	if val4 != 1 {
-		t.Errorf("expected 1 (restored), got %v", val4)
-	}
-	// Pop again, stack empty
-	gen.popConstants()
-	if _, ok := gen.lookupConstant("x"); ok {
-		t.Error("expected false after final pop")
+	field := ref.Accesses[0].(*subject.FieldAccess)
+	index := ref.Accesses[1].(*subject.IndexAccess)
+	if field.Name != "items" || index.Index.(*subject.IntegerExpression).Value != 0 || field.Location == nil || index.Location == nil {
+		t.Fatalf("accesses=%+v", ref.Accesses)
 	}
 }
 
-// TestExpandSetupDefinitionWithoutDefaults verifies expand setup definition without defaults.
-func TestExpandSetupDefinitionWithoutDefaults(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	source := &subject.SetupDefinition{
-		Fields: []*subject.FieldDefinition{
-			{Name: "x", DeclaredType: subject.PrimString},
-		},
+// TestLoopConstantsAndMacroEnvironmentsRespectLexicalScope verifies parent lookup, shadowing, stack restoration, and materialized values.
+func TestLoopConstantsAndMacroEnvironmentsRespectLexicalScope(t *testing.T) {
+	values := testhelpers.EvalText(t, `
+#macro value := () -> string { #set "root"; }
+outside:=value!();
+child:scope={
+ #macro value := () -> string { #set "child"; }
+ inner:=value!();
+}
+after:=value!();
+#for item: []integer{1,2} {
+ #for nested: []string{"two"} { #iteration("_inner") := nested; }
+ #iteration("_outer") := item;
+}
+#for value: []float{3.14} { #iteration("_float") := value; }
+#for value: []boolean{true} { #iteration("_bool") := value; }
+`)
+	if values["outside"] != "root" || values["after"] != "root" || values["child"].(map[string]any)["inner"] != "child" {
+		t.Fatalf("macro scope=%v", values)
 	}
-	result := gen.expandSetupDefinition(source)
-	if len(result.Fields) != 1 {
-		t.Fatalf("expected 1 field, got %d", len(result.Fields))
+	for name, want := range map[string]any{"iteration_0000000000_outer": 1, "iteration_0000000001_outer": 2, "iteration_0000000000_inner": "two", "iteration_0000000001_inner": "two", "iteration_0000000000_float": 3.14, "iteration_0000000000_bool": true} {
+		if !reflect.DeepEqual(values[name], want) {
+			t.Errorf("%s=%v, want %v", name, values[name], want)
+		}
 	}
-	if result.Fields[0].Name != "x" {
-		t.Errorf("expected 'x', got %q", result.Fields[0].Name)
+	if _, exists := values["item"]; exists {
+		t.Fatal("loop constant escaped")
 	}
-	if result.Fields[0].DefaultValue != nil {
-		t.Error("expected nil DefaultValue")
-	}
-	// Original should be unmodified (copy semantics)
-	if source.Fields[0].DefaultValue != nil {
-		t.Error("original should remain unmodified")
-	}
+	testhelpers.AssertPanic(t, func() { expandSource(`value:=nonexistent!();`) }, "Undefined macro")
 }
 
-// TestExpandSetupDefinitionWithDefaults verifies expand setup definition with defaults.
-func TestExpandSetupDefinitionWithDefaults(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	source := &subject.SetupDefinition{
-		Fields: []*subject.FieldDefinition{
-			{
-				Name:         "y",
-				DeclaredType: subject.PrimInteger,
-				DefaultValue: &subject.IntegerExpression{Value: 42},
-			},
-		},
-	}
-	result := gen.expandSetupDefinition(source)
-	if result.Fields[0].DefaultValue == nil {
-		t.Fatal("expected non-nil DefaultValue")
-	}
-	ie, ok := result.Fields[0].DefaultValue.(*subject.IntegerExpression)
-	if !ok {
-		t.Fatalf("expected *IntegerExpression, got %T", result.Fields[0].DefaultValue)
-	}
-	if ie.Value != 42 {
-		t.Errorf("expected 42, got %d", ie.Value)
-	}
-}
-
-// TestExpandEnumDefinitionWithoutTaggedValues verifies expand enum definition without tagged values.
-func TestExpandEnumDefinitionWithoutTaggedValues(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	source := &subject.EnumDefinition{
-		Members: []*subject.EnumMember{
-			{Name: "red"},
-			{Name: "green"},
-		},
-	}
-	result := gen.expandEnumDefinition(source)
-	if len(result.Members) != 2 {
-		t.Fatalf("expected 2 members, got %d", len(result.Members))
-	}
-	if result.Members[0].Name != "red" {
-		t.Errorf("expected 'red', got %q", result.Members[0].Name)
-	}
-	if result.Members[1].Value != nil {
-		t.Error("expected nil Value for second member")
-	}
-}
-
-// TestExpandEnumDefinitionWithTaggedValues verifies expand enum definition with tagged values.
-func TestExpandEnumDefinitionWithTaggedValues(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	source := &subject.EnumDefinition{
-		ValueType: subject.PrimString,
-		Members: []*subject.EnumMember{
-			{Name: "ok", Value: &subject.StringExpression{Multiline: "good"}},
-		},
-	}
-	result := gen.expandEnumDefinition(source)
-	if result.ValueType != subject.PrimString {
-		t.Errorf("expected PrimString value type, got %T", result.ValueType)
-	}
-	if result.Members[0].Value == nil {
-		t.Fatal("expected non-nil Value for tagged member")
-	}
-}
-
-// TestExpandAccessesFieldAccess verifies expand accesses field access.
-func TestExpandAccessesFieldAccess(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	accesses := []subject.Access{&subject.FieldAccess{Name: "x"}}
-	result := gen.expandAccesses(accesses)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 access, got %d", len(result))
-	}
-	fa, ok := result[0].(*subject.FieldAccess)
-	if !ok {
-		t.Fatalf("expected *FieldAccess, got %T", result[0])
-	}
-	if fa.Name != "x" {
-		t.Errorf("expected 'x', got %q", fa.Name)
-	}
-}
-
-// TestExpandAccessesIndexAccess verifies expand accesses index access.
-func TestExpandAccessesIndexAccess(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	accesses := []subject.Access{&subject.IndexAccess{Index: &subject.IntegerExpression{Value: 0}}}
-	result := gen.expandAccesses(accesses)
-	if len(result) != 1 {
-		t.Fatalf("expected 1 access, got %d", len(result))
-	}
-	ia, ok := result[0].(*subject.IndexAccess)
-	if !ok {
-		t.Fatalf("expected *IndexAccess, got %T", result[0])
-	}
-	ie, ok := ia.Index.(*subject.IntegerExpression)
-	if !ok {
-		t.Fatalf("expected *IntegerExpression index, got %T", ia.Index)
-	}
-	if ie.Value != 0 {
-		t.Errorf("expected 0, got %d", ie.Value)
-	}
-}
-
-// TestRuntimeValueAssignableString verifies runtime value assignable string.
-func TestRuntimeValueAssignableString(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	if !gen.runtimeValueAssignable(subject.PrimString, "hello") {
-		t.Error("expected assignable: string -> PrimString")
-	}
-	if gen.runtimeValueAssignable(subject.PrimString, 42) {
-		t.Error("expected not assignable: int -> PrimString")
-	}
-	if gen.runtimeValueAssignable(subject.PrimString, true) {
-		t.Error("expected not assignable: bool -> PrimString")
-	}
-}
-
-// TestRuntimeValueAssignableInteger verifies runtime value assignable integer.
-func TestRuntimeValueAssignableInteger(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	if !gen.runtimeValueAssignable(subject.PrimInteger, 42) {
-		t.Error("expected assignable: int -> PrimInteger")
-	}
-	if gen.runtimeValueAssignable(subject.PrimInteger, "hello") {
-		t.Error("expected not assignable: string -> PrimInteger")
-	}
-}
-
-// TestRuntimeValueAssignableBoolean verifies runtime value assignable boolean.
-func TestRuntimeValueAssignableBoolean(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	if !gen.runtimeValueAssignable(subject.PrimBoolean, true) {
-		t.Error("expected assignable: bool -> PrimBoolean")
-	}
-	if gen.runtimeValueAssignable(subject.PrimBoolean, 42) {
-		t.Error("expected not assignable: int -> PrimBoolean")
-	}
-}
-
-// TestRuntimeValueAssignableFloat verifies runtime value assignable float.
-func TestRuntimeValueAssignableFloat(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	if !gen.runtimeValueAssignable(subject.PrimFloat, 3.14) {
-		t.Error("expected assignable: float64 -> PrimFloat")
-	}
-	if !gen.runtimeValueAssignable(subject.PrimFloat, 42) {
-		t.Error("expected assignable: int -> PrimFloat (int promotes to float)")
-	}
-	if gen.runtimeValueAssignable(subject.PrimFloat, "hello") {
-		t.Error("expected not assignable: string -> PrimFloat")
-	}
-}
-
-// TestExpandLValueIdentifier verifies expand l value identifier.
-func TestExpandLValueIdentifier(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	loc := &subject.SourceLocation{Line: 1, Col: 1}
-	result := gen.expandLValue(&subject.IdentifierLValue{Name: "x"}, loc)
-	ilv, ok := result.(*subject.IdentifierLValue)
-	if !ok {
-		t.Fatalf("expected *IdentifierLValue, got %T", result)
-	}
-	if ilv.Name != "x" {
-		t.Errorf("expected 'x', got %q", ilv.Name)
-	}
-}
-
-// TestExpandLValueIteration verifies expand l value iteration.
-func TestExpandLValueIteration(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	loc := &subject.SourceLocation{Line: 1, Col: 1}
-	result := gen.expandLValue(&subject.IterationLValue{}, loc)
-	ilv, ok := result.(*subject.IdentifierLValue)
-	if !ok {
-		t.Fatalf("expected *IdentifierLValue, got %T", result)
-	}
-	if ilv.Name != "iteration_0000000000" {
-		t.Errorf("expected 'iteration_0000000000', got %q", ilv.Name)
-	}
-}
-
-// TestExpandLValueIterationWithLabel verifies expand l value iteration with label.
-func TestExpandLValueIterationWithLabel(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	loc := &subject.SourceLocation{Line: 1, Col: 1}
-	result := gen.expandLValue(&subject.IterationLValue{Label: &subject.StringExpression{Multiline: "tag"}}, loc)
-	ilv, ok := result.(*subject.IdentifierLValue)
-	if !ok {
-		t.Fatalf("expected *IdentifierLValue, got %T", result)
-	}
-	expected := "iteration_0000000000tag"
-	if ilv.Name != expected {
-		t.Errorf("expected %q, got %q", expected, ilv.Name)
-	}
-}
-
-// TestDirectiveGeneratorErrPanic verifies directive generator err panic.
-func TestDirectiveGeneratorErrPanic(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("test.something")
-	testhelpers.AssertPanic(t, func() {
-		gen.err("boom", nil, "try harder")
-	}, "boom")
-}
-
-// TestMacroEnvironmentLookupWithParent verifies macro environment lookup with parent.
-func TestMacroEnvironmentLookupWithParent(t *testing.T) {
-	root := subject.newMacroEnvironment(nil)
-	macro := &subject.MacroDirective{Name: "my_macro"}
-	root.definitions["my_macro"] = macro
-	child := subject.newMacroEnvironment(root)
-	// Lookup from child should find parent's macro
-	found, ok := child.lookup("my_macro")
-	if !ok {
-		t.Fatal("expected to find macro in parent")
-	}
-	if found != macro {
-		t.Error("expected the same macro pointer")
-	}
-	// Child can shadow
-	shadow := &subject.MacroDirective{Name: "my_macro"}
-	child.definitions["my_macro"] = shadow
-	found2, _ := child.lookup("my_macro")
-	if found2 != shadow {
-		t.Error("expected shadowed macro from child")
-	}
-}
-
-// TestIncludeCycleError verifies include cycle error.
-func TestIncludeCycleError(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	// includeStack must contain the path for includeCycleError to work
-	gen.includeStack = []string{"/cycle/path"}
-	testhelpers.AssertPanic(t, func() {
-		gen.includeCycleError("/cycle/path", nil)
-	}, "Circular include dependency")
-}
-
-// TestExpandAccessesEmpty verifies expand accesses empty.
-func TestExpandAccessesEmpty(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	result := gen.expandAccesses(nil)
-	if len(result) != 0 {
-		t.Errorf("expected empty result, got %d", len(result))
-	}
-}
-
-// TestRuntimeValueAssignableNilType verifies runtime value assignable nil type.
-func TestRuntimeValueAssignableNilType(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	// Nil expected type returns false
-	if gen.runtimeValueAssignable(nil, "hello") {
-		t.Error("expected false for nil expected type")
-	}
-}
-
-// TestExpandAccessesPreservesLocation verifies expand accesses preserves location.
-func TestExpandAccessesPreservesLocation(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	loc := &subject.SourceLocation{Line: 5, Col: 10}
-	accesses := []subject.Access{&subject.FieldAccess{Name: "z", Location: loc}}
-	result := gen.expandAccesses(accesses)
-	fa, ok := result[0].(*subject.FieldAccess)
-	if !ok {
-		t.Fatalf("expected *FieldAccess, got %T", result[0])
-	}
-	if fa.Location != loc {
-		t.Error("expected location to be preserved")
-	}
-}
-
-// TestExpandEnumDefinitionCopySemantics verifies enum expansion does not share member pointers with its input.
-func TestExpandEnumDefinitionCopySemantics(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	origMember := &subject.EnumMember{Name: "original"}
-	source := &subject.EnumDefinition{
-		Members: []*subject.EnumMember{origMember},
-	}
-	result := gen.expandEnumDefinition(source)
-	// Modify original slice element pointer — should not affect result
-	source.Members[0].Name = "modified"
-	if result.Members[0].Name == "modified" {
-		t.Error("expected deep copy, but modification to source affected result")
-	}
-	// Verify member is a different pointer
-	if result.Members[0] == origMember {
-		t.Error("expected different pointer for copied member")
-	}
-}
-
-// TestExpandSetupDefinitionCopySemantics verifies setup expansion copies field definitions.
-func TestExpandSetupDefinitionCopySemantics(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	origField := &subject.FieldDefinition{Name: "original"}
-	source := &subject.SetupDefinition{
-		Fields: []*subject.FieldDefinition{origField},
-	}
-	result := gen.expandSetupDefinition(source)
-	source.Fields[0].Name = "modified"
-	if result.Fields[0].Name == "modified" {
-		t.Error("expected deep copy, but modification to source affected result")
-	}
-}
-
-// TestPrimitiveKindIdentity verifies primitive kinds compare by value.
-func TestPrimitiveKindIdentity(t *testing.T) {
-	if subject.PrimString != subject.PrimString {
-		t.Error("PrimString should equal itself")
-	}
-	if subject.PrimString == subject.PrimInteger {
-		t.Error("PrimString should not equal PrimInteger")
-	}
-}
-
-// TestPrimitiveKindTypeAssertion verifies primitive kinds retain their concrete TypeRef identity.
-func TestPrimitiveKindTypeAssertion(t *testing.T) {
-	var kind subject.TypeRef = subject.PrimString
-	_, ok := kind.(subject.PrimitiveKind)
-	if !ok {
-		t.Error("expected PrimString to be a PrimitiveKind")
-	}
-	_, ok = kind.(*subject.EnumType)
-	if ok {
-		t.Error("expected PrimString NOT to be *EnumType")
-	}
-}
-
-// TestLookupConstantReturnsFalseOnEmptyStack verifies lookup constant returns false on empty stack.
-func TestLookupConstantReturnsFalseOnEmptyStack(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	constantValues := gen.constantValues
-	if constantValues == nil {
-		// initial nil is fine; lookup should handle it
-	}
-	_, ok := gen.lookupConstant("anything")
-	if ok {
-		t.Error("expected false when constantValues is nil/empty")
-	}
-}
-
-// TestLookupConstantScansTopToBottom verifies lookup constant scans top to bottom.
-func TestLookupConstantScansTopToBottom(t *testing.T) {
-	gen := subject.NewDirectiveGenerator("")
-	gen.pushConstants(map[string]any{"a": 1})
-	gen.pushConstants(map[string]any{"a": 2, "b": 3})
-	v, ok := gen.lookupConstant("a")
-	if !ok || v != 2 {
-		t.Errorf("expected top-most 'a' = 2, got %v", v)
-	}
-	v, ok = gen.lookupConstant("b")
-	if !ok || v != 3 {
-		t.Errorf("expected 'b' = 3, got %v", v)
-	}
+// TestExpansionReportsLocatedErrors verifies diagnostics retain the generator's source path and position.
+func TestExpansionReportsLocatedErrors(t *testing.T) {
+	defer func() {
+		value := recover()
+		problem, ok := value.(*subject.SomethingError)
+		if !ok || problem.Filepath != "expansion.something" || problem.Line == 0 || problem.Col == 0 || problem.Suggestion == "" {
+			t.Fatalf("diagnostic=%v", value)
+		}
+	}()
+	expandSource(`value:=nonexistent!();`)
+	t.Fatal("undefined macro accepted")
 }

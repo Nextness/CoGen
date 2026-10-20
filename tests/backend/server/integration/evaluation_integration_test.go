@@ -38,15 +38,15 @@ func TestCorpusArticleReviewProjection(t *testing.T) {
 		}
 	}
 	for index, count := range []int{2, 10, 5} {
-		workID, err := fixture.Server.writeDB.Work.CreateWorkByDOI(context.Background(), fmt.Sprintf("10.numeric/%d", index))
+		workID, err := fixture.Server.Metadata.Work.CreateWorkByDOI(context.Background(), fmt.Sprintf("10.numeric/%d", index))
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fixture.Server.writeDB.Conn.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title, source, citation_count) VALUES (?, ?, ?, 'normalize', 'Numeric article', 'numeric', ?)", workID, fixture.RunID, fmt.Sprint(index), count)
+		_, err = fixture.Server.Metadata.Conn.Exec("INSERT INTO work_revisions (work_id, pipeline_run_id, payload_hash, producer_stage, title, source, citation_count) VALUES (?, ?, ?, 'normalize', 'Numeric article', 'numeric', ?)", workID, fixture.RunID, fmt.Sprint(index), count)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = fixture.Server.writeDB.Conn.Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", fixture.RunID, workID)
+		_, err = fixture.Server.Metadata.Conn.Exec("INSERT INTO run_work_stages (pipeline_run_id, work_id, stage_name, outcome) VALUES (?, ?, 'validate', 'valid')", fixture.RunID, workID)
 		if err != nil {
 			t.Fatal(err)
 		}

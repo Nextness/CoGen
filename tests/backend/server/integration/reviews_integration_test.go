@@ -4,7 +4,6 @@ import "analysis/tests/support/go/testfixture"
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
@@ -28,7 +27,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
 	handler := fixture.Server.Handler()
 	var pdfRowsBefore int
-	if err := fixture.Server.pdfDB.QueryRow("SELECT COUNT(*) FROM pdf_documents").Scan(&pdfRowsBefore); err != nil {
+	if err := fixture.Server.PDF.QueryRow("SELECT COUNT(*) FROM pdf_documents").Scan(&pdfRowsBefore); err != nil {
 		t.Fatal(err)
 	}
 
@@ -211,7 +210,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 		t.Fatalf("article audit leaked review content: %s", encodedAudit)
 	}
 	var pdfRowsAfter int
-	if err := fixture.Server.pdfDB.QueryRow("SELECT COUNT(*) FROM pdf_documents").Scan(&pdfRowsAfter); err != nil {
+	if err := fixture.Server.PDF.QueryRow("SELECT COUNT(*) FROM pdf_documents").Scan(&pdfRowsAfter); err != nil {
 		t.Fatal(err)
 	}
 	if pdfRowsAfter != pdfRowsBefore {
@@ -224,7 +223,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
 	handler := fixture.Server.Handler()
 	ctx := context.Background()
-	contextRecord, _, err := fixture.Server.writeDB.Review.CreateContext(ctx, fixture.RunID, nil)
+	contextRecord, _, err := fixture.Server.Metadata.Review.CreateContext(ctx, fixture.RunID, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +231,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	var expectedReviewID *int64
 	for index := 0; index < 101; index++ {
 		reason := fmt.Sprintf("decision-%03d", index)
-		state, changed, err := fixture.Server.writeDB.Review.AppendWorkReview(ctx, contextRecord.ID, fixture.RevisionID, expectedReviewID, "approved", nil, &reason)
+		state, changed, err := fixture.Server.Metadata.Review.AppendWorkReview(ctx, contextRecord.ID, fixture.RevisionID, expectedReviewID, "approved", nil, &reason)
 		if err != nil || !changed || state.Version == nil {
 			t.Fatalf("create review version %d: state=%+v changed=%v err=%v", index, state, changed, err)
 		}
@@ -242,7 +241,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 
 	notes := make([]*review.Note, 0, 101)
 	for index := 0; index < 101; index++ {
-		note, err := fixture.Server.writeDB.Review.CreateNote(ctx, contextRecord.ID, fixture.RevisionID,
+		note, err := fixture.Server.Metadata.Review.CreateNote(ctx, contextRecord.ID, fixture.RevisionID,
 			fmt.Sprintf("# Note %03d\n\nSee [[article:10.1000/viewer-available|article]].", index))
 		if err != nil {
 			t.Fatalf("create note %d: %v", index, err)
@@ -251,7 +250,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	historyNote := notes[0]
 	for index := 1; index < 101; index++ {
-		updated, changed, err := fixture.Server.writeDB.Review.AppendNoteVersion(ctx, contextRecord.ID, historyNote.ID,
+		updated, changed, err := fixture.Server.Metadata.Review.AppendNoteVersion(ctx, contextRecord.ID, historyNote.ID,
 			historyNote.Version.ID, "active", fmt.Sprintf("# History %03d\n\nSee [[article:10.1000/viewer-available|article]].", index))
 		if err != nil || !changed {
 			t.Fatalf("create note version %d: changed=%v err=%v", index, changed, err)
@@ -260,12 +259,12 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 
 	var contentHash string
-	if err := fixture.Server.pdfDB.QueryRow("SELECT content_hash FROM pdf_documents WHERE doi='10.1000/viewer-available'").Scan(&contentHash); err != nil {
+	if err := fixture.Server.PDF.QueryRow("SELECT content_hash FROM pdf_documents WHERE doi='10.1000/viewer-available'").Scan(&contentHash); err != nil {
 		t.Fatal(err)
 	}
 	anchors := make([]*review.Anchor, 0, 101)
 	for index := 0; index < 101; index++ {
-		anchor, err := fixture.Server.writeDB.Review.CreateAnchor(ctx, contextRecord.ID, fixture.RevisionID,
+		anchor, err := fixture.Server.Metadata.Review.CreateAnchor(ctx, contextRecord.ID, fixture.RevisionID,
 			fmt.Sprintf("anchor-%03d", index), contentHash, 1, fmt.Sprintf("Anchor %03d", index), []review.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil {
 			t.Fatalf("create anchor %d: %v", index, err)
@@ -274,7 +273,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 	historyAnchor := anchors[0]
 	for index := 1; index < 101; index++ {
-		updated, changed, err := fixture.Server.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, historyAnchor.ID,
+		updated, changed, err := fixture.Server.Metadata.Review.AppendAnchorVersion(ctx, contextRecord.ID, historyAnchor.ID,
 			historyAnchor.Version.ID, "active", contentHash, 1, fmt.Sprintf("Anchor history %03d", index), []review.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil || !changed {
 			t.Fatalf("create anchor version %d: changed=%v err=%v", index, changed, err)
@@ -283,18 +282,18 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	}
 
 	var planID int64
-	if err := fixture.Server.writeDB.Conn.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.RunID).Scan(&planID); err != nil {
+	if err := fixture.Server.Metadata.Conn.QueryRow("SELECT execution_plan_id FROM pipeline_runs WHERE id=?", fixture.RunID).Scan(&planID); err != nil {
 		t.Fatal(err)
 	}
 	for index := 0; index < 101; index++ {
-		result, err := fixture.Server.writeDB.Conn.Exec(`INSERT INTO pipeline_runs
+		result, err := fixture.Server.Metadata.Conn.Exec(`INSERT INTO pipeline_runs
 			(step, started_at, finished_at, status, execution_plan_id, attempt_number)
 			VALUES ('review', '2020-01-01T00:00:00Z', '2020-01-01T00:01:00Z', 'completed', ?, ?)`, planID, 1000+index)
 		if err != nil {
 			t.Fatal(err)
 		}
 		runID, _ := result.LastInsertId()
-		if _, err := fixture.Server.writeDB.Conn.Exec("INSERT INTO review_contexts (pipeline_run_id, created_at) VALUES (?, '2020-01-01T00:02:00Z')", runID); err != nil {
+		if _, err := fixture.Server.Metadata.Conn.Exec("INSERT INTO review_contexts (pipeline_run_id, created_at) VALUES (?, '2020-01-01T00:02:00Z')", runID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -570,10 +569,11 @@ func TestReviewReadValidation(t *testing.T) {
 
 // TestLoopbackAuthorityRejectsRebindingHost verifies the HTTP server boundary accepts only its exact bound authority.
 func TestLoopbackAuthorityRejectsRebindingHost(t *testing.T) {
-	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
-	handler := subject.enforceLoopbackAuthority("127.0.0.1:8080", next)
-	for host, want := range map[string]int{"127.0.0.1:8080": http.StatusNoContent, "localhost:8080": http.StatusBadRequest, "127.0.0.1:9999": http.StatusBadRequest, "example.test:8080": http.StatusBadRequest} {
-		request := httptest.NewRequest(http.MethodGet, "http://"+host+"/", nil)
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	httpServer := fixture.Server.HTTPServer("127.0.0.1:8080")
+	handler := httpServer.Handler
+	for host, want := range map[string]int{"127.0.0.1:8080": http.StatusOK, "localhost:8080": http.StatusBadRequest, "127.0.0.1:9999": http.StatusBadRequest, "example.test:8080": http.StatusBadRequest} {
+		request := httptest.NewRequest(http.MethodGet, "http://"+host+"/api/health", nil)
 		request.Host = host
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
@@ -602,4 +602,26 @@ func mutationJSON(t *testing.T, handler http.Handler, method, path, body, origin
 		t.Fatalf("decode mutation response: %v\n%s", err, recorder.Body.String())
 	}
 	return recorder.Code, result
+}
+
+// TestReviewUnexpectedStorageFailureIsPrivate preserves the safe error envelope and rollback on an unclassified database failure.
+func TestReviewUnexpectedStorageFailureIsPrivate(t *testing.T) {
+	path, runID, _, _ := testhelpers.ViewerFixture(t)
+	viewer, err := testhelpers.OpenViewer(t, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer viewer.Close()
+	if _, err := viewer.Metadata.Conn.Exec(`CREATE TRIGGER reject_review_probe BEFORE INSERT ON review_contexts BEGIN SELECT RAISE(ABORT, 'synthetic_private_schema_detail'); END`); err != nil {
+		t.Fatal(err)
+	}
+	status, body := mutationJSON(t, viewer.Handler(), http.MethodPost, fmt.Sprintf("/api/runs/%d/review-context", runID), `{"parent_context_id":null}`, "")
+	encoded, _ := json.Marshal(body)
+	if status != http.StatusInternalServerError || body["error"].(map[string]any)["code"] != "internal_error" || strings.Contains(string(encoded), "synthetic_private_schema_detail") {
+		t.Fatalf("status=%d body=%s", status, encoded)
+	}
+	var count int
+	if err := viewer.Metadata.Conn.QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id = ?", runID).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("failed mutation committed contexts=%d err=%v", count, err)
+	}
 }

@@ -4,7 +4,6 @@ package validation
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"strings"
 )
 
@@ -52,27 +51,4 @@ func ValidateFields(a Fields, authorCount int) []string {
 		reasons = append(reasons, "missing references")
 	}
 	return reasons
-}
-
-// sortedReasons returns reasons in deterministic order.
-func sortedReasons(m map[string]int) []string {
-	type kv struct {
-		key string
-		val int
-	}
-	sorted := make([]kv, 0, len(m))
-	for k, v := range m {
-		sorted = append(sorted, kv{k, v})
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].val != sorted[j].val {
-			return sorted[i].val > sorted[j].val
-		}
-		return sorted[i].key < sorted[j].key
-	})
-	out := make([]string, len(sorted))
-	for i, kv := range sorted {
-		out[i] = kv.key
-	}
-	return out
 }

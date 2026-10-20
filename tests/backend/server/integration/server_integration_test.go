@@ -4,11 +4,11 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -31,7 +31,7 @@ func TestOpenRejectsBoundPDFStoreSymlinkEscape(t *testing.T) {
 	if err := os.Symlink(externalPath, storePath); err != nil {
 		t.Skipf("symlinks are unavailable: %v", err)
 	}
-	if _, err := subject.Open(fixture.MetadataPath); err == nil || !strings.Contains(err.Error(), "escapes") {
+	if _, err := testhelpers.OpenViewer(t, fixture.MetadataPath); err == nil || !strings.Contains(err.Error(), "escapes") {
 		t.Fatalf("symlink escape open error = %v", err)
 	}
 }
@@ -39,13 +39,13 @@ func TestOpenRejectsBoundPDFStoreSymlinkEscape(t *testing.T) {
 // TestRunContextReturnsCanonicalAncestryAndLifecycle verifies one run determines every visible parent identifier.
 func TestRunContextReturnsCanonicalAncestryAndLifecycle(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 
-	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/runs/"+subject.stringID(runID)+"/context")
+	response := testhelpers.ViewerRequest(t, viewer.Handler(), "/api/runs/"+fmt.Sprint(runID)+"/context")
 	if response.Code != http.StatusOK {
 		t.Fatalf("run context status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -98,7 +98,7 @@ func TestRunContextReturnsCanonicalAncestryAndLifecycle(t *testing.T) {
 // TestHealthReportsIndependentCapabilities verifies absent PDF storage is not reported as readable.
 func TestHealthReportsIndependentCapabilities(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,20 +124,20 @@ func TestHealthReportsIndependentCapabilities(t *testing.T) {
 // TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase verifies open is read only and does not create missing database.
 func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing.db")
-	if _, err := subject.Open(missing); err == nil {
+	if _, err := testhelpers.OpenViewer(t, missing); err == nil {
 		t.Fatal("Open missing database succeeded")
 	}
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	if _, err := viewer.db.Exec("INSERT INTO searches (search_id) VALUES ('must-not-write')"); err == nil {
+	if _, err := viewer.Read.Exec("INSERT INTO searches (search_id) VALUES ('must-not-write')"); err == nil {
 		t.Fatal("read-only database accepted write")
 	}
 	var count int
-	if err := viewer.db.QueryRow("SELECT COUNT(*) FROM searches").Scan(&count); err != nil {
+	if err := viewer.Read.QueryRow("SELECT COUNT(*) FROM searches").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
@@ -145,42 +145,39 @@ func TestOpenIsReadOnlyAndDoesNotCreateMissingDatabase(t *testing.T) {
 	}
 }
 
-// TestReviewWriteConnectionIsWritableWithExistingPragmas verifies the viewer's review-write connection keeps the existing-only mode and shared pragmas.
-func TestReviewWriteConnectionIsWritableWithExistingPragmas(t *testing.T) {
-	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+// TestReviewWriterPersistsThroughAPI verifies the viewer's actual writer commits review context creation.
+func TestReviewWriterPersistsThroughAPI(t *testing.T) {
+	path, runID, _, _ := testhelpers.ViewerFixture(t)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
-	if _, err := viewer.writeDB.Conn.Exec("CREATE TABLE contract_probe (id INTEGER)"); err != nil {
-		t.Fatalf("review-write connection rejected a schema write: %v", err)
+	handler := viewer.Handler()
+	status, health := testhelpers.RequestJSON(t, handler, "/api/health")
+	if status != http.StatusOK || health["review_writable"] != true {
+		t.Fatalf("health=%v status=%d", health, status)
 	}
-	if _, err := viewer.writeDB.Conn.Exec("DROP TABLE contract_probe"); err != nil {
-		t.Fatal(err)
+	status, body := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/review-context", runID), `{"parent_context_id":null}`, "")
+	if status != http.StatusCreated {
+		t.Fatalf("create context=%v status=%d", body, status)
 	}
-	var foreignKeys, busyTimeout int
-	if err := viewer.writeDB.Conn.QueryRow("PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
-		t.Fatal(err)
-	}
-	if err := viewer.writeDB.Conn.QueryRow("PRAGMA busy_timeout").Scan(&busyTimeout); err != nil {
-		t.Fatal(err)
-	}
-	if foreignKeys != 1 || busyTimeout != 5000 {
-		t.Fatalf("review-write pragmas foreign_keys=%d busy_timeout=%d, want 1 and 5000", foreignKeys, busyTimeout)
+	var count int
+	if err := viewer.Metadata.Conn.QueryRow("SELECT COUNT(*) FROM review_contexts WHERE pipeline_run_id = ?", runID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("committed contexts=%d err=%v", count, err)
 	}
 }
 
 // TestAPIWorkspaceDiscoveryAndSafePagination verifies api workspace discovery and safe pagination.
 func TestAPIWorkspaceDiscoveryAndSafePagination(t *testing.T) {
 	path, runID, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer viewer.Close()
 	handler := viewer.Handler()
-	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + subject.stringID(runID), "/api/audit", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc"} {
+	for _, path := range []string{"/api/health", "/api/searches", "/api/plans?search_revision_id=1", "/api/runs?search_revision_id=1&plan_id=1", "/api/overview?run_id=" + fmt.Sprint(runID), "/api/audit", "/api/tables", "/api/tables/work_revisions?page=1&per_page=20&sort=id&order=asc"} {
 		response := testhelpers.ViewerRequest(t, handler, path)
 		if response.Code != http.StatusOK {
 			t.Errorf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
@@ -220,7 +217,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	}
 
 	t.Run("serves index with content type and sentinels", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -248,7 +245,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("serves a view page with an HTML content type", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -267,7 +264,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("serves every extensionless view path with its owning document", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +283,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("serves the physical view documents through the filesystem fallback", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +299,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("serves module assets with sentinels", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -319,7 +316,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("returns 404 for a missing file", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -332,7 +329,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("cleans raw traversal paths through the mux", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -354,7 +351,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("sanitizes escaped traversal paths", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -367,7 +364,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 	})
 
 	t.Run("returns JSON 503 when assets are not configured", func(t *testing.T) {
-		viewer, err := subject.Open(path)
+		viewer, err := testhelpers.OpenViewer(t, path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -385,7 +382,7 @@ func TestDiskServedFrontendContract(t *testing.T) {
 // TestHandlerServesFilesystemAssets verifies handler serves filesystem assets.
 func TestHandlerServesFilesystemAssets(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,9 +6,13 @@ package workspace_test
 
 import "analysis/tests/support/go/testenv"
 
-import subject "analysis/backend/workspace"
-
 import (
+	"analysis/backend/workspace/enrichment"
+	"analysis/backend/workspace/normalizer"
+	"analysis/backend/workspace/pdfsync"
+	"analysis/backend/workspace/revisions"
+	"analysis/backend/workspace/validator"
+
 	"analysis/backend/article"
 
 	"analysis/backend/database/pdfbinding"
@@ -61,7 +65,7 @@ func TestApplyConfiguredArticleEnrichmentHonorsFillMissingOnly(t *testing.T) {
 				},
 			}}
 
-			if updated, _ := subject.applyConfiguredArticleEnrichment(articles, enrich.SourceConfig{FillMissingOnly: tc.fillMissingOnly}, result); updated != 1 {
+			if updated, _ := enrichment.ApplyArticles(articles, enrich.SourceConfig{FillMissingOnly: tc.fillMissingOnly}, result); updated != 1 {
 				t.Fatalf("updated = %d, want 1", updated)
 			}
 			got := articles["10.1000/example"]
@@ -104,14 +108,14 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		}
 	}
 
-	registered, flushed, err := subject.syncNormalizedPDFInventory(ctx, db, dbPath, registry)
+	registered, flushed, err := pdfsync.Sync(ctx, db.Database, dbPath, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if registered != 2 || flushed != 2 {
 		t.Fatalf("first inventory sync registered=%d flushed=%d, want 2 and 2", registered, flushed)
 	}
-	registered, flushed, err = subject.syncNormalizedPDFInventory(ctx, db, dbPath, registry)
+	registered, flushed, err = pdfsync.Sync(ctx, db.Database, dbPath, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +155,7 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		}},
 	}}
 
-	results := subject.normalizeWorkspaceArticles(articles)
+	results := normalizer.Normalize(articles)
 	if len(results) != 4 {
 		t.Fatalf("normalization results = %d, want 4", len(results))
 	}
@@ -160,10 +164,10 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 		got[result.Field] = result.Outcome
 	}
 	for field, want := range map[string]string{
-		"publisher":   subject.normalizationOutcomeAlreadyCanonical,
-		"journal":     subject.normalizationOutcomeChanged,
-		"author_name": subject.normalizationOutcomeChanged,
-		"affiliation": subject.normalizationOutcomeUnavailable,
+		"publisher":   "already_canonical",
+		"journal":     "changed",
+		"author_name": "changed",
+		"affiliation": "unavailable",
 	} {
 		if got[field] != want {
 			t.Errorf("%s outcome = %q, want %q", field, got[field], want)
@@ -173,8 +177,8 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 	if articles[0].Publisher != "Elsevier" || articles[0].Authors[0].NormalizedName == "" {
 		t.Fatalf("normalized article = %+v", articles[0])
 	}
-	var extension subject.workspaceRevisionExtension
-	if err := json.Unmarshal([]byte(subject.workspaceExtension(articles[0], nil)), &extension); err != nil {
+	var extension revisionExtension
+	if err := json.Unmarshal([]byte(persistedExtension(t, articles[0], nil)), &extension); err != nil {
 		t.Fatal(err)
 	}
 	if extension.NormalizedJournal != "Nature" {
@@ -190,7 +194,7 @@ func TestNormalizeWorkspaceArticlesRecordsExplicitFieldOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := subject.recordNormalizationMetrics(context.Background(), db, runID, 1, results); err != nil {
+	if err := normalizer.RecordMetrics(context.Background(), db.Database, runID, 1, results); err != nil {
 		t.Fatal(err)
 	}
 	for _, check := range []struct {
@@ -245,12 +249,12 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 			Authors: []enrich.EnrichedAuthor{{ORCID: "0000-0002-8765-4321"}},
 		},
 	}}
-	subject.applyConfiguredArticleEnrichment(articleByDOI, enrich.SourceConfig{FillMissingOnly: false}, result)
+	enrichment.ApplyArticles(articleByDOI, enrich.SourceConfig{FillMissingOnly: false}, result)
 	got := articleByDOI["10.1000/example"]
 	if len(got.Authors) != 1 || got.Authors[0].CitationName != "Export Author" {
 		t.Fatalf("authors after malformed enrichment = %+v", got.Authors)
 	}
-	if _, _, err := subject.persistWorkspaceStage(context.Background(), db, runID, []*article.Article{got}, dbwork.ProducerStageEnrich, dbwork.StageNameEnrich, dbwork.OutcomeEnriched, nil); err != nil {
+	if _, _, err := revisions.Persist(context.Background(), db.Database, runID, []*article.Article{got}, dbwork.ProducerStageEnrich, dbwork.StageNameEnrich, dbwork.OutcomeEnriched, nil); err != nil {
 		t.Fatalf("persist enriched work: %v", err)
 	}
 }
@@ -277,7 +281,7 @@ func TestApplyArticleEnrichmentReturnsFieldChanges(t *testing.T) {
 			},
 		},
 	}
-	updated, changes := subject.applyArticleEnrichment(articles, result)
+	updated, changes := applyArticleResults(articles, result)
 	if updated != 1 {
 		t.Fatalf("updated = %d, want 1", updated)
 	}
@@ -302,11 +306,11 @@ func TestApplyArticleEnrichmentReturnsNoChangesWhenNoEnrichment(t *testing.T) {
 	articles := map[string]*article.Article{
 		"10.1000/one": {DOI: "10.1000/one", Title: "title"},
 	}
-	updated, changes := subject.applyArticleEnrichment(articles, nil)
+	updated, changes := applyArticleResults(articles, nil)
 	if updated != 0 || len(changes) != 0 {
 		t.Fatalf("nil result: updated=%d changes=%d, want 0", updated, len(changes))
 	}
-	updated, changes = subject.applyArticleEnrichment(articles, &enrich.GatherResult{Articles: nil})
+	updated, changes = applyArticleResults(articles, &enrich.GatherResult{Articles: nil})
 	if updated != 0 || len(changes) != 0 {
 		t.Fatalf("nil articles: updated=%d changes=%d, want 0", updated, len(changes))
 	}
@@ -322,8 +326,8 @@ func TestApplyAuthorProfileRecordsOnlyObservedFieldChanges(t *testing.T) {
 		CitationName: "Ada Lovelace",
 		Institution:  "Analytical Society",
 	}
-	provenance := map[*article.Author]subject.authorProfileProvenance{author: {DOI: "10.1000/profile", Index: 2}}
-	changed, changes := subject.applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
+	provenance := map[*article.Author]enrichment.AuthorOrigin{author: {DOI: "10.1000/profile", Index: 2}}
+	changed, changes := enrichment.ApplyProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
 	if !changed {
 		t.Fatal("applyAuthorProfile reported no change for an empty author")
 	}
@@ -339,7 +343,7 @@ func TestApplyAuthorProfileRecordsOnlyObservedFieldChanges(t *testing.T) {
 		}
 	}
 
-	changed, changes = subject.applyAuthorProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
+	changed, changes = enrichment.ApplyProfile([]*article.Author{author}, profile, profile.ORCID, provenance)
 	if changed {
 		t.Fatal("applyAuthorProfile changed an already populated author")
 	}
@@ -348,7 +352,7 @@ func TestApplyAuthorProfileRecordsOnlyObservedFieldChanges(t *testing.T) {
 	}
 
 	prepopulated := &article.Author{Orcid: "different", FirstName: "Existing", LastName: "Name", CitationName: "Existing Name", Affiliation: "Existing institution"}
-	changed, changes = subject.applyAuthorProfile([]*article.Author{prepopulated}, profile, profile.ORCID, map[*article.Author]subject.authorProfileProvenance{prepopulated: {DOI: "10.1000/prepopulated", Index: 0}})
+	changed, changes = enrichment.ApplyProfile([]*article.Author{prepopulated}, profile, profile.ORCID, map[*article.Author]enrichment.AuthorOrigin{prepopulated: {DOI: "10.1000/prepopulated", Index: 0}})
 	if changed || len(changes) != 0 {
 		t.Fatalf("prepopulated author produced false changes: changed=%t changes=%+v", changed, changes)
 	}
@@ -366,11 +370,11 @@ func TestEmitFieldEnrichedAuditEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	revisionIDs := map[string]int64{"10.1000/one": 42}
-	changes := []subject.fieldChange{
+	changes := []enrichment.Change{
 		{DOI: "10.1000/one", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 	}
-	if err := subject.emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
+	if err := enrichment.RecordAudit(context.Background(), db.Database, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
 	events, err := db.Audit.ListByRun(context.Background(), runID)
@@ -427,7 +431,7 @@ func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
 	}
 	articles := []*article.Article{{DOI: "10.1000/valid"}, {DOI: "10.1000/discarded"}}
 	reasons := map[string][]string{"10.1000/discarded": {"missing title", "invalid year"}}
-	if err := subject.recordValidationAudit(ctx, db, runID, articles, reasons); err != nil {
+	if err := validator.RecordAudit(ctx, db.Database, runID, articles, reasons); err != nil {
 		t.Fatal(err)
 	}
 	events, err := db.Audit.ListByRun(ctx, runID)
@@ -460,7 +464,7 @@ func TestRecordValidationAuditPreservesStateAndReasons(t *testing.T) {
 	}
 
 	missing := []*article.Article{{DOI: "10.1000/missing"}}
-	if err := subject.recordValidationAudit(ctx, db, runID, missing, nil); err == nil || !strings.Contains(err.Error(), "work missing for validation audit") {
+	if err := validator.RecordAudit(ctx, db.Database, runID, missing, nil); err == nil || !strings.Contains(err.Error(), "work missing for validation audit") {
 		t.Fatalf("missing work error = %v", err)
 	}
 	after, err := db.Audit.ListByRun(ctx, runID)
@@ -483,12 +487,12 @@ func TestRecordFieldEnrichmentMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	changes := []subject.fieldChange{
+	changes := []enrichment.Change{
 		{DOI: "10.1000/one", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/one", Field: "abstract", Provider: "crossref"},
 		{DOI: "10.1000/two", Field: "authors", Provider: "openalex"},
 	}
-	if err := subject.recordFieldEnrichmentMetrics(context.Background(), db, runID, changes); err != nil {
+	if err := enrichment.RecordMetrics(context.Background(), db.Database, runID, changes); err != nil {
 		t.Fatal(err)
 	}
 	checkMetric := func(name, source string, want int) {
@@ -517,11 +521,11 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 		t.Fatal(err)
 	}
 	revisionIDs := map[string]int64{"10.1000/known": 1}
-	changes := []subject.fieldChange{
+	changes := []enrichment.Change{
 		{DOI: "10.1000/known", Field: "title", Provider: "crossref"},
 		{DOI: "10.1000/unknown", Field: "abstract", Provider: "crossref"},
 	}
-	if err := subject.emitFieldEnrichedAuditEvents(context.Background(), db, runID, revisionIDs, changes); err != nil {
+	if err := enrichment.RecordAudit(context.Background(), db.Database, runID, revisionIDs, changes); err != nil {
 		t.Fatal(err)
 	}
 	events, err := db.Audit.ListByRun(context.Background(), runID)
@@ -534,4 +538,50 @@ func TestEmitFieldEnrichedSkipsUnknownDOI(t *testing.T) {
 	if !strings.Contains(events[0].MetadataJSON, `"field":"title"`) {
 		t.Fatalf("event metadata = %q, want title field", events[0].MetadataJSON)
 	}
+}
+
+// applyArticleResults supplies the existing result policy to the public configured enrichment operation.
+func applyArticleResults(articles map[string]*article.Article, result *enrich.GatherResult) (int, []enrichment.Change) {
+	source := enrich.SourceConfig{}
+	if result != nil {
+		source.FillMissingOnly = result.FillMissingOnly
+	}
+	return enrichment.ApplyArticles(articles, source, result)
+}
+
+// revisionExtension decodes the persisted revision evidence contract.
+type revisionExtension struct {
+	NormalizedJournal string            `json:"normalized_journal"`
+	ValidationReasons []string          `json:"validation_reasons"`
+	NormalizedAuthors map[string]string `json:"normalized_authors"`
+}
+
+// persistedExtension reads extension data produced by real immutable revision persistence.
+func persistedExtension(t *testing.T, entry *article.Article, reasons []string) string {
+	t.Helper()
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "extension.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(t.Context(), db.Conn, "extension", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ids, err := revisions.Persist(t.Context(), db.Database, runID, []*article.Article{entry}, dbwork.ProducerStageNormalize, dbwork.StageNameNormalize, dbwork.OutcomeNormalized, map[string][]string{entry.DOI: reasons})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var extension string
+	if err := db.Conn.QueryRow("SELECT extension_data FROM work_revisions WHERE id=?", ids[entry.DOI]).Scan(&extension); err != nil {
+		t.Fatal(err)
+	}
+	return extension
+}
+
+// persistTestSnapshot prepares the revision identity needed by identity-search evidence assertions.
+func persistTestSnapshot(t *testing.T, db *testfixture.Database, runID int64, entry *article.Article, producer, extension string) (int64, int64, error) {
+	t.Helper()
+	works, revisionsByDOI, err := revisions.Persist(t.Context(), db.Database, runID, []*article.Article{entry}, producer, dbwork.StageNameEnrich, dbwork.OutcomeEnriched, nil)
+	return works[entry.DOI], revisionsByDOI[entry.DOI], err
 }

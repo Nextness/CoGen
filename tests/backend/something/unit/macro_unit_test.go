@@ -126,12 +126,6 @@ func TestParseMacroCallWithArgs(t *testing.T) {
 	}
 }
 
-// TestScopeBodyItemMacroMarker verifies scope body item macro marker.
-func TestScopeBodyItemMacroMarker(t *testing.T) {
-	md := &testhelpers.MacroDecl{}
-	md.scopeBodyItemMarker()
-}
-
 // TestKindNameMacroCall verifies kind name macro call.
 func TestKindNameMacroCall(t *testing.T) {
 	result := testhelpers.KindName(testhelpers.KindMacroCall)

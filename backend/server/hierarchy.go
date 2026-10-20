@@ -2,6 +2,8 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
+	"analysis/internal/jsonvalue"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
@@ -27,7 +29,7 @@ type hierarchyCursor struct {
 
 // hierarchy serves independently recoverable summary, search, revision, and run sections.
 func (s *Server) hierarchy(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "section", "q", "visibility", "status", "started_after", "started_before", "search_id", "search_revision_id", "plan_id", "selected_id", "cursor"); err != nil {
+	if err := viewrequest.KnownQuery(r, "section", "q", "visibility", "status", "started_after", "started_before", "search_id", "search_revision_id", "plan_id", "selected_id", "cursor"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -53,7 +55,7 @@ func (s *Server) hierarchy(w http.ResponseWriter, r *http.Request) {
 	case "runs":
 		value, err = s.hierarchyRuns(ctx, r)
 	default:
-		err = badRequest("section must be summary, searches, revisions, plans, attempts, or runs")
+		err = viewrequest.BadRequest("section must be summary, searches, revisions, plans, attempts, or runs")
 	}
 	if err == nil {
 		value.(map[string]any)["version"] = "1"
@@ -120,9 +122,9 @@ func (s *Server) hierarchySearches(ctx context.Context, r *http.Request) (map[st
 			"revision_count":     row.RevisionCount,
 			"plan_count":         row.PlanCount,
 			"run_count":          row.RunCount,
-			"latest_run_id":      nullableIDPointer(row.LatestRunID),
-			"latest_plan_id":     nullableIDPointer(row.LatestPlanID),
-			"latest_revision_id": nullableIDPointer(row.LatestRevisionID),
+			"latest_run_id":      jsonvalue.Optional(row.LatestRunID),
+			"latest_plan_id":     jsonvalue.Optional(row.LatestPlanID),
+			"latest_revision_id": jsonvalue.Optional(row.LatestRevisionID),
 		})
 	}
 	page := hierarchyPage("searches", scope, items, hasMore)
@@ -175,8 +177,8 @@ func (s *Server) hierarchyRevisions(ctx context.Context, r *http.Request) (map[s
 			"created_at":     row.CreatedAt,
 			"plan_count":     row.PlanCount,
 			"run_count":      row.RunCount,
-			"latest_run_id":  nullableIDPointer(row.LatestRunID),
-			"latest_plan_id": nullableIDPointer(row.LatestPlanID),
+			"latest_run_id":  jsonvalue.Optional(row.LatestRunID),
+			"latest_plan_id": jsonvalue.Optional(row.LatestPlanID),
 		})
 	}
 	page := hierarchyPage("revisions", scope, items, hasMore)
@@ -276,10 +278,10 @@ func (s *Server) hierarchyAttempts(ctx context.Context, r *http.Request) (map[st
 	for _, row := range rows {
 		items = append(items, map[string]any{
 			"id":                row.ID,
-			"execution_plan_id": nullableIDPointer(row.ExecutionPlanID),
-			"attempt_number":    nullableIDPointer(row.AttemptNumber),
+			"execution_plan_id": jsonvalue.Optional(row.ExecutionPlanID),
+			"attempt_number":    jsonvalue.Optional(row.AttemptNumber),
 			"started_at":        row.StartedAt,
-			"finished_at":       nullableText(row.FinishedAt),
+			"finished_at":       jsonvalue.Optional(row.FinishedAt),
 			"status":            row.Status,
 			"visibility_state":  row.VisibilityState,
 		})
@@ -309,11 +311,11 @@ func (s *Server) hierarchyRuns(ctx context.Context, r *http.Request) (map[string
 		visibility = "active"
 	}
 	if visibility != "active" && visibility != "trashed" && visibility != "all" {
-		return nil, badRequest("visibility must be active, trashed, or all")
+		return nil, viewrequest.BadRequest("visibility must be active, trashed, or all")
 	}
 	status := r.URL.Query().Get("status")
 	if status != "" && status != "all" && status != "running" && status != "completed" && status != "failed" {
-		return nil, badRequest("status must be running, completed, failed, or all")
+		return nil, viewrequest.BadRequest("status must be running, completed, failed, or all")
 	}
 	startedAfter, err := hierarchyDate(r.URL.Query().Get("started_after"), "started_after")
 	if err != nil {
@@ -344,16 +346,16 @@ func (s *Server) hierarchyRuns(ctx context.Context, r *http.Request) (map[string
 	for _, row := range rows {
 		items = append(items, map[string]any{
 			"id":                 row.ID,
-			"attempt_number":     nullableIDPointer(row.AttemptNumber),
+			"attempt_number":     jsonvalue.Optional(row.AttemptNumber),
 			"started_at":         row.StartedAt,
-			"finished_at":        nullableText(row.FinishedAt),
+			"finished_at":        jsonvalue.Optional(row.FinishedAt),
 			"status":             row.Status,
 			"visibility_state":   row.VisibilityState,
-			"search_id":          nullableIDPointer(row.SearchID),
+			"search_id":          jsonvalue.Optional(row.SearchID),
 			"search_name":        row.SearchName,
-			"search_revision_id": nullableIDPointer(row.SearchRevisionID),
+			"search_revision_id": jsonvalue.Optional(row.SearchRevisionID),
 			"revision_label":     row.RevisionLabel,
-			"execution_plan_id":  nullableIDPointer(row.ExecutionPlanID),
+			"execution_plan_id":  jsonvalue.Optional(row.ExecutionPlanID),
 		})
 	}
 	return hierarchyPage("runs", scope, items, hasMore), nil
@@ -384,7 +386,7 @@ func hierarchyDate(raw, name string) (string, error) {
 	}
 	parsed, err := time.Parse("2006-01-02", raw)
 	if err != nil {
-		return "", badRequest(name + " must use YYYY-MM-DD")
+		return "", viewrequest.BadRequest(name + " must use YYYY-MM-DD")
 	}
 	if name == "started_before" {
 		parsed = parsed.AddDate(0, 0, 1)
@@ -398,16 +400,16 @@ func optionalHierarchyID(r *http.Request, name string) (int64, error) {
 	if raw == "" {
 		return 0, nil
 	}
-	return positiveID(raw)
+	return viewrequest.PositiveID(raw)
 }
 
 // hierarchyRequiredID parses one required parent identifier after the handler-level allowlist check.
 func hierarchyRequiredID(r *http.Request, name string) (int64, error) {
 	raw := r.URL.Query().Get(name)
 	if raw == "" {
-		return 0, badRequest(name + " is required")
+		return 0, viewrequest.BadRequest(name + " is required")
 	}
-	return positiveID(raw)
+	return viewrequest.PositiveID(raw)
 }
 
 // hierarchyScope hashes the section filters so a cursor cannot cross result sets.
@@ -423,27 +425,11 @@ func decodeHierarchyCursor(raw, kind, scope string) (hierarchyCursor, error) {
 	}
 	encoded, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return hierarchyCursor{}, badRequest("cursor is invalid for this hierarchy query")
+		return hierarchyCursor{}, viewrequest.BadRequest("cursor is invalid for this hierarchy query")
 	}
 	var cursor hierarchyCursor
 	if err := json.Unmarshal(encoded, &cursor); err != nil || cursor.Kind != kind || cursor.Scope != scope || cursor.ID < 1 {
-		return hierarchyCursor{}, badRequest("cursor is invalid for this hierarchy query")
+		return hierarchyCursor{}, viewrequest.BadRequest("cursor is invalid for this hierarchy query")
 	}
 	return cursor, nil
-}
-
-// nullableIDPointer converts an optional family identifier to the invariant JSON null-or-number shape.
-func nullableIDPointer(value *int64) any {
-	if value == nil {
-		return nil
-	}
-	return *value
-}
-
-// nullableText converts an optional family text value to the invariant JSON null-or-string shape.
-func nullableText(value *string) any {
-	if value == nil {
-		return nil
-	}
-	return *value
 }

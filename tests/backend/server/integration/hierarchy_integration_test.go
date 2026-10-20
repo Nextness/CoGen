@@ -3,22 +3,20 @@
 
 package server_test
 
-import subject "analysis/backend/server"
 import testhelpers "analysis/tests/support/go/backend/server"
 
 import (
+	"analysis/tests/support/go/testfixture"
 	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
-
-	"analysis/backend/database"
 )
 
 // TestHierarchyProvidesBoundedIndependentHomeSections verifies paging, filters, ancestry, and cursor ownership at workspace scale.
 func TestHierarchyProvidesBoundedIndependentHomeSections(t *testing.T) {
 	path, _, _, _ := testhelpers.ViewerFixture(t)
-	db, err := database.OpenExisting(path)
+	db, err := testfixture.ConnectExisting(path, "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +44,7 @@ func TestHierarchyProvidesBoundedIndependentHomeSections(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	viewer, err := subject.Open(path)
+	viewer, err := testhelpers.OpenViewer(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +65,7 @@ func TestHierarchyProvidesBoundedIndependentHomeSections(t *testing.T) {
 		t.Fatalf("first search page status=%d body=%v", status, first)
 	}
 	firstItems := first["items"].([]any)
-	if len(firstItems) != subject.hierarchyPageLimit || first["has_more"] != true {
+	if len(firstItems) != 20 || first["has_more"] != true {
 		t.Fatalf("first search page was not bounded: %v", first)
 	}
 	cursor := first["next_cursor"].(string)
@@ -134,8 +132,8 @@ func TestHierarchyProvidesBoundedIndependentHomeSections(t *testing.T) {
 		if status != http.StatusOK || legacy["deprecated"] != true || legacy["has_more"] != true {
 			t.Fatalf("legacy discovery %s was not explicitly deprecated and bounded: status=%d body=%v", request.path, status, legacy)
 		}
-		if len(legacy[request.collection].([]any)) != subject.legacyDiscoveryLimit {
-			t.Fatalf("legacy discovery %s returned %d rows, want %d", request.path, len(legacy[request.collection].([]any)), subject.legacyDiscoveryLimit)
+		if len(legacy[request.collection].([]any)) != 100 {
+			t.Fatalf("legacy discovery %s returned %d rows, want %d", request.path, len(legacy[request.collection].([]any)), 100)
 		}
 	}
 }

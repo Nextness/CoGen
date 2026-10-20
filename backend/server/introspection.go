@@ -7,6 +7,7 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -181,7 +182,6 @@ func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]
 	return columns, nil
 }
 
-var permittedPageSizes = map[int]bool{20: true, 50: true, 100: true, 200: true, 500: true}
 var permittedAdvancedPageSizes = map[int]bool{20: true, 50: true, 100: true}
 
 const (
@@ -205,7 +205,7 @@ type tableSummary struct {
 
 // tablesHandler returns metadata for every discovered browsable table.
 func (s *Server) tablesHandler(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r); err != nil {
+	if err := viewrequest.KnownQuery(r); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -219,19 +219,19 @@ func (s *Server) tablesHandler(w http.ResponseWriter, r *http.Request) {
 
 // tableRows returns a bounded page from one validated browsable table.
 func (s *Server) tableRows(w http.ResponseWriter, r *http.Request) {
-	if err := validateKnownQuery(r, "page", "per_page", "sort", "order"); err != nil {
+	if err := viewrequest.KnownQuery(r, "page", "per_page", "sort", "order"); err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
 	table := r.PathValue("table")
 	info, ok := s.tables[table]
 	if !ok {
-		s.respond(w, r, nil, notFound("table not found"))
+		s.respond(w, r, nil, viewrequest.NotFound("table not found"))
 		return
 	}
 	projection := safeTableProjection(info)
 	if len(projection.Columns) == 0 {
-		s.respond(w, r, nil, badRequest("selected table has no safely browsable columns"))
+		s.respond(w, r, nil, viewrequest.BadRequest("selected table has no safely browsable columns"))
 		return
 	}
 	projectedInfo := tableInfo{Name: info.Name, Columns: projection.Columns}
@@ -438,14 +438,14 @@ func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, er
 	if raw := r.URL.Query().Get("page"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || value < 1 {
-			return 0, 0, "", "", badRequest("page must be a positive integer")
+			return 0, 0, "", "", viewrequest.BadRequest("page must be a positive integer")
 		}
 		page = value
 	}
 	if raw := r.URL.Query().Get("per_page"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || !permittedAdvancedPageSizes[value] {
-			return 0, 0, "", "", badRequest("per_page must be one of 20, 50, 100")
+			return 0, 0, "", "", viewrequest.BadRequest("per_page must be one of 20, 50, 100")
 		}
 		perPage = value
 	}
@@ -458,12 +458,12 @@ func tableRequest(r *http.Request, info tableInfo) (int, int, string, string, er
 		order = "ASC"
 	}
 	if order != "ASC" && order != "DESC" {
-		return 0, 0, "", "", badRequest("order must be asc or desc")
+		return 0, 0, "", "", viewrequest.BadRequest("order must be asc or desc")
 	}
 	for _, column := range info.Columns {
 		if column.Name == sort {
 			return page, perPage, column.Name, order, nil
 		}
 	}
-	return 0, 0, "", "", badRequest("sort must be a column in the selected table")
+	return 0, 0, "", "", viewrequest.BadRequest("sort must be a column in the selected table")
 }

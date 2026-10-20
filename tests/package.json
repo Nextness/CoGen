@@ -6,7 +6,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:unit": "node --import ./support/node/tsx-loader.ts --test \"frontend/**/unit/*.test.ts\"",
     "test:functional": "node --import ./support/node/tsx-loader.ts --test \"frontend/**/functional/*.test.ts\"",
-    "test": "playwright test --config playwright.config.ts"
+    "test": "playwright test --config playwright.config.ts",
+    "test:tooling": "node --import ./support/node/tsx-loader.ts --test \"tooling/node/**/unit/*.test.ts\" \"tooling/node/**/integration/*.test.ts\""
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

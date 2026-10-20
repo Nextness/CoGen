@@ -4,6 +4,7 @@
 package server
 
 import (
+	viewrequest "analysis/backend/server/request"
 	"context"
 	"encoding/json"
 	"errors"
@@ -39,12 +40,12 @@ var evaluationReviewQualifiers = map[string]bool{
 // runEvaluation lists the selected run's normalized articles and overlays
 // their state from the independently bound PDF inventory.
 func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
-	runID, err := positiveID(r.PathValue("id"))
+	runID, err := viewrequest.PositiveID(r.PathValue("id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	page, perPage, sortField, order, query, err := scopedRowsRequest(r, evaluationSortFields, "title",
+	page, perPage, sortField, order, query, err := viewrequest.Rows(r, evaluationSortFields, "title",
 		"pdf_status", "review_status", "review_source", "qualifier", "source", "reviewed", "current_revision_id")
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -89,26 +90,26 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	source := strings.TrimSpace(r.URL.Query().Get("source"))
 	reviewStatus := r.URL.Query().Get("review_status")
 	if reviewStatus != "" && !evaluationReviewStatuses[reviewStatus] {
-		s.respond(w, r, nil, badRequest("review_status is invalid"))
+		s.respond(w, r, nil, viewrequest.BadRequest("review_status is invalid"))
 		return
 	}
 	qualifier := r.URL.Query().Get("qualifier")
 	if qualifier != "" && !evaluationReviewQualifiers[qualifier] {
-		s.respond(w, r, nil, badRequest("qualifier is invalid"))
+		s.respond(w, r, nil, viewrequest.BadRequest("qualifier is invalid"))
 		return
 	}
 	reviewSource := r.URL.Query().Get("review_source")
 	switch reviewSource {
 	case "", "this_context", "inherited", "not_started":
 	default:
-		s.respond(w, r, nil, badRequest("review_source is invalid"))
+		s.respond(w, r, nil, viewrequest.BadRequest("review_source is invalid"))
 		return
 	}
 	reviewed := r.URL.Query().Get("reviewed")
 	switch reviewed {
 	case "", "reviewed", "unreviewed":
 	default:
-		s.respond(w, r, nil, badRequest("reviewed is invalid"))
+		s.respond(w, r, nil, viewrequest.BadRequest("reviewed is invalid"))
 		return
 	}
 	availableDOIs, err := s.availablePDFDOIs(ctx)
@@ -123,14 +124,14 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	}
 	pdfStatus := r.URL.Query().Get("pdf_status")
 	if pdfStatus != "" && pdfStatus != "available" && pdfStatus != "not_available" {
-		s.respond(w, r, nil, badRequest("pdf_status is invalid"))
+		s.respond(w, r, nil, viewrequest.BadRequest("pdf_status is invalid"))
 		return
 	}
 	var currentRevisionID int64
 	if raw := r.URL.Query().Get("current_revision_id"); raw != "" {
-		currentRevisionID, err = positiveID(raw)
+		currentRevisionID, err = viewrequest.PositiveID(raw)
 		if err != nil {
-			s.respond(w, r, nil, badRequest("current_revision_id must be positive"))
+			s.respond(w, r, nil, viewrequest.BadRequest("current_revision_id must be positive"))
 			return
 		}
 	}
@@ -176,7 +177,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		"collection": "articles",
 		"columns":    append(append([]string(nil), runCorpusDefinitions["articles"].columns...), "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"),
 		"rows":       items,
-		"pagination": scopedPagination(page, perPage, result.Total, sortField, order),
+		"pagination": viewrequest.Pagination(page, perPage, result.Total, sortField, order),
 	}, nil)
 }
 
@@ -185,7 +186,7 @@ func (s *Server) evaluationQueueNavigation(ctx context.Context, filter work.Eval
 	navigation, err := s.workStore.EvaluationQueueNavigation(ctx, filter)
 	if err != nil {
 		if errors.Is(err, work.ErrEvaluationRevisionNotFound) {
-			return nil, notFound("current evaluation revision is not part of the selected run")
+			return nil, viewrequest.NotFound("current evaluation revision is not part of the selected run")
 		}
 		return nil, err
 	}

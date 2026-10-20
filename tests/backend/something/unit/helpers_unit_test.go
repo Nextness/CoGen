@@ -16,17 +16,6 @@ func TestIncludeDeclPrivStub(t *testing.T) {
 	}
 }
 
-// TestScopeBodyItemInterfaceMarkers verifies scope body item interface markers.
-func TestScopeBodyItemInterfaceMarkers(t *testing.T) {
-	(&testhelpers.VarDecl{}).scopeBodyItemMarker()
-	(&testhelpers.ForDecl{}).scopeBodyItemMarker()
-	(&testhelpers.InsertDecl{}).scopeBodyItemMarker()
-	(&testhelpers.IncludeDecl{}).scopeBodyItemMarker()
-	(&testhelpers.IterationDecl{}).scopeBodyItemMarker()
-	(&testhelpers.AsLvalueDecl{}).scopeBodyItemMarker()
-	(&testhelpers.ScopeDecl{}).scopeBodyItemMarker()
-}
-
 // TestGetLocationDefault verifies get location default.
 func TestGetLocationDefault(t *testing.T) {
 	loc := testhelpers.GetLocation("not-a-decl")
