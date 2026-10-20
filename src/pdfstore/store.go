@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"analysis/database"
+	"analysis/database/work"
 	"analysis/manifest"
 	generated "analysis/pdfstore/internal/sql"
 )
@@ -101,7 +102,7 @@ func newCorrelationID() (string, error) {
 
 // Document returns PDF inventory metadata for a normalized DOI, or nil when it is unregistered.
 func (s *Store) Document(ctx context.Context, doi string) (*Document, error) {
-	row, err := s.queries.GetPDFDocument(ctx, database.NormalizeDOI(doi))
+	row, err := s.queries.GetPDFDocument(ctx, work.NormalizeDOI(doi))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -155,7 +156,7 @@ func (s *Store) InventoryForDOIs(ctx context.Context, dois []string) ([]*Invento
 // AvailableDocument returns one available document's inventory metadata, or
 // nil when the normalized DOI has no available content.
 func (s *Store) AvailableDocument(ctx context.Context, doi string) (*AvailableDocument, error) {
-	row, err := s.queries.GetAvailablePDFDocument(ctx, database.NormalizeDOI(doi))
+	row, err := s.queries.GetAvailablePDFDocument(ctx, work.NormalizeDOI(doi))
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -186,7 +187,7 @@ func (s *Store) BlobData(ctx context.Context, contentHash string) ([]byte, error
 // Re-registering a DOI preserves its current state and emits no duplicate
 // audit event.
 func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID int64) (bool, error) {
-	doi = database.NormalizeDOI(doi)
+	doi = work.NormalizeDOI(doi)
 	if doi == "" {
 		return false, fmt.Errorf("DOI is required")
 	}
@@ -246,7 +247,7 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 // already have been registered by the pipeline. An available record is
 // immutable; adding the same DOI again reports it as unchanged.
 func (s *Store) Add(ctx context.Context, doi string, workID int64, data []byte) (AddResult, error) {
-	doi = database.NormalizeDOI(doi)
+	doi = work.NormalizeDOI(doi)
 	if doi == "" {
 		return AddResult{}, fmt.Errorf("DOI is required")
 	}

@@ -78,7 +78,7 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	reviewContext, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	reviewContext, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return

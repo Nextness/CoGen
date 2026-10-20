@@ -57,7 +57,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contextRecord, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	contextRecord, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -79,7 +79,7 @@ func (s *Server) runEvaluation(w http.ResponseWriter, r *http.Request) {
 	runWritable := run.Status == "completed" && run.Visibility != "trashed" && hasPlan
 	var proposedParent any
 	if contextRecord == nil && runWritable {
-		proposedParent, err = s.writeDB.Reviews.ProposeParent(ctx, runID)
+		proposedParent, err = s.writeDB.Review.ProposeParent(ctx, runID)
 		if err != nil {
 			s.respond(w, r, nil, mapReviewError(err))
 			return

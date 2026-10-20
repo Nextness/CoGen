@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"analysis/database"
+	"analysis/database/review"
 )
 
 const reviewMutationBodyLimit int64 = 524288
@@ -45,7 +45,7 @@ func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	contextRecord, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	contextRecord, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -58,7 +58,7 @@ func (s *Server) runReviewContext(w http.ResponseWriter, r *http.Request) {
 		"run_writable":        writable,
 	}
 	if contextRecord == nil && writable {
-		response["proposed_parent"], err = s.writeDB.Reviews.ProposeParent(ctx, runID)
+		response["proposed_parent"], err = s.writeDB.Review.ProposeParent(ctx, runID)
 	}
 	s.respond(w, r, response, err)
 }
@@ -95,7 +95,7 @@ func (s *Server) reviewContextCandidates(w http.ResponseWriter, r *http.Request)
 		s.respond(w, r, nil, badRequest("cursor is invalid for this collection"))
 		return
 	}
-	items, err := s.writeDB.Reviews.ListParentCandidates(ctx, runID, scope, cursor.StartedAt, cursor.ID, limit+1, r.URL.Query().Get("q"))
+	items, err := s.writeDB.Review.ListParentCandidates(ctx, runID, scope, cursor.StartedAt, cursor.ID, limit+1, r.URL.Query().Get("q"))
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -142,7 +142,7 @@ func (s *Server) createReviewContext(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := queryContext(r)
 	defer cancel()
-	created, wasCreated, err := s.writeDB.Reviews.CreateContext(ctx, runID, request.ParentContextID)
+	created, wasCreated, err := s.writeDB.Review.CreateContext(ctx, runID, request.ParentContextID)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -181,7 +181,7 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	contextRecord, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	contextRecord, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -209,7 +209,7 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, base, nil)
 		return
 	}
-	state, err := s.writeDB.Reviews.GetWorkReview(ctx, contextRecord.ID, workRevisionID)
+	state, err := s.writeDB.Review.GetWorkReview(ctx, contextRecord.ID, workRevisionID)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -254,7 +254,7 @@ func (s *Server) updateArticleReview(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	state, changed, err := s.writeDB.Reviews.AppendWorkReview(ctx, contextRecord.ID, workRevisionID,
+	state, changed, err := s.writeDB.Review.AppendWorkReview(ctx, contextRecord.ID, workRevisionID,
 		request.ExpectedVersionID, request.Status, request.Substatuses, request.Reason)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
@@ -290,12 +290,12 @@ func (s *Server) articleReviewVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versions, err := s.writeDB.Reviews.ListWorkReviewVersions(ctx, contextRecord.ID, workRevisionID, cursor, limit+1)
+	versions, err := s.writeDB.Review.ListWorkReviewVersions(ctx, contextRecord.ID, workRevisionID, cursor, limit+1)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "review_versions", func(item database.WorkReviewVersion) int64 {
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "review_versions", func(item review.WorkReviewVersion) int64 {
 		return item.ID
 	})
 	s.respond(w, r, map[string]any{
@@ -327,7 +327,7 @@ func (s *Server) articleReviewVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	version, err := s.writeDB.Reviews.GetWorkReviewVersion(ctx, contextRecord.ID, workRevisionID, versionID)
+	version, err := s.writeDB.Review.GetWorkReviewVersion(ctx, contextRecord.ID, workRevisionID, versionID)
 	if err == nil && version == nil {
 		err = notFound("review version not found in selected context")
 	}
@@ -362,12 +362,12 @@ func (s *Server) articleNotes(w http.ResponseWriter, r *http.Request) {
 	if state == "" {
 		state = "active"
 	}
-	notes, err := s.writeDB.Reviews.ListNotesFiltered(ctx, contextRecord.ID, &workRevisionID, cursor, limit+1, state, r.URL.Query().Get("q"))
+	notes, err := s.writeDB.Review.ListNotesFiltered(ctx, contextRecord.ID, &workRevisionID, cursor, limit+1, state, r.URL.Query().Get("q"))
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(notes, limit, "notes", func(item database.ReviewNote) int64 {
+	items, hasMore, nextCursor := reviewIDItems(notes, limit, "notes", func(item review.Note) int64 {
 		return item.ID
 	})
 	s.respond(w, r, map[string]any{
@@ -407,12 +407,12 @@ func (s *Server) runNotes(w http.ResponseWriter, r *http.Request) {
 	if state == "" {
 		state = "all"
 	}
-	notes, err := s.writeDB.Reviews.ListNotesFiltered(ctx, contextRecord.ID, nil, cursor, limit+1, state, r.URL.Query().Get("q"))
+	notes, err := s.writeDB.Review.ListNotesFiltered(ctx, contextRecord.ID, nil, cursor, limit+1, state, r.URL.Query().Get("q"))
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(notes, limit, "run_notes", func(item database.ReviewNote) int64 {
+	items, hasMore, nextCursor := reviewIDItems(notes, limit, "run_notes", func(item review.Note) int64 {
 		return item.ID
 	})
 	s.respond(w, r, map[string]any{
@@ -445,7 +445,7 @@ func (s *Server) createArticleNote(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	note, err := s.writeDB.Reviews.CreateNote(ctx, contextRecord.ID, workRevisionID, request.Body)
+	note, err := s.writeDB.Review.CreateNote(ctx, contextRecord.ID, workRevisionID, request.Body)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -466,7 +466,7 @@ func (s *Server) note(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	note, err := s.writeDB.Reviews.GetNote(ctx, contextRecord.ID, noteID)
+	note, err := s.writeDB.Review.GetNote(ctx, contextRecord.ID, noteID)
 	if err == nil && note == nil {
 		err = notFound("review note not found in selected context")
 	}
@@ -494,12 +494,12 @@ func (s *Server) noteVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versions, err := s.writeDB.Reviews.ListNoteVersions(ctx, contextRecord.ID, noteID, cursor, limit+1)
+	versions, err := s.writeDB.Review.ListNoteVersions(ctx, contextRecord.ID, noteID, cursor, limit+1)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "note_versions", func(item database.ReviewNoteVersion) int64 {
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "note_versions", func(item review.NoteVersion) int64 {
 		return item.ID
 	})
 	s.respond(w, r, map[string]any{
@@ -526,7 +526,7 @@ func (s *Server) noteVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("version_id must be positive and query parameters are not supported"))
 		return
 	}
-	version, err := s.writeDB.Reviews.GetNoteVersion(ctx, contextRecord.ID, noteID, versionID)
+	version, err := s.writeDB.Review.GetNoteVersion(ctx, contextRecord.ID, noteID, versionID)
 	if err == nil && version == nil {
 		err = notFound("note version not found in selected context")
 	}
@@ -557,12 +557,12 @@ func (s *Server) createNoteVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("expected_version_id must be positive"))
 		return
 	}
-	current, err := s.writeDB.Reviews.GetNote(ctx, contextRecord.ID, noteID)
+	current, err := s.writeDB.Review.GetNote(ctx, contextRecord.ID, noteID)
 	if err != nil || current == nil {
 		s.respond(w, r, nil, notFound("review note not found in selected context"))
 		return
 	}
-	note, changed, err := s.writeDB.Reviews.AppendNoteVersion(ctx, contextRecord.ID, noteID,
+	note, changed, err := s.writeDB.Review.AppendNoteVersion(ctx, contextRecord.ID, noteID,
 		request.ExpectedVersionID, request.State, request.Body)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
@@ -607,7 +607,7 @@ func (s *Server) articleAnchors(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	anchors, err := s.writeDB.Reviews.ListAnchors(ctx, contextRecord.ID, workRevisionID, cursor.Text, limit+1)
+	anchors, err := s.writeDB.Review.ListAnchors(ctx, contextRecord.ID, workRevisionID, cursor.Text, limit+1)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -641,10 +641,10 @@ func (s *Server) createArticleAnchor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		Label        string                     `json:"label"`
-		Page         int                        `json:"page"`
-		SelectedText string                     `json:"selected_text"`
-		Rectangles   []database.AnchorRectangle `json:"rectangles"`
+		Label        string                   `json:"label"`
+		Page         int                      `json:"page"`
+		SelectedText string                   `json:"selected_text"`
+		Rectangles   []review.AnchorRectangle `json:"rectangles"`
 	}
 	if err := decodeMutationJSON(w, r, &request); err != nil {
 		s.respond(w, r, nil, err)
@@ -662,7 +662,7 @@ func (s *Server) createArticleAnchor(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	anchor, err := s.writeDB.Reviews.CreateAnchor(ctx, contextRecord.ID, workRevisionID, request.Label,
+	anchor, err := s.writeDB.Review.CreateAnchor(ctx, contextRecord.ID, workRevisionID, request.Label,
 		contentHash, request.Page, request.SelectedText, request.Rectangles)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
@@ -689,15 +689,15 @@ func (s *Server) anchorVersions(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	versions, err := s.writeDB.Reviews.ListAnchorVersions(ctx, contextRecord.ID, anchorID, cursor, limit+1)
+	versions, err := s.writeDB.Review.ListAnchorVersions(ctx, contextRecord.ID, anchorID, cursor, limit+1)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	items, hasMore, nextCursor := reviewIDItems(versions, limit, "anchor_versions", func(item database.ReviewAnchorVersion) int64 {
+	items, hasMore, nextCursor := reviewIDItems(versions, limit, "anchor_versions", func(item review.AnchorVersion) int64 {
 		return item.ID
 	})
-	anchor, err := s.writeDB.Reviews.GetAnchor(ctx, contextRecord.ID, anchorID)
+	anchor, err := s.writeDB.Review.GetAnchor(ctx, contextRecord.ID, anchorID)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -731,7 +731,7 @@ func (s *Server) anchorVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, badRequest("version_id must be positive and query parameters are not supported"))
 		return
 	}
-	version, err := s.writeDB.Reviews.GetAnchorVersion(ctx, contextRecord.ID, anchorID, versionID)
+	version, err := s.writeDB.Review.GetAnchorVersion(ctx, contextRecord.ID, anchorID, versionID)
 	if err == nil && version == nil {
 		err = notFound("anchor version not found in selected context")
 	}
@@ -750,12 +750,12 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		ExpectedVersionID int64                      `json:"expected_version_id"`
-		State             string                     `json:"state"`
-		RestoreFromID     *int64                     `json:"restore_from_version_id"`
-		Page              int                        `json:"page"`
-		SelectedText      string                     `json:"selected_text"`
-		Rectangles        []database.AnchorRectangle `json:"rectangles"`
+		ExpectedVersionID int64                    `json:"expected_version_id"`
+		State             string                   `json:"state"`
+		RestoreFromID     *int64                   `json:"restore_from_version_id"`
+		Page              int                      `json:"page"`
+		SelectedText      string                   `json:"selected_text"`
+		Rectangles        []review.AnchorRectangle `json:"rectangles"`
 	}
 	if err := decodeMutationJSON(w, r, &request); err != nil {
 		s.respond(w, r, nil, err)
@@ -808,7 +808,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	anchor, changed, err := s.writeDB.Reviews.AppendAnchorVersion(ctx, contextRecord.ID, anchorID,
+	anchor, changed, err := s.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, anchorID,
 		request.ExpectedVersionID, request.State, contentHash, request.Page, request.SelectedText, request.Rectangles)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
@@ -870,12 +870,12 @@ func (s *Server) reviewBacklinks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	items, err := s.writeDB.Reviews.ListBacklinks(ctx, contextRecord.ID, targetType, targetID, sourceWorkID, cursor, limit+1)
+	items, err := s.writeDB.Review.ListBacklinks(ctx, contextRecord.ID, targetType, targetID, sourceWorkID, cursor, limit+1)
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
 	}
-	pageItems, hasMore, nextCursor := reviewIDItems(items, limit, "backlinks", func(item database.ReviewNote) int64 {
+	pageItems, hasMore, nextCursor := reviewIDItems(items, limit, "backlinks", func(item review.Note) int64 {
 		return item.ID
 	})
 	s.respond(w, r, map[string]any{
@@ -919,11 +919,11 @@ func (s *Server) requireReviewableRun(ctx context.Context, runID int64) (reviewR
 }
 
 // requireContextForRead returns an existing context for active or read-only historical runs.
-func (s *Server) requireContextForRead(ctx context.Context, runID int64) (*database.ReviewContext, error) {
+func (s *Server) requireContextForRead(ctx context.Context, runID int64) (*review.Context, error) {
 	if _, err := s.loadReviewRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	contextRecord, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	contextRecord, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -938,11 +938,11 @@ func (s *Server) requireContextForRead(ctx context.Context, runID int64) (*datab
 }
 
 // requireInitializedContext returns the explicitly created context for an eligible run.
-func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*database.ReviewContext, error) {
+func (s *Server) requireInitializedContext(ctx context.Context, runID int64) (*review.Context, error) {
 	if _, err := s.requireReviewableRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	contextRecord, err := s.writeDB.Reviews.GetContextByRun(ctx, runID)
+	contextRecord, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -1034,7 +1034,7 @@ func reviewArticleIDs(r *http.Request) (int64, int64, error) {
 }
 
 // reviewNoteRequest prepares a bounded request context and resolves one logical note route.
-func (s *Server) reviewNoteRequest(r *http.Request) (int64, int64, *database.ReviewContext, context.Context, context.CancelFunc, error) {
+func (s *Server) reviewNoteRequest(r *http.Request) (int64, int64, *review.Context, context.Context, context.CancelFunc, error) {
 	ctx, cancel := queryContext(r)
 	runID, err := positiveID(r.PathValue("run_id"))
 	if err != nil {
@@ -1049,7 +1049,7 @@ func (s *Server) reviewNoteRequest(r *http.Request) (int64, int64, *database.Rev
 }
 
 // reviewAnchorRequest prepares a bounded request context and resolves one safe anchor route.
-func (s *Server) reviewAnchorRequest(r *http.Request) (int64, string, *database.ReviewContext, context.Context, context.CancelFunc, error) {
+func (s *Server) reviewAnchorRequest(r *http.Request) (int64, string, *review.Context, context.Context, context.CancelFunc, error) {
 	ctx, cancel := queryContext(r)
 	runID, err := positiveID(r.PathValue("run_id"))
 	if err != nil {
@@ -1175,7 +1175,7 @@ func mapReviewError(err error) error {
 	if err == nil {
 		return nil
 	}
-	var conflict *database.ReviewConflictError
+	var conflict *review.ConflictError
 	if errors.As(err, &conflict) {
 		return &apiProblem{
 			Status:  http.StatusConflict,
@@ -1187,7 +1187,7 @@ func mapReviewError(err error) error {
 			},
 		}
 	}
-	var parentConflict *database.ReviewContextParentConflictError
+	var parentConflict *review.ContextParentConflictError
 	if errors.As(err, &parentConflict) {
 		return &apiProblem{
 			Status:  http.StatusConflict,
@@ -1199,7 +1199,7 @@ func mapReviewError(err error) error {
 			},
 		}
 	}
-	var labelConflict *database.ReviewAnchorLabelConflictError
+	var labelConflict *review.AnchorLabelConflictError
 	if errors.As(err, &labelConflict) {
 		return &apiProblem{
 			Status:  http.StatusConflict,
@@ -1210,7 +1210,7 @@ func mapReviewError(err error) error {
 			},
 		}
 	}
-	var syntax *database.NoteSyntaxError
+	var syntax *review.NoteSyntaxError
 	if errors.As(err, &syntax) {
 		return &apiProblem{
 			Status:  http.StatusBadRequest,
@@ -1221,7 +1221,7 @@ func mapReviewError(err error) error {
 			},
 		}
 	}
-	var repositoryError *database.ReviewError
+	var repositoryError *review.Error
 	if errors.As(err, &repositoryError) {
 		switch repositoryError.Kind {
 		case "validation":

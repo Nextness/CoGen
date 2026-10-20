@@ -499,8 +499,8 @@ func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T) {
 		validateOutcome string
 		normalized      bool
 	}{
-		{doi: "10.1234/valid", validateOutcome: database.OutcomeValid, normalized: true},
-		{doi: "10.1234/discarded", validateOutcome: database.OutcomeDiscarded, normalized: false},
+		{doi: "10.1234/valid", validateOutcome: work.OutcomeValid, normalized: true},
+		{doi: "10.1234/discarded", validateOutcome: work.OutcomeDiscarded, normalized: false},
 	} {
 		workRecord, err := db.Work.GetWorkByDOI(context.Background(), check.doi)
 		if err != nil || workRecord == nil {
@@ -510,7 +510,7 @@ func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T) {
 		if err != nil || validationStage == nil || validationStage.Outcome != check.validateOutcome {
 			t.Fatalf("validation stage for %s = %+v, %v", check.doi, validationStage, err)
 		}
-		if check.validateOutcome == database.OutcomeDiscarded && validationStage.Reason == "" {
+		if check.validateOutcome == work.OutcomeDiscarded && validationStage.Reason == "" {
 			t.Fatalf("discarded work %s has no validation reason", check.doi)
 		}
 		normalizationStage, err := db.Work.GetStageOutcome(context.Background(), 1, workRecord.ID, work.StageNameNormalize)
@@ -520,8 +520,8 @@ func TestWorkspacePipelineNormalizesOnlyValidArticles(t *testing.T) {
 		if check.normalized != (normalizationStage != nil) {
 			t.Fatalf("normalization stage for %s = %+v, want normalized=%t", check.doi, normalizationStage, check.normalized)
 		}
-		if check.normalized && normalizationStage.Outcome != database.OutcomeNormalized {
-			t.Fatalf("normalization outcome for %s = %q, want %q", check.doi, normalizationStage.Outcome, database.OutcomeNormalized)
+		if check.normalized && normalizationStage.Outcome != work.OutcomeNormalized {
+			t.Fatalf("normalization outcome for %s = %q, want %q", check.doi, normalizationStage.Outcome, work.OutcomeNormalized)
 		}
 	}
 	var normalizedCount int

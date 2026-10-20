@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"analysis/database"
+	dbwork "analysis/database/work"
 	"analysis/pdfstore"
 )
 
@@ -67,19 +68,19 @@ func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
 	if _, err := pdfstore.ValidatePDF(data, pdfstore.DefaultMaxPDFBytes); err != nil {
 		return err
 	}
+	ctx := context.Background()
 	metadata, err := database.Open(metadataPath, registryPath)
 	if err != nil {
 		return err
 	}
 	defer metadata.Close()
-	work, err := metadata.Works.GetByDOI(doi)
+	found, err := metadata.Work.GetWorkByDOI(ctx, doi)
 	if err != nil {
 		return err
 	}
-	if work == nil {
-		return fmt.Errorf("DOI %q does not belong to the metadata corpus", database.NormalizeDOI(doi))
+	if found == nil {
+		return fmt.Errorf("DOI %q does not belong to the metadata corpus", dbwork.NormalizeDOI(doi))
 	}
-	ctx := context.Background()
 	bindings := metadata.PDFBindings
 	storePath, err := bindings.ResolveBinding(ctx, metadataPath)
 	if err != nil {
@@ -94,7 +95,7 @@ func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
 	if err != nil {
 		return err
 	}
-	result, err := store.Add(ctx, work.DOI, work.ID, data)
+	result, err := store.Add(ctx, found.DOI, found.ID, data)
 	if err != nil {
 		return err
 	}
@@ -108,7 +109,7 @@ func addWithRegistry(metadataPath, doi, filePath, registryPath string) error {
 		status = "inventoried"
 	}
 	return json.NewEncoder(os.Stdout).Encode(map[string]any{
-		"doi": work.DOI, "status": status, "content_hash": result.ContentHash,
+		"doi": found.DOI, "status": status, "content_hash": result.ContentHash,
 		"byte_size": result.ByteSize, "audit_events_flushed": flushed,
 	})
 }

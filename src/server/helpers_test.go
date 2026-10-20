@@ -225,7 +225,7 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		t.Fatal(err)
 	}
 	citingWorkID := createWork("10.1000/viewer-citing")
-	citingRevisionID := createRevision(citingWorkID, runID, database.ProducerStageNormalize, "Citing normalized title")
+	citingRevisionID := createRevision(citingWorkID, runID, work.ProducerStageNormalize, "Citing normalized title")
 	targetWorkID := createWork("10.1000/viewer-target")
 	for _, workID := range []int64{citingWorkID, targetWorkID} {
 		if err := db.Work.SetStageOutcome(context.Background(), work.StageOutcomeInput{
@@ -238,18 +238,18 @@ func viewerReferenceResolutionFixture(t *testing.T) referenceResolutionFixture {
 		stage string
 		title string
 	}{
-		{database.ProducerStageParse, "Target parse title"},
-		{database.ProducerStageDeduplicate, "Target deduplicate title"},
-		{database.ProducerStageEnrich, "Target enrich title"},
-		{database.ProducerStageEnrichMetadata, "Target enrich metadata title"},
-		{database.ProducerStageEnrichIdentity, "Target enrich identity title"},
-		{database.ProducerStageValidate, "Target validate title"},
-		{database.ProducerStageNormalize, "Target normalized title"},
+		{work.ProducerStageParse, "Target parse title"},
+		{work.ProducerStageDeduplicate, "Target deduplicate title"},
+		{work.ProducerStageEnrich, "Target enrich title"},
+		{work.ProducerStageEnrichMetadata, "Target enrich metadata title"},
+		{work.ProducerStageEnrichIdentity, "Target enrich identity title"},
+		{work.ProducerStageValidate, "Target validate title"},
+		{work.ProducerStageNormalize, "Target normalized title"},
 	}
 	var normalizedTargetID int64
 	for _, snapshot := range stages {
 		id := createRevision(targetWorkID, runID, snapshot.stage, snapshot.title)
-		if snapshot.stage == database.ProducerStageNormalize {
+		if snapshot.stage == work.ProducerStageNormalize {
 			normalizedTargetID = id
 		}
 	}
@@ -348,23 +348,23 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 		outcome       string
 		title         string
 	}{
-		{database.ProducerStageParse, database.StageNameParse, database.OutcomeParsed, "Activity parse title"},
-		{database.ProducerStageDeduplicate, database.StageNameDeduplicate, database.OutcomeDeduplicated, "Activity deduplicated title"},
-		{database.ProducerStageEnrichMetadata, database.StageNameEnrichMetadata, database.OutcomeEnriched, "Activity metadata title"},
-		{database.ProducerStageEnrichIdentity, database.StageNameEnrichIdentity, database.OutcomeEnriched, "Activity identity title"},
-		{database.ProducerStageValidate, database.StageNameValidate, database.OutcomeValid, "Activity validated title"},
-		{database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, "Activity normalized title"},
+		{work.ProducerStageParse, work.StageNameParse, work.OutcomeParsed, "Activity parse title"},
+		{work.ProducerStageDeduplicate, work.StageNameDeduplicate, work.OutcomeDeduplicated, "Activity deduplicated title"},
+		{work.ProducerStageEnrichMetadata, work.StageNameEnrichMetadata, work.OutcomeEnriched, "Activity metadata title"},
+		{work.ProducerStageEnrichIdentity, work.StageNameEnrichIdentity, work.OutcomeEnriched, "Activity identity title"},
+		{work.ProducerStageValidate, work.StageNameValidate, work.OutcomeValid, "Activity validated title"},
+		{work.ProducerStageNormalize, work.StageNameNormalize, work.OutcomeNormalized, "Activity normalized title"},
 	}
 	var metadataRevisionID, identityRevisionID, normalizedRevisionID int64
 	for _, snapshot := range snapshots {
 		revisionID := createRevision(workID, runID, snapshot.producerStage, snapshot.title)
 		setStage(runID, workID, snapshot.stageName, snapshot.outcome, "")
 		switch snapshot.producerStage {
-		case database.ProducerStageEnrichMetadata:
+		case work.ProducerStageEnrichMetadata:
 			metadataRevisionID = revisionID
-		case database.ProducerStageEnrichIdentity:
+		case work.ProducerStageEnrichIdentity:
 			identityRevisionID = revisionID
-		case database.ProducerStageNormalize:
+		case work.ProducerStageNormalize:
 			normalizedRevisionID = revisionID
 		}
 	}
@@ -375,11 +375,11 @@ func viewerArticleActivityFixture(t *testing.T) articleActivityFixture {
 	insertAudit(nil, "work", workID, "pdf_document_inventoried", `{}`, "manual-pdf")
 
 	discardedWorkID := createWork("10.1000/viewer-activity-discarded")
-	createRevision(discardedWorkID, runID, database.ProducerStageParse, "Discarded parse title")
-	setStage(runID, discardedWorkID, database.StageNameParse, database.OutcomeParsed, "")
-	discardedRevisionID := createRevision(discardedWorkID, runID, database.ProducerStageValidate, "Discarded validation title")
+	createRevision(discardedWorkID, runID, work.ProducerStageParse, "Discarded parse title")
+	setStage(runID, discardedWorkID, work.StageNameParse, work.OutcomeParsed, "")
+	discardedRevisionID := createRevision(discardedWorkID, runID, work.ProducerStageValidate, "Discarded validation title")
 	discardedReason := `["DOI is missing","Publication year is invalid"]`
-	setStage(runID, discardedWorkID, database.StageNameValidate, database.OutcomeDiscarded, discardedReason)
+	setStage(runID, discardedWorkID, work.StageNameValidate, work.OutcomeDiscarded, discardedReason)
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}

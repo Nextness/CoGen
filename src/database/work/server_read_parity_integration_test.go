@@ -9,6 +9,8 @@ package work_test
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"slices"
 	"sort"
 	"testing"
@@ -249,4 +251,52 @@ func boolInt(value bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+// queryRowValues renders every row of one raw query as ordered comparable text.
+func queryRowValues(t *testing.T, db *sql.DB, query string, args ...any) [][]string {
+	t.Helper()
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	names, err := rows.Columns()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result [][]string
+	for rows.Next() {
+		values := make([]any, len(names))
+		pointers := make([]any, len(names))
+		for index := range values {
+			pointers[index] = &values[index]
+		}
+		if err := rows.Scan(pointers...); err != nil {
+			t.Fatal(err)
+		}
+		rendered := make([]string, len(names))
+		for index, value := range values {
+			rendered[index] = formatDatabaseValue(value)
+		}
+		result = append(result, rendered)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+// formatDatabaseValue renders one scanned SQLite value as comparable text.
+func formatDatabaseValue(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return "<null>"
+	case []byte:
+		return string(typed)
+	case string:
+		return typed
+	default:
+		return fmt.Sprint(typed)
+	}
 }

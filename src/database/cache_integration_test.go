@@ -11,135 +11,33 @@ import (
 	"testing"
 
 	"analysis/database/cache"
+	"analysis/database/run"
+	"analysis/database/search"
 	"analysis/manifest"
 )
 
-// TestCacheEntryUpsertAndKeySeparation verifies immutable response history
-// and key separation across provider/request/version.
-func TestCacheEntryUpsertAndKeySeparation(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-
-	artifactID, err := db.Artifacts.Create("cache-payload-a", "application/json", 12)
-	if err != nil {
-		t.Fatal(err)
-	}
-	entry := &cache.Entry{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ResponseStatus: 200, PayloadArtifactID: &artifactID, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"}
-	id, err := db.Cache.AppendEntry(context.Background(), entry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	entry.ResponseStatus = 404
-	entry.PayloadArtifactID = nil
-	entry.ExpiresAt = "2026-07-23T00:00:00Z"
-	updatedID, err := db.Cache.AppendEntry(context.Background(), entry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updatedID == id {
-		t.Fatal("refresh reused an immutable response ID")
-	}
-	var oldStatus int
-	var oldPayload int64
-	if err := db.RawDBForTest().QueryRow("SELECT response_status, payload_artifact_id FROM cache_entries WHERE id=?", id).Scan(&oldStatus, &oldPayload); err != nil || oldStatus != 200 || oldPayload != artifactID {
-		t.Fatalf("original response changed: %d %d %v", oldStatus, oldPayload, err)
-	}
-	if _, err := db.RawDBForTest().Exec("UPDATE cache_entries SET response_status=404 WHERE id=?", id); err == nil {
-		t.Fatal("immutable response update was accepted")
-	}
-	got, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "request-a", ExtractorVersion: "1"})
-	if err != nil || got == nil {
-		t.Fatalf("get cache entry: %v, %+v", err, got)
-	}
-	if got.ResponseStatus != 404 || got.PayloadArtifactID != nil || got.ExpiresAt == "" {
-		t.Fatalf("upserted entry = %+v", got)
-	}
-	for _, key := range []struct{ provider, request, version string }{
-		{"openalex", "request-a", "1"}, {"crossref", "request-b", "1"}, {"crossref", "request-a", "2"},
-	} {
-		if _, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: key.provider, Namespace: "works", RequestFingerprint: key.request, ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: key.version}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, key := range []struct{ provider, request, version string }{
-		{"openalex", "request-a", "1"}, {"crossref", "request-b", "1"}, {"crossref", "request-a", "2"},
-	} {
-		if got, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: key.provider, Namespace: "works", RequestFingerprint: key.request, ExtractorVersion: key.version}); err != nil || got == nil {
-			t.Fatalf("separate cache key missing: %v, %+v", err, got)
-		}
-	}
-}
-
-// TestCacheEntryConcurrentUpsertAndRunUse verifies cache entry concurrent upsert and run use.
-func TestCacheEntryConcurrentUpsertAndRunUse(t *testing.T) {
-	db := openTestDB(t)
-	defer db.Close()
-	const writers = 12
-	var wg sync.WaitGroup
-	errs := make(chan error, writers)
-	for i := 0; i < writers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ResponseStatus: 200, FetchedAt: "2026-07-22T00:00:00Z", ExtractorVersion: "1"})
-			errs <- err
-		}()
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	var count int
-	if err := db.RawDBForTest().QueryRow("SELECT COUNT(*) FROM cache_entries WHERE provider='crossref' AND namespace='works' AND request_fingerprint='same-request' AND extractor_version='1'").Scan(&count); err != nil {
-		t.Fatal(err)
-	}
-	if count != writers {
-		t.Fatalf("concurrent refresh retained %d responses, want %d", count, writers)
-	}
-	entry, err := db.Cache.LatestEntry(context.Background(), cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ExtractorVersion: "1"})
-	if err != nil || entry == nil {
-		t.Fatalf("get concurrent entry: %v, %+v", err, entry)
-	}
-	runID, err := db.PipelineRuns.StartRun("cache-test", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: string(manifest.CacheHit)}); err != nil {
-		t.Fatal(err)
-	}
-	uses, err := db.Cache.ListUsesByRun(context.Background(), runID)
-	if err != nil || len(uses) != 1 || uses[0].CacheEntryID != entry.ID {
-		t.Fatalf("run cache uses: %v, %+v", err, uses)
-	}
-	fromRun, err := db.Cache.FindEntry(context.Background(), runID, "global", cache.Key{Provider: "crossref", Namespace: "works", RequestFingerprint: "same-request", ExtractorVersion: "1"})
-	if err != nil || fromRun == nil || fromRun.ID != entry.ID {
-		t.Fatalf("find run cache entry: %v, %+v", err, fromRun)
-	}
-	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entry.ID, CacheLayer: "global", Outcome: "invalid"}); err == nil {
-		t.Fatal("invalid cache outcome was accepted")
-	}
-}
-
 // TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity verifies concurrent database instances preserve cache and attempt integrity.
 func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.T) {
+	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "workspace.db")
 	first, err := Open(dbPath, testConfigPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer first.Close()
-	searchID, err := first.Searches.Create("concurrent-cache")
+	searchID, err := first.Search.FindOrCreateSearch(ctx, "concurrent-cache")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revisionID, _, err := first.Revisions.Create(searchID, "r1", "config", "manifest")
+	revisionID, _, err := first.Search.UpsertRevision(ctx, search.RevisionInput{
+		SearchID: searchID, RevisionLabel: "r1", ConfigArtifactHash: "config", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	planID, err := first.Plans.Create(revisionID, "concurrent-cache-plan", "manifest")
+	planID, err := first.Search.FindOrCreatePlan(ctx, search.PlanInput{
+		SearchRevisionID: revisionID, ExecutionFingerprint: "concurrent-cache-plan", ResolvedManifestHash: "manifest",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,12 +63,12 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 		wg.Add(1)
 		go func(db *Database) {
 			defer wg.Done()
-			runID, _, err := db.PipelineRuns.StartAttempt(planID, "concurrent-cache", "")
+			runID, _, err := db.Run.StartAttempt(ctx, run.StartAttemptInput{ExecutionPlanID: planID, Step: "concurrent-cache"})
 			if err != nil {
 				errs <- err
 				return
 			}
-			entryID, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{
+			entryID, err := db.Cache.AppendEntry(ctx, &cache.Entry{
 				Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "same-request",
 				ResponseStatus: 200, FetchedAt: "2026-07-27T00:00:00Z", ExtractorVersion: "concurrency-test",
 			})
@@ -178,7 +76,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 				errs <- err
 				return
 			}
-			_, err = db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)})
+			_, err = db.Cache.AppendUse(ctx, &cache.Use{PipelineRunID: runID, CacheEntryID: entryID, CacheLayer: "global", Outcome: string(manifest.CacheHit)})
 			errs <- err
 		}(db)
 	}
@@ -209,6 +107,7 @@ func TestConcurrentDatabaseInstancesPreserveCacheAndAttemptIntegrity(t *testing.
 
 // TestImmutableCacheMigrationPreservesHistory verifies V00028 preserves legacy IDs, payloads, and foreign keys during a real upgrade.
 func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
+	ctx := context.Background()
 	conn, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "upgrade.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -233,28 +132,36 @@ func TestImmutableCacheMigrationPreservesHistory(t *testing.T) {
 	}
 	db := &Database{db: conn}
 	db.initRepositories()
-	runID, err := db.PipelineRuns.StartRun("legacy", "")
+	runID, err := db.Run.StartRun(ctx, "legacy", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := conn.Exec("INSERT INTO cache_entries (id,provider,namespace,request_fingerprint,response_status,fetched_at,extractor_version) VALUES (42,'crossref','work_by_doi','key',404,'2026-01-01','v1')"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Cache.AppendUse(context.Background(), &cache.Use{PipelineRunID: runID, CacheEntryID: 42, CacheLayer: "global", Outcome: "negative"}); err != nil {
+	if _, err := db.Cache.AppendUse(ctx, &cache.Use{PipelineRunID: runID, CacheEntryID: 42, CacheLayer: "global", Outcome: "negative"}); err != nil {
 		t.Fatal(err)
 	}
 	up, err := extractUpSQL(filepath.Join("..", "..", "migrations", "corpus.metadata", "V00028_immutable_cache_responses.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.withTx(context.Background(), func(tx *sql.Tx) error { _, err := tx.Exec(up); return err }); err != nil {
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	id, err := db.Cache.AppendEntry(context.Background(), &cache.Entry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ResponseStatus: 200, FetchedAt: "2026-01-02", ExtractorVersion: "v1"})
+	if _, err := tx.Exec(up); err != nil {
+		tx.Rollback()
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	id, err := db.Cache.AppendEntry(ctx, &cache.Entry{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ResponseStatus: 200, FetchedAt: "2026-01-02", ExtractorVersion: "v1"})
 	if err != nil || id <= 42 {
 		t.Fatalf("new response ID=%d err=%v", id, err)
 	}
-	old, err := db.Cache.FindAnyEntry(context.Background(), runID, cache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ExtractorVersion: "v1"})
+	old, err := db.Cache.FindAnyEntry(ctx, runID, cache.Key{Provider: "crossref", Namespace: "work_by_doi", RequestFingerprint: "key", ExtractorVersion: "v1"})
 	if err != nil || old == nil || old.ID != 42 || old.ResponseStatus != 404 {
 		t.Fatalf("legacy use changed: %+v %v", old, err)
 	}

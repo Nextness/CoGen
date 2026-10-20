@@ -40,7 +40,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
-		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "BPMN scheduling",
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "BPMN scheduling",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestComputeAndPersistRunTermMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
-		WorkID: workTwo, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unrelated",
+		WorkID: workTwo, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "Unrelated",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
-		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize,
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize,
 		Title: "BPMN scheduling", Abstract: "genetic algorithm",
 		Keywords: "genetic algorithm; BPMN", KeywordsPlus: "null",
 	})
@@ -128,7 +128,7 @@ func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
 		t.Fatal(err)
 	}
 	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
-		WorkID: workTwo, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unrelated",
+		WorkID: workTwo, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "Unrelated",
 	})
 	if err != nil {
 		t.Fatal(err)

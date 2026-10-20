@@ -2,15 +2,15 @@
 package database
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
+
+	"analysis/database/work"
 )
 
-// configPath and migrationsDir are resolved relative to src/ (where tests run).
-var (
-	testConfigPath    = filepath.Join("..", "..", "config", "database.something")
-	testMigrationsDir = filepath.Join("..", "..", "migrations")
-)
+// configPath is resolved relative to src/ (where tests run).
+var testConfigPath = filepath.Join("..", "..", "config", "database.something")
 
 // openTestDB supports the package test suite's open test db setup or assertions.
 func openTestDB(t *testing.T) *Database {
@@ -26,16 +26,17 @@ func openTestDB(t *testing.T) *Database {
 // createReferenceMentionTestRevision supports the package test suite's create reference mention test revision setup or assertions.
 func createReferenceMentionTestRevision(t *testing.T, db *Database, doi string) int64 {
 	t.Helper()
-	workID, err := db.Works.CreateByDOI(doi)
+	ctx := context.Background()
+	workID, err := db.Work.CreateWorkByDOI(ctx, doi)
 	if err != nil {
 		t.Fatalf("create work: %v", err)
 	}
-	runID, err := db.PipelineRuns.StartRun("reference mention test", "q")
+	runID, err := db.Run.StartRun(ctx, "reference mention test", "q")
 	if err != nil {
 		t.Fatalf("start run: %v", err)
 	}
-	revisionID, err := db.WorkRevisions.Create(&WorkRevision{
-		WorkID: workID, PipelineRunID: runID, ProducerStage: ProducerStageParse, Title: "Reference source",
+	revisionID, err := db.Work.CreateRevision(ctx, &work.Revision{
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageParse, Title: "Reference source",
 	})
 	if err != nil {
 		t.Fatalf("create revision: %v", err)

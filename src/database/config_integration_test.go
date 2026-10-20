@@ -4,6 +4,7 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -167,11 +168,11 @@ func TestBaselineAppliesCorrectly(t *testing.T) {
 
 	// Regression: a direct INSERT into run_work_stages must get a non-empty
 	// updated_at from the datetime('now') default.
-	workID, err := db.Works.CreateByDOI("10.1000/baseline-updated-at")
+	workID, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/baseline-updated-at")
 	if err != nil {
-		t.Fatalf("CreateByDOI: %v", err)
+		t.Fatalf("CreateWorkByDOI: %v", err)
 	}
-	runID, err := db.PipelineRuns.StartRun("baseline test", "q")
+	runID, err := db.Run.StartRun(context.Background(), "baseline test", "q")
 	if err != nil {
 		t.Fatalf("StartRun: %v", err)
 	}

@@ -26,7 +26,7 @@ func TestCurrentNormalizedRevisionIsConsistentAcrossConsumers(t *testing.T) {
 	defer db.Close()
 
 	latestID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
-		WorkID: fixture.availableID, PipelineRunID: fixture.runID, ProducerStage: database.ProducerStageNormalize,
+		WorkID: fixture.availableID, PipelineRunID: fixture.runID, ProducerStage: work.ProducerStageNormalize,
 		Title: "Replacement normalized revision",
 	})
 	if err != nil {

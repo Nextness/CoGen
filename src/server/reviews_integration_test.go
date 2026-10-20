@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"analysis/database"
+	"analysis/database/review"
 	"analysis/pdfstore"
 )
 
@@ -235,7 +236,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 		expectedReviewID = &value
 	}
 
-	notes := make([]*database.ReviewNote, 0, 101)
+	notes := make([]*review.Note, 0, 101)
 	for index := 0; index < 101; index++ {
 		note, err := fixture.server.writeDB.Review.CreateNote(ctx, contextRecord.ID, fixture.revisionID,
 			fmt.Sprintf("# Note %03d\n\nSee [[article:10.1000/viewer-available|article]].", index))
@@ -258,10 +259,10 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	if err := fixture.server.pdfDB.QueryRow("SELECT content_hash FROM pdf_documents WHERE doi='10.1000/viewer-available'").Scan(&contentHash); err != nil {
 		t.Fatal(err)
 	}
-	anchors := make([]*database.ReviewAnchor, 0, 101)
+	anchors := make([]*review.Anchor, 0, 101)
 	for index := 0; index < 101; index++ {
 		anchor, err := fixture.server.writeDB.Review.CreateAnchor(ctx, contextRecord.ID, fixture.revisionID,
-			fmt.Sprintf("anchor-%03d", index), contentHash, 1, fmt.Sprintf("Anchor %03d", index), []database.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
+			fmt.Sprintf("anchor-%03d", index), contentHash, 1, fmt.Sprintf("Anchor %03d", index), []review.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil {
 			t.Fatalf("create anchor %d: %v", index, err)
 		}
@@ -270,7 +271,7 @@ func TestReviewCollectionsTraverseBeyondOneHundred(t *testing.T) {
 	historyAnchor := anchors[0]
 	for index := 1; index < 101; index++ {
 		updated, changed, err := fixture.server.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, historyAnchor.ID,
-			historyAnchor.Version.ID, "active", contentHash, 1, fmt.Sprintf("Anchor history %03d", index), []database.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
+			historyAnchor.Version.ID, "active", contentHash, 1, fmt.Sprintf("Anchor history %03d", index), []review.AnchorRectangle{{X: .1, Y: .2, Width: .3, Height: .1}})
 		if err != nil || !changed {
 			t.Fatalf("create anchor version %d: changed=%v err=%v", index, changed, err)
 		}

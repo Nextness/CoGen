@@ -25,45 +25,19 @@ import (
 
 var lg = logging.Logger("database")
 
-// Database wraps a SQLite connection and exposes per-table repositories.
+// Database wraps a SQLite connection and exposes the per-table-family stores.
 type Database struct {
-	db                   *sql.DB
-	PipelineRuns         *PipelineRunRepository
-	Run                  *run.Store
-	Search               *search.Store
-	Source               *source.Store
-	Artifact             *artifact.Store
-	Searches             *SearchRepository
-	Revisions            *SearchRevisionRepository
-	Plans                *ExecutionPlanRepository
-	RunSources           *RunSourceRepository
-	SourceRecords        *SourceRecordRepository
-	Artifacts            *ArtifactRepository
-	RunSteps             *RunStepRepository
-	Metrics              *MetricsRepository
-	AuditEvents          *AuditEventRepository
-	Works                *WorkRepository
-	WorkIdentifiers      *WorkIdentifierRepository
-	WorkRevisions        *WorkRevisionRepository
-	RunWorkStages        *RunWorkStageRepository
-	People               *PersonRepository
-	AuthorOccs           *AuthorOccurrenceRepository
-	Authorships          *AuthorshipRepository
-	IdentityResolutions  *AuthorIdentityResolutionRepository
-	IdentityCandidates   *AuthorIdentityCandidateRepository
-	ReferenceMentions    *ReferenceMentionRepository
-	Cache                *cache.Store
-	Audit                *audit.Store
-	Work                 *work.Store
-	Author               *author.Store
-	Review               *review.Store
-	PDFBindings          *pdfbinding.Store
-	ArtifactBlobs        *ArtifactBlobRepository
-	RunArtifacts         *RunArtifactRepository
-	SourceFilterCounts   *SourceFilterCountRepository
-	PipelineRunReviewers *PipelineRunReviewerRepository
-	TermMatches          *TermMatchesRepository
-	Reviews              *ReviewRepository
+	db          *sql.DB
+	Run         *run.Store
+	Search      *search.Store
+	Source      *source.Store
+	Artifact    *artifact.Store
+	Cache       *cache.Store
+	Audit       *audit.Store
+	Work        *work.Store
+	Author      *author.Store
+	Review      *review.Store
+	PDFBindings *pdfbinding.Store
 
 	dbPath     string
 	migrations string // migration SQL directory
@@ -109,42 +83,16 @@ func MigrateExisting(dbPath, configPath string) error {
 	return db.Close()
 }
 
-// initRepositories binds every repository facade to the opened database.
+// initRepositories binds every table-family store to the opened database.
 func (d *Database) initRepositories() {
-	d.PipelineRuns = &PipelineRunRepository{db: d}
 	d.Run = run.New(d.db)
 	d.Search = search.New(d.db)
 	d.Source = source.New(d.db)
 	d.Artifact = artifact.New(d.db)
-	d.Searches = &SearchRepository{db: d}
-	d.Revisions = &SearchRevisionRepository{db: d}
-	d.Plans = &ExecutionPlanRepository{db: d}
-	d.RunSources = &RunSourceRepository{db: d}
-	d.SourceRecords = &SourceRecordRepository{db: d}
-	d.Artifacts = &ArtifactRepository{db: d}
-	d.RunSteps = &RunStepRepository{db: d}
-	d.Metrics = &MetricsRepository{db: d}
-	d.AuditEvents = &AuditEventRepository{db: d}
-	d.Works = &WorkRepository{db: d}
-	d.WorkIdentifiers = &WorkIdentifierRepository{db: d}
-	d.WorkRevisions = &WorkRevisionRepository{db: d}
-	d.RunWorkStages = &RunWorkStageRepository{db: d}
-	d.People = &PersonRepository{db: d}
-	d.AuthorOccs = &AuthorOccurrenceRepository{db: d}
-	d.Authorships = &AuthorshipRepository{db: d}
-	d.IdentityResolutions = &AuthorIdentityResolutionRepository{db: d}
-	d.IdentityCandidates = &AuthorIdentityCandidateRepository{db: d}
-	d.ReferenceMentions = &ReferenceMentionRepository{db: d}
 	d.Cache = cache.New(d.db)
 	d.Audit = audit.New(d.db)
 	d.Work = work.New(d.db)
 	d.Author = author.New(d.db)
 	d.Review = review.New(d.db)
 	d.PDFBindings = pdfbinding.New(d.db)
-	d.ArtifactBlobs = &ArtifactBlobRepository{db: d}
-	d.RunArtifacts = &RunArtifactRepository{db: d}
-	d.SourceFilterCounts = &SourceFilterCountRepository{db: d}
-	d.PipelineRunReviewers = &PipelineRunReviewerRepository{db: d}
-	d.TermMatches = &TermMatchesRepository{db: d}
-	d.Reviews = &ReviewRepository{db: d}
 }

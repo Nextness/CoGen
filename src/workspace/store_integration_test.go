@@ -93,7 +93,7 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 		}
 		if _, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
 			WorkID: workID, PipelineRunID: runID,
-			ProducerStage: database.ProducerStageNormalize,
+			ProducerStage: dbwork.ProducerStageNormalize,
 			Title:         "Normalized article " + strconv.Itoa(index+1),
 		}); err != nil {
 			t.Fatal(err)
@@ -246,7 +246,7 @@ func TestPersistWorkspaceStageKeepsAuthorsWhenEnrichmentHasNoCitationName(t *tes
 	if len(got.Authors) != 1 || got.Authors[0].CitationName != "Export Author" {
 		t.Fatalf("authors after malformed enrichment = %+v", got.Authors)
 	}
-	if _, _, err := persistWorkspaceStage(context.Background(), db, runID, []*article.Article{got}, database.ProducerStageEnrich, database.StageNameEnrich, database.OutcomeEnriched, nil); err != nil {
+	if _, _, err := persistWorkspaceStage(context.Background(), db, runID, []*article.Article{got}, dbwork.ProducerStageEnrich, dbwork.StageNameEnrich, dbwork.OutcomeEnriched, nil); err != nil {
 		t.Fatalf("persist enriched work: %v", err)
 	}
 }

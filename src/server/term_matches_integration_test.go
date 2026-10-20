@@ -58,7 +58,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 		t.Fatal(err)
 	}
 	normalizedID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
-		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize,
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize,
 		Title: "BPMN scheduling", Abstract: "genetic algorithm",
 		Keywords: `["bpmn"]`, KeywordsPlus: `["scheduling"]`,
 	})
@@ -66,7 +66,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 		t.Fatal(err)
 	}
 	parseRevisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
-		WorkID: workOne, PipelineRunID: runID, ProducerStage: database.ProducerStageParse, Title: "BPMN scheduling raw",
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: work.ProducerStageParse, Title: "BPMN scheduling raw",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -86,7 +86,7 @@ func newTermMatchesFixture(t *testing.T) termMatchesFixture {
 		t.Fatal(err)
 	}
 	emptyRevisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
-		WorkID: emptyWork, PipelineRunID: emptyRunID, ProducerStage: database.ProducerStageNormalize, Title: "Empty run article",
+		WorkID: emptyWork, PipelineRunID: emptyRunID, ProducerStage: work.ProducerStageNormalize, Title: "Empty run article",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestTermMatchesGuardedReadsOnUnmigratedDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	revisionID, err := db.Work.CreateRevision(context.Background(), &work.Revision{
-		WorkID: workID, PipelineRunID: runID, ProducerStage: database.ProducerStageNormalize, Title: "Unmigrated article",
+		WorkID: workID, PipelineRunID: runID, ProducerStage: work.ProducerStageNormalize, Title: "Unmigrated article",
 	})
 	if err != nil {
 		t.Fatal(err)

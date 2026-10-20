@@ -104,21 +104,21 @@ func newNormalizedRevisionConformanceFixture(t *testing.T) *normalizedRevisionCo
 	}
 
 	acceptedWorkID := createWork("10.1000/conformance-accepted")
-	acceptedRevisionID := createRevision(acceptedWorkID, database.ProducerStageNormalize, "Accepted article")
-	setStage(acceptedWorkID, database.StageNameValidate, database.OutcomeValid)
+	acceptedRevisionID := createRevision(acceptedWorkID, work.ProducerStageNormalize, "Accepted article")
+	setStage(acceptedWorkID, work.StageNameValidate, work.OutcomeValid)
 
 	discardedWorkID := createWork("10.1000/conformance-discarded")
-	discardedRevisionID := createRevision(discardedWorkID, database.ProducerStageNormalize, "Discarded article")
-	setStage(discardedWorkID, database.StageNameValidate, database.OutcomeDiscarded)
+	discardedRevisionID := createRevision(discardedWorkID, work.ProducerStageNormalize, "Discarded article")
+	setStage(discardedWorkID, work.StageNameValidate, work.OutcomeDiscarded)
 
 	supersededWorkID := createWork("10.1000/conformance-superseded")
-	supersededRevisionID := createRevision(supersededWorkID, database.ProducerStageNormalize, "Superseded article")
-	supersededLatestRevisionID := createRevision(supersededWorkID, database.ProducerStageNormalize, "Superseding article")
-	setStage(supersededWorkID, database.StageNameValidate, database.OutcomeValid)
+	supersededRevisionID := createRevision(supersededWorkID, work.ProducerStageNormalize, "Superseded article")
+	supersededLatestRevisionID := createRevision(supersededWorkID, work.ProducerStageNormalize, "Superseding article")
+	setStage(supersededWorkID, work.StageNameValidate, work.OutcomeValid)
 
 	missingWorkID := createWork("10.1000/conformance-missing")
-	missingRevisionID := createRevision(missingWorkID, database.ProducerStageParse, "Missing normalization article")
-	setStage(missingWorkID, database.StageNameValidate, database.OutcomeValid)
+	missingRevisionID := createRevision(missingWorkID, work.ProducerStageParse, "Missing normalization article")
+	setStage(missingWorkID, work.StageNameValidate, work.OutcomeValid)
 
 	authorID, err := metadata.Author.CreateOccurrence(ctx, &author.Occurrence{CitationName: "Conformance, Author"})
 	if err != nil {

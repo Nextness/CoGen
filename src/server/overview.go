@@ -142,7 +142,7 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 		if err := s.writeDB.PingContext(ctx); err == nil {
 			if writable, err := s.writeDB.Writable(ctx); err == nil && writable {
 				var reviewErr error
-				corpusID, reviewErr = s.writeDB.Reviews.CorpusID(ctx)
+				corpusID, reviewErr = s.writeDB.Review.CorpusID(ctx)
 				reviewWritable = reviewErr == nil
 			}
 		}

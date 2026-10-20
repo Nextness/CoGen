@@ -7,7 +7,7 @@ package workspace
 import (
 	"analysis/article"
 	"analysis/database"
-	"analysis/database/author"
+	dbauthor "analysis/database/author"
 	dbrun "analysis/database/run"
 	dbsource "analysis/database/source"
 	dbwork "analysis/database/work"
@@ -202,14 +202,14 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := recordWorkspaceStage(ctx, db, run, runID, "parse", nil, parsed); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, parsed, database.ProducerStageParse, database.StageNameParse, database.OutcomeParsed, nil); err != nil {
+	if _, _, err := persistWorkspaceStage(ctx, db, runID, parsed, dbwork.ProducerStageParse, dbwork.StageNameParse, dbwork.OutcomeParsed, nil); err != nil {
 		return fmt.Errorf("persist parsed works: %w", err)
 	}
 	unique, duplicates := article.MergeBySource(bySource)
 	if err := recordWorkspaceStage(ctx, db, run, runID, "deduplicate", parsed, unique); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, database.ProducerStageDeduplicate, database.StageNameDeduplicate, database.OutcomeDeduplicated, nil); err != nil {
+	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageDeduplicate, dbwork.StageNameDeduplicate, dbwork.OutcomeDeduplicated, nil); err != nil {
 		return fmt.Errorf("persist deduplicated works: %w", err)
 	}
 	if err := setRunMetrics(ctx, db, runID,
@@ -230,7 +230,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_metadata", metadataInput, unique); err != nil {
 			return err
 		}
-		_, metadataRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, database.ProducerStageEnrichMetadata, database.StageNameEnrichMetadata, database.OutcomeEnriched, nil)
+		_, metadataRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageEnrichMetadata, dbwork.StageNameEnrichMetadata, dbwork.OutcomeEnriched, nil)
 		if err != nil {
 			return fmt.Errorf("persist metadata-enriched works: %w", err)
 		}
@@ -247,7 +247,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 				if persistErr := persistUncertainORCIDEvidence(ctx, db, runID, metadataRevisionIDs, uncertainORCIDEvidence); persistErr != nil {
 					return fmt.Errorf("identity enrichment failed: %v; persist partial ORCID evidence: %w", err, persistErr)
 				}
-				if stageErr := setWorkspaceStageOutcome(ctx, db, runID, articlesWithFailedIdentityEvidence(unique, uncertainORCIDEvidence), database.StageNameEnrichIdentity, database.OutcomeFailed, err.Error()); stageErr != nil {
+				if stageErr := setWorkspaceStageOutcome(ctx, db, runID, articlesWithFailedIdentityEvidence(unique, uncertainORCIDEvidence), dbwork.StageNameEnrichIdentity, dbwork.OutcomeFailed, err.Error()); stageErr != nil {
 					return fmt.Errorf("identity enrichment failed: %v; record failed identity stage: %w", err, stageErr)
 				}
 				return err
@@ -255,7 +255,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			if err := recordWorkspaceStage(ctx, db, run, runID, "enrich_identity", identityInput, unique); err != nil {
 				return err
 			}
-			_, identityRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, database.ProducerStageEnrichIdentity, database.StageNameEnrichIdentity, database.OutcomeEnriched, nil)
+			_, identityRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageEnrichIdentity, dbwork.StageNameEnrichIdentity, dbwork.OutcomeEnriched, nil)
 			if err != nil {
 				return fmt.Errorf("persist identity-enriched works: %w", err)
 			}
@@ -267,7 +267,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 			}
 			updated += identityUpdated
 			allChanges = append(allChanges, identityChanges...)
-		} else if err := setWorkspaceStageOutcome(ctx, db, runID, unique, database.StageNameEnrichIdentity, database.OutcomeSkipped, "ORCID provider is not configured"); err != nil {
+		} else if err := setWorkspaceStageOutcome(ctx, db, runID, unique, dbwork.StageNameEnrichIdentity, dbwork.OutcomeSkipped, "ORCID provider is not configured"); err != nil {
 			return err
 		}
 		if err := recordFieldEnrichmentMetrics(ctx, db, runID, allChanges); err != nil {
@@ -281,8 +281,8 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		}
 		log.Info("enrichment completed", "run_id", runID, "candidates", len(unique), "updated", updated, "total_changes", len(allChanges))
 	} else {
-		for _, stage := range []string{database.StageNameEnrichMetadata, database.StageNameEnrichIdentity} {
-			if err := setWorkspaceStageOutcome(ctx, db, runID, unique, stage, database.OutcomeSkipped, "enrichment disabled by workspace configuration"); err != nil {
+		for _, stage := range []string{dbwork.StageNameEnrichMetadata, dbwork.StageNameEnrichIdentity} {
+			if err := setWorkspaceStageOutcome(ctx, db, runID, unique, stage, dbwork.OutcomeSkipped, "enrichment disabled by workspace configuration"); err != nil {
 				return err
 			}
 		}
@@ -302,7 +302,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := recordWorkspaceStage(ctx, db, run, runID, "validate", unique, unique); err != nil {
 		return err
 	}
-	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, database.ProducerStageValidate, database.StageNameValidate, database.OutcomeValid, reasons); err != nil {
+	if _, _, err := persistWorkspaceStage(ctx, db, runID, unique, dbwork.ProducerStageValidate, dbwork.StageNameValidate, dbwork.OutcomeValid, reasons); err != nil {
 		return fmt.Errorf("persist validated works: %w", err)
 	}
 	if err := recordValidationAudit(ctx, db, runID, unique, reasons); err != nil {
@@ -321,7 +321,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := recordWorkspaceStage(ctx, db, run, runID, "normalize", normalizeInput, valid); err != nil {
 		return err
 	}
-	_, normalizeRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, valid, database.ProducerStageNormalize, database.StageNameNormalize, database.OutcomeNormalized, nil)
+	_, normalizeRevisionIDs, err := persistWorkspaceStage(ctx, db, runID, valid, dbwork.ProducerStageNormalize, dbwork.StageNameNormalize, dbwork.OutcomeNormalized, nil)
 	if err != nil {
 		return fmt.Errorf("persist normalized works: %w", err)
 	}
@@ -411,7 +411,7 @@ func normalizedInventoryBatch(ctx context.Context, db *database.Database, afterW
 func articlesWithFailedIdentityEvidence(articles []*article.Article, evidence []uncertainORCIDSearchEvidence) []*article.Article {
 	failedDOIs := make(map[string]struct{})
 	for _, search := range evidence {
-		if search.Status == database.AuthorIdentityStatusProviderFailed {
+		if search.Status == dbauthor.IdentityStatusProviderFailed {
 			failedDOIs[search.DOI] = struct{}{}
 		}
 	}
@@ -467,8 +467,8 @@ func persistWorkspaceStage(ctx context.Context, db *database.Database, runID int
 		if reasons != nil && len(reasons[a.DOI]) > 0 {
 			reasonBytes, _ := json.Marshal(reasons[a.DOI])
 			reason = string(reasonBytes)
-			if stage == database.StageNameValidate {
-				stageOutcome = database.OutcomeDiscarded
+			if stage == dbwork.StageNameValidate {
+				stageOutcome = dbwork.OutcomeDiscarded
 			}
 		}
 		workID, revisionID, err := persistWorkSnapshot(ctx, db, runID, a, producerStage, workspaceExtension(a, reasons[a.DOI]))
@@ -594,14 +594,14 @@ func persistWorkSnapshot(ctx context.Context, db *database.Database, runID int64
 		return 0, 0, err
 	}
 	for order, authorRecord := range a.Authors {
-		occurrenceID, err := db.Author.CreateOccurrence(ctx, &author.Occurrence{
+		occurrenceID, err := db.Author.CreateOccurrence(ctx, &dbauthor.Occurrence{
 			CitationName: authorRecord.CitationName, FirstName: authorRecord.FirstName,
 			LastName: authorRecord.LastName, ORCID: authorRecord.Orcid,
 		})
 		if err != nil {
 			return 0, 0, err
 		}
-		if _, err := db.Author.CreateAuthorship(ctx, &author.Authorship{
+		if _, err := db.Author.CreateAuthorship(ctx, &dbauthor.Authorship{
 			WorkRevisionID: revisionID, AuthorOccurrenceID: occurrenceID,
 			AuthorOrder: order + 1, Affiliation: authorRecord.Affiliation,
 		}); err != nil {
@@ -1015,7 +1015,7 @@ func enrichCachedORCID(ctx context.Context, cache *workspaceCache, orcidSource, 
 			candidates, err := resolveCachedORCIDNameCandidates(ctx, cache, orcidSource, orcidClient, author.CitationName)
 			searchEvidence := uncertainORCIDSearchEvidence{DOI: a.DOI, AuthorIndex: authorIndex, CitationName: author.CitationName, Candidates: candidates}
 			if err != nil {
-				searchEvidence.Status = database.AuthorIdentityStatusProviderFailed
+				searchEvidence.Status = dbauthor.IdentityStatusProviderFailed
 				searchEvidence.ErrorMessage = err.Error()
 				evidence = append(evidence, searchEvidence)
 				return updated, changes, evidence, err
@@ -1106,12 +1106,12 @@ func persistUncertainORCIDEvidence(ctx context.Context, db *database.Database, r
 		}
 		status := search.Status
 		if status == "" && len(search.Candidates) > 0 {
-			status = author.IdentityStatusORCIDUnclear
+			status = dbauthor.IdentityStatusORCIDUnclear
 		}
 		if status == "" {
-			status = author.IdentityStatusNoORCIDCandidate
+			status = dbauthor.IdentityStatusNoORCIDCandidate
 		}
-		resolutionID, err := db.Author.CreateIdentityResolution(ctx, &author.IdentityResolution{
+		resolutionID, err := db.Author.CreateIdentityResolution(ctx, &dbauthor.IdentityResolution{
 			PipelineRunID: runID, AuthorOccurrenceID: authorships[search.AuthorIndex].AuthorOccurrenceID,
 			Status: status, Provider: "orcid", QueriedCitationName: search.CitationName,
 			ErrorMessage: search.ErrorMessage,
@@ -1121,7 +1121,7 @@ func persistUncertainORCIDEvidence(ctx context.Context, db *database.Database, r
 			return err
 		}
 		for _, candidate := range search.Candidates {
-			if _, err := db.Author.CreateIdentityCandidate(ctx, &author.IdentityCandidate{
+			if _, err := db.Author.CreateIdentityCandidate(ctx, &dbauthor.IdentityCandidate{
 				IdentityResolutionID: resolutionID, CandidateORCID: candidate.ORCID,
 				ProviderDisplayName: candidate.ProviderDisplay, QueryURL: candidate.QueryURL,
 				PayloadArtifactID: candidate.PayloadArtifactID, ProviderRank: candidate.ProviderRank,

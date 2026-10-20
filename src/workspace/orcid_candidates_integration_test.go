@@ -16,6 +16,7 @@ import (
 
 	"analysis/article"
 	"analysis/database"
+	"analysis/database/author"
 	dbwork "analysis/database/work"
 	"analysis/enrich"
 	"analysis/manifest"
@@ -52,7 +53,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 		t.Fatalf("candidate evidence omitted raw provider payload reference: %#v", evidence[0])
 	}
 
-	_, revisionID, err := persistWorkSnapshot(context.Background(), db, runID, articles[0], database.ProducerStageEnrich, "")
+	_, revisionID, err := persistWorkSnapshot(context.Background(), db, runID, articles[0], dbwork.ProducerStageEnrich, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func TestORCIDNameSearchRetainsCandidatesWithoutCreatingIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != database.AuthorIdentityStatusORCIDUnclear || observedORCID != "" || personID != nil || candidates != 2 {
+	if status != author.IdentityStatusORCIDUnclear || observedORCID != "" || personID != nil || candidates != 2 {
 		t.Fatalf("uncertain candidate became an identity: status=%q observed_orcid=%q person=%v candidates=%d", status, observedORCID, personID, candidates)
 	}
 	var people int
@@ -129,10 +130,10 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 		t.Fatalf("run status = %q, want failed", runStatus)
 	}
 	var metadataRevisionCount, identityRevisionCount int
-	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichMetadata).Scan(&metadataRevisionCount); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, dbwork.ProducerStageEnrichMetadata).Scan(&metadataRevisionCount); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, database.ProducerStageEnrichIdentity).Scan(&identityRevisionCount); err != nil {
+	if err := db.RawDBForTest().QueryRow(`SELECT COUNT(*) FROM work_revisions WHERE producer_stage=?`, dbwork.ProducerStageEnrichIdentity).Scan(&identityRevisionCount); err != nil {
 		t.Fatal(err)
 	}
 	if metadataRevisionCount != 1 || identityRevisionCount != 0 {
@@ -143,7 +144,7 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 		t.Fatalf("failed identity work = %+v, %v", work, err)
 	}
 	identityStage, err := db.Work.GetStageOutcome(context.Background(), 1, work.ID, dbwork.StageNameEnrichIdentity)
-	if err != nil || identityStage == nil || identityStage.Outcome != database.OutcomeFailed || !strings.Contains(identityStage.Reason, "invalid provider payload") {
+	if err != nil || identityStage == nil || identityStage.Outcome != dbwork.OutcomeFailed || !strings.Contains(identityStage.Reason, "invalid provider payload") {
 		t.Fatalf("identity stage = %+v, %v", identityStage, err)
 	}
 	var status, errorMessage, snapshotStage string
@@ -157,7 +158,7 @@ func TestWorkspacePipelinePreservesMetadataAndProviderFailureEvidence(t *testing
 		GROUP BY r.id`).Scan(&status, &errorMessage, &snapshotStage, &candidateCount); err != nil {
 		t.Fatal(err)
 	}
-	if status != database.AuthorIdentityStatusProviderFailed || !strings.Contains(errorMessage, "invalid provider payload") || snapshotStage != database.ProducerStageEnrichMetadata || candidateCount != 1 {
+	if status != author.IdentityStatusProviderFailed || !strings.Contains(errorMessage, "invalid provider payload") || snapshotStage != dbwork.ProducerStageEnrichMetadata || candidateCount != 1 {
 		t.Fatalf("provider failure evidence = status=%q error=%q snapshot=%q candidates=%d", status, errorMessage, snapshotStage, candidateCount)
 	}
 }
