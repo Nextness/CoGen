@@ -92,7 +92,7 @@ Home is the context-independent entry point. Selecting Explore opens the Deepdiv
 
 ## 5. Application shell
 
-The shell begins with a skip link, then a site header containing Local research workspace, Research workspace, the database health state, and a persistent Local review marker. This header and a breadcrumb are present on every route. Home hides run-scoped controls; Deepdive displays the research context followed by its fixed tab order. A mobile Menu button controls the Deepdive tabs below 720px.
+The shell begins with a skip link, then a site header containing the CoGen logo above Local research workspace and Research workspace, the database health state, and a persistent Local review marker. The logo retains its original aspect ratio, has a CoGen text alternative, and fits within the available width. Every generated page declares the CoGen PNG favicon. This header and a breadcrumb are present on every route. Home hides run-scoped controls; Deepdive displays the research context followed by its fixed tab order. A mobile Menu button controls the Deepdive tabs below 720px.
 
 The compact context surface contains only dependent Search, Search revision, Execution plan, and Run attempt searchable single-select controls. It has no separate title or Clear context action. Each control presents a bounded server-searchable page eligible under its current parent, supports keyboard listbox navigation, preserves an exact selected option outside the current page, selects a sole available child automatically, and clears downstream identifiers when a parent changes. Context is intentionally singular because one Deepdive route represents one immutable search, revision, plan, and run chain.
 

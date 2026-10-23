@@ -94,6 +94,7 @@ export const classTokens = [
   "rw-audit-filters",
   "rw-audit-layout",
   "rw-audit-summary",
+  "rw-brand-logo",
   "rw-breadcrumb",
   "rw-capability-status",
   "rw-capability-unavailable",

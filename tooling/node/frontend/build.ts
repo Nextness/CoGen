@@ -1,5 +1,5 @@
 // build.ts assembles the served frontend root into build/frontend/dist from
-// frontend/index.html, styles/, vendor/, and the TypeScript sources under
+// frontend/index.html, styles/, vendor/, selected project assets/, and the TypeScript sources under
 // src/. The HTML template produces one identified document per view. Every
 // file under src/ is compiled per-file through esbuild, and .ts
 // import specifiers in the emitted output are rewritten to .js because
@@ -140,6 +140,10 @@ await compileSources();
 await generatePages();
 await copyTree(path.join(frontendDir, 'styles'), path.join(outDir, 'styles'));
 await copyTree(path.join(frontendDir, 'vendor'), path.join(outDir, 'vendor'));
+await mkdir(path.join(outDir, "assets"), { recursive: true });
+for (const filename of ["CoGen_Header_Logo_2400x600.png", "CoGen_favicon_2048.png"]) {
+  await cp(path.resolve(frontendDir, "../assets", filename), path.join(outDir, "assets", filename));
+}
 await assertPages(outDir);
 await assertClean(outDir);
 console.log(`assembled frontend assets in ${path.relative(frontendDir, outDir)}`);

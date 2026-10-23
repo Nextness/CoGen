@@ -6266,8 +6266,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`overview dark`](../tests/frontend/quality/integration/ui-quality.spec.ts#L375) | test | 375 | `test('overview dark', callback)` | overview dark |
 | [`provenance audit dark`](../tests/frontend/quality/integration/ui-quality.spec.ts#L381) | test | 381 | `test('provenance audit dark', callback)` | provenance audit dark |
 | [`article review setup light`](../tests/frontend/quality/integration/ui-quality.spec.ts#L387) | test | 387 | `test('article review setup light', callback)` | article review setup light |
-| [`article review setup dark`](../tests/frontend/quality/integration/ui-quality.spec.ts#L394) | test | 394 | `test('article review setup dark', callback)` | article review setup dark |
-| [`artifact preview light`](../tests/frontend/quality/integration/ui-quality.spec.ts#L402) | test | 402 | `test('artifact preview light', callback)` | artifact preview light |
+| [`article review setup dark`](../tests/frontend/quality/integration/ui-quality.spec.ts#L396) | test | 396 | `test('article review setup dark', callback)` | article review setup dark |
+| [`artifact preview light`](../tests/frontend/quality/integration/ui-quality.spec.ts#L406) | test | 406 | `test('artifact preview light', callback)` | artifact preview light |
 
 ### [`tests/frontend/router/functional/router.test.ts`](../tests/frontend/router/functional/router.test.ts)
 
