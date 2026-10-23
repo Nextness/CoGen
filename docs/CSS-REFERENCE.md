@@ -111,7 +111,7 @@ Interactive controls use the dedicated `--color-control-boundary`, `--color-cont
 | Forms | `button`, `input`, `select` | Inherited type and minimum touch target height. |
 | Focus | `:focus-visible` | Three-pixel orange focus outline with tokenized offset. |
 | Skip link | `.skip-link` | Hidden-until-focused navigation to main content. |
-| Header | `.site-header`, `.brand`, `.eyebrow`, `.server-status` | Product identity, research framing, health, and local-review state. |
+| Header | `.site-header`, `.brand`, `.rw-brand-logo`, `.eyebrow`, `.server-status` | CoGen logo above the research framing, health, and local-review state; the logo keeps its aspect ratio at up to 240px wide and shrinks to the available width. |
 | Status | `.rw-status-dot--unavailable`, `.rw-label` | Health indicator and persistent textual status label. |
 | Navigation | `.rw-nav`, `.rw-nav__item`, `.rw-nav__item--active` | Deepdive navigation and active destination. |
 

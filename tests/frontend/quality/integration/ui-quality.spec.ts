@@ -388,6 +388,8 @@ test.describe('Visual regression', () => {
     await visitQuality(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
+    await expect(page.locator("[data-review-candidates]")).toContainText("Same-search contexts ready");
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot('article-review-setup-light.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 
@@ -396,6 +398,8 @@ test.describe('Visual regression', () => {
     await visitQuality(page, { view: 'article', article_id: '1' });
     await page.getByRole('button', { name: 'Start review' }).click();
     await expect(page.getByRole('dialog', { name: 'Start article review' })).toBeVisible();
+    await expect(page.locator("[data-review-candidates]")).toContainText("Same-search contexts ready");
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot('article-review-setup-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
   });
 

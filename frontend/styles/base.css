@@ -135,6 +135,19 @@ select {
   min-height: 68px;
 }
 
+.brand {
+  min-width: 0;
+  padding: var(--space-2) 0;
+}
+
+.rw-brand-logo {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: var(--space-2);
+}
+
 .brand h1 {
   margin: 0;
   font-size: var(--text-product);

@@ -1,5 +1,7 @@
 # CoGen - Corpus Generator
 
+![CoGen - Research Corpus Generator](assets/CoGen_GitHub_Banner_3000x1000.png)
+
 CoGen is a Go-based research-corpus pipeline that turns literature exports from Scopus, IEEE Xplore, and Web of Science into an immutable, provenance-rich SQLite corpus. It deduplicates articles, enriches them through Crossref, OpenAlex, and ORCID, validates and normalizes metadata, and records every step as content-addressed artifacts and append-only audit events. A loopback-only local viewer lets you browse the corpus and record run-scoped reviews, versioned notes, links, and PDF anchors.
 
 ## Quick start
