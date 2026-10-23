@@ -1,8 +1,27 @@
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { fileURLToPath } from "node:url";
 
 import { visit } from "../../../support/node/visit.ts";
+
+// Linux Chromium snapshots use repository-owned fonts for DOM text and canvas labels.
+test.use({
+  launchOptions: async ({ browserName, launchOptions }, use) => {
+    if (browserName !== "chromium") {
+      await use(launchOptions);
+      return;
+    }
+    await use({
+      ...launchOptions,
+      env: {
+        ...process.env,
+        ...launchOptions.env,
+        FONTCONFIG_FILE: fileURLToPath(new URL("../../../support/fonts/fonts.conf", import.meta.url)),
+      },
+    });
+  },
+});
 
 /** URL-owned state used to open one viewer presentation. */
 type ViewState = Record<string, string>;
