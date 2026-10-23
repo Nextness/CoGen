@@ -62,6 +62,24 @@ func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T) {
 	}
 }
 
+// TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection.
+func TestSelectGoPackageDoesNotRecurse(t *testing.T) {
+	root := selectionTree(t)
+	writeSuite(t, root, "tests/backend/server/integration/nested/unit/nested_test.go")
+	for _, name := range []string{"./tests/backend/server/integration", "tests/backend/server/integration"} {
+		got, err := testselect.Select(root, testselect.Options{Runner: "go", Package: name})
+		want := testselect.Selection{GoPackages: []string{"./tests/backend/server/integration"}}
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Fatalf("PACKAGE=%s selection=%+v err=%v, want %+v", name, got, err, want)
+		}
+	}
+	got, err := testselect.Select(root, testselect.Options{Runner: "go", Domain: "backend", Component: "server"})
+	want := []string{"./tests/backend/server/integration", "./tests/backend/server/integration/nested/unit"}
+	if err != nil || !reflect.DeepEqual(got.GoPackages, want) {
+		t.Fatalf("COMPONENT selection=%+v err=%v, want %v", got, err, want)
+	}
+}
+
 // TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite.
 func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T) {
 	got, err := testselect.Select(selectionTree(t), testselect.Options{})
@@ -86,6 +104,8 @@ func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T) {
 		"missing component":         {Domain: "backend", Component: "missing"},
 		"missing layer":             {Domain: "backend", Component: "database/run", Layer: "functional"},
 		"old source package":        {Runner: "go", Package: "./backend/server"},
+		"package domain":            {Runner: "go", Package: "./tests/backend"},
+		"package component":         {Runner: "go", Package: "./tests/backend/database/run"},
 		"package and component":     {Runner: "go", Package: "./tests/backend/server/integration", Component: "server"},
 		"e2e package":               {Runner: "go", Package: "./tests/e2e/live"},
 		"test regex across runners": {Test: "Test.*"},

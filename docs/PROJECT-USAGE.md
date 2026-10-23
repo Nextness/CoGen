@@ -178,7 +178,7 @@ The tool executes the same public SOMETHING loading boundary as the application 
 make fmt
 make format-check
 make vet
-make test-go DOMAIN=backend COMPONENT=server TEST='^TestGraph$'
+make test-go DOMAIN=backend COMPONENT=server TEST='^TestAPIDetailsGraphModes$'
 make test
 make test-race
 make coverage
@@ -210,7 +210,7 @@ make test DOMAIN=frontend LAYER=functional COMPONENT=views/corpus
 make test DOMAIN=tooling COMPONENT=go/doccheck LAYER=functional
 make test DOMAIN=contracts COMPONENT=http LAYER=integration BROWSER=chromium
 make test-go COMPONENT=database/run LAYER=integration
-make test-go PACKAGE=./tests/backend/server/integration TEST='^TestGraph$'
+make test-go PACKAGE=./tests/backend/server/integration TEST='^TestAPIDetailsGraphModes$'
 make test-frontend-functional
 GOFLAGS=-p=2 make test-race
 ```

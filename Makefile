@@ -64,7 +64,7 @@ help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' '  make serve DB=corpus.metadata.db ADDR=127.0.0.1:8090 ASSETS_DIR=build/frontend/dist'
 	@printf '%s\n' '  make migrate DB=corpus.metadata.db'
 	@printf '%s\n' '  make prepare-to-osf DB=corpus.metadata.db CONFIG=config/workspace.something OUT=build/osf-export'
-	@printf '%s\n' '  make test-go PACKAGE=./tests/backend/server/integration TEST=^TestGraph$$'
+	@printf '%s\n' '  make test-go PACKAGE=./tests/backend/server/integration TEST=^TestAPIDetailsGraphModes$$'
 	@printf '%s\n' '  make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts'
 	@printf '%s\n' '  make test-e2e'
 	@printf '%s\n' '  make test-e2e-live E2E_LIVE=1'

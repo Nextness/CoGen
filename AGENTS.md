@@ -31,7 +31,7 @@ make serve DB=./corpus.metadata.db ASSETS_DIR=./build/frontend/dist
 make dev
 make prepare-to-osf DB=./corpus.metadata.db CONFIG=./config/workspace.something OUT=./build/osf-export
 make test
-make test-go DOMAIN=backend COMPONENT=server TEST='^TestGraph$'
+make test-go DOMAIN=backend COMPONENT=server TEST='^TestAPIDetailsGraphModes$'
 make test-race
 make coverage
 make check

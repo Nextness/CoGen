@@ -53,4 +53,11 @@ func TestFailure(t *testing.T) { t.Fatal("expected fixture failure") }
 			}
 		})
 	}
+	for _, name := range []string{"./tests/backend", "./tests/backend/example"} {
+		var stdout, stderr bytes.Buffer
+		code := testselect.Run([]string{"--runner", "go", "--package", name, "--test", "^TestSelected$"}, &stdout, &stderr)
+		if code != 2 || !strings.Contains(stderr.String(), "no runnable tests") {
+			t.Fatalf("PACKAGE=%s code=%d stdout=%s stderr=%s", name, code, &stdout, &stderr)
+		}
+	}
 }

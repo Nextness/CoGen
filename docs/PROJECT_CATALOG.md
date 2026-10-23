@@ -4965,7 +4965,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure`](../tests/tooling/go/testselect/functional/run_functional_test.go#L14) | test | 14-56 | `func TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure(t *testing.T)` | TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure verifies actual execution rather than discovery alone. |
+| [`TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure`](../tests/tooling/go/testselect/functional/run_functional_test.go#L14) | test | 14-63 | `func TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure(t *testing.T)` | TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure verifies actual execution rather than discovery alone. |
 
 ### [`tests/tooling/go/testselect/unit/select_test.go`](../tests/tooling/go/testselect/unit/select_test.go)
 
@@ -4974,9 +4974,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`writeSuite`](../tests/tooling/go/testselect/unit/select_test.go#L14) | function | 14-23 | `func writeSuite(t *testing.T, root, name string)` | writeSuite creates a discoverable test input without requiring an installed runner. |
 | [`selectionTree`](../tests/tooling/go/testselect/unit/select_test.go#L26) | function | 26-46 | `func selectionTree(t *testing.T) string` | selectionTree provides one suite per runner, along with ignored E2E/support inputs. |
 | [`TestSelectKeepsDomainComponentAndLayerOwnership`](../tests/tooling/go/testselect/unit/select_test.go#L49) | test | 49-63 | `func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T)` | TestSelectKeepsDomainComponentAndLayerOwnership verifies narrow requests do not pull in unrelated runners. |
-| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L66) | test | 66-74 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
-| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L77) | test | 77-104 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
-| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L107) | test | 107-115 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
+| [`TestSelectGoPackageDoesNotRecurse`](../tests/tooling/go/testselect/unit/select_test.go#L66) | test | 66-81 | `func TestSelectGoPackageDoesNotRecurse(t *testing.T)` | TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection. |
+| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L84) | test | 84-92 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
+| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L95) | test | 95-124 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
+| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L127) | test | 127-135 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
 
 ### [`tests/tooling/go/viewer-fixture/integration/generate_integration_test.go`](../tests/tooling/go/viewer-fixture/integration/generate_integration_test.go)
 
@@ -5276,10 +5277,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Options`](../tooling/go/testselect/select.go#L18) | struct | 18-22 | `type Options struct { Domain, Layer, Component, Package, Runner, Test, TestFile string Browser, Workers string Race, Headed, Debug bool }` | Options narrows ordinary offline suites by ownership, layer, and runner. |
 | [`Selection`](../tooling/go/testselect/select.go#L25) | struct | 25-29 | `type Selection struct { GoPackages []string NodeFiles []string BrowserFiles []string }` | Selection contains canonical repository-relative packages and test files. |
 | [`validRelative`](../tooling/go/testselect/select.go#L32) | function | 32-34 | `func validRelative(value string) bool` | validRelative rejects noncanonical or escaping selector paths. |
-| [`Select`](../tooling/go/testselect/select.go#L37) | function | 37-184 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
-| [`execute`](../tooling/go/testselect/select.go#L187) | function | 187-201 | `func execute(root, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
-| [`runGo`](../tooling/go/testselect/select.go#L204) | function | 204-260 | `func runGo(root string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
-| [`Run`](../tooling/go/testselect/select.go#L263) | function | 263-356 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
+| [`Select`](../tooling/go/testselect/select.go#L37) | function | 37-187 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
+| [`execute`](../tooling/go/testselect/select.go#L190) | function | 190-204 | `func execute(root, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
+| [`runGo`](../tooling/go/testselect/select.go#L207) | function | 207-263 | `func runGo(root string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
+| [`Run`](../tooling/go/testselect/select.go#L266) | function | 266-359 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
 
 ## JavaScript declarations
 

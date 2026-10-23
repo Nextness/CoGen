@@ -112,6 +112,9 @@ func Select(root string, options Options) (Selection, error) {
 				return walkErr
 			}
 			if entry.IsDir() {
+				if options.Package != "" && path != base {
+					return filepath.SkipDir
+				}
 				if entry.Name() == "testdata" || entry.Name() == "node_modules" || strings.HasSuffix(entry.Name(), "-snapshots") {
 					return filepath.SkipDir
 				}
