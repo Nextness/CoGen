@@ -7,6 +7,7 @@ CoGen is a Go-based research-corpus pipeline that turns literature exports from 
 Requirements: Go 1.25+ and Node.js 22.18+ (the viewer and frontend need Node and npm).
 
 ```sh
+make frontend-install # install the locked npm workspaces
 make build           # build the pipeline binary
 make run             # run the configured workspaces (creates corpus.metadata.db)
 make frontend-build  # assemble the viewer assets
@@ -23,6 +24,23 @@ Open `http://127.0.0.1:8080` in a browser. To preview the viewer without pipelin
 - Deduplicates, enriches, validates, and normalizes article metadata.
 - Persists an immutable SQLite corpus with content-addressed artifacts and append-only audit events.
 - Serves a loopback-only viewer for browsing evidence and recording run-scoped reviews.
+
+## Repository layout and tests
+
+`backend/` owns Go production code, `frontend/` owns browser product source and assets, `tooling/` owns Go and Node developer tools, and `internal/` owns shared Go primitives. Tests and fixtures live under `tests/<domain>/<component>/<layer>/`; the repository has one root Go module and one root npm workspace with a single lockfile. Generated assets, disposable databases, reports, and E2E bundles live under `build/`.
+
+```sh
+make test                                      # all ordinary Go, Node, and browser suites
+make test DOMAIN=backend LAYER=unit COMPONENT=database/run
+make test-go COMPONENT=server LAYER=integration
+make test-frontend-unit
+make test-frontend-functional
+make test-frontend-all WORKERS=2
+make test DOMAIN=contracts COMPONENT=http BROWSER=all
+make test-e2e                                  # explicit offline pipeline-to-viewer flow
+```
+
+Live-provider checks require the separate `make test-e2e-live E2E_LIVE=1` opt-in and remain outside ordinary tests, race, and coverage.
 
 ## Documentation
 

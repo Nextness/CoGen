@@ -1,0 +1,17 @@
+{
+  "name": "cogen-monorepo",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "workspaces": [
+    "frontend",
+    "tooling/node",
+    "tests"
+  ],
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "@types/node": "^26.2.0"
+  }
+}

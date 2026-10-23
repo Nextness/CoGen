@@ -1,0 +1,275 @@
+// term_matches_integration_test.go tests the workspace term-match computation,
+// persistence, and reconciliation against temporary databases with production
+// migrations.
+
+package workspace_test
+
+import "analysis/tests/support/go/testenv"
+
+import subject "analysis/backend/workspace"
+
+import (
+	"analysis/backend/workspace/termindex"
+	"context"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	"analysis/backend/article"
+
+	dbsource "analysis/backend/database/source"
+	dbwork "analysis/backend/database/work"
+	"analysis/backend/manifest"
+	"analysis/tests/support/go/testfixture"
+)
+
+// TestComputeAndPersistRunTermMatches verifies the new-run computation and persistence.
+func TestComputeAndPersistRunTermMatches(t *testing.T) {
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "workspace.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(context.Background(), db.Conn, "term matches", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := &subject.Run{Manifest: &manifest.ResolvedManifest{
+		Sources: []manifest.SourceManifest{
+			{Name: "scopus", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`},
+			{Name: "wos", Query: `TS=("BPMN" OR "genetic algorithm")`},
+		},
+	}}
+	workOne, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "BPMN scheduling",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workTwo, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/two")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
+		WorkID: workTwo, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "Unrelated",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	articles := []*article.Article{
+		{DOI: "10.1000/one", Title: "BPMN scheduling", Abstract: "genetic algorithm", Keywords: []string{"bpmn"}, KeywordsAdditional: []string{"scheduling"}},
+		{DOI: "10.1000/two", Title: "Unrelated", Abstract: "", Keywords: nil, KeywordsAdditional: nil},
+	}
+	revisionIDs := map[string]int64{"10.1000/one": revOne, "10.1000/two": revTwo}
+	termsBySource, matches := termindex.Compute(run.Manifest.Sources, articles, revisionIDs)
+	if err := termindex.Persist(context.Background(), db.Database, runID, termsBySource, matches); err != nil {
+		t.Fatal(err)
+	}
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(terms) != 4 {
+		t.Fatalf("run_search_terms = %d, want 4: %+v", len(terms), terms)
+	}
+	got, err := db.Work.GetRevisionMatches(context.Background(), runID, revOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{
+		"title":         {"BPMN", "scheduling"},
+		"abstract":      {"genetic algorithm"},
+		"keywords":      {"BPMN"},
+		"keywords_plus": {"scheduling"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("revision one matches = %v, want %v", got, want)
+	}
+	gotTwo, err := db.Work.GetRevisionMatches(context.Background(), runID, revTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gotTwo) != 0 {
+		t.Fatalf("revision two matches = %v, want none", gotTwo)
+	}
+}
+
+// TestReconcileStoredTermMatchesBackfills verifies the reuse-path backfill
+// including the keyword raw-text fallback and JSON-null treatment.
+func TestReconcileStoredTermMatchesBackfills(t *testing.T) {
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "workspace.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(context.Background(), db.Conn, "reconcile", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`}); err != nil {
+		t.Fatal(err)
+	}
+	workOne, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/backfill-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revOne, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
+		WorkID: workOne, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize,
+		Title: "BPMN scheduling", Abstract: "genetic algorithm",
+		Keywords: "genetic algorithm; BPMN", KeywordsPlus: "null",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	workTwo, err := db.Work.CreateWorkByDOI(context.Background(), "10.1000/backfill-two")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revTwo, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
+		WorkID: workTwo, PipelineRunID: runID, ProducerStage: dbwork.ProducerStageNormalize, Title: "Unrelated",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := termindex.Reconcile(context.Background(), db.Database); err != nil {
+		t.Fatal(err)
+	}
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(terms) != 2 {
+		t.Fatalf("run_search_terms = %d, want 2: %+v", len(terms), terms)
+	}
+	got, err := db.Work.GetRevisionMatches(context.Background(), runID, revOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][]string{
+		"title":    {"BPMN", "scheduling"},
+		"keywords": {"BPMN"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("revision one matches = %v, want %v", got, want)
+	}
+	gotTwo, err := db.Work.GetRevisionMatches(context.Background(), runID, revTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gotTwo) != 0 {
+		t.Fatalf("revision two matches = %v, want none", gotTwo)
+	}
+
+	// A second pass must not duplicate rows.
+	if err := termindex.Reconcile(context.Background(), db.Database); err != nil {
+		t.Fatal(err)
+	}
+	var termRows, matchRows int
+	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM run_search_terms WHERE pipeline_run_id=?", runID).Scan(&termRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM work_revision_term_matches WHERE pipeline_run_id=?", runID).Scan(&matchRows); err != nil {
+		t.Fatal(err)
+	}
+	if termRows != 2 || matchRows != 3 {
+		t.Fatalf("after second pass term_rows=%d match_rows=%d, want 2 and 3", termRows, matchRows)
+	}
+}
+
+// TestReconcileStoredTermMatchesNullQueries verifies runs with NULL queries produce no rows and no error.
+func TestReconcileStoredTermMatchesNullQueries(t *testing.T) {
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "workspace.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(context.Background(), db.Conn, "reconcile null", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := termindex.Reconcile(context.Background(), db.Database); err != nil {
+		t.Fatal(err)
+	}
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(terms) != 0 {
+		t.Fatalf("run_search_terms = %+v, want none", terms)
+	}
+}
+
+// TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms verifies a run with
+// queries but no normalize revisions still receives its term inventory.
+func TestReconcileStoredTermMatchesNoRevisionsStillStoresTerms(t *testing.T) {
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "workspace.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(context.Background(), db.Conn, "reconcile no revisions", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Source.CreateSource(context.Background(), dbsource.CreateSourceInput{RunID: runID, Name: "scopus", Type: "csv", ExpectedFile: "scopus.csv", Query: `TITLE-ABS-KEY(("BPMN" OR "scheduling"))`}); err != nil {
+		t.Fatal(err)
+	}
+	if err := termindex.Reconcile(context.Background(), db.Database); err != nil {
+		t.Fatal(err)
+	}
+	terms, err := db.Work.ListRunTerms(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(terms) != 2 {
+		t.Fatalf("run_search_terms = %d, want 2: %+v", len(terms), terms)
+	}
+	reconciled, err := db.Work.HasRunTermData(context.Background(), runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reconciled {
+		t.Fatal("empty term-match result must be marked reconciled")
+	}
+}
+
+// TestReconcileStoredTermMatchesBestEffortLogsFailure verifies a reconciliation
+// failure is contained by the best-effort wrapper and does not panic.
+func TestReconcileStoredTermMatchesBestEffortLogsFailure(t *testing.T) {
+	db, err := testfixture.Open(filepath.Join(t.TempDir(), "workspace.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runID, err := testfixture.Run(context.Background(), db.Conn, "reconcile failure", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Run.FinishRun(context.Background(), runID, "completed", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Conn.Exec("DROP TABLE work_revision_term_matches"); err != nil {
+		t.Fatal(err)
+	}
+	if err := termindex.Reconcile(context.Background(), db.Database); err == nil {
+		t.Fatal("reconcileStoredTermMatches should fail when the match table is missing")
+	}
+	termindex.BestEffort(context.Background(), db.Database)
+}

@@ -23,143 +23,182 @@ coverage_policy: coverage_policy_config = {
     version = 1,
     coverage_mode = .ATOMIC,
     exclude_packages = []string{
-        "analysis/dev",
         "analysis/internal/pathpolicy",
         "analysis/internal/sqliteuri",
-        // Fixture seeds compile only with integration/e2e tags and are not production behavior.
-        "analysis/internal/testfixture",
         "analysis/internal/textlimit",
-        "analysis/tools/coveragecheck",
-        "analysis/tools/doccheck",
-        "analysis/tools/something-printer",
+        "analysis/tooling/go/coveragecheck",
+        "analysis/tooling/go/doccheck",
+        "analysis/tooling/go/something-printer",
+        // Process-only entrypoints delegate to covered importable implementations.
+        "analysis/backend/cmd/analysis",
+        "analysis/tooling/go/cmd/coveragecheck",
+        "analysis/tooling/go/cmd/doccheck",
+        "analysis/tooling/go/cmd/importcheck",
+        "analysis/tooling/go/cmd/pdf-store",
+        "analysis/tooling/go/cmd/prepare-osf",
+        "analysis/tooling/go/cmd/rawsqlcheck",
+        "analysis/tooling/go/cmd/something-printer",
+        "analysis/tooling/go/cmd/testselect",
+        // Suite discovery and source inventory are inspection infrastructure with focused regression suites.
+        "analysis/tooling/go/testselect",
+        "analysis/internal/projectlayout",
     },
     package_minimums = mapping(string, minimums_coverage_config) {
-        ["analysis"]                   => { minimum =  10.0 },
-        ["analysis/article"]           => { minimum =  97.0 },
-        ["analysis/bibtex"]            => { minimum =  95.0 },
-        ["analysis/database"]          => { minimum =  70.0 },
-        ["analysis/database/author"]   => { minimum =  90.0 },
-        ["analysis/database/author/internal/sql"] => {
+        ["analysis/backend/cli"]                   => { minimum =  10.0 },
+        ["analysis/backend/article"]           => { minimum =  97.0 },
+        ["analysis/backend/bibtex"]            => { minimum =  95.0 },
+        ["analysis/backend/database"]          => { minimum =  70.0 },
+        ["analysis/backend/database/author"]   => { minimum =  90.0 },
+        ["analysis/backend/database/author/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated author queries are exercised through the handwritten family integration tests."
         },
-        ["analysis/database/artifact"] => { minimum =  90.0 },
-        ["analysis/database/artifact/internal/sql"] => {
+        ["analysis/backend/database/artifact"] => { minimum =  90.0 },
+        ["analysis/backend/database/artifact/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated artifact queries are exercised through the handwritten family integration and integrity tests."
         },
-        ["analysis/database/audit"] => { minimum =  90.0 },
-        ["analysis/database/audit/internal/sql"] => {
+        ["analysis/backend/database/audit"] => { minimum =  90.0 },
+        ["analysis/backend/database/audit/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated audit queries are exercised through the handwritten family integration tests."
         },
-        ["analysis/database/cache"]    => { minimum =  90.0 },
-        ["analysis/database/cache/internal/sql"] => {
+        ["analysis/backend/database/cache"]    => { minimum =  90.0 },
+        ["analysis/backend/database/cache/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated cache queries are exercised through the handwritten family integration and replay tests."
         },
-        ["analysis/database/search"] => { minimum =  90.0 },
-        ["analysis/database/search/internal/sql"] => {
+        ["analysis/backend/database/search"] => { minimum =  90.0 },
+        ["analysis/backend/database/search/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated search queries are exercised through the handwritten family integration and characterization tests."
         },
-        ["analysis/database/run"] => { minimum =  90.0 },
-        ["analysis/database/run/internal/sql"] => {
+        ["analysis/backend/database/run"] => { minimum =  90.0 },
+        ["analysis/backend/database/run/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated run queries are exercised through the handwritten family integration, concurrency, and lifecycle tests."
         },
-        ["analysis/database/source"] => { minimum =  90.0 },
-        ["analysis/database/source/internal/sql"] => {
+        ["analysis/backend/database/source"] => { minimum =  90.0 },
+        ["analysis/backend/database/source/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated source queries are exercised through the handwritten family integration tests."
         },
-        ["analysis/database/work"] => { minimum =  90.0 },
-        ["analysis/database/work/internal/sql"] => {
+        ["analysis/backend/database/work"] => { minimum =  90.0 },
+        ["analysis/backend/database/work/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated work queries are exercised through the handwritten family integration, relationship, and rollback tests."
         },
-        ["analysis/database/review"] => {
+        ["analysis/backend/database/review"] => {
             minimum = 75.0,
             rationale = "Review mutation, inheritance, conflict, and rollback paths are exercised through family integration and server tests."
         },
-        ["analysis/database/review/internal/sql"] => {
+        ["analysis/backend/database/review/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated review queries are exercised through the handwritten family integration, characterization, and server mutation tests."
         },
-        ["analysis/database/pdfbinding"] => { minimum =  90.0 },
-        ["analysis/database/pdfbinding/internal/sql"] => {
+        ["analysis/backend/database/pdfbinding"] => { minimum =  90.0 },
+        ["analysis/backend/database/pdfbinding/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated PDF binding queries are exercised through the handwritten family integration and delivered-event tests."
         },
-        ["analysis/enrich"]            => { minimum =  70.0 },
-        ["analysis/logging"]           => { minimum = 100.0 },
-        ["analysis/manifest"]          => {
+        ["analysis/backend/enrich"]            => { minimum =  70.0 },
+        ["analysis/backend/logging"]           => { minimum = 100.0 },
+        ["analysis/backend/manifest"]          => {
             minimum = 89.0,
             rationale = "Temporarily relaxed while full test coverage review is pending; restore a higher floor once manifest tests are completed."
         },
-        ["analysis/normalization"]     => { minimum =  82.0 },
-        ["analysis/notes"]             => { minimum =  84.0 },
-        ["analysis/pdfstore"]          => { minimum =  73.0 },
-        ["analysis/pdfstore/internal/sql"] => {
+        ["analysis/backend/normalization"]     => { minimum =  82.0 },
+        ["analysis/backend/notes"]             => { minimum =  84.0 },
+        ["analysis/backend/pdfstore"]          => { minimum =  73.0 },
+        ["analysis/backend/pdfstore/internal/sql"] => {
             minimum = 75.0,
             rationale = "Generated companion PDF queries are exercised through store integration, transactional outbox, and read-only viewer tests; the handwritten layer guards empty slices before generated calls."
         },
-        ["analysis/searchterms"]       => { minimum =  90.0 },
-        ["analysis/server"]            => { minimum =  76.0 },
-        ["analysis/something"]         => { minimum =  87.5 },
-        ["analysis/tools/pdf-store"]   => { minimum =  50.0 },
-        ["analysis/tools/prepare-osf"] => { minimum =  45.0 },
-        ["analysis/tools/prepare-osf/internal/sql"] => {
+        ["analysis/backend/searchterms"]       => { minimum =  90.0 },
+        ["analysis/backend/server"]            => { minimum =  76.0 },
+        ["analysis/backend/something"]         => { minimum =  87.5 },
+        ["analysis/tooling/go/pdf-store"]   => { minimum =  50.0 },
+        ["analysis/tooling/go/prepare-osf"] => { minimum =  45.0 },
+        ["analysis/tooling/go/prepare-osf/internal/sql"] => {
             minimum = 80.0,
             rationale = "Generated export queries are exercised through the handwritten prepare-osf integration tests."
         },
-        ["analysis/tools/rawsqlcheck"] => {
+        ["analysis/tooling/go/rawsqlcheck"] => {
             minimum = 90.0,
             rationale = "Raw SQL ownership scanning and classification paths are exercised by focused unit and functional tests."
         },
-        ["analysis/tools/importcheck"] => {
+        ["analysis/tooling/go/importcheck"] => {
             minimum = 85.0,
             rationale = "Import graph scanning, layer classification, and sqlc unit ownership paths are exercised by focused unit and functional tests."
         },
-        ["analysis/validation"]        => { minimum =  92.0 },
-        ["analysis/workspace"]         => { minimum =  72.0 },
+        ["analysis/backend/validation"]        => { minimum =  92.0 },
+        ["analysis/backend/workspace"]         => { minimum =  72.0 },
+        // Extracted production components retain the minimum of their former owning package.
+        ["analysis/backend/server/request"] => { minimum = 76.0 },
+        ["analysis/backend/server/graphview"] => { minimum = 76.0 },
+        ["analysis/backend/server/metricsummary"] => { minimum = 76.0 },
+        ["analysis/internal/artifactmedia"] => { minimum = 76.0 },
+        ["analysis/internal/httpbudget"] => { minimum = 76.0 },
+        ["analysis/internal/jsonvalue"] => { minimum = 76.0 },
+        ["analysis/internal/querybudget"] => { minimum = 76.0 },
+        ["analysis/internal/sqliteread"] => { minimum = 76.0 },
+        ["analysis/internal/migrations"] => { minimum = 70.0 },
+        ["analysis/internal/filehash"] => { minimum = 70.0 },
+        ["analysis/backend/workspace/providercache"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/termindex"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/enrichment"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/normalizer"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/pdfsync"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/providers"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/revisions"] => { minimum = 72.0 },
+        ["analysis/backend/workspace/validator"] => { minimum = 72.0 },
+        ["analysis/tooling/go/configredaction"] => { minimum = 45.0 },
+        ["analysis/tooling/go/rawsqlcheck/ownership"] => { minimum = 90.0 },
     },
     file_minimums = mapping(string, minimums_coverage_config) {
-        ["analysis/workspace/support.go"] => {
+        ["analysis/backend/workspace/support.go"] => {
             minimum = 69.0,
             rationale = "Pipeline lifecycle and source-loading failures must remain covered."
         },
-        ["analysis/workspace/cache.go"] => {
+        ["analysis/backend/workspace/providercache/cache.go"] => {
             minimum = 73.0,
             rationale = "Cache policy ordering and provenance are correctness-sensitive."
         },
-        ["analysis/workspace/store.go"] => {
+        ["analysis/backend/workspace/store.go"] => {
             minimum = 66.0,
             rationale = "The main workspace orchestration path needs a stronger floor than package main."
         },
-        ["analysis/database/database.go"] => {
+        ["analysis/backend/database/database.go"] => {
             minimum = 72.0,
             rationale = "SQLite opening, migration, and integrity setup affect all runs."
         },
-        ["analysis/enrich/client.go"] => {
+        ["analysis/backend/enrich/client.go"] => {
             minimum = 72.0,
             rationale = "Provider HTTP, rate-limit, and response handling are high-risk boundaries."
         },
-        ["analysis/enrich/orcid.go"] => {
+        ["analysis/backend/enrich/orcid.go"] => {
             minimum = 55.0,
             rationale = "ORCID parsing and candidate evidence need explicit regression protection."
         },
-        ["analysis/pdfstore/store.go"] => {
+        ["analysis/backend/pdfstore/store.go"] => {
             minimum = 68.0,
             rationale = "Normalized registration, transactional manual inventory, blob integrity, and bundle binding protect the companion store."
         },
-        ["analysis/server/graph.go"] => {
+        ["analysis/backend/server/graph.go"] => {
             minimum = 86.0,
             rationale = "The bounded graph query must preserve run and validation scoping."
         },
-        ["analysis/server/overview.go"] => {
+        ["analysis/backend/server/overview.go"] => {
             minimum = 78.0,
             rationale = "Overview metrics and denominators must remain interpretable."
+        },
+        ["analysis/backend/server/graphview/graph.go"] => {
+            minimum = 86.0,
+            rationale = "Graph assembly retains the high-risk floor of its former server/graph.go owner."
+        },
+        ["analysis/backend/server/metricsummary/summary.go"] => {
+            minimum = 78.0,
+            rationale = "Metric interpretation retains the high-risk floor of its former server/overview.go owner."
         },
     },
 };

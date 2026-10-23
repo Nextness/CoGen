@@ -22,7 +22,7 @@ make frontend-browsers BROWSERS="chromium firefox"
 
 ## 3. Makefile interface
 
-Run `make help` for the current targets, variables, and examples. The root [Makefile](../Makefile) is the supported interface and changes into `src/` for Go module commands.
+Run `make help` for the current targets, variables, and examples. The root [Makefile](../Makefile) is the supported interface and runs Go module commands from the repository root. Root `npm ci` installs the frontend, tooling, and testing workspaces from one lockfile.
 
 ```sh
 make build
@@ -50,6 +50,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
 | `build/rawsqlcheck` | `make rawsqlcheck`, `make tools`, `make check-sql`, or `make sql-report` | Checks and reports raw SQL ownership across maintained Go sources. |
 | `build/importcheck` | `make importcheck`, `make tools`, `make check-imports`, or `make import-report` | Checks and reports the package import and transaction graph. |
+| `build/testselect` | `make testselect`, `make tools`, or ordinary test targets | Discovers domain/component/layer suites and invokes their standard runners with strict focused-selection validation. |
 | `build/sqlc` | `make sqlc-install` | Pinned sqlc development generator used only for family SQL code generation and freshness checking; normal builds, tests, and checks never invoke it. |
 | `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
@@ -106,18 +107,18 @@ Serve an existing metadata database with the assembled production assets:
 
 ```sh
 make frontend-build
-make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=frontend/dist
-./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080 --assets-dir ./frontend/dist
+make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=build/frontend/dist
+./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080 --assets-dir ./build/frontend/dist
 ```
 
 Serve the assembled assets, overriding the default asset directory:
 
 ```sh
-make serve DB=corpus.metadata.db ASSETS_DIR=frontend/dist
+make serve DB=corpus.metadata.db ASSETS_DIR=build/frontend/dist
 make dev
 ```
 
-`make dev` builds the frontend assets, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
+`make dev` builds the frontend assets, generates the default fixture pair, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `build/frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
 
 When a frontend change adds or removes a CSS selector, update the owning stylesheet and use the supported registry targets:
 
@@ -177,7 +178,7 @@ The tool executes the same public SOMETHING loading boundary as the application 
 make fmt
 make format-check
 make vet
-make test-go PACKAGE=./server TEST='^TestGraph$'
+make test-go DOMAIN=backend COMPONENT=server TEST='^TestAPIDetailsGraphModes$'
 make test
 make test-race
 make coverage
@@ -195,11 +196,26 @@ make check
 
 `make check` runs the Go formatting check, `go vet`, the raw SQL ownership check, the import graph check, the complete non-mutating documentation check, and the gitleaks secret scan. It does not run all Go or frontend tests, so it supplements rather than replaces behavior tests. `make gitleaks` installs gitleaks into `build/gitleaks` on first use and scans the repository history and working tree for secrets; the same target gates the CI workflows.
 
-`make check-sql` parses every maintained Go file under `src/` outside generated `internal/sql/` output and requires each Query, QueryRow, Exec, or prepared-statement call to be classified as platform migrations or connection behavior, viewer query-budget plumbing, dynamic table introspection, sanitized export maintenance, cross-database outbox savepoints, a retained `*_dynamic.go` reader, or a direct integrity test. An unclassified call fails with the file, line, method, and expected remediation, and a stale ownership entry fails when its file disappears or keeps no calls. `make sql-report` prints the same classification as a reviewable ownership report with per-file reasons.
+`make check-sql` parses maintained Go files under `backend/`, `tooling/go/`, `internal/`, and `tests/` outside generated `internal/sql/` output and requires each Query, QueryRow, Exec, or prepared-statement call to be classified as platform migrations or connection behavior, viewer query-budget plumbing, dynamic table introspection, sanitized export maintenance, cross-database outbox savepoints, a retained `*_dynamic.go` reader, or a direct integrity test. An unclassified call fails with the file, line, method, and expected remediation, and a stale ownership entry fails when its file disappears or keeps no calls. `make sql-report` prints the same classification as a reviewable ownership report with per-file reasons.
 
-`make check-imports` parses every maintained Go package under `src/`, classifies it as a metadata family, the composition root, the companion PDF store, a consumer, or a shared low-level package, and enforces the approved dependency direction. Family production code may depend only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; test fixtures may compose the composition root and sibling families. Generated `internal/sql` output is imported only inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and generated output under one owner directory. `make import-report` prints the layer graph, family production imports, fixture composition, sqlc units, and verified invariants.
+`make check-imports` parses maintained Go packages under `backend/`, `tooling/go/`, `internal/`, and `tests/`, classifies it as a metadata family, the composition root, the companion PDF store, a consumer, or a shared low-level package, and enforces the approved dependency direction. Family production code may depend only on its own subtree and shared internal, logging, manifest, or notes packages, so sibling families cannot call one another inside transactions; test fixtures may compose the composition root and sibling families. Generated `internal/sql` output is imported only inside its owning package tree, and every sqlc generation unit keeps its schema, queries, and generated output under one owner directory. `make import-report` prints the layer graph, family production imports, fixture composition, sqlc units, and verified invariants.
 
 `make sqlc-check` proves committed family generated output is current and every maintained query passes sqlc analysis; section 11 documents generation, maintained versus generated files, and common inference problems.
+
+Ordinary suites are owned by `tests/<domain>/<component>/<layer>/`. `DOMAIN` accepts `all`, `backend`, `frontend`, `tooling`, `shared`, or `contracts`; `LAYER` accepts `all`, `unit`, `functional`, or `integration`. `COMPONENT` selects a relative subtree within one explicit domain. The general default `make test` includes ordinary Go, Node, viewer, HTTP contract, and visual/accessibility suites; E2E remains explicit. A backend-only selection needs Go alone. Unknown scopes, path escapes, empty scopes, incompatible runner filters, and Go `TEST` expressions matching nothing fail.
+
+```sh
+make test DOMAIN=backend LAYER=unit COMPONENT=database/run
+make test DOMAIN=frontend LAYER=functional COMPONENT=views/corpus
+make test DOMAIN=tooling COMPONENT=go/doccheck LAYER=functional
+make test DOMAIN=contracts COMPONENT=http LAYER=integration BROWSER=chromium
+make test-go COMPONENT=database/run LAYER=integration
+make test-go PACKAGE=./tests/backend/server/integration TEST='^TestAPIDetailsGraphModes$'
+make test-frontend-functional
+GOFLAGS=-p=2 make test-race
+```
+
+`make test-go` selects Go suites from backend, tooling, and shared domains; a `COMPONENT` without `DOMAIN` defaults to backend for this convenience target. `PACKAGE` is a single canonical test-package override and cannot be combined with `COMPONENT`. `TEST_FILE` is one canonical browser-spec path within the selected domain/component; general browser selection requires no Go or Node suites in that scope. `BROWSER=all` selects both configured browser projects. Root npm workspaces separately own source, Node tools, and tests; `make check-frontend` checks all three TypeScript scopes, including compile-only JSX assertions.
 
 ## 11. Family SQL code generation
 
@@ -219,7 +235,7 @@ The equivalent direct commands from the repository root are:
 ./build/sqlc -f config/sqlc.yaml vet
 ```
 
-Maintained inputs are `config/sqlc.yaml` with one v2 generation unit per owner, the family declarations and named queries under `src/database/<family>/schema/` and `src/pdfstore/schema/`, and the private export queries under `src/tools/prepare-osf/schema/`. Generated outputs are the matching committed `internal/sql/` packages under `src/database/<family>/`, `src/pdfstore/`, and `src/tools/prepare-osf/`; change the maintained inputs, run `make sqlc-generate`, and review the generated diff instead of editing generated files.
+Maintained inputs are `config/sqlc.yaml` with one v2 generation unit per owner, the family declarations and named queries under `backend/database/<family>/schema/` and `backend/pdfstore/schema/`, and the private export queries under `tooling/go/prepare-osf/schema/`. Generated outputs are the matching committed `internal/sql/` packages under `backend/database/<family>/`, `backend/pdfstore/`, and `tooling/go/prepare-osf/`; change the maintained inputs, run `make sqlc-generate`, and review the generated diff instead of editing generated files.
 
 `make sqlc-check` runs `diff` to prove committed generated Go matches the current inputs and `vet` to analyze every maintained query without writing files. Run it after any family schema or query change and treat either failure as blocking. Normal `make build`, `make tools`, `make test`, and `make check` consume committed generated output and never invoke sqlc or require network access; `make -n build tools` shows no sqlc command.
 
@@ -252,13 +268,13 @@ The live target contacts public Crossref, OpenAlex, and ORCID endpoints, uses st
 
 ## 13. Viewer fixture
 
-Regenerate the ignored viewer fixture pair only when the intended test data contract changes:
+Generate the ignored viewer fixture pair before browser work, and regenerate it when its intended data contract changes:
 
 ```sh
 make fixture
 ```
 
-The target runs `TestGenerateFixture` with `FORCE_FIXTURE=1`, uses production migrations, and rewrites `src/server/testdata/workspace.fixture.db` plus its bound PDF companion. The fixture includes a deterministic valid multi-page PDF with selectable text. Both database files are generated and ignored; authoritative changes belong in the fixture code.
+The target invokes `go run ./tests/support/go/cmd/viewer-fixture`, uses production migrations, and writes `build/fixtures/viewer/workspace.fixture.db` plus its bound PDF companion. `FIXTURE_DB` overrides the output path; authoritative fixture construction lives under `tests/support/go/viewerfixture/`. The fixture includes a deterministic valid multi-page PDF with selectable text. Both database files are generated and ignored; authoritative changes belong in the fixture code.
 
 ## 14. Frontend unit verification
 
@@ -266,21 +282,21 @@ The target runs `TestGenerateFixture` with `FORCE_FIXTURE=1`, uses production mi
 make test-frontend-unit
 ```
 
-The target runs every `frontend/tests/unit/**/*.test.ts` file through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests are authored in TypeScript and import the TypeScript sources under `frontend/src` directly with explicit `.ts` or `.tsx` specifiers; Node's native type stripping executes `.ts` sources and an esbuild loader hook executes `.tsx` sources, so no build step is required (Node 22.18+).
+The target runs the unit suites below `tests/frontend/` through Node's built-in runner and jsdom. It requires installed locked frontend dependencies but does not start a browser or server. Tests are authored in TypeScript and import the TypeScript sources under `frontend/src` directly with explicit `.ts` or `.tsx` specifiers; Node's native type stripping executes `.ts` sources and an esbuild loader hook executes `.tsx` sources, so no build step is required (Node 22.18+).
 
 ## 15. Playwright verification
 
 ```sh
 make test-frontend
 make test-frontend-all
-make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/viewer.spec.ts
-make test-frontend-all WORKERS=1 TEST_FILE=tests/review.spec.ts
+make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
+make test-frontend-all WORKERS=1 TEST_FILE=tests/frontend/viewer/integration/review.spec.ts
 make test-frontend-headed BROWSER=chromium
-make test-frontend-debug BROWSER=chromium TEST_FILE=tests/viewer.spec.ts
+make test-frontend-debug BROWSER=chromium TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-visual
 ```
 
-Each browser-test target builds `build/analysis`, assembles `frontend/dist`, copies the generated metadata and PDF fixture pair into a unique target-owned directory, starts an isolated viewer on an operating-system-assigned loopback port with the assembled assets, waits for `/api/health`, gives that exact URL to Playwright, and stops only its own child process. It does not reuse or stop a manually running viewer and never serves the base fixture writable.
+Each browser-test target builds `build/analysis`, assembles `build/frontend/dist`, copies the generated metadata and PDF fixture pair into a unique target-owned directory, starts an isolated viewer on an operating-system-assigned loopback port with the assembled assets, waits for `/api/health`, gives that exact URL to Playwright, and stops only its own child process. It does not reuse or stop a manually running viewer and never serves the base fixture writable.
 
 Each invocation writes unique output under `build/playwright/run-*/` and prints its report path. Open one report with:
 
@@ -288,7 +304,14 @@ Each invocation writes unique output under `build/playwright/run-*/` and prints 
 make frontend-report REPORT_DIR=build/playwright/run-<id>/report
 ```
 
-`WORKERS` controls Playwright worker count. Read-oriented specs may run in parallel. `review.spec.ts` is serial because it mutates only its invocation's isolated copy. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
+`WORKERS` controls Playwright worker count (one in CI, eight locally unless overridden). Use a smaller explicit value when running alongside other CPU-intensive checks. Read-oriented specs may run in parallel. Each browser project and mutation spec receives a fresh fixture pair; `review.spec.ts` and the HTTP contract spec run serially within their own isolated copies. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
+
+The quality suite launches Linux Chromium with [tests/support/fonts/fonts.conf](../tests/support/fonts/fonts.conf), which limits font discovery to committed assets: the existing PDF.js Liberation Sans faces, Liberation Mono 2.1.5 for machine values, and DejaVu Sans 2.37 for symbol fallback. The additional font fixtures and their licenses live under `tests/support/fonts/`. This fixes DOM and canvas typography across Linux distributions so local screenshot baselines also match CI. Review screenshot changes before accepting them; after preparing the binary, frontend assets, and fixture pair, regenerate the Chromium baselines with:
+
+```sh
+node tests/support/node/run-playwright.ts --project=chromium tests/frontend/quality/integration/ui-quality.spec.ts --grep 'Visual regression' --update-snapshots --workers=1
+make test-frontend-visual
+```
 
 ## 16. Frontend dependency and vendor maintenance
 
@@ -307,7 +330,7 @@ make frontend-pdfjs-vendor
 make frontend-pdfjs-vendor-check
 ```
 
-Edit `frontend/package.json` or `frontend/scripts/pdfjs-vendor.ts`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
+Edit `tooling/node/package.json` or `tooling/node/frontend/pdfjs-vendor.ts`, not files under `frontend/vendor/pdfjs/`. A PDF.js upgrade requires compatibility, core and worker version, license, browser, and security review.
 
 ## 17. Documentation workflow
 

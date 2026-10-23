@@ -3,8 +3,13 @@
     "target": "es2022",
     "module": "esnext",
     "moduleResolution": "bundler",
-    "lib": ["es2022", "dom"],
-    "types": ["node"],
+    "lib": [
+      "es2022",
+      "dom"
+    ],
+    "types": [
+      "node"
+    ],
     "strict": true,
     "jsx": "react",
     "jsxFactory": "h",
@@ -16,6 +21,13 @@
     "skipLibCheck": true,
     "allowJs": false
   },
-  "include": ["playwright.config.ts", "scripts/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.d.ts"],
-  "exclude": ["vendor", "dist", "dist-ts", "node_modules"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "../build",
+    "vendor"
+  ]
 }

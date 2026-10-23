@@ -169,6 +169,6 @@ The two versions render identical markup; readability comes from the names, the 
 
 ## 11. Verification after frontend changes
 
-Naming and structure refactors must not change observable behavior, so verify with the existing suites: run [unit tests](../frontend/tests/unit/views/detail.test.ts) with `make test-frontend-unit`, run `make check-frontend` for registry freshness, static class validation, and type checking, run `make test-go PACKAGE=./server` for integration, and run the focused Playwright viewer suite as section 15 of [STANDARDS.md](STANDARDS.md) requires.
+Naming and structure refactors must not change observable behavior, so verify with the existing suites: run [detail workflow tests](../tests/frontend/views/detail/functional/detail.test.ts) with `make test-frontend-functional`, run `make check-frontend` for registry freshness, static class validation, and type checking, run `make test-go DOMAIN=backend COMPONENT=server` for integration, and run the focused Playwright viewer suite as section 15 of [STANDARDS.md](STANDARDS.md) requires.
 
 Run `make check-docs` after this guide or any referenced documentation changes, and run `make docs-state-update` after reviewing the dependents listed in [DOC-STATE.md](DOC-STATE.md).

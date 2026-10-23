@@ -21,7 +21,7 @@ The CSS source is authoritative. This reference describes current selectors with
 
 New rules go into the narrowest owning layer. Do not use import order to create hidden cross-layer overrides when an existing component selector or token expresses the relationship directly.
 
-`frontend/scripts/generate-classes.ts` reads these six authoritative stylesheets and generates the committed `frontend/src/jsx/classes.ts` token registry. `make frontend-classes` regenerates it, while `make frontend-classes-check` compares it without writing and validates statically visible class uses. The registry proves that individual tokens exist; it cannot prove that a set of valid tokens matches an intended compound selector, so compound combinations still require design and visual review.
+`tooling/node/frontend/generate-classes.ts` reads these six authoritative stylesheets and generates the committed `frontend/src/jsx/classes.ts` token registry. `make frontend-classes` regenerates it, while `make frontend-classes-check` compares it without writing and validates statically visible class uses. The registry proves that individual tokens exist; it cannot prove that a set of valid tokens matches an intended compound selector, so compound combinations still require design and visual review.
 
 ## 3. Naming conventions
 

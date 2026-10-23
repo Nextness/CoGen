@@ -10,7 +10,7 @@ The implementation, migrations, configuration, and executable tests are authorit
 
 The repository builds a Go command that turns Scopus and IEEE Xplore CSV exports plus Web of Science BibTeX exports into an immutable, provenance-rich research corpus in SQLite. A workspace run captures exact SOMETHING configuration and source identities, parses and deduplicates articles, optionally enriches them through Crossref, OpenAlex, and ORCID, validates them, normalizes accepted metadata, registers normalized DOIs in a companion PDF inventory, and records artifacts, metrics, stage outcomes, cache decisions, and append-only audit events.
 
-The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a framework-free TypeScript multi-page application with URL-backed state, assembled into `frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
+The same binary serves a loopback-only local viewer over an existing migrated metadata database and its bundle-relative PDF store. Pipeline evidence remains immutable; a separate metadata write connection supports append-only review versions and reversible run visibility with lifecycle audit, while the PDF store remains read-only. The viewer is a framework-free TypeScript multi-page application with URL-backed state, assembled into `build/frontend/dist` and served from filesystem assets; the binary contains no frontend assets, and `serve` requires `--assets-dir`.
 
 The project stack is Go 1.25.0, SQLite through `modernc.org/sqlite`, SOMETHING configuration, SQL migrations, standard-library HTTP and JSON, TypeScript ES modules, HTML, and CSS. Frontend development uses Node.js, `node:test`, jsdom, Playwright, axe-core, D3-force, esbuild, and TypeScript. `modernc.org/sqlite` is the only direct Go runtime dependency.
 
@@ -35,43 +35,48 @@ Source exports + SOMETHING configuration
 | Path | Responsibility |
 |---|---|
 | [Makefile](../Makefile) | Supported repository-root build, execution, test, documentation, coverage, fixture, viewer, and frontend interface. |
-| `src/main.go` | Only production executable entry point; dispatches `run`, `migrate`, `serve`, and `version`. |
-| `src/go.mod`, `src/go.sum` | Go module and dependency lock; Go commands execute with `src/` as the module directory. |
-| `src/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
-| `src/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
-| `src/database/` | Metadata composition root: writable and existing-only connections, SQLite URI and pragma configuration, the migration registry and runner, schema version, health, close, and one handwritten store per table family bound to the opened connection. |
-| `src/database/<family>/` | Handwritten table-family DALs for search, run, source, artifact, cache, work, author, review, audit, and PDF binding; each owns its `schema/` SQL inputs, private generated `internal/sql/` package, application models, validation, error mapping, and transactions. |
-| `src/enrich/` | Rate-limited provider HTTP client, payload-envelope validation, provider URL construction, and response decoding without database access. |
-| `src/logging/` | Process-wide structured logger and compile-time logging threshold. |
-| `src/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
-| `src/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
-| `src/pdfstore/` | Companion PDF SQLite store with its own `schema/` inputs and generated `internal/sql/` package: normalized DOI registration, PDF validation, content blobs, read-only delivery, and the transactional audit outbox. |
-| `src/searchterms/` | Search-term extraction from source query strings and deterministic case-insensitive field matching that stems every word with the English snowball stemmer before whole-word matching, with wildcard support. |
-| `src/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
-| `src/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
-| `src/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
-| `src/tools/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
-| `src/tools/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
-| `src/tools/importcheck/` | Package import and transaction graph scanning, classification, enforcement, and reporting. |
-| `src/tools/pdf-store/` | Validated manual PDF insertion command. |
-| `src/tools/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
-| `src/tools/rawsqlcheck/` | Raw SQL ownership scanning, classification, enforcement, and reporting for maintained Go sources. |
-| `src/tools/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
-| `src/validation/` | Shared article field validation rules. |
-| `src/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
+| `backend/cmd/analysis/`, `backend/cli/` | Thin executable entry and importable dispatch for `run`, `recover`, `migrate`, `serve`, and `version`. |
+| `go.mod`, `go.sum` | Go module and dependency lock; Go commands execute from the repository-root module. |
+| `backend/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
+| `backend/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |
+| `backend/database/` | Metadata composition root: writable and existing-only connections, SQLite URI and pragma configuration, the migration registry and runner, schema version, health, close, and one handwritten store per table family bound to the opened connection. |
+| `backend/database/<family>/` | Handwritten table-family DALs for search, run, source, artifact, cache, work, author, review, audit, and PDF binding; each owns its `schema/` SQL inputs, private generated `internal/sql/` package, application models, validation, error mapping, and transactions. |
+| `backend/enrich/` | Rate-limited provider HTTP client, payload-envelope validation, provider URL construction, and response decoding without database access. |
+| `backend/logging/` | Process-wide structured logger and compile-time logging threshold. |
+| `backend/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
+| `backend/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
+| `backend/pdfstore/` | Companion PDF SQLite store with its own `schema/` inputs and generated `internal/sql/` package: normalized DOI registration, PDF validation, content blobs, read-only delivery, and the transactional audit outbox. |
+| `backend/searchterms/` | Search-term extraction from source query strings and deterministic case-insensitive field matching that stems every word with the English snowball stemmer before whole-word matching, with wildcard support. |
+| `backend/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
+| `backend/something/` | Lexer, ordered parser, directive expansion, type checker, evaluator, error boundary, and typed result accessors. |
+| `backend/notes/` | Authoritative bounded note grammar, link extraction, diagnostics, and shared Go and JavaScript conformance fixtures. |
+| `tooling/go/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
+| `tooling/go/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
+| `tooling/go/importcheck/` | Package import and transaction graph scanning, classification, enforcement, and reporting. |
+| `tooling/go/pdf-store/` | Validated manual PDF insertion command. |
+| `tooling/go/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
+| `tooling/go/rawsqlcheck/` | Raw SQL ownership scanning, classification, enforcement, and reporting for maintained Go sources. |
+| `tooling/go/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
+| `backend/validation/` | Shared article field validation rules. |
+| `backend/workspace/` | Typed configuration, attempt preflight, cache policy, pipeline orchestration, artifacts, and source loaders. |
 | `config/` | Workspace, baseline types, database registry and chains, and coverage policy in SOMETHING. |
 | `migrations/corpus.metadata/` | Metadata migrations V00001-V00028. |
 | `migrations/corpus.pdf/` | Companion PDF migrations V00001-V00002. |
-| `frontend/` | Node lock data, Playwright runner and configuration, browser tests, unit tests, snapshots, frontend sources under `src/`, stylesheets, generated pinned D3-force and PDF.js assets, and the assembled `dist/` served root. |
-| `src/server/testdata/` | Ignored generated viewer metadata and PDF fixture pair produced from authoritative Go fixture code. |
-| `src/testdata/e2e/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
+| `frontend/` | Browser production source, stylesheets, HTML shell, generated class declarations, pinned D3-force and PDF.js assets, licenses, and source build metadata. |
+| `tooling/node/` | Frontend build, class, vendor, and development commands in the root npm workspace. |
+| `internal/` | Shared production primitives for paths, migrations, hashing, query and HTTP budgets, read-only SQLite pools, text limits, and JSON/media projection. |
+| `tests/` | Backend, frontend, Go and Node tooling, shared, HTTP contract, and explicitly gated E2E suites; support owns fixture construction and runner lifecycle. |
+| `package.json`, `package-lock.json` | One npm workspace and lockfile for frontend, tooling, and tests, with explicit dependency ownership. |
+| `build/frontend/dist/` | Ignored assembled browser served root. |
+| `build/fixtures/viewer/` | Ignored generated viewer metadata and PDF fixture pair produced from authoritative Go fixture code. |
+| `tests/e2e/offline/testdata/`, `tests/e2e/live/testdata/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
 
-The root Makefile changes into `src/` for Go commands and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, `build/coveragecheck`, `build/rawsqlcheck`, and `build/importcheck`. Runtime relative paths assume the repository root, except that `src/main.go` moves one directory upward when its current directory ends in `/src`.
+The root Makefile runs Go commands from the repository-root module and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, `build/coveragecheck`, `build/rawsqlcheck`, `build/importcheck`, and the ordinary-suite selector `build/testselect`. Runtime relative paths assume the repository root; process entrypoints do not discover or change the working directory.
 
 ## 4. Dependency direction and component boundaries
 
-The internal production import direction is intentionally narrow. Shared low-level packages such as `manifest`, `something`, `logging`, `article`, `notes`, `normalization`, `validation`, and `internal/` helpers do not depend on orchestration. `src/database/` is the metadata composition root and must not import consumers or the companion store; table-family packages under `src/database/<family>/` own their SQL inputs, private generated output, application models, validation, error mapping, and transactions and depend only on their own subtree plus those shared packages, so sibling families never call one another inside a transaction. `workspace`, `server`, `tools/`, and `main` are consumers that import the composition root and the family packages whose application types they need. `enrich` owns provider HTTP without database access, `workspace` composes pipeline concerns, `server` uses family stores but does not import workspace orchestration or call migration-running `database.Open`, and `pdfstore` is the companion store that must not import consumers.
+The internal production import direction is intentionally narrow. Shared low-level packages such as `manifest`, `something`, `logging`, `article`, `notes`, `normalization`, `validation`, and `internal/` helpers do not depend on orchestration. `backend/database/` is the metadata composition root and must not import consumers or the companion store; table-family packages under `backend/database/<family>/` own their SQL inputs, private generated output, application models, validation, error mapping, and transactions and depend only on their own subtree plus those shared packages, so sibling families never call one another inside a transaction. `workspace`, `server`, `tooling/go/`, and `cli` are consumers that import the composition root and the family packages whose application types they need. `enrich` owns provider HTTP without database access, `workspace` composes pipeline concerns, `server` uses family stores but does not import workspace orchestration or call migration-running `database.Open`, and `pdfstore` is the companion store that must not import consumers.
 
 ```text
                     +------------------+
@@ -106,7 +111,7 @@ The internal production import direction is intentionally narrow. Shared low-lev
             database/sql + modernc.org/sqlite
 ```
 
-`src/main.go` is the only production entry point. Pipeline behavior belongs in `src/workspace/`; provider gatherers do not call family stores, family and companion store functions do not perform provider HTTP requests, and `src/server/` does not import workspace orchestration or call migration-running `database.Open`.
+`backend/cmd/analysis/main.go` is the application process entry, delegating to importable `backend/cli/`; maintained tools have separate thin entries under `tooling/go/cmd/`. Pipeline behavior belongs in `backend/workspace/`; provider gatherers do not call family stores, family and companion store functions do not perform provider HTTP requests, and `backend/server/` does not import workspace orchestration or call migration-running `database.Open`.
 
 SQLite is the sole persisted pipeline record. Immutable `work_revisions`, ordered `authorships`, and ordered `reference_mentions` are the canonical corpus representation. `run_work_stages` records per-run, per-work outcomes independently from revision rows, so rejected work remains inspectable even though only valid normalized revisions enter the analysis-ready corpus.
 
@@ -114,22 +119,22 @@ Provider responses live in content-addressed `artifacts` and inline `artifact_bl
 
 ### 4.1 Table-family data access
 
-`src/database/database.go` is the metadata composition root. It opens or creates the metadata database, configures the SQLite URI and pragmas, applies the configured migration chain behind an immediate lock, exposes platform methods for close, health, writability, and schema version, and binds one handwritten store per table family to that single connection. Consumers that need only the stores use the root fields; consumers that need family application types, filters, or errors import the owning family package directly, which is why `workspace` and `server` appear as importers of both the root and individual families.
+`backend/database/database.go` is the metadata composition root. It opens or creates the metadata database, configures the SQLite URI and pragmas, applies the configured migration chain behind an immediate lock, exposes platform methods for close, health, writability, and schema version, and binds one handwritten store per table family to that single connection. Consumers that need only the stores use the root fields; consumers that need family application types, filters, or errors import the owning family package directly, which is why `workspace` and `server` appear as importers of both the root and individual families.
 
 | Family | Package | Primary tables and relationships |
 |---|---|---|
-| Search | `src/database/search/` | `searches`, `search_revisions`, `execution_plans`; search revision and reusable plan hierarchy. |
-| Run | `src/database/run/` | `pipeline_runs`, `pipeline_run_reviewers`, `run_steps`, `pipeline_run_metrics`; attempt lifecycle, reviewer attribution, steps, and counters. |
-| Source | `src/database/source/` | `run_sources`, `source_records`, `source_filter_counts`; source acquisition, raw records, parse outcomes, and ordered filter evidence. |
-| Artifact | `src/database/artifact/` | `artifacts`, `artifact_blobs`, `run_artifacts`; content identity, bytes, and run, step, cache, and candidate links. |
-| Cache | `src/database/cache/` | `cache_entries`, `run_cache_uses`; response versioning, selection, expiry, and per-run use evidence. |
-| Work | `src/database/work/` | `works`, `work_identifiers`, `work_revisions`, `run_work_stages`, `reference_mentions`, `run_search_terms`, `work_revision_term_matches`, `run_term_match_reconciliations`; stable works, immutable revisions, stage outcomes, references, term coverage, and corpus, detail, evaluation, graph, and server-read projections. |
-| Author | `src/database/author/` | `people`, `author_occurrences`, `authorships`, `author_identity_resolutions`, `author_identity_candidates`; confirmed identity, observed names, ordered authorship, and uncertain candidate evidence. |
-| Review | `src/database/review/` | Review settings and contexts, immutable work-review versions and version children, mutable context heads, logical notes, note versions, note links, logical anchors, and anchor versions; compare-and-swap review mutation workflows. |
-| Audit | `src/database/audit/` | `audit_events`; append-only insertion, filtering, and provenance relationships whose primary result is audit evidence. |
-| PDF binding | `src/database/pdfbinding/` | Metadata `pdf_store_binding` and `pdf_audit_links`; companion binding and delivered-event links. |
+| Search | `backend/database/search/` | `searches`, `search_revisions`, `execution_plans`; search revision and reusable plan hierarchy. |
+| Run | `backend/database/run/` | `pipeline_runs`, `pipeline_run_reviewers`, `run_steps`, `pipeline_run_metrics`; attempt lifecycle, reviewer attribution, steps, and counters. |
+| Source | `backend/database/source/` | `run_sources`, `source_records`, `source_filter_counts`; source acquisition, raw records, parse outcomes, and ordered filter evidence. |
+| Artifact | `backend/database/artifact/` | `artifacts`, `artifact_blobs`, `run_artifacts`; content identity, bytes, and run, step, cache, and candidate links. |
+| Cache | `backend/database/cache/` | `cache_entries`, `run_cache_uses`; response versioning, selection, expiry, and per-run use evidence. |
+| Work | `backend/database/work/` | `works`, `work_identifiers`, `work_revisions`, `run_work_stages`, `reference_mentions`, `run_search_terms`, `work_revision_term_matches`, `run_term_match_reconciliations`; stable works, immutable revisions, stage outcomes, references, term coverage, and corpus, detail, evaluation, graph, and server-read projections. |
+| Author | `backend/database/author/` | `people`, `author_occurrences`, `authorships`, `author_identity_resolutions`, `author_identity_candidates`; confirmed identity, observed names, ordered authorship, and uncertain candidate evidence. |
+| Review | `backend/database/review/` | Review settings and contexts, immutable work-review versions and version children, mutable context heads, logical notes, note versions, note links, logical anchors, and anchor versions; compare-and-swap review mutation workflows. |
+| Audit | `backend/database/audit/` | `audit_events`; append-only insertion, filtering, and provenance relationships whose primary result is audit evidence. |
+| PDF binding | `backend/database/pdfbinding/` | Metadata `pdf_store_binding` and `pdf_audit_links`; companion binding and delivered-event links. |
 
-Each family owns its maintained declarations and named queries under `src/database/<family>/schema/`, its committed sqlc-generated package under the reserved `src/database/<family>/internal/sql/` path, and its handwritten models, validation, error mapping, and transactions under `src/database/<family>/`; generated row types are mapped to application types inside the family, never cross a handwritten family API, and neither the schema declarations nor the generated output feeds runtime migrations or SOMETHING versioning. The companion store follows the same shape with `src/pdfstore/schema/` and `src/pdfstore/internal/sql/`, and `src/tools/prepare-osf/` keeps a private generated export package because its statements are maintenance orchestration.
+Each family owns its maintained declarations and named queries under `backend/database/<family>/schema/`, its committed sqlc-generated package under the reserved `backend/database/<family>/internal/sql/` path, and its handwritten models, validation, error mapping, and transactions under `backend/database/<family>/`; generated row types are mapped to application types inside the family, never cross a handwritten family API, and neither the schema declarations nor the generated output feeds runtime migrations or SOMETHING versioning. The companion store follows the same shape with `backend/pdfstore/schema/` and `backend/pdfstore/internal/sql/`, and `tooling/go/prepare-osf/` keeps a private generated export package because its statements are maintenance orchestration.
 
 Relationship SQL lives with the family that owns the returned resource or the mutation, in a specifically named Go and SQL file such as `cache/cache_use.go` with `cache/schema/cache_use.sql`, `artifact/run_artifact.go` with `artifact/schema/run_artifact.sql`, or `work/reference.go` with `work/schema/reference.sql`. A family may declare the external table shapes its relationship queries need to compile without taking ownership of those tables.
 
@@ -139,9 +144,11 @@ Every public family operation takes `context.Context` as its first parameter and
 
 ### 4.2 Metadata and companion PDF coordination
 
-Metadata and PDF state remain two independently migrated SQLite databases because document bytes and manual inventory have a different lifecycle from research metadata and SQLite cannot provide one transaction across separate files. `src/pdfstore/` owns the companion connection, its `schema/` inputs, its generated `internal/sql` package, PDF validation, content-addressed blobs, and the audit outbox, while `src/database/pdfbinding/` owns the metadata-side `pdf_store_binding` and `pdf_audit_links` tables and the typed operations that resolve and validate the relative binding, begin the metadata transaction, and record delivered events.
+Metadata and PDF state remain two independently migrated SQLite databases because document bytes and manual inventory have a different lifecycle from research metadata and SQLite cannot provide one transaction across separate files. `backend/pdfstore/` owns the companion connection, its `schema/` inputs, its generated `internal/sql` package, PDF validation, content-addressed blobs, and the audit outbox, while `backend/database/pdfbinding/` owns the metadata-side `pdf_store_binding` and `pdf_audit_links` tables and the typed operations that resolve and validate the relative binding, begin the metadata transaction, and record delivered events.
 
 The cross-database protocol stays deliberately non-atomic. A flush loads a bounded companion outbox batch, isolates each event with a per-event savepoint, writes metadata audit plus `pdf_audit_links` in one metadata transaction through the binding store, commits metadata before marking companion events delivered, and retries idempotently after a crash between those commits. Section 13 describes the full inventory, binding, and outbox behavior, and [DATABASE.md](DATABASE.md) lists both schemas.
+
+Workspace orchestration composes stage packages under `backend/workspace/`: `providercache` owns policy/provenance, `termindex` owns stored search reconciliation, `providers` owns provider application evidence, `revisions` persists immutable stage snapshots, `enrichment` applies and audits field changes, `validator` partitions articles, `normalizer` normalizes and records metrics, and `pdfsync` reconciles the companion inventory. Server components under `backend/server/` separate request validation, graph assembly, and metric interpretation; shared production primitives remain under root `internal/`. These components are used by runtime callers as well as external tests; no source package exposes a test-only bridge.
 
 ## 5. Executable boundaries
 
@@ -151,7 +158,7 @@ The cross-database protocol stays deliberately non-atomic. A flush loads a bound
 
 `build/analysis serve` accepts `--db`, `--addr`, and requires `--assets-dir`. It defaults to `corpus.metadata.db` and `127.0.0.1:8080`, rejects addresses whose host is not an exact loopback IP, opens an existing migrated database through separate metadata read and bounded-mutation connections, verifies required append-only review triggers, serves the assembled frontend assets from the given directory, and applies conservative HTTP timeouts.
 
-`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `src/main.go`.
+`build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `backend/cli/main.go`.
 
 `build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
 
@@ -292,7 +299,7 @@ People represent confirmed identity and require a nonblank ORCID. Author occurre
 
 Author identity resolution statuses are `orcid_is_unclear`, `no_orcid_candidate`, `provider_failed`, `confirmed`, and `rejected`. Candidates retain provider rank, ORCID, display name, raw payload artifact, and evidence context. A name-search candidate remains review evidence and does not silently change confirmed identity.
 
-Validation checks title, authors, year, DOI, publisher, and reference-count conditions in `src/validation/validation.go`. Discarded work remains visible through stage and provenance records but receives no normalized revision.
+Validation checks title, authors, year, DOI, publisher, and reference-count conditions in `backend/validation/validation.go`. Discarded work remains visible through stage and provenance records but receives no normalized revision.
 
 Normalization is deterministic and heuristic. Author processing separates given and family names and derives initials; affiliation and publisher processing expands known abbreviations and applies local title casing; journal canonical forms are stored in revision extension JSON while the main journal field preserves the revision value.
 
@@ -392,7 +399,7 @@ browser POST/PUT -> transport and context validation -> optional anchor PDF chec
 
 ## 15. Frontend architecture
 
-The frontend is a framework-free native ES-module multi-page application authored in TypeScript, including its build scripts, Playwright configuration, and browser specs. `make check-frontend` first verifies the generated CSS token registry and statically visible class uses, then type-checks sources, scripts, configuration, and tests with `tsc --noEmit`; `make frontend-build` compiles each production source file with esbuild into the `frontend/dist` served root, rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and asserts that the assembled root contains no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `frontend/tests/unit` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `frontend/index.html` is the authoritative accessible shell template, and `frontend/scripts/build.ts` generates `index.html` plus one identified HTML document for each Deepdive and detail view. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering in every document.
+The frontend is a framework-free native ES-module multi-page application authored in TypeScript, including its build scripts, Playwright configuration, and browser specs. `make check-frontend` first verifies the generated CSS token registry and statically visible class uses, then type-checks sources, scripts, configuration, and tests with `tsc --noEmit`; `make frontend-build` compiles each production source file with esbuild into the `build/frontend/dist` served root, rewrites relative `.ts` and `.tsx` import specifiers to `.js`, and asserts that the assembled root contains no `.ts`, `.tsx`, `.d.ts`, or `.map` files and no dot- or underscore-prefixed entries. Unit tests are authored in TypeScript under `tests/frontend/<component>/<layer>/` and type-checked by `tsc --noEmit`; `make test-frontend-unit` runs them through Node's native type stripping for `.ts` sources and an esbuild loader hook for `.tsx` sources, so no build step is required. `frontend/index.html` is the authoritative accessible shell template, and `tooling/node/frontend/build.ts` generates `index.html` plus one identified HTML document for each Deepdive and detail view. `app.tsx` is a side-effect entry that binds selector changes, context-preserving navigation, history, notices, loading controls, health state, mobile navigation, and initial rendering in every document.
 
 The viewer state is the source of truth for `search_id`, `search_revision_id`, `plan_id`, `run_id`, view, section, filters, sort, page, expanded row, selected graph node, artifact inspector state, focused `note_id`, focused `anchor_id`, and `pdf_page` where applicable. `state.tsx` owns a module-level `viewerState` object mirrored to `sessionStorage` under `rw-viewer-state` and carried in `history.state` on every push or replace. The view derives from the pathname (`/overview` maps to `overview`), and `state.link` returns a clean path-only URL preserving only canonical context plus destination-owned keys. Cross-view links and `router.setURL` transitions persist the destination state and perform native document navigation; same-view filters, pagination, cursors, graph controls, and section changes keep `pushState` or `replaceState` plus an in-document render. Anchors that carry state beyond the view path render `data-state` JSON consumed by the click handler. Legacy `?view=...` query parameters are ignored at boot and no longer supported.
 
@@ -419,8 +426,8 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 | Path | Responsibility |
 |---|---|
 | `index.html` | Authoritative shell template for the generated home, Deepdive, and detail HTML documents. |
-| `scripts/build.ts` | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
-| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, freshness verification, statically visible use validation, and unused-token reporting. |
+| [tooling/node/frontend/build.ts](../tooling/node/frontend/build.ts) | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
+| [tooling/node/frontend/generate-classes.ts](../tooling/node/frontend/generate-classes.ts) and [tooling/node/frontend/check-classes.ts](../tooling/node/frontend/check-classes.ts) | Generated CSS token registry, freshness verification, statically visible use validation, and unused-token reporting. |
 | `app.tsx` | Global event binding, same-view history interception, cross-view native-navigation protection, shell initialization, and first render. |
 | `jsx/classes.ts` | Committed generated `ClassName` union derived from the six authoritative stylesheets. |
 | `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. |
@@ -489,11 +496,11 @@ The rendering and frontend extension rules live in [STANDARDS.md](STANDARDS.md),
 
 ## 16. Testing architecture
 
-Go tests use `testing` with `unit`, `functional`, `integration`, and isolated `e2e` build tags. `make test` and `make test-go` enable the first three tag families without cached results; `make test-e2e` alone selects the offline E2E tests, builds and invokes `build/analysis`, evaluates generated SOMETHING configuration through `build/something-printer`, and writes deterministic and mocked database bundles beneath `build/e2e/`. Real-database integration and E2E tests use production migrations.
+Ordinary Go tests use `testing` in external packages under `tests/<domain>/<component>/{unit,functional,integration}/`, with directory-based selection and no ordinary layer tags. `make test` selects all ordinary Go, Node, and browser suites, while `make test-go` selects backend, tooling, and shared Go suites without cached results. `DOMAIN`, `LAYER`, and `COMPONENT` narrow that scope; invalid or empty scopes and unmatched focused Go expressions fail. The isolated `e2e` tag gates offline E2E and `e2e_live` additionally gates live tests; `make test-e2e` alone selects the offline E2E tests, builds and invokes `build/analysis`, evaluates generated SOMETHING configuration through `build/something-printer`, and writes deterministic and mocked database bundles beneath `build/e2e/`. Real-database integration and E2E tests use production migrations.
 
-`make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` writes an atomic whole-module profile and enforces the SOMETHING coverage policy. `make format-check`, `make vet`, `make check-sql`, `make check-imports`, and `make check` cover formatting, static checks, raw SQL ownership, the import and transaction graph, and complete read-only documentation consistency.
+`make test-race` runs all Go tests under the race detector and applies to concurrency, cache, HTTP-client, database, and lifecycle changes. `make coverage` explicitly instruments backend, tooling, and shared production packages, including uncovered packages, writes an atomic profile, and enforces the SOMETHING package/file floors without counting test support. Extracted components retain their former owner floors; thin process wrappers and documented inspection tools are explicitly excluded. `GOFLAGS=-p=2 make test-race` bounds package parallelism for comparable SQLite-heavy runs. `make format-check`, `make vet`, `make check-sql`, `make check-imports`, and `make check` cover formatting, static checks, raw SQL ownership, the import and transaction graph, and complete read-only documentation consistency.
 
-Frontend unit tests use `node:test`, `node:assert`, and jsdom without a browser or server. Playwright configuration and browser specs are authored in TypeScript and split each invocation into a read-only suite and a serial mutation suite, each with its own copied fixture pair and isolated viewer on an operating-system-assigned loopback port, and write unique output under `build/playwright/`; `viewer.spec.ts` covers fixture evidence, serial `review.spec.ts` covers local mutations and PDF rendering, `ui-quality.spec.ts` covers axe, responsive behavior, and reviewed visual snapshots, and the environment-guarded `e2e.spec.ts` mutates and verifies A1 and A2 review lineage over a database generated by the real pipeline binary.
+Frontend unit tests use `node:test`, `node:assert`, and jsdom without a browser or server. Playwright configuration at `tests/playwright.config.ts` and browser specs under `tests/frontend/` and `tests/contracts/` are authored in TypeScript and split each invocation into a read-only suite and a serial mutation suite, with a fresh copied fixture pair and isolated viewer for each browser project and mutation spec on an operating-system-assigned loopback port, and write unique output under `build/playwright/`; `viewer.spec.ts` covers fixture evidence, serial `review.spec.ts` covers local mutations and PDF rendering, `ui-quality.spec.ts` covers axe, responsive behavior, and reviewed visual snapshots, and the environment-guarded `e2e.spec.ts` mutates and verifies A1 and A2 review lineage over a database generated by the real pipeline binary.
 
 Current test counts are derived from source rather than maintained in prose. The normative test and verification policy is [STANDARDS.md](STANDARDS.md).
 
@@ -516,7 +523,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - SOMETHING preserves ordered evaluation and panic-based internal phase failures so compiler behavior remains consistent across phases.
 - The viewer is local and review-writable, with bounded mutation endpoints and no authentication layer; exact loopback binding and Host authority are mandatory privacy boundaries.
 - Review contexts freeze selected parent heads by stable work identity, and later child versions move only the selected context so historical runs remain stable.
-- The frontend uses page-file navigation, URL state, and native modules so research context is shareable, reload-safe, and independent from a framework runtime; cross-view transitions load a document, same-view state changes re-render in place, and sources plus generated pages are assembled into `frontend/dist` by `make frontend-build` before serving.
+- The frontend uses page-file navigation, URL state, and native modules so research context is shareable, reload-safe, and independent from a framework runtime; cross-view transitions load a document, same-view state changes re-render in place, and sources plus generated pages are assembled into `build/frontend/dist` by `make frontend-build` before serving.
 - D3-force is pinned and generated as one checked-in browser asset so the assembled frontend requires no CDN; Node is needed only to build assets and run frontend tests, not while the viewer serves them.
 - PDF.js 4.2.67 is pinned and generated with its matching worker, CMaps, fonts, and license so PDF rendering requires neither a CDN nor the default PDF.js viewer UI.
 - Documentation generation and validation use one Go tool so maintained project tooling does not introduce another runtime language.
@@ -524,7 +531,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 
 ## 19. Assumptions and constraints
 
-- Commands and runtime relative paths assume execution from the repository root unless a documented command changes into `src/` itself.
+- Commands and runtime relative paths assume execution from the repository root.
 - Workspace source exports exist locally and match their declared source type; the pipeline does not acquire proprietary exports.
 - Provider keys and execution order are code, so adding configuration alone does not register a provider.
 - The metadata and companion PDF databases move and back up together after PDF inventory begins.
@@ -551,7 +558,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
 - Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow family transaction, required state checks, and identifier-only audit metadata; review-decision mutations additionally record the bounded complete previous and new decision in audit before/after fields while preserving the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
-- Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in `scripts/build.ts`, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
+- Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in [tooling/node/frontend/build.ts](../tooling/node/frontend/build.ts), rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.
 
