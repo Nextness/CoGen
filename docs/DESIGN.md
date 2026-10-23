@@ -263,8 +263,8 @@ The interface must not render credentials, tokens, private keys, raw environment
 | Path | Design responsibility |
 |---|---|
 | `index.html` | Authoritative accessible shell template for every generated page document. |
-| `scripts/build.ts` | Compiled-source assembly, per-view page generation and markers, and served-root validation. |
-| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, non-mutating freshness verification, non-JSX class validation, and defined-without-static-use reporting. |
+| [tooling/node/frontend/build.ts](../tooling/node/frontend/build.ts) | Compiled-source assembly, per-view page generation and markers, and served-root validation. |
+| [tooling/node/frontend/generate-classes.ts](../tooling/node/frontend/generate-classes.ts) and [tooling/node/frontend/check-classes.ts](../tooling/node/frontend/check-classes.ts) | Generated CSS token registry, non-mutating freshness verification, non-JSX class validation, and defined-without-static-use reporting. |
 | `app.tsx` | Global event binding, same-view history interception, protected native cross-view navigation, shell initialization, and first render. |
 | `jsx/classes.ts` | Committed generated union of class tokens defined by the six authoritative stylesheets; never edit it directly. |
 | `jsx/jsx-runtime.ts` | The project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. Authored contract in [JSX-RUNTIME.md](JSX-RUNTIME.md). |

@@ -426,8 +426,8 @@ app.tsx -> router.render -> abort prior request -> hydrate selectors -> dispatch
 | Path | Responsibility |
 |---|---|
 | `index.html` | Authoritative shell template for the generated home, Deepdive, and detail HTML documents. |
-| `scripts/build.ts` | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
-| `scripts/generate-classes.ts` and `scripts/check-classes.ts` | Generated CSS token registry, freshness verification, statically visible use validation, and unused-token reporting. |
+| [tooling/node/frontend/build.ts](../tooling/node/frontend/build.ts) | Per-file TypeScript compilation, HTML page generation, static-asset assembly, and served-root validation. |
+| [tooling/node/frontend/generate-classes.ts](../tooling/node/frontend/generate-classes.ts) and [tooling/node/frontend/check-classes.ts](../tooling/node/frontend/check-classes.ts) | Generated CSS token registry, freshness verification, statically visible use validation, and unused-token reporting. |
 | `app.tsx` | Global event binding, same-view history interception, cross-view native-navigation protection, shell initialization, and first render. |
 | `jsx/classes.ts` | Committed generated `ClassName` union derived from the six authoritative stylesheets. |
 | `jsx/jsx-runtime.ts` | Project-owned classic-mode JSX runtime: `h`, `Fragment`, typed class composition and DOM class helpers, `render`, `renderToString`, and the controlled `raw` escape hatch. |
@@ -558,7 +558,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - Add a metadata or PDF migration file with both section markers, append it to the correct SOMETHING chain, and never rewrite an applied migration.
 - Add an enrichment provider by implementing provider HTTP and decoding in `enrich`, registering ordering and storage orchestration in `workspace`, preserving cache evidence, and using controlled server tests.
 - Add an evidence endpoint with GET or HEAD, read-only SQLite, allowlisted identifiers, bounded input and output, context timeouts, and integration coverage. Add a mutation only through the existing transport guards, a narrow family transaction, required state checks, and identifier-only audit metadata; review-decision mutations additionally record the bounded complete previous and new decision in audit before/after fields while preserving the PDF availability boundary, optimistic head compare-and-swap, and immutable version model.
-- Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in `scripts/build.ts`, rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
+- Add a frontend view by preserving URL context, registering router dispatch, primary navigation, `state.viewPage`, and the static page definition in [tooling/node/frontend/build.ts](../tooling/node/frontend/build.ts), rendering through established state and component helpers, binding after DOM replacement, and adding proportional tests.
 - Add reusable frontend behavior to a component without importing view modules or expanding the router and selector cycle.
 - Add an attached Go documentation comment or adjacent JavaScript JSDoc with every maintained declaration, then regenerate [PROJECT_CATALOG.md](PROJECT_CATALOG.md); JavaScript test callback titles supply test descriptions, and documentation checks reject missing source descriptions.
 

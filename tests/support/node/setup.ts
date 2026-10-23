@@ -1,7 +1,7 @@
-// Shared JSDOM setup for frontend unit tests.
-// Import this as a side-effect before importing any frontend module:
-//   import "../../../frontend/tests/unit/setup.js";
-//   import { asJSON } from "../../../frontend/src/state.ts";
+// Shared JSDOM setup for frontend unit and functional tests.
+// Import this before frontend modules. From tests/frontend/api/unit/api.test.ts:
+//   import "../../../support/node/setup.ts";
+//   import { state } from "../../../../frontend/src/state.tsx";
 
 import { JSDOM } from 'jsdom';
 

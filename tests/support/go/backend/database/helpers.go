@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// configPath is resolved relative to src/ (where tests run).
+// TestConfigPath locates the production migration registry from the repository root.
 var TestConfigPath = testenv.Path("config", "database.something")
 
 // OpenTestDB supports the package test suite's open test db setup or assertions.

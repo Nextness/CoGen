@@ -1,11 +1,9 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { collectClassUses, unknownClassUses, untypedDOMClassUses } from "../../../../../tooling/node/frontend/check-classes.ts";
 import { extractClassTokens, generateClassRegistry, isClassRegistryFresh } from "../../../../../tooling/node/frontend/generate-classes.ts";
-import { rewriteClassNames, rewriteDOMClassUses } from "../../../../../tooling/node/frontend/rewrite-class-names.ts";
 import { classTokens } from "../../../../../frontend/src/jsx/classes.ts";
 
 describe("generated CSS class registry", () => {
@@ -38,20 +36,5 @@ describe("generated CSS class registry", () => {
 
     const untypedSource = `node.classList.add("ui"); node.className = dynamicClass; node.className = classNames.uiButton;`;
     assert.deepEqual(untypedDOMClassUses(untypedSource), [".classList.add(", ".className ="]);
-  });
-
-  it("rewrites compound JSX and DOM classes through typed named helpers", () => {
-    const source = `import { h } from "../../../../../frontend/tests/unit/jsx/jsx-runtime.ts";\nexport function Example(): JSX.Element { return <button className="ui basic button">Open</button>; }\n`;
-    const jsxResult = rewriteClassNames(source, "fixture.tsx");
-    assert.equal(jsxResult.replacements, 1);
-    assert.match(jsxResult.source, /const classNames = \{/);
-    assert.match(jsxResult.source, /uiBasicButton: cx\("ui", "basic", "button"\)/);
-    assert.match(jsxResult.source, /className=\{classNames\.uiBasicButton\}/);
-    assert.doesNotMatch(jsxResult.source, /className=\{cx\(/);
-
-    const domSource = `import { h } from "../../../../../frontend/tests/unit/jsx/jsx-runtime.ts";\nbutton.classList.toggle("active", selected);\n`;
-    const domResult = rewriteDOMClassUses(domSource, "fixture.tsx");
-    assert.equal(domResult.replacements, 1);
-    assert.match(domResult.source, /classToggle\(button, "active", selected\)/);
   });
 });

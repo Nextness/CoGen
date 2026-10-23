@@ -6047,22 +6047,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`isClassRegistryFresh`](../tooling/node/frontend/generate-classes.ts#L59) | function | 59 | `function isClassRegistryFresh(committed: string, generated: string)` | Returns whether committed registry contents match freshly generated contents. |
 | [`main`](../tooling/node/frontend/generate-classes.ts#L64) | function | 64 | `function main(args: readonly string[] = process.argv.slice(2))` | Generates or verifies the committed class registry for command-line use. |
 
-### [`tooling/node/frontend/rewrite-class-names.ts`](../tooling/node/frontend/rewrite-class-names.ts)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`tsxFiles`](../tooling/node/frontend/rewrite-class-names.ts#L13) | function | 13 | `function tsxFiles(directory: string)` | Returns authored TSX files below a directory. |
-| [`addRuntimeImports`](../tooling/node/frontend/rewrite-class-names.ts#L27) | function | 27 | `function addRuntimeImports(source: string, required: readonly string[])` | Adds required names to the module's existing JSX runtime import. |
-| [`tokensIn`](../tooling/node/frontend/rewrite-class-names.ts#L39) | function | 39 | `function tokensIn(value: string)` | Returns trimmed class tokens from one space-separated class string. |
-| [`classNamesProperty`](../tooling/node/frontend/rewrite-class-names.ts#L45) | function | 45 | `function classNamesProperty(tokens: readonly string[])` | Returns a camelCase property name for one ordered class-token combination. |
-| [`existingClassNames`](../tooling/node/frontend/rewrite-class-names.ts#L63) | function | 63 | `function existingClassNames(source: string)` | Reads the class combinations already maintained in a module-local declaration. |
-| [`withClassNamesDeclaration`](../tooling/node/frontend/rewrite-class-names.ts#L78) | function | 78 | `function withClassNamesDeclaration(source: string, entries: ReadonlyMap<string, readonly string[]>)` | Inserts or replaces the documented module-local class-combination declaration. |
-| [`rewriteClassNames`](../tooling/node/frontend/rewrite-class-names.ts#L102) | function | 102 | `function rewriteClassNames(source: string, file: string)` | Rewrites defined compound JSX classes to named, typed module-local values. |
-| [`reference`](../tooling/node/frontend/rewrite-class-names.ts#L108) | function | 108 | `function reference(tokens: readonly string[])` | Registers one combination and returns its module-local property reference. |
-| [`rewriteDOMClassUses`](../tooling/node/frontend/rewrite-class-names.ts#L179) | function | 179 | `function rewriteDOMClassUses(source: string, file: string)` | Rewrites direct DOM class mutations to typed runtime helpers. |
-| [`registered`](../tooling/node/frontend/rewrite-class-names.ts#L186) | function | 186 | `function registered(token: string)` | Returns whether a DOM helper token belongs to the generated registry. |
-| [`main`](../tooling/node/frontend/rewrite-class-names.ts#L239) | function | 239 | `function main()` | Applies the class-literal rewrite to authored TSX source files. |
-
 ## JavaScript test cases
 
 ### [`tests/contracts/http/integration/api-shapes.spec.ts`](../tests/contracts/http/integration/api-shapes.spec.ts)
@@ -6614,11 +6598,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`extracts class tokens from compound and functional selectors without pseudo or attribute values`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L12) | test | 12 | `it("extracts class tokens from compound and functional selectors without pseudo or attribute values", callback)` | extracts class tokens from compound and functional selectors without pseudo or attribute values |
-| [`matches freshly generated contents and rejects stale contents`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L17) | test | 17 | `it("matches freshly generated contents and rejects stale contents", callback)` | matches freshly generated contents and rejects stale contents |
-| [`does not include pseudo-class, pseudo-element, or nth-child argument names`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L24) | test | 24 | `it("does not include pseudo-class, pseudo-element, or nth-child argument names", callback)` | does not include pseudo-class, pseudo-element, or nth-child argument names |
-| [`identifies undefined static tokens and direct untyped DOM operations`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L31) | test | 31 | `it("identifies undefined static tokens and direct untyped DOM operations", callback)` | identifies undefined static tokens and direct untyped DOM operations |
-| [`rewrites compound JSX and DOM classes through typed named helpers`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L43) | test | 43 | `it("rewrites compound JSX and DOM classes through typed named helpers", callback)` | rewrites compound JSX and DOM classes through typed named helpers |
+| [`extracts class tokens from compound and functional selectors without pseudo or attribute values`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L10) | test | 10 | `it("extracts class tokens from compound and functional selectors without pseudo or attribute values", callback)` | extracts class tokens from compound and functional selectors without pseudo or attribute values |
+| [`matches freshly generated contents and rejects stale contents`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L15) | test | 15 | `it("matches freshly generated contents and rejects stale contents", callback)` | matches freshly generated contents and rejects stale contents |
+| [`does not include pseudo-class, pseudo-element, or nth-child argument names`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L22) | test | 22 | `it("does not include pseudo-class, pseudo-element, or nth-child argument names", callback)` | does not include pseudo-class, pseudo-element, or nth-child argument names |
+| [`identifies undefined static tokens and direct untyped DOM operations`](../tests/tooling/node/frontend-classes/unit/class-registry.test.ts#L29) | test | 29 | `it("identifies undefined static tokens and direct untyped DOM operations", callback)` | identifies undefined static tokens and direct untyped DOM operations |
 
 ### [`tests/tooling/node/viewer-fixture/integration/fixture-contract.test.ts`](../tests/tooling/node/viewer-fixture/integration/fixture-contract.test.ts)
 
