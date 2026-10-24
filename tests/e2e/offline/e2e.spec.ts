@@ -112,7 +112,7 @@ test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation'
   await expect(audit).toBeVisible();
   await expect(audit).toContainText('Run Started');
   await expect(audit).toContainText('Validation Changed');
-  await expect(audit).toContainText('Pdf Inventory Registered');
+  await expect(audit).toContainText("PDF Inventory Registered");
   await expect(audit).toContainText('Run Completed');
 
   await visitGenerated(page, context, { view: 'corpus', section: 'articles' });
