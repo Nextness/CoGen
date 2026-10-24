@@ -110,7 +110,7 @@ The viewer is a URL-state SPA assembled into `build/frontend/dist` from `fronten
 
 ## 6. Data, migration, and security essentials
 
-The metadata chain is V00001-V00028 and the PDF chain is V00001-V00002. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
+The metadata chain is V00001-V00028 and the PDF chain is V00001-V00003. Add files under the owning migration directory with `-- ==UP==` and `-- ==DOWN==`, append them to the matching SOMETHING chain, and never rewrite an applied migration.
 
 Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. A configured `supersedes` filename adopts an already applied renamed migration by recording the canonical filename without rerunning its SQL; retain both history rows and use this only for an explicitly verified equivalent migration. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 

@@ -89,12 +89,20 @@ FROM pdf_documents
 WHERE doi = ?1
 `
 
+type GetPDFDocumentRow struct {
+	Doi           string
+	Status        string
+	ContentHash   sql.NullString
+	InventoriedAt sql.NullString
+	UpdatedAt     string
+}
+
 // Companion PDF store queries. Registration, insertion, inventory lookup,
 // blob reads, and outbox selection are typed; the cross-database delivery
 // protocol keeps its handwritten savepoints and metadata transaction.
-func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (PdfDocument, error) {
+func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (GetPDFDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, getPDFDocument, doi)
-	var i PdfDocument
+	var i GetPDFDocumentRow
 	err := row.Scan(
 		&i.Doi,
 		&i.Status,
@@ -433,7 +441,8 @@ UPDATE pdf_documents
 SET status = 'available',
     content_hash = ?1,
     inventoried_at = ?2,
-    updated_at = ?3
+    updated_at = ?3,
+    change_counter = change_counter + 1
 WHERE doi = ?4
   AND status = 'not_available'
 `

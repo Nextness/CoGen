@@ -31,7 +31,8 @@ UPDATE pdf_documents
 SET status = 'available',
     content_hash = sqlc.arg(content_hash),
     inventoried_at = sqlc.arg(inventoried_at),
-    updated_at = sqlc.arg(updated_at)
+    updated_at = sqlc.arg(updated_at),
+    change_counter = change_counter + 1
 WHERE doi = sqlc.arg(doi)
   AND status = 'not_available';
 
