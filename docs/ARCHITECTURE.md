@@ -35,7 +35,7 @@ Source exports + SOMETHING configuration
 | Path | Responsibility |
 |---|---|
 | [Makefile](../Makefile) | Supported repository-root build, execution, test, documentation, coverage, fixture, viewer, and frontend interface. |
-| `backend/cmd/analysis/`, `backend/cli/` | Thin executable entry and importable dispatch for `run`, `recover`, `migrate`, `serve`, and `version`. |
+| `backend/cmd/analysis/`, `backend/cli/` | Thin executable entry and importable dispatch for `run`, `recover`, `migrate`, `pdf-annotate`, `serve`, and `version`. |
 | `go.mod`, `go.sum` | Go module and dependency lock; Go commands execute from the repository-root module. |
 | `backend/article/` | Parsed article model, text cleanup, DOI extraction, field projection, and DOI deduplication. |
 | `backend/bibtex/` | Deliberately constrained article-only BibTeX tokenizer and parser. |

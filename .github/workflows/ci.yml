@@ -179,6 +179,8 @@ jobs:
         run: make test-frontend-functional
       - name: Node tooling and harness tests
         run: npm run test:tooling --workspace @cogen/tests
+      - name: PDF annotation contract tests
+        run: make test DOMAIN=contracts COMPONENT=pdf LAYER=integration
 
   frontend-browser-chromium:
     name: Playwright chromium

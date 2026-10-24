@@ -91,3 +91,45 @@ func TestAnnotateHighlightPreservesSource(t *testing.T) {
 		t.Fatal("source bytes changed during annotation")
 	}
 }
+
+// TestAnnotateUnicodePreservesSource verifies Unicode annotation bodies produce a valid PDF without mutating the source.
+func TestAnnotateUnicodePreservesSource(t *testing.T) {
+	source := pdffixture.Bytes("Fixture page")
+	original := append([]byte(nil), source...)
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page:     1,
+		Type:     subject.AnnotationText,
+		Rect:     subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "Résumé naïve 日本語 😀",
+		Title:    "Reviewer",
+		Subject:  "Comment",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatal("annotated output is not a PDF")
+	}
+	if !bytes.Equal(source, original) {
+		t.Fatal("source bytes changed during annotation")
+	}
+}
+
+// TestAnnotateMultipleAnnotationsPreservesSource verifies multiple annotations produce a valid PDF without mutating the source.
+func TestAnnotateMultipleAnnotationsPreservesSource(t *testing.T) {
+	source := pdffixture.Bytes("Fixture page")
+	original := append([]byte(nil), source...)
+	output, err := subject.Annotate(source, []subject.Annotation{
+		{Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "First note", Title: "Reviewer", Subject: "Comment"},
+		{Page: 1, Type: subject.AnnotationHighlight, Rect: subject.Rectangle{X1: 30, Y1: 30, X2: 40, Y2: 40}, Contents: "Highlighted text", Title: "Reviewer", Subject: "Highlight"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatal("annotated output is not a PDF")
+	}
+	if !bytes.Equal(source, original) {
+		t.Fatal("source bytes changed during annotation")
+	}
+}

@@ -70,6 +70,12 @@ Commands:
             --db <path>        Path to an existing SQLite metadata
                                database (required).
 
+  pdf-annotate
+          Run the internal PDF annotation worker. Reads one JSON request
+          containing base64-encoded PDF bytes and annotation data from
+          standard input and writes annotated PDF bytes to standard output.
+          This command is a backend worker mode and does not open databases.
+
   serve   Start the loopback-only review viewer for an existing workspace
           database. Binds to a loopback address by default; the viewer
           serves the evaluation table, corpus browser, and graph views.
@@ -113,10 +119,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return recoverMain(args[1:], stderr)
 	case "migrate":
 		return migrateMain(args[1:], stderr)
+	case "pdf-annotate":
+		return pdfAnnotateMain(args[1:], stdout, stderr)
 	case "serve":
 		return serveMain(args[1:], stderr)
 	default:
-		fmt.Fprintf(stderr, "unknown command %q; expected run, recover, migrate, serve, or version\n", args[0])
+		fmt.Fprintf(stderr, "unknown command %q; expected run, recover, migrate, pdf-annotate, serve, or version\n", args[0])
 		return 2
 	}
 }

@@ -42,7 +42,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 
 | Output | Build target | Purpose |
 |---|---|---|
-| `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, or serves the loopback-only local review viewer. |
+| `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, serves the loopback-only local review viewer, or runs the internal PDF annotation worker. |
 | `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
 | `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
 | `build/pdf-export` | `make pdf-export` or `make tools` | Exports stored PDFs selected by DOI to filenames derived from their paper titles, opening both corpus databases read-only. |
@@ -67,6 +67,8 @@ All intentional executables are written beneath `build/`; routine work does not 
 `build/sqlc` is normally executed by `make sqlc-generate` or `make sqlc-check`; both targets pass `-f config/sqlc.yaml` from the repository root. Section 11 documents the generation workflow, maintained versus generated files, and common inference problems.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`).
+
+`build/analysis pdf-annotate` is the internal worker mode used by the annotation trial and integration tests. It reads one JSON request containing base64-encoded PDF bytes and application annotation data from standard input and writes annotated PDF bytes to standard output. It does not open databases or accept operator file paths.
 
 ## 5. Pipeline execution
 

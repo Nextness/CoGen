@@ -64,14 +64,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`version`](../backend/cli/main.go#L31) | function | 31-33 | `func version() string` | version returns the semantic version string. |
-| [`usage`](../backend/cli/main.go#L36) | function | 36-98 | `func usage(stderr io.Writer)` | usage writes the supported command syntax to standard error. |
-| [`Run`](../backend/cli/main.go#L101) | function | 101-122 | `func Run(args []string, stdout, stderr io.Writer) int` | Run dispatches explicit command arguments and returns the process exit status. |
-| [`migrateMain`](../backend/cli/main.go#L125) | function | 125-144 | `func migrateMain(args []string, stderr io.Writer) int` | migrateMain applies pending metadata migrations to one existing database. |
-| [`serveMain`](../backend/cli/main.go#L147) | function | 147-195 | `func serveMain(args []string, stderr io.Writer) int` | serveMain serves main. |
-| [`validateLoopbackAddress`](../backend/cli/main.go#L198) | function | 198-208 | `func validateLoopbackAddress(address string) error` | validateLoopbackAddress accepts exact IP loopback authorities and rejects names and wildcard hosts. |
-| [`frontendAssets`](../backend/cli/main.go#L211) | function | 211-220 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets validates one frontend asset directory and exposes it as a file system. |
-| [`runPipelineMain`](../backend/cli/main.go#L223) | function | 223-261 | `func runPipelineMain(args []string, stderr io.Writer) int` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
-| [`recoverMain`](../backend/cli/main.go#L264) | function | 264-285 | `func recoverMain(args []string, stderr io.Writer) int` | recoverMain recovers one abandoned attempt without migrating or executing a workspace. |
+| [`usage`](../backend/cli/main.go#L36) | function | 36-104 | `func usage(stderr io.Writer)` | usage writes the supported command syntax to standard error. |
+| [`Run`](../backend/cli/main.go#L107) | function | 107-130 | `func Run(args []string, stdout, stderr io.Writer) int` | Run dispatches explicit command arguments and returns the process exit status. |
+| [`migrateMain`](../backend/cli/main.go#L133) | function | 133-152 | `func migrateMain(args []string, stderr io.Writer) int` | migrateMain applies pending metadata migrations to one existing database. |
+| [`serveMain`](../backend/cli/main.go#L155) | function | 155-203 | `func serveMain(args []string, stderr io.Writer) int` | serveMain serves main. |
+| [`validateLoopbackAddress`](../backend/cli/main.go#L206) | function | 206-216 | `func validateLoopbackAddress(address string) error` | validateLoopbackAddress accepts exact IP loopback authorities and rejects names and wildcard hosts. |
+| [`frontendAssets`](../backend/cli/main.go#L219) | function | 219-228 | `func frontendAssets(dir string) (fs.FS, error)` | frontendAssets validates one frontend asset directory and exposes it as a file system. |
+| [`runPipelineMain`](../backend/cli/main.go#L231) | function | 231-269 | `func runPipelineMain(args []string, stderr io.Writer) int` | runPipelineMain parses run flags, resolves workspace selections, and executes each pipeline workspace. |
+| [`recoverMain`](../backend/cli/main.go#L272) | function | 272-293 | `func recoverMain(args []string, stderr io.Writer) int` | recoverMain recovers one abandoned attempt without migrating or executing a workspace. |
+
+### [`backend/cli/pdfannotate.go`](../backend/cli/pdfannotate.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`pdfannotateRequest`](../backend/cli/pdfannotate.go#L13) | struct | 13-16 | ``type pdfannotateRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | pdfannotateRequest is the JSON request for the internal annotation worker. |
+| [`pdfAnnotateMain`](../backend/cli/pdfannotate.go#L19) | function | 19-39 | `func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int` | pdfAnnotateMain runs the internal PDF annotation worker. It reads one JSON request from standard input and writes annotated PDF bytes to standard output. |
 
 ### [`backend/cmd/analysis/main.go`](../backend/cmd/analysis/main.go)
 
@@ -3429,6 +3436,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestParseRejectsUnsafeAndMalformedInput`](../tests/backend/notes/unit/parser_unit_test.go#L41) | test | 41-47 | `func TestParseRejectsUnsafeAndMalformedInput(t *testing.T)` | TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable. |
 | [`TestConformanceFixtures`](../tests/backend/notes/unit/parser_unit_test.go#L50) | test | 50-73 | `func TestConformanceFixtures(t *testing.T)` | TestConformanceFixtures verifies the authoritative normalized link and diagnostic corpus. |
 
+### [`tests/backend/pdfannotate/integration/pdfannotate_integration_test.go`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`workerRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L19) | struct | 19-22 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | workerRequest mirrors the JSON protocol accepted by the pdf-annotate worker. |
+| [`buildWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L25) | function | 25-44 | `func buildWorker(t *testing.T) string` | buildWorker builds the analysis binary in a unique directory under build/pdf-trial. |
+| [`runWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L47) | function | 47-56 | `func runWorker(t *testing.T, binary string, request []byte) ([]byte, string, error)` | runWorker runs the worker with one JSON request and returns its output and error text. |
+| [`TestWorkerAnnotatesTextAndHighlight`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L59) | test | 59-100 | `func TestWorkerAnnotatesTextAndHighlight(t *testing.T)` | TestWorkerAnnotatesTextAndHighlight verifies text and highlight annotations survive the worker boundary without changing source bytes. |
+| [`TestWorkerAnnotatesComplexPage`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L103) | test | 103-144 | `func TestWorkerAnnotatesComplexPage(t *testing.T)` | TestWorkerAnnotatesComplexPage verifies the worker preserves a complex page with crop origins, rotation, user units, and an existing annotation without changing source bytes. |
+| [`TestWorkerRejectsMalformedRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L147) | test | 147-156 | `func TestWorkerRejectsMalformedRequest(t *testing.T)` | TestWorkerRejectsMalformedRequest verifies malformed JSON fails safely. |
+| [`TestWorkerRejectsUnsupportedType`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L159) | test | 159-180 | `func TestWorkerRejectsUnsupportedType(t *testing.T)` | TestWorkerRejectsUnsupportedType verifies unsupported annotation types fail safely. |
+
 ### [`tests/backend/pdfannotate/unit/pdfannotate_unit_test.go`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3438,6 +3457,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAnnotateRejectsUnsupportedType`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L37) | test | 37-47 | `func TestAnnotateRejectsUnsupportedType(t *testing.T)` | TestAnnotateRejectsUnsupportedType verifies unknown annotation types fail safely. |
 | [`TestAnnotateTextPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L50) | test | 50-70 | `func TestAnnotateTextPreservesSource(t *testing.T)` | TestAnnotateTextPreservesSource verifies a text annotation produces a valid PDF without mutating the source. |
 | [`TestAnnotateHighlightPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L73) | test | 73-93 | `func TestAnnotateHighlightPreservesSource(t *testing.T)` | TestAnnotateHighlightPreservesSource verifies a highlight annotation produces a valid PDF without mutating the source. |
+| [`TestAnnotateUnicodePreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L96) | test | 96-116 | `func TestAnnotateUnicodePreservesSource(t *testing.T)` | TestAnnotateUnicodePreservesSource verifies Unicode annotation bodies produce a valid PDF without mutating the source. |
+| [`TestAnnotateMultipleAnnotationsPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L119) | test | 119-135 | `func TestAnnotateMultipleAnnotationsPreservesSource(t *testing.T)` | TestAnnotateMultipleAnnotationsPreservesSource verifies multiple annotations produce a valid PDF without mutating the source. |
 
 ### [`tests/backend/pdfstore/integration/audit_identity_integration_test.go`](../tests/backend/pdfstore/integration/audit_identity_integration_test.go)
 
@@ -4694,6 +4715,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`AssertPanic`](../tests/support/go/backend/something/helpers.go#L492) | function | 492-510 | `func AssertPanic(t *testing.T, fn func(), msgContains string)` | AssertPanic supports the package test suite's assert panic setup or assertions. |
 | [`ParseText`](../tests/support/go/backend/something/helpers.go#L513) | function | 513-518 | `func ParseText(t *testing.T, text string) *ParsedProgramView` | ParseText builds a parsed program view from source text. |
 
+### [`tests/support/go/cmd/pdf-fixture/main.go`](../tests/support/go/cmd/pdf-fixture/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`main`](../tests/support/go/cmd/pdf-fixture/main.go#L12) | function | 12-28 | `func main()` | main writes one deterministic PDF fixture to standard output. |
+
 ### [`tests/support/go/cmd/viewer-fixture/main.go`](../tests/support/go/cmd/viewer-fixture/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -4732,6 +4759,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`nestedE2EID`](../tests/support/go/e2eflow/flow.go#L639) | function | 639-662 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
 | [`mustE2EJSON`](../tests/support/go/e2eflow/flow.go#L665) | function | 665-672 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
 | [`equalE2EStrings`](../tests/support/go/e2eflow/flow.go#L675) | function | 675-681 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
+
+### [`tests/support/go/pdffixture/complex.go`](../tests/support/go/pdffixture/complex.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ComplexBytes`](../tests/support/go/pdffixture/complex.go#L11) | function | 11-56 | `func ComplexBytes(pageText ...string) []byte` | ComplexBytes returns a structurally valid multi-page PDF with crop origins, rotation, user units, an existing annotation, and selectable text. |
 
 ### [`tests/support/go/pdffixture/pdf.go`](../tests/support/go/pdffixture/pdf.go)
 
@@ -5910,6 +5943,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`validateGraph`](../tests/contracts/http/integration/api-shapes.spec.ts#L974) | function | 974 | `async function validateGraph(request: APIRequestContext)` | Validates GET /api/graph. |
 | [`validatePDFStatus`](../tests/contracts/http/integration/api-shapes.spec.ts#L1010) | function | 1010 | `async function validatePDFStatus(request: APIRequestContext)` | Validates GET /api/works/{work_id}/pdf-status. |
 
+### [`tests/contracts/pdf/integration/pdf-annotations.test.ts`](../tests/contracts/pdf/integration/pdf-annotations.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`runWorker`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L18) | function | 18 | `function runWorker(request: string)` | runWorker runs the worker with one JSON request and returns its output. |
+
 ### [`tests/e2e/offline/e2e.spec.ts`](../tests/e2e/offline/e2e.spec.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -6013,6 +6052,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`renderToString`](../tests/support/node/helpers/jsx-render.ts#L6) | function | 6 | `function renderToString(node: unknown)` | Serializes a rendered node tree to an HTML string. |
 | [`raw`](../tests/support/node/helpers/jsx-render.ts#L23) | function | 23 | `function raw(html: string)` | Builds a node from a trusted, already-escaped HTML string. |
 
+### [`tests/support/node/pdf-inspector.ts`](../tests/support/node/pdf-inspector.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`inspectPDF`](../tests/support/node/pdf-inspector.ts#L52) | function | 52 | `async function inspectPDF(data: Uint8Array)` | inspectPDF loads PDF bytes with the vendored PDF.js build and extracts annotations and text. |
+
 ### [`tests/support/node/pdf-selection.ts`](../tests/support/node/pdf-selection.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -6111,6 +6156,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`article review and review collections match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1144) | test | 1144 | `test('article review and review collections match their contracts', callback)` | article review and review collections match their contracts |
 | [`identity evidence, stages, and table endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1149) | test | 1149 | `test('identity evidence, stages, and table endpoints match their contracts', callback)` | identity evidence, stages, and table endpoints match their contracts |
 | [`detail, graph, and PDF-status endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1155) | test | 1155 | `test('detail, graph, and PDF-status endpoints match their contracts', callback)` | detail, graph, and PDF-status endpoints match their contracts |
+
+### [`tests/contracts/pdf/integration/pdf-annotations.test.ts`](../tests/contracts/pdf/integration/pdf-annotations.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`adds text and highlight annotations without changing source bytes`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L35) | test | 35 | `it("adds text and highlight annotations without changing source bytes", callback)` | adds text and highlight annotations without changing source bytes |
+| [`rejects malformed requests safely`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L79) | test | 79 | `it("rejects malformed requests safely", callback)` | rejects malformed requests safely |
+| [`rejects unsupported annotation types safely`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L85) | test | 85 | `it("rejects unsupported annotation types safely", callback)` | rejects unsupported annotation types safely |
 
 ### [`tests/e2e/offline/e2e.spec.ts`](../tests/e2e/offline/e2e.spec.ts)
 
