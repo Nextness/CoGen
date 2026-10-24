@@ -215,7 +215,7 @@ test.describe('Research-context and responsive behavior', () => {
   });
 
   test('skip link, errors, and reduced motion are announced', async ({ page }) => {
-    // Home boots without programmatic title focus, so the first Tab stop is the skip link.
+    // The first Tab stop after loading a page is the skip link.
     await visitQuality(page, { view: 'home' });
     await page.keyboard.press('Tab');
     await expect(page.locator('.skip-link')).toBeFocused();

@@ -232,7 +232,7 @@ Responsive changes must preserve context labels, status meaning, pagination, dis
 
 ## 17. Accessibility
 
-The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. A non-Home clean-path load focuses the rendered page title after the busy region becomes interactive, while the canonical Home root retains normal top-of-document focus and the Skip to content entry path.
+The document includes a Skip to content link, landmark header/navigation/main regions, logical headings, explicit form labels, status live regions, and visible keyboard focus. Primary navigation uses `aria-current`; disclosure controls use `aria-expanded`; context loading and errors are announced without forcing focus. Every page load retains normal top-of-document focus, with Skip to content as the first Tab stop. Activating that link follows the native fragment anchor to the focusable main region without rerendering the view. Same-view navigation may explicitly focus the rendered page title after the busy region becomes interactive.
 
 All actions must be operable by keyboard and have discernible text or an accessible name. Interactive rows cannot be the only way to expand a record. Focus order follows visual order, and disabled selectors or buttons communicate why through nearby text.
 

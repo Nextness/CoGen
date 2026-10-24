@@ -133,7 +133,8 @@ test.describe('Health and page load', () => {
     expect(corpusURL.pathname).toBe('/corpus');
     expect(corpusURL.search).toBe('');
     await expect(page.locator('meta[name="rw-page"]')).toHaveAttribute('content', 'corpus');
-    await expect(page.getByRole('heading', { name: 'Corpus', exact: true })).toBeFocused();
+    await expect(page.getByRole('heading', { name: 'Corpus', exact: true })).toBeVisible();
+    await expect(page.locator("body")).toBeFocused();
 
     await page.goBack();
     await page.waitForLoadState('networkidle');
@@ -1227,6 +1228,41 @@ test.describe('Dark mode', () => {
 // ── 13. Accessibility ─────────────────────────────────────────────────
 
 test.describe('Accessibility', () => {
+  test("page loads and reloads leave focus at the start on every view", async ({ page }) => {
+    const routes = ["home", "overview", "corpus", "relationships", "provenance", "advanced", "article", "author", "reference"];
+    for (const view of routes) {
+      await visit(page, contextState({ view, article_id: ARTICLE_1_ID, author_id: AUTHOR_1_ID, reference_id: REF_1_ID }));
+      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator(".skip-link")).not.toBeInViewport();
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".skip-link")).toBeFocused();
+      await expect(page.locator(".skip-link")).toBeInViewport();
+
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator(".skip-link")).not.toBeInViewport();
+    }
+  });
+
+  test("the skip link moves focus to main content without rerendering the view", async ({ page }) => {
+    for (const view of ["home", "overview"]) {
+      await visit(page, contextState({ view }));
+      const title = await page.locator("#page-title").elementHandle();
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".skip-link")).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#main-content")).toBeFocused();
+      await expect(page.locator(".skip-link")).not.toBeInViewport();
+      await page.waitForLoadState("networkidle");
+      expect(await title!.evaluate((element) => element.isConnected)).toBe(true);
+
+      await page.goBack();
+      await page.waitForLoadState("networkidle");
+      expect(await title!.evaluate((element) => element.isConnected)).toBe(true);
+    }
+  });
+
   test('page has a skip-to-content link', async ({ page }) => {
     await goto(page, '/');
     const skipLink = page.locator('.skip-link, a[href="#main-content"], [href="#main"]').first();

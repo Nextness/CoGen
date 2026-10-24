@@ -42,6 +42,7 @@ document.addEventListener("click", (event) => {
   const href = anchor.getAttribute("href");
   if (!href) return;
   const destination = new URL(href, location.href);
+  if (destination.hash && destination.pathname === location.pathname && destination.search === location.search && destination.origin === location.origin) return;
   const destinationPath = "/" + destination.pathname.replace(/^\/+/, "").replace(/\/+$/, "");
   if (destination.origin !== location.origin || !internalPagePaths.has(destinationPath)) return;
   if (!navigationAllowed()) {
@@ -94,17 +95,21 @@ document.addEventListener("click", (event) => {
 });
 
 window.addEventListener("popstate", (event) => {
+  const restored = isStateObject(event.state) ? event.state : loadState() || {};
+  const next: Record<string, string> = { ...restored, view: pathView() };
+  const currentKeys = Object.keys(viewerState);
+  const nextKeys = Object.keys(next);
+  if (currentKeys.length === nextKeys.length && currentKeys.every((key) => viewerState[key] === next[key])) return;
+
   if (!navigationAllowed()) {
     history.forward();
     return;
   }
-  const restored = isStateObject(event.state) ? event.state : loadState() || {};
-  restoreState({ ...restored, view: pathView() });
+  restoreState(next);
   render();
 });
 
 initHealthCheck();
 initMobileNavToggle();
 initViewerState();
-const pageMarker = document.querySelector<HTMLMetaElement>('meta[name="rw-page"]')?.content || "home";
-render({ focusTitle: pageMarker !== "home" });
+render();
