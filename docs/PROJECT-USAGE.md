@@ -68,7 +68,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`).
 
-`build/analysis pdf-annotate` is the internal worker mode used by the annotation trial and integration tests. It reads one JSON request containing base64-encoded PDF bytes and application annotation data from standard input and writes annotated PDF bytes to standard output. It does not open databases or accept operator file paths.
+`build/analysis pdf-annotate` is the internal worker mode used by the annotation trial and integration tests. It reads one bounded JSON request containing base64-encoded PDF bytes and application annotation data from standard input and writes annotated PDF bytes to standard output. It does not open databases or accept operator file paths. The worker enforces request, PDF, annotation-count, annotation-text, and output byte bounds; callers must enforce a timeout and reap the process.
 
 ## 5. Pipeline execution
 

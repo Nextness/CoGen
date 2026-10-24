@@ -3,12 +3,14 @@ package pdfannotate_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"analysis/backend/pdfannotate"
 	"analysis/tests/support/go/pdffixture"
@@ -177,4 +179,128 @@ func TestWorkerRejectsUnsupportedType(t *testing.T) {
 	if !strings.Contains(stderr, "unsupported annotation type") {
 		t.Fatalf("unexpected error text: %s", stderr)
 	}
+}
+
+// TestWorkerCancellationTerminates verifies the parent can kill and reap a blocked worker.
+func TestWorkerCancellationTerminates(t *testing.T) {
+	binary := buildWorker(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	command := exec.CommandContext(ctx, binary, "pdf-annotate")
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer stdin.Close()
+	err = command.Wait()
+	if err == nil {
+		t.Fatal("worker exited before cancellation")
+	}
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("context error = %v", ctx.Err())
+	}
+	if command.ProcessState == nil {
+		t.Fatal("worker was not reaped")
+	}
+}
+
+// TestWorkerRejectsOversizedPDF verifies the worker rejects input above the configured PDF bound.
+func TestWorkerRejectsOversizedPDF(t *testing.T) {
+	binary := buildWorker(t)
+	oversized := make([]byte, 20_000_001)
+	payload, err := json.Marshal(workerRequest{
+		PDF: oversized,
+		Annotations: []pdfannotate.Annotation{{
+			Page: 1, Type: pdfannotate.AnnotationText, Rect: pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "Reviewer note", Title: "Reviewer", Subject: "Comment",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, err := runWorker(t, binary, payload)
+	if err == nil {
+		t.Fatal("oversized PDF succeeded")
+	}
+	if !strings.Contains(stderr, "PDF exceeds") {
+		t.Fatalf("unexpected error text: %s", stderr)
+	}
+}
+
+// TestWorkerRejectsExcessiveAnnotationCount verifies the worker rejects requests above the configured annotation count.
+func TestWorkerRejectsExcessiveAnnotationCount(t *testing.T) {
+	binary := buildWorker(t)
+	source := pdffixture.Bytes("Fixture page")
+	annotations := make([]pdfannotate.Annotation, 201)
+	for index := range annotations {
+		annotations[index] = pdfannotate.Annotation{
+			Page: 1, Type: pdfannotate.AnnotationText, Rect: pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "Reviewer note", Title: "Reviewer", Subject: "Comment",
+		}
+	}
+	payload, err := json.Marshal(workerRequest{
+		PDF:         source,
+		Annotations: annotations,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, err := runWorker(t, binary, payload)
+	if err == nil {
+		t.Fatal("oversized annotation count succeeded")
+	}
+	if !strings.Contains(stderr, "annotation count") {
+		t.Fatalf("unexpected error text: %s", stderr)
+	}
+}
+
+// TestWorkerRejectsOversizedAnnotationText verifies the worker rejects requests above the configured annotation text bound.
+func TestWorkerRejectsOversizedAnnotationText(t *testing.T) {
+	binary := buildWorker(t)
+	source := pdffixture.Bytes("Fixture page")
+	payload, err := json.Marshal(workerRequest{
+		PDF: source,
+		Annotations: []pdfannotate.Annotation{{
+			Page: 1, Type: pdfannotate.AnnotationText, Rect: pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: strings.Repeat("a", 2_000_001), Title: "Reviewer", Subject: "Comment",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, err := runWorker(t, binary, payload)
+	if err == nil {
+		t.Fatal("oversized annotation text succeeded")
+	}
+	if !strings.Contains(stderr, "annotation text exceeds") {
+		t.Fatalf("unexpected error text: %s", stderr)
+	}
+}
+
+// TestWorkerMeasuresExecutionTime verifies a valid request completes within a measured time.
+func TestWorkerMeasuresExecutionTime(t *testing.T) {
+	binary := buildWorker(t)
+	source := pdffixture.Bytes("Fixture page")
+	payload, err := json.Marshal(workerRequest{
+		PDF: source,
+		Annotations: []pdfannotate.Annotation{{
+			Page: 1, Type: pdfannotate.AnnotationText, Rect: pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "Reviewer note", Title: "Reviewer", Subject: "Comment",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(binary, "pdf-annotate")
+	command.Stdin = bytes.NewReader(payload)
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	start := time.Now()
+	if err := command.Run(); err != nil {
+		t.Fatalf("worker failed: %v\n%s", err, stderr.String())
+	}
+	t.Logf("worker elapsed=%s", time.Since(start))
 }
