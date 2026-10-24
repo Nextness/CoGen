@@ -4886,6 +4886,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L161) | test | 161-173 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
 | [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L176) | test | 176-183 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
 
+### [`tests/tooling/go/pdf-export/integration/export_test.go`](../tests/tooling/go/pdf-export/integration/export_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`exportCorpus`](../tests/tooling/go/pdf-export/integration/export_test.go#L25) | function | 25-89 | `func exportCorpus(t *testing.T) (string, string, []byte)` | exportCorpus creates a migrated corpus with safe-title, long-title, and unavailable PDF cases. |
+| [`TestExportPreservesDatabasesAndContent`](../tests/tooling/go/pdf-export/integration/export_test.go#L92) | test | 92-134 | `func TestExportPreservesDatabasesAndContent(t *testing.T)` | TestExportPreservesDatabasesAndContent verifies title selection, DOI deduplication, safe filenames, and repeat exports. |
+| [`TestExportReportsPartialFailuresAndRefusesReplacement`](../tests/tooling/go/pdf-export/integration/export_test.go#L137) | test | 137-167 | `func TestExportReportsPartialFailuresAndRefusesReplacement(t *testing.T)` | TestExportReportsPartialFailuresAndRefusesReplacement verifies missing PDFs, filename conflicts, and symlink protection. |
+| [`TestExportRejectsCorruptContent`](../tests/tooling/go/pdf-export/integration/export_test.go#L170) | test | 170-192 | `func TestExportRejectsCorruptContent(t *testing.T)` | TestExportRejectsCorruptContent verifies stored content hashes before creating any PDF file. |
+| [`TestRunUsageAndMissingDatabase`](../tests/tooling/go/pdf-export/integration/export_test.go#L195) | test | 195-213 | `func TestRunUsageAndMissingDatabase(t *testing.T)` | TestRunUsageAndMissingDatabase verifies flag validation and existing-only opening behavior. |
+
 ### [`tests/tooling/go/pdf-store/integration/main_integration_test.go`](../tests/tooling/go/pdf-store/integration/main_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -5002,6 +5012,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`main`](../tooling/go/cmd/importcheck/main.go#L10) | function | 10 | `func main()` | main runs the command and preserves its exit status. |
+
+### [`tooling/go/cmd/pdf-export/main.go`](../tooling/go/cmd/pdf-export/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`main`](../tooling/go/cmd/pdf-export/main.go#L11) | function | 11 | `func main()` | main preserves the command exit status. |
 
 ### [`tooling/go/cmd/pdf-store/main.go`](../tooling/go/cmd/pdf-store/main.go)
 
@@ -5172,6 +5188,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`runCheck`](../tooling/go/importcheck/main.go#L573) | function | 573-593 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
 | [`runReport`](../tooling/go/importcheck/main.go#L596) | function | 596-608 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
 | [`Run`](../tooling/go/importcheck/main.go#L611) | function | 611-627 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
+
+### [`tooling/go/pdf-export/main.go`](../tooling/go/pdf-export/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Result`](../tooling/go/pdf-export/main.go#L27) | struct | 27-33 | ``type Result struct { DOI string `json:"doi"` Path string `json:"path"` ContentHash string `json:"content_hash"` ByteSize int `json:"byte_size"` Status string `json:"status"` }`` | Result identifies one exported PDF, including its validated content identity and output path. |
+| [`Run`](../tooling/go/pdf-export/main.go#L36) | function | 36-69 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses repeatable DOI selectors, exports available PDFs, and reports partial failures with a nonzero exit status. |
+| [`Export`](../tooling/go/pdf-export/main.go#L72) | function | 72-136 | `func Export(ctx context.Context, metadataPath string, dois []string, outputDir string) ([]Result, error)` | Export reads an existing bound corpus, exports each unique DOI, and preserves successful results when another DOI fails. |
+| [`exportOne`](../tooling/go/pdf-export/main.go#L139) | function | 139-193 | `func exportOne(ctx context.Context, works *work.Store, pdfs *pdfstore.Store, doi, outputDir string) (Result, error)` | exportOne resolves a paper title, validates stored PDF identity, and writes or recognizes its existing export. |
+| [`titleFilename`](../tooling/go/pdf-export/main.go#L196) | function | 196-220 | `func titleFilename(title string) (string, error)` | titleFilename preserves readable Unicode titles while removing path separators, unsafe characters, and excessive filename bytes. |
+| [`writePDF`](../tooling/go/pdf-export/main.go#L223) | function | 223-252 | `func writePDF(path string, data []byte, digest string) (string, error)` | writePDF creates a new export exclusively, accepts identical existing bytes, and never overwrites a different file or symlink. |
 
 ### [`tooling/go/pdf-store/main.go`](../tooling/go/pdf-store/main.go)
 

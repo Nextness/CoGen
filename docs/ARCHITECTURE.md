@@ -54,6 +54,7 @@ Source exports + SOMETHING configuration
 | `tooling/go/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
 | `tooling/go/importcheck/` | Package import and transaction graph scanning, classification, enforcement, and reporting. |
 | `tooling/go/pdf-store/` | Validated manual PDF insertion command. |
+| `tooling/go/pdf-export/` | Read-only DOI-selected PDF export with title-derived filenames, stored-content integrity checks, and exclusive output creation. |
 | `tooling/go/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
 | `tooling/go/rawsqlcheck/` | Raw SQL ownership scanning, classification, enforcement, and reporting for maintained Go sources. |
 | `tooling/go/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
