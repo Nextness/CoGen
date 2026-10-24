@@ -25,7 +25,7 @@ The module targets Go 1.25.0. Use standard Go formatting through `gofmt`, keep p
 - Wrap errors with useful operation context while preserving errors needed by `errors.Is` or `errors.As` callers.
 - Do not swallow errors, log sensitive values, or duplicate nullable, JSON, SQL, hashing, or validation helpers already owned by a package.
 - Close resources at the owning layer, propagate context cancellation, and keep goroutine shutdown and channel ownership deterministic.
-- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` is the only direct production Go dependency; the pinned sqlc generator is a development tool and never enters the module graph.
+- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` and the approved `github.com/pdfcpu/pdfcpu v0.15.0` trial are the direct production Go dependencies; the pinned sqlc generator is a development tool and never enters the module graph. The pdfcpu dependency is Apache 2.0 licensed and remains isolated behind `backend/pdfannotate/`.
 - Run `gofmt` on changed Go files and use `make format-check` before completion.
 
 ## 4. Source documentation comments

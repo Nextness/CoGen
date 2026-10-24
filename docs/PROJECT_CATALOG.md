@@ -1251,6 +1251,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`normalizeDOI`](../backend/notes/parser.go#L470) | function | 470-476 | `func normalizeDOI(value string) string` | normalizeDOI canonicalizes article-link DOI targets without database access. |
 | [`utf16Length`](../backend/notes/parser.go#L479) | function | 479-488 | `func utf16Length(value string) int` | utf16Length returns the browser-compatible code-unit length of a string. |
 
+### [`backend/pdfannotate/pdfannotate.go`](../backend/pdfannotate/pdfannotate.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`init`](../backend/pdfannotate/pdfannotate.go#L20) | function | 20-22 | `func init()` | init disables pdfcpu's user configuration directory so annotation work never reads or writes operator configuration or user fonts. |
+| [`AnnotationType`](../backend/pdfannotate/pdfannotate.go#L25) | type | 25 | `type AnnotationType string` | AnnotationType identifies the kind of annotation to add. |
+| [`Rectangle`](../backend/pdfannotate/pdfannotate.go#L35) | struct | 35-37 | `type Rectangle struct { X1, Y1, X2, Y2 float64 }` | Rectangle is an application-owned annotation rectangle in PDF user space. |
+| [`Annotation`](../backend/pdfannotate/pdfannotate.go#L40) | struct | 40-47 | `type Annotation struct { Page int Type AnnotationType Rect Rectangle Contents string Title string Subject string }` | Annotation is application-owned annotation data. It never exposes pdfcpu types. |
+| [`Annotate`](../backend/pdfannotate/pdfannotate.go#L50) | function | 50-74 | `func Annotate(source []byte, annotations []Annotation) ([]byte, error)` | Annotate returns a copy of source with annotations added. It does not mutate source. |
+| [`rendererFor`](../backend/pdfannotate/pdfannotate.go#L77) | function | 77-88 | `func rendererFor(a Annotation) (model.AnnotationRenderer, error)` | rendererFor maps application-owned annotation data to a pdfcpu renderer. |
+
 ### [`backend/pdfstore/audit.go`](../backend/pdfstore/audit.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3417,6 +3428,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestParseReportsUTF16Diagnostics`](../tests/backend/notes/unit/parser_unit_test.go#L30) | test | 30-38 | `func TestParseReportsUTF16Diagnostics(t *testing.T)` | TestParseReportsUTF16Diagnostics verifies non-BMP characters count as two UTF-16 code units. |
 | [`TestParseRejectsUnsafeAndMalformedInput`](../tests/backend/notes/unit/parser_unit_test.go#L41) | test | 41-47 | `func TestParseRejectsUnsafeAndMalformedInput(t *testing.T)` | TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable. |
 | [`TestConformanceFixtures`](../tests/backend/notes/unit/parser_unit_test.go#L50) | test | 50-73 | `func TestConformanceFixtures(t *testing.T)` | TestConformanceFixtures verifies the authoritative normalized link and diagnostic corpus. |
+
+### [`tests/backend/pdfannotate/unit/pdfannotate_unit_test.go`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestAnnotateRejectsEmptySource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L15) | test | 15-19 | `func TestAnnotateRejectsEmptySource(t *testing.T)` | TestAnnotateRejectsEmptySource verifies empty input fails safely. |
+| [`TestAnnotateWithoutAnnotationsCopiesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L22) | test | 22-34 | `func TestAnnotateWithoutAnnotationsCopiesSource(t *testing.T)` | TestAnnotateWithoutAnnotationsCopiesSource verifies the source is returned unchanged. |
+| [`TestAnnotateRejectsUnsupportedType`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L37) | test | 37-47 | `func TestAnnotateRejectsUnsupportedType(t *testing.T)` | TestAnnotateRejectsUnsupportedType verifies unknown annotation types fail safely. |
+| [`TestAnnotateTextPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L50) | test | 50-70 | `func TestAnnotateTextPreservesSource(t *testing.T)` | TestAnnotateTextPreservesSource verifies a text annotation produces a valid PDF without mutating the source. |
+| [`TestAnnotateHighlightPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L73) | test | 73-93 | `func TestAnnotateHighlightPreservesSource(t *testing.T)` | TestAnnotateHighlightPreservesSource verifies a highlight annotation produces a valid PDF without mutating the source. |
 
 ### [`tests/backend/pdfstore/integration/audit_identity_integration_test.go`](../tests/backend/pdfstore/integration/audit_identity_integration_test.go)
 
