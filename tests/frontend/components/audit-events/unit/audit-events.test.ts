@@ -3,13 +3,61 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import "../../../../support/node/setup.ts";
-import { auditCategory, AuditEventMarkup, AuditStream } from "../../../../../frontend/src/components/audit-events.tsx";
+import { auditCategory, AuditEventMarkup, AuditStream, bindAuditRecordedData } from "../../../../../frontend/src/components/audit-events.tsx";
+import { apiResponse } from "../../../../support/node/helpers/fetch.ts";
 import { renderToString } from "../../../../support/node/helpers/jsx-render.ts";
 
 const auditEventMarkup = (event: any): string => renderToString(AuditEventMarkup({ event: event }));
 const auditStream = (events: any[]): string => renderToString(AuditStream({ events: events }));
 
 describe('audit-events.tsx', function() {
+  it("expands readable changes once and separates recorded JSON from the default presentation", async () => {
+    const originalFetch = globalThis.fetch;
+    var requests = 0;
+    globalThis.fetch = (async () => {
+      requests += 1;
+      return apiResponse({
+        event_id: 22,
+        byte_limit: 16384,
+        metadata: { checked: false, count: 0 },
+        before: { unchanged: "same" },
+        after: { status: "valid", empty_value: null, unchanged: "same", title: "<img src=x>", flags: ["has_doi"] },
+      });
+    }) as typeof fetch;
+
+    try {
+      const host = document.createElement("div");
+      host.append(AuditEventMarkup({ event: { id: 22, action: "validation_changed" } }));
+      bindAuditRecordedData(host);
+      assert.equal(requests, 0);
+      const details = host.querySelector<HTMLDetailsElement>(".rw-event-details")!;
+      details.open = true;
+      details.dispatchEvent(new window.Event("toggle"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      assert.equal(requests, 1);
+      assert.equal(details.querySelector("summary")!.getAttribute("aria-expanded"), "true");
+      const changes = details.querySelector<HTMLTableElement>(".rw-event-changes")!;
+      assert.match(changes.textContent, /StatusNot recordedvalid/);
+      assert.match(changes.textContent, /Empty ValueNot recordedNone/);
+      assert.ok(!changes.textContent.includes("Unchanged"));
+      assert.equal(changes.querySelector("img"), null);
+      assert.ok(changes.textContent.includes("<img src=x>"));
+      assert.ok(details.textContent.includes("CheckedNo"));
+      assert.ok(details.textContent.includes("Count0"));
+      assert.equal(details.querySelector<HTMLDetailsElement>("[data-audit-json]")!.open, false);
+
+      details.open = false;
+      details.dispatchEvent(new window.Event("toggle"));
+      details.open = true;
+      details.dispatchEvent(new window.Event("toggle"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(requests, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("shows run completion as a successful outcome with compact UTC time", () => {
     const event = AuditEventMarkup({ event: {
       id: 20,
@@ -25,8 +73,8 @@ describe('audit-events.tsx', function() {
     assert.equal(host.querySelector("time")!.getAttribute("datetime"), "2026-09-02T03:22:27Z");
     assert.match(host.querySelector("time")!.title, /UTC/);
     assert.match(host.textContent, /Pipeline execution finished successfully/);
-    assert.equal(host.querySelector(".ui.green.label")!.textContent, "completed");
-    const record = host.querySelector<HTMLAnchorElement>(".rw-audit-event__heading .rw-audit-event__entity a")!;
+    assert.equal(host.querySelector(".ui.green.label")!.textContent, "Completed");
+    const record = host.querySelector<HTMLAnchorElement>(".rw-audit-event__row .rw-audit-event__entity a")!;
     assert.equal(JSON.parse(record.dataset.state!).run_id, "7");
     assert.ok(!host.textContent.includes("Recorded append-only audit event"));
   });
@@ -45,9 +93,9 @@ describe('audit-events.tsx', function() {
     });
     assert.ok(html.includes("Validation changed from Pending to Valid."));
     assert.ok(html.includes("Work #3475"));
-    assert.ok(html.includes("<dt>Stage</dt><dd>Validate</dd>"));
+    assert.ok(html.includes("<dt>Stage</dt><dd>validate</dd>"));
     assert.ok(html.includes("<dt>Provider</dt><dd>crossref</dd>"));
-    assert.ok(html.includes("<dt>Duration</dt><dd>0 s</dd>"));
+    assert.ok(html.includes("<dt>Duration</dt><dd>0 seconds</dd>"));
     assert.ok(!html.includes("must stay private"));
     const discarded = auditEventMarkup({
       action: "validation_changed",
@@ -55,7 +103,7 @@ describe('audit-events.tsx', function() {
       metadata_json: { reasons: ["Missing DOI", "Year < 2000"] },
     });
     assert.ok(discarded.includes("Missing DOI; Year &lt; 2000"));
-    assert.ok(discarded.includes("discarded"));
+    assert.ok(discarded.includes("Discarded"));
   });
 
   it("does not invent summaries or results for sparse historical events", () => {
@@ -73,6 +121,15 @@ describe('audit-events.tsx', function() {
     assert.equal(auditCategory({ action: 'pipeline_completed' }), 'pipeline');
   });
 
+  it("distinguishes enriched fields and uses readable PDF and outcome labels", () => {
+    const enriched = auditEventMarkup({ action: "field_enriched", metadata_json: { field: "title", provider: "crossref" } });
+    assert.ok(enriched.includes("Title Enriched"));
+    const pdf = auditEventMarkup({ action: "pdf_inventory_registered", after_json: { status: "not_available" } });
+    assert.ok(pdf.includes("PDF Inventory Registered"));
+    assert.ok(pdf.includes("Not Available"));
+    assert.ok(!pdf.includes(">not_available<"));
+  });
+
   it('shows outcome and run context from recorded payloads', function() {
     const html = auditEventMarkup({
       id: 8,
@@ -87,7 +144,7 @@ describe('audit-events.tsx', function() {
     assert.ok(html.includes('rw-audit-event--validation'));
     assert.ok(html.includes('ui red label'));
     assert.ok(html.includes('Run 3'));
-    assert.ok(html.includes('Recorded data'));
+    assert.ok(html.includes('aria-controls="audit-event-8-information"'));
   });
 
   it('shows the complete previous and new review decision states', function() {
@@ -141,7 +198,7 @@ describe('audit-events.tsx', function() {
     assert.ok(html.includes('<ol class="rw-audit-events">'));
     assert.ok(html.includes('rw-audit-event--review'));
     assert.ok(html.includes('data-audit-recorded-details="9"'));
-    assert.ok(html.includes('load privacy-scrubbed recorded JSON'));
+    assert.ok(html.includes('load privacy-scrubbed recorded evidence'));
     assert.ok(!html.includes('safe_id'));
     assert.ok(!html.includes('private prose'));
     assert.ok(!html.includes('private@example.test'));

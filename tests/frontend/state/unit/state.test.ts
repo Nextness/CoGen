@@ -93,7 +93,7 @@ describe('state.tsx — constants', function() {
     assert.ok(provenanceSections.cache);
     assert.ok(provenanceSections.stages);
     assert.ok(provenanceSections.run);
-    assert.equal(provenanceSections.audit[0], 'Audit timeline');
+    assert.equal(provenanceSections.audit[0], "Audit log");
   });
 
   it('graphFilters contains expected filters', function() {

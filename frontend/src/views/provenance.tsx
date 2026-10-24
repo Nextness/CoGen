@@ -274,7 +274,7 @@ function AuditSummary(props: { data: AuditResponse }): JSX.Element {
   );
 }
 
-/** Renders the audit timeline and pagination markup. */
+/** Renders the date-grouped audit log and pagination markup. */
 function AuditView(props: { data: AuditResponse }): JSX.Element {
   auditEvents = list<AuditEventRecord>(props.data, ["events", "items"]);
   auditKnownEventIDs = new Set(auditEvents.map((event) => String(event.id)));
@@ -287,8 +287,8 @@ function AuditView(props: { data: AuditResponse }): JSX.Element {
       <section className={classNames.uiSegment}>
         <div className={classNames.uiTopAttachedHeader}>
           <div>
-            <h3>Audit timeline</h3>
-            <p>Newest first · Times in UTC. Outcomes and reasons appear inline; open Recorded data for the full evidence.</p>
+            <h3>Audit log</h3>
+            <p>Newest first · Expand an event to inspect its changes, context, and recorded evidence.</p>
           </div>
         </div>
         <div className="content">

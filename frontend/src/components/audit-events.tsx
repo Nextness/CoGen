@@ -9,6 +9,8 @@ import { replaceState } from "../router.tsx";
 /** Typed compound class names used by this module. */
 const classNames = {
   rwFilterBarRwRecordAuditControls: cx("rw-filter-bar", "rw-record-audit__controls"),
+  rwPropertyGridCompact: cx("rw-property-grid", "rw-property-grid--compact"),
+  uiTableEventChanges: cx("ui", "table", "rw-event-changes"),
   uiButton: cx("ui", "button"),
   uiErrorMessage: cx("ui", "error", "message"),
   uiFadedText: cx("ui", "faded", "text"),
@@ -105,7 +107,7 @@ function AuditEntity(props: { event: AuditEventRecord }): JSX.Element {
     state = target.state;
   }
 
-  var label = humanLabel(type);
+  var label = humanLabel(type).replace(/\bPdf\b/g, "PDF");
   if (id) label += ` #${id}`;
   if (href) {
     return (
@@ -253,58 +255,119 @@ function ReviewDecisionChange(props: { event: AuditEventRecord; before: WireReco
   );
 }
 
-/** Renders expandable facts and JSON payloads for an audit event. */
-function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord; before: WireRecord; after: WireRecord }): JSX.Element | null {
+/** Renders the recorded identifiers and operational context of an expanded event. */
+function EventDetails(props: { event: AuditEventRecord; metadata: WireRecord }): JSX.Element {
   var duration = props.metadata.duration;
   if (props.metadata.duration_seconds != null) duration = `${props.metadata.duration_seconds} seconds`;
 
-  const event_facts = [
+  var scope = "Run not recorded";
+  if (props.event.pipeline_run_id) scope = `Run ${props.event.pipeline_run_id}`;
+  else if (auditCategory(props.event) === "pdf") scope = "Global PDF evidence";
+
+  const eventFacts = [
     ["Event ID", props.event.id],
+    ["Occurred at", formatTime(props.event.occurred_at || props.event.created_at)],
+    ["Scope", scope],
     ["Correlation ID", props.event.correlation_id],
+    ["Stage", props.metadata.stage || props.metadata.stage_name],
+    ["Provider", props.metadata.provider],
     ["Duration", duration],
     ["Input artifact", props.metadata.input_artifact_id],
     ["Output artifact", props.metadata.output_artifact_id],
-  ]
+  ];
 
-  const facts = event_facts.filter(([, value]) => {
-    return value !== null && value !== undefined && value !== "";
+  const facts = eventFacts.filter(([, fact]) => {
+    return fact !== null && fact !== undefined && fact !== "";
   }) as Array<[string, unknown]>;
+  const factRows = facts.map(([label, fact]) => {
+    const factText = String(fact);
+    var shown: JSX.Element = <>{factText}</>;
+    if (label === "Input artifact" || label === "Output artifact") {
+      const target = linkTargetFor({ view: "provenance", section: "artifacts", artifact_id: fact });
+      shown = <a href={target.href} data-state={JSON.stringify(target.state)}>Artifact {factText}</a>;
+    }
+    return (
+      <div>
+        <dt>{label}</dt>
+        <dd>{shown}</dd>
+      </div>
+    );
+  });
+  return <dl className={classNames.rwPropertyGridCompact}>{factRows}</dl>;
+}
 
-  if (!facts.length && !props.event.id) return null;
-
-  var factsMarkup: JSX.Element | null = null;
-  if (facts.length) {
-    const factRows = facts.map(([label, value]) => {
-      var shown: JSX.Element = <>{String(value)}</>;
-      const check_artifacts_input = (label === "Input artifact" || label === "Output artifact") && value;
-      if (check_artifacts_input) {
-        const target = linkTargetFor({ section: "artifacts" });
-        const content = `Artifact ${String(value)}`;
-        shown = <a href={target.href} data-state={JSON.stringify(target.state)}>{content}</a>;
-      }
+/** Renders a recorded value as readable text, preserving absent and explicit empty values. */
+function RecordedValue(props: { value: unknown }): JSX.Element {
+  if (props.value === undefined) return <span className={classNames.uiFadedText}>Not recorded</span>;
+  if (props.value === null) return <span className={classNames.uiFadedText}>None</span>;
+  if (props.value === "") return <span className={classNames.uiFadedText}>Empty text</span>;
+  if (typeof props.value === "boolean") {
+    var booleanLabel = "No";
+    if (props.value) booleanLabel = "Yes";
+    return <span>{booleanLabel}</span>;
+  }
+  if (Array.isArray(props.value)) {
+    if (!props.value.length) return <span className={classNames.uiFadedText}>Empty list</span>;
+    const items = props.value.map((item) => <li><RecordedValue value={item} /></li>);
+    return <ul className="rw-event-values">{items}</ul>;
+  }
+  if (typeof props.value === "object") {
+    const entries = Object.entries(props.value);
+    if (!entries.length) return <span className={classNames.uiFadedText}>Empty object</span>;
+    const fields = entries.map(([key, item]) => {
+      const label = humanLabel(key);
       return (
         <div>
           <dt>{label}</dt>
-          <dd>{shown}</dd>
+          <dd><RecordedValue value={item} /></dd>
         </div>
       );
     });
-    factsMarkup = <dl className="rw-event-facts">{factRows}</dl>;
+    return <dl className="rw-event-object">{fields}</dl>;
   }
+  const text = String(props.value);
+  return <span className="rw-event-value">{text}</span>;
+}
 
+/** Renders only recorded field differences without inferring a missing previous state. */
+function RecordedChanges(props: { before?: WireRecord | null; after?: WireRecord | null }): JSX.Element | null {
+  const before = props.before || {};
+  const after = props.after || {};
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const changedKeys = Array.from(keys).filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]));
+  if (!changedKeys.length) return null;
+
+  const rows = changedKeys.map((key) => {
+    const label = humanLabel(key);
+    return (
+      <tr>
+        <th scope="row">{label}</th>
+        <td><RecordedValue value={before[key]} /></td>
+        <td><RecordedValue value={after[key]} /></td>
+      </tr>
+    );
+  });
   return (
-    <details className="rw-event-details" data-audit-recorded-details={props.event.id}>
-      <summary>Recorded data</summary>
-      <div className="rw-event-details__body">
-        {factsMarkup}
-        <div data-audit-recorded-host><p className={classNames.uiFadedText}>Open this disclosure to load privacy-scrubbed recorded JSON.</p></div>
+    <section>
+      <h5>Recorded changes</h5>
+      <div className="table-wrap">
+        <table className={classNames.uiTableEventChanges}>
+          <thead>
+            <tr>
+              <th scope="col">Field</th>
+              <th scope="col">Before</th>
+              <th scope="col">After</th>
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>
       </div>
-    </details>
+    </section>
   );
 }
 
-/** Renders one lazy audit recorded-data response. */
-function RecordedData(props: { data: AuditRecordedData }): JSX.Element {
+/** Renders readable audit evidence with recorded JSON in a separate disclosure. */
+function RecordedData(props: { data: AuditRecordedData; showChanges: boolean }): JSX.Element {
   const candidates: Array<[string, WireRecord | null | undefined]> = [
     ["Metadata", props.data.metadata],
     ["Before", props.data.before],
@@ -314,9 +377,27 @@ function RecordedData(props: { data: AuditRecordedData }): JSX.Element {
   const availableCandidates = candidates.filter(([, item]) => {
     return item && Object.keys(item).length > 0;
   });
-  const sections = availableCandidates.map(([label, item]) => {
-    return <div><h5>{label}</h5><pre>{JSON.stringify(item, null, 2)}</pre></div>;
+  const jsonSections = availableCandidates.map(([label, item]) => {
+    const json = JSON.stringify(item, null, 2);
+    return (
+      <div>
+        <h6>{label}</h6>
+        <pre>{json}</pre>
+      </div>
+    );
   });
+
+  var metadataMarkup: JSX.Element | null = null;
+  if (props.data.metadata && Object.keys(props.data.metadata).length) {
+    metadataMarkup = (
+      <section>
+        <h5>Recorded metadata</h5>
+        <RecordedValue value={props.data.metadata} />
+      </section>
+    );
+  }
+  var changesMarkup: JSX.Element | null = null;
+  if (props.showChanges) changesMarkup = <RecordedChanges before={props.data.before} after={props.data.after} />;
 
   var truncation: JSX.Element | null = null;
   if (props.data.truncated_fields?.length) {
@@ -326,34 +407,60 @@ function RecordedData(props: { data: AuditRecordedData }): JSX.Element {
     truncation = <p className={classNames.uiWarningMessage}>{content}</p>;
   }
 
-  if (!sections.length && !truncation) {
+  if (!jsonSections.length && !truncation) {
     const content = "No recorded JSON fields are available for this event.";
     return <p className={classNames.uiFadedText}>{content}</p>;
   }
 
-  return <Fragment>{truncation}{sections}</Fragment>;
+  return (
+    <div className="rw-event-evidence">
+      {truncation}
+      {changesMarkup}
+      {metadataMarkup}
+      <details className="rw-disclosure" data-audit-json>
+        <summary>Recorded JSON</summary>
+        <div className="rw-event-json">
+          <p>Privacy-scrubbed recorded payload.</p>
+          {jsonSections}
+        </div>
+      </details>
+    </div>
+  );
 }
 
-/** Binds one-shot, run-scoped loading for every visible Recorded data disclosure. */
+/** Binds accessible expansion and one-shot, run-scoped loading for audit event rows. */
 export function bindAuditRecordedData(root: ParentNode = document): void {
   root.querySelectorAll<HTMLDetailsElement>("[data-audit-recorded-details]").forEach((details) => {
     if (details.dataset.auditRecordedBound) return;
     details.dataset.auditRecordedBound = "true";
 
+    const summary = details.querySelector<HTMLElement>(":scope > summary")!;
+    const row = details.closest(".rw-audit-event")?.querySelector<HTMLElement>(".rw-audit-event__row");
+    row?.addEventListener("click", (event) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("a, button, input, select, textarea, label")) return;
+      if (window.getSelection()?.toString()) return;
+      details.open = !details.open;
+    });
     details.addEventListener("toggle", async () => {
-      if (!details.open || details.dataset.auditRecordedLoaded) return;
+      summary.setAttribute("aria-expanded", String(details.open));
+      if (!details.open || details.dataset.auditRecordedLoaded || details.dataset.auditRecordedLoading) return;
+      details.dataset.auditRecordedLoading = "true";
       const host = details.querySelector<HTMLElement>("[data-audit-recorded-host]")!;
       const eventID = details.dataset.auditRecordedDetails || "";
       host.textContent = "Loading recorded data…";
       try {
         const url = `/api/audit/${encodeURIComponent(eventID)}/recorded-data`;
         const data = await api<AuditRecordedData>(url, { run_id: value("run_id") });
-        const recordedDataMarkup = <RecordedData data={data} />;
+        const showChanges = !details.querySelector(".rw-review-audit-change");
+        const recordedDataMarkup = <RecordedData data={data} showChanges={showChanges} />;
         renderTree(recordedDataMarkup, host);
         details.dataset.auditRecordedLoaded = "true";
       } catch (error) {
         const errorMarkup = <p className={classNames.uiErrorMessage}>{errorMessage(error, "Unable to load recorded data.")}</p>;
         renderTree(errorMarkup, host);
+      } finally {
+        delete details.dataset.auditRecordedLoading;
       }
     });
   });
@@ -366,64 +473,57 @@ export function AuditEventMarkup(props: { event: AuditEventRecord }): JSX.Elemen
   const after = parseObject(props.event.after_json);
   const category = auditCategory(props.event);
   const outcome = auditOutcome(props.event, metadata, after);
+  const outcomeLabel = humanLabel(outcome);
   const timestamp = props.event.occurred_at || props.event.created_at;
-  const source = props.event.actor || metadata.provider || "Not recorded";
-  const stage = metadata.stage || metadata.stage_name;
+  const actor = props.event.actor || "Not recorded";
   const eventID = String(props.event.id || "unrecorded");
+  const detailID = `audit-event-${eventID}-information`;
   const clock = auditClock(timestamp);
   const fullTimestamp = `${formatTime(timestamp)} (UTC)`;
-  const actionLabel = humanLabel(props.event.action || "event");
-  const categoryLabel = humanLabel(category);
+  var actionLabel = humanLabel(props.event.action || "event").replace(/\bPdf\b/g, "PDF");
+  if (props.event.action === "field_enriched" && metadata.field) actionLabel = `${humanLabel(metadata.field)} Enriched`;
+  var categoryLabel = humanLabel(category);
+  if (category === "pdf") categoryLabel = "PDF";
+  const expansionLabel = `Inspect ${actionLabel}, event ${eventID}`;
   const summary = eventSummary(props.event, metadata, before, after);
   var summaryMarkup: JSX.Element | null = null;
-  if (summary) summaryMarkup = <p>{summary}</p>;
+  if (summary) summaryMarkup = <p className="rw-audit-event__summary">{summary}</p>;
 
-  var runContext = "Run not recorded";
-  if (props.event.pipeline_run_id) {
-    runContext = `Run ${props.event.pipeline_run_id}`;
-  } else if (category === "pdf") {
-    runContext = "Global PDF evidence";
-  }
   const eventClass = cx("rw-audit-event", auditCategoryClasses[category]);
-  const contextFacts: Array<[string, unknown]> = [["Source", source], ["Scope", runContext]];
-  if (stage) contextFacts.push(["Stage", humanLabel(stage)]);
-  if (metadata.provider && metadata.provider !== source) contextFacts.push(["Provider", metadata.provider]);
-  if (metadata.duration_seconds != null) contextFacts.push(["Duration", `${metadata.duration_seconds} s`]);
-  else if (metadata.duration != null) contextFacts.push(["Duration", metadata.duration]);
-  const contextMarkup = contextFacts.map(([label, fact]) => {
-    return (
-      <div>
-        <dt>{label}</dt>
-        <dd>{String(fact)}</dd>
-      </div>
-    );
-  });
 
   return (
     <article className={eventClass} data-audit-event-id={eventID}>
-      <time dateTime={timestamp || ""} title={fullTimestamp}>
-        <span>{clock}</span>
-        <small>UTC</small>
-      </time>
-      <div className="rw-audit-event__main">
-        <div className="rw-audit-event__heading">
-          <h5>{actionLabel}</h5>
-          <span className={classNames.uiLabel}>{categoryLabel}</span>
-          <StatusChip raw={outcome} />
-          <div className="rw-audit-event__entity" title="Affected record">
-            <AuditEntity event={props.event} />
-          </div>
-        </div>
-        {summaryMarkup}
-        <ReviewDecisionChange event={props.event} before={before} after={after} />
-        <dl className="rw-audit-event__context">{contextMarkup}</dl>
-        <EventDetails event={props.event} metadata={metadata} before={before} after={after} />
+      <div className="rw-audit-event__row">
+        <time dateTime={timestamp || ""} title={fullTimestamp}><span>{clock}</span></time>
+        <span className="rw-audit-event__heading">
+          <strong>{actionLabel}</strong>
+          <span className="rw-audit-category">{categoryLabel}</span>
+        </span>
+        <span className="rw-audit-event__entity" title="Affected record">
+          <AuditEntity event={props.event} />
+        </span>
+        <span className="rw-audit-event__outcome"><StatusChip raw={outcomeLabel} /></span>
+        <span className="rw-audit-event__actor">
+          <span className="rw-audit-actor-label">Actor: </span>
+          {actor}
+        </span>
       </div>
+      <details className="rw-event-details" data-audit-recorded-details={props.event.id}>
+        <summary className="rw-audit-event__toggle" aria-label={expansionLabel} aria-expanded="false" aria-controls={detailID}>
+          <span className="expand-toggle" aria-hidden="true">▸</span>
+        </summary>
+        <div className="rw-event-details__body" id={detailID}>
+          {summaryMarkup}
+          <EventDetails event={props.event} metadata={metadata} />
+          <ReviewDecisionChange event={props.event} before={before} after={after} />
+          <div data-audit-recorded-host><p className={classNames.uiFadedText}>Expand this event to load privacy-scrubbed recorded evidence.</p></div>
+        </div>
+      </details>
     </article>
   );
 }
 
-/** Renders audit events grouped by local date as a timeline. */
+/** Renders compact audit rows grouped by UTC date without a timeline rail. */
 export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: string }): JSX.Element {
   if (!props.events.length) {
     return (
@@ -453,7 +553,18 @@ export function AuditStream(props: { events: AuditEventRecord[]; emptyMessage?: 
     });
     return (
       <section className="rw-audit-day" aria-labelledby={headingID} data-audit-date={date}>
-        <h4 id={headingID}>{date}</h4>
+        <div className="rw-audit-day__heading">
+          <h4 id={headingID}>{date}</h4>
+          <span>UTC</span>
+        </div>
+        <div className="rw-audit-columns" aria-hidden="true">
+          <span>Time</span>
+          <span>Event</span>
+          <span>Affected record</span>
+          <span>Result</span>
+          <span>Actor</span>
+          <span></span>
+        </div>
         <ol className="rw-audit-events">{eventItems}</ol>
       </section>
     );
