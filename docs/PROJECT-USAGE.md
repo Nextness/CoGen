@@ -45,6 +45,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, or serves the loopback-only local review viewer. |
 | `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
 | `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
+| `build/pdf-export` | `make pdf-export` or `make tools` | Exports stored PDFs selected by DOI to filenames derived from their paper titles, opening both corpus databases read-only. |
 | `build/prepare-osf` | `make prepare-osf` or `make tools` | Creates one sanitized copy-only metadata, PDF, and optional configuration export. |
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
@@ -144,6 +145,16 @@ make pdf-store
 The DOI must already have a normalized work revision and registered inventory row. The tool enforces the 20,000,000-byte limit and PDF signature, content-addresses identical bytes, changes the inventory state to `available`, records `inventoried_at`, and delivers the manual audit event. Re-adding an available DOI leaves its selected bytes unchanged.
 
 Treat `corpus.metadata.db` and its bound `corpus.pdf.db` as one portable bundle. Stop writers for a simple file copy or use SQLite backup facilities for coordinated online backup. The Makefile `database-backup` target copies both configured database filenames to `../backup_databases/` and assumes that destination already exists.
+
+Export existing PDF bytes by DOI without changing either database:
+
+```sh
+make pdf-export
+./build/pdf-export --db ./corpus.metadata.db --doi 10.1000/example --out ./build/papers
+./build/pdf-export --db ./corpus.metadata.db --doi 10.1000/first --doi https://doi.org/10.1000/second --out ./build/papers
+```
+
+The export tool requires an existing metadata database and existing bundle-relative PDF binding; it never runs migrations, registers documents, or flushes audit events. Repeated DOI selectors are normalized and deduplicated. Each available PDF must pass the stored byte-size, PDF-signature, and SHA-256 checks before export. Filenames use the latest nonempty normalized revision title, falling back to the latest recorded title when no normalized title exists; unsafe filename characters are replaced and long names are bounded without breaking Unicode. The tool creates the output directory, accepts an identical existing export, and refuses conflicting files or symlinks. Standard output is a JSON array of successful exports with DOI, path, content hash, byte size, and exported or unchanged status. Missing titles, unavailable PDFs, and other per-DOI failures are reported on standard error with exit status 1 while other valid requested exports are retained; invalid command syntax exits with status 2.
 
 ## 8. Sanitized OSF export
 

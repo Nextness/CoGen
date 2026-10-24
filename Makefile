@@ -1,6 +1,7 @@
 BIN              ?= build/analysis
 SOMETHING_PRINTER ?= build/something-printer
 PDF_STORE        ?= build/pdf-store
+PDF_EXPORT       ?= build/pdf-export
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
 RAWSQL_CHECK     ?= build/rawsqlcheck
@@ -43,7 +44,7 @@ export FIXTURE_DB ASSETS_DIR
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report
+.PHONY: recover help all build tools something-printer pdf-store pdf-export doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -83,7 +84,7 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "$(BIN)" ./backend/cmd/analysis
 
-tools: something-printer pdf-store doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect ## Build every maintained Go tool under build/.
+tools: something-printer pdf-store pdf-export doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect ## Build every maintained Go tool under build/.
 
 something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
 	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
@@ -92,6 +93,10 @@ something-printer: ## Build build/something-printer, a tool to inspect evaluated
 pdf-store: ## Build build/pdf-store, the validated manual PDF maintenance tool.
 	@mkdir -p "$(dir $(PDF_STORE))"
 	cd $(GOWD) && $(GO) build -o "$(PDF_STORE)" ./tooling/go/cmd/pdf-store/
+
+pdf-export: ## Build build/pdf-export, the read-only DOI-to-PDF export tool.
+	@mkdir -p "$(dir $(PDF_EXPORT))"
+	cd $(GOWD) && $(GO) build -o "$(PDF_EXPORT)" ./tooling/go/cmd/pdf-export/
 
 doccheck: ## Build build/doccheck, the documentation consistency tool.
 	@mkdir -p "$(dir $(DOC_CHECK))"

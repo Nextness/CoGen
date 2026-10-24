@@ -35,6 +35,7 @@ coverage_policy: coverage_policy_config = {
         "analysis/tooling/go/cmd/doccheck",
         "analysis/tooling/go/cmd/importcheck",
         "analysis/tooling/go/cmd/pdf-store",
+        "analysis/tooling/go/cmd/pdf-export",
         "analysis/tooling/go/cmd/prepare-osf",
         "analysis/tooling/go/cmd/rawsqlcheck",
         "analysis/tooling/go/cmd/something-printer",
@@ -118,6 +119,7 @@ coverage_policy: coverage_policy_config = {
         ["analysis/backend/server"]            => { minimum =  76.0 },
         ["analysis/backend/something"]         => { minimum =  87.5 },
         ["analysis/tooling/go/pdf-store"]   => { minimum =  50.0 },
+        ["analysis/tooling/go/pdf-export"]  => { minimum =  50.0 },
         ["analysis/tooling/go/prepare-osf"] => { minimum =  45.0 },
         ["analysis/tooling/go/prepare-osf/internal/sql"] => {
             minimum = 80.0,
