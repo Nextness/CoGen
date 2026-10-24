@@ -701,6 +701,40 @@ test.describe('Provenance view', () => {
     await expect(stream.locator('.rw-audit-event--pipeline')).toHaveCount(0);
   });
 
+  test("audit rows expand independently and keep recorded JSON behind a separate disclosure", async ({ page }) => {
+    await visit(page, contextState({ view: "provenance", section: "audit" }));
+    const events = page.locator(".rw-audit-event");
+    const first = events.nth(0);
+    const second = events.nth(1);
+    await first.locator(".rw-audit-event__row time").click();
+    await second.locator(".rw-audit-event__row time").click();
+    await expect(first.locator(":scope > details")).toHaveAttribute("open", "");
+    await expect(second.locator(":scope > details")).toHaveAttribute("open", "");
+    await expect(first.locator("[data-audit-recorded-host]")).not.toContainText("Loading recorded data");
+
+    const json = first.locator("[data-audit-json]");
+    await expect(json).not.toHaveAttribute("open", "");
+    await json.locator("summary").click();
+    await expect(json.locator("pre").first()).toBeVisible();
+    await first.locator(".rw-audit-event__row time").click();
+    await expect(first.locator(":scope > details")).not.toHaveAttribute("open", "");
+    await expect(second.locator(":scope > details")).toHaveAttribute("open", "");
+  });
+
+  test("audit record links navigate without expanding or fetching the event", async ({ page }) => {
+    const evidenceRequests: string[] = [];
+    page.on("request", (request) => {
+      if (request.url().includes("/recorded-data")) evidenceRequests.push(request.url());
+    });
+    await visit(page, contextState({ view: "provenance", section: "audit" }));
+    const recordLink = page.locator(".rw-audit-event__entity a").first();
+    const target = JSON.parse((await recordLink.getAttribute("data-state"))!);
+    await recordLink.click();
+    await expect.poll(() => viewerState(page)).toMatchObject(target);
+    await page.waitForLoadState("networkidle");
+    expect(evidenceRequests).toHaveLength(0);
+  });
+
   test('artifacts section identifies configuration snapshots and offers downloads', async ({ page }) => {
     await visit(page, contextState({ view: 'provenance', section: 'artifacts' }));
     await page.waitForLoadState('networkidle');

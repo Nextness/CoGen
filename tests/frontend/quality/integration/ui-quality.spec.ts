@@ -57,7 +57,7 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 test.describe('Research-context and responsive behavior', () => {
-  test("audit rows align compact times and inline records without loading raw payloads", async ({ page }) => {
+  test("audit rows reveal their expansion icon on hover and keyboard focus without preloading evidence", async ({ page }) => {
     const recordedRequests: string[] = [];
     page.on("request", (request) => {
       if (request.url().includes("/recorded-data")) recordedRequests.push(request.url());
@@ -70,25 +70,34 @@ test.describe('Research-context and responsive behavior', () => {
       const clock = event.querySelector("time")!.getBoundingClientRect();
       const heading = event.querySelector(".rw-audit-event__heading")!.getBoundingClientRect();
       const record = event.querySelector(".rw-audit-event__entity")!;
-      const disclosure = event.querySelector("summary")!.getBoundingClientRect();
+      const icon = event.querySelector(".expand-toggle")!.getBoundingClientRect();
       return {
         clockWidth: clock.width,
-        alignment: Math.abs(clock.top - heading.top),
-        inlineRecord: Boolean(record.closest(".rw-audit-event__heading")),
-        disclosureWidth: disclosure.width,
+        alignment: Math.abs((clock.top + clock.bottom - heading.top - heading.bottom) / 2),
+        recordInRow: Boolean(record.closest(".rw-audit-event__row")),
+        iconWidth: icon.width,
         rowHeight: event.getBoundingClientRect().height,
       };
     });
     expect(dimensions.clockWidth).toBeLessThanOrEqual(90);
     expect(dimensions.alignment).toBeLessThanOrEqual(4);
-    expect(dimensions.inlineRecord).toBe(true);
-    expect(dimensions.disclosureWidth).toBeLessThan(200);
-    expect(dimensions.rowHeight).toBeLessThan(115);
+    expect(dimensions.recordInRow).toBe(true);
+    expect(dimensions.iconWidth).toBeLessThanOrEqual(34);
+    expect(dimensions.rowHeight).toBeLessThan(76);
     expect(recordedRequests).toHaveLength(0);
-    await events.first().locator("summary").focus();
+    const firstEvent = events.first();
+    const icon = firstEvent.locator(".expand-toggle");
+    await expect(icon).toHaveCSS("opacity", "0");
+    await firstEvent.hover();
+    await expect(icon).toHaveCSS("opacity", "1");
+    await page.mouse.move(0, 0);
+    await firstEvent.locator(":scope > details > summary").focus();
+    await expect(icon).toHaveCSS("opacity", "1");
     await page.keyboard.press("Enter");
-    await expect(events.first().locator("details")).toHaveAttribute("open", "");
+    await expect(firstEvent.locator(":scope > details")).toHaveAttribute("open", "");
+    await expect(firstEvent.locator(":scope > details > summary")).toHaveAttribute("aria-expanded", "true");
     await expect.poll(() => recordedRequests.length).toBe(1);
+    await expect(firstEvent.locator("[data-audit-json]")).not.toHaveAttribute("open", "");
     await expectNoPageOverflow(page);
   });
 
@@ -140,7 +149,7 @@ test.describe('Research-context and responsive behavior', () => {
     await expect(page.locator('.table-wrap').first()).toHaveCSS('overflow-x', 'auto');
 
     await visitQuality(page, { view: 'provenance', section: 'audit' });
-    await page.getByText('Recorded data').first().click();
+    await page.locator(".rw-audit-event__toggle").first().click();
     await expectNoPageOverflow(page);
 
     await visitQuality(page, { view: 'article', article_id: '1' });
@@ -239,6 +248,21 @@ test.describe('Research-context and responsive behavior', () => {
 });
 
 test.describe('Automated accessibility checks', () => {
+  test.describe("Touch audit events", () => {
+    test.use({ hasTouch: true, isMobile: true, viewport: { width: 375, height: 812 } });
+
+    test("audit expansion controls remain visible on touch screens and expanded evidence passes axe", async ({ page }) => {
+      await visitQuality(page, { view: "provenance", section: "audit" });
+      const event = page.locator(".rw-audit-event").first();
+      await expect(event.locator(".expand-toggle")).toHaveCSS("opacity", "1");
+      await event.locator(":scope > details > summary").tap();
+      await expect(event.locator("[data-audit-json]")).toBeAttached();
+      await expectNoPageOverflow(page);
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations).toEqual([]);
+    });
+  });
+
   test('the overview page document has no axe violations', async ({ page }) => {
     await visitQuality(page, { view: 'overview' });
 
@@ -376,6 +400,25 @@ test.describe('Visual regression', () => {
     await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
     await visitQuality(page, { view: 'overview' });
     await expect(page).toHaveScreenshot('overview-dark.png', { fullPage: true, animations: 'disabled', caret: 'hide', timeout: 10000 });
+  });
+
+  test("expanded audit evidence uses readable changes with secondary recorded JSON", async ({ page }) => {
+    await page.route("**/api/audit/*/recorded-data?*", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        event_id: 13,
+        byte_limit: 16384,
+        metadata: { stage: "validation", reasons: ["insufficient data"] },
+        before: { status: "pending" },
+        after: { status: "discarded" },
+      }),
+    }));
+    await visitQuality(page, { view: "provenance", section: "audit" });
+    const event = page.locator(".rw-audit-event--validation").first();
+    await event.locator(".rw-audit-event__toggle").click();
+    await expect(event.locator(".rw-event-changes")).toBeVisible();
+    await expect(event.locator("[data-audit-json]")).not.toHaveAttribute("open", "");
+    await expect(event).toHaveScreenshot("audit-expanded-light.png", { animations: "disabled", caret: "hide" });
   });
 
   test('provenance audit dark', async ({ page }) => {

@@ -92,7 +92,7 @@ export const corpusSections: Record<string, { table: string; title: string; desc
 };
 
 export const provenanceSections: Record<string, [string, string]> = {
-  audit: ["Audit timeline", "Recorded actions for the selected historical run."],
+  audit: ["Audit log", "Recorded actions for the selected historical run."],
   artifacts: ["Artifacts", "Inspect and download locally stored artifacts for the selected run."],
   cache: ["Cache uses", "Provider response and computation reuse recorded for this run."],
   stages: ["Stage outcomes", "Per-work outcomes recorded for parse, deduplication, validation, enrichment, and normalization."],

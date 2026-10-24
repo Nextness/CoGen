@@ -58,7 +58,7 @@ New rules go into the narrowest owning layer. Do not use import order to create 
 |---|---|---|---|
 | Canvas | `#f5f6f7` | `#111a20` | Application page background. |
 | Surface | `#ffffff` | `#17232b` | Parent panels, tables, and default controls. |
-| Raised surface | `#fbfcfc` | `#1b2932` | Child cards, KPI cards, timeline events, and contained filters. |
+| Raised surface | `#fbfcfc` | `#1b2932` | Child cards, KPI cards, expanded audit evidence, and contained filters. |
 | Muted surface | `#eef1f3` | `#23333e` | Table headings, disabled controls, selected support areas, and secondary groups. |
 | Primary text | `#18232c` | `#e7eff4` | Headings, values, and main body copy. |
 | Secondary text | `#5c6974` | `#b6c3cc` | Supporting copy, labels, and metadata. |
@@ -75,7 +75,7 @@ New rules go into the narrowest owning layer. Do not use import order to create 
 | Danger | `#a22f3f` on `#fbeaea` | `#fa9ca7` on `#3a1a1f` | Failed, invalid, rejected, discarded, and destructive. |
 | Information | `#365f91` on `#e9f1fa` | `#7cb8e8` on `#1a2a3a` | Recorded explanatory facts and neutral action feedback. |
 | Neutral status surface | `#eef1f3` | `#25343e` | Unknown, not recorded, read-only, and inactive labels. |
-| Review | `#7753a6` on `#f1ebf8` | `#c3a5ee` on `#332744` | Human review, inherited evidence, and review timeline markers. |
+| Review | `#7753a6` on `#f1ebf8` | `#c3a5ee` on `#332744` | Human review, inherited evidence, and review audit categories. |
 | Note | `#a0446f` on `#faeaf2` | `#efa6ca` on `#402332` | Note classification and PDF provenance markers. |
 | Focus | `#d36d00` | `#ffc066` | Keyboard focus ring; it is intentionally distinct from selection blue. |
 | Graph cluster 1 | `#236b8e` | `#68b7df` | First connected component only. |
@@ -165,7 +165,7 @@ Tables use a scroll wrapper rather than shrinking evidence beyond readability. O
 | PDF viewer | `.rw-pdf-viewer`, `.rw-pdf-toolbar*`, `.rw-pdf-page-control`, `.rw-pdf-pages`, `.rw-pdf-page`, `.rw-pdf-status`, `.rw-pdf-viewer--dark`, `.textLayer` descendants | Contained sticky desktop reader, grouped boundary-aware controls, one scrollable current page, canvas, selectable text, status, inverted reading theme, and overlay stacking. |
 | Fullscreen reader | `.rw-reading-workspace:fullscreen`, `.rw-reading-workspace--expanded`, `.rw-reading-workspace--drawer-collapsed`, `.rw-reading-workspace__drawer-edge` | Browser-fullscreen PDF-main-plus-drawer layout, fixed-viewport fallback, collapsed review drawer, and the drawer edge control. |
 | Disclosure | `.rw-disclosure`, `.rw-filter-disclosure`, `.rw-event-details`, `.rw-query-row`, `.rw-note-history`, `.rw-keyword-details` | Keyboard-accessible expandable record, filter, event, query, history, and raw-value content with one chevron language. |
-| Audit | `.rw-audit-layout`, `.rw-audit-summary`, `.rw-audit-filter`, `.rw-audit-stream`, `.rw-audit-day`, `.rw-audit-events`, `.rw-audit-event*`, `.rw-review-audit-change`, `.rw-review-audit-state`, `.rw-review-audit-substatuses`, `.rw-audit-load`, `.rw-record-audit*` | Full-width filters, inline result totals, compact UTC timeline with aligned time and content columns, inline record identity and wrapping facts, category markers, visible review-decision comparisons, compact lazy recorded-data disclosure, append status, and record investigation. |
+| Audit | `.rw-audit-layout`, `.rw-audit-summary`, `.rw-audit-day`, `.rw-audit-columns`, `.rw-audit-events`, `.rw-audit-event*`, `.rw-audit-category`, `.rw-review-audit-change`, `.rw-review-audit-state`, `.rw-review-audit-substatuses`, `.rw-event-evidence`, `.rw-event-changes`, `.rw-event-object`, `.rw-event-values`, `.rw-event-value`, `.rw-event-json`, `.rw-record-audit*` | UTC date groups, compact aligned event rows, text category and outcome labels, chevrons revealed by hover or focus and visible on touch screens, inline property grids and readable recorded changes, secondary JSON disclosure, append status, and record investigation. |
 | Artifacts | `.rw-artifact-*`, `.artifact-actions`, `.artifact-inspector-toolbar` | Artifact lists, bounded inspection, copy, and download actions. |
 | Corpus article review | `.rw-evaluation-filters*`, `.rw-evaluation-queue`, `.rw-evaluation-table` | Compact common queue controls, optional advanced filters, layout-owned filter-to-table spacing, bibliographic and review columns, and table-owned horizontal overflow. |
 | Stages | `.rw-stage-*` | Ordered run progression, status, metrics, and artifact evidence. |
