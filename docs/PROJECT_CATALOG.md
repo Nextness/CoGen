@@ -59,6 +59,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`tokenize`](../backend/bibtex/bibtex.go#L119) | function | 119-202 | `func tokenize(data string, stripBraces bool) ([]token, error)` | tokenize converts BibTeX source text into the constrained parser token stream. |
 | [`(*Parser).Parse`](../backend/bibtex/bibtex.go#L208) | method | 208-315 | `func (*Parser).Parse(data, source string, stripBraces bool) (Library, error)` | Parse parses raw BibTeX data into a Library. Only "article" entries are retained. Duplicate citation keys get a numeric suffix. The source parameter is stored in the "article_source" field of each entry. A leading UTF-8 byte order mark is stripped because exporters commonly prefix it. |
 
+### [`backend/bundle/bundle.go`](../backend/bundle/bundle.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Pair`](../backend/bundle/bundle.go#L15) | struct | 15-18 | `type Pair struct { Metadata string PDF string }` | Pair identifies the final migration filenames for the metadata and PDF stores. |
+| [`chainLink`](../backend/bundle/bundle.go#L27) | struct | 27-32 | `type chainLink struct { Filename string Previous string Upgrade string Supersedes []string }` | chainLink records one configured migration link without applying it. |
+| [`VerifySupportedPair`](../backend/bundle/bundle.go#L36) | function | 36-38 | `func VerifySupportedPair(metadataConfigPath, pdfConfigPath string) error` | VerifySupportedPair derives the configured endpoints from the metadata and PDF chains and verifies they match SupportedPair with complete prior history. |
+| [`VerifyPair`](../backend/bundle/bundle.go#L42) | function | 42-58 | `func VerifyPair(metadataConfigPath, pdfConfigPath string, supported Pair) error` | VerifyPair derives the configured endpoints from the metadata and PDF chains and verifies they match supported with complete prior history. |
+| [`loadChainLinks`](../backend/bundle/bundle.go#L61) | function | 61-98 | `func loadChainLinks(configPath string) ([]chainLink, error)` | loadChainLinks reads one migration configuration's configured links without applying them. |
+| [`verifyChain`](../backend/bundle/bundle.go#L101) | function | 101-120 | `func verifyChain(name string, links []chainLink, endpoint string) error` | verifyChain checks one chain's prior history and final endpoint. |
+
 ### [`backend/cli/main.go`](../backend/cli/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -2481,6 +2492,23 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestParse`](../tests/backend/bibtex/unit/bibtex_unit_test.go#L15) | test | 15-290 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
 | [`TestNewParserNilLogger`](../tests/backend/bibtex/unit/bibtex_unit_test.go#L293) | test | 293-302 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
+
+### [`tests/backend/bundle/unit/bundle_unit_test.go`](../tests/backend/bundle/unit/bundle_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`chainEntry`](../tests/backend/bundle/unit/bundle_unit_test.go#L15) | struct | 15-20 | `type chainEntry struct { filename string previous string upgrade string supersedes string }` | chainEntry is one generated migration link used by the synthetic configs. |
+| [`writeChain`](../tests/backend/bundle/unit/bundle_unit_test.go#L23) | function | 23-70 | `func writeChain(t *testing.T, path string, entries []chainEntry)` | writeChain writes one synthetic migration configuration. |
+| [`linearChain`](../tests/backend/bundle/unit/bundle_unit_test.go#L73) | function | 73-95 | `func linearChain(prefix string, count int, endpoint string) []chainEntry` | linearChain builds a complete linear chain ending at endpoint. |
+| [`writePair`](../tests/backend/bundle/unit/bundle_unit_test.go#L98) | function | 98-106 | `func writePair(t *testing.T, metadata, pdf []chainEntry) (string, string)` | writePair writes metadata and PDF configs and returns their paths. |
+| [`TestVerifyPairAcceptsSupportedChain`](../tests/backend/bundle/unit/bundle_unit_test.go#L109) | test | 109-114 | `func TestVerifyPairAcceptsSupportedChain(t *testing.T)` | TestVerifyPairAcceptsSupportedChain verifies a complete supported pair passes. |
+| [`TestVerifyPairRejectsOlderMetadata`](../tests/backend/bundle/unit/bundle_unit_test.go#L117) | test | 117-123 | `func TestVerifyPairRejectsOlderMetadata(t *testing.T)` | TestVerifyPairRejectsOlderMetadata verifies an older metadata endpoint is rejected. |
+| [`TestVerifyPairRejectsOlderPDF`](../tests/backend/bundle/unit/bundle_unit_test.go#L126) | test | 126-132 | `func TestVerifyPairRejectsOlderPDF(t *testing.T)` | TestVerifyPairRejectsOlderPDF verifies an older PDF endpoint is rejected. |
+| [`TestVerifyPairRejectsNewerMetadata`](../tests/backend/bundle/unit/bundle_unit_test.go#L135) | test | 135-141 | `func TestVerifyPairRejectsNewerMetadata(t *testing.T)` | TestVerifyPairRejectsNewerMetadata verifies a newer metadata endpoint is rejected. |
+| [`TestVerifyPairRejectsBrokenPrevious`](../tests/backend/bundle/unit/bundle_unit_test.go#L144) | test | 144-152 | `func TestVerifyPairRejectsBrokenPrevious(t *testing.T)` | TestVerifyPairRejectsBrokenPrevious verifies a broken prior-history link is rejected. |
+| [`TestVerifyPairRejectsInvalidSupersedes`](../tests/backend/bundle/unit/bundle_unit_test.go#L155) | test | 155-163 | `func TestVerifyPairRejectsInvalidSupersedes(t *testing.T)` | TestVerifyPairRejectsInvalidSupersedes verifies an invalid supersedes alias is rejected. |
+| [`TestVerifyPairAcceptsSupersedesAlias`](../tests/backend/bundle/unit/bundle_unit_test.go#L166) | test | 166-173 | `func TestVerifyPairAcceptsSupersedesAlias(t *testing.T)` | TestVerifyPairAcceptsSupersedesAlias verifies a valid supersedes alias passes. |
+| [`TestVerifyPairRejectsMismatchedSupportedPair`](../tests/backend/bundle/unit/bundle_unit_test.go#L176) | test | 176-185 | `func TestVerifyPairRejectsMismatchedSupportedPair(t *testing.T)` | TestVerifyPairRejectsMismatchedSupportedPair verifies a code/config mismatch is rejected. |
 
 ### [`tests/backend/cli/integration/assets_integration_test.go`](../tests/backend/cli/integration/assets_integration_test.go)
 
@@ -4938,12 +4966,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`writeTestFile`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L15) | function | 15-24 | `func writeTestFile(t *testing.T, root, relative, content string)` | writeTestFile creates a maintained input beneath one synthetic root. |
 | [`repositoryFixture`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L40) | function | 40-55 | `func repositoryFixture(t *testing.T) string` | repositoryFixture writes a root module, two families, and one valid generation unit. |
 | [`invoke`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L58) | function | 58-62 | `func invoke(root, command string) (int, string, string)` | invoke captures the public command's streams and process status. |
-| [`TestImportRulesThroughSourceTrees`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L65) | test | 65-103 | `func TestImportRulesThroughSourceTrees(t *testing.T)` | TestImportRulesThroughSourceTrees verifies every family, platform, companion, shared, generated, and test boundary. |
-| [`TestGraphReportClassifiesProductionAndFixtureEdges`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L106) | test | 106-119 | `func TestGraphReportClassifiesProductionAndFixtureEdges(t *testing.T)` | TestGraphReportClassifiesProductionAndFixtureEdges verifies both graph views and their invariant descriptions remain visible. |
-| [`TestSQLCUnitsRejectOwnershipAndListingErrors`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L122) | test | 122-141 | `func TestSQLCUnitsRejectOwnershipAndListingErrors(t *testing.T)` | TestSQLCUnitsRejectOwnershipAndListingErrors verifies the command reads and validates authoritative YAML and query files. |
-| [`TestCheckReportsMissingInputs`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L144) | test | 144-158 | `func TestCheckReportsMissingInputs(t *testing.T)` | TestCheckReportsMissingInputs verifies absent family roots and configuration fail with the could-not-run status. |
-| [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L161) | test | 161-173 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
-| [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L176) | test | 176-183 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
+| [`TestImportRulesThroughSourceTrees`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L65) | test | 65-111 | `func TestImportRulesThroughSourceTrees(t *testing.T)` | TestImportRulesThroughSourceTrees verifies every family, platform, companion, shared, generated, and test boundary. |
+| [`TestGraphReportClassifiesProductionAndFixtureEdges`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L114) | test | 114-127 | `func TestGraphReportClassifiesProductionAndFixtureEdges(t *testing.T)` | TestGraphReportClassifiesProductionAndFixtureEdges verifies both graph views and their invariant descriptions remain visible. |
+| [`TestSQLCUnitsRejectOwnershipAndListingErrors`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L130) | test | 130-149 | `func TestSQLCUnitsRejectOwnershipAndListingErrors(t *testing.T)` | TestSQLCUnitsRejectOwnershipAndListingErrors verifies the command reads and validates authoritative YAML and query files. |
+| [`TestCheckReportsMissingInputs`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L152) | test | 152-166 | `func TestCheckReportsMissingInputs(t *testing.T)` | TestCheckReportsMissingInputs verifies absent family roots and configuration fail with the could-not-run status. |
+| [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L169) | test | 169-181 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
+| [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L184) | test | 184-191 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
 
 ### [`tests/tooling/go/pdf-export/integration/export_test.go`](../tests/tooling/go/pdf-export/integration/export_test.go)
 
@@ -5231,22 +5259,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`generatedOwner`](../tooling/go/importcheck/main.go#L229) | function | 229-237 | `func generatedOwner(path string) (string, bool)` | generatedOwner returns the package tree that owns one generated internal/sql path. |
 | [`withinSubtree`](../tooling/go/importcheck/main.go#L240) | function | 240-242 | `func withinSubtree(root, target string) bool` | withinSubtree reports whether target is the subtree root or one of its descendants. |
 | [`(packageGraph).verifyFamilyEdge`](../tooling/go/importcheck/main.go#L245) | method | 245-261 | `func (packageGraph).verifyFamilyEdge(edge importEdge) []string` | verifyFamilyEdge verifies one family import edge and returns its violations. |
-| [`verifyGraph`](../tooling/go/importcheck/main.go#L264) | function | 264-303 | `func verifyGraph(graph packageGraph) []string` | verifyGraph returns the deterministic import direction violations for one graph. |
-| [`unitOwner`](../tooling/go/importcheck/main.go#L306) | function | 306-314 | `func unitOwner(path string) string` | unitOwner returns the owner directory shared by one sqlc schema, query, or output path. |
-| [`loadSQLCUnits`](../tooling/go/importcheck/main.go#L317) | function | 317-342 | `func loadSQLCUnits(root string) ([]sqlcUnit, error)` | loadSQLCUnits parses the generation units declared by config/sqlc.yaml. |
-| [`verifyUnits`](../tooling/go/importcheck/main.go#L345) | function | 345-413 | `func verifyUnits(root string, units []sqlcUnit) []string` | verifyUnits returns the deterministic ownership failures for the parsed sqlc units. |
-| [`scanRepository`](../tooling/go/importcheck/main.go#L416) | function | 416-431 | `func scanRepository(root string) (scanReport, error)` | scanRepository loads and verifies one repository root. |
-| [`(scanReport).failures`](../tooling/go/importcheck/main.go#L434) | method | 434-439 | `func (scanReport).failures() []string` | failures returns the deterministic check failures for one scan. |
-| [`(scanReport).familyProductionImports`](../tooling/go/importcheck/main.go#L442) | method | 442-458 | `func (scanReport).familyProductionImports() map[string][]string` | familyProductionImports returns each family's sorted production imports of analysis packages. |
-| [`(scanReport).familyFixtureImports`](../tooling/go/importcheck/main.go#L461) | method | 461-478 | `func (scanReport).familyFixtureImports() map[string][]string` | familyFixtureImports returns each family's sorted cross-family test imports. |
-| [`sortedUnique`](../tooling/go/importcheck/main.go#L481) | function | 481-492 | `func sortedUnique(values []string) []string` | sortedUnique returns the sorted distinct values of one string slice. |
-| [`(scanReport).packageCounts`](../tooling/go/importcheck/main.go#L495) | method | 495-501 | `func (scanReport).packageCounts() map[layer]int` | packageCounts returns the number of maintained packages per layer. |
-| [`writeReport`](../tooling/go/importcheck/main.go#L504) | function | 504-545 | `func writeReport(output io.Writer, report scanReport)` | writeReport renders the import and transaction graph report for one scan. |
-| [`sortedKeys`](../tooling/go/importcheck/main.go#L548) | function | 548-555 | `func sortedKeys(values map[string][]string) []string` | sortedKeys returns the sorted keys of one family map. |
-| [`parseRoot`](../tooling/go/importcheck/main.go#L558) | function | 558-570 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
-| [`runCheck`](../tooling/go/importcheck/main.go#L573) | function | 573-593 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
-| [`runReport`](../tooling/go/importcheck/main.go#L596) | function | 596-608 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
-| [`Run`](../tooling/go/importcheck/main.go#L611) | function | 611-627 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
+| [`verifyGraph`](../tooling/go/importcheck/main.go#L264) | function | 264-307 | `func verifyGraph(graph packageGraph) []string` | verifyGraph returns the deterministic import direction violations for one graph. |
+| [`unitOwner`](../tooling/go/importcheck/main.go#L310) | function | 310-318 | `func unitOwner(path string) string` | unitOwner returns the owner directory shared by one sqlc schema, query, or output path. |
+| [`loadSQLCUnits`](../tooling/go/importcheck/main.go#L321) | function | 321-346 | `func loadSQLCUnits(root string) ([]sqlcUnit, error)` | loadSQLCUnits parses the generation units declared by config/sqlc.yaml. |
+| [`verifyUnits`](../tooling/go/importcheck/main.go#L349) | function | 349-417 | `func verifyUnits(root string, units []sqlcUnit) []string` | verifyUnits returns the deterministic ownership failures for the parsed sqlc units. |
+| [`scanRepository`](../tooling/go/importcheck/main.go#L420) | function | 420-435 | `func scanRepository(root string) (scanReport, error)` | scanRepository loads and verifies one repository root. |
+| [`(scanReport).failures`](../tooling/go/importcheck/main.go#L438) | method | 438-443 | `func (scanReport).failures() []string` | failures returns the deterministic check failures for one scan. |
+| [`(scanReport).familyProductionImports`](../tooling/go/importcheck/main.go#L446) | method | 446-462 | `func (scanReport).familyProductionImports() map[string][]string` | familyProductionImports returns each family's sorted production imports of analysis packages. |
+| [`(scanReport).familyFixtureImports`](../tooling/go/importcheck/main.go#L465) | method | 465-482 | `func (scanReport).familyFixtureImports() map[string][]string` | familyFixtureImports returns each family's sorted cross-family test imports. |
+| [`sortedUnique`](../tooling/go/importcheck/main.go#L485) | function | 485-496 | `func sortedUnique(values []string) []string` | sortedUnique returns the sorted distinct values of one string slice. |
+| [`(scanReport).packageCounts`](../tooling/go/importcheck/main.go#L499) | method | 499-505 | `func (scanReport).packageCounts() map[layer]int` | packageCounts returns the number of maintained packages per layer. |
+| [`writeReport`](../tooling/go/importcheck/main.go#L508) | function | 508-549 | `func writeReport(output io.Writer, report scanReport)` | writeReport renders the import and transaction graph report for one scan. |
+| [`sortedKeys`](../tooling/go/importcheck/main.go#L552) | function | 552-559 | `func sortedKeys(values map[string][]string) []string` | sortedKeys returns the sorted keys of one family map. |
+| [`parseRoot`](../tooling/go/importcheck/main.go#L562) | function | 562-574 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
+| [`runCheck`](../tooling/go/importcheck/main.go#L577) | function | 577-597 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
+| [`runReport`](../tooling/go/importcheck/main.go#L600) | function | 600-612 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
+| [`Run`](../tooling/go/importcheck/main.go#L615) | function | 615-631 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
 
 ### [`tooling/go/pdf-export/main.go`](../tooling/go/pdf-export/main.go)
 
