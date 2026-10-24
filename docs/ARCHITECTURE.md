@@ -45,7 +45,7 @@ Source exports + SOMETHING configuration
 | `backend/logging/` | Process-wide structured logger and compile-time logging threshold. |
 | `backend/manifest/` | Standard-library-only canonical manifests, fingerprints, lifecycle vocabulary, cache layout, and audit types. |
 | `backend/normalization/` | Deterministic author, affiliation, publisher, and journal normalization. |
-| `backend/pdfannotate/` | Application-owned PDF annotation boundary over the pinned pdfcpu v0.15.0 trial: accepts bounded source bytes and annotation data, returns bounded annotated bytes without opening databases or exposing library model types, and runs in a killable worker process for cancellation. |
+| `backend/pdfannotate/` | Application-owned PDF annotation boundary over the retained pdfcpu v0.15.0 dependency: accepts bounded source bytes and annotation data, returns bounded annotated bytes without opening databases or exposing library model types, and runs in a killable worker process for cancellation. |
 | `backend/pdfstore/` | Companion PDF SQLite store with its own `schema/` inputs and generated `internal/sql/` package: normalized DOI registration, PDF validation, content blobs, read-only delivery, and the transactional audit outbox. |
 | `backend/searchterms/` | Search-term extraction from source query strings and deterministic case-insensitive field matching that stems every word with the English snowball stemmer before whole-word matching, with wildcard support. |
 | `backend/server/` | Existing-only metadata read and bounded-mutation connections, evidence and lifecycle APIs, details, audit, artifact access, read-only PDF delivery, and frontend asset serving. |
