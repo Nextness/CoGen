@@ -121,6 +121,7 @@ type Server struct {
 	schemaReady      bool
 	pdfCacheMu       sync.Mutex
 	pdfCache         *cachedPDF
+	pdfUploads       chan struct{}
 	auditRelayMu     sync.Mutex
 	auditRelayCancel context.CancelFunc
 	auditRelayDone   chan struct{}
@@ -163,7 +164,7 @@ func Open(path, registryPath string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("acquire shared maintenance ownership: %w", err)
 	}
-	s := &Server{maintenance: maintenance}
+	s := &Server{maintenance: maintenance, pdfUploads: make(chan struct{}, pdfUploadConcurrency)}
 	cleanup := true
 	defer func() {
 		if cleanup {
@@ -322,13 +323,13 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusServiceUnavailable, "assets_not_configured", "frontend assets not configured; serve requires --assets-dir")
 		})
-		return withAPIResponseBudgets(withJSONErrors(mux))
+		return withPDFUploadDeadlines(withAPIResponseBudgets(withJSONErrors(mux)))
 	}
 	for path, file := range viewPages {
 		mux.HandleFunc("GET "+path, s.serveViewPage(file))
 	}
 	mux.Handle("GET /", http.FileServer(http.FS(s.AssetsFS)))
-	return withAPIResponseBudgets(withJSONErrors(mux))
+	return withPDFUploadDeadlines(withAPIResponseBudgets(withJSONErrors(mux)))
 }
 
 // serveViewPage serves one view HTML document from the assets filesystem.

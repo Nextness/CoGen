@@ -14,14 +14,21 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"analysis/backend/pdfstore"
 )
 
-const maxPDFUploadBytes = pdfstore.DefaultMaxPDFBytes
+const (
+	maxPDFUploadBytes         = pdfstore.DefaultMaxPDFBytes
+	pdfUploadConcurrency      = 2
+	pdfUploadBodyDeadline     = 60 * time.Second
+	pdfUploadResponseDeadline = 75 * time.Second
+)
 
 // saveArticlePDF accepts one complete raw PDF body for an exact selected run
 // and current normalized article revision.
@@ -69,6 +76,12 @@ func (s *Server) saveArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, s.pdfStateConflict(workID, doi, document, expectedCounter))
 		return
 	}
+	if !s.acquirePDFUpload() {
+		w.Header().Set("Retry-After", "1")
+		s.respond(w, r, nil, pdfCapacityExhausted())
+		return
+	}
+	defer s.releasePDFUpload()
 	data, err := readPDFUploadBody(w, r, declaredSize, declaredDigest)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -84,6 +97,9 @@ func (s *Server) saveArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, s.pdfMutationError(err, workID, doi))
 		return
 	}
+	// The storage transaction has committed. A response lost after this point
+	// is an uncertain outcome; the client must reconcile pdf-status instead of
+	// retrying with a now-stale mutation ETag.
 	status := s.pdfStatusFromDocument(workID, doi, &result.Document, result.ByteSize)
 	status["actions"] = pdfActions(run, true, true, result.Document.Status, result.Document.ContentHash, doi)
 	writeJSON(w, http.StatusOK, pdfMutationPayload(result.Changed, result.Operation, status, result.EventKey))
@@ -136,9 +152,55 @@ func (s *Server) removeArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, s.pdfMutationError(err, workID, doi))
 		return
 	}
+	// The removal has committed. A lost response is reconciled from pdf-status
+	// before another conditional removal is attempted.
 	status := s.pdfStatusFromDocument(workID, doi, &result.Document, 0)
 	status["actions"] = pdfActions(run, true, true, result.Document.Status, result.Document.ContentHash, doi)
 	writeJSON(w, http.StatusOK, pdfMutationPayload(result.Changed, result.Operation, status, result.EventKey))
+}
+
+// acquirePDFUpload reserves one of the server's two retained upload bodies.
+func (s *Server) acquirePDFUpload() bool {
+	if s.pdfUploads == nil {
+		return false
+	}
+	select {
+	case s.pdfUploads <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+// releasePDFUpload releases one retained upload body on every handler exit path.
+func (s *Server) releasePDFUpload() {
+	select {
+	case <-s.pdfUploads:
+	default:
+	}
+}
+
+// withPDFUploadDeadlines applies finite body and response deadlines before the
+// JSON response buffer, which does not expose the underlying response writer.
+func withPDFUploadDeadlines(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isPDFUploadRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		controller := http.NewResponseController(w)
+		now := time.Now()
+		_ = controller.SetReadDeadline(now.Add(pdfUploadBodyDeadline))
+		_ = controller.SetWriteDeadline(now.Add(pdfUploadResponseDeadline))
+		ctx, cancel := context.WithTimeout(r.Context(), pdfUploadResponseDeadline)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// isPDFUploadRequest selects only the raw PUT resource that retains a body.
+func isPDFUploadRequest(r *http.Request) bool {
+	return r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/runs/") && strings.HasSuffix(r.URL.Path, "/pdf")
 }
 
 // pdfMutationIDs parses the exact run and work-revision route identifiers.
@@ -232,6 +294,10 @@ func readPDFUploadBody(w http.ResponseWriter, r *http.Request, declaredSize int6
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			return nil, requestTooLargePDF(maxPDFUploadBytes)
+		}
+		var timeout net.Error
+		if (errors.As(err, &timeout) && timeout.Timeout()) || errors.Is(r.Context().Err(), context.DeadlineExceeded) {
+			return nil, &viewrequest.Problem{Status: http.StatusRequestTimeout, Code: "request_timeout", Message: "PDF upload did not finish within the body deadline"}
 		}
 		return nil, pdfUploadMismatch("upload body ended before the complete declared PDF was received")
 	}
@@ -379,9 +445,9 @@ func (s *Server) pdfMutationError(err error, workID int64, doi string) error {
 	case errors.Is(err, pdfstore.ErrPDFInvalid):
 		return &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_validation_error", Message: "uploaded bytes are not a valid PDF file envelope"}
 	case isPDFStoreBusy(err):
-		return &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_busy", Message: "the PDF store is temporarily busy; retry shortly"}
+		return &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_busy", Message: "the PDF store is temporarily busy; retry shortly", Details: map[string]any{"retry_after_seconds": 1}}
 	case errors.Is(err, context.DeadlineExceeded):
-		return &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_timeout", Message: "the PDF store operation did not finish in time; retry shortly"}
+		return &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_timeout", Message: "the PDF store operation did not finish in time; retry shortly", Details: map[string]any{"retry_after_seconds": 1}}
 	default:
 		log.Error("PDF mutation failed", "work_id", workID, "error", err)
 		return &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_storage_error", Message: "unable to store the PDF change"}
@@ -411,6 +477,15 @@ func (s *Server) pdfStoreUnavailable() error {
 		Status: http.StatusServiceUnavailable, Code: "pdf_store_unavailable",
 		Message: "PDF changes are unavailable: " + reason,
 		Details: map[string]any{"reason": reason},
+	}
+}
+
+// pdfCapacityExhausted returns the bounded upload admission failure.
+func pdfCapacityExhausted() error {
+	return &viewrequest.Problem{
+		Status: http.StatusServiceUnavailable, Code: "pdf_capacity_exhausted",
+		Message: "two PDF uploads are already in progress; retry shortly",
+		Details: map[string]any{"retry_after_seconds": 1},
 	}
 }
 
