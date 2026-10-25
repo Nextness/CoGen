@@ -241,6 +241,51 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
+
+  it("prepares an explicit original-byte download with comments disabled", async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    var request: RequestInit | undefined;
+    var clicked = 0;
+    URL.createObjectURL = function() { return "blob:pdf"; };
+    URL.revokeObjectURL = function() {};
+    HTMLAnchorElement.prototype.click = function() { clicked += 1; };
+    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+      request = init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'attachment; filename="managed.pdf"',
+          "Content-Length": "3",
+          "X-PDF-Export-Correlation-Id": "corr-pdf",
+        }),
+        body: null,
+        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+      } as unknown as Response);
+    } as typeof fetch;
+    const host = mount(availableStatus());
+
+    const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
+    assert.equal(comments.disabled, true);
+    host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
+    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("Download prepared"));
+
+    assert.equal(request?.method, "POST");
+    assert.deepEqual(JSON.parse(String(request?.body)), { content_hash: "a".repeat(64), include_comments: false });
+    assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /managed\.pdf/);
+    assert.equal(clicked, 1);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+    host.remove();
+  });
+
   it("reports an unchanged save without claiming a mutation", async function() {
     const originalFetch = globalThis.fetch;
     const response: PDFMutationResponse = {

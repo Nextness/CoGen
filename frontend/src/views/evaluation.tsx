@@ -12,8 +12,8 @@ import {
   formatDate,
   StatusChip,
 } from "../state.tsx";
-import { h, Fragment, render as renderTree, cx } from "../jsx/jsx-runtime.ts";
-import { api } from "../api.tsx";
+import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
+import { APIError, api, downloadExport, errorMessage } from "../api.tsx";
 import type { EvaluationFacet, EvaluationResponse, EvaluationRow, WireRecord } from "../api/types.ts";
 import { articlesColumns, articlesExpandFields } from "../components/article-table.tsx";
 import { DataTable, bindTableControls } from "../components/data-table.tsx";
@@ -30,6 +30,7 @@ const classNames = {
   rwFilterDisclosureRwEvaluationFiltersAdvanced: cx("rw-filter-disclosure", "rw-evaluation-filters__advanced"),
   rwFilterPanelFieldsRwEvaluationFiltersAdvancedFields: cx("rw-filter-panel__fields", "rw-evaluation-filters__advanced-fields"),
   uiBasicButton: cx("ui", "basic", "button"),
+  uiErrorMessage: cx("ui", "error", "message"),
   uiFadedText: cx("ui", "faded", "text"),
   uiFormRwFilterPanel: cx("ui", "form", "rw-filter-panel"),
   uiInput: cx("ui", "input"),
@@ -37,8 +38,10 @@ const classNames = {
   uiOrangeLabel: cx("ui", "orange", "label"),
   uiPrimaryButton: cx("ui", "primary", "button"),
   uiSegment: cx("ui", "segment"),
+  uiSuccessMessage: cx("ui", "success", "message"),
   uiTopAttachedHeader: cx("ui", "top", "attached", "header"),
   uiVioletLabel: cx("ui", "violet", "label"),
+  uiWarningMessage: cx("ui", "warning", "message"),
 };
 
 const evaluationSortFields = ["id", "title", "doi", "year", "journal", "publisher", "source", "validation_status", "citation_count", "reference_count", "created_at"];
@@ -84,6 +87,144 @@ function facetOptions(items: EvaluationFacet[], selected: string): JSX.Element[]
   });
 }
 
+/** Reports whether one current-page article has readable exportable bytes. */
+function exportableRow(row: WireRecord): boolean {
+  const record = row as EvaluationRow;
+  return record.inventory_status === "available" && typeof record.content_hash === "string" && record.content_hash.length === 64;
+}
+
+/** Returns one stable selection key for an evaluation row. */
+function exportRowKey(row: WireRecord): string {
+  return String((row as EvaluationRow).work_revision_id || "");
+}
+
+/** Binds current-page PDF selection, count feedback, and selected-set download. */
+function bindExportSelection(runID: number, rows: WireRecord[], selected: Set<string>): void {
+  const scope = app.querySelector<HTMLElement>('[data-table-scope="work_revisions"]');
+  const button = app.querySelector<HTMLButtonElement>("[data-export-selected]");
+  const count = app.querySelector<HTMLElement>("[data-export-count]");
+  const unavailable = app.querySelector<HTMLElement>("[data-export-unavailable]");
+  const feedback = app.querySelector<HTMLElement>("[data-export-feedback]");
+  const selectAll = app.querySelector<HTMLInputElement>("[data-select-all]");
+  if (!scope || !button || !count || !feedback) return;
+
+  const byKey = new Map<string, WireRecord>();
+  rows.forEach((row) => {
+    byKey.set(exportRowKey(row), row);
+  });
+  const selectableKeys = rows.filter(exportableRow).map(exportRowKey);
+  const unavailableCount = rows.length - selectableKeys.length;
+  if (unavailable) {
+    var unavailableText = "All PDFs on this page can be selected.";
+    if (unavailableCount > 0) unavailableText = `${formatNumber(unavailableCount)} PDF${unavailableCount === 1 ? " is" : "s are"} unavailable or lacks readable bytes on this page.`;
+    unavailable.textContent = unavailableText;
+  }
+
+  /** Synchronizes counts, selection controls, and feedback from the current set. */
+  function update(): void {
+    count!.textContent = `${formatNumber(selected.size)} selected`;
+    button!.disabled = selected.size === 0;
+    scope!.querySelectorAll<HTMLInputElement>("[data-select-row]").forEach((input) => {
+      input.checked = selected.has(input.dataset.selectRow || "");
+    });
+    if (selectAll) {
+      const allSelected = selectableKeys.length > 0 && selectableKeys.every((key) => selected.has(key));
+      const someSelected = selectableKeys.some((key) => selected.has(key));
+      selectAll.checked = allSelected;
+      selectAll.indeterminate = someSelected && !allSelected;
+    }
+  }
+
+  /** Replaces one feedback element's semantic classes with the supplied result kind. */
+  function applyFeedbackClass(node: HTMLElement, kind: "info" | "warning" | "error" | "success"): void {
+    classRemove(node, "ui");
+    classRemove(node, "faded");
+    classRemove(node, "text");
+    classRemove(node, "info");
+    classRemove(node, "success");
+    classRemove(node, "warning");
+    classRemove(node, "error");
+    classRemove(node, "message");
+    classAdd(node, ["ui", kind, "message"]);
+  }
+
+  /** Sets one bounded selection status message. */
+  function setFeedback(message: string, kind: "info" | "warning" | "error" | "success" = "info"): void {
+    feedback!.textContent = message;
+    feedback!.setAttribute("role", kind === "error" ? "alert" : "status");
+    applyFeedbackClass(feedback!, kind);
+  }
+
+  scope.addEventListener("change", (event) => {
+    const input = event.target as HTMLInputElement;
+    const key = input.dataset.selectRow || "";
+    if (input.matches("[data-select-all]")) {
+      if (input.checked) {
+        selected.clear();
+        selectableKeys.slice(0, 20).forEach((item) => selected.add(item));
+        if (selectableKeys.length > 20) setFeedback("Selected the first 20 exportable PDFs on this page. The limit is 20 per download.", "warning");
+        else setFeedback("");
+      } else {
+        selected.clear();
+        setFeedback("");
+      }
+      update();
+      return;
+    }
+    if (!input.matches("[data-select-row]") || !key) return;
+    if (input.checked) {
+      if (selected.size >= 20) {
+        input.checked = false;
+        setFeedback("A download can include at most 20 PDFs. Clear a selection before adding another.", "warning");
+        return;
+      }
+      selected.add(key);
+    } else {
+      selected.delete(key);
+    }
+    setFeedback("");
+    update();
+  });
+
+  button.addEventListener("click", async () => {
+    const articles = Array.from(selected).map((key) => {
+      const row = byKey.get(key) as EvaluationRow;
+      return { work_revision_id: row.work_revision_id, content_hash: row.content_hash || "" };
+    }).filter((item) => item.content_hash);
+    if (!articles.length) {
+      setFeedback("Select at least one PDF with readable bytes.", "warning");
+      return;
+    }
+    button.disabled = true;
+    setFeedback("Preparing the selected PDF export.", "info");
+    try {
+      const result = await downloadExport(`/api/runs/${encodeURIComponent(runID)}/pdf-exports`, {
+        articles: articles,
+        include_comments: false,
+      }, {
+        contentType: "application/zip",
+        maxBytes: 101_000_000,
+        signal: null,
+      });
+      var message = `Download prepared: ${result.filename}.`;
+      if (result.included !== null && result.skipped !== null) {
+        message = `Download prepared: ${result.filename}. ${formatNumber(result.included)} included, ${formatNumber(result.skipped)} skipped.`;
+      }
+      setFeedback(message, "success");
+    } catch (error) {
+      if (error instanceof APIError && error.code === "pdf_export_empty") {
+        setFeedback("No selected PDF could be exported. Refresh the page to review current PDF availability.", "warning");
+      } else {
+        setFeedback(errorMessage(error, "The selected PDF export could not be prepared."), "error");
+      }
+    } finally {
+      button.disabled = selected.size === 0;
+    }
+  });
+
+  update();
+}
+
 /** Renders the Corpus article collection with metadata, PDF inventory, and review controls. */
 export async function articleCollectionView(heading: JSX.Element, refresh: () => Promise<void>): Promise<void> {
   const runID = value("run_id");
@@ -123,6 +264,7 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
     ...filters,
   });
 
+  const selectedRevisions = new Set<string>();
   const summary = data.review_summary || {};
   const facets = summary.facets || {};
   const pageSizeOptions = pageSizes.map((size) => {
@@ -284,6 +426,16 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
     rowKey: "work_revision_id",
     itemLabel: "normalized articles",
     tableClasses: ["rw-corpus-table", "rw-evaluation-table"],
+    selection: {
+      selected: selectedRevisions,
+      label: "Select PDF",
+      ariaLabel: "Select all exportable PDFs on this page",
+      isSelectable: exportableRow,
+      rowLabel: (row) => {
+        const record = row as EvaluationRow;
+        return String(record.title || record.doi || record.work_revision_id);
+      },
+    },
     columnConfig: columnConfig,
     columnsWhitelist: [...articlesColumns, "inventory_status", "review_status", "review_inherited"],
     expandableFields: [
@@ -298,6 +450,23 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
     perPageSelector: "#evaluation-per-page",
   };
   const table = <DataTable tableName="work_revisions" result={data} context={tableContext} />;
+
+  const exportToolbar = (
+    <section className="rw-export-toolbar" aria-label="PDF export selection">
+      <div className="rw-export-toolbar__summary">
+        <strong data-export-count>0 selected</strong>
+        <span>Limit 20 per download</span>
+        <small data-export-unavailable>PDFs unavailable on this page cannot be selected.</small>
+      </div>
+      <label className="rw-export-toolbar__comments">
+        <input type="checkbox" data-export-include-comments disabled />
+        <span>Include comments</span>
+      </label>
+      <small className="rw-export-toolbar__comments-help">Comment inclusion is available after annotation export support is enabled.</small>
+      <button type="button" className={classNames.uiPrimaryButton} data-export-selected disabled>Download selected PDFs</button>
+      <p className={classNames.uiFadedText} data-export-feedback role="status" aria-live="polite"></p>
+    </section>
+  );
 
   var contextAction: JSX.Element | null = null;
   if (!data.review_context_initialized && data.run_writable) {
@@ -362,6 +531,7 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
         <div className="content">
           <div className="rw-content-stack" data-table-scope="work_revisions">
             {controls}
+            {exportToolbar}
             {table}
           </div>
         </div>
@@ -379,6 +549,7 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
   renderTree(pageMarkup, app);
 
   bindTableControls("work_revisions", tableContext);
+  bindExportSelection(Number(runID), data.rows as WireRecord[], selectedRevisions);
   app.querySelector<HTMLFormElement>("[data-evaluation-filters]")?.addEventListener("submit", (event) => {
     event.preventDefault();
     const formElement = event.currentTarget as HTMLFormElement;

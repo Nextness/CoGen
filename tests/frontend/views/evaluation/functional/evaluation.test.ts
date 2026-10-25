@@ -12,6 +12,15 @@ function setLocation(values: Record<string, string>): void {
   seedViewerState({ view: "corpus", ...values });
 }
 
+/** Waits for one observable asynchronous state instead of a fixed delay. */
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (var attempt = 0; attempt < 100; attempt += 1) {
+    if (predicate()) return;
+    await new Promise(function(resolve) { setTimeout(resolve, 10); });
+  }
+  assert.fail("Timed out waiting for evaluation state");
+}
+
 /** Builds one invariant Evaluation response with optional overrides. */
 function evaluationResponse(overrides: Record<string, any> = {}): Record<string, any> {
   return {
@@ -37,8 +46,8 @@ function evaluationResponse(overrides: Record<string, any> = {}): Record<string,
     },
     columns: ["title", "doi", "year", "journal", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"],
     rows: [
-      { work_revision_id: 1, title: "Available article", doi: "10.1000/available", source: "crossref", inventory_status: "available", inventoried_at: "2026-07-29T12:00:00Z", review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
-      { work_revision_id: 2, title: "Missing article", doi: "10.1000/missing", source: "crossref", inventory_status: "not_available", inventoried_at: null, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
+      { work_revision_id: 1, title: "Available article", doi: "10.1000/available", source: "crossref", inventory_status: "available", inventoried_at: "2026-07-29T12:00:00Z", content_hash: "a".repeat(64), byte_size: 512, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
+      { work_revision_id: 2, title: "Missing article", doi: "10.1000/missing", source: "crossref", inventory_status: "not_available", inventoried_at: null, content_hash: null, byte_size: null, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
     ],
     pagination: { page: 1, per_page: 50, total_rows: 2, total_pages: 1 },
     ...overrides,
@@ -88,10 +97,16 @@ describe("evaluation.tsx - evaluationView", function() {
     assert.match(app.querySelector(".rw-corpus-table")?.textContent || "", /Not started/);
     assert.deepEqual(Array.from(app.querySelectorAll(".rw-corpus-table thead th"), (cell) => {
       return cell.textContent?.trim();
-    }), ["", "DOI", "Title", "Year", "Journal", "Source", "PDF", "Review status", "Review source"]);
+    }), ["", "", "DOI", "Title", "Year", "Journal", "Source", "PDF", "Review status", "Review source"]);
     assert.equal(app.querySelector(".rw-corpus-table time")?.textContent, "Jul 29, 2026");
     assert.ok(app.querySelector(".rw-evaluation-filters__advanced"));
     assert.ok(app.querySelector("[data-start-review]"));
+    assert.ok(app.querySelector("[data-export-selected]"));
+    assert.equal(app.querySelector<HTMLButtonElement>("[data-export-selected]")?.disabled, true);
+    assert.match(app.querySelector("[data-export-count]")?.textContent || "", /0 selected/);
+    assert.match(app.querySelector("[data-export-unavailable]")?.textContent || "", /1 PDF is unavailable/);
+    assert.equal(app.querySelector<HTMLInputElement>('[data-select-row="1"]')?.disabled, false);
+    assert.equal(app.querySelector<HTMLInputElement>('[data-select-row="2"]')?.disabled, true);
     const nextUnreviewed = Array.from(app.querySelectorAll<HTMLAnchorElement>("a")).find((anchor) => {
       return anchor.textContent?.includes("Next unreviewed");
     });
@@ -115,6 +130,100 @@ describe("evaluation.tsx - evaluationView", function() {
 
     assert.match(app.textContent || "", /Review initialized/);
     assert.equal(app.querySelector("[data-start-review]"), null);
+    globalThis.fetch = originalFetch;
+  });
+
+
+  it("downloads only the selected current-page PDFs and reports partial results", async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    var exportBody: any = null;
+    var clicked = 0;
+    URL.createObjectURL = function() { return "blob:selected"; };
+    URL.revokeObjectURL = function() {};
+    HTMLAnchorElement.prototype.click = function() { clicked += 1; };
+    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+      if (init?.method === "POST") {
+        exportBody = JSON.parse(String(init.body));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            "Content-Type": "application/zip",
+            "Content-Disposition": "attachment; filename=selected.zip",
+            "Content-Length": "3",
+            "X-PDF-Export-Included": "1",
+            "X-PDF-Export-Skipped": "0",
+          }),
+          body: null,
+          arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
+        } as unknown as Response);
+      }
+      return apiResponse(evaluationResponse());
+    } as typeof fetch;
+    setLocation({ view: "corpus", run_id: "7" });
+    await articleCollectionView(document.createElement("div"), async () => {});
+
+    const selectAll = app.querySelector<HTMLInputElement>("[data-select-all]")!;
+    selectAll.checked = true;
+    selectAll.dispatchEvent(new Event("change", { bubbles: true }));
+    assert.equal(app.querySelector<HTMLButtonElement>("[data-export-selected]")?.disabled, false);
+    assert.match(app.querySelector("[data-export-count]")?.textContent || "", /1 selected/);
+
+    app.querySelector<HTMLButtonElement>("[data-export-selected]")!.click();
+    await waitFor(() => (app.querySelector("[data-export-feedback]")?.textContent || "").includes("1 included, 0 skipped"));
+    assert.deepEqual(exportBody, {
+      articles: [{ work_revision_id: 1, content_hash: "a".repeat(64) }],
+      include_comments: false,
+    });
+    assert.equal(clicked, 1);
+    assert.match(app.querySelector("[data-export-feedback]")?.textContent || "", /selected\.zip/);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+  });
+
+  it("limits select-all to twenty current-page rows and clears selection on rerender", async function() {
+    const originalFetch = globalThis.fetch;
+    const rows = Array.from({ length: 25 }, function(_, index) {
+      return {
+        work_revision_id: index + 1,
+        title: `Article ${index + 1}`,
+        doi: `10.1000/${index + 1}`,
+        source: "crossref",
+        inventory_status: "available",
+        inventoried_at: "2026-07-29T12:00:00Z",
+        content_hash: String(index + 1).padStart(64, "a"),
+        byte_size: 512,
+        review_status: "not_evaluated",
+        review_inherited: false,
+        review_version_id: null,
+        review_sub_statuses: [],
+      };
+    });
+    globalThis.fetch = function() {
+      return apiResponse(evaluationResponse({
+        rows: rows,
+        pagination: { page: 1, per_page: 50, total_rows: 25, total_pages: 1 },
+      }));
+    } as typeof fetch;
+    setLocation({ view: "corpus", run_id: "7" });
+    await articleCollectionView(document.createElement("div"), async () => {});
+
+    const selectAll = app.querySelector<HTMLInputElement>("[data-select-all]")!;
+    selectAll.checked = true;
+    selectAll.dispatchEvent(new Event("change", { bubbles: true }));
+    assert.match(app.querySelector("[data-export-count]")?.textContent || "", /20 selected/);
+    assert.match(app.querySelector("[data-export-feedback]")?.textContent || "", /first 20/);
+
+    await articleCollectionView(document.createElement("div"), async () => {});
+    assert.match(app.querySelector("[data-export-count]")?.textContent || "", /0 selected/);
+    assert.equal(app.querySelector<HTMLButtonElement>("[data-export-selected]")?.disabled, true);
+
     globalThis.fetch = originalFetch;
   });
 

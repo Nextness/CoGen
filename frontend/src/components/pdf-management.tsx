@@ -1,5 +1,5 @@
 // Conditional PDF upload, replacement, and removal controls for article detail.
-import { APIError, api, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
+import { APIError, api, downloadExport, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
 import type { ArticleDetailResponse, ArticleRecord, PDFMutationResponse, PDFStatus } from "../api/types.ts";
 import { formatBytes, formatTime, humanLabel } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
@@ -8,6 +8,8 @@ import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "..
 const classNames = {
   pdfGrid: cx("rw-property-grid", "rw-property-grid--compact"),
   pdfManagement: cx("rw-pdf-management"),
+  rwPdfExportAction: cx("rw-pdf-export-action"),
+  rwPdfExportActionComments: cx("rw-pdf-export-action__comments"),
   uiBasicButton: cx("ui", "basic", "button"),
   uiDangerButton: cx("ui", "danger", "button"),
   uiErrorMessage: cx("ui", "error", "message"),
@@ -116,7 +118,16 @@ export function PDFManagementPanel(props: PDFManagementPanelProps): JSX.Element 
 
   var pdfAction: JSX.Element = <span className={classNames.uiFadedText}>No stored PDF is available.</span>;
   if (canDownload) {
-    pdfAction = <a className={classNames.uiPrimaryButton} href={`/api/pdf/${encodeURIComponent(props.record.work_id)}`} download>Download PDF</a>;
+    pdfAction = (
+      <div className={classNames.rwPdfExportAction}>
+        <button type="button" className={classNames.uiPrimaryButton} data-pdf-download>Download PDF</button>
+        <label className={classNames.rwPdfExportActionComments}>
+          <input type="checkbox" data-pdf-include-comments disabled />
+          <span>Include comments</span>
+        </label>
+        <small className={classNames.uiFadedText}>Comment inclusion is available after annotation export support is enabled.</small>
+      </div>
+    );
   }
 
   var sizeValue: string | null = null;
@@ -246,6 +257,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
   let selectedFile: File | null = null;
   let feedback: PDFManagementFeedback | null = null;
   let busy = false;
+  let downloading = false;
   let confirmation: PDFConfirmation | null = null;
   let confirmationOpener: HTMLElement | null = null;
   let destroyed = false;
@@ -302,6 +314,8 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     if (input) input.disabled = busy;
     const remove = host.querySelector<HTMLButtonElement>("[data-pdf-remove]");
     if (remove) remove.disabled = busy;
+    const download = host.querySelector<HTMLButtonElement>("[data-pdf-download]");
+    if (download) download.disabled = busy || downloading || !currentStatus.content_hash;
     updateSelectedFile();
   }
 
@@ -405,6 +419,43 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     } finally {
       if (!destroyed) {
         busy = false;
+        updateBusy();
+        updateFeedback();
+        focusFeedback();
+      }
+    }
+  }
+
+  /** Prepares one explicit original-byte PDF download without changing selection. */
+  async function executeDownload(): Promise<void> {
+    if (downloading || busy) return;
+    const contentHash = currentStatus.content_hash || "";
+    if (!contentHash) {
+      feedback = { kind: "warning", message: "The current PDF state has no content hash. Refresh the PDF state before downloading." };
+      updateFeedback();
+      return;
+    }
+    downloading = true;
+    updateBusy();
+    feedback = { kind: "info", message: "Preparing the PDF download." };
+    updateFeedback();
+    try {
+      const path = `/api/runs/${encodeURIComponent(options.record.pipeline_run_id)}/articles/${encodeURIComponent(options.record.id)}/pdf-export`;
+      const result = await downloadExport(path, { content_hash: contentHash, include_comments: false }, {
+        contentType: "application/pdf",
+        maxBytes: 20_000_000,
+        signal: null,
+      });
+      feedback = { kind: "success", message: `Download prepared: ${result.filename} (${formatBytes(result.bytes)}).` };
+    } catch (error) {
+      if (error instanceof APIError && error.code === "pdf_changed") {
+        feedback = { kind: "warning", message: "The PDF selection changed after this page loaded. Refresh the PDF state before downloading." };
+      } else {
+        feedback = { kind: "error", message: errorMessage(error, "The PDF download could not be prepared.") };
+      }
+    } finally {
+      downloading = false;
+      if (!destroyed) {
         updateBusy();
         updateFeedback();
         focusFeedback();
@@ -523,6 +574,11 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     const refresh = host.querySelector<HTMLButtonElement>("[data-pdf-refresh]");
     refresh?.addEventListener("click", () => {
       void refreshCurrentStatus();
+    });
+
+    const download = host.querySelector<HTMLButtonElement>("[data-pdf-download]");
+    download?.addEventListener("click", () => {
+      void executeDownload();
     });
 
     const confirmForm = host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]");

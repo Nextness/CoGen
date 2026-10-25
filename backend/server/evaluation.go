@@ -222,6 +222,8 @@ func (s *Server) overlayPDFInventory(ctx context.Context, items []map[string]any
 	for _, item := range items {
 		item["inventory_status"] = "not_available"
 		item["inventoried_at"] = nil
+		item["content_hash"] = nil
+		item["byte_size"] = nil
 	}
 	if s.pdfDB == nil || len(items) == 0 {
 		return nil
@@ -251,6 +253,8 @@ func (s *Server) overlayPDFInventory(ctx context.Context, items []map[string]any
 			continue
 		}
 		item["inventory_status"] = "available"
+		item["content_hash"] = entry.ContentHash
+		item["byte_size"] = entry.ByteSize
 		if entry.InventoriedAt != nil {
 			item["inventoried_at"] = *entry.InventoriedAt
 		}

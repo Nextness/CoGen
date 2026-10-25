@@ -727,6 +727,63 @@
   overflow-wrap: anywhere;
 }
 
+.rw-pdf-export-action {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: end;
+}
+
+.rw-pdf-export-action__comments,
+.rw-export-toolbar__comments {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.rw-pdf-export-action small,
+.rw-export-toolbar__comments-help {
+  max-width: 18rem;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.rw-export-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-default);
+  background: var(--color-bg-surface-muted);
+}
+
+.rw-export-toolbar__summary {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.rw-export-toolbar__summary span,
+.rw-export-toolbar__summary small {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.rw-export-toolbar__comments-help {
+  grid-column: 1 / -1;
+  max-width: none;
+  text-align: left;
+}
+
+.rw-export-toolbar [data-export-feedback] {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.rw-export-toolbar [data-export-feedback]:empty {
+  display: none;
+}
+
 .rw-reading-workspace {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

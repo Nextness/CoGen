@@ -61,6 +61,23 @@ export function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Decodes one JSON response body or throws the shared invalid-JSON diagnostic. */
+async function decodeJSONBody(response: Response, path: string): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (_) {
+    throw new Error(`The server returned invalid JSON for ${path}.`);
+  }
+}
+
+/** Maps one decoded JSON failure envelope into the shared API error type. */
+function responseError(response: Response, body: unknown): APIError {
+  var message = `Request failed (${response.status}).`;
+  const envelope = body as APIErrorEnvelope;
+  if (envelope?.error?.message) message = envelope.error.message;
+  return new APIError(message, response.status, envelope?.error?.code, envelope?.error?.details);
+}
+
 /** Fetches and decodes one JSON API response. */
 export async function api<T>(path: string, query: APIQuery = {}, options: APIRequestOptions = {}): Promise<T> {
   var signal = options.signal;
@@ -75,19 +92,8 @@ export async function api<T>(path: string, query: APIQuery = {}, options: APIReq
     signal: signal ?? undefined,
   });
 
-  var body: unknown;
-  try {
-    body = await response.json();
-  } catch (_) {
-    throw new Error(`The server returned invalid JSON for ${path}.`);
-  }
-
-  if (!response.ok) {
-    var message = `Request failed (${response.status}).`;
-    const envelope = body as APIErrorEnvelope;
-    if (envelope?.error?.message) message = envelope.error.message;
-    throw new APIError(message, response.status, envelope?.error?.code, envelope?.error?.details);
-  }
+  const body = await decodeJSONBody(response, path);
+  if (!response.ok) throw responseError(response, body);
 
   // JSON decoding cannot prove an endpoint-specific contract at runtime. Every
   // call site supplies T from the matching server handler contract, and the
@@ -163,6 +169,134 @@ export function removePDF(runID: Identifier, revisionID: Identifier, mutationETa
     },
     signal: null,
   });
+}
+
+
+/** One bounded binary download policy. */
+export interface BinaryDownloadOptions {
+  contentType: string;
+  maxBytes: number;
+  signal?: AbortSignal | null;
+}
+
+/** One completed browser download preparation result. */
+export interface BinaryDownloadResult {
+  filename: string;
+  bytes: number;
+  included: number | null;
+  skipped: number | null;
+  correlationID: string;
+}
+
+/** Reads a bounded response body and rejects truncation or excessive output. */
+async function readBoundedResponse(response: Response, path: string, limit: number): Promise<Blob> {
+  const declared = Number(response.headers.get("Content-Length") || 0);
+  if (declared > limit) {
+    try {
+      await response.body?.cancel();
+    } catch (_) {
+      // The rejected response is already complete; no cleanup remains.
+    }
+    throw new Error(`The server response for ${path} exceeds the ${limit}-byte download limit.`);
+  }
+  if (!response.body) {
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > limit) throw new Error(`The server response for ${path} exceeds the ${limit}-byte download limit.`);
+    return new Blob([buffer], { type: response.headers.get("Content-Type") || "application/octet-stream" });
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  var total = 0;
+  while (true) {
+    const result = await reader.read();
+    if (result.done) break;
+    const chunk = result.value;
+    total += chunk.byteLength;
+    if (total > limit) {
+      try {
+        await reader.cancel();
+      } catch (_) {
+        // The over-limit response is discarded regardless of cancellation outcome.
+      }
+      throw new Error(`The server response for ${path} exceeds the ${limit}-byte download limit.`);
+    }
+    chunks.push(new Uint8Array(chunk));
+  }
+  if (declared > 0 && total !== declared) throw new Error(`The server response for ${path} ended before the complete file was received.`);
+  return new Blob(chunks, { type: response.headers.get("Content-Type") || "application/octet-stream" });
+}
+
+/** Extracts one safe browser filename from a Content-Disposition header. */
+function downloadFilename(disposition: string, fallback: string): string {
+  const extended = /filename\*=utf-8''([^;]+)/i.exec(disposition);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[1]);
+    } catch (_) {
+      return fallback;
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(disposition);
+  if (quoted) return quoted[1];
+  const plain = /filename=([^;]+)/i.exec(disposition);
+  if (plain) return plain[1].trim();
+  return fallback;
+}
+
+/** Hands one completed blob to the browser and revokes its object URL. */
+function saveDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(function() {
+    URL.revokeObjectURL(url);
+  }, 0);
+}
+
+/** Prepares one explicit PDF or ZIP download with shared JSON failure decoding. */
+export async function downloadExport(path: string, body: unknown, options: BinaryDownloadOptions): Promise<BinaryDownloadResult> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      Accept: options.contentType,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    signal: options.signal ?? null,
+  });
+  if (!response.ok) {
+    const failure = await decodeJSONBody(response, path);
+    throw responseError(response, failure);
+  }
+  const actualType = response.headers.get("Content-Type") || "";
+  if (!actualType.toLowerCase().startsWith(options.contentType.toLowerCase())) {
+    try {
+      await response.body?.cancel();
+    } catch (_) {
+      // No successful download is created from an unexpected media type.
+    }
+    throw new Error(`The server returned ${actualType || "an unknown media type"} instead of ${options.contentType}.`);
+  }
+  const blob = await readBoundedResponse(response, path, options.maxBytes);
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const fallback = options.contentType === "application/zip" ? "pdf-export.zip" : "download.pdf";
+  const filename = downloadFilename(disposition, fallback);
+  const includedHeader = response.headers.get("X-PDF-Export-Included");
+  const skippedHeader = response.headers.get("X-PDF-Export-Skipped");
+  const result: BinaryDownloadResult = {
+    filename: filename,
+    bytes: blob.size,
+    included: includedHeader === null ? null : Number(includedHeader),
+    skipped: skippedHeader === null ? null : Number(skippedHeader),
+    correlationID: response.headers.get("X-PDF-Export-Correlation-Id") || "",
+  };
+  saveDownload(blob, filename);
+  return result;
 }
 
 /** Loads and caches the discovered database table list. */

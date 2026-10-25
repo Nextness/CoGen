@@ -406,6 +406,8 @@ export interface EvaluationRow extends CorpusRow {
   review_sub_statuses: string[];
   inventory_status: string;
   inventoried_at: string | null;
+  content_hash: string | null;
+  byte_size: number | null;
 }
 
 /** Aggregate progress and filter facets for an evaluation queue. */
@@ -1163,4 +1165,11 @@ export interface DataTableContext {
   querySelector?: string;
   searchButtonSelector?: string;
   clearButtonSelector?: string;
+  selection?: {
+    selected: Set<string>;
+    label: string;
+    ariaLabel?: string;
+    isSelectable?: (row: WireRecord) => boolean;
+    rowLabel?: (row: WireRecord) => string;
+  };
 }

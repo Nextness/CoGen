@@ -168,6 +168,12 @@ describe('audit-events.tsx', function() {
     });
     assert.ok(removed.includes("The selected PDF was removed; the inventory registration remains."));
     assert.ok(removed.includes("Not Available"));
+    const exported = auditEventMarkup({
+      action: "pdf_document_export_prepared",
+      after_json: { status: "available", content_hash: "hash", byte_size: 20, change_counter: 3 },
+    });
+    assert.ok(exported.includes("Validated PDF bytes were prepared for an explicit download."));
+    assert.ok(exported.includes("browser may still ask where to save"));
   });
 
   it("distinguishes enriched fields and uses readable PDF and outcome labels", () => {

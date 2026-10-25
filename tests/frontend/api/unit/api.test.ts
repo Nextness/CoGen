@@ -3,7 +3,7 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import "../../../support/node/setup.ts";
-import { APIError, endpoint, api, mutate, pdfStatus, preparePDFUpload, removePDF, tables, uploadPDF } from "../../../../frontend/src/api.tsx";
+import { APIError, endpoint, api, downloadExport, mutate, pdfStatus, preparePDFUpload, removePDF, tables, uploadPDF } from "../../../../frontend/src/api.tsx";
 import type { PDFMutationResponse, PDFStatus, PDFUploadRequest } from "../../../../frontend/src/api/types.ts";
 import { state } from "../../../../frontend/src/state.tsx";
 
@@ -298,6 +298,133 @@ describe('api.tsx — PDF transport', function() {
       return true;
     });
 
+    globalThis.fetch = originalFetch;
+  });
+
+});
+
+
+describe('api.tsx — binary exports', function() {
+
+  it('prepares a bounded ZIP download, reads headers, and revokes its object URL', async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    var created = 0;
+    var revoked = 0;
+    var clicked = 0;
+    var request: RequestInit | undefined;
+    URL.createObjectURL = function() {
+      created += 1;
+      return "blob:export";
+    };
+    URL.revokeObjectURL = function() {
+      revoked += 1;
+    };
+    HTMLAnchorElement.prototype.click = function() {
+      clicked += 1;
+    };
+    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+      request = init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "Content-Type": "application/zip",
+          "Content-Disposition": "attachment; filename*=utf-8''papers%20%CE%B1.zip",
+          "Content-Length": "3",
+          "X-PDF-Export-Included": "2",
+          "X-PDF-Export-Skipped": "1",
+          "X-PDF-Export-Correlation-Id": "corr-1",
+        }),
+        body: null,
+        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    const result = await downloadExport("/api/runs/7/pdf-exports", { articles: [] }, { contentType: "application/zip", maxBytes: 10 });
+    assert.equal(request?.method, "POST");
+    assert.equal(request?.body, JSON.stringify({ articles: [] }));
+    assert.equal(result.filename, "papers α.zip");
+    assert.equal(result.bytes, 3);
+    assert.equal(result.included, 2);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.correlationID, "corr-1");
+    assert.equal(created, 1);
+    assert.equal(clicked, 1);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(revoked, 1);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+  });
+
+  it('shares structured JSON failure decoding and rejects oversized responses', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: false,
+        status: 409,
+        headers: new Headers({ "Content-Type": "application/json" }),
+        json: function() {
+          return Promise.resolve({ error: { message: "No selected PDF could be exported", code: "pdf_export_empty", details: { skipped: 2 } } });
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+    await assert.rejects(function() {
+      return downloadExport("/api/runs/7/pdf-exports", {}, { contentType: "application/zip", maxBytes: 10 });
+    }, function(error: unknown) {
+      assert.ok(error instanceof APIError);
+      assert.equal(error.status, 409);
+      assert.equal(error.code, "pdf_export_empty");
+      return true;
+    });
+
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "Content-Type": "application/pdf", "Content-Length": "100" }),
+        body: null,
+        arrayBuffer: function() { return Promise.resolve(new ArrayBuffer(100)); },
+      } as unknown as Response);
+    } as typeof fetch;
+    await assert.rejects(function() {
+      return downloadExport("/api/runs/7/articles/11/pdf-export", {}, { contentType: "application/pdf", maxBytes: 10 });
+    }, /exceeds the 10-byte download limit/);
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('rejects a response that ends before its declared content length', async function() {
+    const originalFetch = globalThis.fetch;
+    const encoder = new TextEncoder();
+    globalThis.fetch = function() {
+      var read = false;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "Content-Type": "application/pdf", "Content-Length": "5" }),
+        body: {
+          getReader: function() {
+            return {
+              read: function() {
+                if (read) return Promise.resolve({ done: true, value: undefined });
+                read = true;
+                return Promise.resolve({ done: false, value: encoder.encode("abc") });
+              },
+              cancel: function() { return Promise.resolve(); },
+            };
+          },
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+    await assert.rejects(function() {
+      return downloadExport("/api/runs/7/articles/11/pdf-export", {}, { contentType: "application/pdf", maxBytes: 10 });
+    }, /ended before the complete file/);
     globalThis.fetch = originalFetch;
   });
 
