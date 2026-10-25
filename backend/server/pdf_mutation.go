@@ -106,6 +106,9 @@ func (s *Server) saveArticlePDF(w http.ResponseWriter, r *http.Request) {
 	// The storage transaction has committed. A response lost after this point
 	// is an uncertain outcome; the client must reconcile pdf-status instead of
 	// retrying with a now-stale mutation ETag.
+	if result.Changed {
+		s.invalidatePDFCache(workID)
+	}
 	status := s.pdfStatusFromDocument(workID, doi, &result.Document, result.ByteSize)
 	status["actions"] = pdfActions(run, true, true, result.Document.Status, result.Document.ContentHash, doi)
 	writeJSON(w, http.StatusOK, pdfMutationPayload(result.Changed, result.Operation, status, result.EventKey))
@@ -160,6 +163,9 @@ func (s *Server) removeArticlePDF(w http.ResponseWriter, r *http.Request) {
 	}
 	// The removal has committed. A lost response is reconciled from pdf-status
 	// before another conditional removal is attempted.
+	if result.Changed {
+		s.invalidatePDFCache(workID)
+	}
 	status := s.pdfStatusFromDocument(workID, doi, &result.Document, 0)
 	status["actions"] = pdfActions(run, true, true, result.Document.Status, result.Document.ContentHash, doi)
 	writeJSON(w, http.StatusOK, pdfMutationPayload(result.Changed, result.Operation, status, result.EventKey))

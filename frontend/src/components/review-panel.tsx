@@ -108,8 +108,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   };
 
   if (detailData.pdf_status?.status === "available" && pdfHost) {
+    const pdfHash = detailData.pdf_status?.content_hash;
+    const pdfURL = pdfHash ? `/api/pdf/${workID}?content_hash=${encodeURIComponent(pdfHash)}` : `/api/pdf/${workID}`;
     pdfController = await mountPDFViewer(pdfHost, {
-      url: `/api/pdf/${workID}`,
+      url: pdfURL,
       page: Number(value("pdf_page") || 1),
       onPageChange: (page: number) => {
         replaceState({ pdf_page: page });
