@@ -308,6 +308,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/articles/{id}", s.articleDetail)
 	mux.HandleFunc("GET /api/articles/{id}/collections/{kind}", s.articleDetailCollection)
 	mux.HandleFunc("GET /api/works/{work_id}/pdf-status", s.workPDFStatus)
+	mux.HandleFunc("PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.saveArticlePDF)
+	mux.HandleFunc("DELETE /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.removeArticlePDF)
 	mux.HandleFunc("GET /api/pdf/{work_id}", s.workPDF)
 	mux.HandleFunc("GET /api/authors/{id}", s.authorDetail)
 	mux.HandleFunc("GET /api/authors/{id}/collections/{kind}", s.authorDetailCollection)
@@ -520,7 +522,7 @@ type apiError struct {
 // withJSONErrors converts handler-returned errors into the server's JSON error response.
 func withJSONErrors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodPut {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodPost && r.Method != http.MethodPut && r.Method != http.MethodDelete {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "request method is not supported")
 			return
 		}

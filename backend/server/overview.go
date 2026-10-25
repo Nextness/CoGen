@@ -162,11 +162,13 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 			"ready": s.schemaReady,
 		},
 		"review": map[string]any{
-			"available":           reviewWritable,
-			"metadata_writable":   reviewWritable,
-			"pdf_store_bound":     pdfBound,
-			"pdf_store_readable":  pdfReadable,
-			"pdf_store_read_only": pdfBound && pdfReadable && !pdfWritable,
+			"available":              reviewWritable,
+			"metadata_writable":      reviewWritable,
+			"pdf_store_bound":        pdfBound,
+			"pdf_store_readable":     pdfReadable,
+			"pdf_store_writable":     pdfWritable,
+			"pdf_store_write_reason": pdfWriteReason,
+			"pdf_store_read_only":    pdfBound && pdfReadable && !pdfWritable,
 		},
 	}, metadataErr)
 }

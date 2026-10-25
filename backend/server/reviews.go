@@ -1143,12 +1143,8 @@ func decodeMutationJSON(w http.ResponseWriter, r *http.Request, destination any)
 			Message: "Content-Type must be application/json",
 		}
 	}
-	if origin := r.Header.Get("Origin"); origin != "" && origin != "http://"+r.Host {
-		return &viewrequest.Problem{
-			Status:  http.StatusForbidden,
-			Code:    "origin_rejected",
-			Message: "request Origin must match the local viewer origin",
-		}
+	if err := validateSameOrigin(r); err != nil {
+		return err
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, reviewMutationBodyLimit)
 	decoder := json.NewDecoder(r.Body)

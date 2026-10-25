@@ -9,10 +9,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"mime"
 	"net/http"
 	"strconv"
 	"time"
+
+	"analysis/backend/pdfstore"
 )
 
 // cachedPDF retains one validated companion document for repeated browser range requests.
@@ -25,6 +28,7 @@ type cachedPDF struct {
 
 // workPDFStatus returns normalized DOI inventory status for the requested work.
 func (s *Server) workPDFStatus(w http.ResponseWriter, r *http.Request) {
+	setMutableResponseHeaders(w)
 	workID, err := viewrequest.PositiveID(r.PathValue("work_id"))
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -36,7 +40,9 @@ func (s *Server) workPDFStatus(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, r, status, err)
 }
 
-// pdfStatusForWork reads companion PDF availability metadata for one work revision.
+// pdfStatusForWork reads companion PDF inventory and mutation capability for
+// one work. The change counter and opaque ETag are exposed separately from the
+// content-hash byte ETag used by evidence reads.
 func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string]any, error) {
 	work, err := s.workStore.GetWorkByID(ctx, workID)
 	if err != nil {
@@ -46,26 +52,43 @@ func (s *Server) pdfStatusForWork(ctx context.Context, workID int64) (map[string
 		return nil, viewrequest.NotFound("work not found")
 	}
 	if work.DOI == "" {
-		return map[string]any{"work_id": workID, "status": "unavailable", "eligible": false, "store_bound": s.pdfDB != nil}, nil
+		status := s.pdfStatusFromDocument(workID, "", nil, 0)
+		status["status"] = "unavailable"
+		return status, nil
 	}
-	base := map[string]any{"work_id": workID, "doi": work.DOI, "eligible": true, "store_bound": s.pdfDB != nil}
-	if s.pdfDB == nil {
-		base["status"] = "not_available"
-		return base, nil
+	if s.pdfDB == nil || s.pdfStore == nil {
+		return s.pdfStatusFromDocument(workID, work.DOI, nil, 0), nil
 	}
-	document, err := s.pdfStore.AvailableDocument(ctx, work.DOI)
+	document, err := s.pdfStore.Document(ctx, work.DOI)
 	if err != nil {
 		return nil, err
 	}
 	if document == nil {
-		base["status"] = "not_available"
-		return base, nil
+		return s.pdfStatusFromDocument(workID, work.DOI, nil, 0), nil
 	}
-	base["status"] = "available"
-	base["content_hash"] = document.ContentHash
-	base["inventoried_at"] = document.InventoriedAt
-	base["byte_size"] = document.ByteSize
-	return base, nil
+	status := s.pdfStatusFromDocument(workID, work.DOI, document, 0)
+	if document.Status == pdfstore.StatusAvailable {
+		available, err := s.pdfStore.AvailableDocument(ctx, work.DOI)
+		if err != nil {
+			return nil, err
+		}
+		if available != nil {
+			status["content_hash"] = available.ContentHash
+			status["inventoried_at"] = available.InventoriedAt
+			status["byte_size"] = available.ByteSize
+		}
+	}
+	return status, nil
+}
+
+// pdfStatusForArticle adds exact selected-run mutation availability without
+// requiring review-context initialization.
+func (s *Server) pdfStatusForArticle(run reviewRunRecord, workID int64, status map[string]any) map[string]any {
+	contentHash, _ := status["content_hash"].(string)
+	doi, _ := status["doi"].(string)
+	registered, _ := status["registered"].(bool)
+	status["actions"] = pdfActions(run, s.pdfWritable && s.pdfWriteDB != nil, registered, fmt.Sprint(status["status"]), contentHash, doi)
+	return status
 }
 
 // workPDF streams the validated PDF associated with the requested work revision.
