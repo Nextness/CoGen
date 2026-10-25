@@ -642,12 +642,18 @@ func (s *Server) createArticleAnchor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		Label        string                   `json:"label"`
-		Page         int                      `json:"page"`
-		SelectedText string                   `json:"selected_text"`
-		Rectangles   []review.AnchorRectangle `json:"rectangles"`
+		Label          string                   `json:"label"`
+		Page           int                      `json:"page"`
+		SelectedText   string                   `json:"selected_text"`
+		Rectangles     []review.AnchorRectangle `json:"rectangles"`
+		PDFContentHash string                   `json:"pdf_content_hash"`
 	}
 	if err := decodeMutationJSON(w, r, &request); err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	contentHash, err := requireAnchorPDFHash(request.PDFContentHash)
+	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
@@ -658,9 +664,19 @@ func (s *Server) createArticleAnchor(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	_, contentHash, err := s.requireAvailableArticlePDF(ctx, runID, workRevisionID)
+	reservation, err := s.reservePDFWrite(ctx)
 	if err != nil {
 		s.respond(w, r, nil, err)
+		return
+	}
+	defer releasePDFWrite(reservation)
+	_, currentHash, err := s.requireAvailableArticlePDF(ctx, runID, workRevisionID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if currentHash != contentHash {
+		s.respond(w, r, nil, anchorPDFChanged())
 		return
 	}
 	anchor, err := s.writeDB.Review.CreateAnchor(ctx, contextRecord.ID, workRevisionID, request.Label,
@@ -742,7 +758,9 @@ func (s *Server) anchorVersion(w http.ResponseWriter, r *http.Request) {
 	}, mapReviewError(err))
 }
 
-// createAnchorVersion creates a replacement anchor version or tombstone using the currently selected PDF hash.
+// createAnchorVersion creates a replacement anchor version or tombstone. Active
+// edits and restorations require the reader's exact PDF hash; tombstones retain
+// the anchor's historical hash and remain possible without current PDF bytes.
 func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 	runID, anchorID, contextRecord, ctx, cancel, err := s.reviewAnchorRequest(r)
 	defer cancel()
@@ -757,6 +775,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		Page              int                      `json:"page"`
 		SelectedText      string                   `json:"selected_text"`
 		Rectangles        []review.AnchorRectangle `json:"rectangles"`
+		PDFContentHash    string                   `json:"pdf_content_hash"`
 	}
 	if err := decodeMutationJSON(w, r, &request); err != nil {
 		s.respond(w, r, nil, err)
@@ -764,6 +783,10 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.ExpectedVersionID < 1 {
 		s.respond(w, r, nil, viewrequest.BadRequest("expected_version_id must be positive"))
+		return
+	}
+	if request.RestoreFromID != nil && (request.State != "active" || *request.RestoreFromID < 1) {
+		s.respond(w, r, nil, viewrequest.BadRequest("restore_from_version_id requires a positive active anchor version"))
 		return
 	}
 	workID, err := s.reviewStore.AnchorWorkID(ctx, contextRecord.ID, anchorID)
@@ -775,16 +798,46 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, viewrequest.NotFound("review anchor not found in selected context"))
 		return
 	}
-	_, contentHash, err := s.requireAvailableWorkPDF(ctx, runID, *workID)
+	if request.State == "deleted" {
+		currentAnchor, err := s.reviewStore.GetAnchor(ctx, contextRecord.ID, anchorID)
+		if err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+		if currentAnchor == nil {
+			s.respond(w, r, nil, viewrequest.NotFound("review anchor not found in selected context"))
+			return
+		}
+		anchor, changed, err := s.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, anchorID,
+			request.ExpectedVersionID, request.State, currentAnchor.Version.PDFContentHash, 0, "", nil)
+		s.respondAnchorVersion(w, r, anchor, changed, err)
+		return
+	}
+	if request.State != "active" {
+		s.respond(w, r, nil, viewrequest.BadRequest("anchor state must be active or deleted"))
+		return
+	}
+	contentHash, err := requireAnchorPDFHash(request.PDFContentHash)
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
+	reservation, err := s.reservePDFWrite(ctx)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	defer releasePDFWrite(reservation)
+	_, currentHash, err := s.requireAvailableWorkPDF(ctx, runID, *workID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if currentHash != contentHash {
+		s.respond(w, r, nil, anchorPDFChanged())
+		return
+	}
 	if request.RestoreFromID != nil {
-		if request.State != "active" || *request.RestoreFromID < 1 {
-			s.respond(w, r, nil, viewrequest.BadRequest("restore_from_version_id requires a positive active anchor version"))
-			return
-		}
 		restored, err := s.reviewStore.ActiveAnchorVersion(ctx, anchorID, *request.RestoreFromID)
 		if err != nil {
 			s.respond(w, r, nil, err)
@@ -795,11 +848,7 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if restored.PDFContentHash != contentHash {
-			s.respond(w, r, nil, &viewrequest.Problem{
-				Status:  http.StatusConflict,
-				Code:    "anchor_pdf_changed",
-				Message: "the selected anchor version belongs to different PDF content",
-			})
+			s.respond(w, r, nil, anchorPDFChanged())
 			return
 		}
 		request.Page = restored.Page
@@ -811,6 +860,11 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 	}
 	anchor, changed, err := s.writeDB.Review.AppendAnchorVersion(ctx, contextRecord.ID, anchorID,
 		request.ExpectedVersionID, request.State, contentHash, request.Page, request.SelectedText, request.Rectangles)
+	s.respondAnchorVersion(w, r, anchor, changed, err)
+}
+
+// respondAnchorVersion writes one anchor-version mutation result.
+func (s *Server) respondAnchorVersion(w http.ResponseWriter, r *http.Request, anchor *review.Anchor, changed bool, err error) {
 	if err != nil {
 		s.respond(w, r, nil, mapReviewError(err))
 		return
@@ -823,6 +877,15 @@ func (s *Server) createAnchorVersion(w http.ResponseWriter, r *http.Request) {
 		"anchor":  anchor,
 		"changed": changed,
 	})
+}
+
+// anchorPDFChanged reports that the reader's displayed PDF no longer matches.
+func anchorPDFChanged() error {
+	return &viewrequest.Problem{
+		Status:  http.StatusConflict,
+		Code:    "anchor_pdf_changed",
+		Message: "the displayed PDF content no longer matches the selected document",
+	}
 }
 
 // reviewBacklinks returns bounded current-version backlinks.

@@ -171,6 +171,46 @@ func (s *Server) removeArticlePDF(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pdfMutationPayload(result.Changed, result.Operation, status, result.EventKey))
 }
 
+// reservePDFWrite acquires the companion's cross-process write reservation so
+// anchor validation and metadata commit cannot interleave with PDF changes.
+func (s *Server) reservePDFWrite(ctx context.Context) (*pdfstore.WriteReservation, error) {
+	if s.pdfWriteStore == nil {
+		return nil, s.pdfStoreUnavailable()
+	}
+	reservation, err := s.pdfWriteStore.ReserveWrite(ctx)
+	if err == nil {
+		return reservation, nil
+	}
+	switch {
+	case isPDFStoreBusy(err):
+		return nil, &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_busy", Message: "the PDF store is temporarily busy; retry shortly", Details: map[string]any{"retry_after_seconds": 1}}
+	case errors.Is(err, context.DeadlineExceeded):
+		return nil, &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_store_timeout", Message: "the PDF store reservation did not finish in time; retry shortly", Details: map[string]any{"retry_after_seconds": 1}}
+	default:
+		log.Error("PDF write reservation failed", "error", err)
+		return nil, &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_storage_error", Message: "unable to reserve the PDF store for the review change"}
+	}
+}
+
+// releasePDFWrite releases one companion write reservation after metadata commit.
+func releasePDFWrite(reservation *pdfstore.WriteReservation) {
+	if reservation == nil {
+		return
+	}
+	if err := reservation.Release(); err != nil {
+		log.Error("PDF write reservation release failed", "error", err)
+	}
+}
+
+// requireAnchorPDFHash validates the reader-supplied content hash for an anchor write.
+func requireAnchorPDFHash(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if len(value) != 64 || !lowercaseHex(value) {
+		return "", viewrequest.BadRequest("pdf_content_hash must be 64 lowercase hexadecimal characters")
+	}
+	return value, nil
+}
+
 // acquirePDFUpload reserves one of the server's two retained upload bodies.
 func (s *Server) acquirePDFUpload() bool {
 	if s.pdfUploads == nil {

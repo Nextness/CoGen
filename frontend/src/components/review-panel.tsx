@@ -699,6 +699,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           page: selection.page,
           selected_text: selection.selectedText,
           rectangles: selection.rectangles,
+          pdf_content_hash: detailData.pdf_status?.content_hash || "",
         });
         pendingSelection = null;
         window.getSelection?.()?.removeAllRanges?.();
@@ -939,6 +940,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             page: 0,
             selected_text: "",
             rectangles: [],
+            pdf_content_hash: detailData.pdf_status?.content_hash || "",
           });
           const message = target.querySelector("[data-anchor-history-message]") as HTMLElement;
           message.className = classNames.uiSuccessMessage;

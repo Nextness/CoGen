@@ -1199,12 +1199,17 @@ test('initializes the review context on the fixture copy', async ({ request }) =
   expectNumber(noteVersion.note.version.id, 'noteMutation.note.version.id');
   createdNoteVersionID = String(noteVersion.note.version.id);
 
+  const pdfStatusResponse = await request.get(`/api/works/${ARTICLE}/pdf-status`);
+  expect(pdfStatusResponse.ok()).toBeTruthy();
+  const pdfHash = (await pdfStatusResponse.json()).content_hash;
+  expectString(pdfHash, 'anchorCreateMutation.pdf_content_hash');
   const anchorResponse = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/anchors`, {
     data: {
       label: 'shape-contract-anchor',
       page: 1,
       selected_text: 'Selectable fixture methods',
       rectangles: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.1 }],
+      pdf_content_hash: pdfHash,
     },
   });
   expect(anchorResponse.ok()).toBeTruthy();
@@ -1225,6 +1230,7 @@ test('initializes the review context on the fixture copy', async ({ request }) =
       page: 1,
       selected_text: 'Selectable fixture methods',
       rectangles: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.1 }],
+      pdf_content_hash: pdfHash,
     },
   });
   expect(anchorVersionResponse.ok()).toBeTruthy();

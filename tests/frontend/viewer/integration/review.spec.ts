@@ -409,8 +409,12 @@ test.describe('isolated review mutation lifecycle', () => {
       expect(response.status()).toBe(201);
     }
 
+    const pdfStatusResponse = await request.get('/api/works/1/pdf-status');
+    expect(pdfStatusResponse.ok()).toBeTruthy();
+    const pdfHash = (await pdfStatusResponse.json()).content_hash;
+    expect(typeof pdfHash).toBe('string');
     response = await request.post('/api/runs/1/articles/1/anchors', { data: {
-      label: 'boundary-anchor-target', page: 1, selected_text: 'Boundary anchor initial', rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+      label: 'boundary-anchor-target', page: 1, selected_text: 'Boundary anchor initial', rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }], pdf_content_hash: pdfHash,
     } });
     expect(response.status()).toBe(201);
     var targetAnchor = (await response.json()).anchor;
@@ -421,6 +425,7 @@ test.describe('isolated review mutation lifecycle', () => {
         page: 1,
         selected_text: `Boundary anchor version ${index.toString().padStart(3, '0')}`,
         rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        pdf_content_hash: pdfHash,
       } });
       expect(response.status()).toBe(201);
       targetAnchor = (await response.json()).anchor;
@@ -431,6 +436,7 @@ test.describe('isolated review mutation lifecycle', () => {
         page: 1,
         selected_text: `Boundary list anchor ${index}`,
         rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        pdf_content_hash: pdfHash,
       } });
       expect(response.status()).toBe(201);
     }

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"analysis/tests/support/go/testfixture"
 )
@@ -1285,4 +1286,35 @@ func queryCount(t *testing.T, store *subject.Store, query string, args ...any) i
 		t.Fatal(err)
 	}
 	return count
+}
+
+// TestWriteReservationBlocksConditionalSave proves the companion reservation
+// serializes another writer across connections before metadata anchor commit.
+func TestWriteReservationBlocksConditionalSave(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/reservation", 1, 10); err != nil {
+		t.Fatal(err)
+	}
+	reservation, err := store.ReserveWrite(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockedCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	_, blockedErr := store.Save(blockedCtx, subject.SaveInput{
+		DOI: "10.1000/reservation", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\nreserved"),
+	})
+	cancel()
+	if blockedErr == nil {
+		t.Fatal("save succeeded while the write reservation was held")
+	}
+	if err := reservation.Release(); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/reservation", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\nreserved"),
+	})
+	if err != nil || !result.Changed {
+		t.Fatalf("save after release: %+v err=%v", result, err)
+	}
 }
