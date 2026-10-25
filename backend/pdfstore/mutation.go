@@ -1,7 +1,8 @@
 // mutation.go implements conditional save and removal for the companion PDF
-// store. Every changed operation validates the expected document counter,
-// updates the selected blob, deletes outgoing bytes when unreferenced, and
-// records one durable outbox event in the same transaction.
+// store. Every changed operation runs in one immediate companion transaction,
+// validates the expected document counter, inserts or reuses a verified blob,
+// moves the selection with compare-and-swap, deletes outgoing bytes when
+// unreferenced, and records one durable outbox event before commit.
 package pdfstore
 
 import (

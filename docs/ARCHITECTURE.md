@@ -351,6 +351,8 @@ The metadata database stores one `pdf_store_binding` row with a relative compani
 
 PDF content is addressed by SHA-256 in `pdf_blobs`. `pdf_documents` has two states: `not_available` has no content hash or inventory timestamp, and `available` has both. Registration is idempotent. Conditional manual save validates size and signature before storage, requires prior normalized registration and the current document change counter, and uploads, replaces, or reports identical bytes unchanged. Removal clears the selection and inventory timestamp while retaining the registration. Outgoing bytes are deleted only when no current document selects them.
 
+Manual save and removal run in one immediate companion transaction: the store validates the current document counter, inserts or reuses a fully verified blob, moves the selection with compare-and-swap, deletes outgoing bytes only when no current document selects them, and appends the outbox event. Any pre-commit failure rolls back all of those effects and leaves the previous selection intact.
+
 PDF events enter `pdf_audit_outbox` in the same transaction as the PDF mutation. Uploads record `pdf_document_inventoried`, replacements record `pdf_document_replaced`, and removals record `pdf_document_removed`. Flushing writes metadata `audit_events` plus `pdf_audit_links` in one metadata transaction and then marks the outbox row delivered. Repeated delivery is idempotent across interruption.
 
 ```text

@@ -473,6 +473,39 @@ func TestRemoveDoesNotReadCorruptOutgoingBlob(t *testing.T) {
 	}
 }
 
+// TestRegisterDoesNotRestoreRemovedSelection verifies pipeline registration
+// remains idempotent after a manual removal and cannot resurrect old bytes.
+func TestRegisterDoesNotRestoreRemovedSelection(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if registered, err := store.Register(ctx, "10.1000/reregister", 1, 1); err != nil || !registered {
+		t.Fatalf("first registration = %v err=%v", registered, err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/reregister", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\nreregister"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Remove(ctx, subject.RemoveInput{
+		DOI: "10.1000/reregister", WorkID: 1, ExpectedChangeCounter: 2,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if registered, err := store.Register(ctx, "10.1000/reregister", 1, 2); err != nil || registered {
+		t.Fatalf("re-registration = %v err=%v, want idempotent false", registered, err)
+	}
+	document, err := store.Document(ctx, "10.1000/reregister")
+	if err != nil || document == nil || document.Status != subject.StatusNotAvailable || document.ContentHash != "" || document.ChangeCounter != 3 {
+		t.Fatalf("re-registered document = %+v err=%v", document, err)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs"); got != 0 {
+		t.Fatalf("blob count after re-registration = %d, want 0", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE action = 'pdf_inventory_registered'"); got != 1 {
+		t.Fatalf("registration audit count = %d, want 1", got)
+	}
+}
+
 // TestFlushAuditOutboxDropsStalePipelineRun verifies a flush preserves an
 // outbox event whose pipeline run no longer exists in the bound metadata
 // database, matching the durable PDF store across metadata iterations.
@@ -787,6 +820,170 @@ func TestSaveRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
 	}
 }
 
+// TestReplaceRollsBackWhenBlobInsertFails verifies a failed incoming blob
+// insert leaves the old selection, bytes, timestamps, counter, and outbox unchanged.
+func TestReplaceRollsBackWhenBlobInsertFails(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/blob-failure", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("%PDF-1.7\noriginal")
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/blob-failure", WorkID: 1, ExpectedChangeCounter: 1, Data: original,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Document(ctx, "10.1000/blob-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte("%PDF-1.7\nreplacement")
+	replacementHash, err := subject.ValidatePDF(replacement, subject.DefaultMaxPDFBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(fmt.Sprintf(`CREATE TRIGGER reject_pdf_blob_insert
+		BEFORE INSERT ON pdf_blobs
+		WHEN NEW.content_hash = '%s'
+		BEGIN SELECT RAISE(ABORT, 'injected blob failure'); END`, replacementHash)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/blob-failure", WorkID: 1, ExpectedChangeCounter: 2, Data: replacement,
+	}); err == nil || !strings.Contains(err.Error(), "injected blob failure") {
+		t.Fatalf("blob failure error = %v", err)
+	}
+	assertDocumentUnchanged(t, store, "10.1000/blob-failure", before)
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs WHERE content_hash = ?", replacementHash); got != 0 {
+		t.Fatalf("speculative blob count = %d, want 0", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE action = 'pdf_document_replaced'"); got != 0 {
+		t.Fatalf("replacement audit count = %d, want 0", got)
+	}
+}
+
+// TestReplaceRollsBackWhenPointerUpdateFails verifies a failed selection update
+// removes the speculative incoming blob and preserves the old selection.
+func TestReplaceRollsBackWhenPointerUpdateFails(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/update-failure", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/update-failure", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\noriginal"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Document(ctx, "10.1000/update-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte("%PDF-1.7\nreplacement")
+	replacementHash, err := subject.ValidatePDF(replacement, subject.DefaultMaxPDFBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER reject_pdf_document_update
+		BEFORE UPDATE ON pdf_documents
+		BEGIN SELECT RAISE(ABORT, 'injected update failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/update-failure", WorkID: 1, ExpectedChangeCounter: 2, Data: replacement,
+	}); err == nil || !strings.Contains(err.Error(), "injected update failure") {
+		t.Fatalf("update failure error = %v", err)
+	}
+	assertDocumentUnchanged(t, store, "10.1000/update-failure", before)
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs WHERE content_hash = ?", replacementHash); got != 0 {
+		t.Fatalf("speculative blob count = %d, want 0", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE action = 'pdf_document_replaced'"); got != 0 {
+		t.Fatalf("replacement audit count = %d, want 0", got)
+	}
+}
+
+// TestReplaceRollsBackWhenOutgoingDeletionFails verifies a failed outgoing blob
+// deletion rolls back the selection update and speculative incoming blob.
+func TestReplaceRollsBackWhenOutgoingDeletionFails(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/delete-failure", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/delete-failure", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\noriginal"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Document(ctx, "10.1000/delete-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte("%PDF-1.7\nreplacement")
+	replacementHash, err := subject.ValidatePDF(replacement, subject.DefaultMaxPDFBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER reject_pdf_blob_delete
+		BEFORE DELETE ON pdf_blobs
+		BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/delete-failure", WorkID: 1, ExpectedChangeCounter: 2, Data: replacement,
+	}); err == nil || !strings.Contains(err.Error(), "injected delete failure") {
+		t.Fatalf("delete failure error = %v", err)
+	}
+	assertDocumentUnchanged(t, store, "10.1000/delete-failure", before)
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs WHERE content_hash = ?", replacementHash); got != 0 {
+		t.Fatalf("speculative blob count = %d, want 0", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs WHERE content_hash = ?", before.ContentHash); got != 1 {
+		t.Fatalf("outgoing blob count = %d, want 1", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE action = 'pdf_document_replaced'"); got != 0 {
+		t.Fatalf("replacement audit count = %d, want 0", got)
+	}
+}
+
+// TestRemoveRollsBackWhenOutgoingDeletionFails verifies a failed removal
+// deletion preserves the current selection, counter, and outbox.
+func TestRemoveRollsBackWhenOutgoingDeletionFails(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	if _, err := store.Register(ctx, "10.1000/remove-delete-failure", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/remove-delete-failure", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\noriginal"),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := store.Document(ctx, "10.1000/remove-delete-failure")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER reject_pdf_blob_delete
+		BEFORE DELETE ON pdf_blobs
+		BEGIN SELECT RAISE(ABORT, 'injected delete failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Remove(ctx, subject.RemoveInput{
+		DOI: "10.1000/remove-delete-failure", WorkID: 1, ExpectedChangeCounter: 2,
+	}); err == nil || !strings.Contains(err.Error(), "injected delete failure") {
+		t.Fatalf("removal delete failure error = %v", err)
+	}
+	assertDocumentUnchanged(t, store, "10.1000/remove-delete-failure", before)
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_blobs WHERE content_hash = ?", before.ContentHash); got != 1 {
+		t.Fatalf("outgoing blob count = %d, want 1", got)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE action = 'pdf_document_removed'"); got != 0 {
+		t.Fatalf("removal audit count = %d, want 0", got)
+	}
+}
+
 // TestReplaceRollsBackWhenAuditOutboxWriteFails verifies a failed replacement
 // preserves the previous selection, bytes, timestamp, and counter.
 func TestReplaceRollsBackWhenAuditOutboxWriteFails(t *testing.T) {
@@ -857,6 +1054,18 @@ func TestStoreIntegrationInvalidInputs(t *testing.T) {
 	}
 	if _, err := store.Remove(ctx, subject.RemoveInput{DOI: "10.1000/not-normalized", WorkID: 1, ExpectedChangeCounter: 1}); !errors.Is(err, subject.ErrPDFNotRegistered) {
 		t.Fatalf("unregistered remove error = %v", err)
+	}
+}
+
+// assertDocumentUnchanged verifies one document still matches the supplied state.
+func assertDocumentUnchanged(t *testing.T, store *subject.Store, doi string, want *subject.Document) {
+	t.Helper()
+	got, err := store.Document(context.Background(), doi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == nil || got.Status != want.Status || got.ContentHash != want.ContentHash || got.InventoriedAt != want.InventoriedAt || got.UpdatedAt != want.UpdatedAt || got.ChangeCounter != want.ChangeCounter {
+		t.Fatalf("document changed from %+v to %+v", want, got)
 	}
 }
 

@@ -59,13 +59,15 @@ type InventoryEntry struct {
 // New returns a companion-store handle over an already configured connection.
 // It only binds the generated queries to db; it does not build a SQLite URI,
 // alter pragmas, open or close the connection, load migration configuration,
-// or run migrations.
+// or run migrations. Writable callers must supply a connection configured for
+// immediate transactions so conditional save and removal serialize writers
+// before validating the current document state.
 func New(db *sql.DB) *Store {
 	return &Store{DB: db, queries: generated.New(db), now: time.Now}
 }
 
-// Open creates or opens the PDF store and applies its independent migration
-// chain selected by the database registry.
+// Open creates or opens the PDF store on an immediate transaction connection
+// and applies its independent migration chain selected by the database registry.
 func Open(path, registryPath string) (*Store, error) {
 	db, err := database.OpenConfigured(path, registryPath, database.StoreCorpusPDF)
 	if err != nil {
