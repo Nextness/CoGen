@@ -3086,10 +3086,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestRecordDeliveredAuditIsIdempotent`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L15) | test | 15-54 | `func TestRecordDeliveredAuditIsIdempotent(t *testing.T)` | TestRecordDeliveredAuditIsIdempotent verifies a repeated event key reuses the existing audit link. |
-| [`TestRecordDeliveredAuditToleratesStaleRun`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L57) | test | 57-82 | `func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T)` | TestRecordDeliveredAuditToleratesStaleRun verifies a missing pipeline run binds a NULL run link. |
-| [`TestRecordDeliveredAuditBindsExistingRun`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L85) | test | 85-114 | `func TestRecordDeliveredAuditBindsExistingRun(t *testing.T)` | TestRecordDeliveredAuditBindsExistingRun verifies an existing pipeline run is linked. |
-| [`TestRecordDeliveredAuditRollsBackWithTransaction`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L117) | test | 117-148 | `func TestRecordDeliveredAuditRollsBackWithTransaction(t *testing.T)` | TestRecordDeliveredAuditRollsBackWithTransaction verifies an uncommitted delivery leaves no audit evidence. |
+| [`TestRecordDeliveredAuditIsIdempotent`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L16) | test | 16-55 | `func TestRecordDeliveredAuditIsIdempotent(t *testing.T)` | TestRecordDeliveredAuditIsIdempotent verifies a repeated event key reuses the existing audit link. |
+| [`TestRecordDeliveredAuditRetriesAfterAuditInsertFailure`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L59) | test | 59-116 | `func TestRecordDeliveredAuditRetriesAfterAuditInsertFailure(t *testing.T)` | TestRecordDeliveredAuditRetriesAfterAuditInsertFailure verifies a failed metadata mirror leaves no partial evidence and remains retryable. |
+| [`TestRecordDeliveredAuditToleratesStaleRun`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L119) | test | 119-144 | `func TestRecordDeliveredAuditToleratesStaleRun(t *testing.T)` | TestRecordDeliveredAuditToleratesStaleRun verifies a missing pipeline run binds a NULL run link. |
+| [`TestRecordDeliveredAuditBindsExistingRun`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L147) | test | 147-176 | `func TestRecordDeliveredAuditBindsExistingRun(t *testing.T)` | TestRecordDeliveredAuditBindsExistingRun verifies an existing pipeline run is linked. |
+| [`TestRecordDeliveredAuditRollsBackWithTransaction`](../tests/backend/database/pdfbinding/integration/delivery_integration_test.go#L179) | test | 179-210 | `func TestRecordDeliveredAuditRollsBackWithTransaction(t *testing.T)` | TestRecordDeliveredAuditRollsBackWithTransaction verifies an uncommitted delivery leaves no audit evidence. |
 
 ### [`tests/backend/database/pdfbinding/unit/binding_unit_test.go`](../tests/backend/database/pdfbinding/unit/binding_unit_test.go)
 
@@ -3698,6 +3699,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../tests/backend/pdfstore/integration/constructor_integration_test.go#L19) | test | 19-80 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
+
+### [`tests/backend/pdfstore/integration/failure_integration_test.go`](../tests/backend/pdfstore/integration/failure_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`openDeferredTestStore`](../tests/backend/pdfstore/integration/failure_integration_test.go#L22) | function | 22-43 | `func openDeferredTestStore(t *testing.T) *subject.Store` | openDeferredTestStore opens a migrated companion store on one connection so deferred foreign-key failures surface at commit time. |
+| [`TestReplaceCommitFailurePreservesPreviousState`](../tests/backend/pdfstore/integration/failure_integration_test.go#L47) | test | 47-93 | `func TestReplaceCommitFailurePreservesPreviousState(t *testing.T)` | TestReplaceCommitFailurePreservesPreviousState verifies a deferred foreign-key failure at commit rolls back the pointer move and speculative incoming blob. |
+| [`TestStaleCounterRejectsABASelection`](../tests/backend/pdfstore/integration/failure_integration_test.go#L97) | test | 97-129 | `func TestStaleCounterRejectsABASelection(t *testing.T)` | TestStaleCounterRejectsABASelection verifies a stale counter cannot win after the selection returns to the same content hash it previously held. |
+| [`TestAuditReplaySurvivesStoreRestart`](../tests/backend/pdfstore/integration/failure_integration_test.go#L133) | test | 133-181 | `func TestAuditReplaySurvivesStoreRestart(t *testing.T)` | TestAuditReplaySurvivesStoreRestart verifies committed outbox events remain deliverable after the companion store is reopened. |
+| [`TestMetadataMirrorFailureAfterPDFCommitKeepsSelectionAndRetries`](../tests/backend/pdfstore/integration/failure_integration_test.go#L186) | test | 186-247 | `func TestMetadataMirrorFailureAfterPDFCommitKeepsSelectionAndRetries(t *testing.T)` | TestMetadataMirrorFailureAfterPDFCommitKeepsSelectionAndRetries verifies a failed metadata mirror does not undo a committed PDF replacement and remains retryable. |
 
 ### [`tests/backend/pdfstore/integration/migration_integration_test.go`](../tests/backend/pdfstore/integration/migration_integration_test.go)
 

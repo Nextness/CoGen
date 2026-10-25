@@ -5,6 +5,7 @@ package pdfbinding_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"analysis/backend/database/pdfbinding"
@@ -50,6 +51,67 @@ func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 	}
 	if events[0].BeforeJSON != event.BeforeJSON || events[0].AfterJSON != event.AfterJSON {
 		t.Fatalf("delivered before/after = %q/%q, want %q/%q", events[0].BeforeJSON, events[0].AfterJSON, event.BeforeJSON, event.AfterJSON)
+	}
+}
+
+// TestRecordDeliveredAuditRetriesAfterAuditInsertFailure verifies a failed
+// metadata mirror leaves no partial evidence and remains retryable.
+func TestRecordDeliveredAuditRetriesAfterAuditInsertFailure(t *testing.T) {
+	ctx := context.Background()
+	store, metadata, _ := openTestStore(t)
+	if _, err := metadata.Conn.Exec(`CREATE TRIGGER reject_pdf_audit_insert
+		BEFORE INSERT ON audit_events
+		BEGIN SELECT RAISE(ABORT, 'injected audit insert failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	event := pdfbinding.DeliveredEvent{
+		EventKey: "retry-event", OccurredAt: "2026-01-01T00:00:00Z", Actor: "user",
+		EntityType: "work", EntityID: "1", Action: "pdf_document_replaced",
+		BeforeJSON:   `{"status":"available","change_counter":2}`,
+		AfterJSON:    `{"status":"available","change_counter":3}`,
+		MetadataJSON: `{"operation":"replaced"}`, CorrelationID: "retry-correlation",
+	}
+	tx, err := store.BeginTx(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordDeliveredAudit(ctx, tx, event); err == nil || !strings.Contains(err.Error(), "injected audit insert failure") {
+		t.Fatalf("audit insert failure error = %v", err)
+	}
+	if err := tx.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	var events, links int
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if events != 0 || links != 0 {
+		t.Fatalf("failed mirror left events=%d links=%d, want zero", events, links)
+	}
+	if _, err := metadata.Conn.Exec("DROP TRIGGER reject_pdf_audit_insert"); err != nil {
+		t.Fatal(err)
+	}
+	tx, err = store.BeginTx(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordDeliveredAudit(ctx, tx, event); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if events != 1 || links != 1 {
+		t.Fatalf("retried mirror events=%d links=%d, want one each", events, links)
 	}
 }
 
