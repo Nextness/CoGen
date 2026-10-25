@@ -406,7 +406,7 @@ func TestAnchorRestoreRejectsChangedPDFContent(t *testing.T) {
 	}
 	replacementHash := strings.Repeat("f", 64)
 	if _, err := store.DB.Exec(`INSERT INTO pdf_blobs (content_hash, byte_size, data, created_at) VALUES (?, 1, x'25', '2024-01-01T00:00:00Z');
-		UPDATE pdf_documents SET content_hash=?, updated_at='2024-01-01T00:00:00Z' WHERE doi='10.1000/viewer-available'`, replacementHash, replacementHash); err != nil {
+		UPDATE pdf_documents SET content_hash=?, change_counter=change_counter+1, updated_at='2024-01-01T00:00:00Z' WHERE doi='10.1000/viewer-available'`, replacementHash, replacementHash); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

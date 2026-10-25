@@ -110,6 +110,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Treat SOMETHING iteration order and filename as execution identity; `previous` and `upgrade` are descriptive rather than ordering inputs.
 - Use `supersedes` only when a migration was renamed after equivalent SQL was applied under the earlier filename; retain the historical row, record the canonical filename transactionally without rerunning SQL, and test both fresh and legacy upgrade paths.
 - Account for existing records, nullability, defaults, indexes, constraints, transaction behavior, runtime cost, and application versions that may overlap during deployment.
+- Coordinate metadata and PDF upgrades through `backend/bundle/` preparation, which validates both configured chains and migration inputs before changing either store, applies metadata then PDF, verifies both targets, and requires exclusive maintenance ownership; retain committed progress and resume forward instead of downgrading.
 - Preserve data and transactional integrity; destructive or irreversible transformations require explicit approval and documented rollout safeguards.
 - Run `make check-docs` so configured filenames, present SQL files, contiguous versions, and documented boundaries remain consistent.
 

@@ -16,6 +16,7 @@ import (
 // without an entry because bypassing the family DALs is their subject.
 var approvedLocations = []ownership.Location{
 	{Path: "internal/migrations/runner.go", Category: "platform", Reason: "configured SQLite migration transactions and tracking history."},
+	{Path: "internal/migrations/history.go", Category: "platform", Reason: "read-only configured migration history and tracking-table existence for bundle readiness."},
 	{
 		Path:     "tests/support/go/testfixture/rows.go",
 		Category: "test",

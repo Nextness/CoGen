@@ -70,6 +70,26 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`loadChainLinks`](../backend/bundle/bundle.go#L61) | function | 61-98 | `func loadChainLinks(configPath string) ([]chainLink, error)` | loadChainLinks reads one migration configuration's configured links without applying them. |
 | [`verifyChain`](../backend/bundle/bundle.go#L101) | function | 101-120 | `func verifyChain(name string, links []chainLink, endpoint string) error` | verifyChain checks one chain's prior history and final endpoint. |
 
+### [`backend/bundle/prepare.go`](../backend/bundle/prepare.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Paths`](../backend/bundle/prepare.go#L19) | struct | 19-22 | `type Paths struct { Metadata string PDF string }` | Paths identifies the metadata and companion database files prepared as one bundle. |
+| [`StoreReport`](../backend/bundle/prepare.go#L25) | struct | 25-30 | `type StoreReport struct { Target string Applied int Adopted int Skipped int }` | StoreReport describes one store's verified target and migration progress. |
+| [`Report`](../backend/bundle/prepare.go#L33) | struct | 33-36 | `type Report struct { Metadata StoreReport PDF StoreReport }` | Report describes one completed bundle preparation. |
+| [`Readiness`](../backend/bundle/prepare.go#L39) | struct | 39-42 | `type Readiness struct { Metadata string PDF string }` | Readiness reports each store's latest recorded migration without changing either schema. |
+| [`Prepare`](../backend/bundle/prepare.go#L49) | function | 49-82 | `func Prepare(ctx context.Context, registryPath string, paths Paths) (Report, error)` | Prepare validates both configured chains and their migration inputs, acquires exclusive maintenance ownership, applies metadata migrations followed by PDF migrations, and verifies both targets. When the PDF store fails after metadata has committed, it returns the metadata progress so a later call can resume forward without downgrading the completed store. |
+| [`VerifyReadiness`](../backend/bundle/prepare.go#L89) | function | 89-111 | `func VerifyReadiness(ctx context.Context, registryPath string, paths Paths) (Readiness, error)` | VerifyReadiness verifies that both stores are at the supported schema pair with complete required history. It never creates files, applies migrations, or changes either schema, and returns each store's latest recorded migration even when readiness fails. Callers that need a stable pair across both reads hold shared maintenance ownership for the check and their subsequent work. |
+| [`migrationPlan`](../backend/bundle/prepare.go#L114) | struct | 114-119 | `type migrationPlan struct { metadata database.MigrationConfig pdf database.MigrationConfig metadataEntries []migrations.Entry pdfEntries []migrations.Entry }` | migrationPlan holds both resolved chains and their validated migration inputs. |
+| [`loadPlan`](../backend/bundle/prepare.go#L123) | function | 123-150 | `func loadPlan(registryPath string) (migrationPlan, error)` | loadPlan resolves both configured chains and validates their endpoints and readable migration inputs before either store changes. |
+| [`preflightHistory`](../backend/bundle/prepare.go#L155) | function | 155-167 | `func preflightHistory(ctx context.Context, name, path string, entries []migrations.Entry) error` | preflightHistory verifies that an existing store records only a complete, ordered prefix of its configured chain. A missing store is allowed because preparation may create it. |
+| [`prepareStore`](../backend/bundle/prepare.go#L170) | function | 170-200 | `func prepareStore(ctx context.Context, name string, config database.MigrationConfig, entries []migrations.Entry, path string) (StoreReport, error)` | prepareStore applies pending migrations to one store and verifies its target. |
+| [`currentTarget`](../backend/bundle/prepare.go#L204) | function | 204-225 | `func currentTarget(ctx context.Context, name, path string, entries []migrations.Entry) (string, error)` | currentTarget verifies one existing store against its configured chain and returns its latest recorded migration. |
+| [`readApplied`](../backend/bundle/prepare.go#L229) | function | 229-253 | `func readApplied(ctx context.Context, path string) ([]string, bool, error)` | readApplied reads one existing store's migration history read-only. It returns exists=false without opening a missing file. |
+| [`validatePaths`](../backend/bundle/prepare.go#L256) | function | 256-275 | `func validatePaths(paths Paths) error` | validatePaths rejects empty and duplicate bundle paths. |
+| [`canonicalPath`](../backend/bundle/prepare.go#L278) | function | 278-290 | `func canonicalPath(path string) (string, error)` | canonicalPath resolves one bundle path through existing symbolic links, including a missing final component. |
+| [`sameFile`](../backend/bundle/prepare.go#L293) | function | 293-297 | `func sameFile(left, right string) bool` | sameFile reports whether two existing paths identify the same file. |
+
 ### [`backend/cli/main.go`](../backend/cli/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -372,13 +392,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`OpenExisting`](../backend/database/connection.go#L22) | function | 22-24 | `func OpenExisting(dbPath string) (*Database, error)` | OpenExisting opens an existing metadata database for narrowly scoped review writes. It never creates directories, changes journal mode, or runs migrations. |
 | [`OpenExistingWithDriver`](../backend/database/connection.go#L28) | function | 28-33 | `func OpenExistingWithDriver(dbPath, driverName string) (*Database, error)` | OpenExistingWithDriver opens an existing metadata database through a caller-provided registered SQL driver. It exists so the viewer can enforce request-scoped query budgets without changing pipeline connections. |
-| [`openExistingWithDriver`](../backend/database/connection.go#L36) | function | 36-74 | `func openExistingWithDriver(dbPath, driverName string) (*Database, error)` | openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers. |
-| [`OpenConfigured`](../backend/database/connection.go#L80) | function | 80-135 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
-| [`configurePragma`](../backend/database/connection.go#L141) | function | 141-155 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
-| [`sqliteBusy`](../backend/database/connection.go#L158) | function | 158-164 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
-| [`(*Database).Close`](../backend/database/connection.go#L167) | method | 167-175 | `func (*Database).Close() error` | Close closes the database connection. |
-| [`(*Database).PingContext`](../backend/database/connection.go#L178) | method | 178-180 | `func (*Database).PingContext(ctx context.Context) error` | PingContext verifies the wrapped connection is reachable. |
-| [`(*Database).Writable`](../backend/database/connection.go#L184) | method | 184-190 | `func (*Database).Writable(ctx context.Context) (bool, error)` | Writable reports whether the wrapped connection accepts writes by checking the connection-local query_only pragma. |
+| [`openExistingWithDriver`](../backend/database/connection.go#L36) | function | 36-44 | `func openExistingWithDriver(dbPath, driverName string) (*Database, error)` | openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers. |
+| [`OpenExistingConnection`](../backend/database/connection.go#L49) | function | 49-52 | `func OpenExistingConnection(dbPath string) (*sql.DB, error)` | OpenExistingConnection opens an existing SQLite database through the platform's existing-only writable connection settings. It never creates the file, changes journal mode, or applies migrations. The caller owns Close. |
+| [`openExistingSQLite`](../backend/database/connection.go#L55) | function | 55-94 | `func openExistingSQLite(dbPath, driverName string) (*sql.DB, string, error)` | openExistingSQLite opens one existing-only SQLite connection and returns its absolute path. |
+| [`OpenWritable`](../backend/database/connection.go#L100) | function | 100-146 | `func OpenWritable(dbPath string) (*sql.DB, error)` | OpenWritable opens or creates a SQLite database, creates its parent directory, and configures the platform URI and pragmas without applying migrations. The caller owns Close and must apply the selected migration chain before normal use. |
+| [`OpenConfigured`](../backend/database/connection.go#L152) | function | 152-170 | `func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error)` | OpenConfigured opens a writable SQLite database, configures its connection pool, and applies the migration chain selected from the database registry. It is used by the metadata repositories and the independently owned PDF store. |
+| [`configurePragma`](../backend/database/connection.go#L176) | function | 176-190 | `func configurePragma(db *sql.DB, pragma string) error` | configurePragma retries startup-only locking around journal-mode changes. The connection URI covers normal busy handling, but two processes enabling WAL on an uninitialised database can still race before either has completed its first pragma sequence. |
+| [`sqliteBusy`](../backend/database/connection.go#L193) | function | 193-199 | `func sqliteBusy(err error) bool` | sqliteBusy reports whether an error represents SQLite busy or locked contention. |
+| [`(*Database).Close`](../backend/database/connection.go#L202) | method | 202-210 | `func (*Database).Close() error` | Close closes the database connection. |
+| [`(*Database).PingContext`](../backend/database/connection.go#L213) | method | 213-215 | `func (*Database).PingContext(ctx context.Context) error` | PingContext verifies the wrapped connection is reachable. |
+| [`(*Database).Writable`](../backend/database/connection.go#L219) | method | 219-225 | `func (*Database).Writable(ctx context.Context) (bool, error)` | Writable reports whether the wrapped connection accepts writes by checking the connection-local query_only pragma. |
 
 ### [`backend/database/database.go`](../backend/database/database.go)
 
@@ -388,6 +411,30 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Open`](../backend/database/database.go#L47) | function | 47-58 | `func Open(dbPath, configPath string) (*Database, error)` | Open opens (or creates) the SQLite database at dbPath, runs pending migrations, and initialises repositories. Call Close when done. |
 | [`MigrateExisting`](../backend/database/database.go#L61) | function | 61-80 | `func MigrateExisting(dbPath, configPath string) error` | MigrateExisting applies the configured metadata migration chain to an existing file and never runs a workspace. |
 | [`New`](../backend/database/database.go#L85) | function | 85-98 | `func New(conn *sql.DB) *Database` | New binds metadata family stores to a caller-configured connection without opening or migrating it. The caller must configure SQLite and apply the metadata migrations before use, normally through OpenConfigured. The returned Database owns the supplied connection; Close closes it. |
+
+### [`backend/database/maintenance.go`](../backend/database/maintenance.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`MaintenanceMode`](../backend/database/maintenance.go#L14) | type | 14 | `type MaintenanceMode int` | MaintenanceMode selects shared operation ownership or exclusive schema maintenance. |
+| [`MaintenanceLock`](../backend/database/maintenance.go#L24) | struct | 24-26 | `type MaintenanceLock struct { file *os.File }` | MaintenanceLock holds cross-process ownership of one metadata bundle's schema. |
+| [`AcquireMaintenanceLock`](../backend/database/maintenance.go#L31) | function | 31-57 | `func AcquireMaintenanceLock(ctx context.Context, metadataPath string, mode MaintenanceMode) (*MaintenanceLock, error)` | AcquireMaintenanceLock acquires shared or exclusive bundle maintenance ownership for metadataPath. It waits for conflicting owners until ctx is canceled. Closing the returned lock releases ownership. |
+| [`(*MaintenanceLock).Close`](../backend/database/maintenance.go#L60) | method | 60-71 | `func (*MaintenanceLock).Close() error` | Close releases maintenance ownership. |
+| [`maintenanceLockPath`](../backend/database/maintenance.go#L74) | function | 74-85 | `func maintenanceLockPath(metadataPath string) (string, error)` | maintenanceLockPath resolves the lock file beside the metadata database. |
+
+### [`backend/database/maintenance_lock_other.go`](../backend/database/maintenance_lock_other.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`acquireFileLock`](../backend/database/maintenance_lock_other.go#L12) | function | 12-14 | `func acquireFileLock(ctx context.Context, file *os.File, mode MaintenanceMode) error` | acquireFileLock rejects maintenance ownership when the platform cannot enforce it. |
+| [`releaseFileLock`](../backend/database/maintenance_lock_other.go#L17) | function | 17-19 | `func releaseFileLock(file *os.File) error` | releaseFileLock has no lock to release on unsupported platforms. |
+
+### [`backend/database/maintenance_lock_unix.go`](../backend/database/maintenance_lock_unix.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`acquireFileLock`](../backend/database/maintenance_lock_unix.go#L18) | function | 18-37 | `func acquireFileLock(ctx context.Context, file *os.File, mode MaintenanceMode) error` | acquireFileLock takes a nonblocking shared or exclusive flock and retries until ownership is available or the context is canceled. |
+| [`releaseFileLock`](../backend/database/maintenance_lock_unix.go#L40) | function | 40-45 | `func releaseFileLock(file *os.File) error` | releaseFileLock releases one maintenance flock. |
 
 ### [`backend/database/migration_config.go`](../backend/database/migration_config.go)
 
@@ -2374,12 +2421,23 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`LoadChain`](../internal/migrations/chain.go#L62) | function | 62-75 | `func LoadChain(configPath string) ([]Entry, error)` | LoadChain evaluates the database registry and returns its migrations in declaration order. |
 | [`ReadUpSQL`](../internal/migrations/chain.go#L81) | function | 81-101 | `func ReadUpSQL(filepath string) (string, error)` | ReadUpSQL returns the SQL between a migration's required UP and DOWN markers. |
 
+### [`internal/migrations/history.go`](../internal/migrations/history.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ValidateEntries`](../internal/migrations/history.go#L15) | function | 15-48 | `func ValidateEntries(entries []Entry) error` | ValidateEntries verifies that configured migration identities and supersedes aliases are unique and unambiguous within one chain. |
+| [`ValidateInputs`](../internal/migrations/history.go#L53) | function | 53-67 | `func ValidateInputs(entries []Entry, migrationsDir string) error` | ValidateInputs verifies every configured migration file is readable, has exactly one ordered UP and DOWN marker pair, and contains a non-empty UP section before any migration runs. |
+| [`Applied`](../internal/migrations/history.go#L71) | function | 71-96 | `func Applied(ctx context.Context, db *sql.DB) ([]string, error)` | Applied returns the recorded migration filenames in application order. A missing tracking table means no migration has been recorded. |
+| [`VerifyHistory`](../internal/migrations/history.go#L102) | function | 102-136 | `func VerifyHistory(entries []Entry, applied []string) (int, error)` | VerifyHistory verifies that applied is a complete, ordered prefix of entries and returns the index of the latest applied configured migration, or -1 when none has been applied. Declared supersedes aliases count as their canonical migration, and unknown or out-of-order history is rejected. |
+
 ### [`internal/migrations/runner.go`](../internal/migrations/runner.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Apply`](../internal/migrations/runner.go#L20) | function | 20-125 | `func Apply(db *sql.DB, migrationsDir, configPath string) error` | Apply applies unapplied configured migrations in declaration order and records their checksums. |
-| [`withMigrationLock`](../internal/migrations/runner.go#L131) | function | 131-154 | `func withMigrationLock(db *sql.DB, ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
+| [`Result`](../internal/migrations/runner.go#L20) | struct | 20-25 | `type Result struct { Configured int Applied int Adopted int Skipped int }` | Result summarizes one configured migration run. |
+| [`Apply`](../internal/migrations/runner.go#L28) | function | 28-31 | `func Apply(db *sql.DB, migrationsDir, configPath string) error` | Apply applies unapplied configured migrations in declaration order and records their checksums. |
+| [`ApplyContext`](../internal/migrations/runner.go#L36) | function | 36-140 | `func ApplyContext(ctx context.Context, db *sql.DB, migrationsDir, configPath string) (Result, error)` | ApplyContext applies unapplied configured migrations in declaration order, honoring context cancellation between and within migration transactions, and reports how many configured entries were applied, adopted, or skipped. |
+| [`withMigrationLock`](../internal/migrations/runner.go#L146) | function | 146-169 | `func withMigrationLock(db *sql.DB, ctx context.Context, action func(*sql.Conn) error) (err error)` | withMigrationLock serializes each migration transaction across independent processes. BEGIN IMMEDIATE obtains SQLite's write lock before checking the tracking table, preventing two openers from both observing a migration as pending and applying it twice. |
 
 ### [`internal/pathpolicy/pathpolicy.go`](../internal/pathpolicy/pathpolicy.go)
 
@@ -2492,6 +2550,31 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestParse`](../tests/backend/bibtex/unit/bibtex_unit_test.go#L15) | test | 15-290 | `func TestParse(t *testing.T)` | TestParse verifies parse. |
 | [`TestNewParserNilLogger`](../tests/backend/bibtex/unit/bibtex_unit_test.go#L293) | test | 293-302 | `func TestNewParserNilLogger(t *testing.T)` | TestNewParserNilLogger verifies new parser nil logger. |
+
+### [`tests/backend/bundle/integration/prepare_integration_test.go`](../tests/backend/bundle/integration/prepare_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`setupBundle`](../tests/backend/bundle/integration/prepare_integration_test.go#L27) | function | 27-41 | `func setupBundle(t *testing.T) (string, string)` | setupBundle copies production configuration and migration SQL into an isolated bundle root and returns its registry path. |
+| [`copyFile`](../tests/backend/bundle/integration/prepare_integration_test.go#L44) | function | 44-53 | `func copyFile(t *testing.T, source, destination string)` | copyFile copies one checked-in file into the temporary bundle. |
+| [`copySQLDirectory`](../tests/backend/bundle/integration/prepare_integration_test.go#L56) | function | 56-68 | `func copySQLDirectory(t *testing.T, source, destination string)` | copySQLDirectory copies every SQL migration into the temporary bundle. |
+| [`productionEntries`](../tests/backend/bundle/integration/prepare_integration_test.go#L71) | function | 71-78 | `func productionEntries(t *testing.T, configName string) []migrations.Entry` | productionEntries returns one production migration chain in declaration order. |
+| [`writeChain`](../tests/backend/bundle/integration/prepare_integration_test.go#L81) | function | 81-91 | `func writeChain(t *testing.T, path string, entries []migrations.Entry)` | writeChain writes one synthetic migration configuration for a chain prefix. |
+| [`applyPrefix`](../tests/backend/bundle/integration/prepare_integration_test.go#L94) | function | 94-106 | `func applyPrefix(t *testing.T, dbPath, migrationsDir string, entries []migrations.Entry)` | applyPrefix creates one store at a production chain prefix. |
+| [`appliedFilenames`](../tests/backend/bundle/integration/prepare_integration_test.go#L109) | function | 109-124 | `func appliedFilenames(t *testing.T, path string) []string` | appliedFilenames reads one store's recorded migration history read-only. |
+| [`queryOne`](../tests/backend/bundle/integration/prepare_integration_test.go#L127) | function | 127-139 | `func queryOne[T any](t *testing.T, path, query string, args ...any) T` | queryOne runs one bounded inspection query against an existing database. |
+| [`seedMetadata`](../tests/backend/bundle/integration/prepare_integration_test.go#L142) | function | 142-152 | `func seedMetadata(t *testing.T, path string)` | seedMetadata inserts one preserved search row before preparation. |
+| [`seedPDF`](../tests/backend/bundle/integration/prepare_integration_test.go#L155) | function | 155-178 | `func seedPDF(t *testing.T, path string)` | seedPDF inserts available, unavailable, and pending-audit evidence before preparation. |
+| [`TestPrepareUpgradesOlderPairPreservesDataAndIsIdempotent`](../tests/backend/bundle/integration/prepare_integration_test.go#L183) | test | 183-251 | `func TestPrepareUpgradesOlderPairPreservesDataAndIsIdempotent(t *testing.T)` | TestPrepareUpgradesOlderPairPreservesDataAndIsIdempotent verifies coordinated preparation reaches both targets, preserves existing evidence, creates no research attempt, and repeats safely. |
+| [`TestPrepareValidatesInputsBeforeChangingMetadata`](../tests/backend/bundle/integration/prepare_integration_test.go#L255) | test | 255-277 | `func TestPrepareValidatesInputsBeforeChangingMetadata(t *testing.T)` | TestPrepareValidatesInputsBeforeChangingMetadata verifies a broken second-store migration is rejected before the first store changes. |
+| [`TestPrepareRetainsMetadataProgressAndResumesPDFForward`](../tests/backend/bundle/integration/prepare_integration_test.go#L281) | test | 281-349 | `func TestPrepareRetainsMetadataProgressAndResumesPDFForward(t *testing.T)` | TestPrepareRetainsMetadataProgressAndResumesPDFForward verifies a failed PDF upgrade leaves metadata committed, releases ownership, and retries forward. |
+| [`TestPrepareRejectsUnknownHistoryBeforeChangingEitherStore`](../tests/backend/bundle/integration/prepare_integration_test.go#L353) | test | 353-384 | `func TestPrepareRejectsUnknownHistoryBeforeChangingEitherStore(t *testing.T)` | TestPrepareRejectsUnknownHistoryBeforeChangingEitherStore verifies newer or foreign migration history cannot be silently adopted or downgraded. |
+| [`TestVerifyReadinessReportsActualTargetsWithoutMigrating`](../tests/backend/bundle/integration/prepare_integration_test.go#L389) | test | 389-436 | `func TestVerifyReadinessReportsActualTargetsWithoutMigrating(t *testing.T)` | TestVerifyReadinessReportsActualTargetsWithoutMigrating verifies readiness is a non-mutating check, reports both actual versions, and accepts a read-only current PDF store. |
+| [`TestPrepareCreatesMissingBundle`](../tests/backend/bundle/integration/prepare_integration_test.go#L440) | test | 440-459 | `func TestPrepareCreatesMissingBundle(t *testing.T)` | TestPrepareCreatesMissingBundle verifies preparation can initialize both missing stores through the explicit maintenance operation. |
+| [`TestPrepareRejectsDuplicateAndEmptyPaths`](../tests/backend/bundle/integration/prepare_integration_test.go#L463) | test | 463-483 | `func TestPrepareRejectsDuplicateAndEmptyPaths(t *testing.T)` | TestPrepareRejectsDuplicateAndEmptyPaths verifies the coordinator refuses to prepare one file as both stores. |
+| [`TestMaintenanceOwnershipAllowsSharedOwnersAndExcludesMaintenance`](../tests/backend/bundle/integration/prepare_integration_test.go#L487) | test | 487-543 | `func TestMaintenanceOwnershipAllowsSharedOwnersAndExcludesMaintenance(t *testing.T)` | TestMaintenanceOwnershipAllowsSharedOwnersAndExcludesMaintenance verifies shared viewers coexist while exclusive preparation waits and releases cleanly. |
+| [`TestPrepareSerializesConcurrentPreparation`](../tests/backend/bundle/integration/prepare_integration_test.go#L547) | test | 547-579 | `func TestPrepareSerializesConcurrentPreparation(t *testing.T)` | TestPrepareSerializesConcurrentPreparation verifies concurrent maintenance operations apply each migration exactly once. |
+| [`TestPrepareCancellationReleasesOwnership`](../tests/backend/bundle/integration/prepare_integration_test.go#L583) | test | 583-612 | `func TestPrepareCancellationReleasesOwnership(t *testing.T)` | TestPrepareCancellationReleasesOwnership verifies a canceled preparation does not leave maintenance ownership held or change either store. |
 
 ### [`tests/backend/bundle/unit/bundle_unit_test.go`](../tests/backend/bundle/unit/bundle_unit_test.go)
 
@@ -2845,12 +2928,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`metadataMigrationEntries`](../tests/backend/database/integration/platform_contract_integration_test.go#L28) | function | 28-39 | `func metadataMigrationEntries(t *testing.T) []migrations.Entry` | metadataMigrationEntries resolves the production metadata migration chain used by the platform contract tests. |
 | [`TestOpenConfiguredConnectionPragmas`](../tests/backend/database/integration/platform_contract_integration_test.go#L42) | test | 42-67 | `func TestOpenConfiguredConnectionPragmas(t *testing.T)` | TestOpenConfiguredConnectionPragmas verifies writable connections retain WAL, foreign-key, and busy-timeout settings. |
-| [`TestOpenExistingConnectionContract`](../tests/backend/database/integration/platform_contract_integration_test.go#L70) | test | 70-99 | `func TestOpenExistingConnectionContract(t *testing.T)` | TestOpenExistingConnectionContract verifies existing-only connections stay writable with the shared foreign-key and busy-timeout pragmas. |
-| [`TestOpenExistingWithDriverRejectsMissingDatabase`](../tests/backend/database/integration/platform_contract_integration_test.go#L102) | test | 102-113 | `func TestOpenExistingWithDriverRejectsMissingDatabase(t *testing.T)` | TestOpenExistingWithDriverRejectsMissingDatabase verifies driver-selectable existing-only opens never create databases or accept invalid paths. |
-| [`TestSchemaVersionContract`](../tests/backend/database/integration/platform_contract_integration_test.go#L116) | test | 116-176 | `func TestSchemaVersionContract(t *testing.T)` | TestSchemaVersionContract verifies schema-version reporting returns the last applied migration and an empty version without error when none has been recorded. |
-| [`TestConcurrentOpenAppliesMigrationsOnce`](../tests/backend/database/integration/platform_contract_integration_test.go#L179) | test | 179-210 | `func TestConcurrentOpenAppliesMigrationsOnce(t *testing.T)` | TestConcurrentOpenAppliesMigrationsOnce verifies the migration lock keeps simultaneous openers from applying or recording migrations twice. |
-| [`connectionProbe`](../tests/backend/database/integration/platform_contract_integration_test.go#L216) | struct | 216-220 | `type connectionProbe struct { mu sync.Mutex uri string foreignKeys, busyTimeout driver.Value }` | connectionProbe inspects the actual connection returned to the production composition root. |
-| [`(*connectionProbe).Open`](../tests/backend/database/integration/platform_contract_integration_test.go#L223) | method | 223-252 | `func (*connectionProbe).Open(uri string) (driver.Conn, error)` | Open records configured pragmas before handing the same SQLite connection to the application. |
+| [`TestOpenWritableAndExistingConnectionsDoNotMigrate`](../tests/backend/database/integration/platform_contract_integration_test.go#L71) | test | 71-107 | `func TestOpenWritableAndExistingConnectionsDoNotMigrate(t *testing.T)` | TestOpenWritableAndExistingConnectionsDoNotMigrate verifies the platform connection helpers leave migration application to the bundle coordinator. |
+| [`TestOpenExistingConnectionContract`](../tests/backend/database/integration/platform_contract_integration_test.go#L110) | test | 110-139 | `func TestOpenExistingConnectionContract(t *testing.T)` | TestOpenExistingConnectionContract verifies existing-only connections stay writable with the shared foreign-key and busy-timeout pragmas. |
+| [`TestOpenExistingWithDriverRejectsMissingDatabase`](../tests/backend/database/integration/platform_contract_integration_test.go#L142) | test | 142-153 | `func TestOpenExistingWithDriverRejectsMissingDatabase(t *testing.T)` | TestOpenExistingWithDriverRejectsMissingDatabase verifies driver-selectable existing-only opens never create databases or accept invalid paths. |
+| [`TestSchemaVersionContract`](../tests/backend/database/integration/platform_contract_integration_test.go#L156) | test | 156-216 | `func TestSchemaVersionContract(t *testing.T)` | TestSchemaVersionContract verifies schema-version reporting returns the last applied migration and an empty version without error when none has been recorded. |
+| [`TestConcurrentOpenAppliesMigrationsOnce`](../tests/backend/database/integration/platform_contract_integration_test.go#L219) | test | 219-250 | `func TestConcurrentOpenAppliesMigrationsOnce(t *testing.T)` | TestConcurrentOpenAppliesMigrationsOnce verifies the migration lock keeps simultaneous openers from applying or recording migrations twice. |
+| [`connectionProbe`](../tests/backend/database/integration/platform_contract_integration_test.go#L256) | struct | 256-260 | `type connectionProbe struct { mu sync.Mutex uri string foreignKeys, busyTimeout driver.Value }` | connectionProbe inspects the actual connection returned to the production composition root. |
+| [`(*connectionProbe).Open`](../tests/backend/database/integration/platform_contract_integration_test.go#L263) | method | 263-292 | `func (*connectionProbe).Open(uri string) (driver.Conn, error)` | Open records configured pragmas before handing the same SQLite connection to the application. |
 
 ### [`tests/backend/database/integration/platform_methods_integration_test.go`](../tests/backend/database/integration/platform_methods_integration_test.go)
 
@@ -2872,6 +2956,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestValidMigrationFilename`](../tests/backend/database/migrations/unit/config_unit_test.go#L10) | test | 10-33 | `func TestValidMigrationFilename(t *testing.T)` | TestValidMigrationFilename verifies canonical and malformed migration identities are distinguished without accepting paths or empty descriptions. |
 | [`TestGetMigrationStructsRejectsMissingOrNonStringFilename`](../tests/backend/database/migrations/unit/config_unit_test.go#L36) | test | 36-51 | `func TestGetMigrationStructsRejectsMissingOrNonStringFilename(t *testing.T)` | TestGetMigrationStructsRejectsMissingOrNonStringFilename verifies every configured iteration has a usable filename. |
+
+### [`tests/backend/database/migrations/unit/history_unit_test.go`](../tests/backend/database/migrations/unit/history_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestValidateEntries`](../tests/backend/database/migrations/unit/history_unit_test.go#L14) | test | 14-41 | `func TestValidateEntries(t *testing.T)` | TestValidateEntries verifies migration identities and supersedes aliases are unambiguous. |
+| [`TestVerifyHistory`](../tests/backend/database/migrations/unit/history_unit_test.go#L44) | test | 44-82 | `func TestVerifyHistory(t *testing.T)` | TestVerifyHistory verifies only complete ordered configured history is accepted. |
 
 ### [`tests/backend/database/migrations/unit/migration_sql_unit_test.go`](../tests/backend/database/migrations/unit/migration_sql_unit_test.go)
 
@@ -5345,10 +5436,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`parseRoot`](../tooling/go/rawsqlcheck/main.go#L110) | function | 110-122 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
-| [`runCheck`](../tooling/go/rawsqlcheck/main.go#L125) | function | 125-131 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
-| [`runReport`](../tooling/go/rawsqlcheck/main.go#L134) | function | 134-146 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the ownership report, and returns a process exit status. |
-| [`Run`](../tooling/go/rawsqlcheck/main.go#L149) | function | 149-165 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
+| [`parseRoot`](../tooling/go/rawsqlcheck/main.go#L111) | function | 111-123 | `func parseRoot(name string, args []string, stderr io.Writer) (string, bool)` | parseRoot parses the shared --root flag for one subcommand. |
+| [`runCheck`](../tooling/go/rawsqlcheck/main.go#L126) | function | 126-132 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
+| [`runReport`](../tooling/go/rawsqlcheck/main.go#L135) | function | 135-147 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the ownership report, and returns a process exit status. |
+| [`Run`](../tooling/go/rawsqlcheck/main.go#L150) | function | 150-166 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
 
 ### [`tooling/go/rawsqlcheck/ownership/analysis.go`](../tooling/go/rawsqlcheck/ownership/analysis.go)
 
