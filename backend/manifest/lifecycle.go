@@ -157,6 +157,10 @@ const (
 	AuditPDFDocumentReplaced AuditAction = "pdf_document_replaced"
 	// AuditPDFDocumentRemoved records a manual PDF removal that retained its registration.
 	AuditPDFDocumentRemoved AuditAction = "pdf_document_removed"
+	// AuditPDFDocumentExportPrepared records validated PDF bytes prepared for
+	// an explicit frontend download or ZIP export response. It does not claim
+	// that the browser saved the file to disk.
+	AuditPDFDocumentExportPrepared AuditAction = "pdf_document_export_prepared"
 	// AuditReviewContextCreated records explicit initialization of a run review context.
 	AuditReviewContextCreated AuditAction = "review_context_created"
 	// AuditWorkReviewVersionCreated records a new immutable article-review state.
@@ -184,7 +188,7 @@ func ValidateAuditAction(s string) error {
 		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged:
 		return nil
 	case AuditPDFDocumentAdded, AuditPDFInventoryRegistered, AuditPDFDocumentInventoried,
-		AuditPDFDocumentReplaced, AuditPDFDocumentRemoved:
+		AuditPDFDocumentReplaced, AuditPDFDocumentRemoved, AuditPDFDocumentExportPrepared:
 		return nil
 	case AuditReviewContextCreated, AuditWorkReviewVersionCreated,
 		AuditReviewNoteCreated, AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,

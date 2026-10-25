@@ -5,16 +5,21 @@ package server_test
 import (
 	"archive/zip"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"analysis/backend/database/work"
+	"analysis/backend/pdfstore"
 	testhelpers "analysis/tests/support/go/backend/server"
 	"analysis/tests/support/go/pdffixture"
+	"analysis/tests/support/go/testenv"
 )
 
 // pdfExportRequest invokes one explicit export with a JSON selection.
@@ -86,6 +91,9 @@ func TestPDFSingleExportReturnsOriginalAttachment(t *testing.T) {
 	if recorder.Header().Get("Content-Type") != "application/pdf" || !strings.HasPrefix(recorder.Header().Get("Content-Disposition"), "attachment") {
 		t.Fatalf("single export headers: %v", recorder.Header())
 	}
+	if !strings.Contains(recorder.Header().Get("Content-Disposition"), "Viewer PDF article.pdf") {
+		t.Fatalf("single export headers: %v", recorder.Header())
+	}
 	if recorder.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("single export cache control=%q", recorder.Header().Get("Cache-Control"))
 	}
@@ -116,7 +124,7 @@ func TestPDFZIPExportReportsPartialResults(t *testing.T) {
 	if len(files) != 2 {
 		t.Fatalf("ZIP entries=%v", files)
 	}
-	if !bytes.Equal(files[fmt.Sprintf("work-%d.pdf", fixture.AvailableID)], pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")) {
+	if !bytes.Equal(files[fmt.Sprintf("Viewer PDF article (work-%d).pdf", fixture.AvailableID)], pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")) {
 		t.Fatal("ZIP PDF bytes differ from source")
 	}
 	if manifest["requested"] != float64(2) || manifest["included"] != float64(1) || manifest["skipped"] != float64(1) {
@@ -161,5 +169,152 @@ func TestPDFExportRejectsInvalidSelections(t *testing.T) {
 	})
 	if allFailed.Code != http.StatusConflict || pdfExportErrorCode(t, allFailed) != "pdf_export_empty" {
 		t.Fatalf("all-failed export status=%d body=%s", allFailed.Code, allFailed.Body.String())
+	}
+}
+
+// pdfExportNameFixture adds Unicode, colliding, and missing-title exports to
+// one completed viewer run.
+type pdfExportNameFixture struct {
+	Viewer      testhelpers.PdfViewerFixture
+	UnicodeID   int64
+	CollideAID  int64
+	CollideBID  int64
+	MissingID   int64
+	UnicodeRev  int64
+	CollideARev int64
+	CollideBRev int64
+	MissingRev  int64
+}
+
+// newPDFExportNameFixture seeds selected-run articles with export naming edge cases.
+func newPDFExportNameFixture(t *testing.T) pdfExportNameFixture {
+	t.Helper()
+	viewer := testhelpers.NewPDFViewerFixture(t)
+	ctx := context.Background()
+	create := func(doi, title string) (int64, int64) {
+		t.Helper()
+		workID, err := viewer.Server.Metadata.Work.CreateWorkByDOI(ctx, doi)
+		if err != nil {
+			t.Fatal(err)
+		}
+		revisionID, err := viewer.Server.Metadata.Work.CreateRevision(ctx, &work.Revision{
+			WorkID: workID, PipelineRunID: viewer.RunID, ProducerStage: work.ProducerStageNormalize, Title: title,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := viewer.Server.Metadata.Work.SetStageOutcome(ctx, work.StageOutcomeInput{
+			RunID: viewer.RunID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return workID, revisionID
+	}
+	unicodeID, unicodeRev := create("10.1000/export-unicode", "A study: paths / Unicode α?")
+	collideAID, collideARev := create("10.1000/export-collide-a", "Same title")
+	collideBID, collideBRev := create("10.1000/export-collide-b", "Same title")
+	missingID, missingRev := create("10.1000/export-missing-title", "")
+	store, err := pdfstore.Open(filepath.Join(filepath.Dir(viewer.MetadataPath), "corpus.pdf.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	for index, item := range []struct {
+		doi    string
+		workID int64
+	}{
+		{"10.1000/export-unicode", unicodeID},
+		{"10.1000/export-collide-a", collideAID},
+		{"10.1000/export-collide-b", collideBID},
+		{"10.1000/export-missing-title", missingID},
+	} {
+		if _, err := store.Register(ctx, item.doi, item.workID, viewer.RunID); err != nil {
+			t.Fatal(err)
+		}
+		data := pdffixture.Bytes(fmt.Sprintf("Export naming fixture %d", index))
+		if _, err := store.Save(ctx, pdfstore.SaveInput{DOI: item.doi, WorkID: item.workID, ExpectedChangeCounter: 1, Data: data}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return pdfExportNameFixture{
+		Viewer: viewer, UnicodeID: unicodeID, CollideAID: collideAID, CollideBID: collideBID, MissingID: missingID,
+		UnicodeRev: unicodeRev, CollideARev: collideARev, CollideBRev: collideBRev, MissingRev: missingRev,
+	}
+}
+
+// exportHash reads one current source hash through the viewer status resource.
+func exportHash(t *testing.T, fixture testhelpers.PdfViewerFixture, workID int64) string {
+	t.Helper()
+	return pdfStatusForWork(t, fixture.Server.Handler(), workID)["content_hash"].(string)
+}
+
+// TestPDFExportUsesSafeNamesAndRequiredAudit verifies Unicode bounds, collision
+// suffixes, missing-title fallback, one ZIP correlation, and metadata-only audit.
+func TestPDFExportUsesSafeNamesAndRequiredAudit(t *testing.T) {
+	fixture := newPDFExportNameFixture(t)
+	handler := fixture.Viewer.Server.Handler()
+	body := map[string]any{"articles": []map[string]any{
+		{"work_revision_id": fixture.UnicodeRev, "content_hash": exportHash(t, fixture.Viewer, fixture.UnicodeID)},
+		{"work_revision_id": fixture.CollideARev, "content_hash": exportHash(t, fixture.Viewer, fixture.CollideAID)},
+		{"work_revision_id": fixture.CollideBRev, "content_hash": exportHash(t, fixture.Viewer, fixture.CollideBID)},
+		{"work_revision_id": fixture.MissingRev, "content_hash": exportHash(t, fixture.Viewer, fixture.MissingID)},
+	}}
+	recorder := pdfExportRequest(t, handler, fmt.Sprintf("/api/runs/%d/pdf-exports", fixture.Viewer.RunID), body)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("named ZIP status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	files, manifest := pdfExportZIP(t, recorder)
+	wantUnicode := fmt.Sprintf("A study- paths - Unicode α- (work-%d).pdf", fixture.UnicodeID)
+	wantCollideA := fmt.Sprintf("Same title (work-%d).pdf", fixture.CollideAID)
+	wantCollideB := fmt.Sprintf("Same title (work-%d).pdf", fixture.CollideBID)
+	wantMissing := fmt.Sprintf("work-%d.pdf", fixture.MissingID)
+	for _, name := range []string{wantUnicode, wantCollideA, wantCollideB, wantMissing, "export-manifest.json"} {
+		if _, ok := files[name]; !ok {
+			t.Fatalf("ZIP missing %q in %v", name, files)
+		}
+		if len(name) > 240 {
+			t.Fatalf("ZIP entry name exceeds 240 bytes: %q", name)
+		}
+	}
+	if manifest["included"] != float64(4) || manifest["skipped"] != float64(0) {
+		t.Fatalf("manifest=%v", manifest)
+	}
+	var count, correlations, nullRuns int
+	if err := fixture.Viewer.Server.Metadata.Conn.QueryRow(`SELECT COUNT(*), COUNT(DISTINCT correlation_id), SUM(pipeline_run_id IS NULL)
+		FROM audit_events WHERE action='pdf_document_export_prepared'`).Scan(&count, &correlations, &nullRuns); err != nil {
+		t.Fatal(err)
+	}
+	if count != 4 || correlations != 1 || nullRuns != 4 {
+		t.Fatalf("export audit count=%d correlations=%d null_runs=%d", count, correlations, nullRuns)
+	}
+	var outbox int
+	if err := fixture.Viewer.Server.PDF.QueryRow(`SELECT COUNT(*) FROM pdf_audit_outbox WHERE action='pdf_document_export_prepared'`).Scan(&outbox); err != nil {
+		t.Fatal(err)
+	}
+	if outbox != 0 {
+		t.Fatalf("export wrote %d PDF outbox events", outbox)
+	}
+}
+
+// TestPDFExportRequiredAuditFailureWritesNoBinary verifies audit failure happens before headers.
+func TestPDFExportRequiredAuditFailureWritesNoBinary(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	handler := fixture.Server.Handler()
+	if _, err := fixture.Server.Metadata.Conn.Exec(`CREATE TRIGGER fail_pdf_export_audit
+		BEFORE INSERT ON audit_events
+		WHEN NEW.action='pdf_document_export_prepared'
+		BEGIN
+			SELECT RAISE(ABORT, 'fixture export audit failure');
+		END`); err != nil {
+		t.Fatal(err)
+	}
+	defer fixture.Server.Metadata.Conn.Exec(`DROP TRIGGER fail_pdf_export_audit`)
+	status := pdfStatusForWork(t, handler, fixture.AvailableID)
+	recorder := pdfExportRequest(t, handler, fmt.Sprintf("/api/runs/%d/articles/%d/pdf-export", fixture.RunID, fixture.RevisionID), map[string]any{"content_hash": status["content_hash"]})
+	if recorder.Code != http.StatusInternalServerError || pdfExportErrorCode(t, recorder) != "pdf_audit_error" {
+		t.Fatalf("audit failure status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if strings.HasPrefix(recorder.Header().Get("Content-Type"), "application/pdf") || strings.HasPrefix(recorder.Body.String(), "%PDF-") {
+		t.Fatal("audit failure wrote a PDF response")
 	}
 }
