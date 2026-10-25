@@ -47,13 +47,16 @@ type AvailableDocument struct {
 	ContentHash   string
 	InventoriedAt string
 	ByteSize      int64
+	ChangeCounter int64
 }
 
-// InventoryEntry is one available companion document's DOI and optional
-// inventory timestamp.
+// InventoryEntry is one available companion document's DOI, inventory
+// timestamp, content identity, and stored byte size.
 type InventoryEntry struct {
 	DOI           string
 	InventoriedAt *string
+	ContentHash   string
+	ByteSize      int64
 }
 
 // New returns a companion-store handle over an already configured connection.
@@ -138,7 +141,7 @@ func (s *Store) InventoryForDOIs(ctx context.Context, dois []string) ([]*Invento
 	}
 	items := make([]*InventoryEntry, 0, len(rows))
 	for _, row := range rows {
-		item := &InventoryEntry{DOI: row.Doi}
+		item := &InventoryEntry{DOI: row.Doi, ContentHash: row.ContentHash.String, ByteSize: row.ByteSize}
 		if row.InventoriedAt.Valid {
 			inventoriedAt := row.InventoriedAt.String
 			item.InventoriedAt = &inventoriedAt
@@ -162,6 +165,7 @@ func (s *Store) AvailableDocument(ctx context.Context, doi string) (*AvailableDo
 		ContentHash:   row.ContentHash.String,
 		InventoriedAt: row.InventoriedAt.String,
 		ByteSize:      row.ByteSize,
+		ChangeCounter: row.ChangeCounter,
 	}, nil
 }
 

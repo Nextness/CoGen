@@ -99,7 +99,7 @@ WHERE document.status='available'
 ORDER BY document.doi;
 
 -- name: ListAvailableDocumentInventory :many
-SELECT document.doi, document.inventoried_at
+SELECT document.doi, document.inventoried_at, document.content_hash, blob.byte_size
 FROM pdf_documents document
 JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
 WHERE document.status='available'
@@ -110,6 +110,7 @@ ORDER BY document.doi;
 SELECT
     d.content_hash,
     d.inventoried_at,
+    d.change_counter,
     b.byte_size
 FROM pdf_documents d
 JOIN pdf_blobs b ON b.content_hash=d.content_hash

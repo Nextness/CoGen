@@ -62,6 +62,7 @@ const getAvailablePDFDocument = `-- name: GetAvailablePDFDocument :one
 SELECT
     d.content_hash,
     d.inventoried_at,
+    d.change_counter,
     b.byte_size
 FROM pdf_documents d
 JOIN pdf_blobs b ON b.content_hash=d.content_hash
@@ -72,13 +73,19 @@ WHERE d.doi = ?1
 type GetAvailablePDFDocumentRow struct {
 	ContentHash   sql.NullString
 	InventoriedAt sql.NullString
+	ChangeCounter int64
 	ByteSize      int64
 }
 
 func (q *Queries) GetAvailablePDFDocument(ctx context.Context, doi string) (GetAvailablePDFDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, getAvailablePDFDocument, doi)
 	var i GetAvailablePDFDocumentRow
-	err := row.Scan(&i.ContentHash, &i.InventoriedAt, &i.ByteSize)
+	err := row.Scan(
+		&i.ContentHash,
+		&i.InventoriedAt,
+		&i.ChangeCounter,
+		&i.ByteSize,
+	)
 	return i, err
 }
 
@@ -212,7 +219,7 @@ func (q *Queries) InsertPDFDocument(ctx context.Context, arg InsertPDFDocumentPa
 }
 
 const listAvailableDocumentInventory = `-- name: ListAvailableDocumentInventory :many
-SELECT document.doi, document.inventoried_at
+SELECT document.doi, document.inventoried_at, document.content_hash, blob.byte_size
 FROM pdf_documents document
 JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
 WHERE document.status='available'
@@ -223,6 +230,8 @@ ORDER BY document.doi
 type ListAvailableDocumentInventoryRow struct {
 	Doi           string
 	InventoriedAt sql.NullString
+	ContentHash   sql.NullString
+	ByteSize      int64
 }
 
 func (q *Queries) ListAvailableDocumentInventory(ctx context.Context, dois []string) ([]ListAvailableDocumentInventoryRow, error) {
@@ -244,7 +253,12 @@ func (q *Queries) ListAvailableDocumentInventory(ctx context.Context, dois []str
 	var items []ListAvailableDocumentInventoryRow
 	for rows.Next() {
 		var i ListAvailableDocumentInventoryRow
-		if err := rows.Scan(&i.Doi, &i.InventoriedAt); err != nil {
+		if err := rows.Scan(
+			&i.Doi,
+			&i.InventoriedAt,
+			&i.ContentHash,
+			&i.ByteSize,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

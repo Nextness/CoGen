@@ -8,6 +8,7 @@ package sql
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const countCurrentNormalizedRevisionsByWork = `-- name: CountCurrentNormalizedRevisionsByWork :one
@@ -203,6 +204,75 @@ func (q *Queries) InsertWorkRevision(ctx context.Context, arg InsertWorkRevision
 		arg.ReferenceCount,
 		arg.ExtensionData,
 	)
+}
+
+const listExportArticles = `-- name: ListExportArticles :many
+SELECT wr.id, wr.work_id, wr.title, w.doi
+FROM work_revisions wr
+JOIN works w ON w.id = wr.work_id
+WHERE wr.pipeline_run_id = ?1
+  AND wr.id IN (/*SLICE:revision_ids*/?)
+  AND wr.producer_stage = 'normalize'
+  AND wr.id = (SELECT MAX(normalized_candidate.id) FROM work_revisions normalized_candidate
+      WHERE normalized_candidate.pipeline_run_id = wr.pipeline_run_id
+        AND normalized_candidate.work_id = wr.work_id
+        AND normalized_candidate.producer_stage = 'normalize')
+  AND EXISTS (SELECT 1 FROM run_work_stages current_validation
+      WHERE current_validation.pipeline_run_id = wr.pipeline_run_id
+        AND current_validation.work_id = wr.work_id
+        AND current_validation.stage_name = 'validate'
+        AND current_validation.outcome = 'valid')
+`
+
+type ListExportArticlesParams struct {
+	PipelineRunID int64
+	RevisionIds   []int64
+}
+
+type ListExportArticlesRow struct {
+	ID     int64
+	WorkID int64
+	Title  sql.NullString
+	Doi    sql.NullString
+}
+
+func (q *Queries) ListExportArticles(ctx context.Context, arg ListExportArticlesParams) ([]ListExportArticlesRow, error) {
+	query := listExportArticles
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.PipelineRunID)
+	if len(arg.RevisionIds) > 0 {
+		for _, v := range arg.RevisionIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:revision_ids*/?", strings.Repeat(",?", len(arg.RevisionIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:revision_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListExportArticlesRow
+	for rows.Next() {
+		var i ListExportArticlesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkID,
+			&i.Title,
+			&i.Doi,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNormalizeRevisionsByRunID = `-- name: ListNormalizeRevisionsByRunID :many

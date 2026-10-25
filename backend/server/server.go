@@ -311,6 +311,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/works/{work_id}/pdf-status", s.workPDFStatus)
 	mux.HandleFunc("PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.saveArticlePDF)
 	mux.HandleFunc("DELETE /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.removeArticlePDF)
+	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/pdf-export", s.exportArticlePDF)
+	mux.HandleFunc("POST /api/runs/{run_id}/pdf-exports", s.exportPDFs)
 	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/pdf", pdfMethodNotAllowed)
 	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/pdf", pdfMethodNotAllowed)
 	mux.HandleFunc("GET /api/pdf/{work_id}", s.workPDF)
@@ -344,7 +346,7 @@ func (s *Server) serveViewPage(file string) http.HandlerFunc {
 // apiResponseByteBudget returns the serialized JSON budget for one API route.
 // Binary PDF and artifact-content routes stream outside this JSON contract.
 func apiResponseByteBudget(path string) int {
-	if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/pdf/") || (strings.HasPrefix(path, "/api/artifacts/") && strings.HasSuffix(path, "/content")) {
+	if !strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/api/pdf/") || isPDFExportPath(path) || (strings.HasPrefix(path, "/api/artifacts/") && strings.HasSuffix(path, "/content")) {
 		return 0
 	}
 	if path == "/api/graph" || strings.HasPrefix(path, "/api/articles/") || strings.HasPrefix(path, "/api/authors/") || strings.HasPrefix(path, "/api/references/") || strings.HasPrefix(path, "/api/tables/") {
@@ -361,6 +363,9 @@ func apiQueryBudget(path string) int {
 	if !strings.HasPrefix(path, "/api/") {
 		return 0
 	}
+	if isPDFExportPath(path) {
+		return detailAPIQueries
+	}
 	if path == "/api/graph" || strings.HasPrefix(path, "/api/articles/") || strings.HasPrefix(path, "/api/authors/") || strings.HasPrefix(path, "/api/references/") || strings.HasPrefix(path, "/api/tables/") || strings.Contains(path, "/review") || strings.Contains(path, "/notes") || strings.Contains(path, "/anchors") || strings.Contains(path, "/links/backlinks") {
 		return detailAPIQueries
 	}
@@ -368,6 +373,11 @@ func apiQueryBudget(path string) int {
 		return collectionAPIQueries
 	}
 	return compactAPIQueries
+}
+
+// isPDFExportPath reports explicit binary export resources outside the JSON byte budget.
+func isPDFExportPath(path string) bool {
+	return strings.HasSuffix(path, "/pdf-export") || strings.HasSuffix(path, "/pdf-exports")
 }
 
 // withAPIResponseBudgets applies the viewer's route policy and stable error envelope.
