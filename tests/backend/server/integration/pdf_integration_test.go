@@ -128,6 +128,14 @@ func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T) {
 		store.Close()
 		t.Fatal(err)
 	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER pdf_blobs_abort_update
+		BEFORE UPDATE ON pdf_blobs
+		BEGIN
+			SELECT RAISE(ABORT, 'pdf_blobs is immutable: updates are not allowed');
+		END`); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}

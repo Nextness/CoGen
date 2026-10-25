@@ -221,7 +221,7 @@ run: build ## Run the workspace pipeline. Override DB, CONFIG, WORKSPACE, and FR
 recover: build ## Mark one abandoned running attempt failed. Requires DB and RUN_ID.
 	./$(BIN) recover --db "$(DB)" --run-id "$(RUN_ID)"
 
-migrate: build ## Apply pending metadata migrations to an existing DB without running a workspace.
+migrate: build ## Prepare both bundle stores and reconcile normalized PDF inventory without a workspace.
 	./$(BIN) migrate --db "$(DB)"
 
 serve: build frontend-build ## Serve DB with frontend assets from ASSETS_DIR (default build/frontend/dist).

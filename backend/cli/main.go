@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"analysis/backend/bundle"
 	"analysis/backend/database"
 	"analysis/backend/logging"
 	"analysis/backend/server"
@@ -20,6 +21,11 @@ import (
 )
 
 var log = logging.Logger("pipeline")
+
+// databaseRegistryPath returns the database registry relative to the repository-root working directory.
+func databaseRegistryPath() string {
+	return filepath.Join("config", "database.something")
+}
 
 // major, minor, and patch are the semantic version components of the binary.
 // Bump them for each release; the version command prints MAJOR.MINOR.PATCH.
@@ -63,8 +69,9 @@ Commands:
           Requires exclusive pipeline ownership; refuses an active writer.
           Flags: --db <path> --run-id <positive integer>
 
-  migrate Apply pending metadata migrations to an existing database
-          without running a workspace.
+  migrate Prepare both the metadata and companion PDF stores for an existing
+          database, then reconcile normalized PDF inventory without running a
+          workspace or creating a research attempt.
 
           Flags:
             --db <path>        Path to an existing SQLite metadata
@@ -129,7 +136,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 }
 
-// migrateMain applies pending metadata migrations to one existing database.
+// migrateMain prepares both bundle stores and reconciles normalized PDF inventory for one existing database.
 func migrateMain(args []string, stderr io.Writer) int {
 	flags := flag.NewFlagSet("migrate", flag.ContinueOnError)
 	dbPath := flags.String("db", "", "path to an existing SQLite metadata database")
@@ -144,10 +151,47 @@ func migrateMain(args []string, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "migrate requires --db")
 		return 2
 	}
-	if err := database.MigrateExisting(*dbPath, filepath.Join("config", "database.something")); err != nil {
-		log.Error("migrate metadata database", "error", err)
+	info, err := os.Stat(*dbPath)
+	if err != nil {
+		log.Error("inspect metadata database", "error", err)
 		return 1
 	}
+	if info.IsDir() {
+		log.Error("metadata database path is a directory", "path", *dbPath)
+		return 1
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	registryPath := databaseRegistryPath()
+	report, err := bundle.PrepareResolved(ctx, registryPath, *dbPath)
+	if err != nil {
+		log.Error("prepare database bundle", "error", err)
+		return 1
+	}
+	log.Info("database bundle prepared",
+		"metadata_target", report.Metadata.Target,
+		"metadata_applied", report.Metadata.Applied,
+		"pdf_target", report.PDF.Target,
+		"pdf_applied", report.PDF.Applied,
+		"pdf_path", report.Resolved.PDF)
+	maintenance, err := database.AcquireMaintenanceLock(ctx, *dbPath, database.MaintenanceShared)
+	if err != nil {
+		log.Error("acquire shared maintenance ownership", "error", err)
+		return 1
+	}
+	defer maintenance.Close()
+	db, err := database.OpenExisting(*dbPath)
+	if err != nil {
+		log.Error("open metadata database", "error", err)
+		return 1
+	}
+	defer db.Close()
+	registered, flushed, err := bundle.SyncInventory(ctx, db, *dbPath, registryPath)
+	if err != nil {
+		log.Error("synchronize normalized PDF inventory", "error", err)
+		return 1
+	}
+	log.Info("PDF inventory synchronized", "registered", registered, "audit_events_flushed", flushed)
 	return 0
 }
 
@@ -181,7 +225,7 @@ func serveMain(args []string, stderr io.Writer) int {
 		log.Error("load frontend assets", "error", err)
 		return 1
 	}
-	viewer, err := server.Open(*dbPath)
+	viewer, err := server.Open(*dbPath, databaseRegistryPath())
 	if err != nil {
 		log.Error("open viewer database", "error", err)
 		return 1

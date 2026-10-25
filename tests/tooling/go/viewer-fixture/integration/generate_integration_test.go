@@ -20,7 +20,7 @@ func TestGeneratedPairRetainsBindingAtCustomPaths(t *testing.T) {
 			if err := viewerfixture.Generate(path, testenv.Path("config/database.something")); err != nil {
 				t.Fatal(err)
 			}
-			viewer, err := server.Open(path)
+			viewer, err := server.Open(path, testenv.Path("config", "database.something"))
 			if err != nil {
 				t.Fatal(err)
 			}

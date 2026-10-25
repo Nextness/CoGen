@@ -547,7 +547,7 @@ func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64) {
 // AssertE2EAPI compares read-only HTTP responses with the database assertions.
 func AssertE2EAPI(t *testing.T, result Result) {
 	t.Helper()
-	viewer, err := server.Open(result.DBPath)
+	viewer, err := server.Open(result.DBPath, testenv.Path("config", "database.something"))
 	if err != nil {
 		t.Fatal(err)
 	}

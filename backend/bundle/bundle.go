@@ -1,7 +1,6 @@
-// Package bundle verifies and prepares the configured metadata and PDF
-// migration chains as one schema pair. It is a focused consumer that
-// application entry points compose; it never imports workspace or server
-// orchestration.
+// Package bundle verifies, prepares, and reconciles the configured metadata
+// and PDF stores as one schema pair. It is a focused consumer that application
+// entry points compose; it never imports workspace or server orchestration.
 package bundle
 
 import (

@@ -499,7 +499,7 @@ type Viewer struct {
 // OpenViewer exercises the actual existing-only server opener before allocating independent test-owned inspection handles.
 func OpenViewer(t *testing.T, path string) (*Viewer, error) {
 	t.Helper()
-	actual, err := subject.Open(path)
+	actual, err := subject.Open(path, testenv.Path("config", "database.something"))
 	if err != nil {
 		return nil, err
 	}

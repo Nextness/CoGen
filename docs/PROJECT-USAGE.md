@@ -42,7 +42,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 
 | Output | Build target | Purpose |
 |---|---|---|
-| `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, serves the loopback-only local review viewer, or runs the internal PDF annotation worker. |
+| `build/analysis` | `make build` | Runs the pipeline, prepares both stores of an existing database bundle, serves the loopback-only local review viewer, or runs the internal PDF annotation worker. |
 | `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
 | `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
 | `build/pdf-export` | `make pdf-export` or `make tools` | Exports stored PDFs selected by DOI to filenames derived from their paper titles, opening both corpus databases read-only. |
@@ -97,14 +97,14 @@ Provider `fields` restricts enrichment application and dependent lookups; an omi
 
 ## 6. Viewer operation and development
 
-Apply pending metadata migrations to an existing database before serving it:
+Prepare both the metadata and companion PDF stores for an existing database before serving it:
 
 ```sh
 make migrate DB=corpus.metadata.db
 ./build/analysis migrate --db ./corpus.metadata.db
 ```
 
-The migration command rejects a missing database and does not run a workspace. When a configured migration explicitly supersedes an equivalent earlier filename already recorded in the database, migration retains the earlier history row and records the canonical filename without rerunning the SQL; operators must not edit migration history manually. The viewer verifies required review tables and append-only triggers at startup but never migrates or repairs the database itself.
+The preparation command rejects a missing metadata database and does not run a workspace or create a research attempt. It applies metadata then PDF migrations, binds and initializes the default companion when no binding exists, rejects an existing binding whose file is missing or unsafe, reconciles normalized DOI inventory, and flushes pending PDF audit delivery. When a configured migration explicitly supersedes an equivalent earlier filename already recorded in the database, preparation retains the earlier history row and records the canonical filename without rerunning the SQL; operators must not edit migration history directly. The viewer verifies both configured schema targets, required review tables, append-only triggers, and companion protection contracts at startup but never migrates or repairs either database itself.
 
 Serve an existing metadata database with the assembled production assets:
 
@@ -121,7 +121,7 @@ make serve DB=corpus.metadata.db ASSETS_DIR=build/frontend/dist
 make dev
 ```
 
-`make dev` builds the frontend assets, generates the default fixture pair, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `build/frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
+`make dev` builds the frontend assets, generates the default fixture pair, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and PDF evidence reads read-only while preparing a separate existing-only companion write connection for validated PDF mutations, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `build/frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
 
 When a frontend change adds or removes a CSS selector, update the owning stylesheet and use the supported registry targets:
 

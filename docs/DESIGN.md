@@ -15,7 +15,7 @@ The viewer inspects historical research runs, manages reversible run visibility,
 - Keep large corpora, audit streams, artifacts, and relationship graphs bounded and navigable.
 - Use semantic HTML, visible focus, text alternatives, and table equivalents so essential information is not encoded only through color or graphics.
 - Work from local assets assembled from `frontend/` sources, with no CDN or application-framework dependency.
-- Preserve privacy through mandatory loopback serving, existing-only metadata writes, a read-only PDF database, bounded mutation and preview inputs, escaped content, and no authentication claims.
+- Preserve privacy through mandatory loopback serving, existing-only metadata writes, read-only PDF evidence with a separate existing-only companion connection prepared for validated PDF mutations, bounded mutation and preview inputs, escaped content, and no authentication claims.
 
 ## 3. Design principles
 

@@ -48,6 +48,7 @@ coverage_policy: coverage_policy_config = {
         ["analysis/backend/cli"]                   => { minimum =  10.0 },
         ["analysis/backend/article"]           => { minimum =  97.0 },
         ["analysis/backend/bibtex"]            => { minimum =  95.0 },
+        ["analysis/backend/bundle"]            => { minimum =  75.0 },
         ["analysis/backend/database"]          => { minimum =  70.0 },
         ["analysis/backend/database/author"]   => { minimum =  90.0 },
         ["analysis/backend/database/author/internal/sql"] => {
@@ -110,6 +111,7 @@ coverage_policy: coverage_policy_config = {
         },
         ["analysis/backend/normalization"]     => { minimum =  82.0 },
         ["analysis/backend/notes"]             => { minimum =  84.0 },
+        ["analysis/backend/pdfannotate"]       => { minimum =  95.0 },
         ["analysis/backend/pdfstore"]          => { minimum =  73.0 },
         ["analysis/backend/pdfstore/internal/sql"] => {
             minimum = 75.0,

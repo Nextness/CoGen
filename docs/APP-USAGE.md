@@ -82,7 +82,7 @@ Corpus → Articles is the single place to browse normalized work, inspect PDF i
 
 The viewer never downloads PDFs from external services and never changes inventory state. An available PDF is rendered locally through the custom vendored PDF.js interface and remains available from the local API with download-safe headers. Manual inventory is performed outside the application using the supported tool described in [PROJECT-USAGE.md](PROJECT-USAGE.md).
 
-Metadata and PDF databases are one portable bundle after inventory begins. If the companion binding or schema is unavailable, the viewer reports unavailable PDF evidence rather than mutating or repairing the store.
+Metadata and PDF databases are one portable bundle after inventory begins. An unbound companion reports unavailable PDF evidence; a bound companion whose file is missing, unsafe, or not at the required schema fails viewer startup instead of mutating or repairing the store.
 
 A completed non-trashed run has at most one review context. Select Start review to open a modal setup surface where you can confirm the proposed earlier parent, choose another same-search context, explicitly include all earlier searches, or start empty. Same-search and all-search loading report their result in the context message below the scope control. Close, Cancel, the dimmed backdrop, or Escape dismiss setup without initializing review. The default proposal prefers an earlier context from the same execution plan and then the same stable search. Initialization freezes matching stable-work version heads at that moment; later parent edits do not change the child.
 
@@ -130,11 +130,11 @@ Light and dark themes follow system preference. Reduced-motion preference suppre
 
 ## 16. Operational checks
 
-The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
+The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, reports both configured schema targets and companion writability, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
 
 JSON API responses expose their serialized-byte ceiling through `X-Response-Byte-Limit`; all API responses expose their SQLite statement ceiling through `X-Query-Count-Limit` and completed use through `X-Query-Count-Used`, which is a response trailer for streamed PDF and artifact downloads. A stable `response_budget_exceeded` or `query_budget_exceeded` response means the requested route crossed its hard resource contract rather than returning incomplete JSON.
 
-If the viewer cannot start, confirm that the metadata path exists, is a file, is writable by the local reviewer, has V00027 and required review triggers, and has been migrated explicitly. If context selectors are empty, confirm that the database contains searches, revisions, plans, and runs. If PDF status is unavailable, confirm the relative companion binding and database move together with metadata. On a database migrated only to V00024, the corpus and article detail pages still work but show No search terms recorded because the term-coverage tables do not exist; V00026 is required for generated anchor IDs and work-scoped labels, while V00027 records completed empty term-match reconciliation.
+If the viewer cannot start, confirm that the metadata path exists, is a file, is writable by the local reviewer, has metadata V00028 and, when bound, PDF V00003 with the required review and companion protection contracts, and has been prepared explicitly with `make migrate`. If context selectors are empty, confirm that the database contains searches, revisions, plans, and runs. If PDF status is unavailable, confirm the relative companion binding and database move together with metadata. A database that has not reached metadata V00028 or, when bound, PDF V00003 fails readiness; run `make migrate` to prepare both stores. The viewer does not serve a partial schema.
 
 ## 17. Current limitations
 

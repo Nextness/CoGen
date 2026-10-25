@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"analysis/backend/bundle"
 	"analysis/backend/database"
 	"analysis/backend/database/artifact"
 	"analysis/backend/database/audit"
@@ -35,7 +36,6 @@ import (
 	"analysis/backend/logging"
 	"analysis/backend/pdfstore"
 	"analysis/internal/httpbudget"
-	"analysis/internal/pathpolicy"
 	"analysis/internal/querybudget"
 	"analysis/internal/sqliteread"
 
@@ -86,36 +86,58 @@ var viewPages = map[string]string{
 // connection while writeDB owns bounded local review and lifecycle mutations.
 // Viewer-facing family data-access layers bind to the server's already opened
 // statement-budgeted connections: the metadata layers share db, the companion
-// PDF layer binds pdfDB, and every method receives the handler's context so
-// cancellation and query counting continue through generated calls.
+// PDF layer binds pdfDB for evidence reads and pdfWriteStore for validated
+// mutations. Every method receives the handler's context so cancellation and
+// query counting continue through generated calls.
 // AssetsFS is the frontend asset file system served at the web root; it must
 // be set because the binary does not embed frontend assets.
 type Server struct {
-	db          *sql.DB
-	artifact    *artifact.Store
-	auditStore  *audit.Store
-	workStore   *work.Store
-	searchStore *search.Store
-	runStore    *run.Store
-	sourceStore *source.Store
-	authorStore *author.Store
-	reviewStore *review.Store
-	cacheStore  *cache.Store
-	pdfBindings *pdfbinding.Store
-	writeDB     *database.Database
-	pdfDB       *sql.DB
-	pdfStore    *pdfstore.Store
-	pdfPath     string
-	pdfCacheMu  sync.Mutex
-	pdfCache    *cachedPDF
-	tables      map[string]tableInfo
-	AssetsFS    fs.FS // serves frontend assets from this filesystem
+	db             *sql.DB
+	artifact       *artifact.Store
+	auditStore     *audit.Store
+	workStore      *work.Store
+	searchStore    *search.Store
+	runStore       *run.Store
+	sourceStore    *source.Store
+	authorStore    *author.Store
+	reviewStore    *review.Store
+	cacheStore     *cache.Store
+	pdfBindings    *pdfbinding.Store
+	writeDB        *database.Database
+	pdfDB          *sql.DB
+	pdfStore       *pdfstore.Store
+	pdfWriteDB     *sql.DB
+	pdfWriteStore  *pdfstore.Store
+	pdfPath        string
+	pdfWritable    bool
+	pdfWriteReason string
+	maintenance    *database.MaintenanceLock
+	metadataActual string
+	metadataTarget string
+	metadataReady  bool
+	pdfActual      string
+	pdfTarget      string
+	pdfReady       bool
+	schemaReady    bool
+	pdfCacheMu     sync.Mutex
+	pdfCache       *cachedPDF
+	tables         map[string]tableInfo
+	AssetsFS       fs.FS // serves frontend assets from this filesystem
 }
 
-// Open opens an existing database without creating it or modifying it.
-func Open(path string) (*Server, error) {
+// maintenanceWaitTimeout bounds startup waiting for an active schema preparation.
+const maintenanceWaitTimeout = 30 * time.Second
+
+// Open opens an existing database without creating it, migrating it, or
+// repairing it. It verifies both configured schema targets, acquires shared
+// maintenance ownership for the server lifetime, and prepares a separate
+// existing-only companion write connection when the PDF store is writable.
+func Open(path, registryPath string) (*Server, error) {
 	if path == "" {
 		return nil, errors.New("database path is required")
+	}
+	if strings.TrimSpace(registryPath) == "" {
+		return nil, errors.New("database registry path is required")
 	}
 	info, err := os.Stat(path)
 	if err != nil {
@@ -131,72 +153,108 @@ func Open(path string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace database path: %w", err)
 	}
+	maintenanceCtx, cancelMaintenance := context.WithTimeout(context.Background(), maintenanceWaitTimeout)
+	maintenance, err := database.AcquireMaintenanceLock(maintenanceCtx, absolute, database.MaintenanceShared)
+	cancelMaintenance()
+	if err != nil {
+		return nil, fmt.Errorf("acquire shared maintenance ownership: %w", err)
+	}
+	s := &Server{maintenance: maintenance}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = s.Close()
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	readiness, err := bundle.VerifyMetadataReadiness(ctx, registryPath, absolute)
+	if err != nil {
+		return nil, fmt.Errorf("verify metadata readiness: %w", err)
+	}
+	s.metadataActual = readiness.Metadata
+	s.metadataTarget = readiness.MetadataTarget
+	s.metadataReady = true
 	db, err := sqliteread.Open(absolute, queryBudgetDriverName)
 	if err != nil {
 		return nil, fmt.Errorf("open workspace database read-only: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	defer cancel()
+	s.db = db
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
 		return nil, fmt.Errorf("read workspace database: %w", err)
 	}
-	s := &Server{
-		db:          db,
-		artifact:    artifact.New(db),
-		auditStore:  audit.New(db),
-		workStore:   work.New(db),
-		searchStore: search.New(db),
-		runStore:    run.New(db),
-		sourceStore: source.New(db),
-		authorStore: author.New(db),
-		reviewStore: review.New(db),
-		cacheStore:  cache.New(db),
-		pdfBindings: pdfbinding.New(db),
-	}
+	s.artifact = artifact.New(db)
+	s.auditStore = audit.New(db)
+	s.workStore = work.New(db)
+	s.searchStore = search.New(db)
+	s.runStore = run.New(db)
+	s.sourceStore = source.New(db)
+	s.authorStore = author.New(db)
+	s.reviewStore = review.New(db)
+	s.cacheStore = cache.New(db)
+	s.pdfBindings = pdfbinding.New(db)
 	if err := s.discoverTables(ctx); err != nil {
-		db.Close()
 		return nil, err
 	}
 	if err := s.verifyReviewSchema(ctx); err != nil {
-		db.Close()
 		return nil, err
 	}
 	writeDB, err := database.OpenExistingWithDriver(absolute, queryBudgetDriverName)
 	if err != nil {
-		db.Close()
 		return nil, fmt.Errorf("open metadata mutation connection: %w", err)
 	}
 	s.writeDB = writeDB
-	if err := s.openBoundPDFStore(ctx, filepath.Dir(absolute)); err != nil {
-		writeDB.Close()
-		db.Close()
+	if err := s.openBoundPDFStore(ctx, absolute, registryPath); err != nil {
 		return nil, err
 	}
+	s.schemaReady = s.metadataReady && s.pdfReady
+	cleanup = false
 	return s, nil
 }
 
 // Close releases resources owned by the receiver.
 func (s *Server) Close() error {
 	var first error
-	if s.pdfDB != nil {
-		if err := s.pdfDB.Close(); err != nil {
+	if s.pdfWriteDB != nil {
+		if err := s.pdfWriteDB.Close(); err != nil {
 			first = err
 		}
+		s.pdfWriteDB = nil
+		s.pdfWriteStore = nil
+	}
+	if s.pdfDB != nil {
+		if err := s.pdfDB.Close(); err != nil && first == nil {
+			first = err
+		}
+		s.pdfDB = nil
+		s.pdfStore = nil
 	}
 	if s.writeDB != nil {
 		if err := s.writeDB.Close(); err != nil && first == nil {
 			first = err
 		}
+		s.writeDB = nil
 	}
-	if err := s.db.Close(); err != nil && first == nil {
-		first = err
+	if s.db != nil {
+		if err := s.db.Close(); err != nil && first == nil {
+			first = err
+		}
+		s.db = nil
+	}
+	if s.maintenance != nil {
+		if err := s.maintenance.Close(); err != nil && first == nil {
+			first = err
+		}
+		s.maintenance = nil
 	}
 	return first
 }
 
 // PDFStoreBound reports whether a readable companion PDF database is attached.
 func (s *Server) PDFStoreBound() bool { return s.pdfDB != nil }
+
+// PDFStoreWritable reports whether a writable companion connection is attached.
+func (s *Server) PDFStoreWritable() bool { return s.pdfWriteDB != nil }
 
 // Handler returns the local API and frontend handler.
 func (s *Server) Handler() http.Handler {
@@ -309,72 +367,82 @@ func withAPIResponseBudgets(next http.Handler) http.Handler {
 	}, writeDetailedError)
 }
 
-// openBoundPDFStore resolves and opens the companion PDF database declared by metadata.
-func (s *Server) openBoundPDFStore(ctx context.Context, metadataDir string) error {
+// openBoundPDFStore resolves, verifies, and opens the companion PDF database declared by metadata.
+func (s *Server) openBoundPDFStore(ctx context.Context, metadataPath, registryPath string) error {
 	if !s.hasTable("pdf_store_binding") {
-		return nil
+		return fmt.Errorf("metadata schema is missing the PDF store binding table; run analysis migrate")
 	}
 	relativePath, found, err := s.pdfBindings.Binding(ctx)
 	if err != nil {
 		return err
 	}
 	if !found {
+		s.pdfTarget = bundle.SupportedPair.PDF
+		s.pdfReady = true
+		s.pdfWriteReason = "no PDF store binding"
 		return nil
 	}
 	if filepath.IsAbs(relativePath) {
 		return fmt.Errorf("bound PDF store path must be relative")
 	}
-	resolvedStorePath, err := pathpolicy.ResolveExistingWithin(metadataDir, relativePath)
+	resolvedStorePath, err := pdfbinding.ResolveStorePath(metadataPath, relativePath)
 	if err != nil {
 		return fmt.Errorf("resolve bound PDF store: %w", err)
 	}
 	info, err := os.Stat(resolvedStorePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("bound PDF store %q is missing; restore it or update the metadata binding instead of creating an empty replacement", relativePath)
+		}
 		return fmt.Errorf("inspect bound PDF store: %w", err)
 	}
 	if !info.Mode().IsRegular() {
 		return fmt.Errorf("bound PDF store path is not a regular file")
 	}
+	readiness, err := bundle.VerifyPDFReadiness(ctx, registryPath, resolvedStorePath)
+	if err != nil {
+		return fmt.Errorf("verify PDF store readiness: %w", err)
+	}
+	s.pdfActual = readiness.PDF
+	s.pdfTarget = readiness.PDFTarget
+	s.pdfReady = true
 	pdfDB, err := sqliteread.Open(resolvedStorePath, queryBudgetDriverName)
 	if err != nil {
 		return fmt.Errorf("open PDF store read-only: %w", err)
 	}
 	if err := pdfDB.PingContext(ctx); err != nil {
-		pdfDB.Close()
+		_ = pdfDB.Close()
 		return fmt.Errorf("read PDF store: %w", err)
 	}
-	requiredTables := []struct {
-		name    string
-		columns []string
-	}{
-		{"pdf_blobs", []string{"content_hash", "byte_size", "data"}},
-		{"pdf_documents", []string{"doi", "status", "content_hash", "inventoried_at"}},
+	if err := pdfstore.VerifySchema(ctx, pdfDB); err != nil {
+		_ = pdfDB.Close()
+		return fmt.Errorf("verify PDF store schema: %w", err)
 	}
-	for _, required := range requiredTables {
-		var found int
-		if err := pdfDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master
-			WHERE type='table' AND name=?`, required.name).Scan(&found); err != nil {
-			pdfDB.Close()
-			return fmt.Errorf("inspect PDF store schema: %w", err)
-		}
-		if found != 1 {
-			pdfDB.Close()
-			return fmt.Errorf("bound PDF store is missing required table %q", required.name)
-		}
-		columns, err := pdfTableColumns(ctx, pdfDB, required.name)
-		if err != nil {
-			pdfDB.Close()
-			return err
-		}
-		for _, column := range required.columns {
-			if !columns[column] {
-				pdfDB.Close()
-				return fmt.Errorf("bound PDF store table %q is missing required column %q; run the workspace pipeline to apply companion migrations", required.name, column)
-			}
-		}
+	s.pdfDB = pdfDB
+	s.pdfStore = pdfstore.New(pdfDB)
+	s.pdfPath = resolvedStorePath
+	if err := writableFile(resolvedStorePath); err != nil {
+		s.pdfWriteReason = fmt.Sprintf("PDF store is read-only: %v", err)
+		return nil
 	}
-	s.pdfDB, s.pdfStore, s.pdfPath = pdfDB, pdfstore.New(pdfDB), resolvedStorePath
+	pdfWriteDB, err := database.OpenExistingConnectionWithDriver(resolvedStorePath, queryBudgetDriverName)
+	if err != nil {
+		s.pdfWriteReason = fmt.Sprintf("PDF store write connection unavailable: %v", err)
+		return nil
+	}
+	s.pdfWriteDB = pdfWriteDB
+	s.pdfWriteStore = pdfstore.New(pdfWriteDB)
+	s.pdfWritable = true
 	return nil
+}
+
+// writableFile verifies that a companion file can be opened for writing without changing it.
+func writableFile(path string) error {
+	file, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	return file.Close()
 }
 
 // HTTPServer returns a conservatively configured local HTTP server.

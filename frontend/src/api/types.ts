@@ -68,6 +68,13 @@ export interface TableRowsResponse extends TabularResponse {
   pagination: ScopedPagination;
 }
 
+/** One database schema endpoint and readiness state reported by health. */
+export interface SchemaStatus {
+  actual: string;
+  target: string;
+  ready: boolean;
+}
+
 /** Immutable viewer capabilities reported by the health endpoint. */
 export interface HealthResponse {
   readable: boolean;
@@ -78,6 +85,13 @@ export interface HealthResponse {
   review_writable: boolean;
   pdf_store_bound: boolean;
   pdf_store_readable: boolean;
+  pdf_store_writable: boolean;
+  pdf_store_write_reason: string;
+  schema: {
+    metadata: SchemaStatus;
+    pdf: SchemaStatus;
+    ready: boolean;
+  };
   review: {
     available: boolean;
     metadata_writable: boolean;

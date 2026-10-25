@@ -159,29 +159,6 @@ func (s *Server) verifyReviewSchema(ctx context.Context) error {
 	return nil
 }
 
-// pdfTableColumns returns the discovered columns for a companion PDF table.
-func pdfTableColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", table))
-	if err != nil {
-		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-	}
-	defer rows.Close()
-	columns := make(map[string]bool)
-	for rows.Next() {
-		var cid, notNull, primaryKey int
-		var name, columnType string
-		var defaultValue any
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-		}
-		columns[name] = true
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("inspect PDF store table %q: %w", table, err)
-	}
-	return columns, nil
-}
-
 var permittedAdvancedPageSizes = map[int]bool{20: true, 50: true, 100: true}
 
 const (

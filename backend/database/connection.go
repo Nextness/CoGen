@@ -47,7 +47,15 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 // platform's existing-only writable connection settings. It never creates the
 // file, changes journal mode, or applies migrations. The caller owns Close.
 func OpenExistingConnection(dbPath string) (*sql.DB, error) {
-	conn, _, err := openExistingSQLite(dbPath, "sqlite")
+	return OpenExistingConnectionWithDriver(dbPath, "sqlite")
+}
+
+// OpenExistingConnectionWithDriver opens an existing SQLite database through a
+// caller-provided registered driver with existing-only settings. It never
+// creates the file, changes journal mode, or applies migrations. The caller
+// owns Close.
+func OpenExistingConnectionWithDriver(dbPath, driverName string) (*sql.DB, error) {
+	conn, _, err := openExistingSQLite(dbPath, driverName)
 	return conn, err
 }
 
@@ -76,7 +84,7 @@ func openExistingSQLite(dbPath, driverName string) (*sql.DB, string, error) {
 	uri := sqliteuri.File(absolute, map[string][]string{
 		"mode":    {"rw"},
 		"_txlock": {"immediate"},
-		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)", "secure_delete(1)"},
 	})
 	conn, err := sql.Open(driverName, uri)
 	if err != nil {

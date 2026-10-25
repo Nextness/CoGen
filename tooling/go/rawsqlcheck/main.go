@@ -43,9 +43,9 @@ var approvedLocations = []ownership.Location{
 		Reason:   "the table browser selects discovered, allowlisted table and column identifiers that cannot be generated.",
 	},
 	{
-		Path:     "backend/server/server.go",
+		Path:     "backend/pdfstore/schema.go",
 		Category: "introspection",
-		Reason:   "companion schema verification inspects table and column existence before serving.",
+		Reason:   "companion readiness verifies document-management columns, indexes, and protection triggers before writes.",
 	},
 	{
 		Path:     "tooling/go/prepare-osf/main.go",

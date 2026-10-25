@@ -84,7 +84,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 
 ## 9. SQLite, SQL, and generated-code standards
 
-- Use `database.Open` only for migration-running pipeline paths, `database.OpenExisting` for an existing metadata file that must not be migrated or created, and `server.Open` for the viewer's coordinated read, review-write, and read-only PDF lifecycle.
+- Use `backend/bundle/` preparation for paired schema upgrades, `database.OpenWritable` with `database.New` for the pipeline after preparation, `database.OpenExisting` for existing-only metadata operations, and `server.Open` for the viewer's coordinated metadata read, review-write, PDF evidence-read, and optional PDF write lifecycle.
 - Keep foreign keys enabled, retain connection busy timeouts, and preserve `BEGIN IMMEDIATE` migration serialization.
 - Use family-local nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
 - Keep raw SQL calls inside classified ownership locations: platform migrations and connections, the viewer query-budget driver wrapper, dynamic table introspection, sanitized export maintenance, the cross-database outbox, or a retained `*_dynamic.go` reader. Dynamic SQL is an explicit exception rather than a default: prefer finite named query variants, and confine any retained builder to closed SQL fragments, bound values, allowlisted identifiers, and hard limits with injection and ordering tests. Run `make check-sql` after adding or moving a call; an unclassified call or a stale ownership entry fails with the file and the expected remediation, and `make sql-report` prints the current inventory.
@@ -129,6 +129,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Enforce the 20,000,000-byte limit, `%PDF-` signature, SHA-256 content identity, prior normalized registration, and unchanged selection for already available documents.
 - Keep metadata and companion paths bundle-relative and reject absolute or escaping bindings.
 - Write PDF audit evidence through the transactional outbox and preserve idempotent cross-database delivery.
+- Verify the companion V00003 document-management columns, content-hash index, outbox evidence columns, and protection triggers before enabling writes; a current-schema companion without write permission may still serve evidence with an explicit non-writable capability.
 - Do not add automatic acquisition, replacement, deletion, or filesystem compatibility without an approved requirement.
 - Keep review context, note, link, anchor, geometry, and reviewer data in metadata. The viewer may read PDF availability and bytes but never writes the companion for review behavior.
 - Bind anchor geometry to an exact work revision and PDF content hash, validate one-page finite normalized rectangles, and refuse to project geometry when the current content hash differs.
