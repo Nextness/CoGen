@@ -58,6 +58,41 @@ func TestServerOpenRejectsOutdatedPDF(t *testing.T) {
 	}
 }
 
+// TestServerOpenRejectsMissingPDFProtection verifies mutation capability is not
+// advertised when the companion schema lacks an S02 protection trigger.
+func TestServerOpenRejectsMissingPDFProtection(t *testing.T) {
+	ctx := context.Background()
+	registry := testenv.Path("config", "database.something")
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "corpus.metadata.db")
+	pdfPath := filepath.Join(tempDir, pdfbinding.DefaultStoreFilename)
+	db, err := testfixture.Open(dbPath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.PDFBindings.EnsureBinding(ctx, pdfbinding.DefaultStoreFilename); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err := pdfstore.Open(pdfPath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`DROP TRIGGER pdf_documents_advance_counter`); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.Open(dbPath, registry); err == nil || !strings.Contains(err.Error(), "pdf_documents_advance_counter") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 // TestServerOpenAcceptsReadOnlyCurrentPDF verifies read-only evidence remains available with an explicit capability.
 func TestServerOpenAcceptsReadOnlyCurrentPDF(t *testing.T) {
 	ctx := context.Background()

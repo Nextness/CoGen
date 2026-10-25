@@ -435,9 +435,39 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataPath, registryPa
 		s.pdfWriteReason = fmt.Sprintf("PDF store write connection unavailable: %v", err)
 		return nil
 	}
+	if err := verifyPDFMutationConnection(ctx, pdfWriteDB); err != nil {
+		_ = pdfWriteDB.Close()
+		s.pdfWriteReason = fmt.Sprintf("PDF store write connection is not safely configured: %v", err)
+		return nil
+	}
 	s.pdfWriteDB = pdfWriteDB
 	s.pdfWriteStore = pdfstore.New(pdfWriteDB)
 	s.pdfWritable = true
+	return nil
+}
+
+// verifyPDFMutationConnection proves the existing-only mutation connection has
+// the locking, foreign-key, and secure-deletion settings required by S03
+// conditional writes before the server advertises write capability.
+func verifyPDFMutationConnection(ctx context.Context, db *sql.DB) error {
+	checks := []struct {
+		pragma string
+		want   int
+	}{
+		{"foreign_keys", 1},
+		{"busy_timeout", 5000},
+		{"secure_delete", 1},
+		{"query_only", 0},
+	}
+	for _, check := range checks {
+		var actual int
+		if err := db.QueryRowContext(ctx, "PRAGMA "+check.pragma).Scan(&actual); err != nil {
+			return fmt.Errorf("read PRAGMA %s: %w", check.pragma, err)
+		}
+		if actual != check.want {
+			return fmt.Errorf("PRAGMA %s is %d, want %d", check.pragma, actual, check.want)
+		}
+	}
 	return nil
 }
 
