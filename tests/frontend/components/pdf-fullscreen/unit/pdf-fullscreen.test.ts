@@ -104,6 +104,27 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
+  it("exits fallback expansion and restores the drawer on PDF content change", function() {
+    const { workspace, button } = buildWorkspace();
+    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+
+    buttonClick(button);
+    const edge = workspace.querySelector<HTMLButtonElement>("[data-drawer-edge]")!;
+    edge.click();
+    assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), true);
+    assert.equal(workspace.classList.contains("rw-reading-workspace--drawer-collapsed"), true);
+
+    workspace.dispatchEvent(new CustomEvent("rw-pdf-content-changed"));
+    assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), false);
+    assert.equal(workspace.classList.contains("rw-reading-workspace--drawer-collapsed"), false);
+    assert.equal(workspace.querySelector("[data-drawer-edge]"), null);
+    assert.equal(button.textContent, "Fullscreen");
+    assert.equal(button.getAttribute("aria-pressed"), "false");
+
+    controller.destroy();
+    workspace.remove();
+  });
+
   it("closes the fallback expansion on Escape", function() {
     const { workspace } = buildWorkspace();
     const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });

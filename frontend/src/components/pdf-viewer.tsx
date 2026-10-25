@@ -362,7 +362,9 @@ export async function mountPDFViewer(host: HTMLElement, options: PDFViewerOption
 
   /** Clamps and renders a requested current page. */
   function changePage(next: unknown): void {
-    pageNumber = Math.max(1, Math.min(document.numPages, Number(next) || pageNumber));
+    const requested = Number(next);
+    const normalized = Number.isFinite(requested) ? requested : pageNumber;
+    pageNumber = Math.max(1, Math.min(document.numPages, normalized));
     void requestRender();
   }
   host.querySelector("[data-pdf-previous]")!.addEventListener("click", () => { changePage(pageNumber - 1); });

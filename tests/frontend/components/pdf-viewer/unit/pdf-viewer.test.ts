@@ -107,6 +107,84 @@ describe("pdf-viewer.tsx", function() {
     host.remove();
   });
 
+  it("clamps page navigation at both document boundaries", async function() {
+    const documentMock = {
+      numPages: 2,
+      getPage: async () => {
+        return {
+          getViewport: () => {
+            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+          },
+          render: () => {
+            return { cancel: () => {}, promise: Promise.resolve() };
+          },
+          getTextContent: async () => {
+            return { items: [], styles: {} };
+          },
+        };
+      },
+      destroy: async () => {},
+    };
+    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const pdfjsMock = {
+      GlobalWorkerOptions: {},
+      Util: { transform: (_viewport: unknown, item: unknown) => item },
+      getDocument: () => loadingTask,
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const controller = await mountPDFViewer(host, { url: "/fixture.pdf", page: 99 }, async () => {
+      return pdfjsMock;
+    });
+    assert.equal((host.querySelector(".rw-pdf-page") as HTMLElement).dataset.pdfPageNumber, "2");
+    controller.goToPage(0);
+    await waitForStatus(host, "PDF page 1 of 2.");
+    assert.equal((host.querySelector(".rw-pdf-page") as HTMLElement).dataset.pdfPageNumber, "1");
+    assert.equal((host.querySelector("[data-pdf-previous]") as HTMLButtonElement).disabled, true);
+    await controller.destroy();
+    host.remove();
+  });
+
+  it("destroys the PDF document, loading task, and host on teardown", async function() {
+    var documentDestroyed = false;
+    var taskDestroyed = false;
+    const documentMock = {
+      numPages: 1,
+      getPage: async () => {
+        return {
+          getViewport: () => {
+            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+          },
+          render: () => {
+            return { cancel: () => {}, promise: Promise.resolve() };
+          },
+          getTextContent: async () => {
+            return { items: [], styles: {} };
+          },
+        };
+      },
+      destroy: async () => {
+        documentDestroyed = true;
+      },
+    };
+    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {
+      taskDestroyed = true;
+    } };
+    const pdfjsMock = {
+      GlobalWorkerOptions: {},
+      Util: { transform: (_viewport: unknown, item: unknown) => item },
+      getDocument: () => loadingTask,
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const controller = await mountPDFViewer(host, { url: "/fixture.pdf", page: 1 }, async () => pdfjsMock);
+    await controller.destroy();
+    assert.equal(documentDestroyed, true);
+    assert.equal(taskDestroyed, true);
+    assert.equal(host.textContent, "");
+    host.remove();
+  });
+
   it("renders the fullscreen toggle and calls onFullscreenToggle", async function() {
     const documentMock = {
       numPages: 1,

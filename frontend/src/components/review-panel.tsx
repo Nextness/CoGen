@@ -313,6 +313,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
 
   /** Loads and binds complete status state, history, notes, PDF, and anchors. */
   async function renderReview(): Promise<void> {
+    anchorsLoaded = false;
+    loadedAnchors = [];
+    anchorCursor = "";
+    anchorHasMore = false;
     const data = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`);
     reviewEditable = data.editability?.decision ?? data.editable;
     notesEditable = data.editability?.notes ?? data.editable;
