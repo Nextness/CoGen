@@ -2615,6 +2615,15 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestSyncInventoryRegistersNormalizedWorksWithoutResearchAttempt`](../tests/backend/bundle/integration/sync_integration_test.go#L18) | test | 18-85 | `func TestSyncInventoryRegistersNormalizedWorksWithoutResearchAttempt(t *testing.T)` | TestSyncInventoryRegistersNormalizedWorksWithoutResearchAttempt verifies inventory synchronization stays idempotent. |
 
+### [`tests/backend/bundle/integration/upgrade_integration_test.go`](../tests/backend/bundle/integration/upgrade_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestPrepareAdoptsSupersededAnchorMigration`](../tests/backend/bundle/integration/upgrade_integration_test.go#L21) | test | 21-79 | `func TestPrepareAdoptsSupersededAnchorMigration(t *testing.T)` | TestPrepareAdoptsSupersededAnchorMigration verifies a database that recorded the earlier anchor-label filename adopts the canonical migration without rerunning its SQL, then finishes both chains forward. |
+| [`TestPrepareRejectsMissingAppliedStepBeforeChangingEitherStore`](../tests/backend/bundle/integration/upgrade_integration_test.go#L83) | test | 83-119 | `func TestPrepareRejectsMissingAppliedStepBeforeChangingEitherStore(t *testing.T)` | TestPrepareRejectsMissingAppliedStepBeforeChangingEitherStore verifies a ledger with a gap is rejected before the pending metadata step is applied. |
+| [`TestPrepareRejectsFuturePDFStepBeforeChangingMetadata`](../tests/backend/bundle/integration/upgrade_integration_test.go#L123) | test | 123-160 | `func TestPrepareRejectsFuturePDFStepBeforeChangingMetadata(t *testing.T)` | TestPrepareRejectsFuturePDFStepBeforeChangingMetadata verifies future companion history is rejected before the metadata store advances. |
+| [`TestPrepareCurrentPopulatedPairIsNoOp`](../tests/backend/bundle/integration/upgrade_integration_test.go#L164) | test | 164-202 | `func TestPrepareCurrentPopulatedPairIsNoOp(t *testing.T)` | TestPrepareCurrentPopulatedPairIsNoOp verifies a current pair with preserved evidence reaches no pending steps, creates no research attempt, and remains readable. |
+
 ### [`tests/backend/bundle/unit/bundle_unit_test.go`](../tests/backend/bundle/unit/bundle_unit_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3653,6 +3662,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestNewBindsConfiguredConnectionWithoutSideEffects`](../tests/backend/pdfstore/integration/constructor_integration_test.go#L19) | test | 19-80 | `func TestNewBindsConfiguredConnectionWithoutSideEffects(t *testing.T)` | TestNewBindsConfiguredConnectionWithoutSideEffects verifies the constructor neither opens, closes, reconfigures, nor migrates the supplied connection. |
+
+### [`tests/backend/pdfstore/integration/migration_integration_test.go`](../tests/backend/pdfstore/integration/migration_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`seedCompanionV00002`](../tests/backend/pdfstore/integration/migration_integration_test.go#L23) | function | 23-71 | `func seedCompanionV00002(t *testing.T, path string)` | seedCompanionV00002 inserts populated legacy evidence before the V00003 upgrade. |
+| [`TestProductionCompanionUpgradePreservesLegacyEvidence`](../tests/backend/pdfstore/integration/migration_integration_test.go#L76) | test | 76-173 | `func TestProductionCompanionUpgradePreservesLegacyEvidence(t *testing.T)` | TestProductionCompanionUpgradePreservesLegacyEvidence verifies V00003 keeps documents, blobs, attempts, IDs, sequence state, triggers, and pending outbox rows while removing the attempt-to-blob retention foreign key. |
+| [`queryCompanionOne`](../tests/backend/pdfstore/integration/migration_integration_test.go#L176) | function | 176-183 | `func queryCompanionOne[T any](t *testing.T, db *sql.DB, query string, args ...any) T` | queryCompanionOne runs one bounded inspection query. |
+| [`companionForeignKeyTables`](../tests/backend/pdfstore/integration/migration_integration_test.go#L186) | function | 186-206 | `func companionForeignKeyTables(t *testing.T, db *sql.DB, table string) []string` | companionForeignKeyTables returns the referenced tables of one table's foreign keys. |
+| [`companionForeignKeyViolations`](../tests/backend/pdfstore/integration/migration_integration_test.go#L209) | function | 209-230 | `func companionForeignKeyViolations(t *testing.T, db *sql.DB) []string` | companionForeignKeyViolations returns every foreign-key violation row. |
+| [`appliedCompanionMigrations`](../tests/backend/pdfstore/integration/migration_integration_test.go#L233) | function | 233-248 | `func appliedCompanionMigrations(t *testing.T, path string) []string` | appliedCompanionMigrations reads one companion store's migration history. |
 
 ### [`tests/backend/pdfstore/integration/schema_integration_test.go`](../tests/backend/pdfstore/integration/schema_integration_test.go)
 
