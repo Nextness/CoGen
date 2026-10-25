@@ -87,6 +87,14 @@ func TestAnchorTombstoneSurvivesPDFRemoval(t *testing.T) {
 		t.Fatalf("remove PDF = %d %v", code, removed)
 	}
 	versionPath := fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID)
+	status, review := serverhelpers.RequestJSON(t, handler, fmt.Sprintf("/api/runs/%d/articles/%d/review", fixture.RunID, fixture.RevisionID))
+	if status != http.StatusOK {
+		t.Fatalf("article review after removal = %d %v", status, review)
+	}
+	editability := review["editability"].(map[string]any)
+	if editability["anchors"] != false || editability["anchor_removal"] != true {
+		t.Fatalf("anchor editability after removal = %v", editability)
+	}
 	active := fmt.Sprintf(`{"expected_version_id":%d,"state":"active","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, versionID, hash)
 	if code, body := mutationJSON(t, handler, http.MethodPost, versionPath, active, ""); code != http.StatusConflict || body["error"].(map[string]any)["code"] != "pdf_unavailable" {
 		t.Fatalf("active edit after removal = %d %v", code, body)

@@ -131,6 +131,15 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
   };
   workspace.addEventListener("rw-pdf-selection", selectionHandler);
 
+  const contentChangeHandler = (): void => {
+    if (document.fullscreenElement === workspace && document.exitFullscreen) {
+      void document.exitFullscreen();
+    }
+    fallbackExpand.close();
+    syncState();
+  };
+  workspace.addEventListener("rw-pdf-content-changed", contentChangeHandler);
+
   return {
     destroy: (): void => {
       if (destroyed) return;
@@ -139,6 +148,7 @@ export function mountPDFFullscreen(options: { workspace: HTMLElement; reviewHost
       document.removeEventListener("fullscreenchange", fullscreenHandler);
       document.removeEventListener("keydown", escapeHandler);
       workspace.removeEventListener("rw-pdf-selection", selectionHandler);
+      workspace.removeEventListener("rw-pdf-content-changed", contentChangeHandler);
       if (document.fullscreenElement === workspace && document.exitFullscreen) {
         void document.exitFullscreen();
       }

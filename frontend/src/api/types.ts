@@ -774,6 +774,7 @@ export interface ArticleReviewResponse {
     decision: boolean;
     notes: boolean;
     anchors: boolean;
+    anchor_removal: boolean;
   };
   review?: WorkReviewState;
   state: {

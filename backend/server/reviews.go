@@ -195,9 +195,10 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 		"editable":            false,
 		"pdf_status":          pdfStatus,
 		"editability": map[string]any{
-			"decision": false,
-			"notes":    false,
-			"anchors":  false,
+			"decision":       false,
+			"notes":          false,
+			"anchors":        false,
+			"anchor_removal": false,
 		},
 		"state": map[string]any{
 			"status":       "not_evaluated",
@@ -220,9 +221,10 @@ func (s *Server) articleReview(w http.ResponseWriter, r *http.Request) {
 	writable := run.Status == "completed" && run.Visibility != "trashed"
 	base["editable"] = writable
 	base["editability"] = map[string]any{
-		"decision": writable,
-		"notes":    writable,
-		"anchors":  writable && pdfStatus["status"] == "available",
+		"decision":       writable,
+		"notes":          writable,
+		"anchors":        writable && pdfStatus["status"] == "available",
+		"anchor_removal": writable,
 	}
 	counts, err := s.reviewSummaryCounts(ctx, contextRecord.ID, workID)
 	if err == nil {

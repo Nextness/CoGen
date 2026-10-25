@@ -777,6 +777,7 @@ async function validateArticleReview(request: APIRequestContext): Promise<void> 
   expectBoolean(body.editability.decision, 'articleReview.editability.decision');
   expectBoolean(body.editability.notes, 'articleReview.editability.notes');
   expectBoolean(body.editability.anchors, 'articleReview.editability.anchors');
+  expectBoolean(body.editability.anchor_removal, 'articleReview.editability.anchor_removal');
   expectObject(body.state, 'articleReview.state');
   expectString(body.state.status, 'articleReview.state.status');
   expectStringArray(body.state.sub_statuses, 'articleReview.state.sub_statuses');

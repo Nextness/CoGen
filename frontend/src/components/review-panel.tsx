@@ -6,6 +6,7 @@ import type {
   ArticleRecord,
   ArticleReviewResponse,
   HealthResponse,
+  PDFStatus,
   ReviewAnchor,
   ReviewAnchorVersion,
   ReviewAnchorCreateResponse,
@@ -99,6 +100,12 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   let reviewEditable = false;
   let notesEditable = false;
   let anchorsEditable = false;
+  let anchorRemovalEditable = false;
+  let anchorsLoaded = false;
+  let currentPDFStatus: PDFStatus = detailData.pdf_status;
+  let currentPDFHash = detailData.pdf_status?.content_hash || "";
+  let pdfRefreshPromise: Promise<boolean> | null = null;
+  let destroyed = false;
   let loadedAnchors: AnchorHead[] = [];
   let anchorCursor = "";
   let anchorHasMore = false;
@@ -107,24 +114,49 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     setReviewSection(name);
   };
 
-  if (detailData.pdf_status?.status === "available" && pdfHost) {
-    const pdfHash = detailData.pdf_status?.content_hash;
-    const pdfURL = pdfHash ? `/api/pdf/${workID}?content_hash=${encodeURIComponent(pdfHash)}` : `/api/pdf/${workID}`;
+  await mountReader();
+
+  /** Mounts or remounts the reader against the current PDF status and hash. */
+  async function mountReader(): Promise<void> {
+    if (destroyed || !pdfHost) return;
+    if (pdfController) {
+      await pdfController.destroy();
+      pdfController = null;
+    }
+    pdfHost.textContent = "";
+    if (currentPDFStatus?.status !== "available") {
+      const unavailableMarkup = <p className={classNames.uiNegativeMessage}>The selected PDF is not available. Existing anchor history remains readable, and active anchors can still be removed.</p>;
+      renderTree(unavailableMarkup, pdfHost);
+      return;
+    }
+    const pdfURL = currentPDFHash ? `/api/pdf/${workID}?content_hash=${encodeURIComponent(currentPDFHash)}` : `/api/pdf/${workID}`;
     pdfController = await mountPDFViewer(pdfHost, {
       url: pdfURL,
       page: Number(value("pdf_page") || 1),
       onPageChange: (page: number) => {
         replaceState({ pdf_page: page });
+        void refreshPDFState().catch(() => {});
       },
       onSelection: (selection: PDFSelection) => {
-        pendingSelection = selection;
-        host.closest(".rw-reading-workspace")?.dispatchEvent(new CustomEvent("rw-pdf-selection"));
-        void activateReviewSection("anchors").then(() => {
-          renderAnchorCandidate();
-          const anchorLabel = host.querySelector<HTMLInputElement>("[data-anchor-label]");
-          anchorLabel?.focus();
-          const candidate = host.querySelector<HTMLElement>("[data-anchor-candidate]");
-          candidate?.scrollIntoView({ block: "nearest" });
+        void refreshPDFState().then((changed) => {
+          if (changed) {
+            pendingSelection = null;
+            const status = pdfHost?.querySelector<HTMLElement>("[data-pdf-status]");
+            if (status) status.textContent = "The PDF changed. Select text again after the reader refreshes.";
+            return;
+          }
+          pendingSelection = selection;
+          host.closest(".rw-reading-workspace")?.dispatchEvent(new CustomEvent("rw-pdf-selection"));
+          void activateReviewSection("anchors").then(() => {
+            renderAnchorCandidate();
+            const anchorLabel = host.querySelector<HTMLInputElement>("[data-anchor-label]");
+            anchorLabel?.focus();
+            const candidate = host.querySelector<HTMLElement>("[data-anchor-candidate]");
+            candidate?.scrollIntoView({ block: "nearest" });
+          });
+        }).catch((error: unknown) => {
+          const status = pdfHost?.querySelector<HTMLElement>("[data-pdf-status]");
+          if (status) status.textContent = apiErrorMessage(error, "The PDF state could not be refreshed.");
         });
       },
     }).catch((error: unknown) => {
@@ -133,6 +165,51 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       return null;
     });
   }
+
+  /** Revalidates the authoritative PDF selection on focus and before PDF-bound mutations. */
+  async function refreshPDFState(): Promise<boolean> {
+    if (destroyed) return false;
+    if (pdfRefreshPromise) return pdfRefreshPromise;
+    pdfRefreshPromise = (async (): Promise<boolean> => {
+      const next = await api<PDFStatus>(`/api/works/${workID}/pdf-status`);
+      const nextHash = next.content_hash || "";
+      const changed = next.status !== currentPDFStatus?.status || nextHash !== currentPDFHash;
+      currentPDFStatus = next;
+      currentPDFHash = nextHash;
+      anchorsEditable = reviewEditable && next.status === "available";
+      if (changed) {
+        pendingSelection = null;
+        window.getSelection?.()?.removeAllRanges?.();
+        replaceState({ pdf_page: null, anchor_id: null });
+        host.closest(".rw-reading-workspace")?.dispatchEvent(new CustomEvent("rw-pdf-content-changed"));
+        await mountReader();
+        if (anchorsLoaded) await loadAnchors(true);
+        else pdfController?.setAnchors([]);
+        renderAnchorCandidate();
+      }
+      return changed;
+    })();
+    try {
+      return await pdfRefreshPromise;
+    } finally {
+      pdfRefreshPromise = null;
+    }
+  }
+
+  const focusRefresh = (): void => {
+    void refreshPDFState().catch(() => {
+      const message = host.querySelector<HTMLElement>("[data-anchor-list-message]");
+      if (message) {
+        message.textContent = "The PDF state could not be refreshed. The last loaded reader remains visible.";
+        message.hidden = false;
+      }
+    });
+  };
+  const visibilityRefresh = (): void => {
+    if (document.visibilityState === "visible") focusRefresh();
+  };
+  window.addEventListener("focus", focusRefresh);
+  document.addEventListener("visibilitychange", visibilityRefresh);
 
   var context: ReviewContextResponse;
   try {
@@ -150,15 +227,45 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     host.querySelector<HTMLButtonElement>("[data-review-context-retry]")?.addEventListener("click", () => {
       void mountArticleReview(host, null, record, detailData, onAuditChange);
     });
-    return { destroy: () => { return pdfController?.destroy(); } };
+    return {
+      destroy: async () => {
+        destroyed = true;
+        window.removeEventListener("focus", focusRefresh);
+        document.removeEventListener("visibilitychange", visibilityRefresh);
+        if (pdfController) {
+          await pdfController.destroy();
+          pdfController = null;
+        }
+      },
+    };
   }
 
   if (!context.context_initialized) {
     renderStartReview(context.proposed_parent ?? null);
-    return { destroy: () => { return pdfController?.destroy(); } };
+    return {
+      destroy: async () => {
+        destroyed = true;
+        window.removeEventListener("focus", focusRefresh);
+        document.removeEventListener("visibilitychange", visibilityRefresh);
+        if (pdfController) {
+          await pdfController.destroy();
+          pdfController = null;
+        }
+      },
+    };
   }
   await renderReview();
-  return { destroy: () => { return pdfController?.destroy(); } };
+  return {
+    destroy: async () => {
+      destroyed = true;
+      window.removeEventListener("focus", focusRefresh);
+      document.removeEventListener("visibilitychange", visibilityRefresh);
+      if (pdfController) {
+        await pdfController.destroy();
+        pdfController = null;
+      }
+    },
+  };
 
   /** Renders explicit context initialization with safe parent confirmation. */
   function renderStartReview(proposed: ProposedParent | null): void {
@@ -209,7 +316,8 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     const data = await api<ArticleReviewResponse>(`/api/runs/${runID}/articles/${revisionID}/review`);
     reviewEditable = data.editability?.decision ?? data.editable;
     notesEditable = data.editability?.notes ?? data.editable;
-    anchorsEditable = data.editability?.anchors ?? (data.editable && detailData.pdf_status?.status === "available");
+    anchorRemovalEditable = data.editability?.anchor_removal ?? data.editable;
+    anchorsEditable = data.editability?.anchors ?? (data.editable && currentPDFStatus?.status === "available");
     const state = data.review;
     const version = state?.version;
     const selectedStatus = version?.status || "not_evaluated";
@@ -328,7 +436,6 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     const sectionButtons = Array.from(host.querySelectorAll<HTMLButtonElement>("[data-review-section]"));
     const sectionPanels = Array.from(host.querySelectorAll<HTMLElement>("[data-review-section-panel]"));
     let notesLoaded = false;
-    let anchorsLoaded = false;
     /** Switches visible review content without hiding its section identity or state. */
     setReviewSection = (name: string) => {
       sectionButtons.forEach((button) => {
@@ -694,12 +801,16 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       button.disabled = true;
       classAdd(button, ["loading"]);
       try {
+        const changed = await refreshPDFState();
+        if (changed || !anchorsEditable || currentPDFStatus?.status !== "available" || !currentPDFHash) {
+          throw new Error("The displayed PDF changed or is no longer available. Select text again after refreshing.");
+        }
         await mutate<ReviewAnchorCreateResponse>(`/api/runs/${runID}/articles/${revisionID}/anchors`, "POST", {
           label: (targetElement.querySelector("[data-anchor-label]") as HTMLInputElement).value,
           page: selection.page,
           selected_text: selection.selectedText,
           rectangles: selection.rectangles,
-          pdf_content_hash: detailData.pdf_status?.content_hash || "",
+          pdf_content_hash: currentPDFHash,
         });
         pendingSelection = null;
         window.getSelection?.()?.removeAllRanges?.();
@@ -746,7 +857,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     var anchorsMarkup: JSX.Element = <p className={classNames.uiFadedText}>No active anchors. Select PDF text to add one, or use this keyboard-operable list to revisit existing anchors.</p>;
     if (activeAnchors.length) {
       const anchorItems = activeAnchors.map((anchor) => {
-        const mismatch = anchor.version.pdf_content_hash !== detailData.pdf_status?.content_hash;
+        const mismatch = anchor.version.pdf_content_hash !== currentPDFHash;
         const anchorLabel = anchor.label || anchor.id;
         var contextLabel: JSX.Element = <span className={classNames.uiNeutralLabel}>This context</span>;
         if (anchor.inherited_from_context_id) {
@@ -778,7 +889,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             <div className="rw-anchor-card__actions">
               <button type="button" className={classNames.uiPrimaryButton} data-anchor-page={anchor.version.page} disabled={mismatch} aria-label={pageButtonLabel}>{pageButtonText}</button>
               <button type="button" className={classNames.uiBasicButton} data-anchor-history>History</button>
-              <button type="button" className={classNames.uiDangerButton} data-anchor-delete disabled={!anchorsEditable}>Remove</button>
+              <button type="button" className={classNames.uiDangerButton} data-anchor-delete disabled={!anchorRemovalEditable}>Remove</button>
             </div>
           </li>
         );
@@ -790,7 +901,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     anchorsMarkup = <Fragment><p className={classNames.uiErrorMessage} data-anchor-list-message role="alert" hidden></p>{anchorsMarkup}{loadMoreMarkup}</Fragment>;
     renderTree(anchorsMarkup, target);
     const matchedAnchors = activeAnchors.filter((anchor) => {
-      return anchor.version.pdf_content_hash === detailData.pdf_status?.content_hash;
+      return anchor.version.pdf_content_hash === currentPDFHash;
     });
     pdfController?.setAnchors(matchedAnchors);
     target.querySelector<HTMLButtonElement>("[data-anchor-load-more]")?.addEventListener("click", async (event) => {
@@ -813,7 +924,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
       historyButton.addEventListener("click", () => { void showAnchorHistory(anchor.id, anchor.label); });
       const deleteButton = row.querySelector("[data-anchor-delete]") as HTMLButtonElement;
       deleteButton.addEventListener("click", async () => {
-        if (!anchorsEditable || !window.confirm(`Remove anchor ${anchor.label || anchor.id}? Its immutable history will remain available.`)) return;
+        if (!anchorRemovalEditable || !window.confirm(`Remove anchor ${anchor.label || anchor.id}? Its immutable history will remain available.`)) return;
         deleteButton.disabled = true;
         classAdd(deleteButton, ["loading"]);
         try {
@@ -933,6 +1044,10 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         restoreButton.disabled = true;
         classAdd(restoreButton, ["loading"]);
         try {
+          const changed = await refreshPDFState();
+          if (changed || !anchorsEditable || currentPDFStatus?.status !== "available" || !currentPDFHash) {
+            throw new Error("The displayed PDF changed or is no longer available. Refresh the anchor history and try again.");
+          }
           await mutate<ReviewAnchorMutationResponse>(`/api/runs/${runID}/anchors/${encodeURIComponent(anchorID)}/versions`, "POST", {
             expected_version_id: newest.id,
             state: "active",
@@ -940,7 +1055,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
             page: 0,
             selected_text: "",
             rectangles: [],
-            pdf_content_hash: detailData.pdf_status?.content_hash || "",
+            pdf_content_hash: currentPDFHash,
           });
           const message = target.querySelector("[data-anchor-history-message]") as HTMLElement;
           message.className = classNames.uiSuccessMessage;
