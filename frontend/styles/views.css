@@ -718,6 +718,15 @@
   gap: var(--space-3);
 }
 
+.rw-pdf-management input[type="file"] {
+  width: 100%;
+  padding: var(--space-2);
+}
+
+.rw-pdf-management [data-pdf-selected] {
+  overflow-wrap: anywhere;
+}
+
 .rw-reading-workspace {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

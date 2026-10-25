@@ -87,11 +87,17 @@ export interface PDFSelection {
   rectangles: AnchorRectangle[];
 }
 
+/** One mounted article review controller. */
+export interface ArticleReviewController {
+  destroy: () => Promise<void> | void;
+  refreshPDF: () => Promise<boolean>;
+}
+
 /** One anchor head returned by the review anchors API. */
 export type AnchorHead = ReviewAnchor;
 
 /** Mounts all editable review controls for one immutable run article revision. */
-export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: ArticleRecord, detailData: ArticleDetailResponse, onAuditChange?: () => Promise<void>): Promise<{ destroy: () => Promise<void> | void }> {
+export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement | null, record: ArticleRecord, detailData: ArticleDetailResponse, onAuditChange?: () => Promise<void>): Promise<ArticleReviewController> {
   const runID = Number(record.pipeline_run_id);
   const revisionID = Number(record.id);
   const workID = Number(record.work_id);
@@ -237,6 +243,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           pdfController = null;
         }
       },
+      refreshPDF: async () => false,
     };
   }
 
@@ -252,6 +259,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
           pdfController = null;
         }
       },
+      refreshPDF: async () => false,
     };
   }
   await renderReview();
@@ -265,6 +273,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
         pdfController = null;
       }
     },
+    refreshPDF: refreshPDFState,
   };
 
   /** Renders explicit context initialization with safe parent confirmation. */

@@ -1245,11 +1245,41 @@ export async function detailView(kind: string): Promise<void> {
         render: (row) => recorded(formatTime(row.updated_at)),
       },
     ], articleData.stage_outcomes, `/api/articles/${encodeURIComponent(record.id)}/collections/stages`, "detail_stages_cursor");
+    /** Reloads authoritative article audit and PDF status after a committed change. */
+    async function refreshArticleEvidence(): Promise<void> {
+      const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") });
+      articleData.pdf_status = refreshed.pdf_status;
+      const events = list(refreshed.audit_events, ["events", "items"]);
+      const auditHost = document.querySelector("[data-article-audit-host]") as HTMLElement | null;
+      if (!auditHost) return;
+      const auditMarkup = <RecordAuditInvestigation events={events} />;
+      renderTree(auditMarkup, auditHost);
+      bindRecordAuditInvestigation(events);
+    }
+
+    /** Refreshes the reader/anchors and article evidence after one PDF change. */
+    async function refreshAfterPDFChange(): Promise<void> {
+      var failed = false;
+      try {
+        await activeArticleReview?.refreshPDF();
+      } catch (_) {
+        failed = true;
+      }
+      try {
+        await refreshArticleEvidence();
+      } catch (_) {
+        failed = true;
+      }
+      if (failed) throw new Error("The article evidence could not be refreshed.");
+    }
+
     const pdfManagementHost = document.querySelector<HTMLElement>("[data-pdf-management]");
     if (pdfManagementHost) {
       activePDFManagement = mountPDFManagement(pdfManagementHost, {
         record: record as ArticleRecord,
         status: articleData.pdf_status || { status: "not_available" },
+        onChanged: refreshAfterPDFChange,
+        onRefresh: refreshAfterPDFChange,
       });
     }
     if (Number(record.id) > 0 && Number(record.work_id) > 0 && Number(record.pipeline_run_id) > 0) {
@@ -1258,15 +1288,7 @@ export async function detailView(kind: string): Promise<void> {
         document.querySelector<HTMLElement>("[data-pdf-viewer-host]"),
         record as ArticleRecord,
         articleData,
-        async () => {
-          const refreshed = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(record.id)}`, { run_id: value("run_id") });
-          const events = list(refreshed.audit_events, ["events", "items"]);
-          const auditHost = document.querySelector("[data-article-audit-host]") as HTMLElement | null;
-          if (!auditHost) return;
-          const auditMarkup = <RecordAuditInvestigation events={events} />;
-          renderTree(auditMarkup, auditHost);
-          bindRecordAuditInvestigation(events);
-        }
+        refreshArticleEvidence
       );
       activePDFFullscreen = mountPDFFullscreen({
         workspace: document.querySelector(".rw-reading-workspace") as HTMLElement,

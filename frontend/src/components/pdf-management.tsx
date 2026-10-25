@@ -1,5 +1,5 @@
 // Conditional PDF upload, replacement, and removal controls for article detail.
-import { APIError, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
+import { APIError, api, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
 import type { ArticleRecord, PDFMutationResponse, PDFStatus } from "../api/types.ts";
 import { formatBytes, formatTime, humanLabel } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
@@ -8,6 +8,7 @@ import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "..
 const classNames = {
   pdfGrid: cx("rw-property-grid", "rw-property-grid--compact"),
   pdfManagement: cx("rw-pdf-management"),
+  uiBasicButton: cx("ui", "basic", "button"),
   uiDangerButton: cx("ui", "danger", "button"),
   uiErrorMessage: cx("ui", "error", "message"),
   uiErrorMessageRwReviewFeedback: cx("ui", "error", "message", "rw-review-feedback"),
@@ -40,6 +41,7 @@ export interface PDFManagementOptions {
   record: ArticleRecord;
   status: PDFStatus;
   onChanged?: (result: PDFMutationResponse) => Promise<void> | void;
+  onRefresh?: () => Promise<void> | void;
 }
 
 /** One confirmation target for a destructive PDF mutation. */
@@ -178,10 +180,10 @@ export function PDFManagementPanel(props: PDFManagementPanelProps): JSX.Element 
       <form className={classNames.uiForm} data-pdf-form>
         <div className={classNames.uiField}>
           <label htmlFor="pdf-upload-file">PDF file</label>
-          <input id="pdf-upload-file" type="file" accept="application/pdf,.pdf" data-pdf-file />
-          <p className="rw-field-help">{limitText}</p>
+          <input id="pdf-upload-file" type="file" accept="application/pdf,.pdf" aria-describedby="pdf-upload-help pdf-selected-file" data-pdf-file />
+          <p className="rw-field-help" id="pdf-upload-help">{limitText}</p>
         </div>
-        <p className="rw-field-help" data-pdf-selected hidden={!props.selectedFile}>{selectedText}</p>
+        <p className="rw-field-help" id="pdf-selected-file" data-pdf-selected aria-live="polite" hidden={!props.selectedFile}>{selectedText}</p>
         <div className="rw-review-actions">
           <button type="submit" className={classNames.uiPrimaryButton} data-pdf-submit>{submitLabel}</button>
           {removeButton}
@@ -208,7 +210,10 @@ export function PDFManagementPanel(props: PDFManagementPanelProps): JSX.Element 
       <div className={classNames.pdfManagement}>
         {capabilityMarkup}
         {fileForm}
-        <p className={feedbackClassValue} data-pdf-feedback role="status" aria-live="polite" hidden={!props.feedback}>{feedbackMessage}</p>
+        <p className={feedbackClassValue} data-pdf-feedback role="status" aria-live="polite" tabIndex={-1} hidden={!props.feedback}>{feedbackMessage}</p>
+        <div className="rw-review-actions">
+          <button type="button" className={classNames.uiBasicButton} data-pdf-refresh>Refresh PDF state</button>
+        </div>
       </div>
       <dialog className="rw-review-dialog" data-pdf-confirm aria-labelledby="pdf-confirm-title" aria-describedby="pdf-confirm-description">
         <form className={classNames.uiFormRwReviewDialogForm} data-pdf-confirm-form>
@@ -285,6 +290,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     if (!node) return;
     node.hidden = !feedback;
     node.textContent = feedback?.message || "";
+    node.setAttribute("role", feedback?.kind === "error" ? "alert" : "status");
     if (feedback) applyFeedbackClass(node, feedback.kind);
   }
 
@@ -337,15 +343,72 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
   }
 
   /** Reports one recoverable mutation failure without clearing the selected file. */
-  function handleFailure(error: unknown): void {
+  async function handleFailure(error: unknown): Promise<void> {
     if (error instanceof APIError && error.code === "pdf_state_conflict") {
       feedback = {
         kind: "warning",
-        message: "The PDF selection changed. Your selected file and review inputs are preserved; reload the current PDF state before retrying.",
+        message: "The PDF selection changed. Your selected file and review inputs are preserved; refresh the current PDF state before retrying.",
       };
       return;
     }
+    if (error instanceof APIError) {
+      feedback = { kind: "error", message: errorMessage(error, "The PDF change failed.") };
+      return;
+    }
+    if (error instanceof TypeError) {
+      await handleUncertain();
+      return;
+    }
     feedback = { kind: "error", message: errorMessage(error, "The PDF change failed.") };
+  }
+
+  /** Focuses the visible management feedback after a result or failure. */
+  function focusFeedback(): void {
+    host.querySelector<HTMLElement>("[data-pdf-feedback]")?.focus();
+  }
+
+  /** Reconciles an ambiguous transport failure with the current authoritative state. */
+  async function handleUncertain(): Promise<void> {
+    feedback = { kind: "warning", message: "The response was lost. Checking the current PDF state before retrying." };
+    updateFeedback();
+    try {
+      const current = await api<PDFStatus>(`/api/works/${encodeURIComponent(options.record.work_id)}/pdf-status`, {}, { signal: null });
+      const changed = current.status !== currentStatus.status
+        || (current.content_hash || "") !== (currentStatus.content_hash || "")
+        || current.mutation_etag !== currentStatus.mutation_etag;
+      if (changed) {
+        feedback = { kind: "warning", message: "The response was lost after the request was sent. The current PDF state differs from the state you started with, so the change may have committed. Refresh the PDF state and review it before retrying." };
+      } else {
+        feedback = { kind: "warning", message: "The response was lost before confirmation. The current PDF state is unchanged; review it before retrying." };
+      }
+    } catch (_) {
+      feedback = { kind: "warning", message: "The response was lost, so the PDF change may or may not have committed. Refresh the PDF state before retrying." };
+    }
+  }
+
+  /** Reloads the current PDF state without repeating the previous mutation. */
+  async function refreshCurrentStatus(): Promise<void> {
+    if (busy) return;
+    busy = true;
+    updateBusy();
+    feedback = { kind: "info", message: "Refreshing the current PDF state." };
+    updateFeedback();
+    try {
+      currentStatus = await api<PDFStatus>(`/api/works/${encodeURIComponent(options.record.work_id)}/pdf-status`, {}, { signal: null });
+      feedback = { kind: "info", message: "Current PDF state refreshed. Review the available action before retrying." };
+      busy = false;
+      renderPanel();
+      if (options.onRefresh) await options.onRefresh();
+    } catch (error) {
+      feedback = { kind: "error", message: errorMessage(error, "The current PDF state could not be refreshed.") };
+    } finally {
+      if (!destroyed) {
+        busy = false;
+        updateBusy();
+        updateFeedback();
+        focusFeedback();
+      }
+    }
   }
 
   /** Applies one committed mutation response and refreshes the local panel. */
@@ -355,8 +418,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     feedback = mutationMessage(result);
     busy = false;
     renderPanel();
-    const message = host.querySelector<HTMLElement>("[data-pdf-feedback]");
-    message?.focus?.();
+    focusFeedback();
     if (options.onChanged) {
       try {
         await options.onChanged(result);
@@ -382,12 +444,13 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
       const result = await uploadPDF(options.record.pipeline_run_id, options.record.id, request);
       await applyResult(result);
     } catch (error) {
-      handleFailure(error);
+      await handleFailure(error);
     } finally {
       if (!destroyed) {
         busy = false;
         updateBusy();
         updateFeedback();
+        focusFeedback();
       }
     }
   }
@@ -407,12 +470,13 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
       const result = await removePDF(options.record.pipeline_run_id, options.record.id, etag);
       await applyResult(result);
     } catch (error) {
-      handleFailure(error);
+      await handleFailure(error);
     } finally {
       if (!destroyed) {
         busy = false;
         updateBusy();
         updateFeedback();
+        focusFeedback();
       }
     }
   }
@@ -454,6 +518,11 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
 
     const remove = host.querySelector<HTMLButtonElement>("[data-pdf-remove]");
     remove?.addEventListener("click", () => openConfirmation("remove", remove));
+
+    const refresh = host.querySelector<HTMLButtonElement>("[data-pdf-refresh]");
+    refresh?.addEventListener("click", () => {
+      void refreshCurrentStatus();
+    });
 
     const confirmForm = host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]");
     confirmForm?.addEventListener("submit", (event) => {

@@ -80,7 +80,7 @@ Cache evidence distinguishes hits, misses, negative results, stale entries, inva
 
 Corpus → Articles is the single place to browse normalized work, inspect PDF inventory, and track the selected run's review status. Review progress, Start review, the run Notes index, and PDF, review, source, qualifier, and progress filters are part of this collection. Inventory dates and detailed metadata appear in row expansion. `not_available` means no validated selected PDF bytes are present; `available` means validated bytes and an inventory timestamp exist. Review status is a contextual interpretation. Existing `/evaluation` routes open `/corpus` with their saved review filters.
 
-The viewer never downloads PDFs from external services. The current interface does not expose PDF upload or removal controls; the bounded HTTP API accepts a validated conditional save or empty-body removal for the exact selected run/article, and manual inventory remains available through the supported tool described in [PROJECT-USAGE.md](PROJECT-USAGE.md). An available PDF is rendered locally through the custom vendored PDF.js interface and remains available from the local API with download-safe headers.
+The viewer never downloads PDFs from external services. Article detail exposes one labeled PDF file control with local filename and size, the configured byte limit, an explicit Upload PDF or Replace PDF action, and a confirmed Remove PDF action. Controls appear only when the selected completed active run, work DOI, inventory registration, and writable companion permit the action; otherwise the specific unavailable reason is shown. Replacement and removal change availability for the work in every run, including historical runs, and unused old bytes cannot be restored through the application. A selected file remains after recoverable failures; identical bytes report no change; successful changes refresh the reader, anchors, status, and article audit and report pending audit delivery when applicable. A lost response requires refreshing the authoritative PDF state before retrying. An available PDF is rendered locally through the custom vendored PDF.js interface and remains available from the local API with download-safe headers.
 
 Metadata and PDF databases are one portable bundle after inventory begins. An unbound companion reports unavailable PDF evidence; a bound companion whose file is missing, unsafe, or not at the required schema fails viewer startup instead of mutating or repairing the store.
 
@@ -139,7 +139,7 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 ## 17. Current limitations
 
 - The viewer has no application authentication or authorization.
-- PDF upload and removal are available only through the bounded HTTP API; the current interface has no upload or removal control.
+- PDF upload, replacement, and removal require a completed non-trashed run, a normalized DOI with registered inventory, and a writable bound companion.
 - Browser drafts are not database evidence or export content and may be lost.
 - Author and reference collections can repeat conceptual values across revision snapshots.
 - Graph and collection endpoints are bounded and do not stream beyond their limits.

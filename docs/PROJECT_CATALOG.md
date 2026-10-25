@@ -6007,24 +6007,27 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`capabilityReason`](../frontend/src/components/pdf-management.tsx#L49) | function | 49 | `function capabilityReason(status: PDFStatus)` | Returns the specific reason PDF mutation controls are unavailable. |
-| [`applyFeedbackClass`](../frontend/src/components/pdf-management.tsx#L66) | function | 66 | `function applyFeedbackClass(node: HTMLElement, kind: PDFManagementFeedback["kind"])` | Replaces one feedback element's semantic class with the supplied result kind. |
-| [`mutationMessage`](../frontend/src/components/pdf-management.tsx#L78) | function | 78 | `function mutationMessage(result: PDFMutationResponse)` | Returns one concise outcome message for a committed PDF mutation. |
-| [`PDFManagementPanel`](../frontend/src/components/pdf-management.tsx#L101) | function | 101 | `function PDFManagementPanel(props: PDFManagementPanelProps)` | Renders one PDF status strip and its available management controls. |
-| [`mountPDFManagement`](../frontend/src/components/pdf-management.tsx#L239) | function | 239 | `function mountPDFManagement(host: HTMLElement, options: PDFManagementOptions)` | Mounts conditional PDF management controls and returns an explicit teardown. |
-| [`renderPanel`](../frontend/src/components/pdf-management.tsx#L251) | function | 251 | `function renderPanel()` | Rebuilds the panel from current status and clears a committed file selection. |
-| [`selectedText`](../frontend/src/components/pdf-management.tsx#L259) | function | 259 | `function selectedText()` | Returns the currently selected file's display text. |
-| [`fileTooLarge`](../frontend/src/components/pdf-management.tsx#L265) | function | 265 | `function fileTooLarge()` | Returns whether the selected file exceeds the advertised upload limit. |
-| [`updateSelectedFile`](../frontend/src/components/pdf-management.tsx#L272) | function | 272 | `function updateSelectedFile()` | Updates selected-file text and submit availability without replacing the input. |
-| [`updateFeedback`](../frontend/src/components/pdf-management.tsx#L283) | function | 283 | `function updateFeedback()` | Applies one management feedback message without replacing the file input. |
-| [`updateBusy`](../frontend/src/components/pdf-management.tsx#L292) | function | 292 | `function updateBusy()` | Disables duplicate PDF mutations while one request is pending. |
-| [`openConfirmation`](../frontend/src/components/pdf-management.tsx#L303) | function | 303 | `function openConfirmation(action: PDFConfirmation, opener: HTMLElement)` | Opens the confirmation dialog for one destructive PDF mutation. |
-| [`closeConfirmation`](../frontend/src/components/pdf-management.tsx#L328) | function | 328 | `function closeConfirmation(restoreFocus: boolean)` | Closes the confirmation dialog and optionally restores focus to its opener. |
-| [`handleFailure`](../frontend/src/components/pdf-management.tsx#L340) | function | 340 | `function handleFailure(error: unknown)` | Reports one recoverable mutation failure without clearing the selected file. |
-| [`applyResult`](../frontend/src/components/pdf-management.tsx#L352) | function | 352 | `async function applyResult(result: PDFMutationResponse)` | Applies one committed mutation response and refreshes the local panel. |
-| [`executeUpload`](../frontend/src/components/pdf-management.tsx#L371) | function | 371 | `async function executeUpload()` | Uploads or replaces the selected file after local validation. |
-| [`executeRemove`](../frontend/src/components/pdf-management.tsx#L396) | function | 396 | `async function executeRemove()` | Removes the current PDF selection after explicit confirmation. |
-| [`bind`](../frontend/src/components/pdf-management.tsx#L421) | function | 421 | `function bind()` | Binds one rendered panel's file, confirmation, and mutation controls. |
+| [`capabilityReason`](../frontend/src/components/pdf-management.tsx#L51) | function | 51 | `function capabilityReason(status: PDFStatus)` | Returns the specific reason PDF mutation controls are unavailable. |
+| [`applyFeedbackClass`](../frontend/src/components/pdf-management.tsx#L68) | function | 68 | `function applyFeedbackClass(node: HTMLElement, kind: PDFManagementFeedback["kind"])` | Replaces one feedback element's semantic class with the supplied result kind. |
+| [`mutationMessage`](../frontend/src/components/pdf-management.tsx#L80) | function | 80 | `function mutationMessage(result: PDFMutationResponse)` | Returns one concise outcome message for a committed PDF mutation. |
+| [`PDFManagementPanel`](../frontend/src/components/pdf-management.tsx#L103) | function | 103 | `function PDFManagementPanel(props: PDFManagementPanelProps)` | Renders one PDF status strip and its available management controls. |
+| [`mountPDFManagement`](../frontend/src/components/pdf-management.tsx#L244) | function | 244 | `function mountPDFManagement(host: HTMLElement, options: PDFManagementOptions)` | Mounts conditional PDF management controls and returns an explicit teardown. |
+| [`renderPanel`](../frontend/src/components/pdf-management.tsx#L256) | function | 256 | `function renderPanel()` | Rebuilds the panel from current status and clears a committed file selection. |
+| [`selectedText`](../frontend/src/components/pdf-management.tsx#L264) | function | 264 | `function selectedText()` | Returns the currently selected file's display text. |
+| [`fileTooLarge`](../frontend/src/components/pdf-management.tsx#L270) | function | 270 | `function fileTooLarge()` | Returns whether the selected file exceeds the advertised upload limit. |
+| [`updateSelectedFile`](../frontend/src/components/pdf-management.tsx#L277) | function | 277 | `function updateSelectedFile()` | Updates selected-file text and submit availability without replacing the input. |
+| [`updateFeedback`](../frontend/src/components/pdf-management.tsx#L288) | function | 288 | `function updateFeedback()` | Applies one management feedback message without replacing the file input. |
+| [`updateBusy`](../frontend/src/components/pdf-management.tsx#L298) | function | 298 | `function updateBusy()` | Disables duplicate PDF mutations while one request is pending. |
+| [`openConfirmation`](../frontend/src/components/pdf-management.tsx#L309) | function | 309 | `function openConfirmation(action: PDFConfirmation, opener: HTMLElement)` | Opens the confirmation dialog for one destructive PDF mutation. |
+| [`closeConfirmation`](../frontend/src/components/pdf-management.tsx#L334) | function | 334 | `function closeConfirmation(restoreFocus: boolean)` | Closes the confirmation dialog and optionally restores focus to its opener. |
+| [`handleFailure`](../frontend/src/components/pdf-management.tsx#L346) | function | 346 | `async function handleFailure(error: unknown)` | Reports one recoverable mutation failure without clearing the selected file. |
+| [`focusFeedback`](../frontend/src/components/pdf-management.tsx#L366) | function | 366 | `function focusFeedback()` | Focuses the visible management feedback after a result or failure. |
+| [`handleUncertain`](../frontend/src/components/pdf-management.tsx#L371) | function | 371 | `async function handleUncertain()` | Reconciles an ambiguous transport failure with the current authoritative state. |
+| [`refreshCurrentStatus`](../frontend/src/components/pdf-management.tsx#L390) | function | 390 | `async function refreshCurrentStatus()` | Reloads the current PDF state without repeating the previous mutation. |
+| [`applyResult`](../frontend/src/components/pdf-management.tsx#L415) | function | 415 | `async function applyResult(result: PDFMutationResponse)` | Applies one committed mutation response and refreshes the local panel. |
+| [`executeUpload`](../frontend/src/components/pdf-management.tsx#L433) | function | 433 | `async function executeUpload()` | Uploads or replaces the selected file after local validation. |
+| [`executeRemove`](../frontend/src/components/pdf-management.tsx#L459) | function | 459 | `async function executeRemove()` | Removes the current PDF selection after explicit confirmation. |
+| [`bind`](../frontend/src/components/pdf-management.tsx#L485) | function | 485 | `function bind()` | Binds one rendered panel's file, confirmation, and mutation controls. |
 
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
@@ -6061,20 +6064,20 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`reviewHealth`](../frontend/src/components/review-panel.tsx#L71) | function | 71 | `async function reviewHealth()` | Loads immutable viewer capability data once per page and retries after a failed request. |
-| [`mountArticleReview`](../frontend/src/components/review-panel.tsx#L94) | function | 94 | `async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement \| null, record: ArticleRecord, detailData: ArticleDetailResponse, onAuditChange?: () => Promise<void>)` | Mounts all editable review controls for one immutable run article revision. |
-| [`mountReader`](../frontend/src/components/review-panel.tsx#L120) | function | 120 | `async function mountReader()` | Mounts or remounts the reader against the current PDF status and hash. |
-| [`refreshPDFState`](../frontend/src/components/review-panel.tsx#L170) | function | 170 | `async function refreshPDFState()` | Revalidates the authoritative PDF selection on focus and before PDF-bound mutations. |
-| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L271) | function | 271 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
-| [`renderReview`](../frontend/src/components/review-panel.tsx#L315) | function | 315 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
-| [`decisionDraft`](../frontend/src/components/review-panel.tsx#L560) | function | 560 | `function decisionDraft()` | Serializes only user-editable decision input for dirty-state comparison. |
-| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L567) | function | 567 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
-| [`renderDecisionHistory`](../frontend/src/components/review-panel.tsx#L677) | function | 677 | `function renderDecisionHistory()` | Renders every loaded decision-summary page and lazy full-reason controls. |
-| [`loadDecisionHistoryPage`](../frontend/src/components/review-panel.tsx#L727) | function | 727 | `async function loadDecisionHistoryPage()` | Appends one opaque decision-history page without replacing prior rows. |
-| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L771) | function | 771 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
-| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L848) | function | 848 | `async function loadAnchors(reset = true)` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
-| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L972) | function | 972 | `async function showAnchorHistory(anchorID: string, anchorLabel?: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
-| [`renderHistory`](../frontend/src/components/review-panel.tsx#L978) | function | 978 | `function renderHistory()` | Renders all loaded immutable anchor summaries and their continuation controls. |
-| [`loadHistoryPage`](../frontend/src/components/review-panel.tsx#L1086) | function | 1086 | `async function loadHistoryPage()` | Appends one anchor-version cursor page without duplicating existing history. |
+| [`mountArticleReview`](../frontend/src/components/review-panel.tsx#L100) | function | 100 | `async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement \| null, record: ArticleRecord, detailData: ArticleDetailResponse, onAuditChange?: () => Promise<void>)` | Mounts all editable review controls for one immutable run article revision. |
+| [`mountReader`](../frontend/src/components/review-panel.tsx#L126) | function | 126 | `async function mountReader()` | Mounts or remounts the reader against the current PDF status and hash. |
+| [`refreshPDFState`](../frontend/src/components/review-panel.tsx#L176) | function | 176 | `async function refreshPDFState()` | Revalidates the authoritative PDF selection on focus and before PDF-bound mutations. |
+| [`renderStartReview`](../frontend/src/components/review-panel.tsx#L280) | function | 280 | `function renderStartReview(proposed: ProposedParent \| null)` | Renders explicit context initialization with safe parent confirmation. |
+| [`renderReview`](../frontend/src/components/review-panel.tsx#L324) | function | 324 | `async function renderReview()` | Loads and binds complete status state, history, notes, PDF, and anchors. |
+| [`decisionDraft`](../frontend/src/components/review-panel.tsx#L569) | function | 569 | `function decisionDraft()` | Serializes only user-editable decision input for dirty-state comparison. |
+| [`updateSubstatuses`](../frontend/src/components/review-panel.tsx#L576) | function | 576 | `function updateSubstatuses()` | Enables sub-status choices only for the two compatible terminal statuses. |
+| [`renderDecisionHistory`](../frontend/src/components/review-panel.tsx#L686) | function | 686 | `function renderDecisionHistory()` | Renders every loaded decision-summary page and lazy full-reason controls. |
+| [`loadDecisionHistoryPage`](../frontend/src/components/review-panel.tsx#L736) | function | 736 | `async function loadDecisionHistoryPage()` | Appends one opaque decision-history page without replacing prior rows. |
+| [`renderAnchorCandidate`](../frontend/src/components/review-panel.tsx#L780) | function | 780 | `function renderAnchorCandidate()` | Converts one current PDF text selection into an accessible anchor creation form. |
+| [`loadAnchors`](../frontend/src/components/review-panel.tsx#L857) | function | 857 | `async function loadAnchors(reset = true)` | Loads bounded active anchor heads, textual controls, and content-matched highlights. |
+| [`showAnchorHistory`](../frontend/src/components/review-panel.tsx#L981) | function | 981 | `async function showAnchorHistory(anchorID: string, anchorLabel?: string)` | Displays bounded immutable active and tombstone ancestry for a focused anchor. |
+| [`renderHistory`](../frontend/src/components/review-panel.tsx#L987) | function | 987 | `function renderHistory()` | Renders all loaded immutable anchor summaries and their continuation controls. |
+| [`loadHistoryPage`](../frontend/src/components/review-panel.tsx#L1095) | function | 1095 | `async function loadHistoryPage()` | Appends one anchor-version cursor page without duplicating existing history. |
 
 ### [`frontend/src/components/run-notes-index.tsx`](../frontend/src/components/run-notes-index.tsx)
 
@@ -6244,6 +6247,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`AuthorView`](../frontend/src/views/detail.tsx#L844) | function | 844 | `function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })` | Renders the author occurrence detail view with related articles and audit evidence. |
 | [`ReferenceView`](../frontend/src/views/detail.tsx#L918) | function | 918 | `function ReferenceView(props: { record: ReferenceRecord })` | Renders the reference mention detail view with citation context. |
 | [`detailView`](../frontend/src/views/detail.tsx#L1016) | function | 1016 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`refreshArticleEvidence`](../frontend/src/views/detail.tsx#L1249) | function | 1249 | `async function refreshArticleEvidence()` | Reloads authoritative article audit and PDF status after a committed change. |
+| [`refreshAfterPDFChange`](../frontend/src/views/detail.tsx#L1261) | function | 1261 | `async function refreshAfterPDFChange()` | Refreshes the reader/anchors and article evidence after one PDF change. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
@@ -6420,6 +6425,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`mount`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L66) | function | 66 | `function mount(status: PDFStatus)` | Mounts the PDF management panel into a fresh host. |
 | [`selectFile`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L74) | function | 74 | `function selectFile(host: HTMLElement, file: File)` | Selects one local file through the visible file input. |
 | [`settle`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L82) | function | 82 | `function settle()` | Waits for asynchronous mutation and digest work to settle. |
+| [`waitFor`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L89) | function | 89 | `async function waitFor(predicate: () => boolean)` | Waits for one observable test condition instead of relying on a fixed delay. |
 
 ### [`tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts`](../tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts)
 
@@ -6769,13 +6775,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`renders one labeled file input, size guidance, and explicit upload action`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L90) | test | 90 | `it("renders one labeled file input, size guidance, and explicit upload action", callback)` | renders one labeled file input, size guidance, and explicit upload action |
-| [`shows the selected filename and size locally`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L105) | test | 105 | `it("shows the selected filename and size locally", callback)` | shows the selected filename and size locally |
-| [`shows the specific unavailable capability and omits mutation controls`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L117) | test | 117 | `it("shows the specific unavailable capability and omits mutation controls", callback)` | shows the specific unavailable capability and omits mutation controls |
-| [`confirms replacement with article identity, global scope, and permanent deletion`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L129) | test | 129 | `it("confirms replacement with article identity, global scope, and permanent deletion", callback)` | confirms replacement with article identity, global scope, and permanent deletion |
-| [`confirms removal and keeps the current selection when cancelled`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L150) | test | 150 | `it("confirms removal and keeps the current selection when cancelled", callback)` | confirms removal and keeps the current selection when cancelled |
-| [`preserves the selected file and reports a stale precondition`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L165) | test | 165 | `it("preserves the selected file and reports a stale precondition", callback)` | preserves the selected file and reports a stale precondition |
-| [`updates the visible status after a successful replacement`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L191) | test | 191 | `it("updates the visible status after a successful replacement", callback)` | updates the visible status after a successful replacement |
+| [`renders one labeled file input, size guidance, and explicit upload action`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L99) | test | 99 | `it("renders one labeled file input, size guidance, and explicit upload action", callback)` | renders one labeled file input, size guidance, and explicit upload action |
+| [`shows the selected filename and size locally`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L114) | test | 114 | `it("shows the selected filename and size locally", callback)` | shows the selected filename and size locally |
+| [`shows the specific unavailable capability and omits mutation controls`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L126) | test | 126 | `it("shows the specific unavailable capability and omits mutation controls", callback)` | shows the specific unavailable capability and omits mutation controls |
+| [`confirms replacement with article identity, global scope, and permanent deletion`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L138) | test | 138 | `it("confirms replacement with article identity, global scope, and permanent deletion", callback)` | confirms replacement with article identity, global scope, and permanent deletion |
+| [`confirms removal and keeps the current selection when cancelled`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L159) | test | 159 | `it("confirms removal and keeps the current selection when cancelled", callback)` | confirms removal and keeps the current selection when cancelled |
+| [`preserves the selected file and reports a stale precondition`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L174) | test | 174 | `it("preserves the selected file and reports a stale precondition", callback)` | preserves the selected file and reports a stale precondition |
+| [`reports an uncertain lost response and refreshes current state explicitly`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L200) | test | 200 | `it("reports an uncertain lost response and refreshes current state explicitly", callback)` | reports an uncertain lost response and refreshes current state explicitly |
+| [`reports an unchanged save without claiming a mutation`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L241) | test | 241 | `it("reports an unchanged save without claiming a mutation", callback)` | reports an unchanged save without claiming a mutation |
+| [`warns when a committed PDF change cannot refresh the article display`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L265) | test | 265 | `it("warns when a committed PDF change cannot refresh the article display", callback)` | warns when a committed PDF change cannot refresh the article display |
+| [`updates the visible status after a successful replacement`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L297) | test | 297 | `it("updates the visible status after a successful replacement", callback)` | updates the visible status after a successful replacement |
 
 ### [`tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts`](../tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts)
 
@@ -7129,11 +7138,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`shows empty state when no id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L18) | test | 18 | `it('shows empty state when no id is set', callback)` | shows empty state when no id is set |
 | [`renders article detail when article_id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L25) | test | 25 | `it('renders article detail when article_id is set', callback)` | renders article detail when article_id is set |
-| [`renders discarded validation reasons as individual entries`](../tests/frontend/views/detail/functional/detail.test.ts#L103) | test | 103 | `it('renders discarded validation reasons as individual entries', callback)` | renders discarded validation reasons as individual entries |
-| [`renders author detail when author_id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L139) | test | 139 | `it('renders author detail when author_id is set', callback)` | renders author detail when author_id is set |
-| [`renders the search term coverage panel`](../tests/frontend/views/detail/functional/detail.test.ts#L175) | test | 175 | `it('renders the search term coverage panel', callback)` | renders the search term coverage panel |
-| [`renders no search terms recorded when term_matches is null`](../tests/frontend/views/detail/functional/detail.test.ts#L217) | test | 217 | `it('renders no search terms recorded when term_matches is null', callback)` | renders no search terms recorded when term_matches is null |
-| [`renders reference detail when reference_id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L248) | test | 248 | `it('renders reference detail when reference_id is set', callback)` | renders reference detail when reference_id is set |
+| [`refreshes article audit evidence after a committed PDF upload`](../tests/frontend/views/detail/functional/detail.test.ts#L103) | test | 103 | `it('refreshes article audit evidence after a committed PDF upload', callback)` | refreshes article audit evidence after a committed PDF upload |
+| [`renders discarded validation reasons as individual entries`](../tests/frontend/views/detail/functional/detail.test.ts#L170) | test | 170 | `it('renders discarded validation reasons as individual entries', callback)` | renders discarded validation reasons as individual entries |
+| [`renders author detail when author_id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L206) | test | 206 | `it('renders author detail when author_id is set', callback)` | renders author detail when author_id is set |
+| [`renders the search term coverage panel`](../tests/frontend/views/detail/functional/detail.test.ts#L242) | test | 242 | `it('renders the search term coverage panel', callback)` | renders the search term coverage panel |
+| [`renders no search terms recorded when term_matches is null`](../tests/frontend/views/detail/functional/detail.test.ts#L284) | test | 284 | `it('renders no search terms recorded when term_matches is null', callback)` | renders no search terms recorded when term_matches is null |
+| [`renders reference detail when reference_id is set`](../tests/frontend/views/detail/functional/detail.test.ts#L315) | test | 315 | `it('renders reference detail when reference_id is set', callback)` | renders reference detail when reference_id is set |
 
 ### [`tests/frontend/views/evaluation/functional/evaluation.test.ts`](../tests/frontend/views/evaluation/functional/evaluation.test.ts)
 

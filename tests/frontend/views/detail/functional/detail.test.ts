@@ -100,6 +100,73 @@ describe('detail.tsx — detailView', function() {
     globalThis.fetch = originalFetch;
   });
 
+  it('refreshes article audit evidence after a committed PDF upload', async function() {
+    const originalFetch = globalThis.fetch;
+    var articleCalls = 0;
+    const initialPDF = {
+      status: 'not_available', registered: true, change_counter: 1, mutation_etag: '"pdf-10-1"',
+      max_upload_bytes: 1024, storage_writable: true, storage_reason: '',
+      actions: { upload: true, replace: false, remove: false, download: false, reason: '' },
+    };
+    const changedPDF = {
+      status: 'available', content_hash: 'f'.repeat(64), byte_size: 4, inventoried_at: '2024-01-02T00:00:00Z',
+      registered: true, change_counter: 2, mutation_etag: '"pdf-10-2"',
+      max_upload_bytes: 1024, storage_writable: true, storage_reason: '',
+      actions: { upload: false, replace: true, remove: true, download: true, reason: '' },
+    };
+    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+      const url = String(input);
+      if (init?.method === 'PUT' && url.includes('/pdf')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: function() {
+            return Promise.resolve({ changed: true, operation: 'uploaded', pdf_status: changedPDF, event_key: 'event-1', audit_delivery: 'pending' });
+          },
+        } as unknown as Response);
+      }
+      if (url.includes('/review-context')) {
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ context_initialized: false, proposed_parent: null }); } } as unknown as Response);
+      }
+      articleCalls += 1;
+      const auditEvents = articleCalls === 1 ? [] : [{
+        id: 41, action: 'pdf_document_inventoried', actor: 'reviewer', correlation_id: 'pdf:10',
+        occurred_at: '2024-01-02T00:00:00Z', metadata_json: '{"work_id":10}',
+      }];
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() {
+          return Promise.resolve({
+            data: {
+              article: {
+                id: 'a1', work_id: 10, pipeline_run_id: 1, title: 'Managed article', doi: '10.1000/managed', year: 2024,
+                abstract: null, keywords: null, keywords_plus: null, extension_data: '{}',
+              },
+              authors: [], references: [], enriched_fields: [], stage_outcomes: [],
+              pdf_status: articleCalls === 1 ? initialPDF : changedPDF,
+              audit_events: auditEvents,
+            },
+          });
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    seedViewerState({ 'article_id': 'a1', 'view': 'article', 'run_id': '1' });
+    await detailView('article');
+    const input = document.querySelector<HTMLInputElement>('[data-pdf-file]')!;
+    Object.defineProperty(input, 'files', { value: [new File([new Uint8Array(4)], 'upload.pdf', { type: 'application/pdf' })], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    document.querySelector<HTMLFormElement>('[data-pdf-form]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await new Promise(function(resolve) { setTimeout(resolve, 50); });
+
+    assert.equal(articleCalls, 2);
+    assert.match(document.querySelector('[data-article-audit-host]')?.textContent || '', /A validated PDF was added/);
+    assert.match(document.querySelector('[data-pdf-management]')?.textContent || '', new RegExp(changedPDF.content_hash));
+
+    globalThis.fetch = originalFetch;
+  });
+
   it('renders discarded validation reasons as individual entries', async function() {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = function() {
