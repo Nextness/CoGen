@@ -6003,6 +6003,29 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`toggleDrawer`](../frontend/src/components/pdf-fullscreen.tsx#L79) | function | 79 | `function toggleDrawer()` | Toggles the review drawer between expanded and collapsed. |
 | [`toggleFallback`](../frontend/src/components/pdf-fullscreen.tsx#L95) | function | 95 | `function toggleFallback()` | Enters or leaves the CSS fallback expansion, mirroring the graph's fallback path. |
 
+### [`frontend/src/components/pdf-management.tsx`](../frontend/src/components/pdf-management.tsx)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`capabilityReason`](../frontend/src/components/pdf-management.tsx#L49) | function | 49 | `function capabilityReason(status: PDFStatus)` | Returns the specific reason PDF mutation controls are unavailable. |
+| [`applyFeedbackClass`](../frontend/src/components/pdf-management.tsx#L66) | function | 66 | `function applyFeedbackClass(node: HTMLElement, kind: PDFManagementFeedback["kind"])` | Replaces one feedback element's semantic class with the supplied result kind. |
+| [`mutationMessage`](../frontend/src/components/pdf-management.tsx#L78) | function | 78 | `function mutationMessage(result: PDFMutationResponse)` | Returns one concise outcome message for a committed PDF mutation. |
+| [`PDFManagementPanel`](../frontend/src/components/pdf-management.tsx#L101) | function | 101 | `function PDFManagementPanel(props: PDFManagementPanelProps)` | Renders one PDF status strip and its available management controls. |
+| [`mountPDFManagement`](../frontend/src/components/pdf-management.tsx#L239) | function | 239 | `function mountPDFManagement(host: HTMLElement, options: PDFManagementOptions)` | Mounts conditional PDF management controls and returns an explicit teardown. |
+| [`renderPanel`](../frontend/src/components/pdf-management.tsx#L251) | function | 251 | `function renderPanel()` | Rebuilds the panel from current status and clears a committed file selection. |
+| [`selectedText`](../frontend/src/components/pdf-management.tsx#L259) | function | 259 | `function selectedText()` | Returns the currently selected file's display text. |
+| [`fileTooLarge`](../frontend/src/components/pdf-management.tsx#L265) | function | 265 | `function fileTooLarge()` | Returns whether the selected file exceeds the advertised upload limit. |
+| [`updateSelectedFile`](../frontend/src/components/pdf-management.tsx#L272) | function | 272 | `function updateSelectedFile()` | Updates selected-file text and submit availability without replacing the input. |
+| [`updateFeedback`](../frontend/src/components/pdf-management.tsx#L283) | function | 283 | `function updateFeedback()` | Applies one management feedback message without replacing the file input. |
+| [`updateBusy`](../frontend/src/components/pdf-management.tsx#L292) | function | 292 | `function updateBusy()` | Disables duplicate PDF mutations while one request is pending. |
+| [`openConfirmation`](../frontend/src/components/pdf-management.tsx#L303) | function | 303 | `function openConfirmation(action: PDFConfirmation, opener: HTMLElement)` | Opens the confirmation dialog for one destructive PDF mutation. |
+| [`closeConfirmation`](../frontend/src/components/pdf-management.tsx#L328) | function | 328 | `function closeConfirmation(restoreFocus: boolean)` | Closes the confirmation dialog and optionally restores focus to its opener. |
+| [`handleFailure`](../frontend/src/components/pdf-management.tsx#L340) | function | 340 | `function handleFailure(error: unknown)` | Reports one recoverable mutation failure without clearing the selected file. |
+| [`applyResult`](../frontend/src/components/pdf-management.tsx#L352) | function | 352 | `async function applyResult(result: PDFMutationResponse)` | Applies one committed mutation response and refreshes the local panel. |
+| [`executeUpload`](../frontend/src/components/pdf-management.tsx#L371) | function | 371 | `async function executeUpload()` | Uploads or replaces the selected file after local validation. |
+| [`executeRemove`](../frontend/src/components/pdf-management.tsx#L396) | function | 396 | `async function executeRemove()` | Removes the current PDF selection after explicit confirmation. |
+| [`bind`](../frontend/src/components/pdf-management.tsx#L421) | function | 421 | `function bind()` | Binds one rendered panel's file, confirmation, and mutation controls. |
+
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -6196,31 +6219,31 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`destroyActiveArticleReview`](../frontend/src/views/detail.tsx#L73) | function | 73 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
-| [`backToCorpus`](../frontend/src/views/detail.tsx#L93) | function | 93 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return target for a detail view. |
-| [`recorded`](../frontend/src/views/detail.tsx#L110) | function | 110 | `function recorded(raw: unknown, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
-| [`propertyGrid`](../frontend/src/views/detail.tsx#L128) | function | 128 | `function propertyGrid(entries: DetailEntry[], baseClass: ClassName, classes?: readonly ClassName[])` | Renders definition-list markup for labeled record properties. |
-| [`summaryStrip`](../frontend/src/views/detail.tsx#L148) | function | 148 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
-| [`mappingValue`](../frontend/src/views/detail.tsx#L154) | function | 154 | `function mappingValue(raw: unknown)` | Converts a stored mapping representation to a displayable object. |
-| [`extensionMapping`](../frontend/src/views/detail.tsx#L180) | function | 180 | `function extensionMapping(raw: unknown)` | Renders the parsed extension mapping stored on a work revision. |
-| [`keywordValues`](../frontend/src/views/detail.tsx#L187) | function | 187 | `function keywordValues(raw: unknown)` | Returns normalized keyword values from stored array or delimited input. |
-| [`keywordMarkup`](../frontend/src/views/detail.tsx#L214) | function | 214 | `function keywordMarkup(raw: unknown)` | Renders label markup for normalized keyword values. |
-| [`rawRecord`](../frontend/src/views/detail.tsx#L239) | function | 239 | `function rawRecord(record: WireRecord, excluded: string[])` | Renders expandable JSON markup for a raw record. |
-| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L271) | function | 271 | `function CollectionMarkup(props: { collectionKey: string; state: CollectionState })` | Renders expandable markup for a related-record collection. |
-| [`mountCollection`](../frontend/src/views/detail.tsx#L333) | function | 333 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: WireRecord) => JSX.Element }>, source: DetailCollectionPage<WireRecord>, endpoint: string, cursorKey: string)` | Mounts collection. |
-| [`loadCollectionPage`](../frontend/src/views/detail.tsx#L358) | function | 358 | `async function loadCollectionPage(key: string, cursor: string, rememberCurrent: boolean)` | Loads one cursor page while preserving the prior visible page after a local failure. |
-| [`renderCollection`](../frontend/src/views/detail.tsx#L387) | function | 387 | `function renderCollection(key: string)` | Renders collection. |
-| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L405) | function | 405 | `function stageReasonMarkup(raw: unknown)` | Renders escaped validation or failure reason markup for a stage outcome. |
-| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L423) | function | 423 | `function SearchTermCoveragePanel(props: { matches: TermMatchSummary \| null; record: ArticleRecord })` | Renders the search term coverage panel for an article revision. |
-| [`ArticleView`](../frontend/src/views/detail.tsx#L559) | function | 559 | `function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse })` | Renders the article detail view from its immutable revision payload. |
-| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L699) | function | 699 | `function PDFStatusPanel(props: { record: ArticleRecord; pdf: PDFStatus })` | Renders PDF inventory and download-status markup for an article. |
-| [`IdentityCandidateList`](../frontend/src/views/detail.tsx#L748) | function | 748 | `function IdentityCandidateList(props: { candidates: IdentityCandidate[] })` | Renders one ranked ORCID candidate list without implying confirmed identity. |
-| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L777) | function | 777 | `function AuthorIdentityEvidence(props: { evidence: IdentityResolution[] })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
-| [`IdentityCollectionMarkup`](../frontend/src/views/detail.tsx#L825) | function | 825 | `function IdentityCollectionMarkup(props: { state: CollectionState })` | Renders one cursor page of author identity resolutions with local continuation status. |
-| [`bindIdentityCandidatePages`](../frontend/src/views/detail.tsx#L839) | function | 839 | `function bindIdentityCandidatePages(runID: string)` | Binds on-demand traversal for paged author identity candidates. |
-| [`AuthorView`](../frontend/src/views/detail.tsx#L875) | function | 875 | `function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })` | Renders the author occurrence detail view with related articles and audit evidence. |
-| [`ReferenceView`](../frontend/src/views/detail.tsx#L949) | function | 949 | `function ReferenceView(props: { record: ReferenceRecord })` | Renders the reference mention detail view with citation context. |
-| [`detailView`](../frontend/src/views/detail.tsx#L1047) | function | 1047 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
+| [`destroyActiveArticleReview`](../frontend/src/views/detail.tsx#L76) | function | 76 | `async function destroyActiveArticleReview()` | Releases the article review and PDF lifecycle before another SPA view renders. |
+| [`backToCorpus`](../frontend/src/views/detail.tsx#L101) | function | 101 | `function backToCorpus(kind: string)` | Returns the context-preserving corpus return target for a detail view. |
+| [`recorded`](../frontend/src/views/detail.tsx#L118) | function | 118 | `function recorded(raw: unknown, fallback?: JSX.Element)` | Renders a recorded value or its unavailable presentation. |
+| [`propertyGrid`](../frontend/src/views/detail.tsx#L136) | function | 136 | `function propertyGrid(entries: DetailEntry[], baseClass: ClassName, classes?: readonly ClassName[])` | Renders definition-list markup for labeled record properties. |
+| [`summaryStrip`](../frontend/src/views/detail.tsx#L156) | function | 156 | `function summaryStrip(entries: DetailEntry[])` | Renders compact summary-fact markup for a detail record. |
+| [`mappingValue`](../frontend/src/views/detail.tsx#L162) | function | 162 | `function mappingValue(raw: unknown)` | Converts a stored mapping representation to a displayable object. |
+| [`extensionMapping`](../frontend/src/views/detail.tsx#L188) | function | 188 | `function extensionMapping(raw: unknown)` | Renders the parsed extension mapping stored on a work revision. |
+| [`keywordValues`](../frontend/src/views/detail.tsx#L195) | function | 195 | `function keywordValues(raw: unknown)` | Returns normalized keyword values from stored array or delimited input. |
+| [`keywordMarkup`](../frontend/src/views/detail.tsx#L222) | function | 222 | `function keywordMarkup(raw: unknown)` | Renders label markup for normalized keyword values. |
+| [`rawRecord`](../frontend/src/views/detail.tsx#L247) | function | 247 | `function rawRecord(record: WireRecord, excluded: string[])` | Renders expandable JSON markup for a raw record. |
+| [`CollectionMarkup`](../frontend/src/views/detail.tsx#L279) | function | 279 | `function CollectionMarkup(props: { collectionKey: string; state: CollectionState })` | Renders expandable markup for a related-record collection. |
+| [`mountCollection`](../frontend/src/views/detail.tsx#L341) | function | 341 | `function mountCollection(key: string, title: string, description: string, columns: Array<{ label: string; render: (row: WireRecord) => JSX.Element }>, source: DetailCollectionPage<WireRecord>, endpoint: string, cursorKey: string)` | Mounts collection. |
+| [`loadCollectionPage`](../frontend/src/views/detail.tsx#L366) | function | 366 | `async function loadCollectionPage(key: string, cursor: string, rememberCurrent: boolean)` | Loads one cursor page while preserving the prior visible page after a local failure. |
+| [`renderCollection`](../frontend/src/views/detail.tsx#L395) | function | 395 | `function renderCollection(key: string)` | Renders collection. |
+| [`stageReasonMarkup`](../frontend/src/views/detail.tsx#L413) | function | 413 | `function stageReasonMarkup(raw: unknown)` | Renders escaped validation or failure reason markup for a stage outcome. |
+| [`SearchTermCoveragePanel`](../frontend/src/views/detail.tsx#L431) | function | 431 | `function SearchTermCoveragePanel(props: { matches: TermMatchSummary \| null; record: ArticleRecord })` | Renders the search term coverage panel for an article revision. |
+| [`ArticleView`](../frontend/src/views/detail.tsx#L567) | function | 567 | `function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse })` | Renders the article detail view from its immutable revision payload. |
+| [`PDFStatusPanel`](../frontend/src/views/detail.tsx#L707) | function | 707 | `function PDFStatusPanel(props: { record: ArticleRecord; pdf: PDFStatus })` | Renders PDF inventory, download, and mutation controls for an article. |
+| [`IdentityCandidateList`](../frontend/src/views/detail.tsx#L717) | function | 717 | `function IdentityCandidateList(props: { candidates: IdentityCandidate[] })` | Renders one ranked ORCID candidate list without implying confirmed identity. |
+| [`AuthorIdentityEvidence`](../frontend/src/views/detail.tsx#L746) | function | 746 | `function AuthorIdentityEvidence(props: { evidence: IdentityResolution[] })` | Renders candidate ORCID evidence associated with the selected author occurrence. |
+| [`IdentityCollectionMarkup`](../frontend/src/views/detail.tsx#L794) | function | 794 | `function IdentityCollectionMarkup(props: { state: CollectionState })` | Renders one cursor page of author identity resolutions with local continuation status. |
+| [`bindIdentityCandidatePages`](../frontend/src/views/detail.tsx#L808) | function | 808 | `function bindIdentityCandidatePages(runID: string)` | Binds on-demand traversal for paged author identity candidates. |
+| [`AuthorView`](../frontend/src/views/detail.tsx#L844) | function | 844 | `function AuthorView(props: { record: AuthorRecord; data: AuthorDetailResponse })` | Renders the author occurrence detail view with related articles and audit evidence. |
+| [`ReferenceView`](../frontend/src/views/detail.tsx#L918) | function | 918 | `function ReferenceView(props: { record: ReferenceRecord })` | Renders the reference mention detail view with citation context. |
+| [`detailView`](../frontend/src/views/detail.tsx#L1016) | function | 1016 | `async function detailView(kind: string)` | Asynchronously implements detail view for the viewer. |
 
 ### [`frontend/src/views/evaluation.tsx`](../frontend/src/views/evaluation.tsx)
 
@@ -6386,6 +6409,17 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`buildWorkspace`](../tests/frontend/components/pdf-fullscreen/unit/pdf-fullscreen.test.ts#L9) | function | 9 | `function buildWorkspace()` | Builds one reading workspace with a fullscreen button and review host. |
 | [`buttonClick`](../tests/frontend/components/pdf-fullscreen/unit/pdf-fullscreen.test.ts#L164) | function | 164 | `function buttonClick(button: HTMLButtonElement)` | Clicks one button synchronously. |
+
+### [`tests/frontend/components/pdf-management/functional/pdf-management.test.ts`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`article`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L10) | function | 10 | `function article()` | Builds one minimal article record for PDF management tests. |
+| [`uploadStatus`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L35) | function | 35 | `function uploadStatus()` | Builds one unavailable PDF status with upload capability. |
+| [`availableStatus`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L49) | function | 49 | `function availableStatus()` | Builds one available PDF status with replacement and removal capability. |
+| [`mount`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L66) | function | 66 | `function mount(status: PDFStatus)` | Mounts the PDF management panel into a fresh host. |
+| [`selectFile`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L74) | function | 74 | `function selectFile(host: HTMLElement, file: File)` | Selects one local file through the visible file input. |
+| [`settle`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L82) | function | 82 | `function settle()` | Waits for asynchronous mutation and digest work to settle. |
 
 ### [`tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts`](../tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts)
 
@@ -6730,6 +6764,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`exits fallback expansion and restores the drawer on PDF content change`](../tests/frontend/components/pdf-fullscreen/unit/pdf-fullscreen.test.ts#L107) | test | 107 | `it("exits fallback expansion and restores the drawer on PDF content change", callback)` | exits fallback expansion and restores the drawer on PDF content change |
 | [`closes the fallback expansion on Escape`](../tests/frontend/components/pdf-fullscreen/unit/pdf-fullscreen.test.ts#L128) | test | 128 | `it("closes the fallback expansion on Escape", callback)` | closes the fallback expansion on Escape |
 | [`destroy removes listeners, the fallback class, and the edge control`](../tests/frontend/components/pdf-fullscreen/unit/pdf-fullscreen.test.ts#L142) | test | 142 | `it("destroy removes listeners, the fallback class, and the edge control", callback)` | destroy removes listeners, the fallback class, and the edge control |
+
+### [`tests/frontend/components/pdf-management/functional/pdf-management.test.ts`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`renders one labeled file input, size guidance, and explicit upload action`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L90) | test | 90 | `it("renders one labeled file input, size guidance, and explicit upload action", callback)` | renders one labeled file input, size guidance, and explicit upload action |
+| [`shows the selected filename and size locally`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L105) | test | 105 | `it("shows the selected filename and size locally", callback)` | shows the selected filename and size locally |
+| [`shows the specific unavailable capability and omits mutation controls`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L117) | test | 117 | `it("shows the specific unavailable capability and omits mutation controls", callback)` | shows the specific unavailable capability and omits mutation controls |
+| [`confirms replacement with article identity, global scope, and permanent deletion`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L129) | test | 129 | `it("confirms replacement with article identity, global scope, and permanent deletion", callback)` | confirms replacement with article identity, global scope, and permanent deletion |
+| [`confirms removal and keeps the current selection when cancelled`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L150) | test | 150 | `it("confirms removal and keeps the current selection when cancelled", callback)` | confirms removal and keeps the current selection when cancelled |
+| [`preserves the selected file and reports a stale precondition`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L165) | test | 165 | `it("preserves the selected file and reports a stale precondition", callback)` | preserves the selected file and reports a stale precondition |
+| [`updates the visible status after a successful replacement`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L191) | test | 191 | `it("updates the visible status after a successful replacement", callback)` | updates the visible status after a successful replacement |
 
 ### [`tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts`](../tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts)
 

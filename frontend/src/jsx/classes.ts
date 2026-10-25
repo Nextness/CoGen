@@ -279,6 +279,7 @@ export const classTokens = [
   "rw-panel--no-separator",
   "rw-pdf-anchor-highlight",
   "rw-pdf-anchor-layer",
+  "rw-pdf-management",
   "rw-pdf-page",
   "rw-pdf-page-control",
   "rw-pdf-pages",

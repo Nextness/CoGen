@@ -1,7 +1,7 @@
 // Immutable article, author-occurrence, and reference-mention detail views.
 import {
   app, value, link, list,
-  setBreadcrumb, formatTime, formatBytes, parseObject, humanLabel, bindCopyButtons,
+  setBreadcrumb, formatTime, parseObject, humanLabel, bindCopyButtons,
   PageHeader, EmptyState, Panel, StatusChip, Cell, detailOrigin, routeOwnedKeys, detailLinkFor, linkTargetFor,
 } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
@@ -28,6 +28,8 @@ import type {
 import { bindRecordAuditInvestigation, RecordAuditInvestigation } from "../components/audit-events.tsx";
 import type { AuditEventRecord } from "../components/audit-events.tsx";
 import { mountArticleReview } from "../components/review-panel.tsx";
+import { mountPDFManagement, PDFManagementPanel } from "../components/pdf-management.tsx";
+import type { PDFManagementController } from "../components/pdf-management.tsx";
 import { mountPDFFullscreen } from "../components/pdf-fullscreen.tsx";
 import type { PDFFullscreenController } from "../components/pdf-fullscreen.tsx";
 import { replaceState } from "../router.tsx";
@@ -68,9 +70,15 @@ interface CollectionState {
 const collectionState = new Map<string, CollectionState>();
 let activeArticleReview: Awaited<ReturnType<typeof mountArticleReview>> | null = null;
 let activePDFFullscreen: PDFFullscreenController | null = null;
+let activePDFManagement: PDFManagementController | null = null;
 
 /** Releases the article review and PDF lifecycle before another SPA view renders. */
 export async function destroyActiveArticleReview(): Promise<void> {
+  if (activePDFManagement) {
+    const management = activePDFManagement;
+    activePDFManagement = null;
+    management.destroy();
+  }
   if (activePDFFullscreen) {
     const fullscreen = activePDFFullscreen;
     activePDFFullscreen = null;
@@ -695,50 +703,11 @@ function ArticleView(props: { record: ArticleRecord; data: ArticleDetailResponse
   );
 }
 
-/** Renders PDF inventory and download-status markup for an article. */
+/** Renders PDF inventory, download, and mutation controls for an article. */
 export function PDFStatusPanel(props: { record: ArticleRecord; pdf: PDFStatus }): JSX.Element {
-  const pdfLabels: Record<string, string> = {
-    available: "Available",
-    unavailable: "Unavailable without a DOI",
-    not_available: "Not Available",
-  };
-  var pdfAction: JSX.Element = <span className={classNames.uiFadedText}>No stored PDF is available.</span>;
-  if (props.pdf.status === "available") {
-    pdfAction = <a className={classNames.uiPrimaryButton} href={`/api/pdf/${encodeURIComponent(props.record.work_id)}`} download>Download PDF</a>;
-  }
-
-  var sizeValue: string | null = null;
-  if (props.pdf.byte_size) sizeValue = formatBytes(props.pdf.byte_size);
-  var inventoriedValue: string | null = null;
-  if (props.pdf.inventoried_at) inventoriedValue = formatTime(props.pdf.inventoried_at);
-
-  const pdfGrid = propertyGrid([
-    {
-      label: "Status",
-      value: <StatusChip raw={pdfLabels[props.pdf.status] || humanLabel(props.pdf.status)} />,
-    },
-    {
-      label: "Size",
-      value: sizeValue,
-    },
-    {
-      label: "Inventoried at",
-      value: inventoriedValue,
-    },
-    {
-      label: "Content hash",
-      value: props.pdf.content_hash,
-    },
-  ], "rw-property-grid", ["rw-property-grid--compact"]);
-
-  const pdfStatusBody = (
-    <div className="rw-pdf-status-strip">
-      {pdfGrid}
-      <div className="rw-pdf-status-strip__action">{pdfAction}</div>
-    </div>
-  );
+  const pdfStatusBody = <div data-pdf-management><PDFManagementPanel record={props.record} status={props.pdf} /></div>;
   return (
-    <Panel title="Full-text PDF" description="Read-only state from the companion PDF store."
+    <Panel title="Full-text PDF" description="Stored bytes and run-scoped mutation controls from the companion PDF store."
       body={pdfStatusBody}
     />
   );
@@ -1276,6 +1245,13 @@ export async function detailView(kind: string): Promise<void> {
         render: (row) => recorded(formatTime(row.updated_at)),
       },
     ], articleData.stage_outcomes, `/api/articles/${encodeURIComponent(record.id)}/collections/stages`, "detail_stages_cursor");
+    const pdfManagementHost = document.querySelector<HTMLElement>("[data-pdf-management]");
+    if (pdfManagementHost) {
+      activePDFManagement = mountPDFManagement(pdfManagementHost, {
+        record: record as ArticleRecord,
+        status: articleData.pdf_status || { status: "not_available" },
+      });
+    }
     if (Number(record.id) > 0 && Number(record.work_id) > 0 && Number(record.pipeline_run_id) > 0) {
       activeArticleReview = await mountArticleReview(
         document.querySelector("[data-review-host]") as HTMLElement,
