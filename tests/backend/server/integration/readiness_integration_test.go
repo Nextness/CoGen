@@ -142,7 +142,7 @@ func TestServerOpenAcceptsReadOnlyCurrentPDF(t *testing.T) {
 		t.Fatalf("schema readiness = %v", schema)
 	}
 	review := health["review"].(map[string]any)
-	if review["pdf_store_read_only"] != true {
+	if review["pdf_store_read_only"] != true || review["pdf_store_writable"] != false || review["pdf_store_write_reason"] == "" {
 		t.Fatalf("legacy read-only capability = %v", review)
 	}
 }
@@ -212,8 +212,8 @@ func TestServerHealthReportsSchemaReadiness(t *testing.T) {
 		t.Fatalf("bundle readiness = %v", health)
 	}
 	review := health["review"].(map[string]any)
-	if review["pdf_store_read_only"] != false {
-		t.Fatalf("writable companion reported read-only = %v", review)
+	if review["pdf_store_read_only"] != false || review["pdf_store_writable"] != true || review["pdf_store_write_reason"] != "" {
+		t.Fatalf("writable companion capability = %v", review)
 	}
 }
 

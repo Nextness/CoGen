@@ -100,6 +100,8 @@ export interface HealthResponse {
     metadata_writable: boolean;
     pdf_store_bound: boolean;
     pdf_store_readable: boolean;
+    pdf_store_writable: boolean;
+    pdf_store_write_reason: string;
     pdf_store_read_only: boolean;
   };
 }
@@ -950,6 +952,15 @@ export interface ReviewAnchorMutationResponse {
 /** One backlink collection page. */
 export type ReviewBacklinksResponse = ReviewCollectionPage<ReviewNote, "backlinks">;
 
+/** One PDF mutation availability set for the selected run/article. */
+export interface PDFActions {
+  upload: boolean;
+  replace: boolean;
+  remove: boolean;
+  download: boolean;
+  reason: string;
+}
+
 /** One PDF inventory state attached to an article. */
 export interface PDFStatus {
   status: string;
@@ -957,6 +968,13 @@ export interface PDFStatus {
   byte_size?: number | null;
   created_at?: string | null;
   inventoried_at?: string | null;
+  registered?: boolean;
+  change_counter?: number;
+  mutation_etag?: string | null;
+  max_upload_bytes?: number;
+  storage_writable?: boolean;
+  storage_reason?: string;
+  actions?: PDFActions;
 }
 
 /** One detail collection with endpoint-specific cursor pagination. */

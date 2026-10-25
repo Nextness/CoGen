@@ -311,6 +311,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/works/{work_id}/pdf-status", s.workPDFStatus)
 	mux.HandleFunc("PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.saveArticlePDF)
 	mux.HandleFunc("DELETE /api/runs/{run_id}/articles/{work_revision_id}/pdf", s.removeArticlePDF)
+	mux.HandleFunc("GET /api/runs/{run_id}/articles/{work_revision_id}/pdf", pdfMethodNotAllowed)
+	mux.HandleFunc("POST /api/runs/{run_id}/articles/{work_revision_id}/pdf", pdfMethodNotAllowed)
 	mux.HandleFunc("GET /api/pdf/{work_id}", s.workPDF)
 	mux.HandleFunc("GET /api/authors/{id}", s.authorDetail)
 	mux.HandleFunc("GET /api/authors/{id}/collections/{kind}", s.authorDetailCollection)
@@ -438,7 +440,7 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataPath, registryPa
 		s.pdfWriteReason = fmt.Sprintf("PDF store write connection unavailable: %v", err)
 		return nil
 	}
-	if err := verifyPDFMutationConnection(ctx, pdfWriteDB); err != nil {
+	if err := pdfstore.VerifyMutationConnection(ctx, pdfWriteDB); err != nil {
 		_ = pdfWriteDB.Close()
 		s.pdfWriteReason = fmt.Sprintf("PDF store write connection is not safely configured: %v", err)
 		return nil
@@ -446,31 +448,6 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataPath, registryPa
 	s.pdfWriteDB = pdfWriteDB
 	s.pdfWriteStore = pdfstore.New(pdfWriteDB)
 	s.pdfWritable = true
-	return nil
-}
-
-// verifyPDFMutationConnection proves the existing-only mutation connection has
-// the locking, foreign-key, and secure-deletion settings required by S03
-// conditional writes before the server advertises write capability.
-func verifyPDFMutationConnection(ctx context.Context, db *sql.DB) error {
-	checks := []struct {
-		pragma string
-		want   int
-	}{
-		{"foreign_keys", 1},
-		{"busy_timeout", 5000},
-		{"secure_delete", 1},
-		{"query_only", 0},
-	}
-	for _, check := range checks {
-		var actual int
-		if err := db.QueryRowContext(ctx, "PRAGMA "+check.pragma).Scan(&actual); err != nil {
-			return fmt.Errorf("read PRAGMA %s: %w", check.pragma, err)
-		}
-		if actual != check.want {
-			return fmt.Errorf("PRAGMA %s is %d, want %d", check.pragma, actual, check.want)
-		}
-	}
 	return nil
 }
 

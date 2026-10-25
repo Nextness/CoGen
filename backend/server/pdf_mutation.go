@@ -30,6 +30,12 @@ const (
 	pdfUploadResponseDeadline = 75 * time.Second
 )
 
+// pdfMethodNotAllowed rejects read or unsupported methods on the mutation resource.
+func pdfMethodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Allow", "PUT, DELETE")
+	writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "PDF mutation route supports PUT and DELETE")
+}
+
 // saveArticlePDF accepts one complete raw PDF body for an exact selected run
 // and current normalized article revision.
 func (s *Server) saveArticlePDF(w http.ResponseWriter, r *http.Request) {

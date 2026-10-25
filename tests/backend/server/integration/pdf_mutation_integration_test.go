@@ -3,6 +3,7 @@
 package server_test
 
 import (
+	"analysis/backend/database/work"
 	serverhelpers "analysis/tests/support/go/backend/server"
 	"analysis/tests/support/go/pdffixture"
 
@@ -157,6 +158,7 @@ func TestPDFMutationRejectsStalePrecondition(t *testing.T) {
 func TestPDFMutationTransportAndMembership(t *testing.T) {
 	fixture := serverhelpers.NewPDFViewerFixture(t)
 	handler := fixture.Server.Handler()
+	original := pdfBytes(t, handler, fixture.AvailableID)
 	status := pdfStatusForWork(t, handler, fixture.AvailableID)
 	etag := status["mutation_etag"].(string)
 	data := pdffixture.Bytes("Transport test")
@@ -177,6 +179,8 @@ func TestPDFMutationTransportAndMembership(t *testing.T) {
 		{name: "missing precondition", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: digest, want: http.StatusPreconditionRequired},
 		{name: "weak precondition", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: digest, etag: "W/" + etag, want: http.StatusBadRequest},
 		{name: "wildcard precondition", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: digest, etag: "*", want: http.StatusBadRequest},
+		{name: "wrong work precondition", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: digest, etag: fmt.Sprintf("\"pdf-%d-1\"", fixture.AvailableID+1), want: http.StatusBadRequest},
+		{name: "multiple preconditions", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: digest, etag: etag + ", " + etag, want: http.StatusBadRequest},
 		{name: "missing size", method: http.MethodPut, body: data, contentType: "application/pdf", digest: digest, etag: etag, want: http.StatusBadRequest},
 		{name: "uppercase digest", method: http.MethodPut, body: data, contentType: "application/pdf", size: fmt.Sprint(len(data)), digest: strings.ToUpper(digest), etag: etag, want: http.StatusBadRequest},
 		{name: "media type", method: http.MethodPut, body: data, contentType: "application/json", size: fmt.Sprint(len(data)), digest: digest, etag: etag, want: http.StatusUnsupportedMediaType},
@@ -217,11 +221,7 @@ func TestPDFMutationTransportAndMembership(t *testing.T) {
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("missing revision status = %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Equal(pdfBytes(t, handler, fixture.AvailableID), func() []byte {
-		recorder := httptest.NewRecorder()
-		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/pdf/%d", fixture.AvailableID), nil))
-		return recorder.Body.Bytes()
-	}()) {
+	if !bytes.Equal(pdfBytes(t, handler, fixture.AvailableID), original) {
 		t.Fatal("rejected transport changed stored bytes")
 	}
 }
@@ -264,17 +264,33 @@ func TestPDFMutationRejectsUploadIdentityMismatch(t *testing.T) {
 // TestPDFMutationRejectsInactiveRun verifies lifecycle policy without a review-context prerequisite.
 func TestPDFMutationRejectsInactiveRun(t *testing.T) {
 	fixture := serverhelpers.NewPDFViewerFixture(t)
-	if _, err := fixture.Server.Metadata.Conn.Exec(`UPDATE pipeline_runs SET status='running' WHERE id=?`, fixture.RunID); err != nil {
-		t.Fatal(err)
+	reset := func() {
+		if _, err := fixture.Server.Metadata.Conn.Exec(`UPDATE pipeline_runs SET status='completed', visibility_state='active' WHERE id=?`, fixture.RunID); err != nil {
+			t.Fatal(err)
+		}
 	}
-	t.Cleanup(func() {
-		_, _ = fixture.Server.Metadata.Conn.Exec(`UPDATE pipeline_runs SET status='completed' WHERE id=?`, fixture.RunID)
-	})
+	reset()
+	t.Cleanup(reset)
 	status := pdfStatusForWork(t, fixture.Server.Handler(), fixture.AvailableID)
 	data := pdffixture.Bytes("Inactive run")
-	code, body := pdfMutationRequest(t, fixture.Server.Handler(), http.MethodPut, fixture.RunID, fixture.RevisionID, data, int64(len(data)), pdfDigest(data), status["mutation_etag"].(string))
-	if code != http.StatusConflict || body["error"].(map[string]any)["code"] != "run_not_mutable" {
-		t.Fatalf("inactive run response = %d %v", code, body)
+	for _, test := range []struct {
+		name   string
+		update string
+	}{
+		{name: "running", update: `UPDATE pipeline_runs SET status='running' WHERE id=?`},
+		{name: "failed", update: `UPDATE pipeline_runs SET status='failed' WHERE id=?`},
+		{name: "trashed", update: `UPDATE pipeline_runs SET visibility_state='trashed' WHERE id=?`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			reset()
+			if _, err := fixture.Server.Metadata.Conn.Exec(test.update, fixture.RunID); err != nil {
+				t.Fatal(err)
+			}
+			code, body := pdfMutationRequest(t, fixture.Server.Handler(), http.MethodPut, fixture.RunID, fixture.RevisionID, data, int64(len(data)), pdfDigest(data), status["mutation_etag"].(string))
+			if code != http.StatusConflict || body["error"].(map[string]any)["code"] != "run_not_mutable" {
+				t.Fatalf("inactive run response = %d %v", code, body)
+			}
+		})
 	}
 }
 
@@ -305,8 +321,70 @@ func TestPDFMutationStatusReportsCapabilities(t *testing.T) {
 // TestPDFMutationResponseIsNoStore verifies status and mutation responses are not cacheable.
 func TestPDFMutationResponseIsNoStore(t *testing.T) {
 	fixture := serverhelpers.NewPDFViewerFixture(t)
-	response := serverhelpers.ViewerRequest(t, fixture.Server.Handler(), fmt.Sprintf("/api/works/%d/pdf-status", fixture.AvailableID))
+	handler := fixture.Server.Handler()
+	response := serverhelpers.ViewerRequest(t, handler, fmt.Sprintf("/api/works/%d/pdf-status", fixture.AvailableID))
 	if response.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("status cache control = %q", response.Header().Get("Cache-Control"))
+	}
+	original := pdfBytes(t, handler, fixture.AvailableID)
+	etag := pdfStatusForWork(t, handler, fixture.AvailableID)["mutation_etag"].(string)
+	request := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/api/runs/%d/articles/%d/pdf", fixture.RunID, fixture.RevisionID), bytes.NewReader(original))
+	request.Header.Set("Content-Type", "application/pdf")
+	request.Header.Set("X-PDF-Size", fmt.Sprint(len(original)))
+	request.Header.Set("X-PDF-SHA256", pdfDigest(original))
+	request.Header.Set("If-Match", etag)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK || recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("mutation response = %d cache=%q", recorder.Code, recorder.Header().Get("Cache-Control"))
+	}
+}
+
+// TestPDFMutationEligibilityConflicts verifies missing DOI and missing
+// normalized inventory use distinct 409 codes before reading a body.
+func TestPDFMutationEligibilityConflicts(t *testing.T) {
+	fixture := serverhelpers.NewPDFViewerFixture(t)
+	handler := fixture.Server.Handler()
+	create := func(doi string) int64 {
+		var workID int64
+		var err error
+		if doi == "" {
+			workID, err = fixture.Server.Metadata.Work.CreateWorkWithoutDOI(t.Context())
+		} else {
+			workID, err = fixture.Server.Metadata.Work.CreateWorkByDOI(t.Context(), doi)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		revisionID, err := fixture.Server.Metadata.Work.CreateRevision(t.Context(), &work.Revision{
+			WorkID: workID, PipelineRunID: fixture.RunID, ProducerStage: work.ProducerStageNormalize,
+			Title: "Eligibility conflict",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := fixture.Server.Metadata.Work.SetStageOutcome(t.Context(), work.StageOutcomeInput{
+			RunID: fixture.RunID, WorkID: workID, StageName: work.StageNameValidate, Outcome: work.OutcomeValid,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		return revisionID
+	}
+	data := pdffixture.Bytes("Eligibility")
+	for _, test := range []struct {
+		name string
+		doi  string
+		code string
+	}{
+		{name: "missing DOI", doi: "", code: "pdf_doi_missing"},
+		{name: "missing inventory", doi: "10.1000/viewer-unregistered", code: "pdf_inventory_missing"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			revisionID := create(test.doi)
+			code, body := pdfMutationRequest(t, handler, http.MethodPut, fixture.RunID, revisionID, data, int64(len(data)), pdfDigest(data), fmt.Sprintf("\"pdf-%d-1\"", fixture.AvailableID))
+			if code != http.StatusConflict || body["error"].(map[string]any)["code"] != test.code {
+				t.Fatalf("response = %d %v", code, body)
+			}
+		})
 	}
 }

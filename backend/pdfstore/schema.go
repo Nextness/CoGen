@@ -64,6 +64,31 @@ func VerifySchema(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+// VerifyMutationConnection proves the existing-only mutation connection has
+// the locking, foreign-key, and secure-deletion settings required by
+// conditional writes before the viewer advertises write capability.
+func VerifyMutationConnection(ctx context.Context, db *sql.DB) error {
+	checks := []struct {
+		pragma string
+		want   int
+	}{
+		{"foreign_keys", 1},
+		{"busy_timeout", 5000},
+		{"secure_delete", 1},
+		{"query_only", 0},
+	}
+	for _, check := range checks {
+		var actual int
+		if err := db.QueryRowContext(ctx, "PRAGMA "+check.pragma).Scan(&actual); err != nil {
+			return fmt.Errorf("read PRAGMA %s: %w", check.pragma, err)
+		}
+		if actual != check.want {
+			return fmt.Errorf("PRAGMA %s is %d, want %d", check.pragma, actual, check.want)
+		}
+	}
+	return nil
+}
+
 // companionColumns returns the column names present in one companion table.
 func companionColumns(ctx context.Context, db *sql.DB, table string) (map[string]bool, error) {
 	rows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%q)", table))

@@ -6,6 +6,7 @@
 
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext } from '@playwright/test';
+import { createHash } from 'node:crypto';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -141,6 +142,16 @@ function expectReviewContext(value: unknown, path: string): void {
   expectString(value.created_at, `${path}.created_at`);
 }
 
+/** Asserts one PDF mutation action availability set. */
+function expectPDFActions(value: unknown, path: string): void {
+  expectObject(value, path);
+  expectBoolean(value.upload, `${path}.upload`);
+  expectBoolean(value.replace, `${path}.replace`);
+  expectBoolean(value.remove, `${path}.remove`);
+  expectBoolean(value.download, `${path}.download`);
+  expectString(value.reason, `${path}.reason`);
+}
+
 /** Asserts one PDF status payload. */
 function expectPDFStatus(value: unknown, path: string): void {
   expectObject(value, path);
@@ -152,6 +163,23 @@ function expectPDFStatus(value: unknown, path: string): void {
   if (value.content_hash !== undefined) expectNullableString(value.content_hash, `${path}.content_hash`);
   if (value.inventoried_at !== undefined) expectNullableString(value.inventoried_at, `${path}.inventoried_at`);
   if (value.byte_size !== undefined) expectNullableNumber(value.byte_size, `${path}.byte_size`);
+  if (value.registered !== undefined) expectBoolean(value.registered, `${path}.registered`);
+  if (value.change_counter !== undefined) expectNumber(value.change_counter, `${path}.change_counter`);
+  if (value.mutation_etag !== undefined) expectNullableString(value.mutation_etag, `${path}.mutation_etag`);
+  if (value.max_upload_bytes !== undefined) expectNumber(value.max_upload_bytes, `${path}.max_upload_bytes`);
+  if (value.storage_writable !== undefined) expectBoolean(value.storage_writable, `${path}.storage_writable`);
+  if (value.storage_reason !== undefined) expectString(value.storage_reason, `${path}.storage_reason`);
+  if (value.actions !== undefined) expectPDFActions(value.actions, `${path}.actions`);
+}
+
+/** Asserts one successful PDF mutation envelope. */
+function expectPDFMutation(value: unknown, path: string): void {
+  expectObject(value, path);
+  expectBoolean(value.changed, `${path}.changed`);
+  expectString(value.operation, `${path}.operation`);
+  expectPDFStatus(value.pdf_status, `${path}.pdf_status`);
+  if (value.event_key !== null) expectString(value.event_key, `${path}.event_key`);
+  expectString(value.audit_delivery, `${path}.audit_delivery`);
 }
 
 /** Asserts one detail collection page envelope. */
@@ -393,6 +421,8 @@ async function validateHealth(request: APIRequestContext): Promise<void> {
   expectBoolean(body.review.metadata_writable, 'health.review.metadata_writable');
   expectBoolean(body.review.pdf_store_bound, 'health.review.pdf_store_bound');
   expectBoolean(body.review.pdf_store_readable, 'health.review.pdf_store_readable');
+  expectBoolean(body.review.pdf_store_writable, 'health.review.pdf_store_writable');
+  expectString(body.review.pdf_store_write_reason, 'health.review.pdf_store_write_reason');
   expectBoolean(body.review.pdf_store_read_only, 'health.review.pdf_store_read_only');
 }
 
@@ -1027,6 +1057,76 @@ async function validatePDFStatus(request: APIRequestContext): Promise<void> {
   expect(response.ok()).toBeTruthy();
   const body = await response.json();
   expectPDFStatus(body, 'pdfStatus');
+  expectBoolean(body.registered, 'pdfStatus.registered');
+  expectNumber(body.change_counter, 'pdfStatus.change_counter');
+  expectNullableString(body.mutation_etag, 'pdfStatus.mutation_etag');
+  expectNumber(body.max_upload_bytes, 'pdfStatus.max_upload_bytes');
+  expectBoolean(body.storage_writable, 'pdfStatus.storage_writable');
+  expectString(body.storage_reason, 'pdfStatus.storage_reason');
+}
+
+/** Validates raw PUT and DELETE PDF mutation shapes without changing final content. */
+async function validatePDFMutation(request: APIRequestContext): Promise<void> {
+  const statusResponse = await request.get(`/api/works/${ARTICLE}/pdf-status`);
+  expect(statusResponse.ok()).toBeTruthy();
+  const initialStatus = await statusResponse.json();
+  expectPDFStatus(initialStatus, 'pdfMutation.initialStatus');
+  expectString(initialStatus.mutation_etag, 'pdfMutation.initialStatus.mutation_etag');
+
+  const contentResponse = await request.get(`/api/pdf/${ARTICLE}`);
+  expect(contentResponse.ok()).toBeTruthy();
+  const content = await contentResponse.body();
+  const digest = createHash('sha256').update(content).digest('hex');
+  const headers = {
+    'Content-Type': 'application/pdf',
+    'If-Match': initialStatus.mutation_etag,
+    'X-PDF-Size': String(content.length),
+    'X-PDF-SHA256': digest,
+  };
+
+  const noOpResponse = await request.put(`/api/runs/${RUN}/articles/${ARTICLE}/pdf`, {
+    headers,
+    data: content,
+  });
+  expect(noOpResponse.ok()).toBeTruthy();
+  const noOp = await noOpResponse.json();
+  expectPDFMutation(noOp, 'pdfMutation.noOp');
+  expect(noOp.changed).toBe(false);
+  expect(noOp.operation).toBe('unchanged');
+  expect(noOp.event_key).toBeNull();
+  expect(noOp.audit_delivery).toBe('not_applicable');
+
+  const removeResponse = await request.delete(`/api/runs/${RUN}/articles/${ARTICLE}/pdf`, {
+    headers: { 'If-Match': initialStatus.mutation_etag },
+  });
+  expect(removeResponse.ok()).toBeTruthy();
+  const removed = await removeResponse.json();
+  expectPDFMutation(removed, 'pdfMutation.remove');
+  expect(removed.changed).toBe(true);
+  expect(removed.operation).toBe('removed');
+  expectString(removed.event_key, 'pdfMutation.remove.event_key');
+  expect(removed.audit_delivery).toBe('pending');
+
+  const removedStatusResponse = await request.get(`/api/works/${ARTICLE}/pdf-status`);
+  expect(removedStatusResponse.ok()).toBeTruthy();
+  const removedStatus = await removedStatusResponse.json();
+  expectPDFStatus(removedStatus, 'pdfMutation.removedStatus');
+  expectString(removedStatus.mutation_etag, 'pdfMutation.removedStatus.mutation_etag');
+
+  const restoreResponse = await request.put(`/api/runs/${RUN}/articles/${ARTICLE}/pdf`, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'If-Match': removedStatus.mutation_etag,
+      'X-PDF-Size': String(content.length),
+      'X-PDF-SHA256': digest,
+    },
+    data: content,
+  });
+  expect(restoreResponse.ok()).toBeTruthy();
+  const restored = await restoreResponse.json();
+  expectPDFMutation(restored, 'pdfMutation.restore');
+  expect(restored.changed).toBe(true);
+  expect(restored.operation).toBe('uploaded');
 }
 
 // ── Spec body ─────────────────────────────────────────────────────────
@@ -1171,4 +1271,8 @@ test('detail, graph, and PDF-status endpoints match their contracts', async ({ r
   await validateDetails(request);
   await validateGraph(request);
   await validatePDFStatus(request);
+});
+
+test('raw PDF mutation endpoints match their contracts', async ({ request }) => {
+  await validatePDFMutation(request);
 });

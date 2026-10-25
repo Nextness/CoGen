@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-The Research Corpus Viewer is a loopback-only local interface for inspecting one existing research-corpus metadata database, recording run-scoped immutable review history, and reading its bound PDF inventory without writing the PDF database. This guide explains what a user can expect, how research context and review evidence behave, and which limitations matter during interpretation. Developer commands, migration, and export workflows are in [PROJECT-USAGE.md](PROJECT-USAGE.md), the product contract is in [DESIGN.md](DESIGN.md), and technical behavior is in [ARCHITECTURE.md](ARCHITECTURE.md).
+The Research Corpus Viewer is a loopback-only local interface for inspecting one existing research-corpus metadata database, recording run-scoped immutable review history, reading its bound PDF inventory, and accepting bounded conditional PDF saves or removals for exact selected-run articles. This guide explains what a user can expect, how research context and review evidence behave, and which limitations matter during interpretation. Developer commands, migration, and export workflows are in [PROJECT-USAGE.md](PROJECT-USAGE.md), the product contract is in [DESIGN.md](DESIGN.md), and technical behavior is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 2. Start and access
 
@@ -16,7 +16,7 @@ make serve DB=corpus.metadata.db ADDR=127.0.0.1:8080 ASSETS_DIR=build/frontend/d
 
 Open `http://127.0.0.1:8080`. The server requires an exact loopback IP address and rejects a different Host authority. It has no authentication or authorization, so local users and processes with host access remain inside the trust boundary.
 
-The viewer requires an existing fully migrated metadata database. It does not create databases, run migrations, modify pipeline corpus evidence, physically delete or purge runs, acquire PDFs, change PDF inventory, or refresh provider data. It opens a separate existing-only metadata connection for bounded review and reversible run-visibility mutations while immutable evidence and the companion PDF database remain protected.
+The viewer requires an existing fully migrated metadata database. It does not create databases, run migrations, modify pipeline corpus evidence, physically delete or purge runs, acquire PDFs from external services, or refresh provider data. It opens a separate existing-only metadata connection for bounded review and reversible run-visibility mutations, and a separate existing-only companion connection for validated run/article PDF saves and removals, while immutable evidence remains protected.
 
 ## 3. Research context
 
@@ -80,7 +80,7 @@ Cache evidence distinguishes hits, misses, negative results, stale entries, inva
 
 Corpus → Articles is the single place to browse normalized work, inspect PDF inventory, and track the selected run's review status. Review progress, Start review, the run Notes index, and PDF, review, source, qualifier, and progress filters are part of this collection. Inventory dates and detailed metadata appear in row expansion. `not_available` means no validated selected PDF bytes are present; `available` means validated bytes and an inventory timestamp exist. Review status is a contextual interpretation. Existing `/evaluation` routes open `/corpus` with their saved review filters.
 
-The viewer never downloads PDFs from external services and never changes inventory state. An available PDF is rendered locally through the custom vendored PDF.js interface and remains available from the local API with download-safe headers. Manual inventory is performed outside the application using the supported tool described in [PROJECT-USAGE.md](PROJECT-USAGE.md).
+The viewer never downloads PDFs from external services. The current interface does not expose PDF upload or removal controls; the bounded HTTP API accepts a validated conditional save or empty-body removal for the exact selected run/article, and manual inventory remains available through the supported tool described in [PROJECT-USAGE.md](PROJECT-USAGE.md). An available PDF is rendered locally through the custom vendored PDF.js interface and remains available from the local API with download-safe headers.
 
 Metadata and PDF databases are one portable bundle after inventory begins. An unbound companion reports unavailable PDF evidence; a bound companion whose file is missing, unsafe, or not at the required schema fails viewer startup instead of mutating or repairing the store.
 
@@ -130,7 +130,7 @@ Light and dark themes follow system preference. Reduced-motion preference suppre
 
 ## 16. Operational checks
 
-The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, reports both configured schema targets, companion writability, pending PDF audit delivery, and relay state, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
+The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, reports both configured schema targets, actual companion writability and disabled reason, pending PDF audit delivery, and relay state, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
 
 JSON API responses expose their serialized-byte ceiling through `X-Response-Byte-Limit`; all API responses expose their SQLite statement ceiling through `X-Query-Count-Limit` and completed use through `X-Query-Count-Used`, which is a response trailer for streamed PDF and artifact downloads. A stable `response_budget_exceeded` or `query_budget_exceeded` response means the requested route crossed its hard resource contract rather than returning incomplete JSON.
 
@@ -139,6 +139,7 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 ## 17. Current limitations
 
 - The viewer has no application authentication or authorization.
+- PDF upload and removal are available only through the bounded HTTP API; the current interface has no upload or removal control.
 - Browser drafts are not database evidence or export content and may be lost.
 - Author and reference collections can repeat conceptual values across revision snapshots.
 - Graph and collection endpoints are bounded and do not stream beyond their limits.
