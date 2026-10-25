@@ -306,6 +306,7 @@ make test-frontend
 make test-frontend-all
 make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-all WORKERS=1 TEST_FILE=tests/frontend/viewer/integration/review.spec.ts
+make test-frontend-all WORKERS=1 TEST_FILE=tests/frontend/viewer/integration/pdf-management.spec.ts
 make test-frontend-headed BROWSER=chromium
 make test-frontend-debug BROWSER=chromium TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-visual
@@ -319,7 +320,7 @@ Each invocation writes unique output under `build/playwright/run-*/` and prints 
 make frontend-report REPORT_DIR=build/playwright/run-<id>/report
 ```
 
-`WORKERS` controls Playwright worker count (one in CI, eight locally unless overridden). Use a smaller explicit value when running alongside other CPU-intensive checks. Read-oriented specs may run in parallel. Each browser project and mutation spec receives a fresh fixture pair; `review.spec.ts` and the HTTP contract spec run serially within their own isolated copies. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
+`WORKERS` controls Playwright worker count (one in CI, eight locally unless overridden). Use a smaller explicit value when running alongside other CPU-intensive checks. Read-oriented specs may run in parallel. Each browser project and mutation spec receives a fresh fixture pair; `review.spec.ts`, `pdf-management.spec.ts`, and the HTTP contract spec run serially within their own isolated copies. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
 
 The quality suite launches Linux Chromium with [tests/support/fonts/fonts.conf](../tests/support/fonts/fonts.conf), which limits font discovery to committed assets: the existing PDF.js Liberation Sans faces, Liberation Mono 2.1.5 for machine values, and DejaVu Sans 2.37 for symbol fallback. The additional font fixtures and their licenses live under `tests/support/fonts/`. This fixes DOM and canvas typography across Linux distributions so local screenshot baselines also match CI. Review screenshot changes before accepting them; after preparing the binary, frontend assets, and fixture pair, regenerate the Chromium baselines with:
 

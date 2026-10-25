@@ -204,9 +204,12 @@ describe("pdf-management.tsx", function() {
     changed.mutation_etag = '"pdf-10-3"';
     var calls = 0;
     var refreshes = 0;
-    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
       calls += 1;
       if (init?.method === "PUT") return Promise.reject(new TypeError("connection lost"));
+      if (String(input).includes("/api/articles/")) {
+        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ pdf_status: changed }); } } as unknown as Response);
+      }
       return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(changed); } } as unknown as Response);
     } as typeof fetch;
     const host = document.createElement("div");

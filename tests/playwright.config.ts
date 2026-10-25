@@ -7,9 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: ".",
-  testMatch: process.env.PLAYWRIGHT_SUITE === "mutation" ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : /\.spec\.ts$/,
+  testMatch: process.env.PLAYWRIGHT_SUITE === "mutation" ? /(?:review|pdf-management|e2e|api-shapes)\.spec\.ts$/ : /\.spec\.ts$/,
   testIgnore: [
-    process.env.PLAYWRIGHT_SUITE === "read" ? /(?:review|e2e|api-shapes)\.spec\.ts$/ : undefined,
+    process.env.PLAYWRIGHT_SUITE === "read" ? /(?:review|pdf-management|e2e|api-shapes)\.spec\.ts$/ : undefined,
     process.env.E2E_SPEC === "1" ? undefined : /e2e\/offline\//,
     /\/(?:unit|functional)\//,
   ].filter((entry): entry is RegExp => entry !== undefined),

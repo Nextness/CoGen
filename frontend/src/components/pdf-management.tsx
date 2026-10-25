@@ -1,6 +1,6 @@
 // Conditional PDF upload, replacement, and removal controls for article detail.
 import { APIError, api, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
-import type { ArticleRecord, PDFMutationResponse, PDFStatus } from "../api/types.ts";
+import type { ArticleDetailResponse, ArticleRecord, PDFMutationResponse, PDFStatus } from "../api/types.ts";
 import { formatBytes, formatTime, humanLabel } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
 
@@ -327,7 +327,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     }
     if (typeof dialog.showModal === "function") dialog.showModal();
     if (!dialog.open) dialog.setAttribute("open", "");
-    host.querySelector<HTMLButtonElement>("[data-pdf-confirm-cancel]")?.focus();
+    host.querySelector<HTMLButtonElement>(".rw-review-dialog__actions [data-pdf-confirm-cancel]")?.focus();
   }
 
   /** Closes the confirmation dialog and optionally restores focus to its opener. */
@@ -394,7 +394,8 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     feedback = { kind: "info", message: "Refreshing the current PDF state." };
     updateFeedback();
     try {
-      currentStatus = await api<PDFStatus>(`/api/works/${encodeURIComponent(options.record.work_id)}/pdf-status`, {}, { signal: null });
+      const detail = await api<ArticleDetailResponse>(`/api/articles/${encodeURIComponent(options.record.id)}`, { run_id: options.record.pipeline_run_id }, { signal: null });
+      currentStatus = detail.pdf_status || { status: "not_available" };
       feedback = { kind: "info", message: "Current PDF state refreshed. Review the available action before retrying." };
       busy = false;
       renderPanel();

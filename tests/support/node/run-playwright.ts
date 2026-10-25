@@ -16,7 +16,7 @@ const fixturePDF = process.env.FIXTURE_PDF_DB || inferredFixturePDF;
 const assetsDir = process.env.ASSETS_DIR || path.join(rootDir, "build", "frontend", "dist");
 const runDir = path.join(rootDir, 'build', 'playwright', `run-${Date.now()}-${process.pid}`);
 const timeoutMS = 30_000;
-const mutationSpecs = ['review.spec.ts', 'e2e.spec.ts', 'api-shapes.spec.ts'];
+const mutationSpecs = ['review.spec.ts', 'pdf-management.spec.ts', 'e2e.spec.ts', 'api-shapes.spec.ts'];
 
 /** One isolated Playwright execution class. */
 type Suite = 'read' | 'mutation';
@@ -50,7 +50,7 @@ try {
       const requestedSpecs = projectArguments.filter((argument) => argument.endsWith('.spec.ts'));
       const mutationFiles = requestedSpecs.length > 0
         ? requestedSpecs.filter((filename) => mutationSpecs.includes(path.basename(filename)))
-        : ['tests/frontend/viewer/integration/review.spec.ts', 'tests/contracts/http/integration/api-shapes.spec.ts', ...(process.env.E2E_SPEC === '1' ? ['tests/e2e/offline/e2e.spec.ts'] : [])];
+        : ['tests/frontend/viewer/integration/review.spec.ts', 'tests/frontend/viewer/integration/pdf-management.spec.ts', 'tests/contracts/http/integration/api-shapes.spec.ts', ...(process.env.E2E_SPEC === '1' ? ['tests/e2e/offline/e2e.spec.ts'] : [])];
       for (const filename of mutationFiles) {
         const mutationArguments = withoutOptions(argumentsForProject.filter((argument) => !argument.endsWith('.spec.ts')), ['workers']);
         mutationArguments.push('--workers=1', filename);

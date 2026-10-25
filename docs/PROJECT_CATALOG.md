@@ -6024,10 +6024,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`focusFeedback`](../frontend/src/components/pdf-management.tsx#L366) | function | 366 | `function focusFeedback()` | Focuses the visible management feedback after a result or failure. |
 | [`handleUncertain`](../frontend/src/components/pdf-management.tsx#L371) | function | 371 | `async function handleUncertain()` | Reconciles an ambiguous transport failure with the current authoritative state. |
 | [`refreshCurrentStatus`](../frontend/src/components/pdf-management.tsx#L390) | function | 390 | `async function refreshCurrentStatus()` | Reloads the current PDF state without repeating the previous mutation. |
-| [`applyResult`](../frontend/src/components/pdf-management.tsx#L415) | function | 415 | `async function applyResult(result: PDFMutationResponse)` | Applies one committed mutation response and refreshes the local panel. |
-| [`executeUpload`](../frontend/src/components/pdf-management.tsx#L433) | function | 433 | `async function executeUpload()` | Uploads or replaces the selected file after local validation. |
-| [`executeRemove`](../frontend/src/components/pdf-management.tsx#L459) | function | 459 | `async function executeRemove()` | Removes the current PDF selection after explicit confirmation. |
-| [`bind`](../frontend/src/components/pdf-management.tsx#L485) | function | 485 | `function bind()` | Binds one rendered panel's file, confirmation, and mutation controls. |
+| [`applyResult`](../frontend/src/components/pdf-management.tsx#L416) | function | 416 | `async function applyResult(result: PDFMutationResponse)` | Applies one committed mutation response and refreshes the local panel. |
+| [`executeUpload`](../frontend/src/components/pdf-management.tsx#L434) | function | 434 | `async function executeUpload()` | Uploads or replaces the selected file after local validation. |
+| [`executeRemove`](../frontend/src/components/pdf-management.tsx#L460) | function | 460 | `async function executeRemove()` | Removes the current PDF selection after explicit confirmation. |
+| [`bind`](../frontend/src/components/pdf-management.tsx#L486) | function | 486 | `function bind()` | Binds one rendered panel's file, confirmation, and mutation controls. |
 
 ### [`frontend/src/components/pdf-viewer.tsx`](../frontend/src/components/pdf-viewer.tsx)
 
@@ -6452,6 +6452,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`visitQuality`](../tests/frontend/quality/integration/ui-quality.spec.ts#L40) | function | 40 | `async function visitQuality(page: Page, overrides: Record<string, string> = {})` | Navigates to a UI-quality fixture state through sessionStorage seeding. |
 | [`expectNoPageOverflow`](../tests/frontend/quality/integration/ui-quality.spec.ts#L46) | function | 46 | `async function expectNoPageOverflow(page: Page)` | Asynchronously implements expect no page overflow for the viewer. |
 
+### [`tests/frontend/viewer/integration/pdf-management.spec.ts`](../tests/frontend/viewer/integration/pdf-management.spec.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`derivedPDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L22) | function | 22 | `function derivedPDF(source: Buffer, marker: string)` | Returns one valid PDF derived from the fixture by appending a unique comment. |
+| [`digest`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L27) | function | 27 | `function digest(data: Buffer)` | Returns the SHA-256 hex digest of one upload body. |
+| [`visitArticle`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L32) | function | 32 | `async function visitArticle(page: Page, articleID: string, origin?: string)` | Seeds viewer state for one article and opens the clean article path. |
+| [`ensureReviewContext`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L39) | function | 39 | `async function ensureReviewContext(request: APIRequestContext)` | Initializes the selected run's review context when the fixture has none. |
+| [`ensureAvailablePDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L48) | function | 48 | `async function ensureAvailablePDF(request: APIRequestContext, articleID: string, bytes: Buffer)` | Ensures the selected article has available PDF bytes for replacement checks. |
+| [`articleAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L66) | function | 66 | `function articleAudit(page: Page)` | Returns the article-scoped audit panel that follows the reader workspace. |
+| [`waitForPendingAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L71) | function | 71 | `async function waitForPendingAudit(request: APIRequestContext)` | Waits for the asynchronous PDF audit relay to drain pending events. |
+
 ### [`tests/frontend/viewer/integration/review.spec.ts`](../tests/frontend/viewer/integration/review.spec.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -6782,9 +6794,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`confirms removal and keeps the current selection when cancelled`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L159) | test | 159 | `it("confirms removal and keeps the current selection when cancelled", callback)` | confirms removal and keeps the current selection when cancelled |
 | [`preserves the selected file and reports a stale precondition`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L174) | test | 174 | `it("preserves the selected file and reports a stale precondition", callback)` | preserves the selected file and reports a stale precondition |
 | [`reports an uncertain lost response and refreshes current state explicitly`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L200) | test | 200 | `it("reports an uncertain lost response and refreshes current state explicitly", callback)` | reports an uncertain lost response and refreshes current state explicitly |
-| [`reports an unchanged save without claiming a mutation`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L241) | test | 241 | `it("reports an unchanged save without claiming a mutation", callback)` | reports an unchanged save without claiming a mutation |
-| [`warns when a committed PDF change cannot refresh the article display`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L265) | test | 265 | `it("warns when a committed PDF change cannot refresh the article display", callback)` | warns when a committed PDF change cannot refresh the article display |
-| [`updates the visible status after a successful replacement`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L297) | test | 297 | `it("updates the visible status after a successful replacement", callback)` | updates the visible status after a successful replacement |
+| [`reports an unchanged save without claiming a mutation`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L244) | test | 244 | `it("reports an unchanged save without claiming a mutation", callback)` | reports an unchanged save without claiming a mutation |
+| [`warns when a committed PDF change cannot refresh the article display`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L268) | test | 268 | `it("warns when a committed PDF change cannot refresh the article display", callback)` | warns when a committed PDF change cannot refresh the article display |
+| [`updates the visible status after a successful replacement`](../tests/frontend/components/pdf-management/functional/pdf-management.test.ts#L300) | test | 300 | `it("updates the visible status after a successful replacement", callback)` | updates the visible status after a successful replacement |
 
 ### [`tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts`](../tests/frontend/components/pdf-viewer/unit/pdf-viewer.test.ts)
 
@@ -6999,6 +7011,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`creates reference link for reference_mentions id with tableName`](../tests/frontend/state/unit/state.test.ts#L1015) | test | 1015 | `it('creates reference link for reference_mentions id with tableName', callback)` | creates reference link for reference_mentions id with tableName |
 | [`copies text and shows Copied! feedback`](../tests/frontend/state/unit/state.test.ts#L1028) | test | 1028 | `it('copies text and shows Copied! feedback', callback)` | copies text and shows Copied! feedback |
 | [`falls back to prompt when clipboard fails`](../tests/frontend/state/unit/state.test.ts#L1057) | test | 1057 | `it('falls back to prompt when clipboard fails', callback)` | falls back to prompt when clipboard fails |
+
+### [`tests/frontend/viewer/integration/pdf-management.spec.ts`](../tests/frontend/viewer/integration/pdf-management.spec.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L80) | test | 80 | `test('uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls', callback)` | uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls |
+| [`rejects a stale second-tab replacement while preserving drafts and the selected file`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L235) | test | 235 | `test('rejects a stale second-tab replacement while preserving drafts and the selected file', callback)` | rejects a stale second-tab replacement while preserving drafts and the selected file |
 
 ### [`tests/frontend/viewer/integration/review.spec.ts`](../tests/frontend/viewer/integration/review.spec.ts)
 
