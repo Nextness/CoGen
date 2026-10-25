@@ -432,13 +432,13 @@ The `backend/pdfstore/` companion store owns every table below and reaches it th
 
 - Purpose: Stores one normalized DOI's current PDF availability state.
 - Columns and defaults: `doi TEXT PK CHECK nonblank`; `status TEXT NOT NULL CHECK IN ('not_available', 'available')`; `content_hash TEXT NULL FK pdf_blobs.content_hash`; `inventoried_at TEXT NULL`; `updated_at TEXT NOT NULL`; `change_counter INTEGER NOT NULL DEFAULT 1 CHECK >= 1`; row check requires `available` to have both content hash and inventory timestamp and requires `not_available` to have neither. An explicit index on `content_hash` supports bounded deletion checks.
-- Relationships and expectations: Pipeline normalization registers a DOI idempotently as `not_available`. Manual addition requires prior registration, validates the bytes, inserts or reuses a blob, and atomically changes the row to `available`. An already available DOI is left unchanged, so supported code does not replace its selected PDF. A trigger prevents deleting registrations and requires the counter to advance by exactly one when the selection changes, while no-op operations leave it unchanged.
+- Relationships and expectations: Pipeline normalization registers a DOI idempotently as `not_available`. Conditional manual save requires prior registration and the current document change counter, validates complete bytes, inserts or reuses a blob, and atomically uploads or replaces the selection while advancing the counter. Identical bytes with the current counter are a verified no-op that preserves timestamps, bytes, counter, and audit. Removal clears the selection and inventory timestamp while retaining the registration and advancing the counter; repeated removal with the current counter is a no-op. A trigger prevents deleting registrations and requires the counter to advance by exactly one when the selection changes, while no-op operations leave it unchanged.
 
 #### `pdf_blobs`
 
 - Purpose: Stores validated PDF bytes once by content hash.
 - Columns and defaults: `content_hash TEXT PK CHECK length = 64`; `byte_size INTEGER NOT NULL CHECK > 0`; `data BLOB NOT NULL CHECK length(data) = byte_size`; `created_at TEXT NOT NULL`.
-- Relationships and expectations: `pdf_documents` and the retained download-attempt evidence can reference a blob. An update trigger makes bytes and metadata immutable; there is no delete trigger, and current runtime exposes no blob deletion path. Supported manual insertion validates a maximum of 20,000,000 bytes, a `%PDF-` signature, and SHA-256 identity before writing.
+- Relationships and expectations: `pdf_documents` and the retained download-attempt evidence can reference a blob. An update trigger makes bytes and metadata immutable; conditional save and removal delete outgoing blobs only when no current document selects them. Supported manual save validates a maximum of 20,000,000 bytes, a `%PDF-` signature, and SHA-256 identity before writing.
 
 ### 6.3 Audit outbox
 
@@ -446,7 +446,7 @@ The `backend/pdfstore/` companion store owns every table below and reaches it th
 
 - Purpose: Durably queues PDF mutations for idempotent delivery into metadata audit.
 - Columns and defaults: `event_key TEXT PK`; `occurred_at TEXT NOT NULL`; `actor TEXT NOT NULL`; `entity_type TEXT NOT NULL`; `entity_id TEXT NOT NULL`; `action TEXT NOT NULL`; `metadata_json TEXT NOT NULL CHECK json_valid`; `correlation_id TEXT NOT NULL`; `delivered_at TEXT NULL`; `pipeline_run_id INTEGER NULL`; `before_json TEXT NULL CHECK json_valid`; `after_json TEXT NULL CHECK json_valid`.
-- Relationships and expectations: Registration and inventory transactions insert the outbox row before commit. `pipeline_run_id` logically references metadata `pipeline_runs.id` but cannot have a cross-file foreign key. Undelivered rows have `delivered_at IS NULL`; flushing uses `pdf_audit_links.event_key` to reuse an already inserted metadata event, then sets the delivery timestamp in the PDF database. Existing pending events retain null `before_json` and `after_json` values and remain deliverable.
+- Relationships and expectations: Registration, save, replacement, and removal transactions insert the outbox row before commit. `pipeline_run_id` logically references metadata `pipeline_runs.id` but cannot have a cross-file foreign key. Undelivered rows have `delivered_at IS NULL`; flushing uses `pdf_audit_links.event_key` to reuse an already inserted metadata event, then sets the delivery timestamp in the PDF database. Existing pending events retain null `before_json` and `after_json` values and remain deliverable.
 
 ### 6.4 Present schema tables without a current production writer
 
@@ -454,7 +454,7 @@ The `backend/pdfstore/` companion store owns every table below and reaches it th
 
 - Purpose: Stores bounded settings and lifecycle metadata for a PDF gathering run when such rows are supplied.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `correlation_id TEXT NOT NULL UNIQUE`; `started_at TEXT NOT NULL`; `completed_at TEXT NULL`; `status TEXT NOT NULL CHECK IN ('running', 'completed', 'failed')`; `settings_fingerprint TEXT NOT NULL CHECK length = 64`; `settings_json TEXT NOT NULL CHECK json_valid`; `selected_workspaces TEXT NOT NULL CHECK json_valid`.
-- Relationships and expectations: One row can own many `pdf_download_attempts`. The current production PDF workflow is normalized DOI registration plus validated manual insertion and does not create, read, or update gathering-run rows. The table remains part of the current migrated schema and therefore remains visible to the read-only table browser.
+- Relationships and expectations: One row can own many `pdf_download_attempts`. The current production PDF workflow is normalized DOI registration plus validated manual insertion through the maintenance tool; the companion store API also supports conditional replacement and removal. It does not create, read, or update gathering-run rows. The table remains part of the current migrated schema and therefore remains visible to the read-only table browser.
 
 #### `pdf_download_attempts`
 

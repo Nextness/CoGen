@@ -463,7 +463,7 @@ func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
+	if _, err := store.Save(ctx, pdfstore.SaveInput{DOI: "10.1000/viewer-available", WorkID: availableID, ExpectedChangeCounter: 1, Data: pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {

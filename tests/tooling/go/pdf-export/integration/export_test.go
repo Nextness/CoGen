@@ -74,7 +74,7 @@ func exportCorpus(t *testing.T) (string, string, []byte) {
 			t.Fatal(err)
 		}
 		if paper.available {
-			if _, err := companion.Add(ctx, paper.doi, id, data); err != nil {
+			if _, err := companion.Save(ctx, pdfstore.SaveInput{DOI: paper.doi, WorkID: id, ExpectedChangeCounter: 1, Data: data}); err != nil {
 				t.Fatal(err)
 			}
 		}

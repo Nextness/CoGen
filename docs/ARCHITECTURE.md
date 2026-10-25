@@ -349,9 +349,9 @@ Cache metrics distinguish hits, misses, negative hits, stale entries, invalid pa
 
 The metadata database stores one `pdf_store_binding` row with a relative companion path. Writable pipeline binding and read-only viewer binding reject absolute paths and traversal outside the metadata database directory.
 
-PDF content is addressed by SHA-256 in `pdf_blobs`. `pdf_documents` has two states: `not_available` has no content hash or inventory timestamp, and `available` has both. Registration is idempotent. Manual addition validates size and signature before storage, requires prior normalized registration, and does not replace an available selection.
+PDF content is addressed by SHA-256 in `pdf_blobs`. `pdf_documents` has two states: `not_available` has no content hash or inventory timestamp, and `available` has both. Registration is idempotent. Conditional manual save validates size and signature before storage, requires prior normalized registration and the current document change counter, and uploads, replaces, or reports identical bytes unchanged. Removal clears the selection and inventory timestamp while retaining the registration. Outgoing bytes are deleted only when no current document selects them.
 
-PDF events enter `pdf_audit_outbox` in the same transaction as the PDF mutation. Flushing writes metadata `audit_events` plus `pdf_audit_links` in one metadata transaction and then marks the outbox row delivered. Repeated delivery is idempotent across interruption.
+PDF events enter `pdf_audit_outbox` in the same transaction as the PDF mutation. Uploads record `pdf_document_inventoried`, replacements record `pdf_document_replaced`, and removals record `pdf_document_removed`. Flushing writes metadata `audit_events` plus `pdf_audit_links` in one metadata transaction and then marks the outbox row delivered. Repeated delivery is idempotent across interruption.
 
 ```text
 PDF transaction                        metadata transaction
@@ -395,7 +395,7 @@ Audit supports run context, text search, category, action, actor, entity, stage,
 
 Graph modes are `research_network`, `article_author`, `citation`, and `article_reference`. The endpoint caps article nodes at 2,000, related nodes at 10,000, and edges at 20,000, and reports truncation and its reason.
 
-Every review mutation validates the selected completed active run, context head, work revision, vocabulary, and expected version before one metadata transaction inserts a child version, compare-and-swap moves only that context head, and appends safe audit evidence. Decision and Note mutations require exact work membership; anchor creation and restoration additionally require current matching PDF availability. The companion PDF availability check remains outside the metadata transaction because supported PDF inventory never removes or replaces an available document.
+Every review mutation validates the selected completed active run, context head, work revision, vocabulary, and expected version before one metadata transaction inserts a child version, compare-and-swap moves only that context head, and appends safe audit evidence. Decision and Note mutations require exact work membership; anchor creation and restoration additionally require current matching PDF availability. The companion PDF availability check remains outside the metadata transaction; PDF replacement and removal are separate companion transactions, so review mutations validate anchors against the current document state.
 
 ```text
 browser GET/HEAD -> read-only metadata or PDF query -> bounded response

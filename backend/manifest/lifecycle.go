@@ -153,6 +153,10 @@ const (
 	AuditPDFInventoryRegistered AuditAction = "pdf_inventory_registered"
 	// AuditPDFDocumentInventoried records a validated manual PDF insertion.
 	AuditPDFDocumentInventoried AuditAction = "pdf_document_inventoried"
+	// AuditPDFDocumentReplaced records a validated manual PDF replacement.
+	AuditPDFDocumentReplaced AuditAction = "pdf_document_replaced"
+	// AuditPDFDocumentRemoved records a manual PDF removal that retained its registration.
+	AuditPDFDocumentRemoved AuditAction = "pdf_document_removed"
 	// AuditReviewContextCreated records explicit initialization of a run review context.
 	AuditReviewContextCreated AuditAction = "review_context_created"
 	// AuditWorkReviewVersionCreated records a new immutable article-review state.
@@ -179,7 +183,8 @@ func ValidateAuditAction(s string) error {
 		AuditValidationChanged, AuditRunCompleted, AuditRunFailed, AuditRunTrashed,
 		AuditRunRestored, AuditRunPurged, AuditRevisionConfigChanged:
 		return nil
-	case AuditPDFDocumentAdded, AuditPDFInventoryRegistered, AuditPDFDocumentInventoried:
+	case AuditPDFDocumentAdded, AuditPDFInventoryRegistered, AuditPDFDocumentInventoried,
+		AuditPDFDocumentReplaced, AuditPDFDocumentRemoved:
 		return nil
 	case AuditReviewContextCreated, AuditWorkReviewVersionCreated,
 		AuditReviewNoteCreated, AuditReviewNoteVersionCreated, AuditReviewNoteTombstoned,

@@ -11,6 +11,40 @@ import (
 	"strings"
 )
 
+const clearPDFDocumentSelection = `-- name: ClearPDFDocumentSelection :execresult
+UPDATE pdf_documents
+SET status = 'not_available',
+    content_hash = NULL,
+    inventoried_at = NULL,
+    updated_at = ?1,
+    change_counter = change_counter + 1
+WHERE doi = ?2
+  AND change_counter = ?3
+  AND status = 'available'
+`
+
+type ClearPDFDocumentSelectionParams struct {
+	UpdatedAt       string
+	Doi             string
+	ExpectedCounter int64
+}
+
+func (q *Queries) ClearPDFDocumentSelection(ctx context.Context, arg ClearPDFDocumentSelectionParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, clearPDFDocumentSelection, arg.UpdatedAt, arg.Doi, arg.ExpectedCounter)
+}
+
+const deletePDFBlobIfUnreferenced = `-- name: DeletePDFBlobIfUnreferenced :execresult
+DELETE FROM pdf_blobs
+WHERE pdf_blobs.content_hash = ?1
+  AND NOT EXISTS (
+      SELECT 1 FROM pdf_documents WHERE pdf_documents.content_hash = ?1
+  )
+`
+
+func (q *Queries) DeletePDFBlobIfUnreferenced(ctx context.Context, contentHash string) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deletePDFBlobIfUnreferenced, contentHash)
+}
+
 const getAvailablePDFDocument = `-- name: GetAvailablePDFDocument :one
 SELECT
     d.content_hash,
@@ -32,27 +66,6 @@ func (q *Queries) GetAvailablePDFDocument(ctx context.Context, doi string) (GetA
 	row := q.db.QueryRowContext(ctx, getAvailablePDFDocument, doi)
 	var i GetAvailablePDFDocumentRow
 	err := row.Scan(&i.ContentHash, &i.InventoriedAt, &i.ByteSize)
-	return i, err
-}
-
-const getAvailablePDFDocumentWithBlob = `-- name: GetAvailablePDFDocumentWithBlob :one
-SELECT d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = ?1
-  AND d.status = 'available'
-`
-
-type GetAvailablePDFDocumentWithBlobRow struct {
-	ContentHash sql.NullString
-	ByteSize    int64
-	Data        []byte
-}
-
-func (q *Queries) GetAvailablePDFDocumentWithBlob(ctx context.Context, doi string) (GetAvailablePDFDocumentWithBlobRow, error) {
-	row := q.db.QueryRowContext(ctx, getAvailablePDFDocumentWithBlob, doi)
-	var i GetAvailablePDFDocumentWithBlobRow
-	err := row.Scan(&i.ContentHash, &i.ByteSize, &i.Data)
 	return i, err
 }
 
@@ -84,57 +97,25 @@ func (q *Queries) GetPDFBlobSize(ctx context.Context, contentHash string) (int64
 
 const getPDFDocument = `-- name: GetPDFDocument :one
 
-SELECT doi, status, content_hash, inventoried_at, updated_at
+SELECT doi, status, content_hash, inventoried_at, updated_at, change_counter
 FROM pdf_documents
 WHERE doi = ?1
 `
 
-type GetPDFDocumentRow struct {
-	Doi           string
-	Status        string
-	ContentHash   sql.NullString
-	InventoriedAt sql.NullString
-	UpdatedAt     string
-}
-
-// Companion PDF store queries. Registration, insertion, inventory lookup,
-// blob reads, and outbox selection are typed; the cross-database delivery
-// protocol keeps its handwritten savepoints and metadata transaction.
-func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (GetPDFDocumentRow, error) {
+// Companion PDF store queries. Registration, conditional save and removal,
+// inventory lookup, blob reads, and outbox selection are typed; the
+// cross-database delivery protocol keeps its handwritten savepoints and
+// metadata transaction.
+func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (PdfDocument, error) {
 	row := q.db.QueryRowContext(ctx, getPDFDocument, doi)
-	var i GetPDFDocumentRow
+	var i PdfDocument
 	err := row.Scan(
 		&i.Doi,
 		&i.Status,
 		&i.ContentHash,
 		&i.InventoriedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPDFDocumentWithBlob = `-- name: GetPDFDocumentWithBlob :one
-SELECT d.status, d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-LEFT JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = ?1
-`
-
-type GetPDFDocumentWithBlobRow struct {
-	Status      string
-	ContentHash sql.NullString
-	ByteSize    sql.NullInt64
-	Data        []byte
-}
-
-func (q *Queries) GetPDFDocumentWithBlob(ctx context.Context, doi string) (GetPDFDocumentWithBlobRow, error) {
-	row := q.db.QueryRowContext(ctx, getPDFDocumentWithBlob, doi)
-	var i GetPDFDocumentWithBlobRow
-	err := row.Scan(
-		&i.Status,
-		&i.ContentHash,
-		&i.ByteSize,
-		&i.Data,
+		&i.ChangeCounter,
 	)
 	return i, err
 }
@@ -444,14 +425,16 @@ SET status = 'available',
     updated_at = ?3,
     change_counter = change_counter + 1
 WHERE doi = ?4
-  AND status = 'not_available'
+  AND change_counter = ?5
+  AND status IN ('not_available', 'available')
 `
 
 type MarkPDFDocumentAvailableParams struct {
-	ContentHash   sql.NullString
-	InventoriedAt sql.NullString
-	UpdatedAt     string
-	Doi           string
+	ContentHash     sql.NullString
+	InventoriedAt   sql.NullString
+	UpdatedAt       string
+	Doi             string
+	ExpectedCounter int64
 }
 
 func (q *Queries) MarkPDFDocumentAvailable(ctx context.Context, arg MarkPDFDocumentAvailableParams) (sql.Result, error) {
@@ -460,5 +443,6 @@ func (q *Queries) MarkPDFDocumentAvailable(ctx context.Context, arg MarkPDFDocum
 		arg.InventoriedAt,
 		arg.UpdatedAt,
 		arg.Doi,
+		arg.ExpectedCounter,
 	)
 }

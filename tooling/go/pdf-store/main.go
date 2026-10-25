@@ -98,7 +98,38 @@ func add(metadataPath, doi, filePath string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	result, err := store.Add(ctx, found.DOI, found.ID, data)
+	document, err := store.Document(ctx, found.DOI)
+	if err != nil {
+		return err
+	}
+	if document != nil && document.Status == pdfstore.StatusAvailable {
+		available, err := store.AvailableDocument(ctx, found.DOI)
+		if err != nil {
+			return err
+		}
+		if available == nil {
+			return fmt.Errorf("existing PDF inventory document %q is corrupt", found.DOI)
+		}
+		stored, err := store.BlobData(ctx, available.ContentHash)
+		if err != nil {
+			return err
+		}
+		hash, err := pdfstore.ValidatePDF(stored, pdfstore.DefaultMaxPDFBytes)
+		if err != nil || hash != available.ContentHash || int64(len(stored)) != available.ByteSize {
+			return fmt.Errorf("existing PDF inventory document %q is corrupt", found.DOI)
+		}
+		return json.NewEncoder(stdout).Encode(map[string]any{
+			"doi": found.DOI, "status": "unchanged", "content_hash": available.ContentHash,
+			"byte_size": available.ByteSize, "audit_events_flushed": flushed,
+		})
+	}
+	expectedCounter := int64(1)
+	if document != nil {
+		expectedCounter = document.ChangeCounter
+	}
+	result, err := store.Save(ctx, pdfstore.SaveInput{
+		DOI: found.DOI, WorkID: found.ID, ExpectedChangeCounter: expectedCounter, Data: data,
+	})
 	if err != nil {
 		return err
 	}
@@ -107,12 +138,12 @@ func add(metadataPath, doi, filePath string, stdout io.Writer) error {
 		return err
 	}
 	flushed += newlyFlushed
-	status := "unchanged"
-	if result.Added {
+	status := string(result.Operation)
+	if result.Operation == pdfstore.OperationUploaded {
 		status = "inventoried"
 	}
 	return json.NewEncoder(stdout).Encode(map[string]any{
-		"doi": found.DOI, "status": status, "content_hash": result.ContentHash,
+		"doi": found.DOI, "status": status, "content_hash": result.Document.ContentHash,
 		"byte_size": result.ByteSize, "audit_events_flushed": flushed,
 	})
 }

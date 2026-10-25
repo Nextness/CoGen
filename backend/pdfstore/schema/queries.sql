@@ -1,21 +1,16 @@
--- Companion PDF store queries. Registration, insertion, inventory lookup,
--- blob reads, and outbox selection are typed; the cross-database delivery
--- protocol keeps its handwritten savepoints and metadata transaction.
+-- Companion PDF store queries. Registration, conditional save and removal,
+-- inventory lookup, blob reads, and outbox selection are typed; the
+-- cross-database delivery protocol keeps its handwritten savepoints and
+-- metadata transaction.
 
 -- name: GetPDFDocument :one
-SELECT doi, status, content_hash, inventoried_at, updated_at
+SELECT doi, status, content_hash, inventoried_at, updated_at, change_counter
 FROM pdf_documents
 WHERE doi = sqlc.arg(doi);
 
 -- name: InsertPDFDocument :execresult
 INSERT OR IGNORE INTO pdf_documents (doi, status, updated_at)
 VALUES (sqlc.arg(doi), 'not_available', sqlc.arg(updated_at));
-
--- name: GetPDFDocumentWithBlob :one
-SELECT d.status, d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-LEFT JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = sqlc.arg(doi);
 
 -- name: InsertPDFBlob :exec
 INSERT OR IGNORE INTO pdf_blobs (content_hash, byte_size, data, created_at)
@@ -34,14 +29,26 @@ SET status = 'available',
     updated_at = sqlc.arg(updated_at),
     change_counter = change_counter + 1
 WHERE doi = sqlc.arg(doi)
-  AND status = 'not_available';
+  AND change_counter = sqlc.arg(expected_counter)
+  AND status IN ('not_available', 'available');
 
--- name: GetAvailablePDFDocumentWithBlob :one
-SELECT d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = sqlc.arg(doi)
-  AND d.status = 'available';
+-- name: ClearPDFDocumentSelection :execresult
+UPDATE pdf_documents
+SET status = 'not_available',
+    content_hash = NULL,
+    inventoried_at = NULL,
+    updated_at = sqlc.arg(updated_at),
+    change_counter = change_counter + 1
+WHERE doi = sqlc.arg(doi)
+  AND change_counter = sqlc.arg(expected_counter)
+  AND status = 'available';
+
+-- name: DeletePDFBlobIfUnreferenced :execresult
+DELETE FROM pdf_blobs
+WHERE pdf_blobs.content_hash = sqlc.arg(content_hash)
+  AND NOT EXISTS (
+      SELECT 1 FROM pdf_documents WHERE pdf_documents.content_hash = sqlc.arg(content_hash)
+  );
 
 -- name: InsertPDFAuditOutboxEvent :exec
 INSERT INTO pdf_audit_outbox (
