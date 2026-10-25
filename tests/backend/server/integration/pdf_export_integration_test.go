@@ -49,7 +49,13 @@ func pdfExportErrorCode(t *testing.T, recorder *httptest.ResponseRecorder) strin
 // pdfExportZIP decodes one ZIP response and its manifest.
 func pdfExportZIP(t *testing.T, recorder *httptest.ResponseRecorder) (map[string][]byte, map[string]any) {
 	t.Helper()
-	reader, err := zip.NewReader(bytes.NewReader(recorder.Body.Bytes()), int64(recorder.Body.Len()))
+	return pdfExportZIPBytes(t, recorder.Body.Bytes())
+}
+
+// pdfExportZIPBytes decodes one ZIP body and its manifest.
+func pdfExportZIPBytes(t *testing.T, data []byte) (map[string][]byte, map[string]any) {
+	t.Helper()
+	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		t.Fatalf("open export ZIP: %v", err)
 	}

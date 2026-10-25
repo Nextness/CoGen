@@ -443,6 +443,9 @@ func (s *Server) openBoundPDFStore(ctx context.Context, metadataPath, registryPa
 		_ = pdfDB.Close()
 		return fmt.Errorf("verify PDF store schema: %w", err)
 	}
+	// Two explicit export snapshots may hold the companion read pool at once.
+	// The store remains read-only; this only admits the bounded export concurrency.
+	pdfDB.SetMaxOpenConns(pdfExportConcurrency)
 	s.pdfDB = pdfDB
 	s.pdfStore = pdfstore.New(pdfDB)
 	s.pdfPath = resolvedStorePath

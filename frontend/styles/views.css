@@ -749,9 +749,10 @@
 
 .rw-export-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: var(--space-2) var(--space-4);
   align-items: center;
+  min-width: 0;
   padding: var(--space-3);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-default);
@@ -760,6 +761,7 @@
 
 .rw-export-toolbar__summary {
   display: grid;
+  min-width: 0;
   gap: var(--space-1);
 }
 
@@ -767,6 +769,17 @@
 .rw-export-toolbar__summary small {
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+}
+
+.rw-export-toolbar__comments {
+  grid-column: 2;
+  justify-self: end;
+  white-space: nowrap;
+}
+
+.rw-export-toolbar > [data-export-selected] {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .rw-export-toolbar__comments-help {

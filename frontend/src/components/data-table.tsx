@@ -90,7 +90,7 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
         const selectable = selection.isSelectable ? selection.isSelectable(row) : true;
         const rowLabel = selection.rowLabel ? selection.rowLabel(row) : key;
         selectionCell = (
-          <td>
+          <td className="selection-cell">
             <input type="checkbox" checked={selection.selected.has(key)} disabled={!selectable} data-select-row={key} aria-label={`${selection.label} ${rowLabel}`} />
           </td>
         );
@@ -174,7 +174,7 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
     const allSelected = selectableKeys.length > 0 && selectableKeys.every((key) => selection.selected.has(key));
     const someSelected = selectableKeys.some((key) => selection.selected.has(key));
     selectionHeader = (
-      <th>
+      <th className="selection-cell">
         <input type="checkbox" checked={allSelected} data-select-all data-select-indeterminate={String(someSelected && !allSelected)} aria-label={selection.ariaLabel || selection.label} />
       </th>
     );

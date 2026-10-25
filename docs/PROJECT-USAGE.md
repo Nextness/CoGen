@@ -150,7 +150,13 @@ The serving API exposes the same conditional storage contract for one exact sele
 
 Treat `corpus.metadata.db` and its bound `corpus.pdf.db` as one portable bundle. Stop writers for a simple file copy or use SQLite backup facilities for coordinated online backup. The Makefile `database-backup` target copies both configured database filenames to `../backup_databases/` and assumes that destination already exists.
 
-Export existing PDF bytes by DOI without changing either database:
+### Download and export PDFs in the viewer
+
+Article detail provides Download PDF for the current validated selection. Corpus articles provide an explicit current-page selection capped at 20 rows, selected and unavailable counts, and Download selected PDFs. Both surfaces show an Include comments control that remains disabled until comment-enabled export support is enabled. The browser owns the destination and filename-conflict behavior; the viewer prepares a completed response and reports that a download was prepared or started, not that a file was saved.
+
+`POST /api/runs/{run_id}/articles/{work_revision_id}/pdf-export` accepts one bounded JSON body with the expected lowercase source `content_hash` and optional `include_comments` defaulting to false. It returns validated original bytes as `application/pdf` with an attachment disposition and an export correlation header, or a structured `pdf_changed` conflict when the selected bytes no longer match. `POST /api/runs/{run_id}/pdf-exports` accepts up to 20 unique selected-run revisions with expected hashes and returns a stored-entry ZIP containing readable PDF names plus `export-manifest.json`. The manifest records requested, included, and skipped counts and per-file included or skipped reasons; valid files remain when other selections are unavailable, changed, or corrupt. The server rejects outside-run selectors, all-failed output, more than 20 unique revisions, more than 100,000,000 aggregate PDF bytes, and a manifest over 1,000,000 bytes before binary headers. Both routes use a pinned companion read snapshot, a 60-second export deadline, at most two active export responses, and at most one ZIP response. They write one work-scoped `pdf_document_export_prepared` metadata audit event per included PDF through one metadata batch before headers and do not write the PDF outbox or change PDF selection, counters, or review state. Downloads do not require a writable PDF companion or initialized review context.
+
+The standalone command remains available for existing operator workflows and is scheduled for retirement after application coverage is complete:
 
 ```sh
 make pdf-export

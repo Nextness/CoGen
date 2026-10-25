@@ -387,6 +387,7 @@ export const classTokens = [
   "segment",
   "selected",
   "selection",
+  "selection-cell",
   "server-status",
   "site-header",
   "skip-link",

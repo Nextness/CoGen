@@ -28,6 +28,39 @@ function digest(data: Buffer): string {
   return createHash('sha256').update(data).digest('hex');
 }
 
+
+/** Extracts stored entries from one standard ZIP response for assertions. */
+function storedZipEntries(data: Buffer): Map<string, Buffer> {
+  var eocd = -1;
+  for (var index = data.length - 22; index >= 0; index -= 1) {
+    if (data.readUInt32LE(index) === 0x06054b50) {
+      eocd = index;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error('ZIP end-of-central-directory record is missing');
+  const count = data.readUInt16LE(eocd + 10);
+  var offset = data.readUInt32LE(eocd + 16);
+  const entries = new Map<string, Buffer>();
+  for (var entry = 0; entry < count; entry += 1) {
+    if (data.readUInt32LE(offset) !== 0x02014b50) throw new Error('ZIP central-directory record is invalid');
+    const method = data.readUInt16LE(offset + 10);
+    const compressedSize = data.readUInt32LE(offset + 20);
+    const nameLength = data.readUInt16LE(offset + 28);
+    const extraLength = data.readUInt16LE(offset + 30);
+    const commentLength = data.readUInt16LE(offset + 32);
+    const localOffset = data.readUInt32LE(offset + 42);
+    const name = data.subarray(offset + 46, offset + 46 + nameLength).toString('utf8');
+    if (method !== 0) throw new Error(`ZIP entry ${name} is not stored`);
+    const localNameLength = data.readUInt16LE(localOffset + 26);
+    const localExtraLength = data.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    entries.set(name, data.subarray(dataStart, dataStart + compressedSize));
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
 /** Seeds viewer state for one article and opens the clean article path. */
 async function visitArticle(page: Page, articleID: string, origin?: string): Promise<void> {
   const state: Record<string, string> = { ...context, article_id: articleID };
@@ -92,7 +125,7 @@ test.describe('isolated PDF management lifecycle', () => {
     await expect(management).toContainText('Not Available');
     await expect(page.locator('[data-pdf-file]')).toHaveAttribute('accept', 'application/pdf,.pdf');
     await expect(page.getByRole('button', { name: 'Upload PDF', exact: true })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toHaveCount(0);
 
     const axe = await new AxeBuilder({ page }).include('[data-pdf-management]').analyze();
     expect(axe.violations).toEqual([]);
@@ -113,7 +146,8 @@ test.describe('isolated PDF management lifecycle', () => {
     expect(uploadResponse.status()).toBe(200);
     await expect(page.locator('[data-pdf-feedback]')).toContainText('PDF uploaded. Audit delivery is pending.');
     await expect(management).toContainText('Available');
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
+    await expect(page.locator('[data-pdf-include-comments]')).toBeDisabled();
     await expect(page.locator('.rw-pdf-page canvas')).toBeVisible();
     await expect(page.locator('[data-review-reason]')).toHaveValue('Unsaved management decision');
     await page.getByRole('tab', { name: 'Notes' }).click();
@@ -126,9 +160,9 @@ test.describe('isolated PDF management lifecycle', () => {
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('link', { name: 'Download PDF' }).click(),
+      page.getByRole('button', { name: 'Download PDF' }).click(),
     ]);
-    expect(download.suggestedFilename()).toBe('work-2.pdf');
+    expect(download.suggestedFilename()).toBe('Deep Reinforcement Learning for Robotics.pdf');
     const downloadPath = await download.path();
     expect(downloadPath).not.toBeNull();
     const downloaded = await readFile(downloadPath!);
@@ -137,7 +171,7 @@ test.describe('isolated PDF management lifecycle', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
     await expect(management).toContainText('Available');
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
     await page.getByRole('heading', { name: 'Review decision' }).waitFor();
     await page.locator('[data-review-reason]').fill('Draft before replacement');
     await page.getByRole('tab', { name: 'Notes' }).click();
@@ -186,7 +220,7 @@ test.describe('isolated PDF management lifecycle', () => {
     expect(removeResponse.status()).toBe(200);
     await expect(page.locator('[data-pdf-feedback]')).toContainText('PDF removed. Audit delivery is pending.');
     await expect(management).toContainText('Not Available');
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toHaveCount(0);
     await expect(page.locator('[data-review-reason]')).toHaveValue('Draft before replacement');
     await page.getByRole('tab', { name: 'Notes' }).click();
     await expect(page.locator('[data-note-body]')).toHaveValue('Note before replacement');
@@ -198,7 +232,7 @@ test.describe('isolated PDF management lifecycle', () => {
     await page.reload();
     await page.waitForLoadState('networkidle');
     await expect(management).toContainText('Not Available');
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Upload PDF', exact: true })).toBeVisible();
 
     await page.locator('[data-pdf-file]').setInputFiles({ name: 'reupload.pdf', mimeType: 'application/pdf', buffer: replacementBytes });
@@ -230,6 +264,65 @@ test.describe('isolated PDF management lifecycle', () => {
     expect(returned.q).toBe('preserved');
     expect(returned.page).toBe('3');
     expect(returned.expanded).toBe('3');
+  });
+
+
+  test('downloads selected current-page PDFs as a ZIP with a manifest and export audit', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await ensureReviewContext(request);
+    const beforeResponse = await request.get('/api/works/1/pdf-status');
+    expect(beforeResponse.ok()).toBeTruthy();
+    const before = await beforeResponse.json();
+    const sourceResponse = await request.get('/api/pdf/1');
+    expect(sourceResponse.ok()).toBeTruthy();
+    const source = Buffer.from(await sourceResponse.body());
+
+    await visitArticle(page, '1');
+    await page.getByRole('heading', { name: 'Review decision' }).waitFor();
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.locator('[data-note-body]').fill('Draft across ZIP export');
+    await expect(page.locator('[data-draft-status]')).toContainText('Browser draft saved');
+    await visit(page, {
+      view: 'corpus', section: 'articles', search_id: '1', search_revision_id: '1', plan_id: '1', run_id: '1', per_page: '20',
+    }, '/corpus');
+    await expect(page.locator('[data-export-selected]')).toBeVisible();
+    await expect(page.locator('[data-export-include-comments]')).toBeDisabled();
+    const row = page.locator('[data-select-row="1"]');
+    await expect(row).toBeEnabled();
+    await row.check();
+    await expect(page.locator('[data-export-count]')).toContainText('1 selected');
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Download selected PDFs' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe('run-1-pdfs.zip');
+    const path = await download.path();
+    expect(path).not.toBeNull();
+    const entries = storedZipEntries(await readFile(path!));
+    const manifestBytes = entries.get('export-manifest.json');
+    expect(manifestBytes).toBeTruthy();
+    const manifest = JSON.parse(manifestBytes!.toString('utf8'));
+    expect(manifest.included).toBe(1);
+    expect(manifest.skipped).toBe(0);
+    expect(manifest.files[0].work_revision_id).toBe(1);
+    expect(manifest.files[0].content_hash).toBe(before.content_hash);
+    const pdfEntry = entries.get(manifest.files[0].filename);
+    expect(pdfEntry).toBeTruthy();
+    expect(pdfEntry!.equals(source)).toBe(true);
+    await expect(page.locator('[data-export-feedback]')).toContainText('1 included, 0 skipped');
+
+    const afterResponse = await request.get('/api/works/1/pdf-status');
+    expect(afterResponse.ok()).toBeTruthy();
+    const after = await afterResponse.json();
+    expect(after.content_hash).toBe(before.content_hash);
+    expect(after.change_counter).toBe(before.change_counter);
+
+    await visitArticle(page, '1');
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await expect(page.locator('[data-note-body]')).toHaveValue('Draft across ZIP export');
+    await page.getByRole('button', { name: 'Refresh PDF state' }).click();
+    await expect(articleAudit(page).locator('.rw-audit-event--pdf').filter({ hasText: 'prepared for an explicit download' }).first()).toBeVisible();
   });
 
   test('rejects a stale second-tab replacement while preserving drafts and the selected file', async ({ page, request, browserName }) => {

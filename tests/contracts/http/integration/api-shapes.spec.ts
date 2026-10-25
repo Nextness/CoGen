@@ -376,6 +376,8 @@ function expectEvaluationRow(value: unknown, path: string): void {
   expectStringArray(value.review_sub_statuses, `${path}.review_sub_statuses`);
   expectString(value.inventory_status, `${path}.inventory_status`);
   expectNullableString(value.inventoried_at, `${path}.inventoried_at`);
+  expectNullableString(value.content_hash, `${path}.content_hash`);
+  expectNullableNumber(value.byte_size, `${path}.byte_size`);
 }
 
 /** Asserts one evaluation facet. */
@@ -1066,6 +1068,63 @@ async function validatePDFStatus(request: APIRequestContext): Promise<void> {
   expectString(body.storage_reason, 'pdfStatus.storage_reason');
 }
 
+
+/** Validates single and selected-set export request, binary, and error shapes. */
+async function validatePDFExports(request: APIRequestContext): Promise<void> {
+  const statusResponse = await request.get(`/api/works/${ARTICLE}/pdf-status`);
+  expect(statusResponse.ok()).toBeTruthy();
+  const status = await statusResponse.json();
+  expectPDFStatus(status, 'pdfExport.status');
+  expectString(status.content_hash, 'pdfExport.status.content_hash');
+
+  const contentResponse = await request.get(`/api/pdf/${ARTICLE}`);
+  expect(contentResponse.ok()).toBeTruthy();
+  const source = await contentResponse.body();
+  const single = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/pdf-export`, {
+    data: { content_hash: status.content_hash, include_comments: false },
+  });
+  expect(single.ok()).toBeTruthy();
+  expect(single.headers()['content-type']).toContain('application/pdf');
+  expect(single.headers()['content-disposition']).toContain('attachment');
+  expect(single.headers()['x-pdf-export-correlation-id']).toMatch(/^[0-9a-f]{32}$/);
+  expect((await single.body()).equals(source)).toBeTruthy();
+
+  const zip = await request.post(`/api/runs/${RUN}/pdf-exports`, {
+    data: {
+      articles: [{ work_revision_id: Number(ARTICLE), content_hash: status.content_hash }],
+      include_comments: false,
+    },
+  });
+  expect(zip.ok()).toBeTruthy();
+  expect(zip.headers()['content-type']).toContain('application/zip');
+  expect(zip.headers()['content-disposition']).toContain('attachment');
+  expect(zip.headers()['x-pdf-export-included']).toBe('1');
+  expect(zip.headers()['x-pdf-export-skipped']).toBe('0');
+  expect(zip.headers()['x-pdf-export-correlation-id']).toMatch(/^[0-9a-f]{32}$/);
+  expect((await zip.body()).subarray(0, 2).toString()).toBe('PK');
+
+  const changed = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/pdf-export`, {
+    data: { content_hash: '0'.repeat(64) },
+  });
+  expect(changed.status()).toBe(409);
+  const changedBody = await changed.json();
+  expectObject(changedBody.error, 'pdfExport.changed.error');
+  expectString(changedBody.error.code, 'pdfExport.changed.error.code');
+  expectString(changedBody.error.message, 'pdfExport.changed.error.message');
+  expect(changedBody.error.code).toBe('pdf_changed');
+
+  const comments = await request.post(`/api/runs/${RUN}/pdf-exports`, {
+    data: {
+      articles: [{ work_revision_id: Number(ARTICLE), content_hash: status.content_hash }],
+      include_comments: true,
+    },
+  });
+  expect(comments.status()).toBe(400);
+  const commentsBody = await comments.json();
+  expectObject(commentsBody.error, 'pdfExport.comments.error');
+  expect(commentsBody.error.code).toBe('pdf_comments_unavailable');
+}
+
 /** Validates raw PUT and DELETE PDF mutation shapes without changing final content. */
 async function validatePDFMutation(request: APIRequestContext): Promise<void> {
   const statusResponse = await request.get(`/api/works/${ARTICLE}/pdf-status`);
@@ -1282,4 +1341,8 @@ test('detail, graph, and PDF-status endpoints match their contracts', async ({ r
 
 test('raw PDF mutation endpoints match their contracts', async ({ request }) => {
   await validatePDFMutation(request);
+});
+
+test('PDF export endpoints match their contracts', async ({ request }) => {
+  await validatePDFExports(request);
 });
