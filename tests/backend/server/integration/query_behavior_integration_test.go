@@ -285,7 +285,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 		path string
 		keys []string
 	}{
-		{"health", "/api/health", []string{"corpus_id", "metadata_readable", "pdf_store_bound", "pdf_store_readable", "pdf_store_writable", "pdf_store_write_reason", "readable", "review", "review_writable", "schema", "table_count", "tables"}},
+		{"health", "/api/health", []string{"corpus_id", "metadata_readable", "pdf_audit_pending", "pdf_audit_relay_error", "pdf_audit_relay_running", "pdf_store_bound", "pdf_store_readable", "pdf_store_writable", "pdf_store_write_reason", "readable", "review", "review_writable", "schema", "table_count", "tables"}},
 		{"hierarchy summary", "/api/hierarchy", []string{"latest_run", "totals", "version"}},
 		{"hierarchy runs", "/api/hierarchy?section=runs", []string{"has_more", "items", "limit", "next_cursor", "version"}},
 		{"hierarchy searches", "/api/hierarchy?section=searches", []string{"has_more", "items", "limit", "next_cursor", "version"}},

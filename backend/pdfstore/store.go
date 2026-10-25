@@ -224,11 +224,15 @@ func (s *Store) Register(ctx context.Context, doi string, workID, pipelineRunID 
 	if err != nil {
 		return false, err
 	}
+	afterJSON, err := marshalEvidence(documentEvidence{Status: StatusNotAvailable, ChangeCounter: 1})
+	if err != nil {
+		return false, err
+	}
 	if err := insertOutbox(ctx, queries, OutboxEvent{
 		Actor: "pipeline", PipelineRunID: pipelineRunID,
 		EntityType: "work", EntityID: strconv.FormatInt(workID, 10),
-		Action: string(manifest.AuditPDFInventoryRegistered), MetadataJSON: string(metadata),
-		CorrelationID: correlationID,
+		Action: string(manifest.AuditPDFInventoryRegistered), AfterJSON: afterJSON,
+		MetadataJSON: string(metadata), CorrelationID: correlationID,
 	}, now); err != nil {
 		return false, err
 	}

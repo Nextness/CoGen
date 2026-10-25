@@ -33,6 +33,19 @@ func (q *Queries) ClearPDFDocumentSelection(ctx context.Context, arg ClearPDFDoc
 	return q.db.ExecContext(ctx, clearPDFDocumentSelection, arg.UpdatedAt, arg.Doi, arg.ExpectedCounter)
 }
 
+const countPendingPDFAuditEvents = `-- name: CountPendingPDFAuditEvents :one
+SELECT COUNT(*)
+FROM pdf_audit_outbox
+WHERE delivered_at IS NULL
+`
+
+func (q *Queries) CountPendingPDFAuditEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingPDFAuditEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deletePDFBlobIfUnreferenced = `-- name: DeletePDFBlobIfUnreferenced :execresult
 DELETE FROM pdf_blobs
 WHERE pdf_blobs.content_hash = ?1
@@ -123,11 +136,11 @@ func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (PdfDocument, 
 const insertPDFAuditOutboxEvent = `-- name: InsertPDFAuditOutboxEvent :exec
 INSERT INTO pdf_audit_outbox (
     event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 ) VALUES (
     ?1, ?2, ?3, ?4,
     ?5, ?6, ?7, ?8,
-    ?9
+    ?9, ?10, ?11
 )
 `
 
@@ -141,6 +154,8 @@ type InsertPDFAuditOutboxEventParams struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) InsertPDFAuditOutboxEvent(ctx context.Context, arg InsertPDFAuditOutboxEventParams) error {
@@ -154,6 +169,8 @@ func (q *Queries) InsertPDFAuditOutboxEvent(ctx context.Context, arg InsertPDFAu
 		arg.Action,
 		arg.MetadataJson,
 		arg.CorrelationID,
+		arg.BeforeJson,
+		arg.AfterJson,
 	)
 	return err
 }
@@ -276,7 +293,7 @@ func (q *Queries) ListAvailablePDFDOIs(ctx context.Context) ([]string, error) {
 
 const listPendingPDFAuditEvents = `-- name: ListPendingPDFAuditEvents :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
 ORDER BY occurred_at, event_key
@@ -293,6 +310,8 @@ type ListPendingPDFAuditEventsRow struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int64) ([]ListPendingPDFAuditEventsRow, error) {
@@ -314,6 +333,8 @@ func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int6
 			&i.Action,
 			&i.MetadataJson,
 			&i.CorrelationID,
+			&i.BeforeJson,
+			&i.AfterJson,
 		); err != nil {
 			return nil, err
 		}
@@ -330,7 +351,7 @@ func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int6
 
 const listPendingPDFAuditEventsAfter = `-- name: ListPendingPDFAuditEventsAfter :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
   AND (occurred_at > ?1
@@ -355,6 +376,8 @@ type ListPendingPDFAuditEventsAfterRow struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) ListPendingPDFAuditEventsAfter(ctx context.Context, arg ListPendingPDFAuditEventsAfterParams) ([]ListPendingPDFAuditEventsAfterRow, error) {
@@ -376,6 +399,8 @@ func (q *Queries) ListPendingPDFAuditEventsAfter(ctx context.Context, arg ListPe
 			&i.Action,
 			&i.MetadataJson,
 			&i.CorrelationID,
+			&i.BeforeJson,
+			&i.AfterJson,
 		); err != nil {
 			return nil, err
 		}

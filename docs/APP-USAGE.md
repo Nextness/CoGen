@@ -130,7 +130,7 @@ Light and dark themes follow system preference. Reduced-motion preference suppre
 
 ## 16. Operational checks
 
-The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, reports both configured schema targets and companion writability, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
+The server health endpoint is `GET /api/health`. A healthy response confirms that the process can read selected metadata, exposes review capability and the opaque corpus draft namespace, reports both configured schema targets, companion writability, pending PDF audit delivery, and relay state, and has passed startup schema protection checks; it does not prove that every optional artifact, PDF, or research-context record exists.
 
 JSON API responses expose their serialized-byte ceiling through `X-Response-Byte-Limit`; all API responses expose their SQLite statement ceiling through `X-Query-Count-Limit` and completed use through `X-Query-Count-Used`, which is a response trailer for streamed PDF and artifact downloads. A stable `response_budget_exceeded` or `query_budget_exceeded` response means the requested route crossed its hard resource contract rather than returning incomplete JSON.
 

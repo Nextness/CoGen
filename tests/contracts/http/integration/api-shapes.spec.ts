@@ -375,6 +375,9 @@ async function validateHealth(request: APIRequestContext): Promise<void> {
   expectBoolean(body.pdf_store_readable, 'health.pdf_store_readable');
   expectBoolean(body.pdf_store_writable, 'health.pdf_store_writable');
   expectString(body.pdf_store_write_reason, 'health.pdf_store_write_reason');
+  expectNumber(body.pdf_audit_pending, 'health.pdf_audit_pending');
+  expectBoolean(body.pdf_audit_relay_running, 'health.pdf_audit_relay_running');
+  expectString(body.pdf_audit_relay_error, 'health.pdf_audit_relay_error');
   expectObject(body.schema, 'health.schema');
   expectObject(body.schema.metadata, 'health.schema.metadata');
   expectString(body.schema.metadata.actual, 'health.schema.metadata.actual');

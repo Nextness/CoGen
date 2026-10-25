@@ -92,37 +92,41 @@ var viewPages = map[string]string{
 // AssetsFS is the frontend asset file system served at the web root; it must
 // be set because the binary does not embed frontend assets.
 type Server struct {
-	db             *sql.DB
-	artifact       *artifact.Store
-	auditStore     *audit.Store
-	workStore      *work.Store
-	searchStore    *search.Store
-	runStore       *run.Store
-	sourceStore    *source.Store
-	authorStore    *author.Store
-	reviewStore    *review.Store
-	cacheStore     *cache.Store
-	pdfBindings    *pdfbinding.Store
-	writeDB        *database.Database
-	pdfDB          *sql.DB
-	pdfStore       *pdfstore.Store
-	pdfWriteDB     *sql.DB
-	pdfWriteStore  *pdfstore.Store
-	pdfPath        string
-	pdfWritable    bool
-	pdfWriteReason string
-	maintenance    *database.MaintenanceLock
-	metadataActual string
-	metadataTarget string
-	metadataReady  bool
-	pdfActual      string
-	pdfTarget      string
-	pdfReady       bool
-	schemaReady    bool
-	pdfCacheMu     sync.Mutex
-	pdfCache       *cachedPDF
-	tables         map[string]tableInfo
-	AssetsFS       fs.FS // serves frontend assets from this filesystem
+	db               *sql.DB
+	artifact         *artifact.Store
+	auditStore       *audit.Store
+	workStore        *work.Store
+	searchStore      *search.Store
+	runStore         *run.Store
+	sourceStore      *source.Store
+	authorStore      *author.Store
+	reviewStore      *review.Store
+	cacheStore       *cache.Store
+	pdfBindings      *pdfbinding.Store
+	writeDB          *database.Database
+	pdfDB            *sql.DB
+	pdfStore         *pdfstore.Store
+	pdfWriteDB       *sql.DB
+	pdfWriteStore    *pdfstore.Store
+	pdfPath          string
+	pdfWritable      bool
+	pdfWriteReason   string
+	maintenance      *database.MaintenanceLock
+	metadataActual   string
+	metadataTarget   string
+	metadataReady    bool
+	pdfActual        string
+	pdfTarget        string
+	pdfReady         bool
+	schemaReady      bool
+	pdfCacheMu       sync.Mutex
+	pdfCache         *cachedPDF
+	auditRelayMu     sync.Mutex
+	auditRelayCancel context.CancelFunc
+	auditRelayDone   chan struct{}
+	auditRelayError  string
+	tables           map[string]tableInfo
+	AssetsFS         fs.FS // serves frontend assets from this filesystem
 }
 
 // maintenanceWaitTimeout bounds startup waiting for an active schema preparation.
@@ -214,6 +218,7 @@ func Open(path, registryPath string) (*Server, error) {
 
 // Close releases resources owned by the receiver.
 func (s *Server) Close() error {
+	s.StopAuditRelay()
 	var first error
 	if s.pdfWriteDB != nil {
 		if err := s.pdfWriteDB.Close(); err != nil {

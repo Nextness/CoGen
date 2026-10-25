@@ -50,6 +50,8 @@ type SaveInput struct {
 	DOI                   string
 	WorkID                int64
 	ExpectedChangeCounter int64
+	InitiatingRunID       int64
+	InitiatingRevisionID  int64
 	Data                  []byte
 }
 
@@ -68,6 +70,8 @@ type RemoveInput struct {
 	DOI                   string
 	WorkID                int64
 	ExpectedChangeCounter int64
+	InitiatingRunID       int64
+	InitiatingRevisionID  int64
 }
 
 // RemoveResult reports one removal's outcome and current document state.
@@ -106,6 +110,9 @@ func (s *Store) Save(ctx context.Context, input SaveInput) (SaveResult, error) {
 	}
 	if input.ExpectedChangeCounter <= 0 {
 		return SaveResult{}, fmt.Errorf("%w: expected change counter must be positive", ErrPDFInvalid)
+	}
+	if input.InitiatingRunID < 0 || input.InitiatingRevisionID < 0 || (input.InitiatingRunID > 0) != (input.InitiatingRevisionID > 0) {
+		return SaveResult{}, fmt.Errorf("%w: initiating run and revision context must be provided together", ErrPDFInvalid)
 	}
 	hash, err := ValidatePDF(input.Data, DefaultMaxPDFBytes)
 	if err != nil {
@@ -147,6 +154,13 @@ func (s *Store) Save(ctx context.Context, input SaveInput) (SaveResult, error) {
 		return SaveResult{Changed: false, Operation: OperationUnchanged, Document: state, ByteSize: size}, nil
 	}
 
+	var beforeSize *int64
+	if state.Status == StatusAvailable && state.ContentHash != "" {
+		beforeSize, err = optionalBlobSize(ctx, queries, state.ContentHash)
+		if err != nil {
+			return SaveResult{}, err
+		}
+	}
 	now := timestamp(s.now())
 	if err := queries.InsertPDFBlob(ctx, generated.InsertPDFBlobParams{
 		ContentHash: hash, ByteSize: int64(len(input.Data)), Data: input.Data, CreatedAt: now,
@@ -206,10 +220,26 @@ func (s *Store) Save(ctx context.Context, input SaveInput) (SaveResult, error) {
 		operation = OperationReplaced
 		action = manifest.AuditPDFDocumentReplaced
 	}
+	afterState := Document{
+		DOI: doi, Status: StatusAvailable, ContentHash: hash,
+		InventoriedAt: now, UpdatedAt: now, ChangeCounter: input.ExpectedChangeCounter + 1,
+	}
+	beforeJSON, err := marshalEvidence(evidenceFromDocument(state, beforeSize, nil))
+	if err != nil {
+		return SaveResult{}, err
+	}
+	var outgoingDeleted *bool
+	if state.Status == StatusAvailable {
+		outgoingDeleted = &deleted
+	}
+	afterJSON, err := marshalEvidence(evidenceFromDocument(afterState, &size, outgoingDeleted))
+	if err != nil {
+		return SaveResult{}, err
+	}
 	eventKey, err := s.recordMutation(ctx, queries, mutationEvent{
 		DOI: doi, WorkID: input.WorkID, Action: action, Operation: operation,
-		ContentHash: hash, ByteSize: int64(len(input.Data)), InventoriedAt: now,
-		OutgoingDeleted: deleted, OutgoingHash: state.ContentHash,
+		InitiatingRunID: input.InitiatingRunID, InitiatingRevisionID: input.InitiatingRevisionID,
+		BeforeJSON: beforeJSON, AfterJSON: afterJSON,
 	}, now)
 	if err != nil {
 		return SaveResult{}, err
@@ -217,12 +247,8 @@ func (s *Store) Save(ctx context.Context, input SaveInput) (SaveResult, error) {
 	if err := tx.Commit(); err != nil {
 		return SaveResult{}, fmt.Errorf("commit PDF document save: %w", err)
 	}
-	state = Document{
-		DOI: doi, Status: StatusAvailable, ContentHash: hash,
-		InventoriedAt: now, UpdatedAt: now, ChangeCounter: input.ExpectedChangeCounter + 1,
-	}
 	return SaveResult{
-		Changed: true, Operation: operation, Document: state, ByteSize: int64(len(input.Data)),
+		Changed: true, Operation: operation, Document: afterState, ByteSize: int64(len(input.Data)),
 		EventKey: eventKey, OutgoingDeleted: deleted,
 	}, nil
 }
@@ -240,6 +266,9 @@ func (s *Store) Remove(ctx context.Context, input RemoveInput) (RemoveResult, er
 	}
 	if input.ExpectedChangeCounter <= 0 {
 		return RemoveResult{}, fmt.Errorf("%w: expected change counter must be positive", ErrPDFInvalid)
+	}
+	if input.InitiatingRunID < 0 || input.InitiatingRevisionID < 0 || (input.InitiatingRunID > 0) != (input.InitiatingRevisionID > 0) {
+		return RemoveResult{}, fmt.Errorf("%w: initiating run and revision context must be provided together", ErrPDFInvalid)
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -266,6 +295,13 @@ func (s *Store) Remove(ctx context.Context, input RemoveInput) (RemoveResult, er
 		return RemoveResult{}, fmt.Errorf("PDF inventory document %q has unsupported status %q", doi, state.Status)
 	}
 
+	var beforeSize *int64
+	if state.ContentHash != "" {
+		beforeSize, err = optionalBlobSize(ctx, queries, state.ContentHash)
+		if err != nil {
+			return RemoveResult{}, err
+		}
+	}
 	now := timestamp(s.now())
 	result, err := queries.ClearPDFDocumentSelection(ctx, generated.ClearPDFDocumentSelectionParams{
 		UpdatedAt: now, Doi: doi, ExpectedCounter: input.ExpectedChangeCounter,
@@ -297,9 +333,19 @@ func (s *Store) Remove(ctx context.Context, input RemoveInput) (RemoveResult, er
 			return RemoveResult{}, fmt.Errorf("read outgoing PDF blob deletion result: %w", err)
 		}
 	}
+	afterState := Document{DOI: doi, Status: StatusNotAvailable, UpdatedAt: now, ChangeCounter: input.ExpectedChangeCounter + 1}
+	beforeJSON, err := marshalEvidence(evidenceFromDocument(state, beforeSize, nil))
+	if err != nil {
+		return RemoveResult{}, err
+	}
+	afterJSON, err := marshalEvidence(evidenceFromDocument(afterState, nil, &deleted))
+	if err != nil {
+		return RemoveResult{}, err
+	}
 	eventKey, err := s.recordMutation(ctx, queries, mutationEvent{
 		DOI: doi, WorkID: input.WorkID, Action: manifest.AuditPDFDocumentRemoved,
-		Operation: OperationRemoved, OutgoingDeleted: deleted, OutgoingHash: state.ContentHash,
+		Operation: OperationRemoved, InitiatingRunID: input.InitiatingRunID,
+		InitiatingRevisionID: input.InitiatingRevisionID, BeforeJSON: beforeJSON, AfterJSON: afterJSON,
 	}, now)
 	if err != nil {
 		return RemoveResult{}, err
@@ -307,24 +353,22 @@ func (s *Store) Remove(ctx context.Context, input RemoveInput) (RemoveResult, er
 	if err := tx.Commit(); err != nil {
 		return RemoveResult{}, fmt.Errorf("commit PDF document removal: %w", err)
 	}
-	state = Document{DOI: doi, Status: StatusNotAvailable, UpdatedAt: now, ChangeCounter: input.ExpectedChangeCounter + 1}
 	return RemoveResult{
-		Changed: true, Operation: OperationRemoved, Document: state,
+		Changed: true, Operation: OperationRemoved, Document: afterState,
 		EventKey: eventKey, OutgoingDeleted: deleted,
 	}, nil
 }
 
 // mutationEvent is the bounded operational evidence recorded for one changed PDF save or removal.
 type mutationEvent struct {
-	DOI             string
-	WorkID          int64
-	Action          manifest.AuditAction
-	Operation       MutationOperation
-	ContentHash     string
-	ByteSize        int64
-	InventoriedAt   string
-	OutgoingDeleted bool
-	OutgoingHash    string
+	DOI                  string
+	WorkID               int64
+	Action               manifest.AuditAction
+	Operation            MutationOperation
+	InitiatingRunID      int64
+	InitiatingRevisionID int64
+	BeforeJSON           string
+	AfterJSON            string
 }
 
 // recordMutation inserts one user-scoped outbox event and returns its event key.
@@ -340,17 +384,11 @@ func (s *Store) recordMutation(ctx context.Context, queries *generated.Queries, 
 	metadata := map[string]any{
 		"source": "manual", "doi": event.DOI, "operation": string(event.Operation),
 	}
-	if event.ContentHash != "" {
-		metadata["status"] = StatusAvailable
-		metadata["content_hash"] = event.ContentHash
-		metadata["byte_size"] = event.ByteSize
-		metadata["inventoried_at"] = event.InventoriedAt
-	} else {
-		metadata["status"] = StatusNotAvailable
+	if event.InitiatingRunID > 0 {
+		metadata["initiating_run_id"] = event.InitiatingRunID
 	}
-	if event.OutgoingHash != "" {
-		metadata["outgoing_hash"] = event.OutgoingHash
-		metadata["outgoing_deleted"] = event.OutgoingDeleted
+	if event.InitiatingRevisionID > 0 {
+		metadata["initiating_revision_id"] = event.InitiatingRevisionID
 	}
 	encoded, err := json.Marshal(metadata)
 	if err != nil {
@@ -359,11 +397,55 @@ func (s *Store) recordMutation(ctx context.Context, queries *generated.Queries, 
 	if err := insertOutbox(ctx, queries, OutboxEvent{
 		EventKey: eventKey, Actor: "user", EntityType: "work",
 		EntityID: strconv.FormatInt(event.WorkID, 10), Action: string(event.Action),
+		BeforeJSON: event.BeforeJSON, AfterJSON: event.AfterJSON,
 		MetadataJSON: string(encoded), CorrelationID: correlationID,
 	}, occurredAt); err != nil {
 		return "", err
 	}
 	return eventKey, nil
+}
+
+// documentEvidence is the bounded before/after state recorded in PDF audit.
+type documentEvidence struct {
+	Status          string `json:"status"`
+	ContentHash     string `json:"content_hash,omitempty"`
+	ByteSize        *int64 `json:"byte_size,omitempty"`
+	InventoriedAt   string `json:"inventoried_at,omitempty"`
+	ChangeCounter   int64  `json:"change_counter"`
+	OutgoingDeleted *bool  `json:"outgoing_deleted,omitempty"`
+}
+
+// evidenceFromDocument maps one document state and optional byte size into audit evidence.
+func evidenceFromDocument(state Document, byteSize *int64, outgoingDeleted *bool) documentEvidence {
+	return documentEvidence{
+		Status: state.Status, ContentHash: state.ContentHash, ByteSize: byteSize,
+		InventoriedAt: state.InventoriedAt, ChangeCounter: state.ChangeCounter,
+		OutgoingDeleted: outgoingDeleted,
+	}
+}
+
+// marshalEvidence encodes bounded before/after operational evidence.
+func marshalEvidence(evidence documentEvidence) (string, error) {
+	encoded, err := json.Marshal(evidence)
+	if err != nil {
+		return "", fmt.Errorf("encode PDF audit evidence: %w", err)
+	}
+	return string(encoded), nil
+}
+
+// optionalBlobSize reads outgoing blob size metadata without reading its bytes.
+func optionalBlobSize(ctx context.Context, queries *generated.Queries, hash string) (*int64, error) {
+	if hash == "" {
+		return nil, nil
+	}
+	size, err := queries.GetPDFBlobSize(ctx, hash)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read outgoing PDF blob size: %w", err)
+	}
+	return &size, nil
 }
 
 // documentFromRow maps one generated document row into the public state.

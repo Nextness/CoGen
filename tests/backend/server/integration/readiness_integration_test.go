@@ -182,6 +182,83 @@ func TestServerHealthReportsSchemaReadiness(t *testing.T) {
 	}
 }
 
+// TestAuditRelayDeliversPendingEventsAndReportsHealth verifies the serving
+// lifecycle starts a bounded relay, drains pending evidence, and reports status.
+func TestAuditRelayDeliversPendingEventsAndReportsHealth(t *testing.T) {
+	fixture := serverhelpers.NewPDFViewerFixture(t)
+	registry := testenv.Path("config", "database.something")
+	insertPendingPDFAuditEvent(t, fixture.MetadataPath, registry, "relay-pending")
+
+	status, health := serverhelpers.RequestJSON(t, fixture.Server.Handler(), "/api/health")
+	if status != http.StatusOK {
+		t.Fatalf("health status = %d", status)
+	}
+	if health["pdf_audit_pending"] != float64(1) || health["pdf_audit_relay_running"] != false || health["pdf_audit_relay_error"] != "" {
+		t.Fatalf("pre-relay health = %v", health)
+	}
+
+	fixture.Server.StartAuditRelay(context.Background())
+	t.Cleanup(fixture.Server.StopAuditRelay)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, health = serverhelpers.RequestJSON(t, fixture.Server.Handler(), "/api/health")
+		if health["pdf_audit_pending"] == float64(0) && health["pdf_audit_relay_running"] == true && health["pdf_audit_relay_error"] == "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay did not drain pending events: %v", health)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	fixture.Server.StopAuditRelay()
+	_, health = serverhelpers.RequestJSON(t, fixture.Server.Handler(), "/api/health")
+	if health["pdf_audit_relay_running"] != false {
+		t.Fatalf("relay still running after stop: %v", health)
+	}
+}
+
+// TestAuditRelayReportsSafeFailureAndRetries verifies relay failures surface in
+// health without losing the pending event, and a later relay drains it.
+func TestAuditRelayReportsSafeFailureAndRetries(t *testing.T) {
+	fixture := serverhelpers.NewPDFViewerFixture(t)
+	registry := testenv.Path("config", "database.something")
+	insertPendingPDFAuditEvent(t, fixture.MetadataPath, registry, "relay-retry")
+	if _, err := fixture.Server.Metadata.Conn.Exec(`CREATE TRIGGER reject_relay_audit
+		BEFORE INSERT ON audit_events
+		BEGIN SELECT RAISE(ABORT, 'injected relay failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	fixture.Server.StartAuditRelay(context.Background())
+	t.Cleanup(fixture.Server.StopAuditRelay)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		_, health := serverhelpers.RequestJSON(t, fixture.Server.Handler(), "/api/health")
+		if health["pdf_audit_relay_error"] != "" && health["pdf_audit_pending"] == float64(1) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay failure was not reported: %v", health)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	fixture.Server.StopAuditRelay()
+	if _, err := fixture.Server.Metadata.Conn.Exec("DROP TRIGGER reject_relay_audit"); err != nil {
+		t.Fatal(err)
+	}
+	fixture.Server.StartAuditRelay(context.Background())
+	deadline = time.Now().Add(2 * time.Second)
+	for {
+		_, health := serverhelpers.RequestJSON(t, fixture.Server.Handler(), "/api/health")
+		if health["pdf_audit_relay_error"] == "" && health["pdf_audit_pending"] == float64(0) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay retry did not drain pending events: %v", health)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // TestMultipleServersShareMaintenanceOwnership verifies current viewers coexist and block schema maintenance.
 func TestMultipleServersShareMaintenanceOwnership(t *testing.T) {
 	registry := testenv.Path("config", "database.something")
@@ -208,6 +285,25 @@ func TestMultipleServersShareMaintenanceOwnership(t *testing.T) {
 		t.Fatalf("maintenance ownership leaked after all viewers closed: %v", err)
 	}
 	if err := lock.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// insertPendingPDFAuditEvent inserts one undelivered companion audit event.
+func insertPendingPDFAuditEvent(t *testing.T, metadataPath, registry, eventKey string) {
+	t.Helper()
+	pdfPath := filepath.Join(filepath.Dir(metadataPath), pdfbinding.DefaultStoreFilename)
+	store, err := pdfstore.Open(pdfPath, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+		(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+		VALUES (?, '2026-01-01T00:00:00Z', 'pipeline', 'work', '1', 'pdf_inventory_registered', '{}', ?)`, eventKey, eventKey); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

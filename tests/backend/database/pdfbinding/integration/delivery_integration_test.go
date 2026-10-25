@@ -18,6 +18,8 @@ func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 	event := pdfbinding.DeliveredEvent{
 		EventKey: "event-1", OccurredAt: "2026-01-01T00:00:00Z", Actor: "pipeline",
 		EntityType: "work", EntityID: "1", Action: "pdf_inventory_registered",
+		BeforeJSON:   `{"status":"not_available","change_counter":1}`,
+		AfterJSON:    `{"status":"available","change_counter":2}`,
 		MetadataJSON: `{"doi":"10.1000/one"}`, CorrelationID: "correlation-1",
 	}
 	for attempt := 0; attempt < 2; attempt++ {
@@ -45,6 +47,9 @@ func TestRecordDeliveredAuditIsIdempotent(t *testing.T) {
 	}
 	if len(events) != 1 || links != 1 {
 		t.Fatalf("idempotent delivery events=%d links=%d, want one each", len(events), links)
+	}
+	if events[0].BeforeJSON != event.BeforeJSON || events[0].AfterJSON != event.AfterJSON {
+		t.Fatalf("delivered before/after = %q/%q, want %q/%q", events[0].BeforeJSON, events[0].AfterJSON, event.BeforeJSON, event.AfterJSON)
 	}
 }
 

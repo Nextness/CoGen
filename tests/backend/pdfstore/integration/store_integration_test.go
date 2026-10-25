@@ -11,6 +11,7 @@ import testhelpers "analysis/tests/support/go/backend/pdfstore"
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -506,6 +507,86 @@ func TestRegisterDoesNotRestoreRemovedSelection(t *testing.T) {
 	}
 }
 
+// TestSaveAndRemoveRecordBeforeAfterEvidence verifies changed PDF operations
+// record bounded before/after state, initiating context, and metadata delivery.
+func TestSaveAndRemoveRecordBeforeAfterEvidence(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	metadata, err := testfixture.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	if _, err := store.Register(ctx, "10.1000/evidence", 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	original := []byte("%PDF-1.7\noriginal evidence")
+	saved, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/evidence", WorkID: 1, ExpectedChangeCounter: 1,
+		InitiatingRunID: 7, InitiatingRevisionID: 11, Data: original,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replaced, err := store.Save(ctx, subject.SaveInput{
+		DOI: "10.1000/evidence", WorkID: 1, ExpectedChangeCounter: 2,
+		InitiatingRunID: 7, InitiatingRevisionID: 11, Data: []byte("%PDF-1.7\nreplacement evidence"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed, err := store.Remove(ctx, subject.RemoveInput{
+		DOI: "10.1000/evidence", WorkID: 1, ExpectedChangeCounter: 3,
+		InitiatingRunID: 7, InitiatingRevisionID: 11,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uploadBefore, uploadAfter, uploadMetadata := outboxEvidence(t, store, "pdf_document_inventoried")
+	if uploadBefore.Status != subject.StatusNotAvailable || uploadBefore.ChangeCounter != 1 || uploadAfter.Status != subject.StatusAvailable || uploadAfter.ChangeCounter != 2 || uploadAfter.ByteSize == nil || *uploadAfter.ByteSize != int64(len(original)) {
+		t.Fatalf("upload evidence before=%+v after=%+v", uploadBefore, uploadAfter)
+	}
+	if uploadMetadata["initiating_run_id"] != float64(7) || uploadMetadata["initiating_revision_id"] != float64(11) {
+		t.Fatalf("upload initiating context = %+v", uploadMetadata)
+	}
+	replaceBefore, replaceAfter, _ := outboxEvidence(t, store, "pdf_document_replaced")
+	if replaceBefore.Status != subject.StatusAvailable || replaceBefore.ContentHash != saved.Document.ContentHash || replaceBefore.ChangeCounter != 2 || replaceAfter.ContentHash != replaced.Document.ContentHash || replaceAfter.ChangeCounter != 3 || replaceAfter.OutgoingDeleted == nil || !*replaceAfter.OutgoingDeleted {
+		t.Fatalf("replacement evidence before=%+v after=%+v", replaceBefore, replaceAfter)
+	}
+	removeBefore, removeAfter, _ := outboxEvidence(t, store, "pdf_document_removed")
+	if removeBefore.Status != subject.StatusAvailable || removeBefore.ContentHash != replaced.Document.ContentHash || removeBefore.ChangeCounter != 3 || removeAfter.Status != subject.StatusNotAvailable || removeAfter.ChangeCounter != 4 || removeAfter.OutgoingDeleted == nil || !*removeAfter.OutgoingDeleted {
+		t.Fatalf("removal evidence before=%+v after=%+v", removeBefore, removeAfter)
+	}
+	if removed.Document.ChangeCounter != 4 {
+		t.Fatalf("removal result counter = %d, want 4", removed.Document.ChangeCounter)
+	}
+
+	if _, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil {
+		t.Fatal(err)
+	}
+	for action, wantStatus := range map[string]string{
+		"pdf_document_inventoried": subject.StatusAvailable,
+		"pdf_document_replaced":    subject.StatusAvailable,
+		"pdf_document_removed":     subject.StatusNotAvailable,
+	} {
+		var beforeJSON, afterJSON string
+		if err := metadata.Conn.QueryRow("SELECT before_json, after_json FROM audit_events WHERE action=?", action).Scan(&beforeJSON, &afterJSON); err != nil {
+			t.Fatal(err)
+		}
+		var evidence auditEvidence
+		if err := json.Unmarshal([]byte(afterJSON), &evidence); err != nil {
+			t.Fatal(err)
+		}
+		if evidence.Status != wantStatus {
+			t.Fatalf("%s delivered after status = %q, want %q", action, evidence.Status, wantStatus)
+		}
+		if beforeJSON == "" {
+			t.Fatalf("%s delivered before_json is empty", action)
+		}
+	}
+}
+
 // TestFlushAuditOutboxDropsStalePipelineRun verifies a flush preserves an
 // outbox event whose pipeline run no longer exists in the bound metadata
 // database, matching the durable PDF store across metadata iterations.
@@ -586,6 +667,102 @@ func TestFlushAuditOutboxDrainsBoundedBatches(t *testing.T) {
 	}
 	if remaining != 0 || events != 100+2 {
 		t.Fatalf("batch drain remaining=%d events=%d", remaining, events)
+	}
+}
+
+// TestRelayAuditOutboxIsBoundedAndReportsPending verifies the server relay
+// processes only its requested event budget and leaves the rest pending.
+func TestRelayAuditOutboxIsBoundedAndReportsPending(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	metadata, err := testfixture.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	for index := 0; index < 5; index++ {
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+			VALUES (?, ?, 'relay', 'work', ?, 'pdf_inventory_registered', '{}', ?)`,
+			fmt.Sprintf("relay-%02d", index), fmt.Sprintf("2026-01-01T00:00:%02dZ", index), index, fmt.Sprintf("relay-%02d", index)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if pending, err := store.PendingAuditCount(ctx); err != nil || pending != 5 {
+		t.Fatalf("initial pending=(%d,%v), want 5", pending, err)
+	}
+	for index, wantDelivered := range []int{2, 2, 1, 0} {
+		delivered, err := store.RelayAuditOutbox(ctx, metadata.PDFBindings, 2)
+		if err != nil || delivered != wantDelivered {
+			t.Fatalf("relay %d delivered=(%d,%v), want %d", index, delivered, err, wantDelivered)
+		}
+	}
+	if pending, err := store.PendingAuditCount(ctx); err != nil || pending != 0 {
+		t.Fatalf("final pending=(%d,%v), want 0", pending, err)
+	}
+	if got := queryCount(t, store, "SELECT COUNT(*) FROM pdf_audit_outbox WHERE delivered_at IS NOT NULL"); got != 5 {
+		t.Fatalf("delivered outbox count = %d, want 5", got)
+	}
+	var events, links int
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if events != 5 || links != 5 {
+		t.Fatalf("relay metadata events=%d links=%d, want five each", events, links)
+	}
+	if _, err := store.RelayAuditOutbox(ctx, metadata.PDFBindings, 0); err == nil {
+		t.Fatal("relay accepted a nonpositive event budget")
+	}
+}
+
+// TestRelayAuditOutboxConcurrentIdempotent verifies two relays cannot duplicate
+// delivered metadata events for the same pending batch.
+func TestRelayAuditOutboxConcurrentIdempotent(t *testing.T) {
+	ctx := context.Background()
+	store := testhelpers.OpenTestStore(t)
+	metadata, err := testfixture.Open(filepath.Join(t.TempDir(), "corpus.metadata.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	for index := 0; index < 5; index++ {
+		if _, err := store.DB.Exec(`INSERT INTO pdf_audit_outbox
+			(event_key, occurred_at, actor, entity_type, entity_id, action, metadata_json, correlation_id)
+			VALUES (?, ?, 'relay', 'work', ?, 'pdf_inventory_registered', '{}', ?)`,
+			fmt.Sprintf("concurrent-%02d", index), fmt.Sprintf("2026-01-01T00:00:%02dZ", index), index, fmt.Sprintf("concurrent-%02d", index)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	for index := 0; index < 2; index++ {
+		go func() {
+			<-start
+			_, err := store.RelayAuditOutbox(ctx, metadata.PDFBindings, 10)
+			results <- err
+		}()
+	}
+	close(start)
+	for index := 0; index < 2; index++ {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if pending, err := store.PendingAuditCount(ctx); err != nil || pending != 0 {
+		t.Fatalf("concurrent relay pending=(%d,%v), want 0", pending, err)
+	}
+	var events, links int
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&events); err != nil {
+		t.Fatal(err)
+	}
+	if err := metadata.Conn.QueryRow("SELECT COUNT(*) FROM pdf_audit_links").Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if events != 5 || links != 5 {
+		t.Fatalf("concurrent relay events=%d links=%d, want five each", events, links)
 	}
 }
 
@@ -1055,6 +1232,37 @@ func TestStoreIntegrationInvalidInputs(t *testing.T) {
 	if _, err := store.Remove(ctx, subject.RemoveInput{DOI: "10.1000/not-normalized", WorkID: 1, ExpectedChangeCounter: 1}); !errors.Is(err, subject.ErrPDFNotRegistered) {
 		t.Fatalf("unregistered remove error = %v", err)
 	}
+}
+
+// auditEvidence mirrors the bounded before/after PDF state stored in the outbox.
+type auditEvidence struct {
+	Status          string `json:"status"`
+	ContentHash     string `json:"content_hash"`
+	ByteSize        *int64 `json:"byte_size"`
+	InventoriedAt   string `json:"inventoried_at"`
+	ChangeCounter   int64  `json:"change_counter"`
+	OutgoingDeleted *bool  `json:"outgoing_deleted"`
+}
+
+// outboxEvidence reads one changed event's before, after, and metadata payloads.
+func outboxEvidence(t *testing.T, store *subject.Store, action string) (auditEvidence, auditEvidence, map[string]any) {
+	t.Helper()
+	var beforeJSON, afterJSON, metadataJSON string
+	if err := store.DB.QueryRow("SELECT before_json, after_json, metadata_json FROM pdf_audit_outbox WHERE action=? ORDER BY occurred_at DESC, event_key DESC LIMIT 1", action).Scan(&beforeJSON, &afterJSON, &metadataJSON); err != nil {
+		t.Fatal(err)
+	}
+	var before, after auditEvidence
+	if err := json.Unmarshal([]byte(beforeJSON), &before); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(afterJSON), &after); err != nil {
+		t.Fatal(err)
+	}
+	var metadata map[string]any
+	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+		t.Fatal(err)
+	}
+	return before, after, metadata
 }
 
 // assertDocumentUnchanged verifies one document still matches the supplied state.

@@ -87,6 +87,9 @@ export interface HealthResponse {
   pdf_store_readable: boolean;
   pdf_store_writable: boolean;
   pdf_store_write_reason: string;
+  pdf_audit_pending: number;
+  pdf_audit_relay_running: boolean;
+  pdf_audit_relay_error: string;
   schema: {
     metadata: SchemaStatus;
     pdf: SchemaStatus;

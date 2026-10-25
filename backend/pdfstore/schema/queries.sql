@@ -53,16 +53,16 @@ WHERE pdf_blobs.content_hash = sqlc.arg(content_hash)
 -- name: InsertPDFAuditOutboxEvent :exec
 INSERT INTO pdf_audit_outbox (
     event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 ) VALUES (
     sqlc.arg(event_key), sqlc.arg(occurred_at), sqlc.arg(actor), sqlc.arg(pipeline_run_id),
     sqlc.arg(entity_type), sqlc.arg(entity_id), sqlc.arg(action), sqlc.arg(metadata_json),
-    sqlc.arg(correlation_id)
+    sqlc.arg(correlation_id), sqlc.narg(before_json), sqlc.narg(after_json)
 );
 
 -- name: ListPendingPDFAuditEvents :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
 ORDER BY occurred_at, event_key
@@ -70,13 +70,18 @@ LIMIT sqlc.arg(batch_limit);
 
 -- name: ListPendingPDFAuditEventsAfter :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
   AND (occurred_at > sqlc.arg(after_occurred_at)
        OR (occurred_at = sqlc.arg(after_occurred_at) AND event_key > sqlc.arg(after_event_key)))
 ORDER BY occurred_at, event_key
 LIMIT sqlc.arg(batch_limit);
+
+-- name: CountPendingPDFAuditEvents :one
+SELECT COUNT(*)
+FROM pdf_audit_outbox
+WHERE delivered_at IS NULL;
 
 -- name: MarkPDFAuditEventsDelivered :execresult
 UPDATE pdf_audit_outbox

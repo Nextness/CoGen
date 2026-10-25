@@ -239,6 +239,8 @@ func serveMain(args []string, stderr io.Writer) int {
 		return 1
 	}
 	log.Info("viewer listening", "addr", listener.Addr().String())
+	viewer.StartAuditRelay(context.Background())
+	defer viewer.StopAuditRelay()
 	if err := viewer.HTTPServer(listener.Addr().String()).Serve(listener); err != nil {
 		log.Error("viewer stopped", "error", err)
 		return 1
