@@ -1,6 +1,15 @@
 // API fetch helpers and endpoint builder.
 import { state, list } from "./state.tsx";
-import type { APIQuery, TableInfo, TablesResponse, WireRecord } from "./api/types.ts";
+import type {
+  APIQuery,
+  Identifier,
+  PDFMutationResponse,
+  PDFStatus,
+  PDFUploadRequest,
+  TableInfo,
+  TablesResponse,
+  WireRecord,
+} from "./api/types.ts";
 
 /** Builds an API path and query string from supplied values. */
 export function endpoint(path: string, query: APIQuery = {}): string {
@@ -25,7 +34,7 @@ export interface APIErrorEnvelope {
 export interface APIRequestOptions {
   method?: string;
   headers?: Record<string, string>;
-  body?: string;
+  body?: BodyInit | null;
   signal?: AbortSignal | null;
 }
 
@@ -97,6 +106,61 @@ export function mutate<T>(path: string, method: string, body: unknown): Promise<
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: null,
+  });
+}
+
+/** Encodes one digest buffer as lowercase hexadecimal. */
+function digestHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const pairs = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return pairs.join("");
+}
+
+/** Reads the current PDF inventory and mutation precondition for one work. */
+export function pdfStatus(workID: Identifier): Promise<PDFStatus> {
+  return api<PDFStatus>(`/api/works/${encodeURIComponent(workID)}/pdf-status`);
+}
+
+/** Computes one complete PDF upload body identity and captures the current mutation ETag. */
+export async function preparePDFUpload(file: File, status: PDFStatus): Promise<PDFUploadRequest> {
+  if (!file.size) throw new Error("Select a non-empty PDF file.");
+  if (!status.mutation_etag) throw new Error("The PDF selection has no current mutation precondition.");
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return {
+    file: file,
+    size: file.size,
+    sha256: digestHex(digest),
+    mutationETag: status.mutation_etag,
+  };
+}
+
+/** Uploads or replaces one PDF using the current selection's conditional ETag. */
+export function uploadPDF(runID: Identifier, revisionID: Identifier, request: PDFUploadRequest): Promise<PDFMutationResponse> {
+  const path = `/api/runs/${encodeURIComponent(runID)}/articles/${encodeURIComponent(revisionID)}/pdf`;
+  return api<PDFMutationResponse>(path, {}, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/pdf",
+      "If-Match": request.mutationETag,
+      "X-PDF-Size": String(request.size),
+      "X-PDF-SHA256": request.sha256,
+    },
+    body: request.file,
+    signal: null,
+  });
+}
+
+/** Removes one PDF using the current selection's conditional ETag. */
+export function removePDF(runID: Identifier, revisionID: Identifier, mutationETag: string): Promise<PDFMutationResponse> {
+  const path = `/api/runs/${encodeURIComponent(runID)}/articles/${encodeURIComponent(revisionID)}/pdf`;
+  return api<PDFMutationResponse>(path, {}, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      "If-Match": mutationETag,
+    },
     signal: null,
   });
 }

@@ -962,6 +962,29 @@ export interface PDFActions {
   reason: string;
 }
 
+/** One observable PDF mutation outcome. */
+export type PDFMutationOperation = "uploaded" | "replaced" | "removed" | "unchanged";
+
+/** One PDF mutation audit-delivery state. */
+export type PDFAuditDelivery = "pending" | "not_applicable";
+
+/** One binary PDF upload prepared from the current file and mutation precondition. */
+export interface PDFUploadRequest {
+  file: File;
+  size: number;
+  sha256: string;
+  mutationETag: string;
+}
+
+/** One successful PDF mutation response. */
+export interface PDFMutationResponse {
+  changed: boolean;
+  operation: PDFMutationOperation;
+  pdf_status: PDFStatus;
+  event_key: string | null;
+  audit_delivery: PDFAuditDelivery;
+}
+
 /** One PDF inventory state attached to an article. */
 export interface PDFStatus {
   status: string;

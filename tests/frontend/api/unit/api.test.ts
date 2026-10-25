@@ -3,7 +3,8 @@ import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
 
 import "../../../support/node/setup.ts";
-import { endpoint, api, mutate, tables } from "../../../../frontend/src/api.tsx";
+import { APIError, endpoint, api, mutate, pdfStatus, preparePDFUpload, removePDF, tables, uploadPDF } from "../../../../frontend/src/api.tsx";
+import type { PDFMutationResponse, PDFStatus, PDFUploadRequest } from "../../../../frontend/src/api/types.ts";
 import { state } from "../../../../frontend/src/state.tsx";
 
 describe('api.tsx — endpoint', function() {
@@ -156,6 +157,148 @@ describe('api.tsx — api', function() {
     assert.equal(request?.signal, undefined);
     globalThis.fetch = originalFetch;
     state.controller = null;
+  });
+
+});
+
+describe('api.tsx — PDF transport', function() {
+
+  before(function() {
+    state.controller = null;
+  });
+
+  it('reads current PDF status for a work', async function() {
+    const originalFetch = globalThis.fetch;
+    var url: RequestInfo | URL | undefined;
+    globalThis.fetch = function(input: RequestInfo | URL) {
+      url = input;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: function() { return Promise.resolve({ status: 'not_available', mutation_etag: '"pdf-10-1"' }); },
+      } as unknown as Response);
+    } as typeof fetch;
+
+    const status = await pdfStatus(10);
+    assert.equal(url, '/api/works/10/pdf-status');
+    assert.equal(status.mutation_etag, '"pdf-10-1"');
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('computes upload size and SHA-256 without transmitting the filename', async function() {
+    const file = new File([new TextEncoder().encode('abc')], 'private-name.pdf', { type: 'application/pdf' });
+    const status: PDFStatus = { status: 'not_available', mutation_etag: '"pdf-10-1"' };
+    const request = await preparePDFUpload(file, status);
+    assert.equal(request.file, file);
+    assert.equal(request.size, 3);
+    assert.equal(request.sha256, 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    assert.equal(request.mutationETag, '"pdf-10-1"');
+  });
+
+  it('rejects empty files and status without a mutation ETag before upload', async function() {
+    const empty = new File([], 'empty.pdf', { type: 'application/pdf' });
+    await assert.rejects(function() {
+      return preparePDFUpload(empty, { status: 'not_available', mutation_etag: '"pdf-10-1"' });
+    }, /non-empty/);
+    const file = new File([new TextEncoder().encode('abc')], 'paper.pdf', { type: 'application/pdf' });
+    await assert.rejects(function() {
+      return preparePDFUpload(file, { status: 'not_available', mutation_etag: null });
+    }, /mutation precondition/);
+  });
+
+  it('uploads the binary body with size, digest, and If-Match headers', async function() {
+    const originalFetch = globalThis.fetch;
+    const file = new File([new TextEncoder().encode('abc')], 'private-name.pdf', { type: 'application/pdf' });
+    const request: PDFUploadRequest = {
+      file: file,
+      size: 3,
+      sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      mutationETag: '"pdf-10-2"',
+    };
+    const response: PDFMutationResponse = {
+      changed: true,
+      operation: 'uploaded',
+      pdf_status: { status: 'available', mutation_etag: '"pdf-10-3"' },
+      event_key: 'event-1',
+      audit_delivery: 'pending',
+    };
+    var url: RequestInfo | URL | undefined;
+    var options: RequestInit | undefined;
+    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+      url = input;
+      options = init;
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(response); } } as unknown as Response);
+    } as typeof fetch;
+    state.controller = new AbortController();
+    state.controller.abort();
+
+    assert.deepEqual(await uploadPDF(7, 11, request), response);
+    assert.equal(url, '/api/runs/7/articles/11/pdf');
+    assert.equal(options?.method, 'PUT');
+    assert.equal((options?.headers as Record<string, string> | undefined)?.['Content-Type'], 'application/pdf');
+    assert.equal((options?.headers as Record<string, string> | undefined)?.['If-Match'], '"pdf-10-2"');
+    assert.equal((options?.headers as Record<string, string> | undefined)?.['X-PDF-Size'], '3');
+    assert.equal((options?.headers as Record<string, string> | undefined)?.['X-PDF-SHA256'], request.sha256);
+    assert.equal(options?.body, file);
+    assert.equal(options?.signal, undefined);
+
+    globalThis.fetch = originalFetch;
+    state.controller = null;
+  });
+
+  it('removes a PDF with the conditional ETag and no body', async function() {
+    const originalFetch = globalThis.fetch;
+    var options: RequestInit | undefined;
+    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+      options = init;
+      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ changed: true, operation: 'removed', pdf_status: { status: 'not_available' }, event_key: 'event-2', audit_delivery: 'pending' }); } } as unknown as Response);
+    } as typeof fetch;
+
+    await removePDF(7, 11, '"pdf-10-3"');
+    assert.equal(options?.method, 'DELETE');
+    assert.equal((options?.headers as Record<string, string> | undefined)?.['If-Match'], '"pdf-10-3"');
+    assert.equal(options?.body, undefined);
+    assert.equal(options?.signal, undefined);
+
+    globalThis.fetch = originalFetch;
+  });
+
+  it('shares structured conflict decoding with PDF uploads', async function() {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: false,
+        status: 412,
+        json: function() {
+          return Promise.resolve({
+            error: {
+              message: 'The PDF selection changed; refresh and retry',
+              code: 'pdf_state_conflict',
+              details: { expected_change_counter: 2, current_pdf_status: { status: 'available' } },
+            },
+          });
+        },
+      } as unknown as Response);
+    } as typeof fetch;
+    const request: PDFUploadRequest = {
+      file: new File([new TextEncoder().encode('abc')], 'paper.pdf', { type: 'application/pdf' }),
+      size: 3,
+      sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+      mutationETag: '"pdf-10-2"',
+    };
+
+    await assert.rejects(function() {
+      return uploadPDF(7, 11, request);
+    }, function(error: unknown) {
+      assert.ok(error instanceof APIError);
+      assert.equal(error.status, 412);
+      assert.equal(error.code, 'pdf_state_conflict');
+      assert.deepEqual(error.details, { expected_change_counter: 2, current_pdf_status: { status: 'available' } });
+      return true;
+    });
+
+    globalThis.fetch = originalFetch;
   });
 
 });

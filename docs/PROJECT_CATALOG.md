@@ -5775,13 +5775,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`endpoint`](../frontend/src/api.tsx#L6) | function | 6 | `function endpoint(path: string, query: APIQuery = {})` | Builds an API path and query string from supplied values. |
-| [`APIError`](../frontend/src/api.tsx#L33) | class | 33 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
-| [`APIError.constructor`](../frontend/src/api.tsx#L39) | method | 39 | `constructor(message: string, status: number, code?: string, details?: unknown)` | Initializes one structured API error returned by a non-successful response. |
-| [`errorMessage`](../frontend/src/api.tsx#L50) | function | 50 | `function errorMessage(error: unknown, fallback: string)` | Returns a safe message for an unknown caught value. |
-| [`api`](../frontend/src/api.tsx#L56) | function | 56 | `async function api(path: string, query: APIQuery = {}, options: APIRequestOptions = {})` | Fetches and decodes one JSON API response. |
-| [`mutate`](../frontend/src/api.tsx#L92) | function | 92 | `function mutate(path: string, method: string, body: unknown)` | Sends a same-origin JSON mutation and returns its decoded response. |
-| [`tables`](../frontend/src/api.tsx#L105) | function | 105 | `async function tables()` | Loads and caches the discovered database table list. |
+| [`endpoint`](../frontend/src/api.tsx#L15) | function | 15 | `function endpoint(path: string, query: APIQuery = {})` | Builds an API path and query string from supplied values. |
+| [`APIError`](../frontend/src/api.tsx#L42) | class | 42 | `class APIErrorextends Error` | Represents an HTTP API failure while preserving its status and structured details. |
+| [`APIError.constructor`](../frontend/src/api.tsx#L48) | method | 48 | `constructor(message: string, status: number, code?: string, details?: unknown)` | Initializes one structured API error returned by a non-successful response. |
+| [`errorMessage`](../frontend/src/api.tsx#L59) | function | 59 | `function errorMessage(error: unknown, fallback: string)` | Returns a safe message for an unknown caught value. |
+| [`api`](../frontend/src/api.tsx#L65) | function | 65 | `async function api(path: string, query: APIQuery = {}, options: APIRequestOptions = {})` | Fetches and decodes one JSON API response. |
+| [`mutate`](../frontend/src/api.tsx#L101) | function | 101 | `function mutate(path: string, method: string, body: unknown)` | Sends a same-origin JSON mutation and returns its decoded response. |
+| [`digestHex`](../frontend/src/api.tsx#L114) | function | 114 | `function digestHex(buffer: ArrayBuffer)` | Encodes one digest buffer as lowercase hexadecimal. |
+| [`pdfStatus`](../frontend/src/api.tsx#L121) | function | 121 | `function pdfStatus(workID: Identifier)` | Reads the current PDF inventory and mutation precondition for one work. |
+| [`preparePDFUpload`](../frontend/src/api.tsx#L126) | function | 126 | `async function preparePDFUpload(file: File, status: PDFStatus)` | Computes one complete PDF upload body identity and captures the current mutation ETag. |
+| [`uploadPDF`](../frontend/src/api.tsx#L139) | function | 139 | `function uploadPDF(runID: Identifier, revisionID: Identifier, request: PDFUploadRequest)` | Uploads or replaces one PDF using the current selection's conditional ETag. |
+| [`removePDF`](../frontend/src/api.tsx#L156) | function | 156 | `function removePDF(runID: Identifier, revisionID: Identifier, mutationETag: string)` | Removes one PDF using the current selection's conditional ETag. |
+| [`tables`](../frontend/src/api.tsx#L169) | function | 169 | `async function tables()` | Loads and caches the discovered database table list. |
 
 ### [`frontend/src/components/article-table.tsx`](../frontend/src/components/article-table.tsx)
 
@@ -6588,17 +6593,23 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`builds a path with query parameters`](../tests/frontend/api/unit/api.test.ts#L11) | test | 11 | `it('builds a path with query parameters', callback)` | builds a path with query parameters |
-| [`omits empty and null parameters`](../tests/frontend/api/unit/api.test.ts#L16) | test | 16 | `it('omits empty and null parameters', callback)` | omits empty and null parameters |
-| [`handles no query`](../tests/frontend/api/unit/api.test.ts#L24) | test | 24 | `it('handles no query', callback)` | handles no query |
-| [`fetches and returns data from a successful response`](../tests/frontend/api/unit/api.test.ts#L36) | test | 36 | `it('fetches and returns data from a successful response', callback)` | fetches and returns data from a successful response |
-| [`returns the full body when no data key`](../tests/frontend/api/unit/api.test.ts#L56) | test | 56 | `it('returns the full body when no data key', callback)` | returns the full body when no data key |
-| [`throws on non-ok response with error message`](../tests/frontend/api/unit/api.test.ts#L72) | test | 72 | `it('throws on non-ok response with error message', callback)` | throws on non-ok response with error message |
-| [`throws on non-ok response without error message`](../tests/frontend/api/unit/api.test.ts#L89) | test | 89 | `it('throws on non-ok response without error message', callback)` | throws on non-ok response without error message |
-| [`throws on invalid JSON response`](../tests/frontend/api/unit/api.test.ts#L106) | test | 106 | `it('throws on invalid JSON response', callback)` | throws on invalid JSON response |
-| [`aborts when state.controller is aborted`](../tests/frontend/api/unit/api.test.ts#L123) | test | 123 | `it('aborts when state.controller is aborted', callback)` | aborts when state.controller is aborted |
-| [`sends same-origin JSON mutations`](../tests/frontend/api/unit/api.test.ts#L142) | test | 142 | `it('sends same-origin JSON mutations', callback)` | sends same-origin JSON mutations |
-| [`fetches tables on first call and caches them`](../tests/frontend/api/unit/api.test.ts#L169) | test | 169 | `it('fetches tables on first call and caches them', callback)` | fetches tables on first call and caches them |
+| [`builds a path with query parameters`](../tests/frontend/api/unit/api.test.ts#L12) | test | 12 | `it('builds a path with query parameters', callback)` | builds a path with query parameters |
+| [`omits empty and null parameters`](../tests/frontend/api/unit/api.test.ts#L17) | test | 17 | `it('omits empty and null parameters', callback)` | omits empty and null parameters |
+| [`handles no query`](../tests/frontend/api/unit/api.test.ts#L25) | test | 25 | `it('handles no query', callback)` | handles no query |
+| [`fetches and returns data from a successful response`](../tests/frontend/api/unit/api.test.ts#L37) | test | 37 | `it('fetches and returns data from a successful response', callback)` | fetches and returns data from a successful response |
+| [`returns the full body when no data key`](../tests/frontend/api/unit/api.test.ts#L57) | test | 57 | `it('returns the full body when no data key', callback)` | returns the full body when no data key |
+| [`throws on non-ok response with error message`](../tests/frontend/api/unit/api.test.ts#L73) | test | 73 | `it('throws on non-ok response with error message', callback)` | throws on non-ok response with error message |
+| [`throws on non-ok response without error message`](../tests/frontend/api/unit/api.test.ts#L90) | test | 90 | `it('throws on non-ok response without error message', callback)` | throws on non-ok response without error message |
+| [`throws on invalid JSON response`](../tests/frontend/api/unit/api.test.ts#L107) | test | 107 | `it('throws on invalid JSON response', callback)` | throws on invalid JSON response |
+| [`aborts when state.controller is aborted`](../tests/frontend/api/unit/api.test.ts#L124) | test | 124 | `it('aborts when state.controller is aborted', callback)` | aborts when state.controller is aborted |
+| [`sends same-origin JSON mutations`](../tests/frontend/api/unit/api.test.ts#L143) | test | 143 | `it('sends same-origin JSON mutations', callback)` | sends same-origin JSON mutations |
+| [`reads current PDF status for a work`](../tests/frontend/api/unit/api.test.ts#L170) | test | 170 | `it('reads current PDF status for a work', callback)` | reads current PDF status for a work |
+| [`computes upload size and SHA-256 without transmitting the filename`](../tests/frontend/api/unit/api.test.ts#L189) | test | 189 | `it('computes upload size and SHA-256 without transmitting the filename', callback)` | computes upload size and SHA-256 without transmitting the filename |
+| [`rejects empty files and status without a mutation ETag before upload`](../tests/frontend/api/unit/api.test.ts#L199) | test | 199 | `it('rejects empty files and status without a mutation ETag before upload', callback)` | rejects empty files and status without a mutation ETag before upload |
+| [`uploads the binary body with size, digest, and If-Match headers`](../tests/frontend/api/unit/api.test.ts#L210) | test | 210 | `it('uploads the binary body with size, digest, and If-Match headers', callback)` | uploads the binary body with size, digest, and If-Match headers |
+| [`removes a PDF with the conditional ETag and no body`](../tests/frontend/api/unit/api.test.ts#L250) | test | 250 | `it('removes a PDF with the conditional ETag and no body', callback)` | removes a PDF with the conditional ETag and no body |
+| [`shares structured conflict decoding with PDF uploads`](../tests/frontend/api/unit/api.test.ts#L267) | test | 267 | `it('shares structured conflict decoding with PDF uploads', callback)` | shares structured conflict decoding with PDF uploads |
+| [`fetches tables on first call and caches them`](../tests/frontend/api/unit/api.test.ts#L312) | test | 312 | `it('fetches tables on first call and caches them', callback)` | fetches tables on first call and caches them |
 
 ### [`tests/frontend/components/audit-events/unit/audit-events.test.ts`](../tests/frontend/components/audit-events/unit/audit-events.test.ts)
 
