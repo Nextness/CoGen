@@ -193,7 +193,7 @@ Styles load in cascade order `tokens.css`, `base.css`, `elements.css`, `collecti
 - Interactive rows cannot be the only way to trigger an action and must not steal behavior from links, controls, selection, or text interaction.
 - Mobile behavior preserves context, evidence, pagination, status, and actions.
 - Loading keeps context understandable, errors identify the failed operation, and unavailable data is distinguished from empty data.
-- Privacy text must accurately describe immutable pipeline evidence, local append-only review behavior, mandatory loopback access, browser-draft limitations, and read-only PDF ownership without implying authentication, arbitrary mutation, live refresh, or automatic PDF acquisition.
+- Privacy text must accurately describe immutable pipeline evidence, local append-only review behavior, mandatory loopback access, browser-draft limitations, and read-only PDF evidence reads with validated mutation through a separate companion write connection without implying authentication, arbitrary mutation, live refresh, or automatic PDF acquisition.
 
 ## 18. Documentation standards
 

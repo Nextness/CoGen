@@ -145,7 +145,7 @@ Every public family operation takes `context.Context` as its first parameter and
 
 ### 4.2 Metadata and companion PDF coordination
 
-Metadata and PDF state remain two independently migrated SQLite databases because document bytes and manual inventory have a different lifecycle from research metadata and SQLite cannot provide one transaction across separate files. `backend/pdfstore/` owns the companion connection, its `schema/` inputs, its generated `internal/sql` package, PDF validation, content-addressed blobs, and the audit outbox, while `backend/database/pdfbinding/` owns the metadata-side `pdf_store_binding` and `pdf_audit_links` tables and the typed operations that resolve and validate the relative binding, begin the metadata transaction, and record delivered events.
+Metadata and PDF state remain two independently migrated SQLite databases because document bytes and PDF inventory have a different lifecycle from research metadata and SQLite cannot provide one transaction across separate files. `backend/pdfstore/` owns the companion connection, its `schema/` inputs, its generated `internal/sql` package, PDF validation, content-addressed blobs, and the audit outbox, while `backend/database/pdfbinding/` owns the metadata-side `pdf_store_binding` and `pdf_audit_links` tables and the typed operations that resolve and validate the relative binding, begin the metadata transaction, and record delivered events.
 
 The cross-database protocol stays deliberately non-atomic. A flush loads a bounded companion outbox batch, isolates each event with a per-event savepoint, writes metadata audit plus `pdf_audit_links` in one metadata transaction through the binding store, commits metadata before marking companion events delivered, and retries idempotently after a crash between those commits. Explicit export preparation does not mutate the companion store: it reads one pinned companion snapshot and writes its required per-work audit events directly through one metadata-owned audit batch before binary headers. Section 13 describes the full inventory, binding, export, and outbox behavior, and [DATABASE.md](DATABASE.md) lists both schemas.
 
@@ -316,7 +316,7 @@ The metadata chain is V00001-V00028 and the PDF chain is V00001-V00003. Migratio
 
 The metadata schema includes pipeline planning and evidence, corpus revisions and relationships, cache and PDF links, `pipeline_run_reviewers`, singleton `review_settings`, run-scoped `review_contexts`, immutable review, note, link, and anchor version tables, mutable context head tables, and derived per-run search-term inventories and revision matches. [DATABASE.md](DATABASE.md) lists every table and relationship.
 
-The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated manual inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
+The companion schema includes `schema_migrations`, `pdf_blobs`, `pdf_documents`, `pdf_gather_runs`, `pdf_download_attempts`, and `pdf_audit_outbox`. Current runtime behavior uses normalized DOI registration and validated application upload inventory. [DATABASE.md](DATABASE.md) is the detailed reference for every table, column, default, relationship, constraint, index, trigger, and repository-level expectation in both databases.
 
 Append-only triggers reject updates and deletes from audit events, work revisions, author occurrences, authorships, reference mentions, review contexts, logical notes and anchors, all immutable review versions and version children, and PDF download attempts. Supported code inserts reviewer rows once and does not update them. PDF blobs reject updates, and the runtime exposes no PDF-blob deletion path. Only review head tables move through family transactions. Foreign keys protect reviewed runs and their immutable review lineage.
 
@@ -536,7 +536,7 @@ Persisted revisions, relationships, artifacts, and audit evidence are immutable 
 - SQLite is the sole pipeline system of record so retries, provenance, cache reuse, and offline inspection share one transactional substrate.
 - Work revisions and relationship rows are immutable so stages remain reproducible without destructive overwrites.
 - Execution plans use deterministic manifest fingerprints while attempts retain independent lifecycle and retry evidence.
-- Metadata and PDF stores are separate portable databases linked by one relative binding because document bytes and manual inventory have a different lifecycle from research metadata.
+- Metadata and PDF stores are separate portable databases linked by one relative binding because document bytes and PDF inventory have a different lifecycle from research metadata.
 - PDF audit delivery uses an outbox because one atomic transaction cannot span two SQLite databases.
 - Provider gather and storage are separated so HTTP behavior remains mockable and database provenance remains centralized.
 - SOMETHING preserves ordered evaluation and panic-based internal phase failures so compiler behavior remains consistent across phases.

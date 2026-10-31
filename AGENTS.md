@@ -96,7 +96,7 @@ Runtime commands execute from the repository root and resolve explicit path flag
 - `backend/cmd/analysis/main.go` delegates command dispatch to `backend/cli/`, which delegates pipeline work to `backend/workspace/` and viewing to `backend/server/`.
 - `backend/workspace/` owns typed configuration, preflight, attempts, cache policy, ingestion, enrichment orchestration, validation, normalization, metrics, artifacts, audit, and PDF synchronization.
 - `backend/database/` owns writable metadata SQLite, migrations, repositories, immutable revisions and relationships, run-scoped review contexts and immutable review versions, cache records, artifacts, metrics, and append-only audit.
-- `backend/pdfstore/` owns normalized DOI registration, conditional validated manual PDF save and removal, content-addressed bytes, companion migrations, and cross-database audit outbox.
+- `backend/pdfstore/` owns normalized DOI registration, conditional validated PDF save and removal, content-addressed bytes, companion migrations, and cross-database audit outbox.
 - `backend/server/` owns existing-only metadata and companion connections, paired schema readiness, bounded read, review-mutation, and run/article PDF mutation APIs, table browsing, read-only PDF evidence delivery, and frontend asset serving; it does not import workspace orchestration, run migrations, create databases, or acquire exclusive maintenance ownership.
 - `backend/enrich/` owns provider HTTP and decoding; gather code has no database calls, and workspace storage does not bypass the rate-limited public client.
 - `backend/manifest/` owns canonical manifests, fingerprints, lifecycle values, and audit actions without internal application dependencies.
