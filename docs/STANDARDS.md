@@ -125,7 +125,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 
 ## 12. PDF and audit standards
 
-- Register normalized DOIs as `not_available`; only the validated manual tool stores bytes and changes a DOI to `available`.
+- Register normalized DOIs as `not_available`; only the validated serving upload stores bytes and changes a DOI to `available`.
 - Enforce the 20,000,000-byte limit, `%PDF-` signature, SHA-256 content identity, prior normalized registration, and unchanged selection for already available documents.
 - Keep metadata and companion paths bundle-relative and reject absolute or escaping bindings.
 - Write PDF audit evidence through the transactional outbox and preserve idempotent cross-database delivery.

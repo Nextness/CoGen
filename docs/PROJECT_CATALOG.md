@@ -5177,9 +5177,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestE2EDeterministic`](../tests/e2e/offline/e2e_test.go#L15) | test | 15-29 | `func TestE2EDeterministic(t *testing.T)` | TestE2EDeterministic verifies the offline pipeline, database, API, and PDF inventory flow. |
-| [`TestE2EReviewEvidence`](../tests/e2e/offline/e2e_test.go#L32) | test | 32-83 | `func TestE2EReviewEvidence(t *testing.T)` | TestE2EReviewEvidence verifies browser mutations against the isolated database after Playwright completes. |
-| [`TestE2EMocked`](../tests/e2e/offline/e2e_test.go#L86) | test | 86-103 | `func TestE2EMocked(t *testing.T)` | TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence. |
+| [`TestE2EDeterministic`](../tests/e2e/offline/e2e_test.go#L20) | test | 20-34 | `func TestE2EDeterministic(t *testing.T)` | TestE2EDeterministic verifies the offline pipeline, database, API, and PDF inventory flow. |
+| [`TestE2EReviewEvidence`](../tests/e2e/offline/e2e_test.go#L37) | test | 37-89 | `func TestE2EReviewEvidence(t *testing.T)` | TestE2EReviewEvidence verifies browser mutations against the isolated database after Playwright completes. |
+| [`assertE2EPDFLifecycleEvidence`](../tests/e2e/offline/e2e_test.go#L92) | function | 92-173 | `func assertE2EPDFLifecycleEvidence(t *testing.T, root, metadataPath string, metadata *testfixture.Database)` | assertE2EPDFLifecycleEvidence verifies final selections, deleted blobs, counters, and exactly-once mutation audit. |
+| [`sha256Hex`](../tests/e2e/offline/e2e_test.go#L176) | function | 176-179 | `func sha256Hex(data []byte) string` | sha256Hex returns the lowercase SHA-256 identity of one fixture file. |
+| [`TestE2EMocked`](../tests/e2e/offline/e2e_test.go#L182) | test | 182-199 | `func TestE2EMocked(t *testing.T)` | TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence. |
 
 ### [`tests/shared/artifactmedia/unit/policy_unit_test.go`](../tests/shared/artifactmedia/unit/policy_unit_test.go)
 
@@ -5371,26 +5373,25 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`E2ERepositoryRoot`](../tests/support/go/e2eflow/flow.go#L107) | function | 107-116 | `func E2ERepositoryRoot(t *testing.T) string` | E2ERepositoryRoot resolves the repository root from the centralized test environment. |
 | [`prepareE2EOutput`](../tests/support/go/e2eflow/flow.go#L119) | function | 119-137 | `func prepareE2EOutput(t *testing.T, root, variant string) string` | prepareE2EOutput recreates one known target-owned variant directory under build/e2e. |
 | [`writeE2EConfig`](../tests/support/go/e2eflow/flow.go#L140) | function | 140-203 | `func writeE2EConfig(t *testing.T, root, outputDir string, mode Mode) string` | writeE2EConfig writes a typed workspace configuration and its relative include. |
-| [`PrepareE2EReviewRuns`](../tests/support/go/e2eflow/flow.go#L206) | function | 206-224 | `func PrepareE2EReviewRuns(t *testing.T, root string, result Result)` | PrepareE2EReviewRuns stores one deterministic PDF through the companion API and creates A2 as a fresh overlapping run. |
-| [`prepareE2EReviewPDF`](../tests/support/go/e2eflow/flow.go#L227) | function | 227-273 | `func prepareE2EReviewPDF(t *testing.T, metadataPath, doi string, data []byte)` | prepareE2EReviewPDF stores one deterministic PDF through the companion store API. |
-| [`e2eProviderConfig`](../tests/support/go/e2eflow/flow.go#L276) | function | 276-313 | `func e2eProviderConfig(mode Mode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
-| [`validateE2EConfig`](../tests/support/go/e2eflow/flow.go#L316) | function | 316-323 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
-| [`E2EOfflineEnvironment`](../tests/support/go/e2eflow/flow.go#L326) | function | 326-347 | `func E2EOfflineEnvironment(providerURL string) []string` | E2EOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
-| [`(*ProviderMock).ServeHTTP`](../tests/support/go/e2eflow/flow.go#L350) | method | 350-377 | `func (*ProviderMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
-| [`(*ProviderMock).AssertRequests`](../tests/support/go/e2eflow/flow.go#L380) | method | 380-397 | `func (*ProviderMock).AssertRequests(t *testing.T)` | AssertRequests verifies all expected provider families were exercised through loopback. |
-| [`assertE2EDatabases`](../tests/support/go/e2eflow/flow.go#L400) | function | 400-475 | `func assertE2EDatabases(t *testing.T, root, DBPath string, mode Mode) Result` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
-| [`e2eRawCount`](../tests/support/go/e2eflow/flow.go#L478) | function | 478-484 | `func e2eRawCount(Sources []Source) int` | e2eRawCount returns the total declared fixture record count. |
-| [`AssertE2ECount`](../tests/support/go/e2eflow/flow.go#L487) | function | 487-500 | `func AssertE2ECount(t *testing.T, db *testfixture.Database, table, where string, argument any, want int)` | AssertE2ECount checks an exact table row count using one optional query argument. |
-| [`assertE2EAtLeast`](../tests/support/go/e2eflow/flow.go#L503) | function | 503-516 | `func assertE2EAtLeast(t *testing.T, db *testfixture.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
-| [`assertE2EPDFCount`](../tests/support/go/e2eflow/flow.go#L519) | function | 519-525 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
-| [`e2ENormalizedWorks`](../tests/support/go/e2eflow/flow.go#L528) | function | 528-551 | `func e2ENormalizedWorks(t *testing.T, db *testfixture.Database, RunID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
-| [`assertE2EAuditOrder`](../tests/support/go/e2eflow/flow.go#L554) | function | 554-586 | `func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
-| [`AssertE2EAPI`](../tests/support/go/e2eflow/flow.go#L589) | function | 589-633 | `func AssertE2EAPI(t *testing.T, result Result)` | AssertE2EAPI compares read-only HTTP responses with the database assertions. |
-| [`requestE2EAuditActions`](../tests/support/go/e2eflow/flow.go#L636) | function | 636-661 | `func requestE2EAuditActions(t *testing.T, handler http.Handler, RunID int64) map[string]bool` | requestE2EAuditActions traverses the bounded canonical audit route for one generated run. |
-| [`requestE2EJSON`](../tests/support/go/e2eflow/flow.go#L664) | function | 664-677 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
-| [`nestedE2EID`](../tests/support/go/e2eflow/flow.go#L680) | function | 680-703 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
-| [`mustE2EJSON`](../tests/support/go/e2eflow/flow.go#L706) | function | 706-713 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
-| [`equalE2EStrings`](../tests/support/go/e2eflow/flow.go#L716) | function | 716-722 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
+| [`PrepareE2EReviewRuns`](../tests/support/go/e2eflow/flow.go#L206) | function | 206-232 | `func PrepareE2EReviewRuns(t *testing.T, root string, result Result)` | PrepareE2EReviewRuns writes deterministic browser upload fixtures and creates A2 as a fresh overlapping run. |
+| [`e2eProviderConfig`](../tests/support/go/e2eflow/flow.go#L235) | function | 235-272 | `func e2eProviderConfig(mode Mode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
+| [`validateE2EConfig`](../tests/support/go/e2eflow/flow.go#L275) | function | 275-282 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
+| [`E2EOfflineEnvironment`](../tests/support/go/e2eflow/flow.go#L285) | function | 285-306 | `func E2EOfflineEnvironment(providerURL string) []string` | E2EOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
+| [`(*ProviderMock).ServeHTTP`](../tests/support/go/e2eflow/flow.go#L309) | method | 309-336 | `func (*ProviderMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
+| [`(*ProviderMock).AssertRequests`](../tests/support/go/e2eflow/flow.go#L339) | method | 339-356 | `func (*ProviderMock).AssertRequests(t *testing.T)` | AssertRequests verifies all expected provider families were exercised through loopback. |
+| [`assertE2EDatabases`](../tests/support/go/e2eflow/flow.go#L359) | function | 359-434 | `func assertE2EDatabases(t *testing.T, root, DBPath string, mode Mode) Result` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
+| [`e2eRawCount`](../tests/support/go/e2eflow/flow.go#L437) | function | 437-443 | `func e2eRawCount(Sources []Source) int` | e2eRawCount returns the total declared fixture record count. |
+| [`AssertE2ECount`](../tests/support/go/e2eflow/flow.go#L446) | function | 446-459 | `func AssertE2ECount(t *testing.T, db *testfixture.Database, table, where string, argument any, want int)` | AssertE2ECount checks an exact table row count using one optional query argument. |
+| [`assertE2EAtLeast`](../tests/support/go/e2eflow/flow.go#L462) | function | 462-475 | `func assertE2EAtLeast(t *testing.T, db *testfixture.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
+| [`assertE2EPDFCount`](../tests/support/go/e2eflow/flow.go#L478) | function | 478-484 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
+| [`e2ENormalizedWorks`](../tests/support/go/e2eflow/flow.go#L487) | function | 487-510 | `func e2ENormalizedWorks(t *testing.T, db *testfixture.Database, RunID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
+| [`assertE2EAuditOrder`](../tests/support/go/e2eflow/flow.go#L513) | function | 513-545 | `func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
+| [`AssertE2EAPI`](../tests/support/go/e2eflow/flow.go#L548) | function | 548-592 | `func AssertE2EAPI(t *testing.T, result Result)` | AssertE2EAPI compares read-only HTTP responses with the database assertions. |
+| [`requestE2EAuditActions`](../tests/support/go/e2eflow/flow.go#L595) | function | 595-620 | `func requestE2EAuditActions(t *testing.T, handler http.Handler, RunID int64) map[string]bool` | requestE2EAuditActions traverses the bounded canonical audit route for one generated run. |
+| [`requestE2EJSON`](../tests/support/go/e2eflow/flow.go#L623) | function | 623-636 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
+| [`nestedE2EID`](../tests/support/go/e2eflow/flow.go#L639) | function | 639-662 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
+| [`mustE2EJSON`](../tests/support/go/e2eflow/flow.go#L665) | function | 665-672 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
+| [`equalE2EStrings`](../tests/support/go/e2eflow/flow.go#L675) | function | 675-681 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
 
 ### [`tests/support/go/pdffixture/complex.go`](../tests/support/go/pdffixture/complex.go)
 
@@ -6597,9 +6598,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`generatedContext`](../tests/e2e/offline/e2e.spec.ts#L46) | function | 46 | `async function generatedContext(request: APIRequestContext)` | Resolves the generated database's persistent URL-state identifiers through public APIs. |
-| [`generatedState`](../tests/e2e/offline/e2e.spec.ts#L80) | function | 80 | `function generatedState(context: GeneratedContext, updates: Record<string, Identifier>)` | Builds a context-preserving viewer state for one generated route. |
-| [`visitGenerated`](../tests/e2e/offline/e2e.spec.ts#L92) | function | 92 | `async function visitGenerated(page: Page, context: GeneratedContext, updates: Record<string, Identifier>)` | Seeds viewer state through sessionStorage and navigates to the clean generated route. |
+| [`digest`](../tests/e2e/offline/e2e.spec.ts#L55) | function | 55 | `function digest(data: Buffer)` | Returns the SHA-256 hex digest of one file. |
+| [`generatedFixturePath`](../tests/e2e/offline/e2e.spec.ts#L60) | function | 60 | `function generatedFixturePath(name: string)` | Returns one generated E2E upload fixture beside the generated metadata database. |
+| [`downloadBytes`](../tests/e2e/offline/e2e.spec.ts#L67) | function | 67 | `async function downloadBytes(download: Download)` | Reads one completed browser download into memory. |
+| [`storedZipEntries`](../tests/e2e/offline/e2e.spec.ts#L74) | function | 74 | `function storedZipEntries(data: Buffer)` | Extracts stored entries from one standard ZIP response for assertions. |
+| [`completedReviewRuns`](../tests/e2e/offline/e2e.spec.ts#L106) | function | 106 | `async function completedReviewRuns(request: APIRequestContext, context: GeneratedContext)` | Resolves completed A1/A2 runs and the Offline Complete One revision in each. |
+| [`generatedContext`](../tests/e2e/offline/e2e.spec.ts#L127) | function | 127 | `async function generatedContext(request: APIRequestContext)` | Resolves the generated database's persistent URL-state identifiers through public APIs. |
+| [`generatedState`](../tests/e2e/offline/e2e.spec.ts#L161) | function | 161 | `function generatedState(context: GeneratedContext, updates: Record<string, Identifier>)` | Builds a context-preserving viewer state for one generated route. |
+| [`visitGenerated`](../tests/e2e/offline/e2e.spec.ts#L173) | function | 173 | `async function visitGenerated(page: Page, context: GeneratedContext, updates: Record<string, Identifier>)` | Seeds viewer state through sessionStorage and navigates to the clean generated route. |
 
 ### [`tests/frontend/components/context-selector/unit/context-selector.test.ts`](../tests/frontend/components/context-selector/unit/context-selector.test.ts)
 
@@ -6845,8 +6851,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`pipeline evidence is consistent across Corpus, Provenance, and Evaluation`](../tests/e2e/offline/e2e.spec.ts#L97) | test | 97 | `test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', callback)` | pipeline evidence is consistent across Corpus, Provenance, and Evaluation |
-| [`A2 inherits immutable A1 review heads and diverges without changing A1`](../tests/e2e/offline/e2e.spec.ts#L128) | test | 128 | `test('A2 inherits immutable A1 review heads and diverges without changing A1', callback)` | A2 inherits immutable A1 review heads and diverges without changing A1 |
+| [`pipeline evidence is consistent across Corpus, Provenance, and Evaluation`](../tests/e2e/offline/e2e.spec.ts#L178) | test | 178 | `test('pipeline evidence is consistent across Corpus, Provenance, and Evaluation', callback)` | pipeline evidence is consistent across Corpus, Provenance, and Evaluation |
+| [`PDF lifecycle uploads, replaces, removes, reuploads, and downloads through the application`](../tests/e2e/offline/e2e.spec.ts#L208) | test | 208 | `test('PDF lifecycle uploads, replaces, removes, reuploads, and downloads through the application', callback)` | PDF lifecycle uploads, replaces, removes, reuploads, and downloads through the application |
+| [`A2 inherits immutable A1 review heads and diverges without changing A1`](../tests/e2e/offline/e2e.spec.ts#L296) | test | 296 | `test('A2 inherits immutable A1 review heads and diverges without changing A1', callback)` | A2 inherits immutable A1 review heads and diverges without changing A1 |
 
 ### [`tests/frontend/api/unit/api.test.ts`](../tests/frontend/api/unit/api.test.ts)
 

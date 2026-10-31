@@ -202,11 +202,19 @@ func writeE2EConfig(t *testing.T, root, outputDir string, mode Mode) string {
 	return configPath
 }
 
-// PrepareE2EReviewRuns stores one deterministic PDF through the companion API and creates A2 as a fresh overlapping run.
+// PrepareE2EReviewRuns writes deterministic browser upload fixtures and creates A2 as a fresh overlapping run.
 func PrepareE2EReviewRuns(t *testing.T, root string, result Result) {
 	t.Helper()
-	prepareE2EReviewPDF(t, result.DBPath, "10.5555/e2e-complete-one", pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two"))
-	configPath := filepath.Join(filepath.Dir(result.DBPath), "workspace.something")
+	outputDir := filepath.Dir(result.DBPath)
+	fixture := pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two")
+	if err := os.WriteFile(filepath.Join(outputDir, "review.fixture.pdf"), fixture, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	replacement := append(append([]byte(nil), fixture...), []byte("\n% deterministic E2E replacement\n")...)
+	if err := os.WriteFile(filepath.Join(outputDir, "review.replacement.pdf"), replacement, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(outputDir, "workspace.something")
 	command := exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.DBPath, "--config", configPath, "--fresh")
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
@@ -220,55 +228,6 @@ func PrepareE2EReviewRuns(t *testing.T, root string, result Result) {
 	var completed int
 	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status='completed'").Scan(&completed); err != nil || completed != 2 {
 		t.Fatalf("completed deterministic review runs=%d err=%v", completed, err)
-	}
-}
-
-// prepareE2EReviewPDF stores one deterministic PDF through the companion store API.
-func prepareE2EReviewPDF(t *testing.T, metadataPath, doi string, data []byte) {
-	t.Helper()
-	ctx := context.Background()
-	metadata, err := testfixture.OpenExistingPlatform(t, metadataPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer metadata.Close()
-	found, err := metadata.Work.GetWorkByDOI(ctx, doi)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if found == nil {
-		t.Fatalf("E2E DOI %q is unavailable", doi)
-	}
-	storePath, err := metadata.PDFBindings.ResolveBinding(ctx, metadataPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := pdfstore.Open(storePath, testenv.Path("config", "database.something"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	if _, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil {
-		t.Fatal(err)
-	}
-	document, err := store.Document(ctx, found.DOI)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document != nil && document.Status == pdfstore.StatusAvailable {
-		return
-	}
-	expectedCounter := int64(1)
-	if document != nil {
-		expectedCounter = document.ChangeCounter
-	}
-	if _, err := store.Save(ctx, pdfstore.SaveInput{
-		DOI: found.DOI, WorkID: found.ID, ExpectedChangeCounter: expectedCounter, Data: data,
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil {
-		t.Fatal(err)
 	}
 }
 

@@ -53,7 +53,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/sqlc` | `make sqlc-install` | Pinned sqlc development generator used only for family SQL code generation and freshness checking; normal builds, tests, and checks never invoke it. |
 | `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
-| `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, and preserved review mutation evidence for pipeline-to-viewer verification. |
+| `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, browser upload fixtures, and preserved PDF and review mutation evidence for pipeline-to-viewer verification. |
 | `build/playwright/run-*/` | Browser test targets | Isolated traces, screenshots, results, and HTML reports. |
 
 `build/coveragecheck` is normally executed by `make coverage`; developers should use the Make target so it receives the correct profile and policy paths.
@@ -258,7 +258,7 @@ Run the deterministic and mocked-provider pipeline through persisted SQLite, the
 make test-e2e
 ```
 
-The target builds `build/analysis` and `build/something-printer`, evaluates generated configurations, invokes the real pipeline executable, stores a deterministic valid PDF through the application boundary, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`, and runs a Go database verifier over inherited and divergent heads, immutable versions, links, anchors, and review audit rows. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
+The target builds `build/analysis` and `build/something-printer`, evaluates generated configurations, invokes the real pipeline executable, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, then the browser uploads the deterministic review PDF through article detail, exercises replacement, failed replacement, removal, reupload, single and ZIP downloads, and the comments toggle, and preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`. A Go database verifier checks both databases for the final selection, deleted unused blobs, change counter, delivered exactly-once PDF mutation audit, inherited and divergent review heads, immutable versions, links, and anchors. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
 
 Run the bounded real-provider variant only when network access and live calls are explicitly acceptable:
 

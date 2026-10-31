@@ -454,7 +454,7 @@ The `backend/pdfstore/` companion store owns every table below and reaches it th
 
 - Purpose: Stores bounded settings and lifecycle metadata for a PDF gathering run when such rows are supplied.
 - Columns and defaults: `id INTEGER PK AUTOINCREMENT`; `correlation_id TEXT NOT NULL UNIQUE`; `started_at TEXT NOT NULL`; `completed_at TEXT NULL`; `status TEXT NOT NULL CHECK IN ('running', 'completed', 'failed')`; `settings_fingerprint TEXT NOT NULL CHECK length = 64`; `settings_json TEXT NOT NULL CHECK json_valid`; `selected_workspaces TEXT NOT NULL CHECK json_valid`.
-- Relationships and expectations: One row can own many `pdf_download_attempts`. The current production PDF workflow is normalized DOI registration plus validated manual insertion through the maintenance tool; the companion store API also supports conditional replacement and removal. It does not create, read, or update gathering-run rows. The table remains part of the current migrated schema and therefore remains visible to the read-only table browser.
+- Relationships and expectations: One row can own many `pdf_download_attempts`. The current production PDF workflow is normalized DOI registration plus validated upload, replacement, and removal through the selected-run article routes; the companion store API owns the conditional storage operations. It does not create, read, or update gathering-run rows. The table remains part of the current migrated schema and therefore remains visible to the read-only table browser.
 
 #### `pdf_download_attempts`
 
