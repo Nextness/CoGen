@@ -1087,6 +1087,9 @@ async function validatePDFExports(request: APIRequestContext): Promise<void> {
   expect(single.headers()['content-type']).toContain('application/pdf');
   expect(single.headers()['content-disposition']).toContain('attachment');
   expect(single.headers()['x-pdf-export-correlation-id']).toMatch(/^[0-9a-f]{32}$/);
+  expect(single.headers()['x-pdf-export-content-hash']).toBe(status.content_hash);
+  expect(single.headers()['x-pdf-export-output-hash']).toBe(status.content_hash);
+  expect(single.headers()['x-pdf-export-comments-status']).toBe('off');
   expect((await single.body()).equals(source)).toBeTruthy();
 
   const zip = await request.post(`/api/runs/${RUN}/pdf-exports`, {
@@ -1100,6 +1103,8 @@ async function validatePDFExports(request: APIRequestContext): Promise<void> {
   expect(zip.headers()['content-disposition']).toContain('attachment');
   expect(zip.headers()['x-pdf-export-included']).toBe('1');
   expect(zip.headers()['x-pdf-export-skipped']).toBe('0');
+  expect(zip.headers()['x-pdf-export-annotated']).toBe('0');
+  expect(zip.headers()['x-pdf-export-comments']).toBe('0');
   expect(zip.headers()['x-pdf-export-correlation-id']).toMatch(/^[0-9a-f]{32}$/);
   expect((await zip.body()).subarray(0, 2).toString()).toBe('PK');
 
@@ -1113,16 +1118,13 @@ async function validatePDFExports(request: APIRequestContext): Promise<void> {
   expectString(changedBody.error.message, 'pdfExport.changed.error.message');
   expect(changedBody.error.code).toBe('pdf_changed');
 
-  const comments = await request.post(`/api/runs/${RUN}/pdf-exports`, {
-    data: {
-      articles: [{ work_revision_id: Number(ARTICLE), content_hash: status.content_hash }],
-      include_comments: true,
-    },
+  const comments = await request.post(`/api/runs/${RUN}/articles/${ARTICLE}/pdf-export`, {
+    data: { content_hash: status.content_hash, include_comments: true },
   });
-  expect(comments.status()).toBe(400);
-  const commentsBody = await comments.json();
-  expectObject(commentsBody.error, 'pdfExport.comments.error');
-  expect(commentsBody.error.code).toBe('pdf_comments_unavailable');
+  expect(comments.ok()).toBeTruthy();
+  expect(comments.headers()['x-pdf-export-comments-status']).toBe('no_review_context');
+  expect(comments.headers()['x-pdf-export-comments']).toBe('0');
+  expect((await comments.body()).equals(source)).toBeTruthy();
 }
 
 /** Validates raw PUT and DELETE PDF mutation shapes without changing final content. */

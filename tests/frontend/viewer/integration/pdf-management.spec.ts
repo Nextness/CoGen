@@ -147,7 +147,8 @@ test.describe('isolated PDF management lifecycle', () => {
     await expect(page.locator('[data-pdf-feedback]')).toContainText('PDF uploaded. Audit delivery is pending.');
     await expect(management).toContainText('Available');
     await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
-    await expect(page.locator('[data-pdf-include-comments]')).toBeDisabled();
+    await expect(page.locator('[data-pdf-include-comments]')).toBeEnabled();
+    await expect(page.locator('[data-pdf-include-comments]')).not.toBeChecked();
     await expect(page.locator('.rw-pdf-page canvas')).toBeVisible();
     await expect(page.locator('[data-review-reason]')).toHaveValue('Unsaved management decision');
     await page.getByRole('tab', { name: 'Notes' }).click();
@@ -286,7 +287,8 @@ test.describe('isolated PDF management lifecycle', () => {
       view: 'corpus', section: 'articles', search_id: '1', search_revision_id: '1', plan_id: '1', run_id: '1', per_page: '20',
     }, '/corpus');
     await expect(page.locator('[data-export-selected]')).toBeVisible();
-    await expect(page.locator('[data-export-include-comments]')).toBeDisabled();
+    await expect(page.locator('[data-export-include-comments]')).toBeEnabled();
+    await expect(page.locator('[data-export-include-comments]')).not.toBeChecked();
     const row = page.locator('[data-select-row="1"]');
     await expect(row).toBeEnabled();
     await row.check();

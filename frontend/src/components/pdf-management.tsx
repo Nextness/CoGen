@@ -1,5 +1,6 @@
 // Conditional PDF upload, replacement, and removal controls for article detail.
 import { APIError, api, downloadExport, errorMessage, preparePDFUpload, removePDF, uploadPDF } from "../api.tsx";
+import type { BinaryDownloadResult } from "../api.tsx";
 import type { ArticleDetailResponse, ArticleRecord, PDFMutationResponse, PDFStatus } from "../api/types.ts";
 import { formatBytes, formatTime, humanLabel } from "../state.tsx";
 import { h, Fragment, render as renderTree, cx, classAdd, classRemove } from "../jsx/jsx-runtime.ts";
@@ -78,6 +79,19 @@ function applyFeedbackClass(node: HTMLElement, kind: PDFManagementFeedback["kind
   classAdd(node, ["ui", kind, "message", "rw-review-feedback"]);
 }
 
+/** Returns one concise outcome message for a prepared PDF download. */
+function pdfDownloadMessage(result: BinaryDownloadResult, includeComments: boolean): string {
+  const base = `Download prepared: ${result.filename} (${formatBytes(result.bytes)}).`;
+  if (!includeComments) return base;
+  if (result.commentsStatus === "included") {
+    const count = result.comments || 0;
+    return `${base} ${count} saved comment${count === 1 ? "" : "s"} included.`;
+  }
+  if (result.commentsStatus === "no_review_context") return `${base} No review context is initialized for this run, so the original PDF was downloaded.`;
+  if (result.commentsStatus === "no_matching_comments") return `${base} No matching saved comments were found, so the original PDF was downloaded.`;
+  return base;
+}
+
 /** Returns one concise outcome message for a committed PDF mutation. */
 function mutationMessage(result: PDFMutationResponse): PDFManagementFeedback {
   if (!result.changed) return { kind: "info", message: "The stored PDF already matches the selected file. Nothing changed." };
@@ -98,6 +112,7 @@ export interface PDFManagementPanelProps {
   record: ArticleRecord;
   status: PDFStatus;
   selectedFile?: File | null;
+  includeComments?: boolean;
   feedback?: PDFManagementFeedback | null;
 }
 
@@ -122,10 +137,10 @@ export function PDFManagementPanel(props: PDFManagementPanelProps): JSX.Element 
       <div className={classNames.rwPdfExportAction}>
         <button type="button" className={classNames.uiPrimaryButton} data-pdf-download>Download PDF</button>
         <label className={classNames.rwPdfExportActionComments}>
-          <input type="checkbox" data-pdf-include-comments disabled />
+          <input type="checkbox" data-pdf-include-comments checked={props.includeComments === true} />
           <span>Include comments</span>
         </label>
-        <small className={classNames.uiFadedText}>Comment inclusion is available after annotation export support is enabled.</small>
+        <small className={classNames.uiFadedText}>Matching saved highlights and comments are embedded in a separate copy. Off downloads the original bytes.</small>
       </div>
     );
   }
@@ -258,6 +273,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
   let feedback: PDFManagementFeedback | null = null;
   let busy = false;
   let downloading = false;
+  let includeComments = false;
   let confirmation: PDFConfirmation | null = null;
   let confirmationOpener: HTMLElement | null = null;
   let destroyed = false;
@@ -267,7 +283,7 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
   /** Rebuilds the panel from current status and clears a committed file selection. */
   function renderPanel(): void {
     if (destroyed) return;
-    const panel = <PDFManagementPanel record={options.record} status={currentStatus} selectedFile={selectedFile} feedback={feedback} />;
+    const panel = <PDFManagementPanel record={options.record} status={currentStatus} selectedFile={selectedFile} includeComments={includeComments} feedback={feedback} />;
     renderTree(panel, host);
     bind();
   }
@@ -316,6 +332,8 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     if (remove) remove.disabled = busy;
     const download = host.querySelector<HTMLButtonElement>("[data-pdf-download]");
     if (download) download.disabled = busy || downloading || !currentStatus.content_hash;
+    const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]");
+    if (comments) comments.disabled = busy || downloading;
     updateSelectedFile();
   }
 
@@ -441,15 +459,17 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     updateFeedback();
     try {
       const path = `/api/runs/${encodeURIComponent(options.record.pipeline_run_id)}/articles/${encodeURIComponent(options.record.id)}/pdf-export`;
-      const result = await downloadExport(path, { content_hash: contentHash, include_comments: false }, {
+      const result = await downloadExport(path, { content_hash: contentHash, include_comments: includeComments }, {
         contentType: "application/pdf",
-        maxBytes: 20_000_000,
+        maxBytes: 26_000_000,
         signal: null,
       });
-      feedback = { kind: "success", message: `Download prepared: ${result.filename} (${formatBytes(result.bytes)}).` };
+      feedback = { kind: "success", message: pdfDownloadMessage(result, includeComments) };
     } catch (error) {
       if (error instanceof APIError && error.code === "pdf_changed") {
         feedback = { kind: "warning", message: "The PDF selection changed after this page loaded. Refresh the PDF state before downloading." };
+      } else if (error instanceof APIError && (error.code === "pdf_protected" || error.code === "pdf_signed" || error.code === "pdf_annotation_failed" || error.code === "pdf_export_limit")) {
+        feedback = { kind: "warning", message: `${errorMessage(error, "The saved comments could not be embedded.")} Retry with Include comments off to download the original PDF.` };
       } else {
         feedback = { kind: "error", message: errorMessage(error, "The PDF download could not be prepared.") };
       }
@@ -579,6 +599,11 @@ export function mountPDFManagement(host: HTMLElement, options: PDFManagementOpti
     const download = host.querySelector<HTMLButtonElement>("[data-pdf-download]");
     download?.addEventListener("click", () => {
       void executeDownload();
+    });
+
+    const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]");
+    comments?.addEventListener("change", () => {
+      includeComments = comments.checked;
     });
 
     const confirmForm = host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]");

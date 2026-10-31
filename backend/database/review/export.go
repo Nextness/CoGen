@@ -93,25 +93,63 @@ type ExportEvidence struct {
 	ExcludedNotes   int               `json:"excluded_notes"`
 }
 
+// ExportSnapshot is one bounded review read transaction shared by a ZIP's
+// comment-evidence reads so concurrent note edits cannot mix heads.
+type ExportSnapshot struct {
+	tx      *sql.Tx
+	queries *generated.Queries
+	closed  bool
+}
+
+// BeginExportSnapshot starts one read-only review transaction. Callers must
+// close it on every path.
+func (s *Store) BeginExportSnapshot(ctx context.Context) (*ExportSnapshot, error) {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("begin review export snapshot: %w", err)
+	}
+	return &ExportSnapshot{tx: tx, queries: s.queries.WithTx(tx)}, nil
+}
+
+// Close releases the pinned review read transaction.
+func (s *ExportSnapshot) Close() error {
+	if s == nil || s.closed {
+		return nil
+	}
+	s.closed = true
+	if err := s.tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+		return err
+	}
+	return nil
+}
+
 // ExportEvidence reads bounded current active note and anchor heads for one
-// selected context/work and exact source hash. It includes inherited heads,
-// excludes tombstones, drafts, other contexts/works, page-only/general notes,
-// and notes mixing matching and mismatched PDF references, and reports
-// aggregated exclusions. The read transaction closes before the caller writes
-// export audit or derives output bytes.
+// selected context/work and exact source hash through one short read snapshot.
 func (s *Store) ExportEvidence(ctx context.Context, contextID, workID int64, pdfContentHash string) (*ExportEvidence, error) {
+	snapshot, err := s.BeginExportSnapshot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer snapshot.Close()
+	return snapshot.Evidence(ctx, contextID, workID, pdfContentHash)
+}
+
+// Evidence reads bounded current active note and anchor heads for one selected
+// context/work and exact source hash. It includes inherited heads, excludes
+// tombstones, drafts, other contexts/works, page-only/general notes, and notes
+// mixing matching and mismatched PDF references, and reports aggregated
+// exclusions. The snapshot closes before the caller writes export audit.
+func (s *ExportSnapshot) Evidence(ctx context.Context, contextID, workID int64, pdfContentHash string) (*ExportEvidence, error) {
+	if s == nil || s.closed {
+		return nil, errors.New("review export snapshot is closed")
+	}
 	if contextID < 1 || workID < 1 {
 		return nil, reviewValidation("review context and work must be positive identifiers")
 	}
 	if !validExportContentHash(pdfContentHash) {
 		return nil, reviewValidation("PDF content hash must be a lowercase SHA-256 value")
 	}
-	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
-	if err != nil {
-		return nil, fmt.Errorf("begin review export snapshot: %w", err)
-	}
-	defer tx.Rollback()
-	queries := s.queries.WithTx(tx)
+	queries := s.queries
 	if _, err := queries.GetReviewExportContext(ctx, contextID); errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrExportContextNotFound
 	} else if err != nil {
@@ -195,9 +233,6 @@ func (s *Store) ExportEvidence(ctx context.Context, contextID, workID int64, pdf
 	evidence.Exclusions = sortedExportExclusions(reasons)
 	if err := enforceExportTextLimit(evidence); err != nil {
 		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("close review export snapshot: %w", err)
 	}
 	return evidence, nil
 }

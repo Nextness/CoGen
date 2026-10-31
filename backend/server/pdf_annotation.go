@@ -4,7 +4,6 @@
 package server
 
 import (
-	"errors"
 	"strings"
 	"unicode/utf8"
 
@@ -132,22 +131,4 @@ func boundedAnnotationText(value string) string {
 		value = value[:len(value)-size]
 	}
 	return value + "\u2026"
-}
-
-// pdfAnnotationFailureReason maps one annotation failure to a bounded per-file reason.
-func pdfAnnotationFailureReason(err error) string {
-	switch {
-	case errors.Is(err, pdfannotate.ErrProtectedPDF):
-		return "pdf_protected"
-	case errors.Is(err, pdfannotate.ErrSignedPDF):
-		return "pdf_signed"
-	case errors.Is(err, pdfannotate.ErrMissingPage):
-		return "pdf_page_missing"
-	case errors.Is(err, pdfannotate.ErrInvalidGeometry):
-		return "pdf_geometry_invalid"
-	case errors.Is(err, pdfannotate.ErrLimit):
-		return "pdf_export_limit"
-	default:
-		return "pdf_annotation_failed"
-	}
 }

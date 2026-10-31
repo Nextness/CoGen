@@ -185,6 +185,11 @@ export interface BinaryDownloadResult {
   bytes: number;
   included: number | null;
   skipped: number | null;
+  annotated: number | null;
+  comments: number | null;
+  commentsStatus: string;
+  sourceHash: string;
+  outputHash: string;
   correlationID: string;
 }
 
@@ -288,11 +293,18 @@ export async function downloadExport(path: string, body: unknown, options: Binar
   const filename = downloadFilename(disposition, fallback);
   const includedHeader = response.headers.get("X-PDF-Export-Included");
   const skippedHeader = response.headers.get("X-PDF-Export-Skipped");
+  const annotatedHeader = response.headers.get("X-PDF-Export-Annotated");
+  const commentsHeader = response.headers.get("X-PDF-Export-Comments");
   const result: BinaryDownloadResult = {
     filename: filename,
     bytes: blob.size,
     included: includedHeader === null ? null : Number(includedHeader),
     skipped: skippedHeader === null ? null : Number(skippedHeader),
+    annotated: annotatedHeader === null ? null : Number(annotatedHeader),
+    comments: commentsHeader === null ? null : Number(commentsHeader),
+    commentsStatus: response.headers.get("X-PDF-Export-Comments-Status") || "",
+    sourceHash: response.headers.get("X-PDF-Export-Content-Hash") || "",
+    outputHash: response.headers.get("X-PDF-Export-Output-Hash") || "",
     correlationID: response.headers.get("X-PDF-Export-Correlation-Id") || "",
   };
   saveDownload(blob, filename);

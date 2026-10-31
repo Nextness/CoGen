@@ -100,6 +100,7 @@ function exportRowKey(row: WireRecord): string {
 
 /** Binds current-page PDF selection, count feedback, and selected-set download. */
 function bindExportSelection(runID: number, rows: WireRecord[], selected: Set<string>): void {
+  let includeComments = false;
   const scope = app.querySelector<HTMLElement>('[data-table-scope="work_revisions"]');
   const button = app.querySelector<HTMLButtonElement>("[data-export-selected]");
   const count = app.querySelector<HTMLElement>("[data-export-count]");
@@ -186,6 +187,11 @@ function bindExportSelection(runID: number, rows: WireRecord[], selected: Set<st
     update();
   });
 
+  const comments = app.querySelector<HTMLInputElement>("[data-export-include-comments]");
+  comments?.addEventListener("change", () => {
+    includeComments = comments.checked;
+  });
+
   button.addEventListener("click", async () => {
     const articles = Array.from(selected).map((key) => {
       const row = byKey.get(key) as EvaluationRow;
@@ -200,7 +206,7 @@ function bindExportSelection(runID: number, rows: WireRecord[], selected: Set<st
     try {
       const result = await downloadExport(`/api/runs/${encodeURIComponent(runID)}/pdf-exports`, {
         articles: articles,
-        include_comments: false,
+        include_comments: includeComments,
       }, {
         contentType: "application/zip",
         maxBytes: 101_000_000,
@@ -209,6 +215,11 @@ function bindExportSelection(runID: number, rows: WireRecord[], selected: Set<st
       var message = `Download prepared: ${result.filename}.`;
       if (result.included !== null && result.skipped !== null) {
         message = `Download prepared: ${result.filename}. ${formatNumber(result.included)} included, ${formatNumber(result.skipped)} skipped.`;
+      }
+      if (includeComments) {
+        const count = result.comments || 0;
+        if (count > 0) message += ` ${formatNumber(count)} saved comment${count === 1 ? "" : "s"} included in ${formatNumber(result.annotated || 0)} file${result.annotated === 1 ? "" : "s"}.`;
+        else message += " No matching saved comments were found, so original PDFs were downloaded.";
       }
       setFeedback(message, "success");
     } catch (error) {
@@ -459,10 +470,10 @@ export async function articleCollectionView(heading: JSX.Element, refresh: () =>
         <small data-export-unavailable>PDFs unavailable on this page cannot be selected.</small>
       </div>
       <label className="rw-export-toolbar__comments">
-        <input type="checkbox" data-export-include-comments disabled />
+        <input type="checkbox" data-export-include-comments />
         <span>Include comments</span>
       </label>
-      <small className="rw-export-toolbar__comments-help">Comment inclusion is available after annotation export support is enabled.</small>
+      <small className="rw-export-toolbar__comments-help">Matching saved highlights and comments are embedded in separate copies. Off downloads original PDFs.</small>
       <button type="button" className={classNames.uiPrimaryButton} data-export-selected disabled>Download selected PDFs</button>
       <p className={classNames.uiFadedText} data-export-feedback role="status" aria-live="polite"></p>
     </section>

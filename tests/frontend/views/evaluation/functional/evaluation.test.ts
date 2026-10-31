@@ -156,6 +156,8 @@ describe("evaluation.tsx - evaluationView", function() {
             "Content-Length": "3",
             "X-PDF-Export-Included": "1",
             "X-PDF-Export-Skipped": "0",
+            "X-PDF-Export-Annotated": "0",
+            "X-PDF-Export-Comments": "0",
           }),
           body: null,
           arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
@@ -171,6 +173,8 @@ describe("evaluation.tsx - evaluationView", function() {
     selectAll.dispatchEvent(new Event("change", { bubbles: true }));
     assert.equal(app.querySelector<HTMLButtonElement>("[data-export-selected]")?.disabled, false);
     assert.match(app.querySelector("[data-export-count]")?.textContent || "", /1 selected/);
+    const comments = app.querySelector<HTMLInputElement>("[data-export-include-comments]")!;
+    assert.equal(comments.checked, false);
 
     app.querySelector<HTMLButtonElement>("[data-export-selected]")!.click();
     await waitFor(() => (app.querySelector("[data-export-feedback]")?.textContent || "").includes("1 included, 0 skipped"));
@@ -180,6 +184,60 @@ describe("evaluation.tsx - evaluationView", function() {
     });
     assert.equal(clicked, 1);
     assert.match(app.querySelector("[data-export-feedback]")?.textContent || "", /selected\.zip/);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+  });
+
+  it("sends the comments toggle for selected-set exports and reports inclusion", async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    var exportBody: any = null;
+    URL.createObjectURL = function() { return "blob:selected-comments"; };
+    URL.revokeObjectURL = function() {};
+    HTMLAnchorElement.prototype.click = function() {};
+    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+      if (init?.method === "POST") {
+        exportBody = JSON.parse(String(init.body));
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            "Content-Type": "application/zip",
+            "Content-Disposition": "attachment; filename=selected.zip",
+            "Content-Length": "3",
+            "X-PDF-Export-Included": "1",
+            "X-PDF-Export-Skipped": "0",
+            "X-PDF-Export-Annotated": "1",
+            "X-PDF-Export-Comments": "2",
+          }),
+          body: null,
+          arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
+        } as unknown as Response);
+      }
+      return apiResponse(evaluationResponse());
+    } as typeof fetch;
+    setLocation({ view: "corpus", run_id: "7" });
+    await articleCollectionView(document.createElement("div"), async () => {});
+
+    const selectAll = app.querySelector<HTMLInputElement>("[data-select-all]")!;
+    selectAll.checked = true;
+    selectAll.dispatchEvent(new Event("change", { bubbles: true }));
+    const comments = app.querySelector<HTMLInputElement>("[data-export-include-comments]")!;
+    comments.checked = true;
+    comments.dispatchEvent(new Event("change"));
+    app.querySelector<HTMLButtonElement>("[data-export-selected]")!.click();
+    await waitFor(() => (app.querySelector("[data-export-feedback]")?.textContent || "").includes("saved comments included"));
+
+    assert.deepEqual(exportBody, {
+      articles: [{ work_revision_id: 1, content_hash: "a".repeat(64) }],
+      include_comments: true,
+    });
+    assert.match(app.querySelector("[data-export-feedback]")?.textContent || "", /2 saved comments included in 1 file/);
 
     globalThis.fetch = originalFetch;
     URL.createObjectURL = originalCreate;

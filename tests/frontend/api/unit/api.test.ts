@@ -336,6 +336,11 @@ describe('api.tsx — binary exports', function() {
           "Content-Length": "3",
           "X-PDF-Export-Included": "2",
           "X-PDF-Export-Skipped": "1",
+          "X-PDF-Export-Annotated": "1",
+          "X-PDF-Export-Comments": "3",
+          "X-PDF-Export-Comments-Status": "included",
+          "X-PDF-Export-Content-Hash": "a".repeat(64),
+          "X-PDF-Export-Output-Hash": "b".repeat(64),
           "X-PDF-Export-Correlation-Id": "corr-1",
         }),
         body: null,
@@ -350,6 +355,11 @@ describe('api.tsx — binary exports', function() {
     assert.equal(result.bytes, 3);
     assert.equal(result.included, 2);
     assert.equal(result.skipped, 1);
+    assert.equal(result.annotated, 1);
+    assert.equal(result.comments, 3);
+    assert.equal(result.commentsStatus, "included");
+    assert.equal(result.sourceHash, "a".repeat(64));
+    assert.equal(result.outputHash, "b".repeat(64));
     assert.equal(result.correlationID, "corr-1");
     assert.equal(created, 1);
     assert.equal(clicked, 1);

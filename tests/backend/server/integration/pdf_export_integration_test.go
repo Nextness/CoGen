@@ -152,8 +152,8 @@ func TestPDFExportRejectsInvalidSelections(t *testing.T) {
 		t.Fatalf("changed single export status=%d body=%s", changed.Code, changed.Body.String())
 	}
 	comments := pdfExportRequest(t, handler, singlePath, map[string]any{"content_hash": status["content_hash"], "include_comments": true})
-	if comments.Code != http.StatusBadRequest || pdfExportErrorCode(t, comments) != "pdf_comments_unavailable" {
-		t.Fatalf("comments export status=%d body=%s", comments.Code, comments.Body.String())
+	if comments.Code != http.StatusOK || comments.Header().Get("X-PDF-Export-Comments-Status") != "no_review_context" {
+		t.Fatalf("comments export status=%d headers=%v body=%s", comments.Code, comments.Header(), comments.Body.String())
 	}
 	outside := pdfExportRequest(t, handler, fmt.Sprintf("/api/runs/%d/articles/999999/pdf-export", fixture.RunID), map[string]any{"content_hash": status["content_hash"]})
 	if outside.Code != http.StatusNotFound {

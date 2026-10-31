@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	"testing"
@@ -370,6 +372,21 @@ func RequestJSON(t *testing.T, handler http.Handler, path string) (int, map[stri
 		t.Fatalf("decode %s response: %v\n%s", path, err, recorder.Body.String())
 	}
 	return recorder.Code, body
+}
+
+// BuildAnalysisWorker builds the real analysis binary in a unique owned directory.
+func BuildAnalysisWorker(t *testing.T) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "analysis")
+	command := exec.Command("make", "build", "BIN="+binary)
+	command.Dir = testenv.Root()
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("build analysis worker: %v\n%s", err, output)
+	}
+	if info, err := os.Stat(binary); err != nil || info.Mode()&0o111 == 0 {
+		t.Fatalf("analysis worker was not built: %v", err)
+	}
+	return binary
 }
 
 // NewPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions.

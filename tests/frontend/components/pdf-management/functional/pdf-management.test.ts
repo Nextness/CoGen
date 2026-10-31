@@ -242,7 +242,7 @@ describe("pdf-management.tsx", function() {
   });
 
 
-  it("prepares an explicit original-byte download with comments disabled", async function() {
+  it("prepares an explicit original-byte download with comments off by default", async function() {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
@@ -270,7 +270,8 @@ describe("pdf-management.tsx", function() {
     const host = mount(availableStatus());
 
     const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
-    assert.equal(comments.disabled, true);
+    assert.equal(comments.checked, false);
+    assert.equal(comments.disabled, false);
     host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
     await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("Download prepared"));
 
@@ -278,6 +279,88 @@ describe("pdf-management.tsx", function() {
     assert.deepEqual(JSON.parse(String(request?.body)), { content_hash: "a".repeat(64), include_comments: false });
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /managed\.pdf/);
     assert.equal(clicked, 1);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+    host.remove();
+  });
+
+  it("requests saved comments only when the toggle is on and reports inclusion", async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    var request: RequestInit | undefined;
+    URL.createObjectURL = function() { return "blob:pdf-comments"; };
+    URL.revokeObjectURL = function() {};
+    HTMLAnchorElement.prototype.click = function() {};
+    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+      request = init;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'attachment; filename="managed (annotated).pdf"',
+          "Content-Length": "3",
+          "X-PDF-Export-Comments": "2",
+          "X-PDF-Export-Comments-Status": "included",
+          "X-PDF-Export-Output-Hash": "b".repeat(64),
+        }),
+        body: null,
+        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+      } as unknown as Response);
+    } as typeof fetch;
+    const host = mount(availableStatus());
+    const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
+    comments.checked = true;
+    comments.dispatchEvent(new Event("change"));
+    host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
+    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("saved comments included"));
+
+    assert.deepEqual(JSON.parse(String(request?.body)), { content_hash: "a".repeat(64), include_comments: true });
+    assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /2 saved comments included/);
+
+    globalThis.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    HTMLAnchorElement.prototype.click = originalClick;
+    host.remove();
+  });
+
+  it("reports no matching saved comments without failing the download", async function() {
+    const originalFetch = globalThis.fetch;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = function() { return "blob:pdf-original"; };
+    URL.revokeObjectURL = function() {};
+    HTMLAnchorElement.prototype.click = function() {};
+    globalThis.fetch = function() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'attachment; filename="managed.pdf"',
+          "Content-Length": "3",
+          "X-PDF-Export-Comments": "0",
+          "X-PDF-Export-Comments-Status": "no_matching_comments",
+        }),
+        body: null,
+        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+      } as unknown as Response);
+    } as typeof fetch;
+    const host = mount(availableStatus());
+    const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
+    comments.checked = true;
+    comments.dispatchEvent(new Event("change"));
+    host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
+    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("No matching saved comments"));
+
+    assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /original PDF was downloaded/);
 
     globalThis.fetch = originalFetch;
     URL.createObjectURL = originalCreate;

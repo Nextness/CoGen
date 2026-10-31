@@ -1,8 +1,9 @@
 // pdf_export.go provides explicit single-PDF and selected-set export
 // resources. It resolves exact selected-run article membership, validates
-// expected source hashes, pins one companion read snapshot, records required
-// export-preparation audit evidence, and returns original PDF bytes or a
-// bounded streaming ZIP.
+// expected source hashes, pins one companion read snapshot, optionally derives
+// a separate comment-annotated copy through the bounded worker, records
+// required export-preparation audit evidence, and returns original PDF bytes or
+// a bounded streaming ZIP.
 package server
 
 import (
@@ -10,20 +11,25 @@ import (
 	"archive/zip"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"analysis/backend/database/review"
 	"analysis/backend/database/work"
 	"analysis/backend/manifest"
+	"analysis/backend/pdfannotate"
 	"analysis/backend/pdfstore"
 )
 
@@ -58,14 +64,18 @@ type pdfSingleExportRequest struct {
 
 // pdfExportManifestFile is one bounded per-file ZIP result.
 type pdfExportManifestFile struct {
-	WorkRevisionID int64  `json:"work_revision_id"`
-	WorkID         int64  `json:"work_id"`
-	DOI            string `json:"doi,omitempty"`
-	Filename       string `json:"filename,omitempty"`
-	ContentHash    string `json:"content_hash,omitempty"`
-	ByteSize       int64  `json:"byte_size,omitempty"`
-	Status         string `json:"status"`
-	Reason         string `json:"reason,omitempty"`
+	WorkRevisionID    int64  `json:"work_revision_id"`
+	WorkID            int64  `json:"work_id"`
+	DOI               string `json:"doi,omitempty"`
+	Filename          string `json:"filename,omitempty"`
+	ContentHash       string `json:"content_hash,omitempty"`
+	OutputContentHash string `json:"output_content_hash,omitempty"`
+	ByteSize          int64  `json:"byte_size,omitempty"`
+	OutputByteSize    int64  `json:"output_byte_size,omitempty"`
+	Comments          int    `json:"comments,omitempty"`
+	CommentsStatus    string `json:"comments_status,omitempty"`
+	Status            string `json:"status"`
+	Reason            string `json:"reason,omitempty"`
 }
 
 // pdfExportManifest is the bounded ZIP result manifest.
@@ -75,26 +85,59 @@ type pdfExportManifest struct {
 	Requested       int                     `json:"requested"`
 	Included        int                     `json:"included"`
 	Skipped         int                     `json:"skipped"`
+	Annotated       int                     `json:"annotated"`
+	Comments        int                     `json:"comments"`
 	Files           []pdfExportManifestFile `json:"files"`
 }
 
-// pdfExportItem is one included export with its validated source metadata.
+// pdfExportDerived is one validated exact output retained for response emission.
+type pdfExportDerived struct {
+	Data              []byte
+	OutputContentHash string
+	OutputByteSize    int64
+	IncludeComments   bool
+	Annotated         bool
+	CommentCount      int
+	CommentsStatus    string
+	Evidence          *review.ExportEvidence
+}
+
+// pdfExportItem is one included export with its validated source metadata and
+// either in-memory original bytes or one retained annotated temporary spool.
 type pdfExportItem struct {
 	Article  *work.ExportArticle
 	Document *pdfstore.AvailableDocument
 	Filename string
+	Derived  *pdfExportDerived
+	Spool    string
 }
 
 // pdfExportEvidence is the bounded operational PDF state recorded for one export.
 type pdfExportEvidence struct {
-	Status        string `json:"status"`
-	ContentHash   string `json:"content_hash"`
-	ByteSize      int64  `json:"byte_size"`
-	InventoriedAt string `json:"inventoried_at,omitempty"`
-	ChangeCounter int64  `json:"change_counter"`
+	Status            string  `json:"status"`
+	ContentHash       string  `json:"content_hash"`
+	OutputContentHash string  `json:"output_content_hash,omitempty"`
+	ByteSize          int64   `json:"byte_size"`
+	OutputByteSize    int64   `json:"output_byte_size,omitempty"`
+	InventoriedAt     string  `json:"inventoried_at,omitempty"`
+	ChangeCounter     int64   `json:"change_counter"`
+	IncludeComments   bool    `json:"include_comments"`
+	CommentsStatus    string  `json:"comments_status"`
+	CommentCount      int     `json:"comment_count,omitempty"`
+	ReviewContextID   *int64  `json:"review_context_id,omitempty"`
+	AnchorVersionIDs  []int64 `json:"anchor_version_ids,omitempty"`
+	NoteVersionIDs    []int64 `json:"note_version_ids,omitempty"`
+	ExcludedAnchors   int     `json:"excluded_anchors,omitempty"`
+	ExcludedNotes     int     `json:"excluded_notes,omitempty"`
 }
 
-// exportArticlePDF prepares one validated original-byte PDF attachment.
+// pdfEvidenceReader reads immutable comment evidence from one pinned snapshot.
+type pdfEvidenceReader interface {
+	Evidence(context.Context, int64, int64, string) (*review.ExportEvidence, error)
+}
+
+// exportArticlePDF prepares one validated PDF attachment, optionally derived
+// with matching saved comments.
 func (s *Server) exportArticlePDF(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
 	runID, revisionID, err := pdfMutationIDs(r)
@@ -105,10 +148,6 @@ func (s *Server) exportArticlePDF(w http.ResponseWriter, r *http.Request) {
 	var request pdfSingleExportRequest
 	if err := decodeMutationJSON(w, r, &request); err != nil {
 		s.respond(w, r, nil, err)
-		return
-	}
-	if request.IncludeComments {
-		s.respond(w, r, nil, pdfCommentsUnavailable())
 		return
 	}
 	if err := validatePDFContentHash(request.ContentHash); err != nil {
@@ -147,12 +186,31 @@ func (s *Server) exportArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, exportErr)
 		return
 	}
+	reviewSnapshot, contextID, err := s.beginReviewExport(ctx, runID, request.IncludeComments)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if reviewSnapshot != nil {
+		defer reviewSnapshot.Close()
+	}
+	derived, err := s.derivePDFExport(ctx, reviewSnapshot, contextID, article, document, data, request.IncludeComments)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if reviewSnapshot != nil {
+		if err := reviewSnapshot.Close(); err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+	}
 	correlationID, err := newPDFExportKey()
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
 	}
-	event, err := pdfExportAuditEvent(article, document, runID, correlationID, "single")
+	event, err := pdfExportAuditEvent(article, document, derived, runID, correlationID, "single")
 	if err != nil {
 		s.respond(w, r, nil, err)
 		return
@@ -165,20 +223,23 @@ func (s *Server) exportArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
-	filename := pdfExportFilename(article, false)
+	filename := pdfExportFilename(article, false, derived.Annotated)
 	disposition := mime.FormatMediaType("attachment", map[string]string{"filename": filename})
 	w.Header().Set("Content-Type", "application/pdf")
 	w.Header().Set("Content-Disposition", disposition)
-	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	w.Header().Set("Content-Length", strconv.Itoa(len(derived.Data)))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-PDF-Export-Content-Hash", document.ContentHash)
+	w.Header().Set("X-PDF-Export-Output-Hash", derived.OutputContentHash)
+	w.Header().Set("X-PDF-Export-Comments", strconv.Itoa(derived.CommentCount))
+	w.Header().Set("X-PDF-Export-Comments-Status", derived.CommentsStatus)
 	w.Header().Set("X-PDF-Export-Correlation-Id", correlationID)
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	_, _ = w.Write(derived.Data)
 }
 
-// exportPDFs prepares a bounded ZIP of validated original PDF bytes with an
-// explicit per-file manifest and partial-result headers.
+// exportPDFs prepares a bounded ZIP of validated PDF bytes with an explicit
+// per-file manifest, optional matching saved comments, and partial-result headers.
 func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 	setMutableResponseHeaders(w)
 	runID, err := viewrequest.PositiveID(r.PathValue("run_id"))
@@ -189,10 +250,6 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 	var request pdfExportSelection
 	if err := decodeMutationJSON(w, r, &request); err != nil {
 		s.respond(w, r, nil, err)
-		return
-	}
-	if request.IncludeComments {
-		s.respond(w, r, nil, pdfCommentsUnavailable())
 		return
 	}
 	selectors, err := boundedPDFExportSelectors(request.Articles)
@@ -230,38 +287,76 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer snapshot.Close()
+	reviewSnapshot, contextID, err := s.beginReviewExport(ctx, runID, request.IncludeComments)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	if reviewSnapshot != nil {
+		defer reviewSnapshot.Close()
+	}
+	spools := make([]string, 0, len(selectors))
+	defer cleanupPDFExportSpools(spools)
 	byRevision := make(map[int64]*work.ExportArticle, len(articles))
 	for _, article := range articles {
 		byRevision[article.RevisionID] = article
 	}
 	resultManifest := pdfExportManifest{
-		RunID: runID, IncludeComments: false, Requested: len(selectors),
+		RunID: runID, IncludeComments: request.IncludeComments, Requested: len(selectors),
 		Files: make([]pdfExportManifestFile, 0, len(selectors)),
 	}
 	items := make([]pdfExportItem, 0, len(selectors))
 	var aggregate int64
 	for _, selector := range selectors {
 		article := byRevision[selector.WorkRevisionID]
-		_, document, exportErr := readPDFExport(ctx, snapshot, article, selector.ContentHash)
+		data, document, exportErr := readPDFExport(ctx, snapshot, article, selector.ContentHash)
 		if exportErr != nil {
 			resultManifest.Files = append(resultManifest.Files, pdfExportSkippedFile(article, selector, exportErr))
 			continue
 		}
-		if aggregate+document.ByteSize > maxPDFExportAggregate {
+		derived, deriveErr := s.derivePDFExport(ctx, reviewSnapshot, contextID, article, document, data, request.IncludeComments)
+		if deriveErr != nil {
+			resultManifest.Files = append(resultManifest.Files, pdfExportSkippedFile(article, selector, deriveErr))
+			continue
+		}
+		outputSize := derived.OutputByteSize
+		if aggregate+outputSize > maxPDFExportAggregate {
 			s.respond(w, r, nil, pdfExportLimitExceeded("the selected PDFs exceed the aggregate export limit"))
 			return
 		}
-		aggregate += document.ByteSize
-		filename := pdfExportFilename(article, true)
+		aggregate += outputSize
+		filename := pdfExportFilename(article, true, derived.Annotated)
+		item := pdfExportItem{Article: article, Document: document, Filename: filename, Derived: derived}
+		spool, spoolErr := spoolPDFExport(derived.Data)
+		if spoolErr != nil {
+			log.Error("PDF export spool failed", "revision_id", article.RevisionID, "error", spoolErr)
+			s.respond(w, r, nil, pdfExportStorageError())
+			return
+		}
+		spools = append(spools, spool)
+		item.Spool = spool
+		derived.Data = nil
 		resultManifest.Files = append(resultManifest.Files, pdfExportManifestFile{
 			WorkRevisionID: article.RevisionID, WorkID: article.WorkID,
 			DOI: pdfExportDOI(article), Filename: filename,
-			ContentHash: document.ContentHash, ByteSize: document.ByteSize, Status: "included",
+			ContentHash: document.ContentHash, OutputContentHash: derived.OutputContentHash,
+			ByteSize: document.ByteSize, OutputByteSize: derived.OutputByteSize,
+			Comments: derived.CommentCount, CommentsStatus: derived.CommentsStatus, Status: "included",
 		})
-		items = append(items, pdfExportItem{Article: article, Document: document, Filename: filename})
+		if derived.Annotated {
+			resultManifest.Annotated++
+		}
+		resultManifest.Comments += derived.CommentCount
+		items = append(items, item)
 	}
 	resultManifest.Included = len(items)
 	resultManifest.Skipped = len(resultManifest.Files) - len(items)
+	if reviewSnapshot != nil {
+		if err := reviewSnapshot.Close(); err != nil {
+			s.respond(w, r, nil, err)
+			return
+		}
+	}
 	if resultManifest.Included == 0 {
 		s.respond(w, r, nil, pdfExportEmpty(resultManifest))
 		return
@@ -282,7 +377,7 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 	}
 	events := make([]*manifest.AuditEvent, 0, len(items))
 	for _, item := range items {
-		event, err := pdfExportAuditEvent(item.Article, item.Document, runID, correlationID, "zip")
+		event, err := pdfExportAuditEvent(item.Article, item.Document, item.Derived, runID, correlationID, "zip")
 		if err != nil {
 			s.respond(w, r, nil, err)
 			return
@@ -298,16 +393,12 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-PDF-Export-Included", strconv.Itoa(resultManifest.Included))
 	w.Header().Set("X-PDF-Export-Skipped", strconv.Itoa(resultManifest.Skipped))
+	w.Header().Set("X-PDF-Export-Annotated", strconv.Itoa(resultManifest.Annotated))
+	w.Header().Set("X-PDF-Export-Comments", strconv.Itoa(resultManifest.Comments))
 	w.Header().Set("X-PDF-Export-Correlation-Id", correlationID)
 	w.WriteHeader(http.StatusOK)
 	archive := zip.NewWriter(w)
 	for _, item := range items {
-		data, document, exportErr := readPDFExport(ctx, snapshot, item.Article, item.Document.ContentHash)
-		if exportErr != nil || document.ContentHash != item.Document.ContentHash {
-			_ = archive.Close()
-			log.Error("PDF export stream failed after headers", "revision_id", item.Article.RevisionID, "error", exportErr)
-			panic(http.ErrAbortHandler)
-		}
 		header := &zip.FileHeader{Name: item.Filename, Method: zip.Store}
 		header.SetMode(0o644)
 		entry, err := archive.CreateHeader(header)
@@ -316,9 +407,9 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 			log.Error("PDF export ZIP entry failed", "revision_id", item.Article.RevisionID, "error", err)
 			panic(http.ErrAbortHandler)
 		}
-		if _, err := entry.Write(data); err != nil {
+		if err := writeSpooledPDF(entry, item); err != nil {
 			_ = archive.Close()
-			log.Error("PDF export ZIP write failed", "revision_id", item.Article.RevisionID, "error", err)
+			log.Error("PDF export spool stream failed", "revision_id", item.Article.RevisionID, "error", err)
 			panic(http.ErrAbortHandler)
 		}
 	}
@@ -337,6 +428,146 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 		log.Error("PDF export ZIP close failed", "error", err)
 		panic(http.ErrAbortHandler)
 	}
+}
+
+// beginReviewExport resolves the selected run's existing review context and,
+// when comments are requested and the context exists, pins one review snapshot.
+func (s *Server) beginReviewExport(ctx context.Context, runID int64, include bool) (*review.ExportSnapshot, int64, error) {
+	if !include || s.reviewStore == nil {
+		return nil, 0, nil
+	}
+	contextRecord, err := s.reviewStore.GetContextByRun(ctx, runID)
+	if err != nil {
+		log.Error("PDF export review context read failed", "error", err)
+		return nil, 0, &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_annotation_failed", Message: "the saved comments could not be read"}
+	}
+	if contextRecord == nil {
+		return nil, 0, nil
+	}
+	snapshot, err := s.reviewStore.BeginExportSnapshot(ctx)
+	if err != nil {
+		log.Error("PDF export review snapshot failed", "error", err)
+		return nil, 0, &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_annotation_unavailable", Message: "the saved comments are temporarily unavailable; retry shortly", Details: map[string]any{"retry_after_seconds": 1}}
+	}
+	return snapshot, contextRecord.ID, nil
+}
+
+// derivePDFExport returns exact original bytes or one validated annotated copy.
+func (s *Server) derivePDFExport(ctx context.Context, reader pdfEvidenceReader, contextID int64, article *work.ExportArticle, document *pdfstore.AvailableDocument, data []byte, include bool) (*pdfExportDerived, error) {
+	if !include {
+		return &pdfExportDerived{Data: data, OutputContentHash: document.ContentHash, OutputByteSize: document.ByteSize, CommentsStatus: "off"}, nil
+	}
+	if reader == nil || contextID == 0 {
+		return &pdfExportDerived{Data: data, OutputContentHash: document.ContentHash, OutputByteSize: document.ByteSize, IncludeComments: true, CommentsStatus: "no_review_context"}, nil
+	}
+	evidence, err := reader.Evidence(ctx, contextID, article.WorkID, document.ContentHash)
+	if errors.Is(err, review.ErrExportContextNotFound) {
+		return &pdfExportDerived{Data: data, OutputContentHash: document.ContentHash, OutputByteSize: document.ByteSize, IncludeComments: true, CommentsStatus: "no_review_context"}, nil
+	}
+	if err != nil {
+		return nil, pdfAnnotationProblem(err)
+	}
+	annotations, err := pdfCommentAnnotations(evidence)
+	if err != nil {
+		return nil, pdfAnnotationProblem(err)
+	}
+	if len(annotations) == 0 {
+		return &pdfExportDerived{Data: data, OutputContentHash: document.ContentHash, OutputByteSize: document.ByteSize, IncludeComments: true, CommentsStatus: "no_matching_comments", Evidence: evidence}, nil
+	}
+	if s.annotationWorker == nil {
+		return nil, &viewrequest.Problem{Status: http.StatusServiceUnavailable, Code: "pdf_annotation_unavailable", Message: "the comment annotation worker is not configured"}
+	}
+	output, err := s.annotationWorker.Annotate(ctx, data, annotations)
+	if err != nil {
+		return nil, pdfAnnotationProblem(err)
+	}
+	digest := sha256.Sum256(output)
+	outputHash := hex.EncodeToString(digest[:])
+	if outputHash == document.ContentHash {
+		return nil, &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_annotation_failed", Message: "the annotated PDF did not change the source bytes; retry without comments"}
+	}
+	return &pdfExportDerived{
+		Data: output, OutputContentHash: outputHash, OutputByteSize: int64(len(output)),
+		IncludeComments: true, Annotated: true, CommentCount: len(annotations),
+		CommentsStatus: "included", Evidence: evidence,
+	}, nil
+}
+
+// pdfAnnotationProblem maps annotation limits and generation failures to stable problems.
+func pdfAnnotationProblem(err error) error {
+	var problem *viewrequest.Problem
+	if errors.As(err, &problem) {
+		return problem
+	}
+	switch {
+	case errors.Is(err, review.ErrExportLimit), errors.Is(err, pdfannotate.ErrLimit):
+		return pdfExportLimitExceeded("the saved comments exceed the bounded annotation export limit; retry without comments")
+	case errors.Is(err, pdfannotate.ErrProtectedPDF):
+		return &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_protected", Message: "the selected PDF is encrypted or permission-restricted; comments were not embedded"}
+	case errors.Is(err, pdfannotate.ErrSignedPDF):
+		return &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_signed", Message: "the selected PDF is digitally signed; comments were not embedded"}
+	case errors.Is(err, pdfannotate.ErrMissingPage):
+		return &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_page_missing", Message: "a saved comment references a page that does not exist in the selected PDF"}
+	case errors.Is(err, pdfannotate.ErrInvalidGeometry):
+		return &viewrequest.Problem{Status: http.StatusUnprocessableEntity, Code: "pdf_geometry_invalid", Message: "a saved comment has geometry that cannot be placed on the selected PDF"}
+	default:
+		log.Error("PDF annotation failed", "error", err)
+		return &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_annotation_failed", Message: "the saved comments could not be embedded; retry without comments"}
+	}
+}
+
+// spoolPDFExport retains one exact derived PDF in a private temporary file.
+func spoolPDFExport(data []byte) (string, error) {
+	file, err := os.CreateTemp("", "cogen-pdf-export-*")
+	if err != nil {
+		return "", err
+	}
+	path := file.Name()
+	if err := file.Chmod(0o600); err != nil {
+		file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if _, err := file.Write(data); err != nil {
+		file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		_ = os.Remove(path)
+		return "", err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	return path, nil
+}
+
+// cleanupPDFExportSpools removes every retained derived PDF on any exit path.
+func cleanupPDFExportSpools(paths []string) {
+	for _, path := range paths {
+		_ = os.Remove(path)
+	}
+}
+
+// writeSpooledPDF streams one retained derivative and verifies its exact hash.
+func writeSpooledPDF(destination io.Writer, item pdfExportItem) error {
+	file, err := os.Open(item.Spool)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	written, err := io.Copy(io.MultiWriter(destination, digest), file)
+	if err != nil {
+		return err
+	}
+	if written != item.Derived.OutputByteSize || hex.EncodeToString(digest.Sum(nil)) != item.Derived.OutputContentHash {
+		return errors.New("retained PDF export bytes changed before emission")
+	}
+	return nil
 }
 
 // boundedPDFExportSelectors validates and deduplicates a selected-set request.
@@ -421,24 +652,46 @@ func readPDFExport(ctx context.Context, snapshot *pdfstore.ExportSnapshot, artic
 }
 
 // pdfExportAuditEvent builds one bounded work-scoped export-preparation event.
-func pdfExportAuditEvent(article *work.ExportArticle, document *pdfstore.AvailableDocument, runID int64, correlationID, scope string) (*manifest.AuditEvent, error) {
+func pdfExportAuditEvent(article *work.ExportArticle, document *pdfstore.AvailableDocument, derived *pdfExportDerived, runID int64, correlationID, scope string) (*manifest.AuditEvent, error) {
 	eventKey, err := newPDFExportKey()
 	if err != nil {
 		return nil, err
 	}
-	after, err := json.Marshal(pdfExportEvidence{
+	evidence := pdfExportEvidence{
 		Status: pdfstore.StatusAvailable, ContentHash: document.ContentHash,
-		ByteSize: document.ByteSize, InventoriedAt: document.InventoriedAt,
-		ChangeCounter: document.ChangeCounter,
-	})
+		OutputContentHash: derived.OutputContentHash, ByteSize: document.ByteSize,
+		OutputByteSize: derived.OutputByteSize, InventoriedAt: document.InventoriedAt,
+		ChangeCounter: document.ChangeCounter, IncludeComments: derived.IncludeComments,
+		CommentsStatus: derived.CommentsStatus, CommentCount: derived.CommentCount,
+	}
+	if derived.Evidence != nil {
+		contextID := derived.Evidence.ContextID
+		evidence.ReviewContextID = &contextID
+		evidence.ExcludedAnchors = derived.Evidence.ExcludedAnchors
+		evidence.ExcludedNotes = derived.Evidence.ExcludedNotes
+		for _, anchor := range derived.Evidence.Anchors {
+			evidence.AnchorVersionIDs = append(evidence.AnchorVersionIDs, anchor.VersionID)
+		}
+		for _, note := range derived.Evidence.Notes {
+			evidence.NoteVersionIDs = append(evidence.NoteVersionIDs, note.VersionID)
+		}
+	}
+	after, err := json.Marshal(evidence)
 	if err != nil {
 		return nil, err
 	}
-	metadata, err := json.Marshal(map[string]any{
-		"source": "frontend_download", "scope": scope, "include_comments": false,
+	metadata := map[string]any{
+		"source": "frontend_download", "scope": scope, "include_comments": derived.IncludeComments,
 		"initiating_run_id": runID, "initiating_revision_id": article.RevisionID,
 		"doi": pdfExportDOI(article), "event_key": eventKey,
-	})
+		"comments_status": derived.CommentsStatus, "comment_count": derived.CommentCount,
+	}
+	if derived.Evidence != nil {
+		metadata["review_context_id"] = derived.Evidence.ContextID
+		metadata["excluded_anchors"] = derived.Evidence.ExcludedAnchors
+		metadata["excluded_notes"] = derived.Evidence.ExcludedNotes
+	}
+	encodedMetadata, err := json.Marshal(metadata)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +699,7 @@ func pdfExportAuditEvent(article *work.ExportArticle, document *pdfstore.Availab
 		OccurredAt: time.Now().UTC().Format(time.RFC3339Nano), Actor: "user",
 		EntityType: "work", EntityID: strconv.FormatInt(article.WorkID, 10),
 		Action: manifest.AuditPDFDocumentExportPrepared, AfterJSON: string(after),
-		MetadataJSON: string(metadata), CorrelationID: correlationID,
+		MetadataJSON: string(encodedMetadata), CorrelationID: correlationID,
 	}, nil
 }
 
@@ -497,8 +750,9 @@ func pdfExportDOI(article *work.ExportArticle) string {
 }
 
 // pdfExportFilename returns one readable, bounded attachment name. Archive
-// names include a stable work suffix so equal titles cannot collide.
-func pdfExportFilename(article *work.ExportArticle, archive bool) string {
+// names include a stable work suffix so equal titles cannot collide, and
+// annotated names remain distinguishable from original downloads.
+func pdfExportFilename(article *work.ExportArticle, archive, annotated bool) string {
 	workID := int64(0)
 	if article != nil {
 		workID = article.WorkID
@@ -510,17 +764,24 @@ func pdfExportFilename(article *work.ExportArticle, archive bool) string {
 	if article != nil && article.Title != nil {
 		base = sanitizePDFExportTitle(*article.Title)
 	}
-	if base == "" {
-		return fmt.Sprintf("work-%d.pdf", workID)
-	}
 	suffix := ""
+	if annotated {
+		suffix += " (annotated)"
+	}
 	if archive {
-		suffix = fmt.Sprintf(" (work-%d)", workID)
+		suffix += fmt.Sprintf(" (work-%d)", workID)
+	}
+	if base == "" {
+		annotatedSuffix := ""
+		if annotated {
+			annotatedSuffix = " (annotated)"
+		}
+		return fmt.Sprintf("work-%d%s.pdf", workID, annotatedSuffix)
 	}
 	base = truncatePDFExportTitle(base, maxPDFExportFilenameBytes-len(suffix)-len(".pdf"))
 	base = strings.TrimRight(base, " .")
 	if strings.Trim(base, "- .") == "" {
-		return fmt.Sprintf("work-%d.pdf", workID)
+		return fmt.Sprintf("work-%d%s.pdf", workID, suffix)
 	}
 	return base + suffix + ".pdf"
 }
@@ -553,9 +814,9 @@ func truncatePDFExportTitle(value string, limit int) string {
 	return value
 }
 
-// pdfCommentsUnavailable rejects comment-enabled exports until the annotation phase.
-func pdfCommentsUnavailable() error {
-	return &viewrequest.Problem{Status: http.StatusBadRequest, Code: "pdf_comments_unavailable", Message: "comment-enabled PDF export is not available in this phase"}
+// pdfExportStorageError returns one explicit temporary-spool failure.
+func pdfExportStorageError() error {
+	return &viewrequest.Problem{Status: http.StatusInternalServerError, Code: "pdf_export_storage_error", Message: "unable to retain the annotated PDF output; no download was prepared"}
 }
 
 // pdfExportLimitExceeded returns one explicit export-limit failure.

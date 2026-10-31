@@ -34,6 +34,7 @@ import (
 	"analysis/backend/database/source"
 	"analysis/backend/database/work"
 	"analysis/backend/logging"
+	"analysis/backend/pdfannotate"
 	"analysis/backend/pdfstore"
 	"analysis/internal/httpbudget"
 	"analysis/internal/querybudget"
@@ -124,6 +125,7 @@ type Server struct {
 	pdfUploads       chan struct{}
 	pdfExports       chan struct{}
 	pdfZIPExports    chan struct{}
+	annotationWorker *pdfannotate.Worker
 	auditRelayMu     sync.Mutex
 	auditRelayCancel context.CancelFunc
 	auditRelayDone   chan struct{}
@@ -166,9 +168,14 @@ func Open(path, registryPath string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("acquire shared maintenance ownership: %w", err)
 	}
+	annotationWorker, err := pdfannotate.NewWorker()
+	if err != nil {
+		return nil, err
+	}
 	s := &Server{
 		maintenance: maintenance, pdfUploads: make(chan struct{}, pdfUploadConcurrency),
 		pdfExports: make(chan struct{}, pdfExportConcurrency), pdfZIPExports: make(chan struct{}, 1),
+		annotationWorker: annotationWorker,
 	}
 	cleanup := true
 	defer func() {
@@ -266,6 +273,11 @@ func (s *Server) PDFStoreBound() bool { return s.pdfDB != nil }
 
 // PDFStoreWritable reports whether a writable companion connection is attached.
 func (s *Server) PDFStoreWritable() bool { return s.pdfWriteDB != nil }
+
+// SetPDFAnnotationWorker configures the bounded annotation worker used by
+// comment-enabled exports. It is used by tests and alternate deployments where
+// the running executable does not provide the internal pdf-annotate command.
+func (s *Server) SetPDFAnnotationWorker(worker *pdfannotate.Worker) { s.annotationWorker = worker }
 
 // Handler returns the local API and frontend handler.
 func (s *Server) Handler() http.Handler {
