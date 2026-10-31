@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -303,4 +304,78 @@ func TestWorkerMeasuresExecutionTime(t *testing.T) {
 		t.Fatalf("worker failed: %v\n%s", err, stderr.String())
 	}
 	t.Logf("worker elapsed=%s", time.Since(start))
+}
+
+// TestWorkerAnnotatesThroughBoundedRunner verifies the application worker runner returns PDF bytes without mutating source.
+func TestWorkerAnnotatesThroughBoundedRunner(t *testing.T) {
+	binary := buildWorker(t)
+	runner := pdfannotate.NewWorkerAt(binary)
+	source := pdffixture.Bytes("Runner fixture page")
+	original := append([]byte(nil), source...)
+	output, err := runner.Annotate(context.Background(), source, []pdfannotate.Annotation{{
+		Page:     1,
+		Type:     pdfannotate.AnnotationText,
+		Rect:     pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "Runner note",
+		Title:    "Reviewer",
+		Subject:  "Comment",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(output, []byte("%PDF-")) || bytes.Equal(output, source) {
+		t.Fatal("runner did not return annotated PDF bytes")
+	}
+	if !bytes.Equal(source, original) {
+		t.Fatal("runner mutated source bytes")
+	}
+}
+
+// TestWorkerRunnerRejectsGenerationFailure verifies malformed sources fail instead of returning unannotated bytes.
+func TestWorkerRunnerRejectsGenerationFailure(t *testing.T) {
+	binary := buildWorker(t)
+	runner := pdfannotate.NewWorkerAt(binary)
+	if _, err := runner.Annotate(context.Background(), []byte("%PDF-1.7\nnot a complete document"), []pdfannotate.Annotation{{
+		Page:     1,
+		Type:     pdfannotate.AnnotationText,
+		Rect:     pdfannotate.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "Runner note",
+	}}); err == nil {
+		t.Fatal("malformed source produced a successful export")
+	}
+}
+
+// TestWorkerRunnerKillsTimedOutProcess verifies cancellation kills and reaps the worker.
+func TestWorkerRunnerKillsTimedOutProcess(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "blocked-worker")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 5\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	runner := pdfannotate.NewWorkerAt(script)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := runner.Annotate(ctx, pdffixture.Bytes("Timeout fixture"), nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("timeout error=%v", err)
+	}
+	if elapsed := time.Since(started); elapsed > 2*time.Second {
+		t.Fatalf("timeout took %s", elapsed)
+	}
+}
+
+// TestWorkerRunnerRejectsOversizedInputs verifies preflight bounds before process start.
+func TestWorkerRunnerRejectsOversizedInputs(t *testing.T) {
+	runner := pdfannotate.NewWorkerAt("/does/not/exist")
+	if _, err := runner.Annotate(context.Background(), make([]byte, pdfannotate.MaxPDFBytes+1), nil); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("oversized PDF error=%v", err)
+	}
+	annotations := make([]pdfannotate.Annotation, pdfannotate.MaxAnnotations+1)
+	if _, err := runner.Annotate(context.Background(), []byte("%PDF-1.7"), annotations); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("oversized annotation count error=%v", err)
+	}
+	annotations = []pdfannotate.Annotation{{Contents: strings.Repeat("x", pdfannotate.MaxTextBytes+1)}}
+	if _, err := runner.Annotate(context.Background(), []byte("%PDF-1.7"), annotations); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("oversized annotation text error=%v", err)
+	}
 }

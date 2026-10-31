@@ -123,8 +123,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`pdfannotateRequest`](../backend/cli/pdfannotate.go#L24) | struct | 24-27 | ``type pdfannotateRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | pdfannotateRequest is the JSON request for the internal annotation worker. |
-| [`pdfAnnotateMain`](../backend/cli/pdfannotate.go#L30) | function | 30-71 | `func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int` | pdfAnnotateMain runs the internal PDF annotation worker. It reads one bounded JSON request from standard input and writes annotated PDF bytes to standard output. The caller owns cancellation and must kill and reap this process on timeout. |
+| [`pdfannotateRequest`](../backend/cli/pdfannotate.go#L13) | struct | 13-16 | ``type pdfannotateRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | pdfannotateRequest is the JSON request for the internal annotation worker. |
+| [`pdfAnnotateMain`](../backend/cli/pdfannotate.go#L19) | function | 19-60 | `func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int` | pdfAnnotateMain runs the internal PDF annotation worker. It reads one bounded JSON request from standard input and writes annotated PDF bytes to standard output. The caller owns cancellation and must kill and reap this process on timeout. |
 
 ### [`backend/cmd/analysis/main.go`](../backend/cmd/analysis/main.go)
 
@@ -1367,6 +1367,36 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`Annotation`](../backend/pdfannotate/pdfannotate.go#L40) | struct | 40-47 | `type Annotation struct { Page int Type AnnotationType Rect Rectangle Contents string Title string Subject string }` | Annotation is application-owned annotation data. It never exposes pdfcpu types. |
 | [`Annotate`](../backend/pdfannotate/pdfannotate.go#L50) | function | 50-74 | `func Annotate(source []byte, annotations []Annotation) ([]byte, error)` | Annotate returns a copy of source with annotations added. It does not mutate source. |
 | [`rendererFor`](../backend/pdfannotate/pdfannotate.go#L77) | function | 77-88 | `func rendererFor(a Annotation) (model.AnnotationRenderer, error)` | rendererFor maps application-owned annotation data to a pdfcpu renderer. |
+
+### [`backend/pdfannotate/worker.go`](../backend/pdfannotate/worker.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`LimitError`](../backend/pdfannotate/worker.go#L41) | struct | 41-45 | `type LimitError struct { Kind string Count int Limit int }` | LimitError identifies one bounded worker input or output limit that was exceeded. |
+| [`(*LimitError).Error`](../backend/pdfannotate/worker.go#L48) | method | 48-50 | `func (*LimitError).Error() string` | Error returns the bounded worker-limit diagnostic. |
+| [`(*LimitError).Unwrap`](../backend/pdfannotate/worker.go#L53) | method | 53 | `func (*LimitError).Unwrap() error` | Unwrap exposes the shared worker-limit sentinel. |
+| [`Worker`](../backend/pdfannotate/worker.go#L56) | struct | 56-61 | `type Worker struct { // Executable is the analysis binary that provides the pdf-annotate command. Executable string // Timeout bounds one invocation when the caller context has no earlier deadline. Timeout time.Duration }` | Worker runs the analysis binary's internal pdf-annotate mode. |
+| [`NewWorker`](../backend/pdfannotate/worker.go#L64) | function | 64-70 | `func NewWorker() (*Worker, error)` | NewWorker returns a worker bound to the current executable. |
+| [`NewWorkerAt`](../backend/pdfannotate/worker.go#L73) | function | 73-75 | `func NewWorkerAt(executable string) *Worker` | NewWorkerAt returns a worker bound to an explicit executable. |
+| [`workerRequest`](../backend/pdfannotate/worker.go#L78) | struct | 78-81 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []Annotation `json:"annotations"` }`` | workerRequest is the JSON protocol shared with the pdf-annotate command. |
+| [`(*Worker).Annotate`](../backend/pdfannotate/worker.go#L85) | method | 85-150 | `func (*Worker).Annotate(ctx context.Context, source []byte, annotations []Annotation) ([]byte, error)` | Annotate runs one bounded worker process and returns its validated PDF bytes. It kills and reaps the process on timeout or caller cancellation. |
+| [`limitedBuffer`](../backend/pdfannotate/worker.go#L153) | struct | 153-158 | `type limitedBuffer struct { data bytes.Buffer limit int overflow bool written int }` | limitedBuffer retains at most limit bytes and records whether more were written. |
+| [`(*limitedBuffer).Write`](../backend/pdfannotate/worker.go#L161) | method | 161-174 | `func (*limitedBuffer).Write(p []byte) (int, error)` | Write retains a bounded prefix of p and discards the remainder. |
+| [`(*limitedBuffer).Bytes`](../backend/pdfannotate/worker.go#L177) | method | 177 | `func (*limitedBuffer).Bytes() []byte` | Bytes returns the retained bounded prefix. |
+| [`(*limitedBuffer).Overflow`](../backend/pdfannotate/worker.go#L180) | method | 180 | `func (*limitedBuffer).Overflow() bool` | Overflow reports whether the writer discarded input. |
+| [`(*limitedBuffer).Written`](../backend/pdfannotate/worker.go#L183) | method | 183 | `func (*limitedBuffer).Written() int` | Written returns the total byte count presented to the writer. |
+
+### [`backend/pdfannotate/worker_other.go`](../backend/pdfannotate/worker_other.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`configureWorkerProcess`](../backend/pdfannotate/worker_other.go#L9) | function | 9 | `func configureWorkerProcess(_ *exec.Cmd)` | configureWorkerProcess uses the platform default process cancellation. |
+
+### [`backend/pdfannotate/worker_unix.go`](../backend/pdfannotate/worker_unix.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`configureWorkerProcess`](../backend/pdfannotate/worker_unix.go#L14) | function | 14-26 | `func configureWorkerProcess(command *exec.Cmd)` | configureWorkerProcess isolates the worker in its own process group so cancellation kills and reaps any child processes it may have started. |
 
 ### [`backend/pdfstore/audit.go`](../backend/pdfstore/audit.go)
 
@@ -3786,18 +3816,22 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`workerRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L21) | struct | 21-24 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | workerRequest mirrors the JSON protocol accepted by the pdf-annotate worker. |
-| [`buildWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L27) | function | 27-46 | `func buildWorker(t *testing.T) string` | buildWorker builds the analysis binary in a unique directory under build/pdf-trial. |
-| [`runWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L49) | function | 49-58 | `func runWorker(t *testing.T, binary string, request []byte) ([]byte, string, error)` | runWorker runs the worker with one JSON request and returns its output and error text. |
-| [`TestWorkerAnnotatesTextAndHighlight`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L61) | test | 61-102 | `func TestWorkerAnnotatesTextAndHighlight(t *testing.T)` | TestWorkerAnnotatesTextAndHighlight verifies text and highlight annotations survive the worker boundary without changing source bytes. |
-| [`TestWorkerAnnotatesComplexPage`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L105) | test | 105-146 | `func TestWorkerAnnotatesComplexPage(t *testing.T)` | TestWorkerAnnotatesComplexPage verifies the worker preserves a complex page with crop origins, rotation, user units, and an existing annotation without changing source bytes. |
-| [`TestWorkerRejectsMalformedRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L149) | test | 149-158 | `func TestWorkerRejectsMalformedRequest(t *testing.T)` | TestWorkerRejectsMalformedRequest verifies malformed JSON fails safely. |
-| [`TestWorkerRejectsUnsupportedType`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L161) | test | 161-182 | `func TestWorkerRejectsUnsupportedType(t *testing.T)` | TestWorkerRejectsUnsupportedType verifies unsupported annotation types fail safely. |
-| [`TestWorkerCancellationTerminates`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L185) | test | 185-211 | `func TestWorkerCancellationTerminates(t *testing.T)` | TestWorkerCancellationTerminates verifies the parent can kill and reap a blocked worker. |
-| [`TestWorkerRejectsOversizedPDF`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L214) | test | 214-233 | `func TestWorkerRejectsOversizedPDF(t *testing.T)` | TestWorkerRejectsOversizedPDF verifies the worker rejects input above the configured PDF bound. |
-| [`TestWorkerRejectsExcessiveAnnotationCount`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L236) | test | 236-259 | `func TestWorkerRejectsExcessiveAnnotationCount(t *testing.T)` | TestWorkerRejectsExcessiveAnnotationCount verifies the worker rejects requests above the configured annotation count. |
-| [`TestWorkerRejectsOversizedAnnotationText`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L262) | test | 262-281 | `func TestWorkerRejectsOversizedAnnotationText(t *testing.T)` | TestWorkerRejectsOversizedAnnotationText verifies the worker rejects requests above the configured annotation text bound. |
-| [`TestWorkerMeasuresExecutionTime`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L284) | test | 284-306 | `func TestWorkerMeasuresExecutionTime(t *testing.T)` | TestWorkerMeasuresExecutionTime verifies a valid request completes within a measured time. |
+| [`workerRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L22) | struct | 22-25 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | workerRequest mirrors the JSON protocol accepted by the pdf-annotate worker. |
+| [`buildWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L28) | function | 28-47 | `func buildWorker(t *testing.T) string` | buildWorker builds the analysis binary in a unique directory under build/pdf-trial. |
+| [`runWorker`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L50) | function | 50-59 | `func runWorker(t *testing.T, binary string, request []byte) ([]byte, string, error)` | runWorker runs the worker with one JSON request and returns its output and error text. |
+| [`TestWorkerAnnotatesTextAndHighlight`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L62) | test | 62-103 | `func TestWorkerAnnotatesTextAndHighlight(t *testing.T)` | TestWorkerAnnotatesTextAndHighlight verifies text and highlight annotations survive the worker boundary without changing source bytes. |
+| [`TestWorkerAnnotatesComplexPage`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L106) | test | 106-147 | `func TestWorkerAnnotatesComplexPage(t *testing.T)` | TestWorkerAnnotatesComplexPage verifies the worker preserves a complex page with crop origins, rotation, user units, and an existing annotation without changing source bytes. |
+| [`TestWorkerRejectsMalformedRequest`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L150) | test | 150-159 | `func TestWorkerRejectsMalformedRequest(t *testing.T)` | TestWorkerRejectsMalformedRequest verifies malformed JSON fails safely. |
+| [`TestWorkerRejectsUnsupportedType`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L162) | test | 162-183 | `func TestWorkerRejectsUnsupportedType(t *testing.T)` | TestWorkerRejectsUnsupportedType verifies unsupported annotation types fail safely. |
+| [`TestWorkerCancellationTerminates`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L186) | test | 186-212 | `func TestWorkerCancellationTerminates(t *testing.T)` | TestWorkerCancellationTerminates verifies the parent can kill and reap a blocked worker. |
+| [`TestWorkerRejectsOversizedPDF`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L215) | test | 215-234 | `func TestWorkerRejectsOversizedPDF(t *testing.T)` | TestWorkerRejectsOversizedPDF verifies the worker rejects input above the configured PDF bound. |
+| [`TestWorkerRejectsExcessiveAnnotationCount`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L237) | test | 237-260 | `func TestWorkerRejectsExcessiveAnnotationCount(t *testing.T)` | TestWorkerRejectsExcessiveAnnotationCount verifies the worker rejects requests above the configured annotation count. |
+| [`TestWorkerRejectsOversizedAnnotationText`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L263) | test | 263-282 | `func TestWorkerRejectsOversizedAnnotationText(t *testing.T)` | TestWorkerRejectsOversizedAnnotationText verifies the worker rejects requests above the configured annotation text bound. |
+| [`TestWorkerMeasuresExecutionTime`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L285) | test | 285-307 | `func TestWorkerMeasuresExecutionTime(t *testing.T)` | TestWorkerMeasuresExecutionTime verifies a valid request completes within a measured time. |
+| [`TestWorkerAnnotatesThroughBoundedRunner`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L310) | test | 310-332 | `func TestWorkerAnnotatesThroughBoundedRunner(t *testing.T)` | TestWorkerAnnotatesThroughBoundedRunner verifies the application worker runner returns PDF bytes without mutating source. |
+| [`TestWorkerRunnerRejectsGenerationFailure`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L335) | test | 335-346 | `func TestWorkerRunnerRejectsGenerationFailure(t *testing.T)` | TestWorkerRunnerRejectsGenerationFailure verifies malformed sources fail instead of returning unannotated bytes. |
+| [`TestWorkerRunnerKillsTimedOutProcess`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L349) | test | 349-365 | `func TestWorkerRunnerKillsTimedOutProcess(t *testing.T)` | TestWorkerRunnerKillsTimedOutProcess verifies cancellation kills and reaps the worker. |
+| [`TestWorkerRunnerRejectsOversizedInputs`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go#L368) | test | 368-381 | `func TestWorkerRunnerRejectsOversizedInputs(t *testing.T)` | TestWorkerRunnerRejectsOversizedInputs verifies preflight bounds before process start. |
 
 ### [`tests/backend/pdfannotate/unit/pdfannotate_unit_test.go`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go)
 
