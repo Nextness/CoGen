@@ -1122,9 +1122,10 @@ async function validatePDFExports(request: APIRequestContext): Promise<void> {
     data: { content_hash: status.content_hash, include_comments: true },
   });
   expect(comments.ok()).toBeTruthy();
-  expect(comments.headers()['x-pdf-export-comments-status']).toBe('no_review_context');
-  expect(comments.headers()['x-pdf-export-comments']).toBe('0');
-  expect((await comments.body()).equals(source)).toBeTruthy();
+  expect(comments.headers()['x-pdf-export-comments-status']).toBe('included');
+  expect(comments.headers()['x-pdf-export-comments']).toBe('1');
+  expect(comments.headers()['x-pdf-export-output-hash']).not.toBe(status.content_hash);
+  expect((await comments.body()).equals(source)).toBeFalsy();
 }
 
 /** Validates raw PUT and DELETE PDF mutation shapes without changing final content. */

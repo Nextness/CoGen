@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
 
+import { inspectPDF } from "../../../support/node/pdf-inspector.ts";
 import { visit, viewerState } from "../../../support/node/visit.ts";
 
 test.describe.configure({ mode: 'serial' });
@@ -325,6 +326,59 @@ test.describe('isolated PDF management lifecycle', () => {
     await expect(page.locator('[data-note-body]')).toHaveValue('Draft across ZIP export');
     await page.getByRole('button', { name: 'Refresh PDF state' }).click();
     await expect(articleAudit(page).locator('.rw-audit-event--pdf').filter({ hasText: 'prepared for an explicit download' }).first()).toBeVisible();
+  });
+
+  test('downloads matching saved comments as a validated annotated PDF', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await ensureReviewContext(request);
+    const statusResponse = await request.get('/api/works/1/pdf-status');
+    expect(statusResponse.ok()).toBeTruthy();
+    const status = await statusResponse.json();
+    const anchorResponse = await request.post('/api/runs/1/articles/1/anchors', {
+      data: {
+        label: `browser-comment-${Date.now()}`,
+        page: 1,
+        selected_text: 'Selectable viewer methods on page one',
+        rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        pdf_content_hash: status.content_hash,
+      },
+    });
+    expect(anchorResponse.ok()).toBeTruthy();
+    const anchor = (await anchorResponse.json()).anchor;
+    const noteResponse = await request.post('/api/runs/1/articles/1/notes', {
+      data: { body: `Browser saved comment [[anchor:${anchor.id}|anchor]].` },
+    });
+    expect(noteResponse.ok()).toBeTruthy();
+
+    await visitArticle(page, '1');
+    const comments = page.locator('[data-pdf-include-comments]');
+    await expect(comments).toBeEnabled();
+    await expect(comments).not.toBeChecked();
+    await comments.check();
+    const [response, download] = await Promise.all([
+      page.waitForResponse((item) => item.request().method() === 'POST' && item.url().endsWith('/pdf-export')),
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Download PDF' }).click(),
+    ]);
+    expect(response.status()).toBe(200);
+    expect(response.headers()['x-pdf-export-comments-status']).toBe('included');
+    expect(response.headers()['x-pdf-export-comments']).toBe('1');
+    expect(response.headers()['x-pdf-export-output-hash']).not.toBe(status.content_hash);
+    expect(download.suggestedFilename()).toContain('(annotated)');
+    const path = await download.path();
+    expect(path).not.toBeNull();
+    const annotated = await readFile(path!);
+    const sourceResponse = await request.get('/api/pdf/1');
+    expect(sourceResponse.ok()).toBeTruthy();
+    const source = Buffer.from(await sourceResponse.body());
+    expect(annotated.equals(source)).toBe(false);
+    const inspection = await inspectPDF(new Uint8Array(annotated));
+    const annotation = inspection.pages[0].annotations.find((item) => item.contents.includes('Browser saved comment'));
+    expect(annotation).toBeTruthy();
+    expect(annotation?.subtype).toBe('Highlight');
+    const after = await request.get('/api/works/1/pdf-status');
+    expect(after.ok()).toBeTruthy();
+    expect((await after.json()).content_hash).toBe(status.content_hash);
   });
 
   test('rejects a stale second-tab replacement while preserving drafts and the selected file', async ({ page, request, browserName }) => {

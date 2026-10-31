@@ -19,19 +19,19 @@ function runWorker(request: string): Buffer {
   return execFileSync(worker, ["pdf-annotate"], { input: request, cwd: root });
 }
 
+before(function() {
+  mkdirSync(join(root, "build", "pdf-trial"), { recursive: true });
+  buildDirectory = mkdtempSync(join(root, "build", "pdf-trial", "pdfannotate-contract-"));
+  worker = join(buildDirectory, "analysis");
+  execFileSync("make", ["build", `BIN=${worker}`], { cwd: root, stdio: "inherit" });
+  fixture = execFileSync("go", ["run", "./tests/support/go/cmd/pdf-fixture", "-complex", "Complex fixture page"], { cwd: root });
+});
+
+after(function() {
+  if (buildDirectory) rmSync(buildDirectory, { recursive: true, force: true });
+});
+
 describe("pdf annotations contract", function() {
-  before(function() {
-    mkdirSync(join(root, "build", "pdf-trial"), { recursive: true });
-    buildDirectory = mkdtempSync(join(root, "build", "pdf-trial", "pdfannotate-contract-"));
-    worker = join(buildDirectory, "analysis");
-    execFileSync("make", ["build", `BIN=${worker}`], { cwd: root, stdio: "inherit" });
-    fixture = execFileSync("go", ["run", "./tests/support/go/cmd/pdf-fixture", "-complex", "Complex fixture page"], { cwd: root });
-  });
-
-  after(function() {
-    if (buildDirectory) rmSync(buildDirectory, { recursive: true, force: true });
-  });
-
   it("adds text and highlight annotations without changing source bytes", async function() {
     const original = Buffer.from(fixture);
     const request = JSON.stringify({
@@ -96,5 +96,91 @@ describe("pdf annotations contract", function() {
     assert.throws(() => {
       runWorker(request);
     });
+  });
+});
+
+/** Returns whether two numbers are within one thousandth. */
+function near(left: number, right: number): boolean {
+  return Math.abs(left - right) < 0.001;
+}
+
+describe("pdf annotation geometry contract", function() {
+  it("maps normalized unrotated rectangles through crop origins, rotation, and user units", async function() {
+    const request = JSON.stringify({
+      pdf: fixture.toString("base64"),
+      annotations: [{
+        Page: 1,
+        Type: "Highlight",
+        Rectangles: [{ x: 0.1, y: 0.2, width: 0.3, height: 0.1 }],
+        Contents: "Mapped geometry",
+        Title: "Reviewer",
+        Subject: "Highlight",
+      }],
+    });
+    const annotated = runWorker(request);
+    const inspection = await inspectPDF(new Uint8Array(annotated));
+    assert.equal(inspection.pageCount, 1);
+    const page = inspection.pages[0];
+    assert.ok(page.text.includes("Complex fixture page"));
+    const existing = page.annotations.find((annotation) => annotation.contents === "Existing note");
+    assert.ok(existing);
+    const mapped = page.annotations.find((annotation) => annotation.contents === "Mapped geometry");
+    assert.ok(mapped);
+    assert.equal(mapped.subtype, "Highlight");
+    const expected = [69.2, 550.4, 246.8, 627.6];
+    expected.forEach((value, index) => {
+      assert.ok(near(mapped.rect[index], value), `rect[${index}]=${mapped.rect[index]} expected ${value}`);
+    });
+    assert.equal(mapped.quadPoints.length, 4);
+    assert.ok(near(mapped.quadPoints[0].x, 69.2) && near(mapped.quadPoints[0].y, 627.6));
+  });
+
+  it("carries every highlight rectangle as quad points", async function() {
+    const request = JSON.stringify({
+      pdf: fixture.toString("base64"),
+      annotations: [{
+        Page: 1,
+        Type: "Highlight",
+        Rectangles: [
+          { x: 0.1, y: 0.1, width: 0.2, height: 0.05 },
+          { x: 0.5, y: 0.2, width: 0.2, height: 0.05 },
+        ],
+        Contents: "Two rectangles",
+        Title: "Reviewer",
+        Subject: "Highlight",
+      }],
+    });
+    const annotated = runWorker(request);
+    const inspection = await inspectPDF(new Uint8Array(annotated));
+    const mapped = inspection.pages[0].annotations.find((annotation) => annotation.contents === "Two rectangles");
+    assert.ok(mapped);
+    assert.equal(mapped.quadPoints.length, 8);
+  });
+
+  it("retains complete Unicode note prose and does not accumulate on repeated exports", async function() {
+    const body = "日本語 😀 " + "complete prose ".repeat(500);
+    const request = JSON.stringify({
+      pdf: fixture.toString("base64"),
+      annotations: [{
+        Page: 1,
+        Type: "Highlight",
+        Rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        Contents: body,
+        Title: "Reviewer",
+        Subject: "CoGen comment",
+      }],
+    });
+    const original = Buffer.from(fixture);
+    const first = runWorker(request);
+    const second = runWorker(request);
+    const firstInspection = await inspectPDF(new Uint8Array(first));
+    const secondInspection = await inspectPDF(new Uint8Array(second));
+    for (const inspection of [firstInspection, secondInspection]) {
+      const page = inspection.pages[0];
+      assert.equal(page.annotations.length, 2);
+      const annotation = page.annotations.find((item) => item.title === "Reviewer" && item.contents === body);
+      assert.ok(annotation);
+    }
+    assert.ok(fixture.equals(original));
   });
 });

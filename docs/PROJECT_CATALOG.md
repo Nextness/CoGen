@@ -123,8 +123,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`pdfannotateRequest`](../backend/cli/pdfannotate.go#L13) | struct | 13-16 | ``type pdfannotateRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | pdfannotateRequest is the JSON request for the internal annotation worker. |
-| [`pdfAnnotateMain`](../backend/cli/pdfannotate.go#L19) | function | 19-60 | `func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int` | pdfAnnotateMain runs the internal PDF annotation worker. It reads one bounded JSON request from standard input and writes annotated PDF bytes to standard output. The caller owns cancellation and must kill and reap this process on timeout. |
+| [`pdfannotateRequest`](../backend/cli/pdfannotate.go#L14) | struct | 14-17 | ``type pdfannotateRequest struct { PDF []byte `json:"pdf"` Annotations []pdfannotate.Annotation `json:"annotations"` }`` | pdfannotateRequest is the JSON request for the internal annotation worker. |
+| [`pdfAnnotateMain`](../backend/cli/pdfannotate.go#L20) | function | 20-61 | `func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int` | pdfAnnotateMain runs the internal PDF annotation worker. It reads one bounded JSON request from standard input and writes annotated PDF bytes to standard output. The caller owns cancellation and must kill and reap this process on timeout. |
+| [`pdfannotateWorkerExitCode`](../backend/cli/pdfannotate.go#L64) | function | 64-79 | `func pdfannotateWorkerExitCode(err error) int` | pdfannotateWorkerExitCode maps one annotation failure to a stable worker exit code. |
 
 ### [`backend/cmd/analysis/main.go`](../backend/cmd/analysis/main.go)
 
@@ -1393,19 +1394,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`LimitError`](../backend/pdfannotate/worker.go#L41) | struct | 41-45 | `type LimitError struct { Kind string Count int Limit int }` | LimitError identifies one bounded worker input or output limit that was exceeded. |
-| [`(*LimitError).Error`](../backend/pdfannotate/worker.go#L48) | method | 48-50 | `func (*LimitError).Error() string` | Error returns the bounded worker-limit diagnostic. |
-| [`(*LimitError).Unwrap`](../backend/pdfannotate/worker.go#L53) | method | 53 | `func (*LimitError).Unwrap() error` | Unwrap exposes the shared worker-limit sentinel. |
-| [`Worker`](../backend/pdfannotate/worker.go#L56) | struct | 56-61 | `type Worker struct { // Executable is the analysis binary that provides the pdf-annotate command. Executable string // Timeout bounds one invocation when the caller context has no earlier deadline. Timeout time.Duration }` | Worker runs the analysis binary's internal pdf-annotate mode. |
-| [`NewWorker`](../backend/pdfannotate/worker.go#L64) | function | 64-70 | `func NewWorker() (*Worker, error)` | NewWorker returns a worker bound to the current executable. |
-| [`NewWorkerAt`](../backend/pdfannotate/worker.go#L73) | function | 73-75 | `func NewWorkerAt(executable string) *Worker` | NewWorkerAt returns a worker bound to an explicit executable. |
-| [`workerRequest`](../backend/pdfannotate/worker.go#L78) | struct | 78-81 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []Annotation `json:"annotations"` }`` | workerRequest is the JSON protocol shared with the pdf-annotate command. |
-| [`(*Worker).Annotate`](../backend/pdfannotate/worker.go#L85) | method | 85-150 | `func (*Worker).Annotate(ctx context.Context, source []byte, annotations []Annotation) ([]byte, error)` | Annotate runs one bounded worker process and returns its validated PDF bytes. It kills and reaps the process on timeout or caller cancellation. |
-| [`limitedBuffer`](../backend/pdfannotate/worker.go#L153) | struct | 153-158 | `type limitedBuffer struct { data bytes.Buffer limit int overflow bool written int }` | limitedBuffer retains at most limit bytes and records whether more were written. |
-| [`(*limitedBuffer).Write`](../backend/pdfannotate/worker.go#L161) | method | 161-174 | `func (*limitedBuffer).Write(p []byte) (int, error)` | Write retains a bounded prefix of p and discards the remainder. |
-| [`(*limitedBuffer).Bytes`](../backend/pdfannotate/worker.go#L177) | method | 177 | `func (*limitedBuffer).Bytes() []byte` | Bytes returns the retained bounded prefix. |
-| [`(*limitedBuffer).Overflow`](../backend/pdfannotate/worker.go#L180) | method | 180 | `func (*limitedBuffer).Overflow() bool` | Overflow reports whether the writer discarded input. |
-| [`(*limitedBuffer).Written`](../backend/pdfannotate/worker.go#L183) | method | 183 | `func (*limitedBuffer).Written() int` | Written returns the total byte count presented to the writer. |
+| [`LimitError`](../backend/pdfannotate/worker.go#L59) | struct | 59-63 | `type LimitError struct { Kind string Count int Limit int }` | LimitError identifies one bounded worker input or output limit that was exceeded. |
+| [`(*LimitError).Error`](../backend/pdfannotate/worker.go#L66) | method | 66-68 | `func (*LimitError).Error() string` | Error returns the bounded worker-limit diagnostic. |
+| [`(*LimitError).Unwrap`](../backend/pdfannotate/worker.go#L71) | method | 71 | `func (*LimitError).Unwrap() error` | Unwrap exposes the shared worker-limit sentinel. |
+| [`Worker`](../backend/pdfannotate/worker.go#L74) | struct | 74-79 | `type Worker struct { // Executable is the analysis binary that provides the pdf-annotate command. Executable string // Timeout bounds one invocation when the caller context has no earlier deadline. Timeout time.Duration }` | Worker runs the analysis binary's internal pdf-annotate mode. |
+| [`NewWorker`](../backend/pdfannotate/worker.go#L82) | function | 82-88 | `func NewWorker() (*Worker, error)` | NewWorker returns a worker bound to the current executable. |
+| [`NewWorkerAt`](../backend/pdfannotate/worker.go#L91) | function | 91-93 | `func NewWorkerAt(executable string) *Worker` | NewWorkerAt returns a worker bound to an explicit executable. |
+| [`workerRequest`](../backend/pdfannotate/worker.go#L96) | struct | 96-99 | ``type workerRequest struct { PDF []byte `json:"pdf"` Annotations []Annotation `json:"annotations"` }`` | workerRequest is the JSON protocol shared with the pdf-annotate command. |
+| [`(*Worker).Annotate`](../backend/pdfannotate/worker.go#L103) | method | 103-183 | `func (*Worker).Annotate(ctx context.Context, source []byte, annotations []Annotation) ([]byte, error)` | Annotate runs one bounded worker process and returns its validated PDF bytes. It kills and reaps the process on timeout or caller cancellation. |
+| [`limitedBuffer`](../backend/pdfannotate/worker.go#L186) | struct | 186-191 | `type limitedBuffer struct { data bytes.Buffer limit int overflow bool written int }` | limitedBuffer retains at most limit bytes and records whether more were written. |
+| [`(*limitedBuffer).Write`](../backend/pdfannotate/worker.go#L194) | method | 194-207 | `func (*limitedBuffer).Write(p []byte) (int, error)` | Write retains a bounded prefix of p and discards the remainder. |
+| [`(*limitedBuffer).Bytes`](../backend/pdfannotate/worker.go#L210) | method | 210 | `func (*limitedBuffer).Bytes() []byte` | Bytes returns the retained bounded prefix. |
+| [`(*limitedBuffer).Overflow`](../backend/pdfannotate/worker.go#L213) | method | 213 | `func (*limitedBuffer).Overflow() bool` | Overflow reports whether the writer discarded input. |
+| [`(*limitedBuffer).Written`](../backend/pdfannotate/worker.go#L216) | method | 216 | `func (*limitedBuffer).Written() int` | Written returns the total byte count presented to the writer. |
 
 ### [`backend/pdfannotate/worker_other.go`](../backend/pdfannotate/worker_other.go)
 
@@ -3372,6 +3373,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestReviewExportExcludesIneligibleEvidence`](../tests/backend/database/review/integration/export_integration_test.go#L115) | test | 115-159 | `func TestReviewExportExcludesIneligibleEvidence(t *testing.T)` | TestReviewExportExcludesIneligibleEvidence verifies tombstones, page-only, general, and mixed-reference notes are excluded with reported reasons. |
 | [`TestReviewExportRejectsMissingContextAndOverflow`](../tests/backend/database/review/integration/export_integration_test.go#L162) | test | 162-179 | `func TestReviewExportRejectsMissingContextAndOverflow(t *testing.T)` | TestReviewExportRejectsMissingContextAndOverflow verifies explicit empty and limit behavior. |
 | [`TestReviewExportRejectsOversizedText`](../tests/backend/database/review/integration/export_integration_test.go#L182) | test | 182-195 | `func TestReviewExportRejectsOversizedText(t *testing.T)` | TestReviewExportRejectsOversizedText verifies full prose is never silently truncated. |
+| [`TestReviewExportSnapshotKeepsOneHeadSet`](../tests/backend/database/review/integration/export_integration_test.go#L199) | test | 199-236 | `func TestReviewExportSnapshotKeepsOneHeadSet(t *testing.T)` | TestReviewExportSnapshotKeepsOneHeadSet verifies concurrent note edits cannot mix evidence inside one export snapshot. |
 
 ### [`tests/backend/database/review/integration/filters_integration_test.go`](../tests/backend/database/review/integration/filters_integration_test.go)
 
@@ -3889,6 +3891,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestAnnotateMapsNormalizedGeometry`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L202) | test | 202-238 | `func TestAnnotateMapsNormalizedGeometry(t *testing.T)` | TestAnnotateMapsNormalizedGeometry verifies crop origins, rotation, and user units map stored unrotated rectangles into default user space. |
 | [`TestAnnotateSupportsMultipleRectangles`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L241) | test | 241-266 | `func TestAnnotateSupportsMultipleRectangles(t *testing.T)` | TestAnnotateSupportsMultipleRectangles verifies one highlight carries every quad. |
 | [`TestAnnotateRejectsMissingPageAndGeometry`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L269) | test | 269-280 | `func TestAnnotateRejectsMissingPageAndGeometry(t *testing.T)` | TestAnnotateRejectsMissingPageAndGeometry verifies invalid placement fails explicitly. |
+| [`TestAnnotateRejectsProtectedAndSignedSources`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L283) | test | 283-297 | `func TestAnnotateRejectsProtectedAndSignedSources(t *testing.T)` | TestAnnotateRejectsProtectedAndSignedSources verifies transformation restrictions are not bypassed. |
 
 ### [`tests/backend/pdfstore/integration/audit_identity_integration_test.go`](../tests/backend/pdfstore/integration/audit_identity_integration_test.go)
 
@@ -4157,14 +4160,20 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`newPDFCommentFixture`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L29) | function | 29-48 | `func newPDFCommentFixture(t *testing.T) (testhelpers.PdfViewerFixture, int64, *review.Anchor, *review.Note)` | newPDFCommentFixture creates one completed review context with a matching anchor and saved note, and points the viewer at the real annotation worker. |
-| [`pdfAnnotationContents`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L51) | function | 51-93 | `func pdfAnnotationContents(t *testing.T, data []byte) ([]string, []string)` | pdfAnnotationContents returns annotation contents and titles from one PDF. |
-| [`TestPDFCommentExportEmbedsMatchingSavedEvidence`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L97) | test | 97-168 | `func TestPDFCommentExportEmbedsMatchingSavedEvidence(t *testing.T)` | TestPDFCommentExportEmbedsMatchingSavedEvidence verifies derived output, headers, audit provenance, and unchanged source/review state. |
-| [`TestPDFCommentExportOffReturnsOriginalBytes`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L171) | test | 171-194 | `func TestPDFCommentExportOffReturnsOriginalBytes(t *testing.T)` | TestPDFCommentExportOffReturnsOriginalBytes verifies the default path stays byte-identical. |
-| [`TestPDFCommentExportWithoutContextReturnsOriginal`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L197) | test | 197-216 | `func TestPDFCommentExportWithoutContextReturnsOriginal(t *testing.T)` | TestPDFCommentExportWithoutContextReturnsOriginal verifies export never initializes review. |
-| [`TestPDFZIPCommentExportRetainsExactOutput`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L220) | test | 220-258 | `func TestPDFZIPCommentExportRetainsExactOutput(t *testing.T)` | TestPDFZIPCommentExportRetainsExactOutput verifies one annotated ZIP entry, manifest provenance, and source preservation. |
-| [`TestPDFCommentExportFailureIsExplicit`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L262) | test | 262-296 | `func TestPDFCommentExportFailureIsExplicit(t *testing.T)` | TestPDFCommentExportFailureIsExplicit verifies generation failure never returns unannotated success for single or ZIP exports. |
-| [`keysOf`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L299) | function | 299-305 | `func keysOf(files map[string][]byte) []string` | keysOf returns sorted ZIP entry names for diagnostics. |
+| [`newPDFCommentFixture`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L33) | function | 33-52 | `func newPDFCommentFixture(t *testing.T) (testhelpers.PdfViewerFixture, int64, *review.Anchor, *review.Note)` | newPDFCommentFixture creates one completed review context with a matching anchor and saved note, and points the viewer at the real annotation worker. |
+| [`pdfAnnotationContents`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L55) | function | 55-97 | `func pdfAnnotationContents(t *testing.T, data []byte) ([]string, []string)` | pdfAnnotationContents returns annotation contents and titles from one PDF. |
+| [`TestPDFCommentExportEmbedsMatchingSavedEvidence`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L101) | test | 101-172 | `func TestPDFCommentExportEmbedsMatchingSavedEvidence(t *testing.T)` | TestPDFCommentExportEmbedsMatchingSavedEvidence verifies derived output, headers, audit provenance, and unchanged source/review state. |
+| [`TestPDFCommentExportOffReturnsOriginalBytes`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L175) | test | 175-198 | `func TestPDFCommentExportOffReturnsOriginalBytes(t *testing.T)` | TestPDFCommentExportOffReturnsOriginalBytes verifies the default path stays byte-identical. |
+| [`TestPDFCommentExportWithoutContextReturnsOriginal`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L201) | test | 201-220 | `func TestPDFCommentExportWithoutContextReturnsOriginal(t *testing.T)` | TestPDFCommentExportWithoutContextReturnsOriginal verifies export never initializes review. |
+| [`TestPDFZIPCommentExportRetainsExactOutput`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L224) | test | 224-262 | `func TestPDFZIPCommentExportRetainsExactOutput(t *testing.T)` | TestPDFZIPCommentExportRetainsExactOutput verifies one annotated ZIP entry, manifest provenance, and source preservation. |
+| [`TestPDFCommentExportFailureIsExplicit`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L266) | test | 266-300 | `func TestPDFCommentExportFailureIsExplicit(t *testing.T)` | TestPDFCommentExportFailureIsExplicit verifies generation failure never returns unannotated success for single or ZIP exports. |
+| [`keysOf`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L303) | function | 303-309 | `func keysOf(files map[string][]byte) []string` | keysOf returns sorted ZIP entry names for diagnostics. |
+| [`TestPDFCommentExportRepeatedExportsDoNotAccumulate`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L312) | test | 312-335 | `func TestPDFCommentExportRepeatedExportsDoNotAccumulate(t *testing.T)` | TestPDFCommentExportRepeatedExportsDoNotAccumulate verifies each export starts from the stored original. |
+| [`TestPDFZIPCommentExportSpoolFailureWritesNoBinary`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L339) | test | 339-355 | `func TestPDFZIPCommentExportSpoolFailureWritesNoBinary(t *testing.T)` | TestPDFZIPCommentExportSpoolFailureWritesNoBinary verifies temporary-disk failure is explicit and does not leak a partial archive. |
+| [`replaceFixturePDF`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L359) | function | 359-379 | `func replaceFixturePDF(t *testing.T, fixture testhelpers.PdfViewerFixture, data []byte) string` | replaceFixturePDF stores replacement source bytes for the fixture work and returns the new content hash. |
+| [`addMatchingCommentEvidence`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L382) | function | 382-396 | `func addMatchingCommentEvidence(t *testing.T, fixture testhelpers.PdfViewerFixture, hash string)` | addMatchingCommentEvidence creates one active anchor and note for a source hash. |
+| [`TestPDFCommentExportRejectsSignedSource`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L399) | test | 399-409 | `func TestPDFCommentExportRejectsSignedSource(t *testing.T)` | TestPDFCommentExportRejectsSignedSource verifies signatures are never invalidated. |
+| [`TestPDFCommentExportRejectsProtectedSource`](../tests/backend/server/integration/pdf_comment_export_integration_test.go#L412) | test | 412-428 | `func TestPDFCommentExportRejectsProtectedSource(t *testing.T)` | TestPDFCommentExportRejectsProtectedSource verifies permissions are never bypassed. |
 
 ### [`tests/backend/server/integration/pdf_concurrency_integration_test.go`](../tests/backend/server/integration/pdf_concurrency_integration_test.go)
 
@@ -5394,6 +5403,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`Bytes`](../tests/support/go/pdffixture/pdf.go#L11) | function | 11-54 | `func Bytes(pageText ...string) []byte` | Bytes returns a structurally valid multi-page PDF with selectable Helvetica text. |
 
+### [`tests/support/go/pdffixture/signed.go`](../tests/support/go/pdffixture/signed.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`SignedBytes`](../tests/support/go/pdffixture/signed.go#L12) | function | 12-41 | `func SignedBytes(pageText ...string) []byte` | SignedBytes returns a structurally valid one-page PDF whose catalog declares signature flags, for exercising protected-document rejection without signing. |
+
 ### [`tests/support/go/sqlprobe/driver.go`](../tests/support/go/sqlprobe/driver.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -6616,13 +6631,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`validateGraph`](../tests/contracts/http/integration/api-shapes.spec.ts#L1022) | function | 1022 | `async function validateGraph(request: APIRequestContext)` | Validates GET /api/graph. |
 | [`validatePDFStatus`](../tests/contracts/http/integration/api-shapes.spec.ts#L1058) | function | 1058 | `async function validatePDFStatus(request: APIRequestContext)` | Validates GET /api/works/{work_id}/pdf-status. |
 | [`validatePDFExports`](../tests/contracts/http/integration/api-shapes.spec.ts#L1073) | function | 1073 | `async function validatePDFExports(request: APIRequestContext)` | Validates single and selected-set export request, binary, and error shapes. |
-| [`validatePDFMutation`](../tests/contracts/http/integration/api-shapes.spec.ts#L1131) | function | 1131 | `async function validatePDFMutation(request: APIRequestContext)` | Validates raw PUT and DELETE PDF mutation shapes without changing final content. |
+| [`validatePDFMutation`](../tests/contracts/http/integration/api-shapes.spec.ts#L1132) | function | 1132 | `async function validatePDFMutation(request: APIRequestContext)` | Validates raw PUT and DELETE PDF mutation shapes without changing final content. |
 
 ### [`tests/contracts/pdf/integration/pdf-annotations.test.ts`](../tests/contracts/pdf/integration/pdf-annotations.test.ts)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`runWorker`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L18) | function | 18 | `function runWorker(request: string)` | runWorker runs the worker with one JSON request and returns its output. |
+| [`near`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L103) | function | 103 | `function near(left: number, right: number)` | Returns whether two numbers are within one thousandth. |
 
 ### [`tests/e2e/offline/e2e.spec.ts`](../tests/e2e/offline/e2e.spec.ts)
 
@@ -6687,14 +6703,14 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`derivedPDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L22) | function | 22 | `function derivedPDF(source: Buffer, marker: string)` | Returns one valid PDF derived from the fixture by appending a unique comment. |
-| [`digest`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L27) | function | 27 | `function digest(data: Buffer)` | Returns the SHA-256 hex digest of one upload body. |
-| [`storedZipEntries`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L33) | function | 33 | `function storedZipEntries(data: Buffer)` | Extracts stored entries from one standard ZIP response for assertions. |
-| [`visitArticle`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L65) | function | 65 | `async function visitArticle(page: Page, articleID: string, origin?: string)` | Seeds viewer state for one article and opens the clean article path. |
-| [`ensureReviewContext`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L72) | function | 72 | `async function ensureReviewContext(request: APIRequestContext)` | Initializes the selected run's review context when the fixture has none. |
-| [`ensureAvailablePDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L81) | function | 81 | `async function ensureAvailablePDF(request: APIRequestContext, articleID: string, bytes: Buffer)` | Ensures the selected article has available PDF bytes for replacement checks. |
-| [`articleAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L99) | function | 99 | `function articleAudit(page: Page)` | Returns the article-scoped audit panel that follows the reader workspace. |
-| [`waitForPendingAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L104) | function | 104 | `async function waitForPendingAudit(request: APIRequestContext)` | Waits for the asynchronous PDF audit relay to drain pending events. |
+| [`derivedPDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L23) | function | 23 | `function derivedPDF(source: Buffer, marker: string)` | Returns one valid PDF derived from the fixture by appending a unique comment. |
+| [`digest`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L28) | function | 28 | `function digest(data: Buffer)` | Returns the SHA-256 hex digest of one upload body. |
+| [`storedZipEntries`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L34) | function | 34 | `function storedZipEntries(data: Buffer)` | Extracts stored entries from one standard ZIP response for assertions. |
+| [`visitArticle`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L66) | function | 66 | `async function visitArticle(page: Page, articleID: string, origin?: string)` | Seeds viewer state for one article and opens the clean article path. |
+| [`ensureReviewContext`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L73) | function | 73 | `async function ensureReviewContext(request: APIRequestContext)` | Initializes the selected run's review context when the fixture has none. |
+| [`ensureAvailablePDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L82) | function | 82 | `async function ensureAvailablePDF(request: APIRequestContext, articleID: string, bytes: Buffer)` | Ensures the selected article has available PDF bytes for replacement checks. |
+| [`articleAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L100) | function | 100 | `function articleAudit(page: Page)` | Returns the article-scoped audit panel that follows the reader workspace. |
+| [`waitForPendingAudit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L105) | function | 105 | `async function waitForPendingAudit(request: APIRequestContext)` | Waits for the asynchronous PDF audit relay to drain pending events. |
 
 ### [`tests/frontend/viewer/integration/review.spec.ts`](../tests/frontend/viewer/integration/review.spec.ts)
 
@@ -6709,8 +6725,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`goto`](../tests/frontend/viewer/integration/viewer.spec.ts#L51) | function | 51 | `async function goto(page: Page, url: string)` | Navigate to a URL and wait for network idle. |
 | [`contextState`](../tests/frontend/viewer/integration/viewer.spec.ts#L59) | function | 59 | `function contextState(overrides: Record<string, string> = {})` | Build a context state with search, revision, plan, and run IDs. |
-| [`workspaceExpanded`](../tests/frontend/viewer/integration/viewer.spec.ts#L1040) | function | 1040 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
-| [`pageFilter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1110) | function | 1110 | `async function pageFilter(page: Page)` | Returns the computed filter of the rendered PDF page. |
+| [`workspaceExpanded`](../tests/frontend/viewer/integration/viewer.spec.ts#L1039) | function | 1039 | `async function workspaceExpanded(page: Page)` | Returns whether the reading workspace is expanded by either the Fullscreen API or the fallback class. |
+| [`pageFilter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1109) | function | 1109 | `async function pageFilter(page: Page)` | Returns the computed filter of the rendered PDF page. |
 
 ### [`tests/frontend/views/evaluation/functional/evaluation.test.ts`](../tests/frontend/views/evaluation/functional/evaluation.test.ts)
 
@@ -6757,7 +6773,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`inspectPDF`](../tests/support/node/pdf-inspector.ts#L52) | function | 52 | `async function inspectPDF(data: Uint8Array)` | inspectPDF loads PDF bytes with the vendored PDF.js build and extracts annotations and text. |
+| [`normalizeQuadPoints`](../tests/support/node/pdf-inspector.ts#L54) | function | 54 | `function normalizeQuadPoints(value: unknown)` | normalizeQuadPoints flattens PDF.js single and multiple quad representations. |
+| [`inspectPDF`](../tests/support/node/pdf-inspector.ts#L68) | function | 68 | `async function inspectPDF(data: Uint8Array)` | inspectPDF loads PDF bytes with the vendored PDF.js build and extracts annotations and text. |
 
 ### [`tests/support/node/pdf-selection.ts`](../tests/support/node/pdf-selection.ts)
 
@@ -6849,16 +6866,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`initializes the review context on the fixture copy`](../tests/contracts/http/integration/api-shapes.spec.ts#L1196) | test | 1196 | `test('initializes the review context on the fixture copy', callback)` | initializes the review context on the fixture copy |
-| [`health and hierarchy endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1305) | test | 1305 | `test('health and hierarchy endpoints match their contracts', callback)` | health and hierarchy endpoints match their contracts |
-| [`run context and overview endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1310) | test | 1310 | `test('run context and overview endpoints match their contracts', callback)` | run context and overview endpoints match their contracts |
-| [`audit, artifact, and cache endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1315) | test | 1315 | `test('audit, artifact, and cache endpoints match their contracts', callback)` | audit, artifact, and cache endpoints match their contracts |
-| [`corpus, evaluation, and review-context endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1321) | test | 1321 | `test('corpus, evaluation, and review-context endpoints match their contracts', callback)` | corpus, evaluation, and review-context endpoints match their contracts |
-| [`article review and review collections match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1327) | test | 1327 | `test('article review and review collections match their contracts', callback)` | article review and review collections match their contracts |
-| [`identity evidence, stages, and table endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1332) | test | 1332 | `test('identity evidence, stages, and table endpoints match their contracts', callback)` | identity evidence, stages, and table endpoints match their contracts |
-| [`detail, graph, and PDF-status endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1338) | test | 1338 | `test('detail, graph, and PDF-status endpoints match their contracts', callback)` | detail, graph, and PDF-status endpoints match their contracts |
-| [`raw PDF mutation endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1344) | test | 1344 | `test('raw PDF mutation endpoints match their contracts', callback)` | raw PDF mutation endpoints match their contracts |
-| [`PDF export endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1348) | test | 1348 | `test('PDF export endpoints match their contracts', callback)` | PDF export endpoints match their contracts |
+| [`initializes the review context on the fixture copy`](../tests/contracts/http/integration/api-shapes.spec.ts#L1197) | test | 1197 | `test('initializes the review context on the fixture copy', callback)` | initializes the review context on the fixture copy |
+| [`health and hierarchy endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1306) | test | 1306 | `test('health and hierarchy endpoints match their contracts', callback)` | health and hierarchy endpoints match their contracts |
+| [`run context and overview endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1311) | test | 1311 | `test('run context and overview endpoints match their contracts', callback)` | run context and overview endpoints match their contracts |
+| [`audit, artifact, and cache endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1316) | test | 1316 | `test('audit, artifact, and cache endpoints match their contracts', callback)` | audit, artifact, and cache endpoints match their contracts |
+| [`corpus, evaluation, and review-context endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1322) | test | 1322 | `test('corpus, evaluation, and review-context endpoints match their contracts', callback)` | corpus, evaluation, and review-context endpoints match their contracts |
+| [`article review and review collections match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1328) | test | 1328 | `test('article review and review collections match their contracts', callback)` | article review and review collections match their contracts |
+| [`identity evidence, stages, and table endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1333) | test | 1333 | `test('identity evidence, stages, and table endpoints match their contracts', callback)` | identity evidence, stages, and table endpoints match their contracts |
+| [`detail, graph, and PDF-status endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1339) | test | 1339 | `test('detail, graph, and PDF-status endpoints match their contracts', callback)` | detail, graph, and PDF-status endpoints match their contracts |
+| [`raw PDF mutation endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1345) | test | 1345 | `test('raw PDF mutation endpoints match their contracts', callback)` | raw PDF mutation endpoints match their contracts |
+| [`PDF export endpoints match their contracts`](../tests/contracts/http/integration/api-shapes.spec.ts#L1349) | test | 1349 | `test('PDF export endpoints match their contracts', callback)` | PDF export endpoints match their contracts |
 
 ### [`tests/contracts/pdf/integration/pdf-annotations.test.ts`](../tests/contracts/pdf/integration/pdf-annotations.test.ts)
 
@@ -6867,6 +6884,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`adds text and highlight annotations without changing source bytes`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L35) | test | 35 | `it("adds text and highlight annotations without changing source bytes", callback)` | adds text and highlight annotations without changing source bytes |
 | [`rejects malformed requests safely`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L79) | test | 79 | `it("rejects malformed requests safely", callback)` | rejects malformed requests safely |
 | [`rejects unsupported annotation types safely`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L85) | test | 85 | `it("rejects unsupported annotation types safely", callback)` | rejects unsupported annotation types safely |
+| [`maps normalized unrotated rectangles through crop origins, rotation, and user units`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L108) | test | 108 | `it("maps normalized unrotated rectangles through crop origins, rotation, and user units", callback)` | maps normalized unrotated rectangles through crop origins, rotation, and user units |
+| [`carries every highlight rectangle as quad points`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L138) | test | 138 | `it("carries every highlight rectangle as quad points", callback)` | carries every highlight rectangle as quad points |
+| [`retains complete Unicode note prose and does not accumulate on repeated exports`](../tests/contracts/pdf/integration/pdf-annotations.test.ts#L160) | test | 160 | `it("retains complete Unicode note prose and does not accumulate on repeated exports", callback)` | retains complete Unicode note prose and does not accumulate on repeated exports |
 
 ### [`tests/e2e/offline/e2e.spec.ts`](../tests/e2e/offline/e2e.spec.ts)
 
@@ -7256,9 +7276,10 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L113) | test | 113 | `test('uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls', callback)` | uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls |
-| [`downloads selected current-page PDFs as a ZIP with a manifest and export audit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L271) | test | 271 | `test('downloads selected current-page PDFs as a ZIP with a manifest and export audit', callback)` | downloads selected current-page PDFs as a ZIP with a manifest and export audit |
-| [`rejects a stale second-tab replacement while preserving drafts and the selected file`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L330) | test | 330 | `test('rejects a stale second-tab replacement while preserving drafts and the selected file', callback)` | rejects a stale second-tab replacement while preserving drafts and the selected file |
+| [`uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L114) | test | 114 | `test('uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls', callback)` | uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls |
+| [`downloads selected current-page PDFs as a ZIP with a manifest and export audit`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L272) | test | 272 | `test('downloads selected current-page PDFs as a ZIP with a manifest and export audit', callback)` | downloads selected current-page PDFs as a ZIP with a manifest and export audit |
+| [`downloads matching saved comments as a validated annotated PDF`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L331) | test | 331 | `test('downloads matching saved comments as a validated annotated PDF', callback)` | downloads matching saved comments as a validated annotated PDF |
+| [`rejects a stale second-tab replacement while preserving drafts and the selected file`](../tests/frontend/viewer/integration/pdf-management.spec.ts#L384) | test | 384 | `test('rejects a stale second-tab replacement while preserving drafts and the selected file', callback)` | rejects a stale second-tab replacement while preserving drafts and the selected file |
 
 ### [`tests/frontend/viewer/integration/review.spec.ts`](../tests/frontend/viewer/integration/review.spec.ts)
 
@@ -7267,9 +7288,9 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI`](../tests/frontend/viewer/integration/review.spec.ts#L40) | test | 40 | `test('creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI', callback)` | creates and persists status, note, PDF selection anchor, and custom PDF rendering through the UI |
 | [`creates an anchor through the fullscreen reader drawer`](../tests/frontend/viewer/integration/review.spec.ts#L205) | test | 205 | `test('creates an anchor through the fullscreen reader drawer', callback)` | creates an anchor through the fullscreen reader drawer |
 | [`edits, links, conflicts, removes, restores, and audits review evidence through visible controls`](../tests/frontend/viewer/integration/review.spec.ts#L234) | test | 234 | `test('edits, links, conflicts, removes, restores, and audits review evidence through visible controls', callback)` | edits, links, conflicts, removes, restores, and audits review evidence through visible controls |
-| [`restores and trashes a run through Home with persisted audit evidence`](../tests/frontend/viewer/integration/review.spec.ts#L351) | test | 351 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
-| [`preserves drafts and removes anchors when another tab removes the PDF`](../tests/frontend/viewer/integration/review.spec.ts#L383) | test | 383 | `test('preserves drafts and removes anchors when another tab removes the PDF', callback)` | preserves drafts and removes anchors when another tab removes the PDF |
-| [`traverses 101-record review collection boundaries through UI continuations`](../tests/frontend/viewer/integration/review.spec.ts#L451) | test | 451 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
+| [`restores and trashes a run through Home with persisted audit evidence`](../tests/frontend/viewer/integration/review.spec.ts#L355) | test | 355 | `test('restores and trashes a run through Home with persisted audit evidence', callback)` | restores and trashes a run through Home with persisted audit evidence |
+| [`preserves drafts and removes anchors when another tab removes the PDF`](../tests/frontend/viewer/integration/review.spec.ts#L387) | test | 387 | `test('preserves drafts and removes anchors when another tab removes the PDF', callback)` | preserves drafts and removes anchors when another tab removes the PDF |
+| [`traverses 101-record review collection boundaries through UI continuations`](../tests/frontend/viewer/integration/review.spec.ts#L455) | test | 455 | `test('traverses 101-record review collection boundaries through UI continuations', callback)` | traverses 101-record review collection boundaries through UI continuations |
 
 ### [`tests/frontend/viewer/integration/viewer.spec.ts`](../tests/frontend/viewer/integration/viewer.spec.ts)
 
@@ -7334,46 +7355,46 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`article detail shows the search term coverage panel`](../tests/frontend/viewer/integration/viewer.spec.ts#L946) | test | 946 | `test('article detail shows the search term coverage panel', callback)` | article detail shows the search term coverage panel |
 | [`article detail shows no search terms recorded for a run without queries`](../tests/frontend/viewer/integration/viewer.spec.ts#L958) | test | 958 | `test('article detail shows no search terms recorded for a run without queries', callback)` | article detail shows no search terms recorded for a run without queries |
 | [`article detail opens the bound PDF without discarding research context`](../tests/frontend/viewer/integration/viewer.spec.ts#L971) | test | 971 | `test('article detail opens the bound PDF without discarding research context', callback)` | article detail opens the bound PDF without discarding research context |
-| [`article detail shows an absent PDF without an open action`](../tests/frontend/viewer/integration/viewer.spec.ts#L986) | test | 986 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
-| [`article detail preserves the originating corpus state`](../tests/frontend/viewer/integration/viewer.spec.ts#L992) | test | 992 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
-| [`article detail shows authors and references`](../tests/frontend/viewer/integration/viewer.spec.ts#L1007) | test | 1007 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
-| [`author detail shows author information`](../tests/frontend/viewer/integration/viewer.spec.ts#L1015) | test | 1015 | `test('author detail shows author information', callback)` | author detail shows author information |
-| [`reference detail shows reference information`](../tests/frontend/viewer/integration/viewer.spec.ts#L1027) | test | 1027 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
-| [`enters fullscreen from the toolbar with the drawer expanded by default`](../tests/frontend/viewer/integration/viewer.spec.ts#L1046) | test | 1046 | `test('enters fullscreen from the toolbar with the drawer expanded by default', callback)` | enters fullscreen from the toolbar with the drawer expanded by default |
-| [`collapses and expands the review drawer through the edge control`](../tests/frontend/viewer/integration/viewer.spec.ts#L1061) | test | 1061 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
-| [`selecting PDF text expands a collapsed drawer`](../tests/frontend/viewer/integration/viewer.spec.ts#L1076) | test | 1076 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
-| [`exits fullscreen and restores the embedded article layout`](../tests/frontend/viewer/integration/viewer.spec.ts#L1090) | test | 1090 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
-| [`inverts the rendered page through the Dark toggle and restores it`](../tests/frontend/viewer/integration/viewer.spec.ts#L1116) | test | 1116 | `test('inverts the rendered page through the Dark toggle and restores it', callback)` | inverts the rendered page through the Dark toggle and restores it |
-| [`keeps the inverted theme while entering and leaving fullscreen`](../tests/frontend/viewer/integration/viewer.spec.ts#L1136) | test | 1136 | `test('keeps the inverted theme while entering and leaving fullscreen', callback)` | keeps the inverted theme while entering and leaving fullscreen |
-| [`shows error for invalid API route`](../tests/frontend/viewer/integration/viewer.spec.ts#L1157) | test | 1157 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
-| [`shows error for invalid per_page value`](../tests/frontend/viewer/integration/viewer.spec.ts#L1165) | test | 1165 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
-| [`rejects SQL injection attempts in sort parameter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1172) | test | 1172 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
-| [`rejects invalid order parameter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1179) | test | 1179 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
-| [`rejects unknown query parameters`](../tests/frontend/viewer/integration/viewer.spec.ts#L1186) | test | 1186 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
-| [`returns 404 for nonexistent table`](../tests/frontend/viewer/integration/viewer.spec.ts#L1193) | test | 1193 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
-| [`handles article detail with nonexistent ID gracefully`](../tests/frontend/viewer/integration/viewer.spec.ts#L1200) | test | 1200 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
-| [`legacy view query parameters are rejected and the root renders Home`](../tests/frontend/viewer/integration/viewer.spec.ts#L1205) | test | 1205 | `test('legacy view query parameters are rejected and the root renders Home', callback)` | legacy view query parameters are rejected and the root renders Home |
-| [`renders on mobile viewport (375px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1219) | test | 1219 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
-| [`renders on tablet viewport (768px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1228) | test | 1228 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
-| [`renders on desktop viewport (1280px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1234) | test | 1234 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
-| [`respects prefers-color-scheme: dark`](../tests/frontend/viewer/integration/viewer.spec.ts#L1244) | test | 1244 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
-| [`respects prefers-color-scheme: light`](../tests/frontend/viewer/integration/viewer.spec.ts#L1255) | test | 1255 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
-| [`page loads and reloads leave focus at the start on every view`](../tests/frontend/viewer/integration/viewer.spec.ts#L1265) | test | 1265 | `test("page loads and reloads leave focus at the start on every view", callback)` | page loads and reloads leave focus at the start on every view |
-| [`the skip link moves focus to main content without rerendering the view`](../tests/frontend/viewer/integration/viewer.spec.ts#L1282) | test | 1282 | `test("the skip link moves focus to main content without rerendering the view", callback)` | the skip link moves focus to main content without rerendering the view |
-| [`page has a skip-to-content link`](../tests/frontend/viewer/integration/viewer.spec.ts#L1300) | test | 1300 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
-| [`main content area has a landmark role or id`](../tests/frontend/viewer/integration/viewer.spec.ts#L1306) | test | 1306 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
-| [`navigation is a landmark`](../tests/frontend/viewer/integration/viewer.spec.ts#L1312) | test | 1312 | `test('navigation is a landmark', callback)` | navigation is a landmark |
-| [`images have alt text`](../tests/frontend/viewer/integration/viewer.spec.ts#L1318) | test | 1318 | `test('images have alt text', callback)` | images have alt text |
-| [`selecting a search revision shows its plans`](../tests/frontend/viewer/integration/viewer.spec.ts#L1332) | test | 1332 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
-| [`viewing a failed run shows failure indicators`](../tests/frontend/viewer/integration/viewer.spec.ts#L1339) | test | 1339 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
-| [`uses an unlabeled, plain disclosure column`](../tests/frontend/viewer/integration/viewer.spec.ts#L1350) | test | 1350 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
-| [`toggle arrow expands a row showing property grid`](../tests/frontend/viewer/integration/viewer.spec.ts#L1358) | test | 1358 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
-| [`clicking anywhere on the row expands it`](../tests/frontend/viewer/integration/viewer.spec.ts#L1369) | test | 1369 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
-| [`clicking toggle again collapses the row`](../tests/frontend/viewer/integration/viewer.spec.ts#L1378) | test | 1378 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
-| [`toggle arrow and aria-expanded update on click`](../tests/frontend/viewer/integration/viewer.spec.ts#L1388) | test | 1388 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
-| [`multiple rows can be expanded simultaneously`](../tests/frontend/viewer/integration/viewer.spec.ts#L1402) | test | 1402 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
-| [`clicking close button hides the message`](../tests/frontend/viewer/integration/viewer.spec.ts#L1416) | test | 1416 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
-| [`mobile nav toggle shows and hides navigation links`](../tests/frontend/viewer/integration/viewer.spec.ts#L1437) | test | 1437 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
+| [`article detail shows an absent PDF without an open action`](../tests/frontend/viewer/integration/viewer.spec.ts#L985) | test | 985 | `test('article detail shows an absent PDF without an open action', callback)` | article detail shows an absent PDF without an open action |
+| [`article detail preserves the originating corpus state`](../tests/frontend/viewer/integration/viewer.spec.ts#L991) | test | 991 | `test('article detail preserves the originating corpus state', callback)` | article detail preserves the originating corpus state |
+| [`article detail shows authors and references`](../tests/frontend/viewer/integration/viewer.spec.ts#L1006) | test | 1006 | `test('article detail shows authors and references', callback)` | article detail shows authors and references |
+| [`author detail shows author information`](../tests/frontend/viewer/integration/viewer.spec.ts#L1014) | test | 1014 | `test('author detail shows author information', callback)` | author detail shows author information |
+| [`reference detail shows reference information`](../tests/frontend/viewer/integration/viewer.spec.ts#L1026) | test | 1026 | `test('reference detail shows reference information', callback)` | reference detail shows reference information |
+| [`enters fullscreen from the toolbar with the drawer expanded by default`](../tests/frontend/viewer/integration/viewer.spec.ts#L1045) | test | 1045 | `test('enters fullscreen from the toolbar with the drawer expanded by default', callback)` | enters fullscreen from the toolbar with the drawer expanded by default |
+| [`collapses and expands the review drawer through the edge control`](../tests/frontend/viewer/integration/viewer.spec.ts#L1060) | test | 1060 | `test('collapses and expands the review drawer through the edge control', callback)` | collapses and expands the review drawer through the edge control |
+| [`selecting PDF text expands a collapsed drawer`](../tests/frontend/viewer/integration/viewer.spec.ts#L1075) | test | 1075 | `test('selecting PDF text expands a collapsed drawer', callback)` | selecting PDF text expands a collapsed drawer |
+| [`exits fullscreen and restores the embedded article layout`](../tests/frontend/viewer/integration/viewer.spec.ts#L1089) | test | 1089 | `test('exits fullscreen and restores the embedded article layout', callback)` | exits fullscreen and restores the embedded article layout |
+| [`inverts the rendered page through the Dark toggle and restores it`](../tests/frontend/viewer/integration/viewer.spec.ts#L1115) | test | 1115 | `test('inverts the rendered page through the Dark toggle and restores it', callback)` | inverts the rendered page through the Dark toggle and restores it |
+| [`keeps the inverted theme while entering and leaving fullscreen`](../tests/frontend/viewer/integration/viewer.spec.ts#L1135) | test | 1135 | `test('keeps the inverted theme while entering and leaving fullscreen', callback)` | keeps the inverted theme while entering and leaving fullscreen |
+| [`shows error for invalid API route`](../tests/frontend/viewer/integration/viewer.spec.ts#L1156) | test | 1156 | `test('shows error for invalid API route', callback)` | shows error for invalid API route |
+| [`shows error for invalid per_page value`](../tests/frontend/viewer/integration/viewer.spec.ts#L1164) | test | 1164 | `test('shows error for invalid per_page value', callback)` | shows error for invalid per_page value |
+| [`rejects SQL injection attempts in sort parameter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1171) | test | 1171 | `test('rejects SQL injection attempts in sort parameter', callback)` | rejects SQL injection attempts in sort parameter |
+| [`rejects invalid order parameter`](../tests/frontend/viewer/integration/viewer.spec.ts#L1178) | test | 1178 | `test('rejects invalid order parameter', callback)` | rejects invalid order parameter |
+| [`rejects unknown query parameters`](../tests/frontend/viewer/integration/viewer.spec.ts#L1185) | test | 1185 | `test('rejects unknown query parameters', callback)` | rejects unknown query parameters |
+| [`returns 404 for nonexistent table`](../tests/frontend/viewer/integration/viewer.spec.ts#L1192) | test | 1192 | `test('returns 404 for nonexistent table', callback)` | returns 404 for nonexistent table |
+| [`handles article detail with nonexistent ID gracefully`](../tests/frontend/viewer/integration/viewer.spec.ts#L1199) | test | 1199 | `test('handles article detail with nonexistent ID gracefully', callback)` | handles article detail with nonexistent ID gracefully |
+| [`legacy view query parameters are rejected and the root renders Home`](../tests/frontend/viewer/integration/viewer.spec.ts#L1204) | test | 1204 | `test('legacy view query parameters are rejected and the root renders Home', callback)` | legacy view query parameters are rejected and the root renders Home |
+| [`renders on mobile viewport (375px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1218) | test | 1218 | `test('renders on mobile viewport (375px)', callback)` | renders on mobile viewport (375px) |
+| [`renders on tablet viewport (768px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1227) | test | 1227 | `test('renders on tablet viewport (768px)', callback)` | renders on tablet viewport (768px) |
+| [`renders on desktop viewport (1280px)`](../tests/frontend/viewer/integration/viewer.spec.ts#L1233) | test | 1233 | `test('renders on desktop viewport (1280px)', callback)` | renders on desktop viewport (1280px) |
+| [`respects prefers-color-scheme: dark`](../tests/frontend/viewer/integration/viewer.spec.ts#L1243) | test | 1243 | `test('respects prefers-color-scheme: dark', callback)` | respects prefers-color-scheme: dark |
+| [`respects prefers-color-scheme: light`](../tests/frontend/viewer/integration/viewer.spec.ts#L1254) | test | 1254 | `test('respects prefers-color-scheme: light', callback)` | respects prefers-color-scheme: light |
+| [`page loads and reloads leave focus at the start on every view`](../tests/frontend/viewer/integration/viewer.spec.ts#L1264) | test | 1264 | `test("page loads and reloads leave focus at the start on every view", callback)` | page loads and reloads leave focus at the start on every view |
+| [`the skip link moves focus to main content without rerendering the view`](../tests/frontend/viewer/integration/viewer.spec.ts#L1281) | test | 1281 | `test("the skip link moves focus to main content without rerendering the view", callback)` | the skip link moves focus to main content without rerendering the view |
+| [`page has a skip-to-content link`](../tests/frontend/viewer/integration/viewer.spec.ts#L1299) | test | 1299 | `test('page has a skip-to-content link', callback)` | page has a skip-to-content link |
+| [`main content area has a landmark role or id`](../tests/frontend/viewer/integration/viewer.spec.ts#L1305) | test | 1305 | `test('main content area has a landmark role or id', callback)` | main content area has a landmark role or id |
+| [`navigation is a landmark`](../tests/frontend/viewer/integration/viewer.spec.ts#L1311) | test | 1311 | `test('navigation is a landmark', callback)` | navigation is a landmark |
+| [`images have alt text`](../tests/frontend/viewer/integration/viewer.spec.ts#L1317) | test | 1317 | `test('images have alt text', callback)` | images have alt text |
+| [`selecting a search revision shows its plans`](../tests/frontend/viewer/integration/viewer.spec.ts#L1331) | test | 1331 | `test('selecting a search revision shows its plans', callback)` | selecting a search revision shows its plans |
+| [`viewing a failed run shows failure indicators`](../tests/frontend/viewer/integration/viewer.spec.ts#L1338) | test | 1338 | `test('viewing a failed run shows failure indicators', callback)` | viewing a failed run shows failure indicators |
+| [`uses an unlabeled, plain disclosure column`](../tests/frontend/viewer/integration/viewer.spec.ts#L1349) | test | 1349 | `test('uses an unlabeled, plain disclosure column', callback)` | uses an unlabeled, plain disclosure column |
+| [`toggle arrow expands a row showing property grid`](../tests/frontend/viewer/integration/viewer.spec.ts#L1357) | test | 1357 | `test('toggle arrow expands a row showing property grid', callback)` | toggle arrow expands a row showing property grid |
+| [`clicking anywhere on the row expands it`](../tests/frontend/viewer/integration/viewer.spec.ts#L1368) | test | 1368 | `test('clicking anywhere on the row expands it', callback)` | clicking anywhere on the row expands it |
+| [`clicking toggle again collapses the row`](../tests/frontend/viewer/integration/viewer.spec.ts#L1377) | test | 1377 | `test('clicking toggle again collapses the row', callback)` | clicking toggle again collapses the row |
+| [`toggle arrow and aria-expanded update on click`](../tests/frontend/viewer/integration/viewer.spec.ts#L1387) | test | 1387 | `test('toggle arrow and aria-expanded update on click', callback)` | toggle arrow and aria-expanded update on click |
+| [`multiple rows can be expanded simultaneously`](../tests/frontend/viewer/integration/viewer.spec.ts#L1401) | test | 1401 | `test('multiple rows can be expanded simultaneously', callback)` | multiple rows can be expanded simultaneously |
+| [`clicking close button hides the message`](../tests/frontend/viewer/integration/viewer.spec.ts#L1415) | test | 1415 | `test('clicking close button hides the message', callback)` | clicking close button hides the message |
+| [`mobile nav toggle shows and hides navigation links`](../tests/frontend/viewer/integration/viewer.spec.ts#L1436) | test | 1436 | `test('mobile nav toggle shows and hides navigation links', callback)` | mobile nav toggle shows and hides navigation links |
 
 ### [`tests/frontend/views/advanced/functional/advanced.test.ts`](../tests/frontend/views/advanced/functional/advanced.test.ts)
 

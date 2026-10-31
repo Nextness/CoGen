@@ -320,12 +320,16 @@ test.describe('isolated review mutation lifecycle', () => {
     await anchorRow.getByRole('button', { name: 'Remove' }).click();
     await expect(page.locator('.rw-anchor-history')).toContainText('deleted');
     const anchorHistoryItems = page.locator('.rw-anchor-history li');
-    const newestAnchorBox = await anchorHistoryItems.nth(0).boundingBox();
-    const previousAnchorBox = await anchorHistoryItems.nth(1).boundingBox();
-    expect(newestAnchorBox).not.toBeNull();
-    expect(previousAnchorBox).not.toBeNull();
-    if (!newestAnchorBox || !previousAnchorBox) throw new Error('Anchor history bounds are unavailable');
-    expect(previousAnchorBox.y - newestAnchorBox.y - newestAnchorBox.height).toBeGreaterThanOrEqual(8);
+    await expect(anchorHistoryItems).toHaveCount(2);
+    const anchorHistoryBoxes = await anchorHistoryItems.evaluateAll((items) => {
+      return items.map((item) => {
+        const bounds = item.getBoundingClientRect();
+        return { y: bounds.y, height: bounds.height };
+      });
+    });
+    expect(anchorHistoryBoxes[0].height).toBeGreaterThan(0);
+    expect(anchorHistoryBoxes[1].height).toBeGreaterThan(0);
+    expect(anchorHistoryBoxes[1].y - anchorHistoryBoxes[0].y - anchorHistoryBoxes[0].height).toBeGreaterThanOrEqual(8);
     await page.locator('.rw-anchor-history').getByRole('button', { name: 'Restore anchor' }).click();
     anchorRow = page.locator('[data-anchor-id]').filter({ hasText: anchorLabel });
     await expect(anchorRow).toBeVisible();

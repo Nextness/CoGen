@@ -193,3 +193,44 @@ func TestReviewExportRejectsOversizedText(t *testing.T) {
 		t.Fatalf("oversized text error=%v", err)
 	}
 }
+
+// TestReviewExportSnapshotKeepsOneHeadSet verifies concurrent note edits cannot
+// mix evidence inside one export snapshot.
+func TestReviewExportSnapshotKeepsOneHeadSet(t *testing.T) {
+	db, contextID, workID, revisionID := newExportFixture(t)
+	ctx := context.Background()
+	anchor := createExportAnchor(t, db, contextID, revisionID, "snapshot", exportTestHash)
+	note, err := db.Review.CreateNote(ctx, contextID, revisionID, "First body [[anchor:"+anchor.ID+"]].")
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := db.Review.BeginExportSnapshot(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snapshot.Close()
+	first, err := snapshot.Evidence(ctx, contextID, workID, exportTestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := db.Review.AppendNoteVersion(ctx, contextID, note.ID, note.Version.ID, "active", "Second body [[anchor:"+anchor.ID+"]]."); err != nil {
+		t.Fatal(err)
+	}
+	second, err := snapshot.Evidence(ctx, contextID, workID, exportTestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Notes) != 1 || len(second.Notes) != 1 || second.Notes[0].Body != first.Notes[0].Body {
+		t.Fatalf("snapshot mixed heads: first=%+v second=%+v", first.Notes, second.Notes)
+	}
+	if err := snapshot.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := db.Review.ExportEvidence(ctx, contextID, workID, exportTestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fresh.Notes) != 1 || !strings.Contains(fresh.Notes[0].Body, "Second body") {
+		t.Fatalf("fresh evidence=%+v", fresh.Notes)
+	}
+}

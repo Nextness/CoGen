@@ -19,9 +19,13 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 
+	"analysis/tests/support/go/pdffixture"
+
 	"analysis/backend/database/review"
 	"analysis/backend/pdfannotate"
+	"analysis/backend/pdfstore"
 	testhelpers "analysis/tests/support/go/backend/server"
+	"analysis/tests/support/go/testenv"
 )
 
 // newPDFCommentFixture creates one completed review context with a matching
@@ -302,4 +306,123 @@ func keysOf(files map[string][]byte) []string {
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+// TestPDFCommentExportRepeatedExportsDoNotAccumulate verifies each export starts from the stored original.
+func TestPDFCommentExportRepeatedExportsDoNotAccumulate(t *testing.T) {
+	fixture, _, _, _ := newPDFCommentFixture(t)
+	handler := fixture.Server.Handler()
+	status := pdfStatusForWork(t, handler, fixture.AvailableID)
+	path := fmt.Sprintf("/api/runs/%d/articles/%d/pdf-export", fixture.RunID, fixture.RevisionID)
+	body := map[string]any{"content_hash": status["content_hash"], "include_comments": true}
+	first := pdfExportRequest(t, handler, path, body)
+	second := pdfExportRequest(t, handler, path, body)
+	if first.Code != http.StatusOK || second.Code != http.StatusOK {
+		t.Fatalf("repeat export statuses=%d %d", first.Code, second.Code)
+	}
+	firstContents, _ := pdfAnnotationContents(t, first.Body.Bytes())
+	secondContents, _ := pdfAnnotationContents(t, second.Body.Bytes())
+	if len(firstContents) != 1 || len(secondContents) != 1 {
+		t.Fatalf("repeated export annotation counts=%d %d", len(firstContents), len(secondContents))
+	}
+	if !bytes.Equal(pdfBytes(t, handler, fixture.AvailableID), pdfBytes(t, handler, fixture.AvailableID)) {
+		t.Fatal("repeated export changed stored source bytes")
+	}
+	after := pdfStatusForWork(t, handler, fixture.AvailableID)
+	if after["content_hash"] != status["content_hash"] || after["change_counter"] != status["change_counter"] {
+		t.Fatal("repeated export changed PDF selection")
+	}
+}
+
+// TestPDFZIPCommentExportSpoolFailureWritesNoBinary verifies temporary-disk
+// failure is explicit and does not leak a partial archive.
+func TestPDFZIPCommentExportSpoolFailureWritesNoBinary(t *testing.T) {
+	fixture, _, _, _ := newPDFCommentFixture(t)
+	handler := fixture.Server.Handler()
+	status := pdfStatusForWork(t, handler, fixture.AvailableID)
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing-temp"))
+	body := map[string]any{
+		"articles":         []map[string]any{{"work_revision_id": fixture.RevisionID, "content_hash": status["content_hash"]}},
+		"include_comments": true,
+	}
+	recorder := pdfExportRequest(t, handler, fmt.Sprintf("/api/runs/%d/pdf-exports", fixture.RunID), body)
+	if recorder.Code != http.StatusInternalServerError || pdfExportErrorCode(t, recorder) != "pdf_export_storage_error" {
+		t.Fatalf("spool failure status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if strings.HasPrefix(recorder.Header().Get("Content-Type"), "application/zip") || strings.HasPrefix(recorder.Body.String(), "PK") {
+		t.Fatal("spool failure wrote a ZIP response")
+	}
+}
+
+// replaceFixturePDF stores replacement source bytes for the fixture work and
+// returns the new content hash.
+func replaceFixturePDF(t *testing.T, fixture testhelpers.PdfViewerFixture, data []byte) string {
+	t.Helper()
+	status := pdfStatusForWork(t, fixture.Server.Handler(), fixture.AvailableID)
+	counter, ok := status["change_counter"].(float64)
+	if !ok {
+		t.Fatalf("change counter=%v", status["change_counter"])
+	}
+	store, err := pdfstore.Open(filepath.Join(filepath.Dir(fixture.MetadataPath), "corpus.pdf.db"), testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	result, err := store.Save(context.Background(), pdfstore.SaveInput{
+		DOI: "10.1000/viewer-available", WorkID: fixture.AvailableID,
+		ExpectedChangeCounter: int64(counter), Data: data,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result.Document.ContentHash
+}
+
+// addMatchingCommentEvidence creates one active anchor and note for a source hash.
+func addMatchingCommentEvidence(t *testing.T, fixture testhelpers.PdfViewerFixture, hash string) {
+	t.Helper()
+	ctx := context.Background()
+	contextRecord, _, err := fixture.Server.Metadata.Review.CreateContext(ctx, fixture.RunID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	anchor, err := fixture.Server.Metadata.Review.CreateAnchor(ctx, contextRecord.ID, fixture.RevisionID, "protected-anchor", hash, 1, "Selected text", []review.AnchorRectangle{{X: 0.1, Y: 0.2, Width: 0.3, Height: 0.1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fixture.Server.Metadata.Review.CreateNote(ctx, contextRecord.ID, fixture.RevisionID, "Saved [[anchor:"+anchor.ID+"|anchor]]."); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestPDFCommentExportRejectsSignedSource verifies signatures are never invalidated.
+func TestPDFCommentExportRejectsSignedSource(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	fixture.Server.SetPDFAnnotationWorker(pdfannotate.NewWorkerAt(testhelpers.BuildAnalysisWorker(t)))
+	hash := replaceFixturePDF(t, fixture, pdffixture.SignedBytes("Signed source"))
+	addMatchingCommentEvidence(t, fixture, hash)
+	path := fmt.Sprintf("/api/runs/%d/articles/%d/pdf-export", fixture.RunID, fixture.RevisionID)
+	recorder := pdfExportRequest(t, fixture.Server.Handler(), path, map[string]any{"content_hash": hash, "include_comments": true})
+	if recorder.Code != http.StatusUnprocessableEntity || pdfExportErrorCode(t, recorder) != "pdf_signed" {
+		t.Fatalf("signed export status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+// TestPDFCommentExportRejectsProtectedSource verifies permissions are never bypassed.
+func TestPDFCommentExportRejectsProtectedSource(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	fixture.Server.SetPDFAnnotationWorker(pdfannotate.NewWorkerAt(testhelpers.BuildAnalysisWorker(t)))
+	conf := model.NewAESConfiguration("", "owner", 256)
+	conf.Permissions = model.PermissionsNone
+	var encrypted bytes.Buffer
+	if err := api.Encrypt(bytes.NewReader(pdffixture.Bytes("Protected source")), &encrypted, conf); err != nil {
+		t.Fatal(err)
+	}
+	hash := replaceFixturePDF(t, fixture, encrypted.Bytes())
+	addMatchingCommentEvidence(t, fixture, hash)
+	path := fmt.Sprintf("/api/runs/%d/articles/%d/pdf-export", fixture.RunID, fixture.RevisionID)
+	recorder := pdfExportRequest(t, fixture.Server.Handler(), path, map[string]any{"content_hash": hash, "include_comments": true})
+	if recorder.Code != http.StatusUnprocessableEntity || pdfExportErrorCode(t, recorder) != "pdf_protected" {
+		t.Fatalf("protected export status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
 }

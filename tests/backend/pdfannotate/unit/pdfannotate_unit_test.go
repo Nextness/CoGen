@@ -278,3 +278,20 @@ func TestAnnotateRejectsMissingPageAndGeometry(t *testing.T) {
 		t.Fatalf("overflow geometry error=%v", err)
 	}
 }
+
+// TestAnnotateRejectsProtectedAndSignedSources verifies transformation restrictions are not bypassed.
+func TestAnnotateRejectsProtectedAndSignedSources(t *testing.T) {
+	source := pdffixture.Bytes("Protected fixture")
+	conf := model.NewAESConfiguration("", "owner", 256)
+	conf.Permissions = model.PermissionsNone
+	var encrypted bytes.Buffer
+	if err := api.Encrypt(bytes.NewReader(source), &encrypted, conf); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := subject.Annotate(encrypted.Bytes(), []subject.Annotation{{Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "protected"}}); !errors.Is(err, subject.ErrProtectedPDF) {
+		t.Fatalf("protected source error=%v", err)
+	}
+	if _, err := subject.Annotate(pdffixture.SignedBytes("Signed fixture"), []subject.Annotation{{Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "signed"}}); !errors.Is(err, subject.ErrSignedPDF) {
+		t.Fatalf("signed source error=%v", err)
+	}
+}

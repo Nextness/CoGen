@@ -32,6 +32,24 @@ const (
 	maxWorkerStderrBytes = 64 * 1024
 )
 
+// Worker process exit codes distinguish stable generation failures.
+const (
+	// WorkerExitFailure is one unclassified worker failure.
+	WorkerExitFailure = 1
+	// WorkerExitUsage is one invalid worker invocation.
+	WorkerExitUsage = 2
+	// WorkerExitProtected is one encrypted or permission-restricted source.
+	WorkerExitProtected = 3
+	// WorkerExitSigned is one digitally signed source.
+	WorkerExitSigned = 4
+	// WorkerExitMissingPage is one annotation page outside the source.
+	WorkerExitMissingPage = 5
+	// WorkerExitInvalidGeometry is one unplaceable annotation rectangle.
+	WorkerExitInvalidGeometry = 6
+	// WorkerExitLimit is one bounded input or output limit.
+	WorkerExitLimit = 7
+)
+
 var (
 	// ErrLimit reports one bounded worker input or output limit.
 	ErrLimit = errors.New("PDF annotation limit exceeded")
@@ -131,6 +149,21 @@ func (w *Worker) Annotate(ctx context.Context, source []byte, annotations []Anno
 			return nil, fmt.Errorf("annotation worker stopped: %w", ctx.Err())
 		}
 		message := bytes.TrimSpace(stderr.Bytes())
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			switch exit.ExitCode() {
+			case WorkerExitProtected:
+				return nil, fmt.Errorf("%w: %s", ErrProtectedPDF, message)
+			case WorkerExitSigned:
+				return nil, fmt.Errorf("%w: %s", ErrSignedPDF, message)
+			case WorkerExitMissingPage:
+				return nil, fmt.Errorf("%w: %s", ErrMissingPage, message)
+			case WorkerExitInvalidGeometry:
+				return nil, fmt.Errorf("%w: %s", ErrInvalidGeometry, message)
+			case WorkerExitLimit:
+				return nil, fmt.Errorf("%w: %s", ErrLimit, message)
+			}
+		}
 		if len(message) != 0 {
 			return nil, fmt.Errorf("annotation worker failed: %w: %s", err, message)
 		}

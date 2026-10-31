@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -29,11 +30,11 @@ func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int {
 	}
 	if len(request.PDF) > pdfannotate.MaxPDFBytes {
 		fmt.Fprintf(stderr, "PDF exceeds %d bytes\n", pdfannotate.MaxPDFBytes)
-		return 1
+		return pdfannotate.WorkerExitLimit
 	}
 	if len(request.Annotations) > pdfannotate.MaxAnnotations {
 		fmt.Fprintf(stderr, "annotation count %d exceeds %d\n", len(request.Annotations), pdfannotate.MaxAnnotations)
-		return 1
+		return pdfannotate.WorkerExitLimit
 	}
 	var textBytes int
 	for _, annotation := range request.Annotations {
@@ -41,20 +42,38 @@ func pdfAnnotateMain(args []string, stdout, stderr io.Writer) int {
 	}
 	if textBytes > pdfannotate.MaxTextBytes {
 		fmt.Fprintf(stderr, "annotation text exceeds %d bytes\n", pdfannotate.MaxTextBytes)
-		return 1
+		return pdfannotate.WorkerExitLimit
 	}
 	output, err := pdfannotate.Annotate(request.PDF, request.Annotations)
 	if err != nil {
 		fmt.Fprintf(stderr, "annotate PDF: %v\n", err)
-		return 1
+		return pdfannotateWorkerExitCode(err)
 	}
 	if len(output) > pdfannotate.MaxOutputBytes {
 		fmt.Fprintf(stderr, "annotated PDF exceeds %d bytes\n", pdfannotate.MaxOutputBytes)
-		return 1
+		return pdfannotate.WorkerExitLimit
 	}
 	if _, err := stdout.Write(output); err != nil {
 		fmt.Fprintf(stderr, "write annotated PDF: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// pdfannotateWorkerExitCode maps one annotation failure to a stable worker exit code.
+func pdfannotateWorkerExitCode(err error) int {
+	switch {
+	case errors.Is(err, pdfannotate.ErrProtectedPDF):
+		return pdfannotate.WorkerExitProtected
+	case errors.Is(err, pdfannotate.ErrSignedPDF):
+		return pdfannotate.WorkerExitSigned
+	case errors.Is(err, pdfannotate.ErrMissingPage):
+		return pdfannotate.WorkerExitMissingPage
+	case errors.Is(err, pdfannotate.ErrInvalidGeometry):
+		return pdfannotate.WorkerExitInvalidGeometry
+	case errors.Is(err, pdfannotate.ErrLimit):
+		return pdfannotate.WorkerExitLimit
+	default:
+		return pdfannotate.WorkerExitFailure
+	}
 }
