@@ -1,21 +1,16 @@
--- Companion PDF store queries. Registration, insertion, inventory lookup,
--- blob reads, and outbox selection are typed; the cross-database delivery
--- protocol keeps its handwritten savepoints and metadata transaction.
+-- Companion PDF store queries. Registration, conditional save and removal,
+-- inventory lookup, blob reads, and outbox selection are typed; the
+-- cross-database delivery protocol keeps its handwritten savepoints and
+-- metadata transaction.
 
 -- name: GetPDFDocument :one
-SELECT doi, status, content_hash, inventoried_at, updated_at
+SELECT doi, status, content_hash, inventoried_at, updated_at, change_counter
 FROM pdf_documents
 WHERE doi = sqlc.arg(doi);
 
 -- name: InsertPDFDocument :execresult
 INSERT OR IGNORE INTO pdf_documents (doi, status, updated_at)
 VALUES (sqlc.arg(doi), 'not_available', sqlc.arg(updated_at));
-
--- name: GetPDFDocumentWithBlob :one
-SELECT d.status, d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-LEFT JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = sqlc.arg(doi);
 
 -- name: InsertPDFBlob :exec
 INSERT OR IGNORE INTO pdf_blobs (content_hash, byte_size, data, created_at)
@@ -31,30 +26,43 @@ UPDATE pdf_documents
 SET status = 'available',
     content_hash = sqlc.arg(content_hash),
     inventoried_at = sqlc.arg(inventoried_at),
-    updated_at = sqlc.arg(updated_at)
+    updated_at = sqlc.arg(updated_at),
+    change_counter = change_counter + 1
 WHERE doi = sqlc.arg(doi)
-  AND status = 'not_available';
+  AND change_counter = sqlc.arg(expected_counter)
+  AND status IN ('not_available', 'available');
 
--- name: GetAvailablePDFDocumentWithBlob :one
-SELECT d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = sqlc.arg(doi)
-  AND d.status = 'available';
+-- name: ClearPDFDocumentSelection :execresult
+UPDATE pdf_documents
+SET status = 'not_available',
+    content_hash = NULL,
+    inventoried_at = NULL,
+    updated_at = sqlc.arg(updated_at),
+    change_counter = change_counter + 1
+WHERE doi = sqlc.arg(doi)
+  AND change_counter = sqlc.arg(expected_counter)
+  AND status = 'available';
+
+-- name: DeletePDFBlobIfUnreferenced :execresult
+DELETE FROM pdf_blobs
+WHERE pdf_blobs.content_hash = sqlc.arg(content_hash)
+  AND NOT EXISTS (
+      SELECT 1 FROM pdf_documents WHERE pdf_documents.content_hash = sqlc.arg(content_hash)
+  );
 
 -- name: InsertPDFAuditOutboxEvent :exec
 INSERT INTO pdf_audit_outbox (
     event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 ) VALUES (
     sqlc.arg(event_key), sqlc.arg(occurred_at), sqlc.arg(actor), sqlc.arg(pipeline_run_id),
     sqlc.arg(entity_type), sqlc.arg(entity_id), sqlc.arg(action), sqlc.arg(metadata_json),
-    sqlc.arg(correlation_id)
+    sqlc.arg(correlation_id), sqlc.narg(before_json), sqlc.narg(after_json)
 );
 
 -- name: ListPendingPDFAuditEvents :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
 ORDER BY occurred_at, event_key
@@ -62,13 +70,18 @@ LIMIT sqlc.arg(batch_limit);
 
 -- name: ListPendingPDFAuditEventsAfter :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
   AND (occurred_at > sqlc.arg(after_occurred_at)
        OR (occurred_at = sqlc.arg(after_occurred_at) AND event_key > sqlc.arg(after_event_key)))
 ORDER BY occurred_at, event_key
 LIMIT sqlc.arg(batch_limit);
+
+-- name: CountPendingPDFAuditEvents :one
+SELECT COUNT(*)
+FROM pdf_audit_outbox
+WHERE delivered_at IS NULL;
 
 -- name: MarkPDFAuditEventsDelivered :execresult
 UPDATE pdf_audit_outbox
@@ -86,7 +99,7 @@ WHERE document.status='available'
 ORDER BY document.doi;
 
 -- name: ListAvailableDocumentInventory :many
-SELECT document.doi, document.inventoried_at
+SELECT document.doi, document.inventoried_at, document.content_hash, blob.byte_size
 FROM pdf_documents document
 JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
 WHERE document.status='available'
@@ -97,6 +110,7 @@ ORDER BY document.doi;
 SELECT
     d.content_hash,
     d.inventoried_at,
+    d.change_counter,
     b.byte_size
 FROM pdf_documents d
 JOIN pdf_blobs b ON b.content_hash=d.content_hash

@@ -971,9 +971,8 @@ test.describe('Detail views', () => {
   test('article detail opens the bound PDF without discarding research context', async ({ page, request }) => {
     await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Available|Inventoried/i);
-    const pdfLink = page.getByRole('link', { name: 'Download PDF' });
-    await expect(pdfLink).toHaveAttribute('href', '/api/pdf/1');
-    await expect(pdfLink).toHaveAttribute('download', '');
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
+    await expect(page.locator('[data-pdf-include-comments]')).toBeEnabled();
     const state = await viewerState(page);
     expect(state.search_id).toBe(SEARCH_DL);
     expect(state.run_id).toBe(RUN_1_COMPLETED);
@@ -986,7 +985,7 @@ test.describe('Detail views', () => {
   test('article detail shows an absent PDF without an open action', async ({ page }) => {
     await visit(page, contextState({ view: 'article', article_id: ARTICLE_2_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Not stored|No stored PDF/i);
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toHaveCount(0);
   });
 
   test('article detail preserves the originating corpus state', async ({ page }) => {

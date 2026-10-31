@@ -34,31 +34,61 @@ func OpenExistingWithDriver(dbPath, driverName string) (*Database, error) {
 
 // openExistingWithDriver contains the existing-only connection contract shared by the default and instrumented viewer drivers.
 func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
+	conn, absolute, err := openExistingSQLite(dbPath, driverName)
+	if err != nil {
+		return nil, err
+	}
+	d := New(conn)
+	d.dbPath = absolute
+	return d, nil
+}
+
+// OpenExistingConnection opens an existing SQLite database through the
+// platform's existing-only writable connection settings. It never creates the
+// file, changes journal mode, or applies migrations. The caller owns Close.
+func OpenExistingConnection(dbPath string) (*sql.DB, error) {
+	return OpenExistingConnectionWithDriver(dbPath, "sqlite")
+}
+
+// OpenExistingConnectionWithDriver opens an existing SQLite database through a
+// caller-provided registered driver with existing-only settings. It never
+// creates the file, changes journal mode, or applies migrations. The caller
+// owns Close.
+func OpenExistingConnectionWithDriver(dbPath, driverName string) (*sql.DB, error) {
+	conn, _, err := openExistingSQLite(dbPath, driverName)
+	return conn, err
+}
+
+// openExistingSQLite opens one existing-only SQLite connection and returns its absolute path.
+func openExistingSQLite(dbPath, driverName string) (*sql.DB, string, error) {
+	if strings.TrimSpace(driverName) == "" {
+		return nil, "", fmt.Errorf("database driver is required")
+	}
 	if strings.TrimSpace(dbPath) == "" {
-		return nil, fmt.Errorf("database path is required")
+		return nil, "", fmt.Errorf("database path is required")
 	}
 	info, err := os.Stat(dbPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("database does not exist")
+			return nil, "", fmt.Errorf("database does not exist")
 		}
-		return nil, fmt.Errorf("inspect database: %w", err)
+		return nil, "", fmt.Errorf("inspect database: %w", err)
 	}
 	if info.IsDir() {
-		return nil, fmt.Errorf("database path is a directory")
+		return nil, "", fmt.Errorf("database path is a directory")
 	}
 	absolute, err := filepath.Abs(dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("resolve database path: %w", err)
+		return nil, "", fmt.Errorf("resolve database path: %w", err)
 	}
 	uri := sqliteuri.File(absolute, map[string][]string{
 		"mode":    {"rw"},
 		"_txlock": {"immediate"},
-		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)"},
+		"_pragma": {"busy_timeout(5000)", "foreign_keys(1)", "secure_delete(1)"},
 	})
 	conn, err := sql.Open(driverName, uri)
 	if err != nil {
-		return nil, fmt.Errorf("open existing sqlite: %w", err)
+		return nil, "", fmt.Errorf("open existing sqlite: %w", err)
 	}
 	conn.SetMaxOpenConns(1)
 	conn.SetConnMaxLifetime(0)
@@ -66,18 +96,19 @@ func openExistingWithDriver(dbPath, driverName string) (*Database, error) {
 	defer cancel()
 	if err := conn.PingContext(ctx); err != nil {
 		_ = conn.Close()
-		return nil, fmt.Errorf("open existing sqlite: %w", err)
+		return nil, "", fmt.Errorf("open existing sqlite: %w", err)
 	}
-	d := New(conn)
-	d.dbPath = absolute
-	return d, nil
+	return conn, absolute, nil
 }
 
-// OpenConfigured opens a writable SQLite database, configures its connection
-// pool, and applies the migration chain selected from the database registry.
-// It is used by the metadata repositories and the independently owned PDF
-// store.
-func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error) {
+// OpenWritable opens or creates a SQLite database, creates its parent
+// directory, and configures the platform URI and pragmas without applying
+// migrations. The caller owns Close and must apply the selected migration
+// chain before normal use.
+func OpenWritable(dbPath string) (*sql.DB, error) {
+	if strings.TrimSpace(dbPath) == "" {
+		return nil, fmt.Errorf("database path is required")
+	}
 	dir := filepath.Dir(dbPath)
 	if dir != "" {
 		if err := os.MkdirAll(dir, 0755); err != nil {
@@ -119,6 +150,18 @@ func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error
 	}
 	lg.Debug("database pragma configuration successful",
 		"database_path", dbPath, "pragmas", len(pragmas))
+	return conn, nil
+}
+
+// OpenConfigured opens a writable SQLite database, configures its connection
+// pool, and applies the migration chain selected from the database registry.
+// It is used by the metadata repositories and the independently owned PDF
+// store.
+func OpenConfigured(dbPath, registryPath string, kind StoreKind) (*sql.DB, error) {
+	conn, err := OpenWritable(dbPath)
+	if err != nil {
+		return nil, err
+	}
 
 	migrationConfig, err := ResolveMigrationConfig(registryPath, kind)
 	if err != nil {

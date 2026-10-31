@@ -25,7 +25,7 @@ The module targets Go 1.25.0. Use standard Go formatting through `gofmt`, keep p
 - Wrap errors with useful operation context while preserving errors needed by `errors.Is` or `errors.As` callers.
 - Do not swallow errors, log sensitive values, or duplicate nullable, JSON, SQL, hashing, or validation helpers already owned by a package.
 - Close resources at the owning layer, propagate context cancellation, and keep goroutine shutdown and channel ownership deterministic.
-- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` is the only direct production Go dependency; the pinned sqlc generator is a development tool and never enters the module graph.
+- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` and the retained `github.com/pdfcpu/pdfcpu v0.15.0` dependency are the direct production Go dependencies; the pinned sqlc generator is a development tool and never enters the module graph. The pdfcpu dependency is Apache 2.0 licensed and remains isolated behind `backend/pdfannotate/`.
 - Run `gofmt` on changed Go files and use `make format-check` before completion.
 
 ## 4. Source documentation comments
@@ -84,7 +84,7 @@ Test counts are derived from source and are not maintained as prose. Use `rg -g 
 
 ## 9. SQLite, SQL, and generated-code standards
 
-- Use `database.Open` only for migration-running pipeline paths, `database.OpenExisting` for an existing metadata file that must not be migrated or created, and `server.Open` for the viewer's coordinated read, review-write, and read-only PDF lifecycle.
+- Use `backend/bundle/` preparation for paired schema upgrades, `database.OpenWritable` with `database.New` for the pipeline after preparation, `database.OpenExisting` for existing-only metadata operations, and `server.Open` for the viewer's coordinated metadata read, review-write, PDF evidence-read, and optional PDF write lifecycle.
 - Keep foreign keys enabled, retain connection busy timeouts, and preserve `BEGIN IMMEDIATE` migration serialization.
 - Use family-local nullable and JSON helpers and parameterized SQL; never construct value-bearing SQL through string concatenation.
 - Keep raw SQL calls inside classified ownership locations: platform migrations and connections, the viewer query-budget driver wrapper, dynamic table introspection, sanitized export maintenance, the cross-database outbox, or a retained `*_dynamic.go` reader. Dynamic SQL is an explicit exception rather than a default: prefer finite named query variants, and confine any retained builder to closed SQL fragments, bound values, allowlisted identifiers, and hard limits with injection and ordering tests. Run `make check-sql` after adding or moving a call; an unclassified call or a stale ownership entry fails with the file and the expected remediation, and `make sql-report` prints the current inventory.
@@ -110,6 +110,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Treat SOMETHING iteration order and filename as execution identity; `previous` and `upgrade` are descriptive rather than ordering inputs.
 - Use `supersedes` only when a migration was renamed after equivalent SQL was applied under the earlier filename; retain the historical row, record the canonical filename transactionally without rerunning SQL, and test both fresh and legacy upgrade paths.
 - Account for existing records, nullability, defaults, indexes, constraints, transaction behavior, runtime cost, and application versions that may overlap during deployment.
+- Coordinate metadata and PDF upgrades through `backend/bundle/` preparation, which validates both configured chains and migration inputs before changing either store, applies metadata then PDF, verifies both targets, and requires exclusive maintenance ownership; retain committed progress and resume forward instead of downgrading.
 - Preserve data and transactional integrity; destructive or irreversible transformations require explicit approval and documented rollout safeguards.
 - Run `make check-docs` so configured filenames, present SQL files, contiguous versions, and documented boundaries remain consistent.
 
@@ -128,6 +129,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 - Enforce the 20,000,000-byte limit, `%PDF-` signature, SHA-256 content identity, prior normalized registration, and unchanged selection for already available documents.
 - Keep metadata and companion paths bundle-relative and reject absolute or escaping bindings.
 - Write PDF audit evidence through the transactional outbox and preserve idempotent cross-database delivery.
+- Verify the companion V00003 document-management columns, content-hash index, outbox evidence columns, and protection triggers before enabling writes; a current-schema companion without write permission may still serve evidence with an explicit non-writable capability.
 - Do not add automatic acquisition, replacement, deletion, or filesystem compatibility without an approved requirement.
 - Keep review context, note, link, anchor, geometry, and reviewer data in metadata. The viewer may read PDF availability and bytes but never writes the companion for review behavior.
 - Bind anchor geometry to an exact work revision and PDF content hash, validate one-page finite normalized rectangles, and refuse to project geometry when the current content hash differs.
@@ -168,7 +170,7 @@ Frontend unit and functional tests live under `tests/frontend/<component>/{unit,
 - Unit tests cover state, rendering helpers, URL behavior, API behavior, components, routing, and views without a browser or server.
 - Browser tests use `*.spec.ts` under `tests/frontend/` and follow navigate, assert, interact, assert URL, assert content.
 - Playwright targets split each invocation into a read-only suite and a serial mutation suite, copy the ignored generated fixture metadata and PDF pair separately for each browser project and mutation spec, start an isolated viewer on an operating-system-assigned loopback port, and isolate output under `build/playwright/`. No browser test writes the base fixture.
-- `viewer.spec.ts` covers evidence browsing; serial `review.spec.ts` covers mutations and PDF rendering; serial `api-shapes.spec.ts` validates every consumed endpoint payload against the typed contracts; `ui-quality.spec.ts` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.ts` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
+- `viewer.spec.ts` covers evidence browsing; serial `review.spec.ts` covers review mutations and PDF rendering; serial `pdf-management.spec.ts` covers visible PDF upload, replacement, removal, single download, selected-set ZIP download and manifest inspection, failure, stale-tab, and draft-preservation behavior; serial `api-shapes.spec.ts` validates every consumed endpoint payload against the typed contracts; `ui-quality.spec.ts` covers accessibility, responsive behavior, and reviewed screenshots; `e2e.spec.ts` is guarded by `E2E_SPEC=1`, uses only a target-owned mutation database, and is run through `make test-e2e` before a Go database-evidence verifier.
 - Run `make test-frontend-unit` for frontend logic, `make test-go DOMAIN=backend COMPONENT=server` for served frontend or API integration, and the focused Playwright suite for browser behavior.
 - Run `make test-frontend-visual` for visual or accessibility changes and review snapshots rather than replacing them blindly.
 

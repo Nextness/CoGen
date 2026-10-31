@@ -4,6 +4,7 @@
 
 package pdfstore_test
 
+import subject "analysis/backend/pdfstore"
 import testhelpers "analysis/tests/support/go/backend/pdfstore"
 
 import (
@@ -29,7 +30,7 @@ func TestStoreViewerReadsReturnAvailableInventoryAndBlob(t *testing.T) {
 		if _, err := store.Register(ctx, item.doi, int64(index+1), 10); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Add(ctx, item.doi, int64(index+1), item.data); err != nil {
+		if _, err := store.Save(ctx, subject.SaveInput{DOI: item.doi, WorkID: int64(index + 1), ExpectedChangeCounter: 1, Data: item.data}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -79,7 +80,7 @@ func TestStoreInventoryForDOIsFiltersAvailableContent(t *testing.T) {
 		if _, err := store.Register(ctx, doi, int64(index+1), 10); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Add(ctx, doi, int64(index+1), []byte("%PDF-1.7\ncontent")); err != nil {
+		if _, err := store.Save(ctx, subject.SaveInput{DOI: doi, WorkID: int64(index + 1), ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\ncontent")}); err != nil {
 			t.Fatal(err)
 		}
 	}

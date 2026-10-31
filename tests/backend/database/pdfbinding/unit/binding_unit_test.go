@@ -135,3 +135,33 @@ func resolveBinding(t *testing.T, metadata, relative string) (string, error) {
 	defer db.Close()
 	return subject.New(db).ResolveBinding(context.Background(), metadata)
 }
+
+// TestResolveBoundPath verifies an existing binding is resolved without creating one.
+func TestResolveBoundPath(t *testing.T) {
+	metadataDir := t.TempDir()
+	metadataPath := filepath.Join(metadataDir, "corpus.metadata.db")
+	path, found, err := resolveBoundPath(t, metadataPath, "corpus.pdf.db")
+	if err != nil || !found || path != filepath.Join(metadataDir, "corpus.pdf.db") {
+		t.Fatalf("bound path = %q found=%v err=%v", path, found, err)
+	}
+	path, found, err = resolveBoundPath(t, metadataPath, "")
+	if err != nil || found || path != "" {
+		t.Fatalf("missing binding = %q found=%v err=%v", path, found, err)
+	}
+	if _, found, err := resolveBoundPath(t, metadataPath, "../escape.pdf.db"); err == nil || !found {
+		t.Fatalf("unsafe binding found=%v err=%v", found, err)
+	}
+}
+
+// resolveBoundPath supplies a controlled binding result to the public existing-only resolver.
+func resolveBoundPath(t *testing.T, metadata, relative string) (string, bool, error) {
+	t.Helper()
+	rows := &sqlprobe.Rows{Names: []string{"relative_path"}}
+	if relative != "" {
+		rows.Values = [][]driver.Value{{relative}}
+	}
+	d := &sqlprobe.Driver{Query: func(sqlprobe.Call) (driver.Rows, error) { return rows, nil }}
+	db := d.OpenDB()
+	defer db.Close()
+	return subject.New(db).ResolveBoundPath(context.Background(), metadata)
+}

@@ -42,7 +42,7 @@ All intentional executables are written beneath `build/`; routine work does not 
 
 | Output | Build target | Purpose |
 |---|---|---|
-| `build/analysis` | `make build` | Runs the pipeline, migrates an existing metadata database, or serves the loopback-only local review viewer. |
+| `build/analysis` | `make build` | Runs the pipeline, prepares both stores of an existing database bundle, serves the loopback-only local review viewer, or runs the internal PDF annotation worker. |
 | `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
 | `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
 | `build/pdf-export` | `make pdf-export` or `make tools` | Exports stored PDFs selected by DOI to filenames derived from their paper titles, opening both corpus databases read-only. |
@@ -67,6 +67,8 @@ All intentional executables are written beneath `build/`; routine work does not 
 `build/sqlc` is normally executed by `make sqlc-generate` or `make sqlc-check`; both targets pass `-f config/sqlc.yaml` from the repository root. Section 11 documents the generation workflow, maintained versus generated files, and common inference problems.
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` (currently `1.0.0`).
+
+`build/analysis pdf-annotate` is the internal worker mode used by comment-enabled exports and integration tests. It reads one bounded JSON request containing base64-encoded PDF bytes and application annotation data from standard input and writes annotated PDF bytes to standard output. It does not open databases or accept operator file paths. The worker maps normalized unrotated rectangles through actual page crop geometry, preserves existing pages, text, and annotations, rejects encrypted, permission-restricted, and signed sources, enforces request, PDF, annotation-count, annotation-text, and output byte bounds, and reports stable protected, signed, page, geometry, and limit exit codes. Callers run it in an isolated process group, enforce a timeout, and kill and reap the process on cancellation.
 
 ## 5. Pipeline execution
 
@@ -95,14 +97,14 @@ Provider `fields` restricts enrichment application and dependent lookups; an omi
 
 ## 6. Viewer operation and development
 
-Apply pending metadata migrations to an existing database before serving it:
+Prepare both the metadata and companion PDF stores for an existing database before serving it:
 
 ```sh
 make migrate DB=corpus.metadata.db
 ./build/analysis migrate --db ./corpus.metadata.db
 ```
 
-The migration command rejects a missing database and does not run a workspace. When a configured migration explicitly supersedes an equivalent earlier filename already recorded in the database, migration retains the earlier history row and records the canonical filename without rerunning the SQL; operators must not edit migration history manually. The viewer verifies required review tables and append-only triggers at startup but never migrates or repairs the database itself.
+The preparation command rejects a missing metadata database and does not run a workspace or create a research attempt. It applies metadata then PDF migrations, binds and initializes the default companion when no binding exists, rejects an existing binding whose file is missing or unsafe, reconciles normalized DOI inventory, and flushes pending PDF audit delivery. When a configured migration explicitly supersedes an equivalent earlier filename already recorded in the database, preparation retains the earlier history row and records the canonical filename without rerunning the SQL; operators must not edit migration history directly. The viewer verifies both configured schema targets, required review tables, append-only triggers, and companion protection contracts at startup but never migrates or repairs either database itself.
 
 Serve an existing metadata database with the assembled production assets:
 
@@ -119,7 +121,7 @@ make serve DB=corpus.metadata.db ASSETS_DIR=build/frontend/dist
 make dev
 ```
 
-`make dev` builds the frontend assets, generates the default fixture pair, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes only run-scoped review evidence to existing metadata, keeps pipeline evidence and the companion PDF database read-only, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `build/frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
+`make dev` builds the frontend assets, generates the default fixture pair, copies the ignored generated fixture metadata and PDF pair to a disposable directory, and serves that copy with the assembled assets on the default loopback address. The server writes bounded run-scoped review evidence and delivered PDF audit links to existing metadata, keeps pipeline evidence and PDF evidence reads read-only while preparing a separate existing-only companion write connection for validated PDF saves and removals, rejects non-loopback addresses, and rejects requests whose Host authority differs from the bound listener. Frontend work edits the TypeScript sources under `frontend/src`, runs `make frontend-build` to assemble `build/frontend/dist`, and serves that directory; `make check-frontend` verifies CSS class-registry freshness, validates statically visible class uses, and type-checks the sources, while unit tests import them directly without a build step.
 
 When a frontend change adds or removes a CSS selector, update the owning stylesheet and use the supported registry targets:
 
@@ -144,9 +146,17 @@ make pdf-store
 
 The DOI must already have a normalized work revision and registered inventory row. The tool enforces the 20,000,000-byte limit and PDF signature, content-addresses identical bytes, changes the inventory state to `available`, records `inventoried_at`, and delivers the manual audit event. Re-adding an available DOI leaves its selected bytes unchanged.
 
+The serving API exposes the same conditional storage contract for one exact selected-run normalized revision. `PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf` requires `application/pdf`, a strong `If-Match` mutation ETag, positive `X-PDF-Size`, lowercase `X-PDF-SHA256`, and at most 20,000,000 complete bytes; `DELETE` requires the same ETag and an empty body. Resolve the ETag and storage capability from `GET /api/works/{work_id}/pdf-status`. Embedded readers append the selected lowercase `content_hash` to `/api/pdf/{work_id}` so stale ranges fail with `pdf_changed`; anchor writes send the same `pdf_content_hash` and are serialized against replacement/removal by a companion write reservation. Upload routes use a 60-second body deadline and admit at most two retained bodies; stale, truncated, oversized, digest-mismatched, or invalid-signature requests leave the prior selection and bytes unchanged. A committed mutation whose response is lost must be reconciled from the status endpoint before retrying.
+
 Treat `corpus.metadata.db` and its bound `corpus.pdf.db` as one portable bundle. Stop writers for a simple file copy or use SQLite backup facilities for coordinated online backup. The Makefile `database-backup` target copies both configured database filenames to `../backup_databases/` and assumes that destination already exists.
 
-Export existing PDF bytes by DOI without changing either database:
+### Download and export PDFs in the viewer
+
+Article detail provides Download PDF for the current validated selection. Corpus articles provide an explicit current-page selection capped at 20 rows, selected and unavailable counts, and Download selected PDFs. Both surfaces show an Include comments control that defaults off. Off returns untouched original bytes and performs no comment lookup. On uses only the selected run's already initialized review context and the exact selected source hash, embeds current active matching highlights and complete linked saved note bodies as standard annotations, and returns a separate derived copy with an annotated filename, separate source and output hashes, and a visible comment count or explicit no-matching result. Excluded tombstones, drafts, other contexts or works, page-only and general notes, and mixed or unresolved PDF references are reported rather than guessed; no review context is initialized by export. Annotated derivatives are generated once, validated, retained in private temporary spools until emission, and cleaned on every exit. The browser owns the destination and filename-conflict behavior; the viewer prepares a completed response and reports that a download was prepared or started, not that a file was saved.
+
+`POST /api/runs/{run_id}/articles/{work_revision_id}/pdf-export` accepts one bounded JSON body with the expected lowercase source `content_hash` and optional `include_comments` defaulting to false. It returns validated original bytes as `application/pdf` with an attachment disposition and an export correlation header, or a structured `pdf_changed` conflict when the selected bytes no longer match. `POST /api/runs/{run_id}/pdf-exports` accepts up to 20 unique selected-run revisions with expected hashes and returns a stored-entry ZIP containing readable PDF names plus `export-manifest.json`. The manifest records requested, included, and skipped counts and per-file included or skipped reasons; valid files remain when other selections are unavailable, changed, or corrupt. The server rejects outside-run selectors, all-failed output, more than 20 unique revisions, more than 100,000,000 aggregate PDF bytes, and a manifest over 1,000,000 bytes before binary headers. Both routes use a pinned companion read snapshot, a 60-second export deadline, at most two active export responses, and at most one ZIP response. When comments are requested they also use one bounded review read snapshot for the ZIP, derive at most 200 annotations and 2,000,000 bytes of annotation text per PDF, cap a derived PDF at 25,000,000 bytes and aggregate final ZIP PDF bytes at 100,000,000, and fail explicitly instead of truncating saved prose. They write one work-scoped `pdf_document_export_prepared` metadata audit event per included PDF through one metadata batch before headers and do not write the PDF outbox or change PDF selection, counters, review heads, or drafts. Audit after-state records the toggle, context, bounded immutable version identifiers and counts, exclusions, and actual source and output hashes without note prose, quotations, or reviewer email. Downloads do not require a writable PDF companion or initialized review context, and comment-enabled downloads never initialize review.
+
+The standalone command remains available for existing operator workflows and is scheduled for retirement after application coverage is complete:
 
 ```sh
 make pdf-export
@@ -302,6 +312,7 @@ make test-frontend
 make test-frontend-all
 make test-frontend BROWSER=chromium WORKERS=4 TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-all WORKERS=1 TEST_FILE=tests/frontend/viewer/integration/review.spec.ts
+make test-frontend-all WORKERS=1 TEST_FILE=tests/frontend/viewer/integration/pdf-management.spec.ts
 make test-frontend-headed BROWSER=chromium
 make test-frontend-debug BROWSER=chromium TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts
 make test-frontend-visual
@@ -315,7 +326,7 @@ Each invocation writes unique output under `build/playwright/run-*/` and prints 
 make frontend-report REPORT_DIR=build/playwright/run-<id>/report
 ```
 
-`WORKERS` controls Playwright worker count (one in CI, eight locally unless overridden). Use a smaller explicit value when running alongside other CPU-intensive checks. Read-oriented specs may run in parallel. Each browser project and mutation spec receives a fresh fixture pair; `review.spec.ts` and the HTTP contract spec run serially within their own isolated copies. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
+`WORKERS` controls Playwright worker count (one in CI, eight locally unless overridden). Use a smaller explicit value when running alongside other CPU-intensive checks. Read-oriented specs may run in parallel. Each browser project and mutation spec receives a fresh fixture pair; `review.spec.ts`, `pdf-management.spec.ts`, and the HTTP contract spec run serially within their own isolated copies. An E2E caller may set `PLAYWRIGHT_MUTATION_DB` only to a target-owned path under `build/e2e/` or `build/playwright/` so the post-browser database verifier can inspect the mutation evidence.
 
 The quality suite launches Linux Chromium with [tests/support/fonts/fonts.conf](../tests/support/fonts/fonts.conf), which limits font discovery to committed assets: the existing PDF.js Liberation Sans faces, Liberation Mono 2.1.5 for machine values, and DejaVu Sans 2.37 for symbol fallback. The additional font fixtures and their licenses live under `tests/support/fonts/`. This fixes DOM and canvas typography across Linux distributions so local screenshot baselines also match CI. Review screenshot changes before accepting them; after preparing the binary, frontend assets, and fixture pair, regenerate the Chromium baselines with:
 

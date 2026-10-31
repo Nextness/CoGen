@@ -66,8 +66,11 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
   const sortableColumns = new Set(context.sortFields || columns);
   const expandFields = context.expandableFields || [];
   const hasExpand = expandFields.length > 0;
+  const selection = context.selection;
+  const hasSelection = Boolean(selection);
   var colCount = columns.length;
   if (hasExpand) colCount += 1;
+  if (hasSelection) colCount += 1;
   const rowKey = context.rowKey || "id";
   const expandedRows = new Set(String(value(keys.expanded) || "").split(",").filter(Boolean));
   const columnConfig = context.columnConfig || {};
@@ -82,6 +85,16 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
       const initiallyExpanded = expandedRows.has(key);
       const detailID = `table-row-detail-${String(props.tableName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${idx}`;
       const expandedValue = String(initiallyExpanded);
+      var selectionCell: JSX.Element | null = null;
+      if (selection) {
+        const selectable = selection.isSelectable ? selection.isSelectable(row) : true;
+        const rowLabel = selection.rowLabel ? selection.rowLabel(row) : key;
+        selectionCell = (
+          <td className="selection-cell">
+            <input type="checkbox" checked={selection.selected.has(key)} disabled={!selectable} data-select-row={key} aria-label={`${selection.label} ${rowLabel}`} />
+          </td>
+        );
+      }
       var toggleCell: JSX.Element | null = null;
       if (hasExpand) {
         var toggleTitle = "Show row details";
@@ -135,6 +148,7 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
       return (
         <Fragment>
           <tr className={rowClasses} data-row-key={key}>
+            {selectionCell}
             {toggleCell}
             {cells}
           </tr>
@@ -150,6 +164,21 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
     expandAttr["data-expanded-param"] = keys.expanded;
   }
 
+  var selectionHeader: JSX.Element | null = null;
+  if (selection) {
+    const selectableKeys = rows.map((row, idx) => {
+      return { row: row, key: String(row[rowKey] ?? idx) };
+    }).filter((item) => {
+      return selection.isSelectable ? selection.isSelectable(item.row) : true;
+    }).map((item) => item.key);
+    const allSelected = selectableKeys.length > 0 && selectableKeys.every((key) => selection.selected.has(key));
+    const someSelected = selectableKeys.some((key) => selection.selected.has(key));
+    selectionHeader = (
+      <th className="selection-cell">
+        <input type="checkbox" checked={allSelected} data-select-all data-select-indeterminate={String(someSelected && !allSelected)} aria-label={selection.ariaLabel || selection.label} />
+      </th>
+    );
+  }
   var toggleHeader: JSX.Element | null = null;
   if (hasExpand) {
     toggleHeader = <th className="toggle-cell" aria-hidden="true"></th>;
@@ -201,6 +230,7 @@ export function DataTable(props: { tableName: string; result: TabularResponse; c
         <table className={tableClasses} aria-label={`${props.tableName} results`}>
           <thead>
             <tr>
+              {selectionHeader}
               {toggleHeader}
               {headerCells}
             </tr>

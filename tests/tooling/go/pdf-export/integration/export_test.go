@@ -74,7 +74,7 @@ func exportCorpus(t *testing.T) (string, string, []byte) {
 			t.Fatal(err)
 		}
 		if paper.available {
-			if _, err := companion.Add(ctx, paper.doi, id, data); err != nil {
+			if _, err := companion.Save(ctx, pdfstore.SaveInput{DOI: paper.doi, WorkID: id, ExpectedChangeCounter: 1, Data: data}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -178,7 +178,7 @@ func TestExportRejectsCorruptContent(t *testing.T) {
 	if _, err := conn.Exec("INSERT INTO pdf_blobs(content_hash,byte_size,data,created_at) VALUES (?,?,?,datetime('now'))", hash, len(data), data); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := conn.Exec("UPDATE pdf_documents SET content_hash=? WHERE doi='10.1000/one'", hash); err != nil {
+	if _, err := conn.Exec("UPDATE pdf_documents SET content_hash=?, change_counter=change_counter+1 WHERE doi='10.1000/one'", hash); err != nil {
 		t.Fatal(err)
 	}
 	out := t.TempDir()

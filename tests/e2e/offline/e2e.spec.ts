@@ -147,13 +147,17 @@ test('A2 inherits immutable A1 review heads and diverges without changing A1', a
   const a1ContextResponse = await request.post(`/api/runs/${a1Run.id}/review-context`, { data: { parent_context_id: null } });
   expect(a1ContextResponse.status()).toBe(201);
   const a1Context = (await a1ContextResponse.json()).context;
+  const a1DetailResponse = await request.get(`/api/articles/${a1Revision}`, { params: { run_id: a1Run.id } });
+  expect(a1DetailResponse.ok()).toBeTruthy();
+  const a1PDFHash = (await a1DetailResponse.json()).pdf_status.content_hash;
+  expect(typeof a1PDFHash).toBe('string');
   const a1ReviewResponse = await request.put(`/api/runs/${a1Run.id}/articles/${a1Revision}/review`, { data: { expected_version_id: null, status: 'approved', sub_statuses: [], reason: 'A1 approved evidence' } });
   expect(a1ReviewResponse.ok()).toBeTruthy();
   const a1Review = (await a1ReviewResponse.json()).review;
   const noteResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/notes`, { data: { body: 'A1 future link [[note:2|target note]].' } });
   expect(noteResponse.status()).toBe(201);
   const a1Note = (await noteResponse.json()).note;
-  const anchorResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/anchors`, { data: { label: 'e2e-methods', page: 1, selected_text: 'Selectable E2E methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }] } });
+  const anchorResponse = await request.post(`/api/runs/${a1Run.id}/articles/${a1Revision}/anchors`, { data: { label: 'e2e-methods', page: 1, selected_text: 'Selectable E2E methods', rectangles: [{ x: 0.1, y: 0.1, width: 0.4, height: 0.08 }], pdf_content_hash: a1PDFHash } });
   expect(anchorResponse.status()).toBe(201);
 
   const a2ContextResponse = await request.post(`/api/runs/${a2Run.id}/review-context`, { data: { parent_context_id: a1Context.id } });

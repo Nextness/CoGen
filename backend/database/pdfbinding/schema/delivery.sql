@@ -16,10 +16,11 @@ WHERE id = sqlc.arg(id);
 -- name: InsertPDFMetadataAuditEvent :execresult
 INSERT INTO audit_events (
     occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, before_json, after_json, metadata_json, correlation_id
 ) VALUES (
     sqlc.arg(occurred_at), sqlc.arg(actor), sqlc.arg(pipeline_run_id), sqlc.arg(entity_type),
-    sqlc.arg(entity_id), sqlc.arg(action), sqlc.arg(metadata_json), sqlc.arg(correlation_id)
+    sqlc.arg(entity_id), sqlc.arg(action), sqlc.narg(before_json), sqlc.narg(after_json),
+    sqlc.arg(metadata_json), sqlc.arg(correlation_id)
 );
 
 -- name: InsertPDFAuditLink :exec

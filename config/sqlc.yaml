@@ -155,6 +155,7 @@ sql:
       - "../backend/database/review/schema/note.sql"
       - "../backend/database/review/schema/anchor.sql"
       - "../backend/database/review/schema/relationships.sql"
+      - "../backend/database/review/schema/export.sql"
       - "../backend/database/review/schema/audit.sql"
     gen:
       go:

@@ -177,6 +177,10 @@ function eventSummary(event: AuditEventRecord, metadata: WireRecord, before: Wir
   const check_pdf_inventory = action.startsWith("pdf_inventory");
   if (check_pdf_inventory) return "The PDF inventory state was recorded for this work.";
 
+  if (action === "pdf_document_inventoried") return "A validated PDF was added to the companion store.";
+  if (action === "pdf_document_replaced") return "The selected PDF was replaced with validated bytes.";
+  if (action === "pdf_document_removed") return "The selected PDF was removed; the inventory registration remains.";
+  if (action === "pdf_document_export_prepared") return "Validated PDF bytes were prepared for an explicit download. The browser may still ask where to save the file.";
   const check_pdf_document = action.startsWith("pdf_document");
   if (check_pdf_document) return "A validated PDF document was recorded in the companion store.";
 

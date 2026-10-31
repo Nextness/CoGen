@@ -27,6 +27,8 @@ CREATE TABLE audit_events (
     entity_type     TEXT NOT NULL,
     entity_id       TEXT NOT NULL,
     action          TEXT NOT NULL,
+    before_json     TEXT,
+    after_json      TEXT,
     metadata_json   TEXT,
     correlation_id  TEXT
 );

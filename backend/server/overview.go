@@ -119,21 +119,56 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	if pdfBound {
 		pdfReadable = s.pdfDB.PingContext(ctx) == nil
 	}
+	pdfWritable := pdfBound && pdfReadable && s.pdfWritable
+	pdfWriteReason := s.pdfWriteReason
+	if pdfBound && !pdfReadable && pdfWriteReason == "" {
+		pdfWriteReason = "PDF store is not readable"
+	}
+	pdfAuditPending := 0
+	if s.pdfStore != nil {
+		if count, err := s.pdfStore.PendingAuditCount(ctx); err == nil {
+			pdfAuditPending = count
+		}
+	}
+	s.auditRelayMu.Lock()
+	auditRelayRunning := s.auditRelayCancel != nil
+	auditRelayError := s.auditRelayError
+	s.auditRelayMu.Unlock()
 	s.respond(w, r, map[string]any{
-		"readable":           metadataReadable,
-		"metadata_readable":  metadataReadable,
-		"table_count":        len(s.tables),
-		"tables":             s.tableNames(),
-		"corpus_id":          corpusID,
-		"review_writable":    reviewWritable,
-		"pdf_store_bound":    pdfBound,
-		"pdf_store_readable": pdfReadable,
+		"readable":                metadataReadable,
+		"metadata_readable":       metadataReadable,
+		"table_count":             len(s.tables),
+		"tables":                  s.tableNames(),
+		"corpus_id":               corpusID,
+		"review_writable":         reviewWritable,
+		"pdf_store_bound":         pdfBound,
+		"pdf_store_readable":      pdfReadable,
+		"pdf_store_writable":      pdfWritable,
+		"pdf_store_write_reason":  pdfWriteReason,
+		"pdf_audit_pending":       pdfAuditPending,
+		"pdf_audit_relay_running": auditRelayRunning,
+		"pdf_audit_relay_error":   auditRelayError,
+		"schema": map[string]any{
+			"metadata": map[string]any{
+				"actual": s.metadataActual,
+				"target": s.metadataTarget,
+				"ready":  s.metadataReady,
+			},
+			"pdf": map[string]any{
+				"actual": s.pdfActual,
+				"target": s.pdfTarget,
+				"ready":  s.pdfReady,
+			},
+			"ready": s.schemaReady,
+		},
 		"review": map[string]any{
-			"available":           reviewWritable,
-			"metadata_writable":   reviewWritable,
-			"pdf_store_bound":     pdfBound,
-			"pdf_store_readable":  pdfReadable,
-			"pdf_store_read_only": pdfBound && pdfReadable,
+			"available":              reviewWritable,
+			"metadata_writable":      reviewWritable,
+			"pdf_store_bound":        pdfBound,
+			"pdf_store_readable":     pdfReadable,
+			"pdf_store_writable":     pdfWritable,
+			"pdf_store_write_reason": pdfWriteReason,
+			"pdf_store_read_only":    pdfBound && pdfReadable && !pdfWritable,
 		},
 	}, metadataErr)
 }

@@ -80,6 +80,12 @@ func (s *Server) articleDetail(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, err)
 		return
 	}
+	runRecord, err := s.loadReviewRun(ctx, runID)
+	if err != nil {
+		s.respond(w, r, nil, err)
+		return
+	}
+	pdfStatus = s.pdfStatusForArticle(runRecord, workID, pdfStatus)
 	reviewContext, err := s.writeDB.Review.GetContextByRun(ctx, runID)
 	if err != nil {
 		s.respond(w, r, nil, err)

@@ -47,10 +47,11 @@ func (q *Queries) InsertPDFAuditLink(ctx context.Context, arg InsertPDFAuditLink
 const insertPDFMetadataAuditEvent = `-- name: InsertPDFMetadataAuditEvent :execresult
 INSERT INTO audit_events (
     occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, before_json, after_json, metadata_json, correlation_id
 ) VALUES (
     ?1, ?2, ?3, ?4,
-    ?5, ?6, ?7, ?8
+    ?5, ?6, ?7, ?8,
+    ?9, ?10
 )
 `
 
@@ -61,6 +62,8 @@ type InsertPDFMetadataAuditEventParams struct {
 	EntityType    string
 	EntityID      string
 	Action        string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 	MetadataJson  sql.NullString
 	CorrelationID sql.NullString
 }
@@ -73,6 +76,8 @@ func (q *Queries) InsertPDFMetadataAuditEvent(ctx context.Context, arg InsertPDF
 		arg.EntityType,
 		arg.EntityID,
 		arg.Action,
+		arg.BeforeJson,
+		arg.AfterJson,
 		arg.MetadataJson,
 		arg.CorrelationID,
 	)

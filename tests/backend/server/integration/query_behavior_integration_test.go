@@ -71,7 +71,7 @@ func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 			{"audit recorded data", "/api/audit/1/recorded-data?run_id=" + run, 2},
 			{"table discovery", "/api/tables", 0},
 			{"table rows", "/api/tables/work_revisions", 2},
-			{"article detail", "/api/articles/" + revision + "?run_id=" + run, 14},
+			{"article detail", "/api/articles/" + revision + "?run_id=" + run, 15},
 			{"article authors", "/api/articles/" + revision + "/collections/authors?run_id=" + run, 3},
 			{"author detail", "/api/authors/1?run_id=" + run, 7},
 			{"author articles", "/api/authors/1/collections/articles?run_id=" + run, 3},
@@ -91,13 +91,13 @@ func TestAPIQueryCountsMatchRouteBudgets(t *testing.T) {
 		assertAPIQueryCounts(t, fixture.Server.Handler(), []apiQueryCountCase{
 			{"review context", "/api/runs/" + run + "/review-context", 2},
 			{"review context candidates", "/api/runs/" + run + "/review-context-candidates?scope=same_search", 2},
-			{"article review", "/api/runs/" + run + "/articles/" + revision + "/review", 9},
+			{"article review", "/api/runs/" + run + "/articles/" + revision + "/review", 10},
 			{"review versions", "/api/runs/" + run + "/articles/" + revision + "/review/versions", 3},
 			{"article notes", "/api/runs/" + run + "/articles/" + revision + "/notes", 3},
 			{"run notes", "/api/runs/" + run + "/notes", 3},
 			{"article anchors", "/api/runs/" + run + "/articles/" + revision + "/anchors", 3},
 			{"backlinks", "/api/runs/" + run + "/links/backlinks?target_type=article&target_id=10.1000/viewer-available", 3},
-			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", 2},
+			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", 3},
 		})
 	})
 }
@@ -285,7 +285,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 		path string
 		keys []string
 	}{
-		{"health", "/api/health", []string{"corpus_id", "metadata_readable", "pdf_store_bound", "pdf_store_readable", "readable", "review", "review_writable", "table_count", "tables"}},
+		{"health", "/api/health", []string{"corpus_id", "metadata_readable", "pdf_audit_pending", "pdf_audit_relay_error", "pdf_audit_relay_running", "pdf_store_bound", "pdf_store_readable", "pdf_store_writable", "pdf_store_write_reason", "readable", "review", "review_writable", "schema", "table_count", "tables"}},
 		{"hierarchy summary", "/api/hierarchy", []string{"latest_run", "totals", "version"}},
 		{"hierarchy runs", "/api/hierarchy?section=runs", []string{"has_more", "items", "limit", "next_cursor", "version"}},
 		{"hierarchy searches", "/api/hierarchy?section=searches", []string{"has_more", "items", "limit", "next_cursor", "version"}},
@@ -318,7 +318,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 		{"author articles", "/api/authors/1/collections/articles?run_id=" + run, []string{"has_more", "items", "limit", "next_cursor", "total"}},
 		{"reference detail", "/api/references/" + mention + "?run_id=" + run, []string{"reference"}},
 		{"graph", "/api/graph?run_id=" + run + "&mode=article_author", []string{"counts", "edges", "filters", "limits", "nodes", "truncated", "truncation_reason"}},
-		{"work PDF status", "/api/works/1/pdf-status", []string{"doi", "eligible", "status", "store_bound", "work_id"}},
+		{"work PDF status", "/api/works/1/pdf-status", []string{"change_counter", "doi", "eligible", "max_upload_bytes", "mutation_etag", "registered", "status", "storage_reason", "storage_writable", "store_bound", "work_id"}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -351,7 +351,7 @@ func TestAPIResponseShapesMatchFrontendFixtures(t *testing.T) {
 			{"run notes", "/api/runs/" + pdfRun + "/notes", []string{"has_more", "items", "limit", "next_cursor", "notes"}},
 			{"article anchors", "/api/runs/" + pdfRun + "/articles/" + pdfRevision + "/anchors", []string{"anchors", "has_more", "items", "limit", "next_cursor"}},
 			{"backlinks", "/api/runs/" + pdfRun + "/links/backlinks?target_type=article&target_id=10.1000/viewer-available", []string{"backlinks", "has_more", "items", "limit", "next_cursor"}},
-			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", []string{"byte_size", "content_hash", "doi", "eligible", "inventoried_at", "status", "store_bound", "work_id"}},
+			{"work PDF status", "/api/works/" + fmt.Sprint(fixture.AvailableID) + "/pdf-status", []string{"byte_size", "change_counter", "content_hash", "doi", "eligible", "inventoried_at", "max_upload_bytes", "mutation_etag", "registered", "status", "storage_reason", "storage_writable", "store_bound", "work_id"}},
 		}
 		for _, test := range pdfCases {
 			t.Run(test.name, func(t *testing.T) {

@@ -26,6 +26,7 @@ import (
 func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
 	handler := fixture.Server.Handler()
+	pdfHash := pdfStatusForWork(t, handler, fixture.AvailableID)["content_hash"].(string)
 	var pdfRowsBefore int
 	if err := fixture.Server.PDF.QueryRow("SELECT COUNT(*) FROM pdf_documents").Scan(&pdfRowsBefore); err != nil {
 		t.Fatal(err)
@@ -63,7 +64,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 	if status != http.StatusCreated || pdfLessNote["note"] == nil {
 		t.Fatalf("PDF-less note: status=%d body=%v", status, pdfLessNote)
 	}
-	status, pdfLessAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.NotAvailableRevisionID), `{"label":"no-pdf","page":1,"selected_text":"Unavailable","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}]}`, "")
+	status, pdfLessAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.NotAvailableRevisionID), fmt.Sprintf(`{"label":"no-pdf","page":1,"selected_text":"Unavailable","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, pdfHash), "")
 	if status != http.StatusConflict || pdfLessAnchor["error"].(map[string]any)["code"] != "pdf_unavailable" {
 		t.Fatalf("PDF-less anchor: status=%d body=%v", status, pdfLessAnchor)
 	}
@@ -139,7 +140,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 		t.Fatalf("delete note: status=%d body=%v", status, deletedNote)
 	}
 
-	status, anchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), `{"label":"methods-1","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}]}`, "")
+	status, anchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), fmt.Sprintf(`{"label":"methods-1","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, pdfHash), "")
 	if status != http.StatusCreated || anchor["anchor"] == nil {
 		t.Fatalf("create anchor: status=%d body=%v", status, anchor)
 	}
@@ -148,7 +149,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 		t.Fatalf("generated anchor identity: %v", anchor["anchor"])
 	}
 	anchorVersionID := int64(anchor["anchor"].(map[string]any)["version"].(map[string]any)["id"].(float64))
-	status, duplicateAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), `{"label":"methods-1","page":1,"selected_text":"Duplicate","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}]}`, "")
+	status, duplicateAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), fmt.Sprintf(`{"label":"methods-1","page":1,"selected_text":"Duplicate","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, pdfHash), "")
 	if status != http.StatusConflict || duplicateAnchor["error"].(map[string]any)["code"] != "anchor_label_conflict" {
 		t.Fatalf("duplicate anchor label: status=%d body=%v", status, duplicateAnchor)
 	}
@@ -160,7 +161,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 			t.Fatalf("GET %s: status=%d body=%v", path, status, body)
 		}
 	}
-	status, unchangedAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}]}`, anchorVersionID), "")
+	status, unchangedAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, anchorVersionID, pdfHash), "")
 	if status != http.StatusOK || unchangedAnchor["changed"] != false {
 		t.Fatalf("unchanged anchor: status=%d body=%v", status, unchangedAnchor)
 	}
@@ -169,7 +170,7 @@ func TestReviewAPIInitializesAndMutatesMetadataOnly(t *testing.T) {
 		t.Fatalf("delete anchor: status=%d body=%v", status, deletedAnchor)
 	}
 	deletedAnchorVersionID := int64(deletedAnchor["anchor"].(map[string]any)["version"].(map[string]any)["id"].(float64))
-	status, restoredAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","restore_from_version_id":%d,"page":0,"selected_text":"","rectangles":[]}`, deletedAnchorVersionID, anchorVersionID), "")
+	status, restoredAnchor := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","restore_from_version_id":%d,"page":0,"selected_text":"","rectangles":[],"pdf_content_hash":"%s"}`, deletedAnchorVersionID, anchorVersionID, pdfHash), "")
 	if status != http.StatusCreated || restoredAnchor["changed"] != true {
 		t.Fatalf("restore anchor: status=%d body=%v", status, restoredAnchor)
 	}
@@ -383,11 +384,12 @@ func traverseReviewCollection(t *testing.T, handler http.Handler, path, key stri
 func TestAnchorRestoreRejectsChangedPDFContent(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
 	handler := fixture.Server.Handler()
+	pdfHash := pdfStatusForWork(t, handler, fixture.AvailableID)["content_hash"].(string)
 	status, _ := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/review-context", fixture.RunID), `{"parent_context_id":null}`, "")
 	if status != http.StatusCreated {
 		t.Fatalf("create context status=%d", status)
 	}
-	status, body := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), `{"label":"restore-check","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}]}`, "")
+	status, body := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/articles/%d/anchors", fixture.RunID, fixture.RevisionID), fmt.Sprintf(`{"label":"restore-check","page":1,"selected_text":"Methods","rectangles":[{"x":0.1,"y":0.2,"width":0.3,"height":0.1}],"pdf_content_hash":"%s"}`, pdfHash), "")
 	if status != http.StatusCreated {
 		t.Fatalf("create anchor: status=%d body=%v", status, body)
 	}
@@ -406,13 +408,13 @@ func TestAnchorRestoreRejectsChangedPDFContent(t *testing.T) {
 	}
 	replacementHash := strings.Repeat("f", 64)
 	if _, err := store.DB.Exec(`INSERT INTO pdf_blobs (content_hash, byte_size, data, created_at) VALUES (?, 1, x'25', '2024-01-01T00:00:00Z');
-		UPDATE pdf_documents SET content_hash=?, updated_at='2024-01-01T00:00:00Z' WHERE doi='10.1000/viewer-available'`, replacementHash, replacementHash); err != nil {
+		UPDATE pdf_documents SET content_hash=?, change_counter=change_counter+1, updated_at='2024-01-01T00:00:00Z' WHERE doi='10.1000/viewer-available'`, replacementHash, replacementHash); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	status, mismatch := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","restore_from_version_id":%d,"page":0,"selected_text":"","rectangles":[]}`, deletedVersionID, activeVersionID), "")
+	status, mismatch := mutationJSON(t, handler, http.MethodPost, fmt.Sprintf("/api/runs/%d/anchors/%s/versions", fixture.RunID, anchorID), fmt.Sprintf(`{"expected_version_id":%d,"state":"active","restore_from_version_id":%d,"page":0,"selected_text":"","rectangles":[],"pdf_content_hash":"%s"}`, deletedVersionID, activeVersionID, replacementHash), "")
 	if status != http.StatusConflict || mismatch["error"].(map[string]any)["code"] != "anchor_pdf_changed" {
 		t.Fatalf("changed PDF restore: status=%d body=%v", status, mismatch)
 	}

@@ -107,6 +107,16 @@ func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := db.PDFBindings.EnsureBinding(ctx, pdfbinding.DefaultStoreFilename); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := prepared.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	registered, flushed, err := pdfsync.Sync(ctx, db.Database, dbPath, registry)
 	if err != nil {

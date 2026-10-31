@@ -91,6 +91,28 @@ func (s *Store) ResolveBinding(ctx context.Context, metadataPath string) (string
 	return resolveStorePath(metadataPath, relativePath)
 }
 
+// ResolveBoundPath resolves an already recorded companion path relative to the
+// metadata database without creating a binding. A missing binding reports
+// found=false.
+func (s *Store) ResolveBoundPath(ctx context.Context, metadataPath string) (string, bool, error) {
+	relativePath, found, err := s.Binding(ctx)
+	if err != nil || !found {
+		return "", found, err
+	}
+	resolvedPath, err := resolveStorePath(metadataPath, relativePath)
+	if err != nil {
+		return "", true, err
+	}
+	return resolvedPath, true, nil
+}
+
+// ResolveStorePath resolves one companion path relative to the metadata
+// database, rejecting absolute paths, traversal, symbolic-link escapes, and the
+// metadata file itself.
+func ResolveStorePath(metadataPath, relativePath string) (string, error) {
+	return resolveStorePath(metadataPath, relativePath)
+}
+
 // BeginTx starts one metadata transaction for a delivered-event batch.
 func (s *Store) BeginTx(ctx context.Context) (*sql.Tx, error) {
 	return s.db.BeginTx(ctx, nil)

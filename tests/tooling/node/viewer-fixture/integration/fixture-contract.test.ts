@@ -28,7 +28,7 @@ function createFixturePair(directory: string, contractVersion = viewerFixtureCon
   const pdf = new DatabaseSync(pdfPath);
   pdf.exec(`
     CREATE TABLE schema_migrations (filename TEXT NOT NULL);
-    INSERT INTO schema_migrations VALUES ('V00002_normalized_inventory.sql');
+    INSERT INTO schema_migrations VALUES ('V00003_pdf_document_management.sql');
     CREATE TABLE pdf_documents (doi TEXT NOT NULL, status TEXT NOT NULL);
     INSERT INTO pdf_documents VALUES ('10.1000/1', 'available');
     PRAGMA user_version=${contractVersion};

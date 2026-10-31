@@ -5,6 +5,7 @@
 package workspace
 
 import (
+	"analysis/backend/bundle"
 	"analysis/backend/workspace/enrichment"
 	"analysis/backend/workspace/normalizer"
 	"analysis/backend/workspace/pdfsync"
@@ -58,17 +59,31 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return err
 	}
 	defer lock.Close()
-	db, err := database.Open(dbPath, databaseRegistryPath())
+	registryPath := databaseRegistryPath()
+	prepared, err := bundle.PrepareResolved(ctx, registryPath, dbPath)
+	if err != nil {
+		return fmt.Errorf("prepare database bundle: %w", err)
+	}
+	maintenance, err := database.AcquireMaintenanceLock(ctx, dbPath, database.MaintenanceShared)
+	if err != nil {
+		return fmt.Errorf("acquire shared maintenance ownership: %w", err)
+	}
+	defer maintenance.Close()
+	if _, err := bundle.VerifyReadiness(ctx, registryPath, prepared.Resolved); err != nil {
+		return fmt.Errorf("verify bundle readiness: %w", err)
+	}
+	conn, err := database.OpenWritable(dbPath)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
 	}
+	db := database.New(conn)
 	defer db.Close()
 	runID, err := StartWorkspaceAttemptContext(ctx, db, originalConfig, run, fresh)
 	if err != nil {
 		return err
 	}
 	if runID == 0 {
-		if _, _, err := pdfsync.Sync(ctx, db, dbPath, databaseRegistryPath()); err != nil {
+		if _, _, err := pdfsync.Sync(ctx, db, dbPath, registryPath); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
 		termindex.BestEffort(ctx, db)
@@ -321,7 +336,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := termindex.Persist(ctx, db, runID, termsBySource, termMatches); err != nil {
 		return err
 	}
-	registered, auditEventsFlushed, err := pdfsync.Sync(ctx, db, dbPath, databaseRegistryPath())
+	registered, auditEventsFlushed, err := pdfsync.Sync(ctx, db, dbPath, registryPath)
 	if err != nil {
 		return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 	}
