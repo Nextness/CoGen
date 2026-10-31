@@ -576,6 +576,24 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`reviewLifecycle`](../backend/database/review/errors.go#L75) | function | 75 | `func reviewLifecycle(message string) error` | reviewLifecycle reports a valid request rejected by immutable run lifecycle. |
 | [`IsConflict`](../backend/database/review/errors.go#L78) | function | 78-81 | `func IsConflict(err error) bool` | IsConflict reports whether an error is an optimistic head conflict. |
 
+### [`backend/database/review/export.go`](../backend/database/review/export.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ExportLimitError`](../backend/database/review/export.go#L39) | struct | 39-43 | `type ExportLimitError struct { Kind string Count int Limit int }` | ExportLimitError identifies one bounded comment-export limit that was exceeded. |
+| [`(*ExportLimitError).Error`](../backend/database/review/export.go#L46) | method | 46-48 | `func (*ExportLimitError).Error() string` | Error returns the bounded export-limit diagnostic. |
+| [`(*ExportLimitError).Unwrap`](../backend/database/review/export.go#L51) | method | 51 | `func (*ExportLimitError).Unwrap() error` | Unwrap exposes the shared export-limit sentinel. |
+| [`ExportAnchor`](../backend/database/review/export.go#L54) | struct | 54-64 | ``type ExportAnchor struct { ID string `json:"id"` Label string `json:"label"` VersionID int64 `json:"version_id"` WorkRevisionID int64 `json:"work_revision_id"` Page int `json:"page"` SelectedText string `json:"selected_text"` Rectangles []AnchorRectangle `json:"rectangles"` ReviewerDisplay string `json:"reviewer_display"` CreatedAt string `json:"created_at"` }`` | ExportAnchor is one immutable active anchor snapshot eligible for PDF output. |
+| [`ExportNote`](../backend/database/review/export.go#L67) | struct | 67-75 | ``type ExportNote struct { ID int64 `json:"id"` VersionID int64 `json:"version_id"` WorkRevisionID int64 `json:"work_revision_id"` Body string `json:"body"` AnchorIDs []string `json:"anchor_ids"` ReviewerDisplay string `json:"reviewer_display"` CreatedAt string `json:"created_at"` }`` | ExportNote is one immutable active note snapshot with its matching anchor references. |
+| [`ExportExclusion`](../backend/database/review/export.go#L78) | struct | 78-82 | ``type ExportExclusion struct { Kind string `json:"kind"` Reason string `json:"reason"` Count int `json:"count"` }`` | ExportExclusion aggregates excluded saved evidence by kind and reason. |
+| [`ExportEvidence`](../backend/database/review/export.go#L85) | struct | 85-94 | ``type ExportEvidence struct { ContextID int64 `json:"context_id"` WorkID int64 `json:"work_id"` PDFContentHash string `json:"pdf_content_hash"` Anchors []ExportAnchor `json:"anchors"` Notes []ExportNote `json:"notes"` Exclusions []ExportExclusion `json:"exclusions"` ExcludedAnchors int `json:"excluded_anchors"` ExcludedNotes int `json:"excluded_notes"` }`` | ExportEvidence is one bounded immutable snapshot of matching saved comment evidence. |
+| [`(*Store).ExportEvidence`](../backend/database/review/export.go#L102) | method | 102-203 | `func (*Store).ExportEvidence(ctx context.Context, contextID, workID int64, pdfContentHash string) (*ExportEvidence, error)` | ExportEvidence reads bounded current active note and anchor heads for one selected context/work and exact source hash. It includes inherited heads, excludes tombstones, drafts, other contexts/works, page-only/general notes, and notes mixing matching and mismatched PDF references, and reports aggregated exclusions. The read transaction closes before the caller writes export audit or derives output bytes. |
+| [`exportAnchors`](../backend/database/review/export.go#L206) | function | 206-232 | `func exportAnchors(rows []generated.ListReviewExportAnchorsRow) ([]ExportAnchor, map[string]int, error)` | exportAnchors maps matching anchor rows and their stored normalized geometry. |
+| [`exportNotes`](../backend/database/review/export.go#L235) | function | 235-290 | `func exportNotes(rows []generated.ListReviewExportNotesRow, linksByVersion map[int64][]generated.ListReviewExportNoteLinksRow, anchorIndex map[string]int) ([]ExportNote, int, map[string]int)` | exportNotes resolves saved notes whose PDF references all match eligible anchors. |
+| [`enforceExportTextLimit`](../backend/database/review/export.go#L293) | function | 293-313 | `func enforceExportTextLimit(evidence *ExportEvidence) error` | enforceExportTextLimit rejects output whose repeated note prose and anchor labels exceed the bound. |
+| [`sortedExportExclusions`](../backend/database/review/export.go#L316) | function | 316-333 | `func sortedExportExclusions(reasons map[string]int) []ExportExclusion` | sortedExportExclusions returns deterministic aggregated exclusion evidence. |
+| [`validExportContentHash`](../backend/database/review/export.go#L336) | function | 336-342 | `func validExportContentHash(value string) bool` | validExportContentHash requires one lowercase SHA-256 source identity. |
+
 ### [`backend/database/review/note.go`](../backend/database/review/note.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -3272,6 +3290,19 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`TestReviewDecisionCopyOnWriteLineage`](../tests/backend/database/review/integration/decision_integration_test.go#L15) | test | 15-58 | `func TestReviewDecisionCopyOnWriteLineage(t *testing.T)` | TestReviewDecisionCopyOnWriteLineage verifies inherited decisions, stale conflicts, and stable parent heads. |
 | [`TestReviewDecisionValidationAndNoOp`](../tests/backend/database/review/integration/decision_integration_test.go#L61) | test | 61-75 | `func TestReviewDecisionValidationAndNoOp(t *testing.T)` | TestReviewDecisionValidationAndNoOp verifies default no-op saves and vocabulary compatibility. |
+
+### [`tests/backend/database/review/integration/export_integration_test.go`](../tests/backend/database/review/integration/export_integration_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`createExportAnchor`](../tests/backend/database/review/integration/export_integration_test.go#L23) | function | 23-30 | `func createExportAnchor(t *testing.T, db *testfixture.Database, contextID, revisionID int64, label, hash string) *review.Anchor` | createExportAnchor creates one active anchor with normalized geometry. |
+| [`exportWorkID`](../tests/backend/database/review/integration/export_integration_test.go#L33) | function | 33-40 | `func exportWorkID(t *testing.T, db *testfixture.Database, revisionID int64) int64` | exportWorkID reads the stable work identity behind one normalized revision. |
+| [`newExportFixture`](../tests/backend/database/review/integration/export_integration_test.go#L43) | function | 43-51 | `func newExportFixture(t *testing.T) (*testfixture.Database, int64, int64, int64)` | newExportFixture opens one completed review context with a valid work revision. |
+| [`TestReviewExportSelectsMatchingActiveHeads`](../tests/backend/database/review/integration/export_integration_test.go#L54) | test | 54-79 | `func TestReviewExportSelectsMatchingActiveHeads(t *testing.T)` | TestReviewExportSelectsMatchingActiveHeads verifies matching anchors and full note bodies are selected. |
+| [`TestReviewExportIncludesInheritedHeads`](../tests/backend/database/review/integration/export_integration_test.go#L82) | test | 82-111 | `func TestReviewExportIncludesInheritedHeads(t *testing.T)` | TestReviewExportIncludesInheritedHeads verifies inherited active heads remain selectable. |
+| [`TestReviewExportExcludesIneligibleEvidence`](../tests/backend/database/review/integration/export_integration_test.go#L115) | test | 115-159 | `func TestReviewExportExcludesIneligibleEvidence(t *testing.T)` | TestReviewExportExcludesIneligibleEvidence verifies tombstones, page-only, general, and mixed-reference notes are excluded with reported reasons. |
+| [`TestReviewExportRejectsMissingContextAndOverflow`](../tests/backend/database/review/integration/export_integration_test.go#L162) | test | 162-179 | `func TestReviewExportRejectsMissingContextAndOverflow(t *testing.T)` | TestReviewExportRejectsMissingContextAndOverflow verifies explicit empty and limit behavior. |
+| [`TestReviewExportRejectsOversizedText`](../tests/backend/database/review/integration/export_integration_test.go#L182) | test | 182-195 | `func TestReviewExportRejectsOversizedText(t *testing.T)` | TestReviewExportRejectsOversizedText verifies full prose is never silently truncated. |
 
 ### [`tests/backend/database/review/integration/filters_integration_test.go`](../tests/backend/database/review/integration/filters_integration_test.go)
 
