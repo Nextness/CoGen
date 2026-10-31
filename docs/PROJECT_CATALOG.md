@@ -5371,25 +5371,26 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`E2ERepositoryRoot`](../tests/support/go/e2eflow/flow.go#L107) | function | 107-116 | `func E2ERepositoryRoot(t *testing.T) string` | E2ERepositoryRoot resolves the repository root from the centralized test environment. |
 | [`prepareE2EOutput`](../tests/support/go/e2eflow/flow.go#L119) | function | 119-137 | `func prepareE2EOutput(t *testing.T, root, variant string) string` | prepareE2EOutput recreates one known target-owned variant directory under build/e2e. |
 | [`writeE2EConfig`](../tests/support/go/e2eflow/flow.go#L140) | function | 140-203 | `func writeE2EConfig(t *testing.T, root, outputDir string, mode Mode) string` | writeE2EConfig writes a typed workspace configuration and its relative include. |
-| [`PrepareE2EReviewRuns`](../tests/support/go/e2eflow/flow.go#L206) | function | 206-232 | `func PrepareE2EReviewRuns(t *testing.T, root string, result Result)` | PrepareE2EReviewRuns inventories a valid PDF through the supported tool and creates A2 as a fresh overlapping run. |
-| [`e2eProviderConfig`](../tests/support/go/e2eflow/flow.go#L235) | function | 235-272 | `func e2eProviderConfig(mode Mode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
-| [`validateE2EConfig`](../tests/support/go/e2eflow/flow.go#L275) | function | 275-282 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
-| [`E2EOfflineEnvironment`](../tests/support/go/e2eflow/flow.go#L285) | function | 285-306 | `func E2EOfflineEnvironment(providerURL string) []string` | E2EOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
-| [`(*ProviderMock).ServeHTTP`](../tests/support/go/e2eflow/flow.go#L309) | method | 309-336 | `func (*ProviderMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
-| [`(*ProviderMock).AssertRequests`](../tests/support/go/e2eflow/flow.go#L339) | method | 339-356 | `func (*ProviderMock).AssertRequests(t *testing.T)` | AssertRequests verifies all expected provider families were exercised through loopback. |
-| [`assertE2EDatabases`](../tests/support/go/e2eflow/flow.go#L359) | function | 359-434 | `func assertE2EDatabases(t *testing.T, root, DBPath string, mode Mode) Result` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
-| [`e2eRawCount`](../tests/support/go/e2eflow/flow.go#L437) | function | 437-443 | `func e2eRawCount(Sources []Source) int` | e2eRawCount returns the total declared fixture record count. |
-| [`AssertE2ECount`](../tests/support/go/e2eflow/flow.go#L446) | function | 446-459 | `func AssertE2ECount(t *testing.T, db *testfixture.Database, table, where string, argument any, want int)` | AssertE2ECount checks an exact table row count using one optional query argument. |
-| [`assertE2EAtLeast`](../tests/support/go/e2eflow/flow.go#L462) | function | 462-475 | `func assertE2EAtLeast(t *testing.T, db *testfixture.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
-| [`assertE2EPDFCount`](../tests/support/go/e2eflow/flow.go#L478) | function | 478-484 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
-| [`e2ENormalizedWorks`](../tests/support/go/e2eflow/flow.go#L487) | function | 487-510 | `func e2ENormalizedWorks(t *testing.T, db *testfixture.Database, RunID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
-| [`assertE2EAuditOrder`](../tests/support/go/e2eflow/flow.go#L513) | function | 513-545 | `func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
-| [`AssertE2EAPI`](../tests/support/go/e2eflow/flow.go#L548) | function | 548-592 | `func AssertE2EAPI(t *testing.T, result Result)` | AssertE2EAPI compares read-only HTTP responses with the database assertions. |
-| [`requestE2EAuditActions`](../tests/support/go/e2eflow/flow.go#L595) | function | 595-620 | `func requestE2EAuditActions(t *testing.T, handler http.Handler, RunID int64) map[string]bool` | requestE2EAuditActions traverses the bounded canonical audit route for one generated run. |
-| [`requestE2EJSON`](../tests/support/go/e2eflow/flow.go#L623) | function | 623-636 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
-| [`nestedE2EID`](../tests/support/go/e2eflow/flow.go#L639) | function | 639-662 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
-| [`mustE2EJSON`](../tests/support/go/e2eflow/flow.go#L665) | function | 665-672 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
-| [`equalE2EStrings`](../tests/support/go/e2eflow/flow.go#L675) | function | 675-681 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
+| [`PrepareE2EReviewRuns`](../tests/support/go/e2eflow/flow.go#L206) | function | 206-224 | `func PrepareE2EReviewRuns(t *testing.T, root string, result Result)` | PrepareE2EReviewRuns stores one deterministic PDF through the companion API and creates A2 as a fresh overlapping run. |
+| [`prepareE2EReviewPDF`](../tests/support/go/e2eflow/flow.go#L227) | function | 227-273 | `func prepareE2EReviewPDF(t *testing.T, metadataPath, doi string, data []byte)` | prepareE2EReviewPDF stores one deterministic PDF through the companion store API. |
+| [`e2eProviderConfig`](../tests/support/go/e2eflow/flow.go#L276) | function | 276-313 | `func e2eProviderConfig(mode Mode) string` | e2eProviderConfig returns concrete local or live provider declarations. |
+| [`validateE2EConfig`](../tests/support/go/e2eflow/flow.go#L316) | function | 316-323 | `func validateE2EConfig(t *testing.T, root, configPath string)` | validateE2EConfig evaluates the generated configuration through the maintained tool. |
+| [`E2EOfflineEnvironment`](../tests/support/go/e2eflow/flow.go#L326) | function | 326-347 | `func E2EOfflineEnvironment(providerURL string) []string` | E2EOfflineEnvironment blocks accidental non-loopback provider traffic from the pipeline subprocess. |
+| [`(*ProviderMock).ServeHTTP`](../tests/support/go/e2eflow/flow.go#L350) | method | 350-377 | `func (*ProviderMock).ServeHTTP(w http.ResponseWriter, r *http.Request)` | ServeHTTP returns deterministic provider envelopes for every supported enrichment path. |
+| [`(*ProviderMock).AssertRequests`](../tests/support/go/e2eflow/flow.go#L380) | method | 380-397 | `func (*ProviderMock).AssertRequests(t *testing.T)` | AssertRequests verifies all expected provider families were exercised through loopback. |
+| [`assertE2EDatabases`](../tests/support/go/e2eflow/flow.go#L400) | function | 400-475 | `func assertE2EDatabases(t *testing.T, root, DBPath string, mode Mode) Result` | assertE2EDatabases validates persisted pipeline, audit, cache, and PDF evidence. |
+| [`e2eRawCount`](../tests/support/go/e2eflow/flow.go#L478) | function | 478-484 | `func e2eRawCount(Sources []Source) int` | e2eRawCount returns the total declared fixture record count. |
+| [`AssertE2ECount`](../tests/support/go/e2eflow/flow.go#L487) | function | 487-500 | `func AssertE2ECount(t *testing.T, db *testfixture.Database, table, where string, argument any, want int)` | AssertE2ECount checks an exact table row count using one optional query argument. |
+| [`assertE2EAtLeast`](../tests/support/go/e2eflow/flow.go#L503) | function | 503-516 | `func assertE2EAtLeast(t *testing.T, db *testfixture.Database, table, where string, argument any, minimum int)` | assertE2EAtLeast checks a minimum table row count using one optional query argument. |
+| [`assertE2EPDFCount`](../tests/support/go/e2eflow/flow.go#L519) | function | 519-525 | `func assertE2EPDFCount(t *testing.T, store *pdfstore.Store, table, where string, want int)` | assertE2EPDFCount checks an exact row count in the companion PDF store. |
+| [`e2ENormalizedWorks`](../tests/support/go/e2eflow/flow.go#L528) | function | 528-551 | `func e2ENormalizedWorks(t *testing.T, db *testfixture.Database, RunID int64) ([]string, map[string]int64)` | e2ENormalizedWorks returns sorted normalized titles and their stable work IDs. |
+| [`assertE2EAuditOrder`](../tests/support/go/e2eflow/flow.go#L554) | function | 554-586 | `func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64)` | assertE2EAuditOrder verifies the pipeline's cross-database terminal event order. |
+| [`AssertE2EAPI`](../tests/support/go/e2eflow/flow.go#L589) | function | 589-633 | `func AssertE2EAPI(t *testing.T, result Result)` | AssertE2EAPI compares read-only HTTP responses with the database assertions. |
+| [`requestE2EAuditActions`](../tests/support/go/e2eflow/flow.go#L636) | function | 636-661 | `func requestE2EAuditActions(t *testing.T, handler http.Handler, RunID int64) map[string]bool` | requestE2EAuditActions traverses the bounded canonical audit route for one generated run. |
+| [`requestE2EJSON`](../tests/support/go/e2eflow/flow.go#L664) | function | 664-677 | `func requestE2EJSON(t *testing.T, handler http.Handler, path string) map[string]any` | requestE2EJSON invokes one read-only viewer route and decodes its object response. |
+| [`nestedE2EID`](../tests/support/go/e2eflow/flow.go#L680) | function | 680-703 | `func nestedE2EID(t *testing.T, payload map[string]any, collection, nested string) int64` | nestedE2EID reads the first nested object ID from a viewer collection response. |
+| [`mustE2EJSON`](../tests/support/go/e2eflow/flow.go#L706) | function | 706-713 | `func mustE2EJSON(t *testing.T, value any) string` | mustE2EJSON serializes a decoded payload for compact membership assertions. |
+| [`equalE2EStrings`](../tests/support/go/e2eflow/flow.go#L716) | function | 716-722 | `func equalE2EStrings(left, right []string) bool` | equalE2EStrings compares two string sets after sorting copies. |
 
 ### [`tests/support/go/pdffixture/complex.go`](../tests/support/go/pdffixture/complex.go)
 
@@ -5577,24 +5578,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L169) | test | 169-181 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
 | [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L184) | test | 184-191 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
 
-### [`tests/tooling/go/pdf-export/integration/export_test.go`](../tests/tooling/go/pdf-export/integration/export_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`exportCorpus`](../tests/tooling/go/pdf-export/integration/export_test.go#L25) | function | 25-89 | `func exportCorpus(t *testing.T) (string, string, []byte)` | exportCorpus creates a migrated corpus with safe-title, long-title, and unavailable PDF cases. |
-| [`TestExportPreservesDatabasesAndContent`](../tests/tooling/go/pdf-export/integration/export_test.go#L92) | test | 92-134 | `func TestExportPreservesDatabasesAndContent(t *testing.T)` | TestExportPreservesDatabasesAndContent verifies title selection, DOI deduplication, safe filenames, and repeat exports. |
-| [`TestExportReportsPartialFailuresAndRefusesReplacement`](../tests/tooling/go/pdf-export/integration/export_test.go#L137) | test | 137-167 | `func TestExportReportsPartialFailuresAndRefusesReplacement(t *testing.T)` | TestExportReportsPartialFailuresAndRefusesReplacement verifies missing PDFs, filename conflicts, and symlink protection. |
-| [`TestExportRejectsCorruptContent`](../tests/tooling/go/pdf-export/integration/export_test.go#L170) | test | 170-192 | `func TestExportRejectsCorruptContent(t *testing.T)` | TestExportRejectsCorruptContent verifies stored content hashes before creating any PDF file. |
-| [`TestRunUsageAndMissingDatabase`](../tests/tooling/go/pdf-export/integration/export_test.go#L195) | test | 195-213 | `func TestRunUsageAndMissingDatabase(t *testing.T)` | TestRunUsageAndMissingDatabase verifies flag validation and existing-only opening behavior. |
-
-### [`tests/tooling/go/pdf-store/integration/main_integration_test.go`](../tests/tooling/go/pdf-store/integration/main_integration_test.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`TestAddRequiresCorpusDOIAndPreservesExistingDownload`](../tests/tooling/go/pdf-store/integration/main_integration_test.go#L26) | test | 26-179 | `func TestAddRequiresCorpusDOIAndPreservesExistingDownload(t *testing.T)` | TestAddRequiresCorpusDOIAndPreservesExistingDownload verifies add requires corpus doi and preserves existing download. |
-| [`TestAddRejectsInvalidAndOversizedPDFs`](../tests/tooling/go/pdf-store/integration/main_integration_test.go#L182) | test | 182-209 | `func TestAddRejectsInvalidAndOversizedPDFs(t *testing.T)` | TestAddRejectsInvalidAndOversizedPDFs verifies add rejects invalid and oversized pd fs. |
-| [`addPDF`](../tests/tooling/go/pdf-store/integration/main_integration_test.go#L212) | function | 212-223 | `func addPDF(t *testing.T, metadata, doi, file, registry string) error` | addPDF exercises command dispatch from the supported working directory. |
-
 ### [`tests/tooling/go/prepare-osf/integration/main_integration_test.go`](../tests/tooling/go/prepare-osf/integration/main_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -5703,18 +5686,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`main`](../tooling/go/cmd/importcheck/main.go#L10) | function | 10 | `func main()` | main runs the command and preserves its exit status. |
-
-### [`tooling/go/cmd/pdf-export/main.go`](../tooling/go/cmd/pdf-export/main.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`main`](../tooling/go/cmd/pdf-export/main.go#L11) | function | 11 | `func main()` | main preserves the command exit status. |
-
-### [`tooling/go/cmd/pdf-store/main.go`](../tooling/go/cmd/pdf-store/main.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`main`](../tooling/go/cmd/pdf-store/main.go#L10) | function | 10 | `func main()` | main preserves the command exit status. |
 
 ### [`tooling/go/cmd/prepare-osf/main.go`](../tooling/go/cmd/prepare-osf/main.go)
 
@@ -5879,24 +5850,6 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`runCheck`](../tooling/go/importcheck/main.go#L577) | function | 577-597 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
 | [`runReport`](../tooling/go/importcheck/main.go#L600) | function | 600-612 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
 | [`Run`](../tooling/go/importcheck/main.go#L615) | function | 615-631 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
-
-### [`tooling/go/pdf-export/main.go`](../tooling/go/pdf-export/main.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`Result`](../tooling/go/pdf-export/main.go#L27) | struct | 27-33 | ``type Result struct { DOI string `json:"doi"` Path string `json:"path"` ContentHash string `json:"content_hash"` ByteSize int `json:"byte_size"` Status string `json:"status"` }`` | Result identifies one exported PDF, including its validated content identity and output path. |
-| [`Run`](../tooling/go/pdf-export/main.go#L36) | function | 36-69 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses repeatable DOI selectors, exports available PDFs, and reports partial failures with a nonzero exit status. |
-| [`Export`](../tooling/go/pdf-export/main.go#L72) | function | 72-136 | `func Export(ctx context.Context, metadataPath string, dois []string, outputDir string) ([]Result, error)` | Export reads an existing bound corpus, exports each unique DOI, and preserves successful results when another DOI fails. |
-| [`exportOne`](../tooling/go/pdf-export/main.go#L139) | function | 139-193 | `func exportOne(ctx context.Context, works *work.Store, pdfs *pdfstore.Store, doi, outputDir string) (Result, error)` | exportOne resolves a paper title, validates stored PDF identity, and writes or recognizes its existing export. |
-| [`titleFilename`](../tooling/go/pdf-export/main.go#L196) | function | 196-220 | `func titleFilename(title string) (string, error)` | titleFilename preserves readable Unicode titles while removing path separators, unsafe characters, and excessive filename bytes. |
-| [`writePDF`](../tooling/go/pdf-export/main.go#L223) | function | 223-252 | `func writePDF(path string, data []byte, digest string) (string, error)` | writePDF creates a new export exclusively, accepts identical existing bytes, and never overwrites a different file or symlink. |
-
-### [`tooling/go/pdf-store/main.go`](../tooling/go/pdf-store/main.go)
-
-| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
-|---|---|---:|---|---|
-| [`Run`](../tooling/go/pdf-store/main.go#L19) | function | 19-44 | `func Run(args []string, stdout, stderr io.Writer) int` | Run dispatches the analysis command selected by process arguments and exits on command failure. |
-| [`add`](../tooling/go/pdf-store/main.go#L47) | function | 47-149 | `func add(metadataPath, doi, filePath string, stdout io.Writer) error` | add validates and inventories one manual PDF through the configured stores. |
 
 ### [`tooling/go/prepare-osf/export.go`](../tooling/go/prepare-osf/export.go)
 

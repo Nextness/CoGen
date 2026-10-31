@@ -107,7 +107,7 @@ func RunE2EVariant(t *testing.T, root string, mode Mode, environment []string) R
 func E2ERepositoryRoot(t *testing.T) string {
 	t.Helper()
 	root := testenv.Root()
-	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-printer"), filepath.Join(root, "build", "pdf-store")} {
+	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-printer")} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("required E2E input %s is unavailable: %v", path, err)
 		}
@@ -202,20 +202,12 @@ func writeE2EConfig(t *testing.T, root, outputDir string, mode Mode) string {
 	return configPath
 }
 
-// PrepareE2EReviewRuns inventories a valid PDF through the supported tool and creates A2 as a fresh overlapping run.
+// PrepareE2EReviewRuns stores one deterministic PDF through the companion API and creates A2 as a fresh overlapping run.
 func PrepareE2EReviewRuns(t *testing.T, root string, result Result) {
 	t.Helper()
-	pdfPath := filepath.Join(filepath.Dir(result.DBPath), "review.fixture.pdf")
-	if err := os.WriteFile(pdfPath, pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	command := exec.Command(filepath.Join(root, "build", "pdf-store"), "add", "--db", result.DBPath, "--doi", "10.5555/e2e-complete-one", "--file", pdfPath)
-	command.Dir = root
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("inventory deterministic E2E PDF: %v\n%s", err, output)
-	}
+	prepareE2EReviewPDF(t, result.DBPath, "10.5555/e2e-complete-one", pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two"))
 	configPath := filepath.Join(filepath.Dir(result.DBPath), "workspace.something")
-	command = exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.DBPath, "--config", configPath, "--fresh")
+	command := exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.DBPath, "--config", configPath, "--fresh")
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("create deterministic E2E A2 run: %v\n%s", err, output)
@@ -228,6 +220,55 @@ func PrepareE2EReviewRuns(t *testing.T, root string, result Result) {
 	var completed int
 	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM pipeline_runs WHERE status='completed'").Scan(&completed); err != nil || completed != 2 {
 		t.Fatalf("completed deterministic review runs=%d err=%v", completed, err)
+	}
+}
+
+// prepareE2EReviewPDF stores one deterministic PDF through the companion store API.
+func prepareE2EReviewPDF(t *testing.T, metadataPath, doi string, data []byte) {
+	t.Helper()
+	ctx := context.Background()
+	metadata, err := testfixture.OpenExistingPlatform(t, metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer metadata.Close()
+	found, err := metadata.Work.GetWorkByDOI(ctx, doi)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == nil {
+		t.Fatalf("E2E DOI %q is unavailable", doi)
+	}
+	storePath, err := metadata.PDFBindings.ResolveBinding(ctx, metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := pdfstore.Open(storePath, testenv.Path("config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil {
+		t.Fatal(err)
+	}
+	document, err := store.Document(ctx, found.DOI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document != nil && document.Status == pdfstore.StatusAvailable {
+		return
+	}
+	expectedCounter := int64(1)
+	if document != nil {
+		expectedCounter = document.ChangeCounter
+	}
+	if _, err := store.Save(ctx, pdfstore.SaveInput{
+		DOI: found.DOI, WorkID: found.ID, ExpectedChangeCounter: expectedCounter, Data: data,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.FlushAuditOutbox(ctx, metadata.PDFBindings); err != nil {
+		t.Fatal(err)
 	}
 }
 

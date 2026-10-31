@@ -66,7 +66,6 @@ Run built tools from the repository root:
 ./build/analysis run --db ./corpus.metadata.db --config ./config/workspace.something
 ./build/analysis migrate --db ./corpus.metadata.db
 ./build/analysis serve --db ./corpus.metadata.db --addr 127.0.0.1:8080
-./build/pdf-store add --db ./corpus.metadata.db --doi 10.1000/example --file ./paper.pdf
 ./build/something-printer --json ./config/workspace.something
 ./build/doccheck check
 ./build/rawsqlcheck check
@@ -114,7 +113,7 @@ The metadata chain is V00001-V00028 and the PDF chain is V00001-V00003. Add file
 
 Migration execution follows configured iteration order, skips applied filenames, records but does not revalidate checksums, ignores `previous` and `upgrade` for ordering, and has no downgrade runner. A configured `supersedes` filename adopts an already applied renamed migration by recording the canonical filename without rerunning its SQL; retain both history rows and use this only for an explicitly verified equivalent migration. Keep prerequisite checks before relationship inserts because foreign-key violations are not neutralized by `INSERT OR IGNORE`.
 
-Provider payloads and pipeline artifacts are inline and content-addressed. The pipeline registers normalized DOIs as `not_available`; `build/pdf-store add` stores validated PDF bytes for an unavailable registration and changes it to `available`. The companion store API also supports conditional replacement and removal using the current document change counter; the serving API exposes those operations only for an exact selected-run normalized revision with a strong mutation ETag and bounded raw upload. Manual PDFs are capped at 20,000,000 bytes, require a PDF signature, use SHA-256 identity, and write metadata audit through the outbox.
+Provider payloads and pipeline artifacts are inline and content-addressed. The pipeline registers normalized DOIs as `not_available`; the viewer stores validated PDF bytes for an unavailable registration and changes it to `available` through the selected-run article upload route. The companion store API also supports conditional replacement and removal using the current document change counter; the serving API exposes those operations only for an exact selected-run normalized revision with a strong mutation ETag and bounded raw upload. Manual PDFs are capped at 20,000,000 bytes, require a PDF signature, use SHA-256 identity, and write metadata audit through the outbox.
 
 Keep authentication, authorization, input validation, certificate validation, integrity checks, permission checks, and audit behavior enabled. Do not log or document credentials, tokens, private keys, session identifiers, sensitive personal data, secret environment values, or research content.
 

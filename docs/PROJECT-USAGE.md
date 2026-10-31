@@ -44,8 +44,6 @@ All intentional executables are written beneath `build/`; routine work does not 
 |---|---|---|
 | `build/analysis` | `make build` | Runs the pipeline, prepares both stores of an existing database bundle, serves the loopback-only local review viewer, or runs the internal PDF annotation worker. |
 | `build/something-printer` | `make something-printer` or `make tools` | Evaluates one SOMETHING file and prints the evaluated public values as SOMETHING, JSON, or YAML. |
-| `build/pdf-store` | `make pdf-store` or `make tools` | Inserts one validated, already registered PDF into the companion store. |
-| `build/pdf-export` | `make pdf-export` or `make tools` | Exports stored PDFs selected by DOI to filenames derived from their paper titles, opening both corpus databases read-only. |
 | `build/prepare-osf` | `make prepare-osf` or `make tools` | Creates one sanitized copy-only metadata, PDF, and optional configuration export. |
 | `build/doccheck` | `make doccheck` or `make tools` | Checks and updates maintained documentation artifacts. |
 | `build/coveragecheck` | `make coveragecheck`, `make tools`, or `make coverage` | Enforces configured package and file coverage floors. |
@@ -135,18 +133,11 @@ make check-frontend
 
 Use [APP-USAGE.md](APP-USAGE.md) for review-context initialization, status and note history, note syntax, embedded PDF anchors, navigation, data interpretation, privacy, graph limits, and operational expectations.
 
-## 7. Manual PDF inventory
+## 7. PDF inventory through the viewer
 
-Acquire documents through an authorized source, then use the validated manual write path:
+Acquire documents through an authorized source, then upload them through article detail for an exact selected-run normalized revision. The DOI must already have a normalized work revision and registered inventory row. The viewer enforces the 20,000,000-byte limit and PDF signature, content-addresses identical bytes, changes the inventory state to `available`, records `inventoried_at`, and delivers the audit event. Re-adding an available DOI with identical bytes leaves its selected bytes unchanged.
 
-```sh
-make pdf-store
-./build/pdf-store add --db corpus.metadata.db --doi 10.1000/example --file ./paper.pdf
-```
-
-The DOI must already have a normalized work revision and registered inventory row. The tool enforces the 20,000,000-byte limit and PDF signature, content-addresses identical bytes, changes the inventory state to `available`, records `inventoried_at`, and delivers the manual audit event. Re-adding an available DOI leaves its selected bytes unchanged.
-
-The serving API exposes the same conditional storage contract for one exact selected-run normalized revision. `PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf` requires `application/pdf`, a strong `If-Match` mutation ETag, positive `X-PDF-Size`, lowercase `X-PDF-SHA256`, and at most 20,000,000 complete bytes; `DELETE` requires the same ETag and an empty body. Resolve the ETag and storage capability from `GET /api/works/{work_id}/pdf-status`. Embedded readers append the selected lowercase `content_hash` to `/api/pdf/{work_id}` so stale ranges fail with `pdf_changed`; anchor writes send the same `pdf_content_hash` and are serialized against replacement/removal by a companion write reservation. Upload routes use a 60-second body deadline and admit at most two retained bodies; stale, truncated, oversized, digest-mismatched, or invalid-signature requests leave the prior selection and bytes unchanged. A committed mutation whose response is lost must be reconciled from the status endpoint before retrying.
+The serving API exposes the conditional storage contract for one exact selected-run normalized revision. `PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf` requires `application/pdf`, a strong `If-Match` mutation ETag, positive `X-PDF-Size`, lowercase `X-PDF-SHA256`, and at most 20,000,000 complete bytes; `DELETE` requires the same ETag and an empty body. Resolve the ETag and storage capability from `GET /api/works/{work_id}/pdf-status`. Embedded readers append the selected lowercase `content_hash` to `/api/pdf/{work_id}` so stale ranges fail with `pdf_changed`; anchor writes send the same `pdf_content_hash` and are serialized against replacement/removal by a companion write reservation. Upload routes use a 60-second body deadline and admit at most two retained bodies; stale, truncated, oversized, digest-mismatched, or invalid-signature requests leave the prior selection and bytes unchanged. A committed mutation whose response is lost must be reconciled from the status endpoint before retrying.
 
 Treat `corpus.metadata.db` and its bound `corpus.pdf.db` as one portable bundle. Stop writers for a simple file copy or use SQLite backup facilities for coordinated online backup. The Makefile `database-backup` target copies both configured database filenames to `../backup_databases/` and assumes that destination already exists.
 
@@ -155,16 +146,6 @@ Treat `corpus.metadata.db` and its bound `corpus.pdf.db` as one portable bundle.
 Article detail provides Download PDF for the current validated selection. Corpus articles provide an explicit current-page selection capped at 20 rows, selected and unavailable counts, and Download selected PDFs. Both surfaces show an Include comments control that defaults off. Off returns untouched original bytes and performs no comment lookup. On uses only the selected run's already initialized review context and the exact selected source hash, embeds current active matching highlights and complete linked saved note bodies as standard annotations, and returns a separate derived copy with an annotated filename, separate source and output hashes, and a visible comment count or explicit no-matching result. Excluded tombstones, drafts, other contexts or works, page-only and general notes, and mixed or unresolved PDF references are reported rather than guessed; no review context is initialized by export. Annotated derivatives are generated once, validated, retained in private temporary spools until emission, and cleaned on every exit. The browser owns the destination and filename-conflict behavior; the viewer prepares a completed response and reports that a download was prepared or started, not that a file was saved.
 
 `POST /api/runs/{run_id}/articles/{work_revision_id}/pdf-export` accepts one bounded JSON body with the expected lowercase source `content_hash` and optional `include_comments` defaulting to false. It returns validated original bytes as `application/pdf` with an attachment disposition and an export correlation header, or a structured `pdf_changed` conflict when the selected bytes no longer match. `POST /api/runs/{run_id}/pdf-exports` accepts up to 20 unique selected-run revisions with expected hashes and returns a stored-entry ZIP containing readable PDF names plus `export-manifest.json`. The manifest records requested, included, and skipped counts and per-file included or skipped reasons; valid files remain when other selections are unavailable, changed, or corrupt. The server rejects outside-run selectors, all-failed output, more than 20 unique revisions, more than 100,000,000 aggregate PDF bytes, and a manifest over 1,000,000 bytes before binary headers. Both routes use a pinned companion read snapshot, a 60-second export deadline, at most two active export responses, and at most one ZIP response. When comments are requested they also use one bounded review read snapshot for the ZIP, derive at most 200 annotations and 2,000,000 bytes of annotation text per PDF, cap a derived PDF at 25,000,000 bytes and aggregate final ZIP PDF bytes at 100,000,000, and fail explicitly instead of truncating saved prose. They write one work-scoped `pdf_document_export_prepared` metadata audit event per included PDF through one metadata batch before headers and do not write the PDF outbox or change PDF selection, counters, review heads, or drafts. Audit after-state records the toggle, context, bounded immutable version identifiers and counts, exclusions, and actual source and output hashes without note prose, quotations, or reviewer email. Downloads do not require a writable PDF companion or initialized review context, and comment-enabled downloads never initialize review.
-
-The standalone command remains available for existing operator workflows and is scheduled for retirement after application coverage is complete:
-
-```sh
-make pdf-export
-./build/pdf-export --db ./corpus.metadata.db --doi 10.1000/example --out ./build/papers
-./build/pdf-export --db ./corpus.metadata.db --doi 10.1000/first --doi https://doi.org/10.1000/second --out ./build/papers
-```
-
-The export tool requires an existing metadata database and existing bundle-relative PDF binding; it never runs migrations, registers documents, or flushes audit events. Repeated DOI selectors are normalized and deduplicated. Each available PDF must pass the stored byte-size, PDF-signature, and SHA-256 checks before export. Filenames use the latest nonempty normalized revision title, falling back to the latest recorded title when no normalized title exists; unsafe filename characters are replaced and long names are bounded without breaking Unicode. The tool creates the output directory, accepts an identical existing export, and refuses conflicting files or symlinks. Standard output is a JSON array of successful exports with DOI, path, content hash, byte size, and exported or unchanged status. Missing titles, unavailable PDFs, and other per-DOI failures are reported on standard error with exit status 1 while other valid requested exports are retained; invalid command syntax exits with status 2.
 
 ## 8. Sanitized OSF export
 
@@ -277,7 +258,7 @@ Run the deterministic and mocked-provider pipeline through persisted SQLite, the
 make test-e2e
 ```
 
-The target builds `build/analysis`, `build/pdf-store`, and `build/something-printer`, evaluates generated configurations, invokes the real pipeline executable, adds a deterministic valid PDF through the supported manual tool, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`, and runs a Go database verifier over inherited and divergent heads, immutable versions, links, anchors, and review audit rows. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
+The target builds `build/analysis` and `build/something-printer`, evaluates generated configurations, invokes the real pipeline executable, stores a deterministic valid PDF through the application boundary, and writes fresh target-owned bundles under `build/e2e/deterministic/` and `build/e2e/mocked/`. It creates overlapping A1 and A2 attempts, preserves the Playwright-mutated copy under `build/e2e/deterministic/review/`, and runs a Go database verifier over inherited and divergent heads, immutable versions, links, anchors, and review audit rows. Mocked provider URLs are loopback-only and accidental external HTTP and HTTPS are blocked for that subprocess.
 
 Run the bounded real-provider variant only when network access and live calls are explicitly acceptable:
 

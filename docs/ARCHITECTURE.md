@@ -55,8 +55,6 @@ Source exports + SOMETHING configuration
 | `tooling/go/coveragecheck/` | Coverage policy parser and enforcement command used by `make coverage`. |
 | `tooling/go/doccheck/` | Documentation links, format, migration, source catalog, hash state, dependency, and obsolete-reference validation. |
 | `tooling/go/importcheck/` | Package import and transaction graph scanning, classification, enforcement, and reporting. |
-| `tooling/go/pdf-store/` | Validated manual PDF insertion command. |
-| `tooling/go/pdf-export/` | Read-only DOI-selected PDF export with title-derived filenames, stored-content integrity checks, and exclusive output creation. |
 | `tooling/go/prepare-osf/` | Copy-only metadata, PDF, and optional configuration sanitization for OSF export. |
 | `tooling/go/rawsqlcheck/` | Raw SQL ownership scanning, classification, enforcement, and reporting for maintained Go sources. |
 | `tooling/go/something-printer/` | SOMETHING evaluation and inspection command with SOMETHING, JSON, and YAML output. |
@@ -75,7 +73,7 @@ Source exports + SOMETHING configuration
 | `tests/e2e/offline/testdata/`, `tests/e2e/live/testdata/` | Small tracked CSV and BibTeX inputs for deterministic, mocked-provider, and opt-in live pipeline-to-viewer verification. |
 | `docs/` | Maintained architecture, design, standards, usage, language, catalog, CSS, and documentation-state references. |
 
-The root Makefile runs Go commands from the repository-root module and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/pdf-store`, `build/prepare-osf`, `build/doccheck`, `build/coveragecheck`, `build/rawsqlcheck`, `build/importcheck`, and the ordinary-suite selector `build/testselect`. Runtime relative paths assume the repository root; process entrypoints do not discover or change the working directory.
+The root Makefile runs Go commands from the repository-root module and writes binaries and generated reports beneath `build/`. `make build` produces `build/analysis`; `make tools` produces `build/something-printer`, `build/prepare-osf`, `build/doccheck`, `build/coveragecheck`, `build/rawsqlcheck`, `build/importcheck`, and the ordinary-suite selector `build/testselect`. Runtime relative paths assume the repository root; process entrypoints do not discover or change the working directory.
 
 ## 4. Dependency direction and component boundaries
 
@@ -163,7 +161,7 @@ Workspace orchestration composes stage packages under `backend/workspace/`: `pro
 
 `build/analysis version` prints the semantic version `MAJOR.MINOR.PATCH` from the compile-time `major`, `minor`, and `patch` constants in `backend/cli/main.go`.
 
-`build/pdf-store add --db <metadata.db> --doi <doi> --file <pdf>` resolves the bound companion database from metadata. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged, and flushes idempotent PDF audit events.
+The serving API stores validated PDF bytes for one exact selected-run normalized revision. It requires an already normalized and registered DOI, accepts at most 20,000,000 bytes with a `%PDF-` signature, hashes content with SHA-256, stores identical bytes once, leaves an available DOI unchanged when bytes match, and delivers idempotent PDF audit events through the companion outbox.
 
 `build/prepare-osf --db <metadata.db> [--config <workspace.something>] --out <new-directory>` creates a WAL-safe, sanitized, self-contained copy without overwriting output or changing any source. `build/something-printer [--json|--yaml|--something] <path>` evaluates a SOMETHING file and writes the evaluated public values in SOMETHING setup syntax by default, or JSON or YAML when selected by a flag. `build/doccheck` implements the documentation workflow. `build/coveragecheck` is built by `make coveragecheck` or `make tools` and is normally invoked through `make coverage` with the configured policy. `build/rawsqlcheck check` scans maintained Go sources for unclassified raw SQL calls, and `build/rawsqlcheck report` prints the per-file ownership inventory; both are normally invoked through `make check-sql` and `make sql-report`. `build/importcheck check` enforces the package import and transaction graph, and `build/importcheck report` prints the layer graph, family imports, fixture composition, and sqlc units; both are normally invoked through `make check-imports` and `make import-report`.
 
