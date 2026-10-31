@@ -4,8 +4,14 @@ package pdfannotate_test
 
 import (
 	"bytes"
+	"errors"
+	"math"
 	"strings"
 	"testing"
+
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 
 	subject "analysis/backend/pdfannotate"
 	"analysis/tests/support/go/pdffixture"
@@ -131,5 +137,144 @@ func TestAnnotateMultipleAnnotationsPreservesSource(t *testing.T) {
 	}
 	if !bytes.Equal(source, original) {
 		t.Fatal("source bytes changed during annotation")
+	}
+}
+
+// readPageAnnotations parses one annotated PDF and returns its page annotation dictionaries.
+func readPageAnnotations(t *testing.T, data []byte, page int) []types.Dict {
+	t.Helper()
+	ctx, err := api.ReadAndValidate(bytes.NewReader(data), model.NewDefaultConfiguration())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dict, _, _, err := ctx.PageDict(page, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object, found := dict.Find("Annots")
+	if !found {
+		return nil
+	}
+	array, err := ctx.DereferenceArray(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := make([]types.Dict, 0, len(array))
+	for _, item := range array {
+		annotation, err := ctx.DereferenceDict(item)
+		if err != nil {
+			t.Fatal(err)
+		}
+		items = append(items, annotation)
+	}
+	return items
+}
+
+// annotationRect decodes one annotation Rect array.
+func annotationRect(t *testing.T, annotation types.Dict) []float64 {
+	t.Helper()
+	object, found := annotation.Find("Rect")
+	if !found {
+		t.Fatal("annotation has no Rect")
+	}
+	array, ok := object.(types.Array)
+	if !ok {
+		t.Fatalf("Rect value %T is not an array", object)
+	}
+	values := make([]float64, 0, len(array))
+	for _, item := range array {
+		number, ok := item.(types.Float)
+		if !ok {
+			integer, integerOK := item.(types.Integer)
+			if !integerOK {
+				t.Fatalf("Rect entry %T is not numeric", item)
+			}
+			values = append(values, float64(integer.Value()))
+			continue
+		}
+		values = append(values, number.Value())
+	}
+	return values
+}
+
+// TestAnnotateMapsNormalizedGeometry verifies crop origins, rotation, and user
+// units map stored unrotated rectangles into default user space.
+func TestAnnotateMapsNormalizedGeometry(t *testing.T) {
+	source := pdffixture.ComplexBytes("Complex fixture page")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationHighlight,
+		Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.2, Width: 0.3, Height: 0.1}},
+		Contents:   "Mapped geometry", Title: "Reviewer", Subject: "Highlight",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotations := readPageAnnotations(t, output, 1)
+	if len(annotations) != 2 {
+		t.Fatalf("annotations=%d", len(annotations))
+	}
+	highlight := annotations[1]
+	rect := annotationRect(t, highlight)
+	want := []float64{69.2, 550.4, 246.8, 627.6}
+	for index, value := range want {
+		if math.Abs(rect[index]-value) > 0.001 {
+			t.Fatalf("Rect=%v want %v", rect, want)
+		}
+	}
+	object, found := highlight.Find("QuadPoints")
+	if !found {
+		t.Fatal("highlight has no QuadPoints")
+	}
+	array, ok := object.(types.Array)
+	if !ok {
+		t.Fatalf("QuadPoints value %T is not an array", object)
+	}
+	if len(array) != 8 {
+		t.Fatalf("QuadPoints entries=%d", len(array))
+	}
+	if !bytes.Contains(output, []byte("Complex fixture page")) {
+		t.Fatal("annotated output lost searchable page text")
+	}
+}
+
+// TestAnnotateSupportsMultipleRectangles verifies one highlight carries every quad.
+func TestAnnotateSupportsMultipleRectangles(t *testing.T) {
+	source := pdffixture.Bytes("Multiple rectangle fixture")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationHighlight,
+		Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.05}, {X: 0.5, Y: 0.2, Width: 0.2, Height: 0.05}},
+		Contents:   "Two rectangles", Title: "Reviewer", Subject: "Highlight",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotations := readPageAnnotations(t, output, 1)
+	if len(annotations) != 1 {
+		t.Fatalf("annotations=%d", len(annotations))
+	}
+	object, found := annotations[0].Find("QuadPoints")
+	if !found {
+		t.Fatal("highlight has no QuadPoints")
+	}
+	array, ok := object.(types.Array)
+	if !ok {
+		t.Fatalf("QuadPoints value %T is not an array", object)
+	}
+	if len(array) != 16 {
+		t.Fatalf("QuadPoints entries=%d", len(array))
+	}
+}
+
+// TestAnnotateRejectsMissingPageAndGeometry verifies invalid placement fails explicitly.
+func TestAnnotateRejectsMissingPageAndGeometry(t *testing.T) {
+	source := pdffixture.Bytes("Invalid geometry fixture")
+	if _, err := subject.Annotate(source, []subject.Annotation{{Page: 2, Type: subject.AnnotationHighlight, Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.1}}}}); !errors.Is(err, subject.ErrMissingPage) {
+		t.Fatalf("missing page error=%v", err)
+	}
+	if _, err := subject.Annotate(source, []subject.Annotation{{Page: 1, Type: subject.AnnotationHighlight, Rectangles: []subject.NormalizedRectangle{{X: math.NaN(), Y: 0.1, Width: 0.2, Height: 0.1}}}}); !errors.Is(err, subject.ErrInvalidGeometry) {
+		t.Fatalf("invalid geometry error=%v", err)
+	}
+	if _, err := subject.Annotate(source, []subject.Annotation{{Page: 1, Type: subject.AnnotationHighlight, Rectangles: []subject.NormalizedRectangle{{X: 0.9, Y: 0.1, Width: 0.2, Height: 0.1}}}}); !errors.Is(err, subject.ErrInvalidGeometry) {
+		t.Fatalf("overflow geometry error=%v", err)
 	}
 }

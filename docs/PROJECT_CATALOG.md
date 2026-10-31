@@ -1357,16 +1357,33 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`normalizeDOI`](../backend/notes/parser.go#L470) | function | 470-476 | `func normalizeDOI(value string) string` | normalizeDOI canonicalizes article-link DOI targets without database access. |
 | [`utf16Length`](../backend/notes/parser.go#L479) | function | 479-488 | `func utf16Length(value string) int` | utf16Length returns the browser-compatible code-unit length of a string. |
 
+### [`backend/notes/plaintext.go`](../backend/notes/plaintext.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`PlainText`](../backend/notes/plaintext.go#L15) | function | 15-54 | `func PlainText(body string) string` | PlainText returns the safe plain-text rendering of one saved note body. It returns an empty string when the body is not a valid saved note. |
+| [`plainLinkText`](../backend/notes/plaintext.go#L57) | function | 57-76 | `func plainLinkText(match string) string` | plainLinkText replaces one custom link with its display text or safe target. |
+
 ### [`backend/pdfannotate/pdfannotate.go`](../backend/pdfannotate/pdfannotate.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`init`](../backend/pdfannotate/pdfannotate.go#L20) | function | 20-22 | `func init()` | init disables pdfcpu's user configuration directory so annotation work never reads or writes operator configuration or user fonts. |
-| [`AnnotationType`](../backend/pdfannotate/pdfannotate.go#L25) | type | 25 | `type AnnotationType string` | AnnotationType identifies the kind of annotation to add. |
-| [`Rectangle`](../backend/pdfannotate/pdfannotate.go#L35) | struct | 35-37 | `type Rectangle struct { X1, Y1, X2, Y2 float64 }` | Rectangle is an application-owned annotation rectangle in PDF user space. |
-| [`Annotation`](../backend/pdfannotate/pdfannotate.go#L40) | struct | 40-47 | `type Annotation struct { Page int Type AnnotationType Rect Rectangle Contents string Title string Subject string }` | Annotation is application-owned annotation data. It never exposes pdfcpu types. |
-| [`Annotate`](../backend/pdfannotate/pdfannotate.go#L50) | function | 50-74 | `func Annotate(source []byte, annotations []Annotation) ([]byte, error)` | Annotate returns a copy of source with annotations added. It does not mutate source. |
-| [`rendererFor`](../backend/pdfannotate/pdfannotate.go#L77) | function | 77-88 | `func rendererFor(a Annotation) (model.AnnotationRenderer, error)` | rendererFor maps application-owned annotation data to a pdfcpu renderer. |
+| [`init`](../backend/pdfannotate/pdfannotate.go#L35) | function | 35-37 | `func init()` | init disables pdfcpu's user configuration directory so annotation work never reads or writes operator configuration or user fonts. |
+| [`AnnotationType`](../backend/pdfannotate/pdfannotate.go#L40) | type | 40 | `type AnnotationType string` | AnnotationType identifies the kind of annotation to add. |
+| [`Rectangle`](../backend/pdfannotate/pdfannotate.go#L50) | struct | 50-52 | `type Rectangle struct { X1, Y1, X2, Y2 float64 }` | Rectangle is an application-owned annotation rectangle in PDF user space. |
+| [`NormalizedRectangle`](../backend/pdfannotate/pdfannotate.go#L56) | struct | 56-61 | ``type NormalizedRectangle struct { X float64 `json:"x"` Y float64 `json:"y"` Width float64 `json:"width"` Height float64 `json:"height"` }`` | NormalizedRectangle is a top-left-origin rectangle normalized to the page's unrotated crop box. Stored review anchors use this orientation. |
+| [`Annotation`](../backend/pdfannotate/pdfannotate.go#L64) | struct | 64-74 | `type Annotation struct { Page int Type AnnotationType Rect Rectangle Rectangles []NormalizedRectangle Contents string Title string Subject string ID string ModifiedAt string }` | Annotation is application-owned annotation data. It never exposes pdfcpu types. |
+| [`pageGeometry`](../backend/pdfannotate/pdfannotate.go#L78) | struct | 78-85 | `type pageGeometry struct { originX float64 originY float64 width float64 height float64 rotation int userUnit float64 }` | pageGeometry describes the unrotated crop box and page transform fields used to place annotations in default user space. |
+| [`Annotate`](../backend/pdfannotate/pdfannotate.go#L90) | function | 90-140 | `func Annotate(source []byte, annotations []Annotation) ([]byte, error)` | Annotate returns a copy of source with annotations added. It does not mutate source, preserves existing page content and annotations, and rejects encrypted, permission-restricted, or signed documents instead of bypassing restrictions. |
+| [`rendererFor`](../backend/pdfannotate/pdfannotate.go#L143) | function | 143-173 | `func rendererFor(ctx *model.Context, annotation Annotation) (model.AnnotationRenderer, error)` | rendererFor maps application-owned annotation data and page geometry to a pdfcpu renderer. |
+| [`mapAnnotationRectangles`](../backend/pdfannotate/pdfannotate.go#L179) | function | 179-195 | `func mapAnnotationRectangles(annotation Annotation, geometry pageGeometry) ([]types.Rectangle, error)` | mapAnnotationRectangles converts normalized unrotated rectangles into default user space using the actual crop-box origin and dimensions. Page rotation is already removed from stored review geometry, and UserUnit scales physical display rather than default user-space annotation coordinates. |
+| [`mapNormalizedRectangle`](../backend/pdfannotate/pdfannotate.go#L198) | function | 198-214 | `func mapNormalizedRectangle(rectangle NormalizedRectangle, geometry pageGeometry) (*types.Rectangle, error)` | mapNormalizedRectangle converts one top-left-origin normalized rectangle. |
+| [`enclosingRectangle`](../backend/pdfannotate/pdfannotate.go#L217) | function | 217-227 | `func enclosingRectangle(rectangles []types.Rectangle) types.Rectangle` | enclosingRectangle returns the smallest rectangle containing every quad. |
+| [`pageGeometryFor`](../backend/pdfannotate/pdfannotate.go#L230) | function | 230-255 | `func pageGeometryFor(ctx *model.Context, page int) (pageGeometry, error)` | pageGeometryFor reads the actual unrotated crop box and page transform fields. |
+| [`annotationModificationDate`](../backend/pdfannotate/pdfannotate.go#L258) | function | 258-271 | `func annotationModificationDate(value string) (string, error)` | annotationModificationDate validates and converts one recorded timestamp to a PDF date. |
+| [`finiteRectangle`](../backend/pdfannotate/pdfannotate.go#L274) | function | 274-282 | `func finiteRectangle(rectangle Rectangle) bool` | finiteRectangle reports whether one explicit user-space rectangle is finite and positive. |
+| [`countPageAnnotations`](../backend/pdfannotate/pdfannotate.go#L285) | function | 285-303 | `func countPageAnnotations(ctx *model.Context) int` | countPageAnnotations counts existing annotations across every page. |
+| [`validateAnnotatedOutput`](../backend/pdfannotate/pdfannotate.go#L307) | function | 307-322 | `func validateAnnotatedOutput(data []byte, pages, expected int) error` | validateAnnotatedOutput verifies the written document keeps its page count and contains exactly the existing plus requested application annotations. |
 
 ### [`backend/pdfannotate/worker.go`](../backend/pdfannotate/worker.go)
 
@@ -1706,6 +1723,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*Server).invalidatePDFCache`](../backend/server/pdf.go#L197) | method | 197-203 | `func (*Server).invalidatePDFCache(workID int64)` | invalidatePDFCache clears one work's process-local document bytes after a committed selection change. Other server processes recheck selection before cache reuse instead of sharing an invalidation channel. |
 | [`(*Server).pdfChanged`](../backend/server/pdf.go#L206) | method | 206-219 | `func (*Server).pdfChanged(ctx context.Context, workID int64, doi, pinnedHash string) error` | pdfChanged reports a deliberate reader refresh conflict with bounded current state. |
 | [`(*Server).pdfReadIntegrityError`](../backend/server/pdf.go#L223) | method | 223-232 | `func (*Server).pdfReadIntegrityError(ctx context.Context, workID int64, doi, contentHash, pinnedHash string) error` | pdfReadIntegrityError distinguishes a concurrent selection change from genuine stored-content corruption after a read-time integrity failure. |
+
+### [`backend/server/pdf_annotation.go`](../backend/server/pdf_annotation.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`pdfExportNoteText`](../backend/server/pdf_annotation.go#L20) | struct | 20-26 | `type pdfExportNoteText struct { body string reviewer string createdAt string versionID int64 anchorIDs []string }` | pdfExportNoteText is one saved note's safe rendered prose and attribution. |
+| [`pdfCommentAnnotations`](../backend/server/pdf_annotation.go#L30) | function | 30-72 | `func pdfCommentAnnotations(evidence *review.ExportEvidence) ([]pdfannotate.Annotation, error)` | pdfCommentAnnotations builds one highlight annotation per eligible anchor, repeating linked note prose at every matching location. |
+| [`pdfAnchorAnnotationText`](../backend/server/pdf_annotation.go#L75) | function | 75-122 | `func pdfAnchorAnnotationText(anchor review.ExportAnchor, linked []pdfExportNoteText) (string, string, string, string)` | pdfAnchorAnnotationText renders complete saved note prose or an anchor quotation. |
+| [`boundedAnnotationText`](../backend/server/pdf_annotation.go#L125) | function | 125-135 | `func boundedAnnotationText(value string) string` | boundedAnnotationText bounds generated attribution without truncating saved note prose. |
+| [`pdfAnnotationFailureReason`](../backend/server/pdf_annotation.go#L138) | function | 138-153 | `func pdfAnnotationFailureReason(err error) string` | pdfAnnotationFailureReason maps one annotation failure to a bounded per-file reason. |
 
 ### [`backend/server/pdf_export.go`](../backend/server/pdf_export.go)
 
@@ -3807,10 +3834,11 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestParseSupportedBlocksAndLinks`](../tests/backend/notes/unit/parser_unit_test.go#L15) | test | 15-27 | `func TestParseSupportedBlocksAndLinks(t *testing.T)` | TestParseSupportedBlocksAndLinks verifies bounded blocks, escaping, link normalization, and code suppression. |
-| [`TestParseReportsUTF16Diagnostics`](../tests/backend/notes/unit/parser_unit_test.go#L30) | test | 30-38 | `func TestParseReportsUTF16Diagnostics(t *testing.T)` | TestParseReportsUTF16Diagnostics verifies non-BMP characters count as two UTF-16 code units. |
-| [`TestParseRejectsUnsafeAndMalformedInput`](../tests/backend/notes/unit/parser_unit_test.go#L41) | test | 41-47 | `func TestParseRejectsUnsafeAndMalformedInput(t *testing.T)` | TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable. |
-| [`TestConformanceFixtures`](../tests/backend/notes/unit/parser_unit_test.go#L50) | test | 50-73 | `func TestConformanceFixtures(t *testing.T)` | TestConformanceFixtures verifies the authoritative normalized link and diagnostic corpus. |
+| [`TestParseSupportedBlocksAndLinks`](../tests/backend/notes/unit/parser_unit_test.go#L16) | test | 16-28 | `func TestParseSupportedBlocksAndLinks(t *testing.T)` | TestParseSupportedBlocksAndLinks verifies bounded blocks, escaping, link normalization, and code suppression. |
+| [`TestParseReportsUTF16Diagnostics`](../tests/backend/notes/unit/parser_unit_test.go#L31) | test | 31-39 | `func TestParseReportsUTF16Diagnostics(t *testing.T)` | TestParseReportsUTF16Diagnostics verifies non-BMP characters count as two UTF-16 code units. |
+| [`TestParseRejectsUnsafeAndMalformedInput`](../tests/backend/notes/unit/parser_unit_test.go#L42) | test | 42-48 | `func TestParseRejectsUnsafeAndMalformedInput(t *testing.T)` | TestParseRejectsUnsafeAndMalformedInput verifies save-blocking language errors remain recoverable. |
+| [`TestConformanceFixtures`](../tests/backend/notes/unit/parser_unit_test.go#L51) | test | 51-74 | `func TestConformanceFixtures(t *testing.T)` | TestConformanceFixtures verifies the authoritative normalized link and diagnostic corpus. |
+| [`TestPlainTextRemovesApplicationLinkSyntax`](../tests/backend/notes/unit/parser_unit_test.go#L77) | test | 77-93 | `func TestPlainTextRemovesApplicationLinkSyntax(t *testing.T)` | TestPlainTextRemovesApplicationLinkSyntax verifies PDF annotation text is safe plain prose. |
 
 ### [`tests/backend/pdfannotate/integration/pdfannotate_integration_test.go`](../tests/backend/pdfannotate/integration/pdfannotate_integration_test.go)
 
@@ -3837,13 +3865,18 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`TestAnnotateRejectsEmptySource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L15) | test | 15-19 | `func TestAnnotateRejectsEmptySource(t *testing.T)` | TestAnnotateRejectsEmptySource verifies empty input fails safely. |
-| [`TestAnnotateWithoutAnnotationsCopiesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L22) | test | 22-34 | `func TestAnnotateWithoutAnnotationsCopiesSource(t *testing.T)` | TestAnnotateWithoutAnnotationsCopiesSource verifies the source is returned unchanged. |
-| [`TestAnnotateRejectsUnsupportedType`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L37) | test | 37-47 | `func TestAnnotateRejectsUnsupportedType(t *testing.T)` | TestAnnotateRejectsUnsupportedType verifies unknown annotation types fail safely. |
-| [`TestAnnotateTextPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L50) | test | 50-70 | `func TestAnnotateTextPreservesSource(t *testing.T)` | TestAnnotateTextPreservesSource verifies a text annotation produces a valid PDF without mutating the source. |
-| [`TestAnnotateHighlightPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L73) | test | 73-93 | `func TestAnnotateHighlightPreservesSource(t *testing.T)` | TestAnnotateHighlightPreservesSource verifies a highlight annotation produces a valid PDF without mutating the source. |
-| [`TestAnnotateUnicodePreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L96) | test | 96-116 | `func TestAnnotateUnicodePreservesSource(t *testing.T)` | TestAnnotateUnicodePreservesSource verifies Unicode annotation bodies produce a valid PDF without mutating the source. |
-| [`TestAnnotateMultipleAnnotationsPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L119) | test | 119-135 | `func TestAnnotateMultipleAnnotationsPreservesSource(t *testing.T)` | TestAnnotateMultipleAnnotationsPreservesSource verifies multiple annotations produce a valid PDF without mutating the source. |
+| [`TestAnnotateRejectsEmptySource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L21) | test | 21-25 | `func TestAnnotateRejectsEmptySource(t *testing.T)` | TestAnnotateRejectsEmptySource verifies empty input fails safely. |
+| [`TestAnnotateWithoutAnnotationsCopiesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L28) | test | 28-40 | `func TestAnnotateWithoutAnnotationsCopiesSource(t *testing.T)` | TestAnnotateWithoutAnnotationsCopiesSource verifies the source is returned unchanged. |
+| [`TestAnnotateRejectsUnsupportedType`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L43) | test | 43-53 | `func TestAnnotateRejectsUnsupportedType(t *testing.T)` | TestAnnotateRejectsUnsupportedType verifies unknown annotation types fail safely. |
+| [`TestAnnotateTextPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L56) | test | 56-76 | `func TestAnnotateTextPreservesSource(t *testing.T)` | TestAnnotateTextPreservesSource verifies a text annotation produces a valid PDF without mutating the source. |
+| [`TestAnnotateHighlightPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L79) | test | 79-99 | `func TestAnnotateHighlightPreservesSource(t *testing.T)` | TestAnnotateHighlightPreservesSource verifies a highlight annotation produces a valid PDF without mutating the source. |
+| [`TestAnnotateUnicodePreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L102) | test | 102-122 | `func TestAnnotateUnicodePreservesSource(t *testing.T)` | TestAnnotateUnicodePreservesSource verifies Unicode annotation bodies produce a valid PDF without mutating the source. |
+| [`TestAnnotateMultipleAnnotationsPreservesSource`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L125) | test | 125-141 | `func TestAnnotateMultipleAnnotationsPreservesSource(t *testing.T)` | TestAnnotateMultipleAnnotationsPreservesSource verifies multiple annotations produce a valid PDF without mutating the source. |
+| [`readPageAnnotations`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L144) | function | 144-171 | `func readPageAnnotations(t *testing.T, data []byte, page int) []types.Dict` | readPageAnnotations parses one annotated PDF and returns its page annotation dictionaries. |
+| [`annotationRect`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L174) | function | 174-198 | `func annotationRect(t *testing.T, annotation types.Dict) []float64` | annotationRect decodes one annotation Rect array. |
+| [`TestAnnotateMapsNormalizedGeometry`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L202) | test | 202-238 | `func TestAnnotateMapsNormalizedGeometry(t *testing.T)` | TestAnnotateMapsNormalizedGeometry verifies crop origins, rotation, and user units map stored unrotated rectangles into default user space. |
+| [`TestAnnotateSupportsMultipleRectangles`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L241) | test | 241-266 | `func TestAnnotateSupportsMultipleRectangles(t *testing.T)` | TestAnnotateSupportsMultipleRectangles verifies one highlight carries every quad. |
+| [`TestAnnotateRejectsMissingPageAndGeometry`](../tests/backend/pdfannotate/unit/pdfannotate_unit_test.go#L269) | test | 269-280 | `func TestAnnotateRejectsMissingPageAndGeometry(t *testing.T)` | TestAnnotateRejectsMissingPageAndGeometry verifies invalid placement fails explicitly. |
 
 ### [`tests/backend/pdfstore/integration/audit_identity_integration_test.go`](../tests/backend/pdfstore/integration/audit_identity_integration_test.go)
 
