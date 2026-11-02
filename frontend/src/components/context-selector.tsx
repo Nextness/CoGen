@@ -302,7 +302,7 @@ function initializeDropdown(key: string): void {
     if (!current) return;
     const options = Array.from(dropdown.options.querySelectorAll<HTMLElement>("[role=option]"));
     const currentIndex = options.indexOf(current);
-    var destination = currentIndex;
+    var destination: number;
     if (event.key === "ArrowDown") destination = Math.min(options.length - 1, currentIndex + 1);
     else if (event.key === "ArrowUp") destination = Math.max(0, currentIndex - 1);
     else if (event.key === "Home") destination = 0;

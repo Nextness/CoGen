@@ -387,7 +387,7 @@ export async function corpusView(): Promise<void> {
   var data: CorpusResponse | IdentityEvidenceResponse | TableRowsResponse | null = null;
   if (scoped) {
     if (current === "identity_evidence") {
-      data = await api<IdentityEvidenceResponse>(`/api/runs/${runID}/identity-evidence`, {
+      data = await api<IdentityEvidenceResponse>(`/api/runs/${encodeURIComponent(runID)}/identity-evidence`, {
         page: page,
         per_page: perPage,
         sort: sort,
@@ -395,7 +395,7 @@ export async function corpusView(): Promise<void> {
         q: query,
       });
     } else {
-      data = await api<CorpusResponse>(`/api/runs/${runID}/corpus/${current}`, {
+      data = await api<CorpusResponse>(`/api/runs/${encodeURIComponent(runID)}/corpus/${encodeURIComponent(current)}`, {
         page: page,
         per_page: perPage,
         sort: sort,
