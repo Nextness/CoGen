@@ -168,12 +168,12 @@ func (s *Server) exportArticlePDF(w http.ResponseWriter, r *http.Request) {
 		s.respond(w, r, nil, viewrequest.NotFound("article revision does not belong to selected run"))
 		return
 	}
-	if !s.acquirePDFExport(false) {
+	if !s.acquirePDFExport(request.IncludeComments) {
 		w.Header().Set("Retry-After", "1")
 		s.respond(w, r, nil, pdfExportBusy())
 		return
 	}
-	defer s.releasePDFExport(false)
+	defer s.releasePDFExport(request.IncludeComments)
 	snapshot, err := s.beginPDFExportSnapshot(ctx)
 	if err != nil {
 		s.respond(w, r, nil, err)
@@ -296,7 +296,7 @@ func (s *Server) exportPDFs(w http.ResponseWriter, r *http.Request) {
 		defer reviewSnapshot.Close()
 	}
 	spools := make([]string, 0, len(selectors))
-	defer cleanupPDFExportSpools(spools)
+	defer func() { cleanupPDFExportSpools(spools) }()
 	byRevision := make(map[int64]*work.ExportArticle, len(articles))
 	for _, article := range articles {
 		byRevision[article.RevisionID] = article
@@ -840,14 +840,14 @@ func pdfExportEmpty(result pdfExportManifest) error {
 func pdfExportBusy() error {
 	return &viewrequest.Problem{
 		Status: http.StatusServiceUnavailable, Code: "pdf_export_busy",
-		Message: "two PDF exports are already in progress; retry shortly",
+		Message: "PDF export capacity is busy; retry shortly",
 		Details: map[string]any{"retry_after_seconds": 1},
 	}
 }
 
-// acquirePDFExport reserves one explicit export response and, for a ZIP, the
-// single archive/transformation slot.
-func (s *Server) acquirePDFExport(archive bool) bool {
+// acquirePDFExport reserves one explicit export response and, when exclusive
+// is true, the shared slot for one ZIP or comment-enabled single export.
+func (s *Server) acquirePDFExport(exclusive bool) bool {
 	if s.pdfExports == nil {
 		return false
 	}
@@ -856,15 +856,15 @@ func (s *Server) acquirePDFExport(archive bool) bool {
 	default:
 		return false
 	}
-	if !archive {
+	if !exclusive {
 		return true
 	}
-	if s.pdfZIPExports == nil {
+	if s.pdfExportExclusive == nil {
 		s.releasePDFExport(false)
 		return false
 	}
 	select {
-	case s.pdfZIPExports <- struct{}{}:
+	case s.pdfExportExclusive <- struct{}{}:
 		return true
 	default:
 		s.releasePDFExport(false)
@@ -873,10 +873,10 @@ func (s *Server) acquirePDFExport(archive bool) bool {
 }
 
 // releasePDFExport releases one explicit export response on every exit path.
-func (s *Server) releasePDFExport(archive bool) {
-	if archive {
+func (s *Server) releasePDFExport(exclusive bool) {
+	if exclusive {
 		select {
-		case <-s.pdfZIPExports:
+		case <-s.pdfExportExclusive:
 		default:
 		}
 	}

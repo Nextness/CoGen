@@ -4,7 +4,7 @@
 
 This document is the implemented design reference for the local research workspace viewer. It defines current information architecture, interactions, visual language, responsive behavior, accessibility expectations, content rules, and acceptance criteria. [ARCHITECTURE.md](ARCHITECTURE.md) owns implementation structure, [CSS-REFERENCE.md](CSS-REFERENCE.md) owns active stylesheet details, [APP-USAGE.md](APP-USAGE.md) explains the user experience, [PROJECT-USAGE.md](PROJECT-USAGE.md) explains developer and operator workflows, and [STANDARDS.md](STANDARDS.md) defines frontend change rules.
 
-The viewer inspects historical research runs, manages reversible run visibility, and records local run-scoped interpretations. It does not execute the pipeline, modify pipeline corpus records, physically delete or purge runs, add PDFs, or resolve identity candidates. Every screen distinguishes immutable pipeline evidence from append-only review versions and mutable context heads.
+The viewer inspects historical research runs, manages reversible run visibility and the shared PDF lifecycle, prepares PDF downloads, and records local run-scoped interpretations. It does not execute the pipeline, modify pipeline corpus records, physically delete or purge runs, or resolve identity candidates. Every screen distinguishes immutable pipeline evidence from append-only review versions, mutable context heads, and conditional PDF selection changes.
 
 ## 2. Product goals
 
@@ -252,7 +252,7 @@ Missing optional columns or metrics must degrade to Not recorded, unavailable pa
 
 ## 19. Privacy and security presentation
 
-The header always displays Local review. Copy explains that pipeline evidence is immutable, review history is append-only and local, and context heads are the only review state moved by saves. The UI must not claim authentication, authorization, encryption, automatic PDF acquisition, live provider refresh, arbitrary corpus mutation, or PDF-store mutation.
+The header always displays Local review. Copy explains that pipeline evidence is immutable, review history is append-only and local, and context heads are the only review state moved by saves. Explicit PDF controls explain their global work scope, conditional writes, and permanent deletion of unused bytes. The UI must not claim authentication, authorization, encryption, automatic PDF acquisition, live provider refresh, or arbitrary corpus mutation.
 
 Artifact content remains a direct local API link. PDF downloads use explicit POST export resources, bounded response consumption, content-type checks, readable server-derived filenames, and object URLs that are revoked after the browser download handoff; preview content is escaped before insertion, JSON is formatted only after parsing, dynamic labels and table cells use the shared escaping helper, and no provider payload is interpreted as HTML.
 
@@ -304,7 +304,7 @@ The main Playwright suite runs against an isolated fixture copy and verifies con
 
 Every frontend change must run `make test-frontend-unit`. Changes under `frontend/` must also run `make test-go DOMAIN=backend COMPONENT=server` and `make test-frontend TEST_FILE=tests/frontend/viewer/integration/viewer.spec.ts`. Visual or accessibility changes must run `make test-frontend-visual` and review rather than blindly replace snapshots.
 
-Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review and run-visibility controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
+Acceptance requires no hard-coded context-dropping internal links, no unbounded new collection, no mutation outside the declared review, run-visibility, and PDF lifecycle controls, no new external asset request, no inaccessible graph or highlight-only fact, no raw unescaped provider or note content, no unexplained unavailable state, and no paragraph or list item split across physical Markdown lines in this document.
 
 ## 22. Known design limitations
 

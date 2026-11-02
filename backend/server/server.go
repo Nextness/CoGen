@@ -93,45 +93,45 @@ var viewPages = map[string]string{
 // AssetsFS is the frontend asset file system served at the web root; it must
 // be set because the binary does not embed frontend assets.
 type Server struct {
-	db               *sql.DB
-	artifact         *artifact.Store
-	auditStore       *audit.Store
-	workStore        *work.Store
-	searchStore      *search.Store
-	runStore         *run.Store
-	sourceStore      *source.Store
-	authorStore      *author.Store
-	reviewStore      *review.Store
-	cacheStore       *cache.Store
-	pdfBindings      *pdfbinding.Store
-	writeDB          *database.Database
-	pdfDB            *sql.DB
-	pdfStore         *pdfstore.Store
-	pdfWriteDB       *sql.DB
-	pdfWriteStore    *pdfstore.Store
-	pdfPath          string
-	pdfWritable      bool
-	pdfWriteReason   string
-	maintenance      *database.MaintenanceLock
-	metadataActual   string
-	metadataTarget   string
-	metadataReady    bool
-	pdfActual        string
-	pdfTarget        string
-	pdfReady         bool
-	schemaReady      bool
-	pdfCacheMu       sync.Mutex
-	pdfCache         *cachedPDF
-	pdfUploads       chan struct{}
-	pdfExports       chan struct{}
-	pdfZIPExports    chan struct{}
-	annotationWorker *pdfannotate.Worker
-	auditRelayMu     sync.Mutex
-	auditRelayCancel context.CancelFunc
-	auditRelayDone   chan struct{}
-	auditRelayError  string
-	tables           map[string]tableInfo
-	AssetsFS         fs.FS // serves frontend assets from this filesystem
+	db                 *sql.DB
+	artifact           *artifact.Store
+	auditStore         *audit.Store
+	workStore          *work.Store
+	searchStore        *search.Store
+	runStore           *run.Store
+	sourceStore        *source.Store
+	authorStore        *author.Store
+	reviewStore        *review.Store
+	cacheStore         *cache.Store
+	pdfBindings        *pdfbinding.Store
+	writeDB            *database.Database
+	pdfDB              *sql.DB
+	pdfStore           *pdfstore.Store
+	pdfWriteDB         *sql.DB
+	pdfWriteStore      *pdfstore.Store
+	pdfPath            string
+	pdfWritable        bool
+	pdfWriteReason     string
+	maintenance        *database.MaintenanceLock
+	metadataActual     string
+	metadataTarget     string
+	metadataReady      bool
+	pdfActual          string
+	pdfTarget          string
+	pdfReady           bool
+	schemaReady        bool
+	pdfCacheMu         sync.Mutex
+	pdfCache           *cachedPDF
+	pdfUploads         chan struct{}
+	pdfExports         chan struct{}
+	pdfExportExclusive chan struct{}
+	annotationWorker   *pdfannotate.Worker
+	auditRelayMu       sync.Mutex
+	auditRelayCancel   context.CancelFunc
+	auditRelayDone     chan struct{}
+	auditRelayError    string
+	tables             map[string]tableInfo
+	AssetsFS           fs.FS // serves frontend assets from this filesystem
 }
 
 // maintenanceWaitTimeout bounds startup waiting for an active schema preparation.
@@ -174,7 +174,7 @@ func Open(path, registryPath string) (*Server, error) {
 	}
 	s := &Server{
 		maintenance: maintenance, pdfUploads: make(chan struct{}, pdfUploadConcurrency),
-		pdfExports: make(chan struct{}, pdfExportConcurrency), pdfZIPExports: make(chan struct{}, 1),
+		pdfExports: make(chan struct{}, pdfExportConcurrency), pdfExportExclusive: make(chan struct{}, 1),
 		annotationWorker: annotationWorker,
 	}
 	cleanup := true

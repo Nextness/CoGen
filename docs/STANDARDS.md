@@ -25,7 +25,7 @@ The module targets Go 1.25.0. Use standard Go formatting through `gofmt`, keep p
 - Wrap errors with useful operation context while preserving errors needed by `errors.Is` or `errors.As` callers.
 - Do not swallow errors, log sensitive values, or duplicate nullable, JSON, SQL, hashing, or validation helpers already owned by a package.
 - Close resources at the owning layer, propagate context cancellation, and keep goroutine shutdown and channel ownership deterministic.
-- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` and the retained `github.com/pdfcpu/pdfcpu v0.15.0` dependency are the direct production Go dependencies; the pinned sqlc generator is a development tool and never enters the module graph. The pdfcpu dependency is Apache 2.0 licensed and remains isolated behind `backend/pdfannotate/`.
+- Use the standard library or an existing dependency when adequate. `modernc.org/sqlite` is the runtime database driver, and PDF comment exports use exactly `github.com/pdfcpu/pdfcpu v0.15.0`; the pinned sqlc generator is a development tool and never enters the module graph. The pdfcpu dependency is Apache 2.0 licensed and remains isolated behind `backend/pdfannotate/`.
 - Run `gofmt` on changed Go files and use `make format-check` before completion.
 
 ## 4. Source documentation comments
@@ -126,7 +126,7 @@ Metadata migrations live in `migrations/corpus.metadata/`, PDF migrations live i
 ## 12. PDF and audit standards
 
 - Register normalized DOIs as `not_available`; only the validated serving upload stores bytes and changes a DOI to `available`.
-- Enforce the 20,000,000-byte limit, `%PDF-` signature, SHA-256 content identity, prior normalized registration, and unchanged selection for already available documents.
+- Enforce the 20,000,000-byte limit, `%PDF-` signature, SHA-256 content identity, prior normalized registration, and an exact expected document change counter. Identical saves are verified no-ops; replacements select complete validated bytes atomically and remove outgoing blobs only when no document still selects them.
 - Keep metadata and companion paths bundle-relative and reject absolute or escaping bindings.
 - Write PDF audit evidence through the transactional outbox and preserve idempotent cross-database delivery.
 - Verify the companion V00003 document-management columns, content-hash index, outbox evidence columns, and protection triggers before enabling writes; a current-schema companion without write permission may still serve evidence with an explicit non-writable capability.

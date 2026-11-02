@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -138,6 +139,47 @@ func TestPDFZIPExportReportsPartialResults(t *testing.T) {
 	}
 	if recorder.Header().Get("X-PDF-Export-Included") != "1" || recorder.Header().Get("X-PDF-Export-Skipped") != "1" {
 		t.Fatalf("export headers: %v", recorder.Header())
+	}
+}
+
+// TestPDFZIPExportCleansSpools verifies successful and rejected exports remove retained bytes.
+func TestPDFZIPExportCleansSpools(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		failAudit bool
+		wantCode  int
+	}{
+		{name: "success", wantCode: http.StatusOK},
+		{name: "audit failure", failAudit: true, wantCode: http.StatusInternalServerError},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			fixture := testhelpers.NewPDFViewerFixture(t)
+			spoolDir := t.TempDir()
+			t.Setenv("TMPDIR", spoolDir)
+			handler := fixture.Server.Handler()
+			status := pdfStatusForWork(t, handler, fixture.AvailableID)
+			if testCase.failAudit {
+				if _, err := fixture.Server.Metadata.Conn.Exec(`CREATE TRIGGER fail_pdf_export_audit
+					BEFORE INSERT ON audit_events WHEN NEW.action='pdf_document_export_prepared'
+					BEGIN SELECT RAISE(ABORT, 'fixture export audit failure'); END`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			body := map[string]any{"articles": []map[string]any{
+				{"work_revision_id": fixture.RevisionID, "content_hash": status["content_hash"]},
+			}}
+			recorder := pdfExportRequest(t, handler, fmt.Sprintf("/api/runs/%d/pdf-exports", fixture.RunID), body)
+			if recorder.Code != testCase.wantCode {
+				t.Fatalf("export status=%d, want %d", recorder.Code, testCase.wantCode)
+			}
+			entries, err := os.ReadDir(spoolDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("export retained %d temporary files after returning", len(entries))
+			}
+		})
 	}
 }
 

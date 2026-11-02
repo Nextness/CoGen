@@ -154,6 +154,52 @@ func TestPDFExportAdmissionBounds(t *testing.T) {
 	}
 }
 
+// TestPDFCommentExportSharesArchiveAdmission verifies ZIPs and annotated singles share one slot.
+func TestPDFCommentExportSharesArchiveAdmission(t *testing.T) {
+	for _, occupiedBy := range []string{"ZIP", "annotated single"} {
+		t.Run(occupiedBy, func(t *testing.T) {
+			fixture, _, _, _ := newPDFCommentFixture(t)
+			t.Setenv("TMPDIR", t.TempDir())
+			handler := fixture.Server.Handler()
+			status := pdfStatusForWork(t, handler, fixture.AvailableID)
+			singlePath := fmt.Sprintf("/api/runs/%d/articles/%d/pdf-export", fixture.RunID, fixture.RevisionID)
+			zipPath := fmt.Sprintf("/api/runs/%d/pdf-exports", fixture.RunID)
+			singleBody := fmt.Sprintf(`{"content_hash":%q,"include_comments":true}`, status["content_hash"])
+			zipBody := fmt.Sprintf(`{"articles":[{"work_revision_id":%d,"content_hash":%q}]}`, fixture.RevisionID, status["content_hash"])
+			path, body := zipPath, zipBody
+			otherPath := singlePath
+			var otherBody any = map[string]any{"content_hash": status["content_hash"], "include_comments": true}
+			if occupiedBy == "annotated single" {
+				path, body = singlePath, singleBody
+				otherPath = zipPath
+				otherBody = map[string]any{"articles": []map[string]any{{"work_revision_id": fixture.RevisionID, "content_hash": status["content_hash"]}}}
+			}
+			writer := newBlockingExportWriter()
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				request.Header.Set("Content-Type", "application/json")
+				handler.ServeHTTP(writer, request)
+			}()
+			defer func() { close(writer.release); <-done }()
+			select {
+			case <-writer.started:
+			case <-time.After(5 * time.Second):
+				t.Fatal("occupying export did not reach streaming")
+			}
+			rejected := pdfExportRequest(t, handler, otherPath, otherBody)
+			if rejected.Code != http.StatusServiceUnavailable || pdfExportErrorCode(t, rejected) != "pdf_export_busy" {
+				t.Fatalf("shared slot status=%d, want 503", rejected.Code)
+			}
+			plain := pdfExportRequest(t, handler, singlePath, map[string]any{"content_hash": status["content_hash"]})
+			if plain.Code != http.StatusOK {
+				t.Fatalf("plain single status=%d, want 200", plain.Code)
+			}
+		})
+	}
+}
+
 // blockingExportWriter blocks the first response body write until released.
 type blockingExportWriter struct {
 	header  http.Header
@@ -315,6 +361,8 @@ func (w *failingExportWriter) SetWriteDeadline(time.Time) error { return nil }
 // TestPDFExportStreamInterruptionAborts verifies failed emission never appends JSON.
 func TestPDFExportStreamInterruptionAborts(t *testing.T) {
 	fixture := testhelpers.NewPDFViewerFixture(t)
+	spoolDir := t.TempDir()
+	t.Setenv("TMPDIR", spoolDir)
 	status := pdfStatusForWork(t, fixture.Server.Handler(), fixture.AvailableID)
 	writer := &failingExportWriter{header: make(http.Header)}
 	body := fmt.Sprintf(`{"articles":[{"work_revision_id":%d,"content_hash":%q}]}`, fixture.RevisionID, status["content_hash"])
@@ -331,6 +379,10 @@ func TestPDFExportStreamInterruptionAborts(t *testing.T) {
 	}()
 	if bytes.Contains(writer.body.Bytes(), []byte(`"error"`)) || bytes.Contains(writer.body.Bytes(), []byte("unable to read workspace data")) {
 		t.Fatalf("stream interruption appended JSON: %s", writer.body.String())
+	}
+	entries, err := os.ReadDir(spoolDir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("interrupted export retained temporary files: entries=%v error=%v", entries, err)
 	}
 }
 

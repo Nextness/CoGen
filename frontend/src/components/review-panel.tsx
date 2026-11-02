@@ -217,6 +217,20 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
   window.addEventListener("focus", focusRefresh);
   document.addEventListener("visibilitychange", visibilityRefresh);
 
+  /** Owns the reader lifecycle even when article review is unavailable or uninitialized. */
+  const controller: ArticleReviewController = {
+    destroy: async () => {
+      destroyed = true;
+      window.removeEventListener("focus", focusRefresh);
+      document.removeEventListener("visibilitychange", visibilityRefresh);
+      if (pdfController) {
+        await pdfController.destroy();
+        pdfController = null;
+      }
+    },
+    refreshPDF: refreshPDFState,
+  };
+
   var context: ReviewContextResponse;
   try {
     context = await api<ReviewContextResponse>(`/api/runs/${runID}/review-context`);
@@ -233,48 +247,15 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     host.querySelector<HTMLButtonElement>("[data-review-context-retry]")?.addEventListener("click", () => {
       void mountArticleReview(host, null, record, detailData, onAuditChange);
     });
-    return {
-      destroy: async () => {
-        destroyed = true;
-        window.removeEventListener("focus", focusRefresh);
-        document.removeEventListener("visibilitychange", visibilityRefresh);
-        if (pdfController) {
-          await pdfController.destroy();
-          pdfController = null;
-        }
-      },
-      refreshPDF: async () => false,
-    };
+    return controller;
   }
 
   if (!context.context_initialized) {
     renderStartReview(context.proposed_parent ?? null);
-    return {
-      destroy: async () => {
-        destroyed = true;
-        window.removeEventListener("focus", focusRefresh);
-        document.removeEventListener("visibilitychange", visibilityRefresh);
-        if (pdfController) {
-          await pdfController.destroy();
-          pdfController = null;
-        }
-      },
-      refreshPDF: async () => false,
-    };
+    return controller;
   }
   await renderReview();
-  return {
-    destroy: async () => {
-      destroyed = true;
-      window.removeEventListener("focus", focusRefresh);
-      document.removeEventListener("visibilitychange", visibilityRefresh);
-      if (pdfController) {
-        await pdfController.destroy();
-        pdfController = null;
-      }
-    },
-    refreshPDF: refreshPDFState,
-  };
+  return controller;
 
   /** Renders explicit context initialization with safe parent confirmation. */
   function renderStartReview(proposed: ProposedParent | null): void {

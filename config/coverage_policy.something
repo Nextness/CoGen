@@ -148,7 +148,6 @@ coverage_policy: coverage_policy_config = {
         ["analysis/backend/workspace/termindex"] => { minimum = 72.0 },
         ["analysis/backend/workspace/enrichment"] => { minimum = 72.0 },
         ["analysis/backend/workspace/normalizer"] => { minimum = 72.0 },
-        ["analysis/backend/workspace/pdfsync"] => { minimum = 72.0 },
         ["analysis/backend/workspace/providers"] => { minimum = 72.0 },
         ["analysis/backend/workspace/revisions"] => { minimum = 72.0 },
         ["analysis/backend/workspace/validator"] => { minimum = 72.0 },

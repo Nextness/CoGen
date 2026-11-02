@@ -14,7 +14,7 @@ The stack is Go, SQLite through `modernc.org/sqlite`, the project-specific SOMET
 
 Node.js 22.18 or later and npm are required for frontend development, unit tests, and Playwright. Node's native type stripping executes `.ts` modules in unit tests, and an esbuild loader hook executes `.tsx` modules; type checking is a separate `tsc --noEmit` step via `make check-frontend`.
 
-`modernc.org/sqlite` is the only direct Go runtime dependency. Maintained command-line and repository tools have importable implementations under `tooling/go/` and thin commands under `tooling/go/cmd/`; Node developer scripts live under `tooling/node/`. Do not add dependencies when the standard library or an existing project capability is adequate.
+`modernc.org/sqlite` is the only direct runtime database dependency; optional PDF comment exports use the isolated `github.com/pdfcpu/pdfcpu v0.15.0` dependency. Maintained command-line and repository tools have importable implementations under `tooling/go/` and thin commands under `tooling/go/cmd/`; Node developer scripts live under `tooling/node/`. Do not add dependencies when the standard library or an existing project capability is adequate.
 
 ## 3. Supported commands
 

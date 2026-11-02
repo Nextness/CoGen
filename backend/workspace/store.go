@@ -8,7 +8,6 @@ import (
 	"analysis/backend/bundle"
 	"analysis/backend/workspace/enrichment"
 	"analysis/backend/workspace/normalizer"
-	"analysis/backend/workspace/pdfsync"
 	"analysis/backend/workspace/providers"
 	"analysis/backend/workspace/revisions"
 	"analysis/backend/workspace/validator"
@@ -83,7 +82,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 		return err
 	}
 	if runID == 0 {
-		if _, _, err := pdfsync.Sync(ctx, db, dbPath, registryPath); err != nil {
+		if _, _, err := bundle.SyncInventory(ctx, db, dbPath, registryPath); err != nil {
 			return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 		}
 		termindex.BestEffort(ctx, db)
@@ -336,7 +335,7 @@ func RunPipelineContext(ctx context.Context, dbPath string, originalConfig []byt
 	if err := termindex.Persist(ctx, db, runID, termsBySource, termMatches); err != nil {
 		return err
 	}
-	registered, auditEventsFlushed, err := pdfsync.Sync(ctx, db, dbPath, registryPath)
+	registered, auditEventsFlushed, err := bundle.SyncInventory(ctx, db, dbPath, registryPath)
 	if err != nil {
 		return fmt.Errorf("synchronize normalized PDF inventory: %w", err)
 	}

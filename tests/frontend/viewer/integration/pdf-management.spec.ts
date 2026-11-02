@@ -111,6 +111,40 @@ async function waitForPendingAudit(request: APIRequestContext): Promise<void> {
 }
 
 test.describe('isolated PDF management lifecycle', () => {
+  test("refreshes uploads and removals before review initialization", async ({ page, request }) => {
+    const initialContext = await request.get("/api/runs/1/review-context");
+    expect((await initialContext.json()).context_initialized).toBe(false);
+    const source = await request.get("/api/pdf/1");
+    expect(source.ok()).toBeTruthy();
+    const bytes = Buffer.from(await source.body());
+    await visitArticle(page, "2");
+    await expect(page.locator("[data-pdf-viewer-host]")).toContainText("The selected PDF is not available");
+
+    await page.locator("[data-pdf-file]").setInputFiles({
+      name: "before-review.pdf",
+      mimeType: "application/pdf",
+      buffer: bytes,
+    });
+    await page.getByRole("button", { name: "Upload PDF", exact: true }).click();
+    await expect(page.locator("[data-pdf-feedback]")).toContainText("PDF uploaded");
+    await expect(page.locator(".rw-pdf-page canvas")).toBeVisible();
+
+    await page.getByRole("button", { name: "Remove PDF", exact: true }).click();
+    await page.getByRole("dialog", { name: "Remove stored PDF" }).getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(page.locator("[data-pdf-feedback]")).toContainText("PDF removed");
+    await expect(page.locator("[data-pdf-viewer-host]")).toContainText("The selected PDF is not available");
+    await expect(page.locator(".rw-pdf-page canvas")).toHaveCount(0);
+
+    await ensureAvailablePDF(request, "2", bytes);
+    await page.getByRole("button", { name: "Refresh PDF state", exact: true }).click();
+    await expect(page.locator(".rw-pdf-page canvas")).toBeVisible();
+    await page.getByRole("button", { name: "Remove PDF", exact: true }).click();
+    await page.getByRole("dialog", { name: "Remove stored PDF" }).getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(page.locator("[data-pdf-viewer-host]")).toContainText("The selected PDF is not available");
+    const finalContext = await request.get("/api/runs/1/review-context");
+    expect((await finalContext.json()).context_initialized).toBe(false);
+  });
+
   test('uploads, downloads, replaces, removes, reuploads, and reports failures through visible controls', async ({ page, request, browserName }) => {
     test.setTimeout(180_000);
     await ensureReviewContext(request);

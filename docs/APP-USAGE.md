@@ -148,7 +148,7 @@ If the viewer cannot start, confirm that the metadata path exists, is a file, is
 - URLs preserve useful research context but can reveal its identifiers.
 - Canonical links use one clean path per view with no query parameters; research context and route state remain local to `history.state` and the `rw-viewer-state` session mirror.
 - Cross-view navigation repeats shell and view requests and discards in-memory graph layout, zoom, pan, and appended audit pages; URL-backed state remains restorable.
-- String-template rendering relies on deliberate escaping for each new dynamic value.
+- The project-owned JSX runtime escapes dynamic text and attributes; review-note markup is rendered only through the bounded note parser.
 - Visual snapshots and fixtures represent controlled data and tested browser environments, not every platform.
 
 Review-note tables accept one or more columns, including a single-column table without outer pipes. A table begins only when the next line consists of delimiter cells with at least three hyphens each; ordinary pipe-bearing prose remains paragraph text.
