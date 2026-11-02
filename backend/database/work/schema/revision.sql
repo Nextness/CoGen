@@ -164,6 +164,23 @@ WHERE wr.id = sqlc.arg(id)
         AND current_validation.stage_name = 'validate'
         AND current_validation.outcome = 'valid');
 
+-- name: ListExportArticles :many
+SELECT wr.id, wr.work_id, wr.title, w.doi
+FROM work_revisions wr
+JOIN works w ON w.id = wr.work_id
+WHERE wr.pipeline_run_id = sqlc.arg(pipeline_run_id)
+  AND wr.id IN (sqlc.slice('revision_ids'))
+  AND wr.producer_stage = 'normalize'
+  AND wr.id = (SELECT MAX(normalized_candidate.id) FROM work_revisions normalized_candidate
+      WHERE normalized_candidate.pipeline_run_id = wr.pipeline_run_id
+        AND normalized_candidate.work_id = wr.work_id
+        AND normalized_candidate.producer_stage = 'normalize')
+  AND EXISTS (SELECT 1 FROM run_work_stages current_validation
+      WHERE current_validation.pipeline_run_id = wr.pipeline_run_id
+        AND current_validation.work_id = wr.work_id
+        AND current_validation.stage_name = 'validate'
+        AND current_validation.outcome = 'valid');
+
 -- name: CountCurrentNormalizedRevisionsByWork :one
 SELECT COUNT(*) FROM work_revisions wr
 WHERE wr.pipeline_run_id = sqlc.arg(pipeline_run_id)

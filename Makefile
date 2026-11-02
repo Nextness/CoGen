@@ -1,7 +1,5 @@
 BIN              ?= build/analysis
 SOMETHING_PRINTER ?= build/something-printer
-PDF_STORE        ?= build/pdf-store
-PDF_EXPORT       ?= build/pdf-export
 DOC_CHECK        ?= build/doccheck
 COVERAGE_CHECK   ?= build/coveragecheck
 RAWSQL_CHECK     ?= build/rawsqlcheck
@@ -44,7 +42,7 @@ export FIXTURE_DB ASSETS_DIR
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer pdf-store pdf-export doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report
+.PHONY: recover help all build tools something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -84,19 +82,11 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "$(BIN)" ./backend/cmd/analysis
 
-tools: something-printer pdf-store pdf-export doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect ## Build every maintained Go tool under build/.
+tools: something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect ## Build every maintained Go tool under build/.
 
 something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
 	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
 	cd $(GOWD) && $(GO) build -o "$(SOMETHING_PRINTER)" ./tooling/go/cmd/something-printer/
-
-pdf-store: ## Build build/pdf-store, the validated manual PDF maintenance tool.
-	@mkdir -p "$(dir $(PDF_STORE))"
-	cd $(GOWD) && $(GO) build -o "$(PDF_STORE)" ./tooling/go/cmd/pdf-store/
-
-pdf-export: ## Build build/pdf-export, the read-only DOI-to-PDF export tool.
-	@mkdir -p "$(dir $(PDF_EXPORT))"
-	cd $(GOWD) && $(GO) build -o "$(PDF_EXPORT)" ./tooling/go/cmd/pdf-export/
 
 doccheck: ## Build build/doccheck, the documentation consistency tool.
 	@mkdir -p "$(dir $(DOC_CHECK))"
@@ -197,12 +187,12 @@ test-race: testselect ## Run ordinary Go suites with race detection; selectors n
 test-docs: ## Run the documentation command functional regression suites.
 	$(MAKE) test-go DOMAIN=tooling COMPONENT=go/doccheck
 
-test-e2e: build frontend-build something-printer pdf-store ## Run ordered offline pipeline, browser continuity, and persisted review evidence checks.
+test-e2e: build frontend-build something-printer ## Run ordered offline pipeline, browser continuity, and persisted review evidence checks.
 	$(GO) test -tags=e2e ./tests/e2e/offline -run '^TestE2E(Deterministic|Mocked)$$' -count=1
 	E2E_SPEC=1 ASSETS_DIR="$(abspath $(ASSETS_DIR))" FIXTURE_DB="$(abspath build/e2e/deterministic/corpus.metadata.db)" PLAYWRIGHT_MUTATION_DB="$(abspath build/e2e/deterministic/review/corpus.metadata.db)" node tests/support/node/run-playwright.ts --project="$(BROWSER)" $(if $(WORKERS),--workers=$(WORKERS)) tests/e2e/offline/e2e.spec.ts
 	$(GO) test -tags=e2e ./tests/e2e/offline -run '^TestE2EReviewEvidence$$' -count=1
 
-test-e2e-live: build something-printer pdf-store ## Run explicitly gated real-provider E2E checks; requires E2E_LIVE=1.
+test-e2e-live: build something-printer ## Run explicitly gated real-provider E2E checks; requires E2E_LIVE=1.
 	@test "$(E2E_LIVE)" = "1" || (printf '%s\n' 'Set E2E_LIVE=1 to permit real provider requests.' >&2; exit 2)
 	E2E_LIVE=1 $(GO) test -tags='e2e e2e_live' ./tests/e2e/live -run '^TestE2ELive$$' -count=1
 
@@ -221,7 +211,7 @@ run: build ## Run the workspace pipeline. Override DB, CONFIG, WORKSPACE, and FR
 recover: build ## Mark one abandoned running attempt failed. Requires DB and RUN_ID.
 	./$(BIN) recover --db "$(DB)" --run-id "$(RUN_ID)"
 
-migrate: build ## Apply pending metadata migrations to an existing DB without running a workspace.
+migrate: build ## Prepare both bundle stores and reconcile normalized PDF inventory without a workspace.
 	./$(BIN) migrate --db "$(DB)"
 
 serve: build frontend-build ## Serve DB with frontend assets from ASSETS_DIR (default build/frontend/dist).

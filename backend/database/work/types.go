@@ -55,6 +55,15 @@ type NormalizedInventoryWork struct {
 	PipelineRunID int64  `json:"pipeline_run_id"`
 }
 
+// ExportArticle identifies one exact normalized article revision selected for
+// PDF export, including the revision title and stable work DOI.
+type ExportArticle struct {
+	RevisionID int64
+	WorkID     int64
+	Title      *string
+	DOI        *string
+}
+
 // StageOutcome records what happened to one work at one pipeline stage within
 // a single pipeline run. The (pipeline_run_id, work_id, stage_name) triplet is
 // unique so the same stage cannot report two different outcomes for the same

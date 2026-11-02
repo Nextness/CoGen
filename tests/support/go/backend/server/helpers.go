@@ -16,6 +16,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	"testing"
@@ -372,6 +374,21 @@ func RequestJSON(t *testing.T, handler http.Handler, path string) (int, map[stri
 	return recorder.Code, body
 }
 
+// BuildAnalysisWorker builds the real analysis binary in a unique owned directory.
+func BuildAnalysisWorker(t *testing.T) string {
+	t.Helper()
+	binary := filepath.Join(t.TempDir(), "analysis")
+	command := exec.Command("make", "build", "BIN="+binary)
+	command.Dir = testenv.Root()
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("build analysis worker: %v\n%s", err, output)
+	}
+	if info, err := os.Stat(binary); err != nil || info.Mode()&0o111 == 0 {
+		t.Fatalf("analysis worker was not built: %v", err)
+	}
+	return binary
+}
+
 // NewPDFViewerFixture supports the package test suite's new pdf viewer fixture setup or assertions.
 func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 	t.Helper()
@@ -463,7 +480,7 @@ func NewPDFViewerFixture(t *testing.T) PdfViewerFixture {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Add(ctx, "10.1000/viewer-available", availableID, pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")); err != nil {
+	if _, err := store.Save(ctx, pdfstore.SaveInput{DOI: "10.1000/viewer-available", WorkID: availableID, ExpectedChangeCounter: 1, Data: pdffixture.Bytes("Selectable viewer methods on page one", "Selectable viewer results on page two")}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.FlushAuditOutbox(ctx, bindings); err != nil {
@@ -499,7 +516,7 @@ type Viewer struct {
 // OpenViewer exercises the actual existing-only server opener before allocating independent test-owned inspection handles.
 func OpenViewer(t *testing.T, path string) (*Viewer, error) {
 	t.Helper()
-	actual, err := subject.Open(path)
+	actual, err := subject.Open(path, testenv.Path("config", "database.something"))
 	if err != nil {
 		return nil, err
 	}

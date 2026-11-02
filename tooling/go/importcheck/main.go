@@ -202,7 +202,7 @@ func (g packageGraph) layerOf(path string) layer {
 		return layerFamily
 	case relative == "backend/pdfstore" || strings.HasPrefix(relative, "backend/pdfstore/"):
 		return layerCompanion
-	case withinSubtree("backend/workspace", relative) || withinSubtree("backend/server", relative) || strings.HasPrefix(relative, "tooling/go/"):
+	case withinSubtree("backend/workspace", relative) || withinSubtree("backend/server", relative) || withinSubtree("backend/bundle", relative) || strings.HasPrefix(relative, "tooling/go/"):
 		return layerConsumer
 	default:
 		return layerShared
@@ -291,6 +291,10 @@ func verifyGraph(graph packageGraph) []string {
 		case layerCompanion:
 			if targetLayer == layerConsumer {
 				violations = append(violations, fmt.Sprintf("%s imports %s; the companion store must not depend on consumers", edge.Importer, edge.Target))
+			}
+		case layerConsumer:
+			if withinSubtree(graph.Module+"/backend/bundle", edge.Importer) && (withinSubtree(graph.Module+"/backend/workspace", edge.Target) || withinSubtree(graph.Module+"/backend/server", edge.Target)) {
+				violations = append(violations, fmt.Sprintf("%s imports %s; the bundle consumer must not depend on workspace or server orchestration", edge.Importer, edge.Target))
 			}
 		case layerShared:
 			if targetLayer != layerShared {

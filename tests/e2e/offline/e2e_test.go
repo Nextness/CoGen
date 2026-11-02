@@ -3,9 +3,14 @@
 package offline_test
 
 import (
+	"analysis/backend/pdfstore"
 	flow "analysis/tests/support/go/e2eflow"
 	"analysis/tests/support/go/testfixture"
 
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
 	"path/filepath"
 
 	"testing"
@@ -80,6 +85,97 @@ func TestE2EReviewEvidence(t *testing.T) {
 	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action LIKE 'review_%' OR action='work_review_version_created'").Scan(&auditEvents); err != nil || auditEvents < 8 {
 		t.Fatalf("review audit events=%d err=%v", auditEvents, err)
 	}
+	assertE2EPDFLifecycleEvidence(t, root, path, db)
+}
+
+// assertE2EPDFLifecycleEvidence verifies final selections, deleted blobs, counters, and exactly-once mutation audit.
+func assertE2EPDFLifecycleEvidence(t *testing.T, root, metadataPath string, metadata *testfixture.Database) {
+	t.Helper()
+	outputDir := filepath.Dir(metadataPath)
+	fixturePath := filepath.Join(outputDir, "review.fixture.pdf")
+	replacementPath := filepath.Join(outputDir, "review.replacement.pdf")
+	if _, err := os.Stat(fixturePath); err != nil {
+		fixturePath = filepath.Join(filepath.Dir(outputDir), "review.fixture.pdf")
+		replacementPath = filepath.Join(filepath.Dir(outputDir), "review.replacement.pdf")
+	}
+	finalBytes, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacementBytes, err := os.ReadFile(replacementPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalHash := sha256Hex(finalBytes)
+	replacementHash := sha256Hex(replacementBytes)
+	if finalHash == replacementHash {
+		t.Fatal("E2E replacement fixture has the original identity")
+	}
+	ctx := context.Background()
+	pdfPath, err := metadata.PDFBindings.ResolveBinding(ctx, metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := pdfstore.Open(pdfPath, filepath.Join(root, "config", "database.something"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var status, contentHash string
+	var counter int64
+	if err := store.DB.QueryRow(`SELECT status, COALESCE(content_hash, ''), change_counter FROM pdf_documents WHERE doi=?`, "10.5555/e2e-complete-one").Scan(&status, &contentHash, &counter); err != nil {
+		t.Fatal(err)
+	}
+	if status != pdfstore.StatusAvailable || contentHash != finalHash || counter != 5 {
+		t.Fatalf("final PDF selection status=%s hash=%s counter=%d", status, contentHash, counter)
+	}
+	var finalBlobs, replacementBlobs int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_blobs WHERE content_hash=?`, finalHash).Scan(&finalBlobs); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM pdf_blobs WHERE content_hash=?`, replacementHash).Scan(&replacementBlobs); err != nil {
+		t.Fatal(err)
+	}
+	if finalBlobs != 1 || replacementBlobs != 0 {
+		t.Fatalf("PDF blobs final=%d replacement=%d", finalBlobs, replacementBlobs)
+	}
+	var inventoried, replaced, removed, prepared int
+	if err := metadata.Conn.QueryRow(`SELECT
+		SUM(CASE WHEN action='pdf_document_inventoried' THEN 1 ELSE 0 END),
+		SUM(CASE WHEN action='pdf_document_replaced' THEN 1 ELSE 0 END),
+		SUM(CASE WHEN action='pdf_document_removed' THEN 1 ELSE 0 END),
+		SUM(CASE WHEN action='pdf_document_export_prepared' THEN 1 ELSE 0 END)
+		FROM audit_events`).Scan(&inventoried, &replaced, &removed, &prepared); err != nil {
+		t.Fatal(err)
+	}
+	if inventoried != 2 || replaced != 1 || removed != 1 || prepared < 3 {
+		t.Fatalf("PDF audit inventoried=%d replaced=%d removed=%d prepared=%d", inventoried, replaced, removed, prepared)
+	}
+	var delivered, pending int
+	if err := store.DB.QueryRow(`SELECT
+		SUM(CASE WHEN delivered_at IS NOT NULL THEN 1 ELSE 0 END),
+		SUM(CASE WHEN delivered_at IS NULL THEN 1 ELSE 0 END)
+		FROM pdf_audit_outbox WHERE action IN ('pdf_document_inventoried','pdf_document_replaced','pdf_document_removed')`).Scan(&delivered, &pending); err != nil {
+		t.Fatal(err)
+	}
+	if delivered != 4 || pending != 0 {
+		t.Fatalf("PDF mutation outbox delivered=%d pending=%d", delivered, pending)
+	}
+	var links int
+	if err := metadata.Conn.QueryRow(`SELECT COUNT(*) FROM pdf_audit_links link
+		JOIN audit_events event ON event.id=link.audit_event_id
+		WHERE event.action IN ('pdf_document_inventoried','pdf_document_replaced','pdf_document_removed')`).Scan(&links); err != nil {
+		t.Fatal(err)
+	}
+	if links != 4 {
+		t.Fatalf("PDF mutation audit links=%d", links)
+	}
+}
+
+// sha256Hex returns the lowercase SHA-256 identity of one fixture file.
+func sha256Hex(data []byte) string {
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
 }
 
 // TestE2EMocked verifies enrichment through loopback providers and cross-layer evidence.

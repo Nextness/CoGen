@@ -1,5 +1,5 @@
-// migrations.go applies the configured migration chain under a cross-process
-// lock and reports the applied schema version.
+// runner.go applies the configured migration chain under a cross-process lock
+// and reports the applied schema version.
 package migrations
 
 import (
@@ -16,9 +16,24 @@ var lg = logging.Logger("database")
 
 const migrationsTable = "schema_migrations"
 
+// Result summarizes one configured migration run.
+type Result struct {
+	Configured int
+	Applied    int
+	Adopted    int
+	Skipped    int
+}
+
 // Apply applies unapplied configured migrations in declaration order and records their checksums.
 func Apply(db *sql.DB, migrationsDir, configPath string) error {
-	ctx := context.Background()
+	_, err := ApplyContext(context.Background(), db, migrationsDir, configPath)
+	return err
+}
+
+// ApplyContext applies unapplied configured migrations in declaration order,
+// honoring context cancellation between and within migration transactions, and
+// reports how many configured entries were applied, adopted, or skipped.
+func ApplyContext(ctx context.Context, db *sql.DB, migrationsDir, configPath string) (Result, error) {
 	if err := withMigrationLock(db, ctx, func(conn *sql.Conn) error {
 		_, err := conn.ExecContext(ctx, fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			filename   TEXT PRIMARY KEY,
@@ -28,18 +43,18 @@ func Apply(db *sql.DB, migrationsDir, configPath string) error {
 		return err
 	}); err != nil {
 		lg.Debug("migration tracking table creation failed", "error", err)
-		return fmt.Errorf("create tracking table: %w", err)
+		return Result{}, fmt.Errorf("create tracking table: %w", err)
 	}
 
 	// Load migration chain from database.something
 	entries, err := LoadChain(configPath)
 	if err != nil {
 		lg.Debug("migration chain load failed", "config", configPath, "error", err)
-		return fmt.Errorf("load migration chain: %w", err)
+		return Result{}, fmt.Errorf("load migration chain: %w", err)
 	}
 	if len(entries) == 0 {
 		lg.Debug("migration run successful", "config", configPath, "result", "no_migrations")
-		return nil
+		return Result{}, nil
 	}
 
 	appliedCount := 0
@@ -51,12 +66,12 @@ func Apply(db *sql.DB, migrationsDir, configPath string) error {
 		upSQL, err := ReadUpSQL(sqlPath)
 		if err != nil {
 			lg.Debug("migration SQL extraction failed", "file", fn, "error", err)
-			return fmt.Errorf("extract SQL from %s: %w", fn, err)
+			return Result{Configured: len(entries), Applied: appliedCount, Adopted: adoptedCount, Skipped: skippedCount}, fmt.Errorf("extract SQL from %s: %w", fn, err)
 		}
 		cs, err := filehash.SHA256(sqlPath)
 		if err != nil {
 			lg.Debug("migration checksum failed", "file", fn, "error", err)
-			return fmt.Errorf("checksum %s: %w", fn, err)
+			return Result{Configured: len(entries), Applied: appliedCount, Adopted: adoptedCount, Skipped: skippedCount}, fmt.Errorf("checksum %s: %w", fn, err)
 		}
 
 		wasApplied := false
@@ -99,7 +114,7 @@ func Apply(db *sql.DB, migrationsDir, configPath string) error {
 			return nil
 		}); err != nil {
 			lg.Debug("migration application failed", "file", fn, "error", err)
-			return err
+			return Result{Configured: len(entries), Applied: appliedCount, Adopted: adoptedCount, Skipped: skippedCount}, err
 		}
 		if wasApplied {
 			skippedCount++
@@ -121,7 +136,7 @@ func Apply(db *sql.DB, migrationsDir, configPath string) error {
 		"applied", appliedCount,
 		"adopted", adoptedCount,
 		"skipped", skippedCount)
-	return nil
+	return Result{Configured: len(entries), Applied: appliedCount, Adopted: adoptedCount, Skipped: skippedCount}, nil
 }
 
 // withMigrationLock serializes each migration transaction across independent

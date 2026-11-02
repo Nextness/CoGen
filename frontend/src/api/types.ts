@@ -68,6 +68,13 @@ export interface TableRowsResponse extends TabularResponse {
   pagination: ScopedPagination;
 }
 
+/** One database schema endpoint and readiness state reported by health. */
+export interface SchemaStatus {
+  actual: string;
+  target: string;
+  ready: boolean;
+}
+
 /** Immutable viewer capabilities reported by the health endpoint. */
 export interface HealthResponse {
   readable: boolean;
@@ -78,11 +85,23 @@ export interface HealthResponse {
   review_writable: boolean;
   pdf_store_bound: boolean;
   pdf_store_readable: boolean;
+  pdf_store_writable: boolean;
+  pdf_store_write_reason: string;
+  pdf_audit_pending: number;
+  pdf_audit_relay_running: boolean;
+  pdf_audit_relay_error: string;
+  schema: {
+    metadata: SchemaStatus;
+    pdf: SchemaStatus;
+    ready: boolean;
+  };
   review: {
     available: boolean;
     metadata_writable: boolean;
     pdf_store_bound: boolean;
     pdf_store_readable: boolean;
+    pdf_store_writable: boolean;
+    pdf_store_write_reason: string;
     pdf_store_read_only: boolean;
   };
 }
@@ -387,6 +406,8 @@ export interface EvaluationRow extends CorpusRow {
   review_sub_statuses: string[];
   inventory_status: string;
   inventoried_at: string | null;
+  content_hash: string | null;
+  byte_size: number | null;
 }
 
 /** Aggregate progress and filter facets for an evaluation queue. */
@@ -755,6 +776,7 @@ export interface ArticleReviewResponse {
     decision: boolean;
     notes: boolean;
     anchors: boolean;
+    anchor_removal: boolean;
   };
   review?: WorkReviewState;
   state: {
@@ -933,6 +955,38 @@ export interface ReviewAnchorMutationResponse {
 /** One backlink collection page. */
 export type ReviewBacklinksResponse = ReviewCollectionPage<ReviewNote, "backlinks">;
 
+/** One PDF mutation availability set for the selected run/article. */
+export interface PDFActions {
+  upload: boolean;
+  replace: boolean;
+  remove: boolean;
+  download: boolean;
+  reason: string;
+}
+
+/** One observable PDF mutation outcome. */
+export type PDFMutationOperation = "uploaded" | "replaced" | "removed" | "unchanged";
+
+/** One PDF mutation audit-delivery state. */
+export type PDFAuditDelivery = "pending" | "not_applicable";
+
+/** One binary PDF upload prepared from the current file and mutation precondition. */
+export interface PDFUploadRequest {
+  file: File;
+  size: number;
+  sha256: string;
+  mutationETag: string;
+}
+
+/** One successful PDF mutation response. */
+export interface PDFMutationResponse {
+  changed: boolean;
+  operation: PDFMutationOperation;
+  pdf_status: PDFStatus;
+  event_key: string | null;
+  audit_delivery: PDFAuditDelivery;
+}
+
 /** One PDF inventory state attached to an article. */
 export interface PDFStatus {
   status: string;
@@ -940,6 +994,13 @@ export interface PDFStatus {
   byte_size?: number | null;
   created_at?: string | null;
   inventoried_at?: string | null;
+  registered?: boolean;
+  change_counter?: number;
+  mutation_etag?: string | null;
+  max_upload_bytes?: number;
+  storage_writable?: boolean;
+  storage_reason?: string;
+  actions?: PDFActions;
 }
 
 /** One detail collection with endpoint-specific cursor pagination. */
@@ -1104,4 +1165,11 @@ export interface DataTableContext {
   querySelector?: string;
   searchButtonSelector?: string;
   clearButtonSelector?: string;
+  selection?: {
+    selected: Set<string>;
+    label: string;
+    ariaLabel?: string;
+    isSelectable?: (row: WireRecord) => boolean;
+    rowLabel?: (row: WireRecord) => string;
+  };
 }

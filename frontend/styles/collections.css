@@ -898,7 +898,17 @@ tr.expansion-row[hidden] {
   border-radius: 2px;
 }
 
-/* Toggle cell */
+/* Selection and toggle cells */
+th.selection-cell,
+td.selection-cell {
+  width: 34px;
+  min-width: 34px;
+  max-width: 34px;
+  padding: 5px 4px;
+  text-align: center;
+  vertical-align: top;
+}
+
 th.toggle-cell,
 td.toggle-cell {
   width: 42px;
@@ -1087,7 +1097,8 @@ td.toggle-cell {
   table-layout: fixed;
 }
 
-.rw-corpus-table .toggle-cell { width: 34px; }
+.rw-corpus-table .toggle-cell,
+.rw-corpus-table .selection-cell { width: 34px; }
 .rw-corpus-table .col-id { width: 70px; }
 .rw-corpus-table .col-year { width: 70px; }
 .rw-corpus-table .col-source { width: 105px; }

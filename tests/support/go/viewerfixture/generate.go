@@ -516,7 +516,7 @@ func Generate(outputPath, registryPath string) (err error) {
 	if err := rows.Close(); err != nil {
 		fail(err)
 	}
-	if _, err := pdfs.Add(ctx, "10.1000/1", 1, pdffixture.Bytes("Selectable fixture methods on page one", "Selectable fixture conclusions on page two")); err != nil {
+	if _, err := pdfs.Save(ctx, pdfstore.SaveInput{DOI: "10.1000/1", WorkID: 1, ExpectedChangeCounter: 1, Data: pdffixture.Bytes("Selectable fixture methods on page one", "Selectable fixture conclusions on page two")}); err != nil {
 		fail(err)
 	}
 	if _, err := pdfs.DB.Exec(`UPDATE pdf_documents

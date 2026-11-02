@@ -47,7 +47,52 @@ func (s *Store) Insert(ctx context.Context, event *manifest.AuditEvent) (int64, 
 	if err := manifest.ValidateAuditAction(string(event.Action)); err != nil {
 		return 0, err
 	}
-	result, err := s.queries.InsertAuditEvent(ctx, generated.InsertAuditEventParams{
+	result, err := s.queries.InsertAuditEvent(ctx, auditEventParams(event))
+	if err != nil {
+		return 0, fmt.Errorf("insert audit event: %w", err)
+	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+// InsertBatch stores a bounded group of audit events in one family-owned
+// transaction. Every action is validated before the transaction begins, so a
+// failed batch appends no partial evidence.
+func (s *Store) InsertBatch(ctx context.Context, events []*manifest.AuditEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	for _, event := range events {
+		if event == nil {
+			return fmt.Errorf("insert audit event batch: event value is required")
+		}
+		if err := manifest.ValidateAuditAction(string(event.Action)); err != nil {
+			return err
+		}
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin audit event batch: %w", err)
+	}
+	defer tx.Rollback()
+	queries := s.queries.WithTx(tx)
+	for _, event := range events {
+		if _, err := queries.InsertAuditEvent(ctx, auditEventParams(event)); err != nil {
+			return fmt.Errorf("insert audit event batch: %w", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit audit event batch: %w", err)
+	}
+	return nil
+}
+
+// auditEventParams maps one manifest event into generated insert parameters.
+func auditEventParams(event *manifest.AuditEvent) generated.InsertAuditEventParams {
+	return generated.InsertAuditEventParams{
 		OccurredAt:    event.OccurredAt,
 		Actor:         event.Actor,
 		PipelineRunID: nullableRunID(event.PipelineRunID),
@@ -58,15 +103,7 @@ func (s *Store) Insert(ctx context.Context, event *manifest.AuditEvent) (int64, 
 		AfterJson:     nullableString(event.AfterJSON),
 		MetadataJson:  nullableString(event.MetadataJSON),
 		CorrelationID: nullableString(event.CorrelationID),
-	})
-	if err != nil {
-		return 0, fmt.Errorf("insert audit event: %w", err)
 	}
-	id, err := result.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-	return id, nil
 }
 
 // ListByRun returns all audit events for a given pipeline run, ordered by ID.

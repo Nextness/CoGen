@@ -39,6 +39,8 @@ func (s *Store) RecordDeliveredAudit(ctx context.Context, tx *sql.Tx, event Deli
 		EntityType:    event.EntityType,
 		EntityID:      event.EntityID,
 		Action:        event.Action,
+		BeforeJson:    nullableString(event.BeforeJSON),
+		AfterJson:     nullableString(event.AfterJSON),
 		MetadataJson:  sql.NullString{String: event.MetadataJSON, Valid: true},
 		CorrelationID: sql.NullString{String: event.CorrelationID, Valid: true},
 	})
@@ -57,4 +59,12 @@ func (s *Store) RecordDeliveredAudit(ctx context.Context, tx *sql.Tx, event Deli
 		return fmt.Errorf("link PDF metadata audit event: %w", err)
 	}
 	return nil
+}
+
+// nullableString maps an empty optional audit payload into SQL NULL.
+func nullableString(value string) sql.NullString {
+	if value == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value, Valid: true}
 }

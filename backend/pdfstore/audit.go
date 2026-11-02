@@ -24,6 +24,8 @@ type OutboxEvent struct {
 	EntityType    string
 	EntityID      string
 	Action        string
+	BeforeJSON    string
+	AfterJSON     string
 	MetadataJSON  string
 	CorrelationID string
 }
@@ -48,6 +50,8 @@ func insertOutbox(ctx context.Context, queries *generated.Queries, event OutboxE
 		EntityType:    event.EntityType,
 		EntityID:      event.EntityID,
 		Action:        event.Action,
+		BeforeJson:    nullableAuditJSON(event.BeforeJSON),
+		AfterJson:     nullableAuditJSON(event.AfterJSON),
 		MetadataJson:  event.MetadataJSON,
 		CorrelationID: event.CorrelationID,
 	}); err != nil {
@@ -62,6 +66,14 @@ func nullableRunID(runID int64) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: runID, Valid: true}
+}
+
+// nullableAuditJSON maps an empty optional before/after payload into SQL NULL.
+func nullableAuditJSON(value string) sql.NullString {
+	if value == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: value, Valid: true}
 }
 
 // FlushAuditOutbox mirrors undelivered PDF events into the metadata database.
@@ -85,6 +97,45 @@ func (s *Store) FlushAuditOutbox(ctx context.Context, bindings *pdfbinding.Store
 		}
 		afterOccurredAt, afterEventKey = occurredAt, eventKey
 	}
+}
+
+// RelayAuditOutbox delivers at most maxEvents pending events in bounded
+// batches. It is intended for the server relay so a large backlog cannot turn
+// one tick into unbounded work.
+func (s *Store) RelayAuditOutbox(ctx context.Context, bindings *pdfbinding.Store, maxEvents int) (int, error) {
+	if maxEvents <= 0 {
+		return 0, fmt.Errorf("audit relay limit must be positive")
+	}
+	delivered := 0
+	remaining := maxEvents
+	var afterOccurredAt, afterEventKey string
+	var firstErr error
+	for remaining > 0 {
+		limit := auditOutboxBatchSize
+		if remaining < limit {
+			limit = remaining
+		}
+		count, eventCount, occurredAt, eventKey, err := s.flushAuditOutboxBatch(ctx, bindings, limit, afterOccurredAt, afterEventKey)
+		delivered += count
+		remaining -= eventCount
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		if eventCount == 0 || eventCount < limit {
+			break
+		}
+		afterOccurredAt, afterEventKey = occurredAt, eventKey
+	}
+	return delivered, firstErr
+}
+
+// PendingAuditCount reports how many companion outbox events await delivery.
+func (s *Store) PendingAuditCount(ctx context.Context) (int, error) {
+	count, err := s.queries.CountPendingPDFAuditEvents(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count pending PDF audit events: %w", err)
+	}
+	return int(count), nil
 }
 
 // flushAuditOutboxBatch delivers one ordered bounded batch and leaves unmatched PDF updates retryable.
@@ -111,8 +162,9 @@ func (s *Store) flushAuditOutboxBatch(ctx context.Context, bindings *pdfbinding.
 		if err := bindings.RecordDeliveredAudit(ctx, tx, pdfbinding.DeliveredEvent{
 			EventKey: event.EventKey, OccurredAt: event.OccurredAt, Actor: event.Actor,
 			PipelineRunID: event.PipelineRunID, EntityType: event.EntityType,
-			EntityID: event.EntityID, Action: event.Action, MetadataJSON: event.MetadataJSON,
-			CorrelationID: event.CorrelationID,
+			EntityID: event.EntityID, Action: event.Action,
+			BeforeJSON: event.BeforeJSON, AfterJSON: event.AfterJSON,
+			MetadataJSON: event.MetadataJSON, CorrelationID: event.CorrelationID,
 		}); err != nil {
 			_, _ = tx.ExecContext(ctx, "ROLLBACK TO "+savepoint)
 			_, _ = tx.ExecContext(ctx, "RELEASE "+savepoint)
@@ -163,8 +215,9 @@ func (s *Store) pendingAuditEvents(ctx context.Context, limit int, afterOccurred
 			events = append(events, OutboxEvent{
 				EventKey: row.EventKey, OccurredAt: row.OccurredAt, Actor: row.Actor,
 				PipelineRunID: row.PipelineRunID.Int64, EntityType: row.EntityType,
-				EntityID: row.EntityID, Action: row.Action, MetadataJSON: row.MetadataJson,
-				CorrelationID: row.CorrelationID,
+				EntityID: row.EntityID, Action: row.Action,
+				BeforeJSON: row.BeforeJson.String, AfterJSON: row.AfterJson.String,
+				MetadataJSON: row.MetadataJson, CorrelationID: row.CorrelationID,
 			})
 		}
 		return events, nil
@@ -182,8 +235,9 @@ func (s *Store) pendingAuditEvents(ctx context.Context, limit int, afterOccurred
 		events = append(events, OutboxEvent{
 			EventKey: row.EventKey, OccurredAt: row.OccurredAt, Actor: row.Actor,
 			PipelineRunID: row.PipelineRunID.Int64, EntityType: row.EntityType,
-			EntityID: row.EntityID, Action: row.Action, MetadataJSON: row.MetadataJson,
-			CorrelationID: row.CorrelationID,
+			EntityID: row.EntityID, Action: row.Action,
+			BeforeJSON: row.BeforeJson.String, AfterJSON: row.AfterJson.String,
+			MetadataJSON: row.MetadataJson, CorrelationID: row.CorrelationID,
 		})
 	}
 	return events, nil

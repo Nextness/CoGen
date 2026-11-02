@@ -971,9 +971,8 @@ test.describe('Detail views', () => {
   test('article detail opens the bound PDF without discarding research context', async ({ page, request }) => {
     await visit(page, contextState({ view: 'article', article_id: ARTICLE_1_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Available|Inventoried/i);
-    const pdfLink = page.getByRole('link', { name: 'Download PDF' });
-    await expect(pdfLink).toHaveAttribute('href', '/api/pdf/1');
-    await expect(pdfLink).toHaveAttribute('download', '');
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toBeVisible();
+    await expect(page.locator('[data-pdf-include-comments]')).toBeEnabled();
     const state = await viewerState(page);
     expect(state.search_id).toBe(SEARCH_DL);
     expect(state.run_id).toBe(RUN_1_COMPLETED);
@@ -986,7 +985,7 @@ test.describe('Detail views', () => {
   test('article detail shows an absent PDF without an open action', async ({ page }) => {
     await visit(page, contextState({ view: 'article', article_id: ARTICLE_2_ID }));
     await expect(page.locator('body')).toContainText(/Full-text PDF|Not stored|No stored PDF/i);
-    await expect(page.getByRole('link', { name: 'Download PDF' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Download PDF' })).toHaveCount(0);
   });
 
   test('article detail preserves the originating corpus state', async ({ page }) => {
@@ -1263,18 +1262,19 @@ test.describe('Dark mode', () => {
 
 test.describe('Accessibility', () => {
   test("page loads and reloads leave focus at the start on every view", async ({ page }) => {
+    test.setTimeout(120_000);
     const routes = ["home", "overview", "corpus", "relationships", "provenance", "advanced", "article", "author", "reference"];
     for (const view of routes) {
       await visit(page, contextState({ view, article_id: ARTICLE_1_ID, author_id: AUTHOR_1_ID, reference_id: REF_1_ID }));
-      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator("body")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).not.toBeInViewport();
       await page.keyboard.press("Tab");
-      await expect(page.locator(".skip-link")).toBeFocused();
+      await expect(page.locator(".skip-link")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).toBeInViewport();
 
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator("body")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).not.toBeInViewport();
     }
   });

@@ -16,6 +16,7 @@ import (
 // without an entry because bypassing the family DALs is their subject.
 var approvedLocations = []ownership.Location{
 	{Path: "internal/migrations/runner.go", Category: "platform", Reason: "configured SQLite migration transactions and tracking history."},
+	{Path: "internal/migrations/history.go", Category: "platform", Reason: "read-only configured migration history and tracking-table existence for bundle readiness."},
 	{
 		Path:     "tests/support/go/testfixture/rows.go",
 		Category: "test",
@@ -42,9 +43,9 @@ var approvedLocations = []ownership.Location{
 		Reason:   "the table browser selects discovered, allowlisted table and column identifiers that cannot be generated.",
 	},
 	{
-		Path:     "backend/server/server.go",
+		Path:     "backend/pdfstore/schema.go",
 		Category: "introspection",
-		Reason:   "companion schema verification inspects table and column existence before serving.",
+		Reason:   "companion readiness verifies document-management columns, indexes, and protection triggers before writes.",
 	},
 	{
 		Path:     "tooling/go/prepare-osf/main.go",

@@ -14,4 +14,5 @@ type PdfDocument struct {
 	ContentHash   sql.NullString
 	InventoriedAt sql.NullString
 	UpdatedAt     string
+	ChangeCounter int64
 }

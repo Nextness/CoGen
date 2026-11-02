@@ -613,7 +613,7 @@ func TestProductionRegistryCreatesMetadataAndPDFStores(t *testing.T) {
 	if err := pdf.QueryRow("SELECT COUNT(*) FROM schema_migrations").Scan(&pdfMigrations); err != nil {
 		t.Fatal(err)
 	}
-	if pdfMigrations != 2 {
+	if pdfMigrations != 3 {
 		t.Fatalf("PDF migrations = %d, want 2", pdfMigrations)
 	}
 	for _, table := range []string{"pdf_blobs", "pdf_documents", "pdf_audit_outbox"} {

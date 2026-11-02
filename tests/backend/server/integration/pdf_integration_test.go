@@ -7,8 +7,10 @@ package server_test
 import "analysis/tests/support/go/testenv"
 
 import testhelpers "analysis/tests/support/go/backend/server"
+import "analysis/tests/support/go/pdffixture"
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -128,6 +130,14 @@ func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T) {
 		store.Close()
 		t.Fatal(err)
 	}
+	if _, err := store.DB.Exec(`CREATE TRIGGER pdf_blobs_abort_update
+		BEFORE UPDATE ON pdf_blobs
+		BEGIN
+			SELECT RAISE(ABORT, 'pdf_blobs is immutable: updates are not allowed');
+		END`); err != nil {
+		store.Close()
+		t.Fatal(err)
+	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -139,5 +149,97 @@ func TestPDFContentRejectsSameSizeHashMismatch(t *testing.T) {
 	response := testhelpers.ViewerRequest(t, viewer.Handler(), fmt.Sprintf("/api/pdf/%d", fixture.AvailableID))
 	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "pdf_integrity_error") {
 		t.Fatalf("corrupt PDF response: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+// pdfContentRequest invokes one PDF evidence request with optional headers.
+func pdfContentRequest(t *testing.T, handler http.Handler, method, path string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(method, path, nil)
+	for name, value := range headers {
+		request.Header.Set(name, value)
+	}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// TestPDFContentHashPinPreservesReadSemantics verifies pinned GET, HEAD,
+// range, conditional, and invalid-query behavior.
+func TestPDFContentHashPinPreservesReadSemantics(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	handler := fixture.Server.Handler()
+	status := pdfStatusForWork(t, handler, fixture.AvailableID)
+	hash := status["content_hash"].(string)
+	path := fmt.Sprintf("/api/pdf/%d?content_hash=%s", fixture.AvailableID, hash)
+	full := pdfContentRequest(t, handler, http.MethodGet, path, nil)
+	if full.Code != http.StatusOK || !bytes.HasPrefix(full.Body.Bytes(), []byte("%PDF-")) {
+		t.Fatalf("pinned GET = %d %q", full.Code, full.Body.String())
+	}
+	if full.Header().Get("ETag") != `"`+hash+`"` {
+		t.Fatalf("pinned ETag = %q", full.Header().Get("ETag"))
+	}
+	ranged := pdfContentRequest(t, handler, http.MethodGet, path, map[string]string{"Range": "bytes=0-4"})
+	if ranged.Code != http.StatusPartialContent || ranged.Body.String() != "%PDF-" {
+		t.Fatalf("pinned range = %d %q", ranged.Code, ranged.Body.String())
+	}
+	head := pdfContentRequest(t, handler, http.MethodHead, path, nil)
+	if head.Code != http.StatusOK || head.Body.Len() != 0 {
+		t.Fatalf("pinned HEAD = %d body=%d", head.Code, head.Body.Len())
+	}
+	conditional := pdfContentRequest(t, handler, http.MethodGet, path, map[string]string{"If-None-Match": `"` + hash + `"`})
+	if conditional.Code != http.StatusNotModified {
+		t.Fatalf("pinned conditional = %d", conditional.Code)
+	}
+	if invalid := pdfContentRequest(t, handler, http.MethodGet, fmt.Sprintf("/api/pdf/%d?content_hash=invalid", fixture.AvailableID), nil); invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid pin = %d", invalid.Code)
+	}
+	if unknown := pdfContentRequest(t, handler, http.MethodGet, fmt.Sprintf("/api/pdf/%d?unexpected=1", fixture.AvailableID), nil); unknown.Code != http.StatusBadRequest {
+		t.Fatalf("unknown query = %d", unknown.Code)
+	}
+}
+
+// TestPDFContentPinAndCacheObserveCommittedChange verifies replacement and
+// removal invalidate cached bytes and reject stale pinned ranges.
+func TestPDFContentPinAndCacheObserveCommittedChange(t *testing.T) {
+	fixture := testhelpers.NewPDFViewerFixture(t)
+	handler := fixture.Server.Handler()
+	status := pdfStatusForWork(t, handler, fixture.AvailableID)
+	oldHash := status["content_hash"].(string)
+	oldPath := fmt.Sprintf("/api/pdf/%d?content_hash=%s", fixture.AvailableID, oldHash)
+	if warm := pdfContentRequest(t, handler, http.MethodGet, oldPath, nil); warm.Code != http.StatusOK {
+		t.Fatalf("cache warm = %d", warm.Code)
+	}
+	replacement := pdffixture.Bytes("Changed reader bytes")
+	code, body := pdfMutationRequest(t, handler, http.MethodPut, fixture.RunID, fixture.RevisionID, replacement, int64(len(replacement)), pdfDigest(replacement), status["mutation_etag"].(string))
+	if code != http.StatusOK {
+		t.Fatalf("replacement = %d %v", code, body)
+	}
+	stale := pdfContentRequest(t, handler, http.MethodGet, oldPath, nil)
+	if stale.Code != http.StatusConflict || !strings.Contains(stale.Body.String(), "pdf_changed") {
+		t.Fatalf("stale pin after replace = %d %s", stale.Code, stale.Body.String())
+	}
+	unpinned := pdfContentRequest(t, handler, http.MethodGet, fmt.Sprintf("/api/pdf/%d", fixture.AvailableID), nil)
+	if unpinned.Code != http.StatusOK || !bytes.Equal(unpinned.Body.Bytes(), replacement) {
+		t.Fatalf("unpinned replacement read = %d bytes=%d", unpinned.Code, unpinned.Body.Len())
+	}
+	updated := body["pdf_status"].(map[string]any)
+	newHash := updated["content_hash"].(string)
+	newETag := updated["mutation_etag"].(string)
+	newPath := fmt.Sprintf("/api/pdf/%d?content_hash=%s", fixture.AvailableID, newHash)
+	if current := pdfContentRequest(t, handler, http.MethodGet, newPath, nil); current.Code != http.StatusOK || !bytes.Equal(current.Body.Bytes(), replacement) {
+		t.Fatalf("new pin read = %d bytes=%d", current.Code, current.Body.Len())
+	}
+	code, removed := pdfMutationRequest(t, handler, http.MethodDelete, fixture.RunID, fixture.RevisionID, nil, 0, "", newETag)
+	if code != http.StatusOK {
+		t.Fatalf("removal = %d %v", code, removed)
+	}
+	removedPin := pdfContentRequest(t, handler, http.MethodGet, newPath, nil)
+	if removedPin.Code != http.StatusConflict || !strings.Contains(removedPin.Body.String(), "pdf_changed") {
+		t.Fatalf("stale pin after removal = %d %s", removedPin.Code, removedPin.Body.String())
+	}
+	absent := pdfContentRequest(t, handler, http.MethodGet, fmt.Sprintf("/api/pdf/%d", fixture.AvailableID), nil)
+	if absent.Code != http.StatusNotFound {
+		t.Fatalf("removed unpinned read = %d", absent.Code)
 	}
 }

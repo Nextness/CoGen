@@ -66,6 +66,46 @@ func TestOpenConfiguredConnectionPragmas(t *testing.T) {
 	}
 }
 
+// TestOpenWritableAndExistingConnectionsDoNotMigrate verifies the platform
+// connection helpers leave migration application to the bundle coordinator.
+func TestOpenWritableAndExistingConnectionsDoNotMigrate(t *testing.T) {
+	writablePath := filepath.Join(t.TempDir(), "writable.db")
+	writable, err := subject.OpenWritable(writablePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writable.Close()
+	var tables int
+	if err := writable.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if tables != 0 {
+		t.Fatalf("OpenWritable applied %d tables without a configured chain", tables)
+	}
+	if _, err := subject.OpenWritable(""); err == nil || !strings.Contains(err.Error(), "path is required") {
+		t.Fatalf("OpenWritable empty path error = %v", err)
+	}
+
+	existingPath := filepath.Join(t.TempDir(), "existing.db")
+	if err := os.WriteFile(existingPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	existing, err := subject.OpenExistingConnection(existingPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer existing.Close()
+	if err := existing.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if tables != 0 {
+		t.Fatalf("OpenExistingConnection applied %d tables", tables)
+	}
+	if _, err := subject.OpenExistingConnection(filepath.Join(t.TempDir(), "missing.db")); err == nil {
+		t.Fatal("OpenExistingConnection created a missing database")
+	}
+}
+
 // TestOpenExistingConnectionContract verifies existing-only connections stay writable with the shared foreign-key and busy-timeout pragmas.
 func TestOpenExistingConnectionContract(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "corpus.metadata.db")

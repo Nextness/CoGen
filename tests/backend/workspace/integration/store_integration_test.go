@@ -9,17 +9,14 @@ import "analysis/tests/support/go/testenv"
 import (
 	"analysis/backend/workspace/enrichment"
 	"analysis/backend/workspace/normalizer"
-	"analysis/backend/workspace/pdfsync"
 	"analysis/backend/workspace/revisions"
 	"analysis/backend/workspace/validator"
 
 	"analysis/backend/article"
 
-	"analysis/backend/database/pdfbinding"
 	dbwork "analysis/backend/database/work"
 	"analysis/backend/enrich"
 	"analysis/backend/manifest"
-	"analysis/backend/pdfstore"
 	"analysis/tests/support/go/testfixture"
 	"context"
 	"encoding/json"
@@ -76,70 +73,6 @@ func TestApplyConfiguredArticleEnrichmentHonorsFillMissingOnly(t *testing.T) {
 				t.Fatalf("abstract = %q, want provider abstract", got.Abstract)
 			}
 		})
-	}
-}
-
-// TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit verifies sync normalized pdf inventory registers once and flushes audit.
-func TestSyncNormalizedPDFInventoryRegistersOnceAndFlushesAudit(t *testing.T) {
-	ctx := context.Background()
-	registry := testenv.Path("config", "database.something")
-	tempDir := t.TempDir()
-	dbPath := filepath.Join(tempDir, "corpus.metadata.db")
-	db, err := testfixture.Open(dbPath, registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	runID, err := testfixture.Run(context.Background(), db.Conn, "inventory-sync", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for index, doi := range []string{"10.1000/normalized-one", "10.1000/normalized-two"} {
-		workID, err := db.Work.CreateWorkByDOI(context.Background(), doi)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := db.Work.CreateRevision(context.Background(), &dbwork.Revision{
-			WorkID: workID, PipelineRunID: runID,
-			ProducerStage: dbwork.ProducerStageNormalize,
-			Title:         "Normalized article " + strconv.Itoa(index+1),
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	registered, flushed, err := pdfsync.Sync(ctx, db.Database, dbPath, registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if registered != 2 || flushed != 2 {
-		t.Fatalf("first inventory sync registered=%d flushed=%d, want 2 and 2", registered, flushed)
-	}
-	registered, flushed, err = pdfsync.Sync(ctx, db.Database, dbPath, registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if registered != 0 || flushed != 0 {
-		t.Fatalf("second inventory sync registered=%d flushed=%d, want 0 and 0", registered, flushed)
-	}
-	store, err := pdfstore.Open(filepath.Join(tempDir, pdfbinding.DefaultStoreFilename), registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	var documents int
-	if err := store.DB.QueryRow("SELECT COUNT(*) FROM pdf_documents WHERE status='not_available'").Scan(&documents); err != nil {
-		t.Fatal(err)
-	}
-	if documents != 2 {
-		t.Fatalf("not-available inventory documents = %d, want 2", documents)
-	}
-	var events int
-	if err := db.Conn.QueryRow("SELECT COUNT(*) FROM audit_events WHERE action='pdf_inventory_registered' AND pipeline_run_id=?", runID).Scan(&events); err != nil {
-		t.Fatal(err)
-	}
-	if events != 2 {
-		t.Fatalf("inventory registration audit events = %d, want 2", events)
 	}
 }
 

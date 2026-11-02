@@ -29,18 +29,18 @@ func TestCharacterizationPDFStoreTypedQueries(t *testing.T) {
 	if err != nil || pending == nil {
 		t.Fatalf("pending document = %+v err=%v", pending, err)
 	}
-	if pending.Status != subject.StatusNotAvailable || pending.ContentHash != "" || pending.InventoriedAt != "" || pending.UpdatedAt == "" {
+	if pending.Status != subject.StatusNotAvailable || pending.ContentHash != "" || pending.InventoriedAt != "" || pending.UpdatedAt == "" || pending.ChangeCounter != 1 {
 		t.Fatalf("pending document projection = %+v", pending)
 	}
 
-	if _, err := store.Add(ctx, "10.1000/pending", 1, []byte("%PDF-1.7\ncharacterization")); err != nil {
+	if _, err := store.Save(ctx, subject.SaveInput{DOI: "10.1000/pending", WorkID: 1, ExpectedChangeCounter: 1, Data: []byte("%PDF-1.7\ncharacterization")}); err != nil {
 		t.Fatal(err)
 	}
 	available, err := store.Document(ctx, "10.1000/pending")
 	if err != nil || available == nil {
 		t.Fatalf("available document = %+v err=%v", available, err)
 	}
-	if available.Status != subject.StatusAvailable || available.ContentHash == "" || available.InventoriedAt == "" {
+	if available.Status != subject.StatusAvailable || available.ContentHash == "" || available.InventoriedAt == "" || available.ChangeCounter != 2 {
 		t.Fatalf("available document projection = %+v", available)
 	}
 

@@ -22,3 +22,8 @@ db_migration: setup = {
     filename = "V00002_normalized_inventory.sql",
     previous = "V00001_pdf_store_baseline.sql",
 };
+
+#iteration("_db_migration"): db_migration = {
+    filename = "V00003_pdf_document_management.sql",
+    previous = "V00002_normalized_inventory.sql",
+};

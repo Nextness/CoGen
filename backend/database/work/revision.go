@@ -166,6 +166,36 @@ func (s *Store) CountCurrentNormalizedRevisionsByWork(ctx context.Context, runID
 	})
 }
 
+// ListExportArticles resolves a bounded set of revision identifiers within one
+// run, returning only current valid normalized articles. Missing or outside-run
+// identifiers are absent from the result.
+func (s *Store) ListExportArticles(ctx context.Context, runID int64, revisionIDs []int64) ([]*ExportArticle, error) {
+	if len(revisionIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := s.queries.ListExportArticles(ctx, generated.ListExportArticlesParams{
+		PipelineRunID: runID,
+		RevisionIds:   revisionIDs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list export articles: %w", err)
+	}
+	items := make([]*ExportArticle, 0, len(rows))
+	for _, row := range rows {
+		item := &ExportArticle{RevisionID: row.ID, WorkID: row.WorkID}
+		if row.Title.Valid {
+			title := row.Title.String
+			item.Title = &title
+		}
+		if row.Doi.Valid {
+			doi := row.Doi.String
+			item.DOI = &doi
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 // revisionFromGenerated maps one generated revision row into an application
 // revision and makes every nullable core field explicit.
 func revisionFromGenerated(row generated.WorkRevision) *Revision {

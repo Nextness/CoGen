@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 export const viewerFixtureContractVersion = 1;
 
 const metadataSchemaVersion = "V00028_immutable_cache_responses.sql";
-const pdfSchemaVersion = "V00002_normalized_inventory.sql";
+const pdfSchemaVersion = "V00003_pdf_document_management.sql";
 
 /** Validates the generated metadata and PDF fixture pair before a browser server starts. */
 export function validateViewerFixture(metadataPath: string, pdfPath: string): void {

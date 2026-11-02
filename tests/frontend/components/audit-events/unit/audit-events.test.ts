@@ -58,6 +58,38 @@ describe('audit-events.tsx', function() {
     }
   });
 
+  it("renders PDF replacement before and after operational changes", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      return apiResponse({
+        event_id: 24,
+        byte_limit: 16384,
+        metadata: { source: "manual", operation: "replaced", initiating_run_id: 7, initiating_revision_id: 11 },
+        before: { status: "available", content_hash: "old-hash", byte_size: 10, inventoried_at: "2026-01-01T00:00:00Z", change_counter: 2 },
+        after: { status: "available", content_hash: "new-hash", byte_size: 20, inventoried_at: "2026-01-02T00:00:00Z", change_counter: 3, outgoing_deleted: true },
+      });
+    }) as typeof fetch;
+
+    try {
+      const host = document.createElement("div");
+      host.append(AuditEventMarkup({ event: { id: 24, action: "pdf_document_replaced" } }));
+      bindAuditRecordedData(host);
+      const details = host.querySelector<HTMLDetailsElement>(".rw-event-details")!;
+      details.open = true;
+      details.dispatchEvent(new window.Event("toggle"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const changes = details.querySelector<HTMLTableElement>(".rw-event-changes")!;
+      assert.match(changes.textContent, /Content Hashold-hashnew-hash/);
+      assert.match(changes.textContent, /Byte Size1020/);
+      assert.match(changes.textContent, /Change Counter23/);
+      assert.match(changes.textContent, /Outgoing DeletedNot recordedYes/);
+      assert.ok(details.textContent.includes("Initiating Run Id7"));
+      assert.ok(details.textContent.includes("Initiating Revision Id11"));
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("shows run completion as a successful outcome with compact UTC time", () => {
     const event = AuditEventMarkup({ event: {
       id: 20,
@@ -119,6 +151,29 @@ describe('audit-events.tsx', function() {
     assert.equal(auditCategory({ action: 'work_review_version_created' }), 'review');
     assert.equal(auditCategory({ action: 'pdf_inventory_registered' }), 'pdf');
     assert.equal(auditCategory({ action: 'pipeline_completed' }), 'pipeline');
+  });
+
+  it("summarizes PDF replacement and removal distinctly from addition", () => {
+    const replaced = auditEventMarkup({
+      action: "pdf_document_replaced",
+      before_json: { status: "available", content_hash: "old-hash", change_counter: 2 },
+      after_json: { status: "available", content_hash: "new-hash", change_counter: 3, outgoing_deleted: true },
+    });
+    assert.ok(replaced.includes("The selected PDF was replaced with validated bytes."));
+    assert.ok(replaced.includes("Available"));
+    const removed = auditEventMarkup({
+      action: "pdf_document_removed",
+      before_json: { status: "available", content_hash: "old-hash", change_counter: 3 },
+      after_json: { status: "not_available", change_counter: 4, outgoing_deleted: true },
+    });
+    assert.ok(removed.includes("The selected PDF was removed; the inventory registration remains."));
+    assert.ok(removed.includes("Not Available"));
+    const exported = auditEventMarkup({
+      action: "pdf_document_export_prepared",
+      after_json: { status: "available", content_hash: "hash", byte_size: 20, change_counter: 3 },
+    });
+    assert.ok(exported.includes("Validated PDF bytes were prepared for an explicit download."));
+    assert.ok(exported.includes("browser may still ask where to save"));
   });
 
   it("distinguishes enriched fields and uses readable PDF and outcome labels", () => {

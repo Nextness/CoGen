@@ -122,6 +122,9 @@ func TestAuditActionConstants(t *testing.T) {
 		{subject.AuditPDFDocumentAdded, "pdf_document_added"},
 		{subject.AuditPDFInventoryRegistered, "pdf_inventory_registered"},
 		{subject.AuditPDFDocumentInventoried, "pdf_document_inventoried"},
+		{subject.AuditPDFDocumentReplaced, "pdf_document_replaced"},
+		{subject.AuditPDFDocumentRemoved, "pdf_document_removed"},
+		{subject.AuditPDFDocumentExportPrepared, "pdf_document_export_prepared"},
 	}
 	for _, tt := range tests {
 		if string(tt.got) != tt.want {

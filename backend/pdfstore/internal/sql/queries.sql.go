@@ -11,10 +11,58 @@ import (
 	"strings"
 )
 
+const clearPDFDocumentSelection = `-- name: ClearPDFDocumentSelection :execresult
+UPDATE pdf_documents
+SET status = 'not_available',
+    content_hash = NULL,
+    inventoried_at = NULL,
+    updated_at = ?1,
+    change_counter = change_counter + 1
+WHERE doi = ?2
+  AND change_counter = ?3
+  AND status = 'available'
+`
+
+type ClearPDFDocumentSelectionParams struct {
+	UpdatedAt       string
+	Doi             string
+	ExpectedCounter int64
+}
+
+func (q *Queries) ClearPDFDocumentSelection(ctx context.Context, arg ClearPDFDocumentSelectionParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, clearPDFDocumentSelection, arg.UpdatedAt, arg.Doi, arg.ExpectedCounter)
+}
+
+const countPendingPDFAuditEvents = `-- name: CountPendingPDFAuditEvents :one
+SELECT COUNT(*)
+FROM pdf_audit_outbox
+WHERE delivered_at IS NULL
+`
+
+func (q *Queries) CountPendingPDFAuditEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countPendingPDFAuditEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const deletePDFBlobIfUnreferenced = `-- name: DeletePDFBlobIfUnreferenced :execresult
+DELETE FROM pdf_blobs
+WHERE pdf_blobs.content_hash = ?1
+  AND NOT EXISTS (
+      SELECT 1 FROM pdf_documents WHERE pdf_documents.content_hash = ?1
+  )
+`
+
+func (q *Queries) DeletePDFBlobIfUnreferenced(ctx context.Context, contentHash string) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deletePDFBlobIfUnreferenced, contentHash)
+}
+
 const getAvailablePDFDocument = `-- name: GetAvailablePDFDocument :one
 SELECT
     d.content_hash,
     d.inventoried_at,
+    d.change_counter,
     b.byte_size
 FROM pdf_documents d
 JOIN pdf_blobs b ON b.content_hash=d.content_hash
@@ -25,34 +73,19 @@ WHERE d.doi = ?1
 type GetAvailablePDFDocumentRow struct {
 	ContentHash   sql.NullString
 	InventoriedAt sql.NullString
+	ChangeCounter int64
 	ByteSize      int64
 }
 
 func (q *Queries) GetAvailablePDFDocument(ctx context.Context, doi string) (GetAvailablePDFDocumentRow, error) {
 	row := q.db.QueryRowContext(ctx, getAvailablePDFDocument, doi)
 	var i GetAvailablePDFDocumentRow
-	err := row.Scan(&i.ContentHash, &i.InventoriedAt, &i.ByteSize)
-	return i, err
-}
-
-const getAvailablePDFDocumentWithBlob = `-- name: GetAvailablePDFDocumentWithBlob :one
-SELECT d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = ?1
-  AND d.status = 'available'
-`
-
-type GetAvailablePDFDocumentWithBlobRow struct {
-	ContentHash sql.NullString
-	ByteSize    int64
-	Data        []byte
-}
-
-func (q *Queries) GetAvailablePDFDocumentWithBlob(ctx context.Context, doi string) (GetAvailablePDFDocumentWithBlobRow, error) {
-	row := q.db.QueryRowContext(ctx, getAvailablePDFDocumentWithBlob, doi)
-	var i GetAvailablePDFDocumentWithBlobRow
-	err := row.Scan(&i.ContentHash, &i.ByteSize, &i.Data)
+	err := row.Scan(
+		&i.ContentHash,
+		&i.InventoriedAt,
+		&i.ChangeCounter,
+		&i.ByteSize,
+	)
 	return i, err
 }
 
@@ -84,14 +117,15 @@ func (q *Queries) GetPDFBlobSize(ctx context.Context, contentHash string) (int64
 
 const getPDFDocument = `-- name: GetPDFDocument :one
 
-SELECT doi, status, content_hash, inventoried_at, updated_at
+SELECT doi, status, content_hash, inventoried_at, updated_at, change_counter
 FROM pdf_documents
 WHERE doi = ?1
 `
 
-// Companion PDF store queries. Registration, insertion, inventory lookup,
-// blob reads, and outbox selection are typed; the cross-database delivery
-// protocol keeps its handwritten savepoints and metadata transaction.
+// Companion PDF store queries. Registration, conditional save and removal,
+// inventory lookup, blob reads, and outbox selection are typed; the
+// cross-database delivery protocol keeps its handwritten savepoints and
+// metadata transaction.
 func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (PdfDocument, error) {
 	row := q.db.QueryRowContext(ctx, getPDFDocument, doi)
 	var i PdfDocument
@@ -101,32 +135,7 @@ func (q *Queries) GetPDFDocument(ctx context.Context, doi string) (PdfDocument, 
 		&i.ContentHash,
 		&i.InventoriedAt,
 		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getPDFDocumentWithBlob = `-- name: GetPDFDocumentWithBlob :one
-SELECT d.status, d.content_hash, b.byte_size, b.data
-FROM pdf_documents d
-LEFT JOIN pdf_blobs b ON b.content_hash = d.content_hash
-WHERE d.doi = ?1
-`
-
-type GetPDFDocumentWithBlobRow struct {
-	Status      string
-	ContentHash sql.NullString
-	ByteSize    sql.NullInt64
-	Data        []byte
-}
-
-func (q *Queries) GetPDFDocumentWithBlob(ctx context.Context, doi string) (GetPDFDocumentWithBlobRow, error) {
-	row := q.db.QueryRowContext(ctx, getPDFDocumentWithBlob, doi)
-	var i GetPDFDocumentWithBlobRow
-	err := row.Scan(
-		&i.Status,
-		&i.ContentHash,
-		&i.ByteSize,
-		&i.Data,
+		&i.ChangeCounter,
 	)
 	return i, err
 }
@@ -134,11 +143,11 @@ func (q *Queries) GetPDFDocumentWithBlob(ctx context.Context, doi string) (GetPD
 const insertPDFAuditOutboxEvent = `-- name: InsertPDFAuditOutboxEvent :exec
 INSERT INTO pdf_audit_outbox (
     event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 ) VALUES (
     ?1, ?2, ?3, ?4,
     ?5, ?6, ?7, ?8,
-    ?9
+    ?9, ?10, ?11
 )
 `
 
@@ -152,6 +161,8 @@ type InsertPDFAuditOutboxEventParams struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) InsertPDFAuditOutboxEvent(ctx context.Context, arg InsertPDFAuditOutboxEventParams) error {
@@ -165,6 +176,8 @@ func (q *Queries) InsertPDFAuditOutboxEvent(ctx context.Context, arg InsertPDFAu
 		arg.Action,
 		arg.MetadataJson,
 		arg.CorrelationID,
+		arg.BeforeJson,
+		arg.AfterJson,
 	)
 	return err
 }
@@ -206,7 +219,7 @@ func (q *Queries) InsertPDFDocument(ctx context.Context, arg InsertPDFDocumentPa
 }
 
 const listAvailableDocumentInventory = `-- name: ListAvailableDocumentInventory :many
-SELECT document.doi, document.inventoried_at
+SELECT document.doi, document.inventoried_at, document.content_hash, blob.byte_size
 FROM pdf_documents document
 JOIN pdf_blobs blob ON blob.content_hash=document.content_hash
 WHERE document.status='available'
@@ -217,6 +230,8 @@ ORDER BY document.doi
 type ListAvailableDocumentInventoryRow struct {
 	Doi           string
 	InventoriedAt sql.NullString
+	ContentHash   sql.NullString
+	ByteSize      int64
 }
 
 func (q *Queries) ListAvailableDocumentInventory(ctx context.Context, dois []string) ([]ListAvailableDocumentInventoryRow, error) {
@@ -238,7 +253,12 @@ func (q *Queries) ListAvailableDocumentInventory(ctx context.Context, dois []str
 	var items []ListAvailableDocumentInventoryRow
 	for rows.Next() {
 		var i ListAvailableDocumentInventoryRow
-		if err := rows.Scan(&i.Doi, &i.InventoriedAt); err != nil {
+		if err := rows.Scan(
+			&i.Doi,
+			&i.InventoriedAt,
+			&i.ContentHash,
+			&i.ByteSize,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -287,7 +307,7 @@ func (q *Queries) ListAvailablePDFDOIs(ctx context.Context) ([]string, error) {
 
 const listPendingPDFAuditEvents = `-- name: ListPendingPDFAuditEvents :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
 ORDER BY occurred_at, event_key
@@ -304,6 +324,8 @@ type ListPendingPDFAuditEventsRow struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int64) ([]ListPendingPDFAuditEventsRow, error) {
@@ -325,6 +347,8 @@ func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int6
 			&i.Action,
 			&i.MetadataJson,
 			&i.CorrelationID,
+			&i.BeforeJson,
+			&i.AfterJson,
 		); err != nil {
 			return nil, err
 		}
@@ -341,7 +365,7 @@ func (q *Queries) ListPendingPDFAuditEvents(ctx context.Context, batchLimit int6
 
 const listPendingPDFAuditEventsAfter = `-- name: ListPendingPDFAuditEventsAfter :many
 SELECT event_key, occurred_at, actor, pipeline_run_id, entity_type,
-    entity_id, action, metadata_json, correlation_id
+    entity_id, action, metadata_json, correlation_id, before_json, after_json
 FROM pdf_audit_outbox
 WHERE delivered_at IS NULL
   AND (occurred_at > ?1
@@ -366,6 +390,8 @@ type ListPendingPDFAuditEventsAfterRow struct {
 	Action        string
 	MetadataJson  string
 	CorrelationID string
+	BeforeJson    sql.NullString
+	AfterJson     sql.NullString
 }
 
 func (q *Queries) ListPendingPDFAuditEventsAfter(ctx context.Context, arg ListPendingPDFAuditEventsAfterParams) ([]ListPendingPDFAuditEventsAfterRow, error) {
@@ -387,6 +413,8 @@ func (q *Queries) ListPendingPDFAuditEventsAfter(ctx context.Context, arg ListPe
 			&i.Action,
 			&i.MetadataJson,
 			&i.CorrelationID,
+			&i.BeforeJson,
+			&i.AfterJson,
 		); err != nil {
 			return nil, err
 		}
@@ -433,16 +461,19 @@ UPDATE pdf_documents
 SET status = 'available',
     content_hash = ?1,
     inventoried_at = ?2,
-    updated_at = ?3
+    updated_at = ?3,
+    change_counter = change_counter + 1
 WHERE doi = ?4
-  AND status = 'not_available'
+  AND change_counter = ?5
+  AND status IN ('not_available', 'available')
 `
 
 type MarkPDFDocumentAvailableParams struct {
-	ContentHash   sql.NullString
-	InventoriedAt sql.NullString
-	UpdatedAt     string
-	Doi           string
+	ContentHash     sql.NullString
+	InventoriedAt   sql.NullString
+	UpdatedAt       string
+	Doi             string
+	ExpectedCounter int64
 }
 
 func (q *Queries) MarkPDFDocumentAvailable(ctx context.Context, arg MarkPDFDocumentAvailableParams) (sql.Result, error) {
@@ -451,5 +482,6 @@ func (q *Queries) MarkPDFDocumentAvailable(ctx context.Context, arg MarkPDFDocum
 		arg.InventoriedAt,
 		arg.UpdatedAt,
 		arg.Doi,
+		arg.ExpectedCounter,
 	)
 }

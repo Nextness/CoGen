@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -69,5 +70,24 @@ func TestConformanceFixtures(t *testing.T) {
 				t.Fatalf("document mismatch\ngot: %s\nwant: %s", got, want)
 			}
 		})
+	}
+}
+
+// TestPlainTextRemovesApplicationLinkSyntax verifies PDF annotation text is safe plain prose.
+func TestPlainTextRemovesApplicationLinkSyntax(t *testing.T) {
+	body := "# Methods\n\nSee [[anchor:methods-1|the methods anchor]] and [[ext:https://example.test|source]].\n\n- item one\n\n```\ncode block\n```\n\n| A | B |\n| --- | --- |\n| 1 | 2 |"
+	text := subject.PlainText(body)
+	for _, forbidden := range []string{"[[", "]]", "anchor:methods-1"} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("plain text retained %q: %s", forbidden, text)
+		}
+	}
+	for _, expected := range []string{"Methods", "the methods anchor", "source", "item one", "code block", "A | B", "1 | 2"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("plain text missing %q: %s", expected, text)
+		}
+	}
+	if got := subject.PlainText("[[anchor:invalid id]]"); got != "" {
+		t.Fatalf("invalid note plain text=%q", got)
 	}
 }

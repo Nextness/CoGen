@@ -11,6 +11,8 @@ type DeliveredEvent struct {
 	EntityType    string
 	EntityID      string
 	Action        string
+	BeforeJSON    string
+	AfterJSON     string
 	MetadataJSON  string
 	CorrelationID string
 }

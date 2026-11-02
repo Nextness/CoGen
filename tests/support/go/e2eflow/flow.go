@@ -107,7 +107,7 @@ func RunE2EVariant(t *testing.T, root string, mode Mode, environment []string) R
 func E2ERepositoryRoot(t *testing.T) string {
 	t.Helper()
 	root := testenv.Root()
-	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-printer"), filepath.Join(root, "build", "pdf-store")} {
+	for _, path := range []string{filepath.Join(root, "Makefile"), filepath.Join(root, "config", "database.something"), filepath.Join(root, "build", "analysis"), filepath.Join(root, "build", "something-printer")} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("required E2E input %s is unavailable: %v", path, err)
 		}
@@ -202,20 +202,20 @@ func writeE2EConfig(t *testing.T, root, outputDir string, mode Mode) string {
 	return configPath
 }
 
-// PrepareE2EReviewRuns inventories a valid PDF through the supported tool and creates A2 as a fresh overlapping run.
+// PrepareE2EReviewRuns writes deterministic browser upload fixtures and creates A2 as a fresh overlapping run.
 func PrepareE2EReviewRuns(t *testing.T, root string, result Result) {
 	t.Helper()
-	pdfPath := filepath.Join(filepath.Dir(result.DBPath), "review.fixture.pdf")
-	if err := os.WriteFile(pdfPath, pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two"), 0o600); err != nil {
+	outputDir := filepath.Dir(result.DBPath)
+	fixture := pdffixture.Bytes("Selectable E2E methods on page one", "Selectable E2E results on page two")
+	if err := os.WriteFile(filepath.Join(outputDir, "review.fixture.pdf"), fixture, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command(filepath.Join(root, "build", "pdf-store"), "add", "--db", result.DBPath, "--doi", "10.5555/e2e-complete-one", "--file", pdfPath)
-	command.Dir = root
-	if output, err := command.CombinedOutput(); err != nil {
-		t.Fatalf("inventory deterministic E2E PDF: %v\n%s", err, output)
+	replacement := append(append([]byte(nil), fixture...), []byte("\n% deterministic E2E replacement\n")...)
+	if err := os.WriteFile(filepath.Join(outputDir, "review.replacement.pdf"), replacement, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	configPath := filepath.Join(filepath.Dir(result.DBPath), "workspace.something")
-	command = exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.DBPath, "--config", configPath, "--fresh")
+	configPath := filepath.Join(outputDir, "workspace.something")
+	command := exec.Command(filepath.Join(root, "build", "analysis"), "run", "--db", result.DBPath, "--config", configPath, "--fresh")
 	command.Dir = root
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("create deterministic E2E A2 run: %v\n%s", err, output)
@@ -547,7 +547,7 @@ func assertE2EAuditOrder(t *testing.T, db *testfixture.Database, RunID int64) {
 // AssertE2EAPI compares read-only HTTP responses with the database assertions.
 func AssertE2EAPI(t *testing.T, result Result) {
 	t.Helper()
-	viewer, err := server.Open(result.DBPath)
+	viewer, err := server.Open(result.DBPath, testenv.Path("config", "database.something"))
 	if err != nil {
 		t.Fatal(err)
 	}

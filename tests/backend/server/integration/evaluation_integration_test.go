@@ -32,7 +32,7 @@ func TestCorpusArticleReviewProjection(t *testing.T) {
 		t.Fatalf("PDF filter returned %d rows", len(rows))
 	}
 	row := rows[0].(map[string]any)
-	for _, key := range []string{"id", "work_revision_id", "year", "journal", "source", "abstract", "authors", "term_matches", "inventory_status", "review_status"} {
+	for _, key := range []string{"id", "work_revision_id", "year", "journal", "source", "abstract", "authors", "term_matches", "inventory_status", "content_hash", "byte_size", "review_status"} {
 		if _, found := row[key]; !found {
 			t.Errorf("unified article row is missing %s", key)
 		}
@@ -102,10 +102,10 @@ func TestEvaluationListsOnlyNormalizedArticlesWithInventoryState(t *testing.T) {
 		row := raw.(map[string]any)
 		statuses[row["inventory_status"].(string)] = row
 	}
-	if statuses["available"] == nil || statuses["available"]["inventoried_at"] == nil {
+	if statuses["available"] == nil || statuses["available"]["inventoried_at"] == nil || statuses["available"]["content_hash"] == nil || statuses["available"]["byte_size"].(float64) < 1 {
 		t.Fatalf("available evaluation row = %#v", statuses["available"])
 	}
-	if statuses["not_available"] == nil || statuses["not_available"]["inventoried_at"] != nil {
+	if statuses["not_available"] == nil || statuses["not_available"]["inventoried_at"] != nil || statuses["not_available"]["content_hash"] != nil || statuses["not_available"]["byte_size"] != nil {
 		t.Fatalf("not-available evaluation row = %#v", statuses["not_available"])
 	}
 	code, filtered := testhelpers.RequestJSON(t, fixture.Server.Handler(), fmt.Sprintf(

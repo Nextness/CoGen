@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { createHash } from 'node:crypto';
 import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
@@ -83,7 +84,15 @@ test.describe('isolated review mutation lifecycle', () => {
     await page.getByRole('button', { name: 'Review selection' }).click();
     await expect(page.getByRole('tab', { name: 'PDF anchors' })).toHaveAttribute('aria-selected', 'true');
     await page.locator('[data-anchor-label]').fill(anchorLabel);
-    await page.getByRole('button', { name: 'Save anchor' }).click();
+    const [anchorSaveResponse, anchorListResponse] = await Promise.all([
+      page.waitForResponse((response) => response.request().method() === 'POST' && /\/api\/runs\/1\/articles\/\d+\/anchors$/.test(new URL(response.url()).pathname)),
+      page.waitForResponse((response) => response.request().method() === 'GET' && /\/api\/runs\/1\/articles\/\d+\/anchors/.test(new URL(response.url()).pathname)),
+      page.getByRole('button', { name: 'Save anchor' }).click(),
+    ]);
+    expect(anchorSaveResponse.status()).toBe(201);
+    expect(anchorListResponse.ok()).toBeTruthy();
+    const anchorListBody = await anchorListResponse.json();
+    expect(anchorListBody.items.some((item: { label?: string }) => item.label === anchorLabel)).toBe(true);
     await expect(page.locator('[data-anchor-list]')).toContainText(anchorLabel);
 
     await expect(page.locator('[data-review-host]')).toContainText('Approved');
@@ -311,12 +320,16 @@ test.describe('isolated review mutation lifecycle', () => {
     await anchorRow.getByRole('button', { name: 'Remove' }).click();
     await expect(page.locator('.rw-anchor-history')).toContainText('deleted');
     const anchorHistoryItems = page.locator('.rw-anchor-history li');
-    const newestAnchorBox = await anchorHistoryItems.nth(0).boundingBox();
-    const previousAnchorBox = await anchorHistoryItems.nth(1).boundingBox();
-    expect(newestAnchorBox).not.toBeNull();
-    expect(previousAnchorBox).not.toBeNull();
-    if (!newestAnchorBox || !previousAnchorBox) throw new Error('Anchor history bounds are unavailable');
-    expect(previousAnchorBox.y - newestAnchorBox.y - newestAnchorBox.height).toBeGreaterThanOrEqual(8);
+    await expect(anchorHistoryItems).toHaveCount(2);
+    const anchorHistoryBoxes = await anchorHistoryItems.evaluateAll((items) => {
+      return items.map((item) => {
+        const bounds = item.getBoundingClientRect();
+        return { y: bounds.y, height: bounds.height };
+      });
+    });
+    expect(anchorHistoryBoxes[0].height).toBeGreaterThan(0);
+    expect(anchorHistoryBoxes[1].height).toBeGreaterThan(0);
+    expect(anchorHistoryBoxes[1].y - anchorHistoryBoxes[0].y - anchorHistoryBoxes[0].height).toBeGreaterThanOrEqual(8);
     await page.locator('.rw-anchor-history').getByRole('button', { name: 'Restore anchor' }).click();
     anchorRow = page.locator('[data-anchor-id]').filter({ hasText: anchorLabel });
     await expect(anchorRow).toBeVisible();
@@ -371,6 +384,74 @@ test.describe('isolated review mutation lifecycle', () => {
     expect((await audit.json()).events.some((event: { action: string }) => event.action === 'run_trashed')).toBeTruthy();
   });
 
+  test('preserves drafts and removes anchors when another tab removes the PDF', async ({ page, request, browserName }) => {
+    test.setTimeout(60_000);
+    const contextResponse = await request.get('/api/runs/1/review-context');
+    expect(contextResponse.ok()).toBeTruthy();
+    expect((await contextResponse.json()).context_initialized).toBe(true);
+    const statusResponse = await request.get('/api/works/1/pdf-status');
+    expect(statusResponse.ok()).toBeTruthy();
+    const status = await statusResponse.json();
+    expect(status.status).toBe('available');
+    const originalResponse = await request.get('/api/pdf/1');
+    expect(originalResponse.ok()).toBeTruthy();
+    const original = await originalResponse.body();
+    const originalHash = createHash('sha256').update(original).digest('hex');
+    expect(originalHash).toBe(status.content_hash);
+
+    const label = `stale-tab-${browserName}`;
+    const anchorResponse = await request.post('/api/runs/1/articles/1/anchors', { data: {
+      label,
+      page: 1,
+      selected_text: 'Stale tab methods',
+      rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+      pdf_content_hash: status.content_hash,
+    } });
+    expect(anchorResponse.status()).toBe(201);
+
+    await visitArticle(page);
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
+    const anchorRow = page.locator('[data-anchor-id]').filter({ hasText: label });
+    await expect(anchorRow).toBeVisible();
+    await page.getByRole('tab', { name: 'Decision' }).click();
+    await page.locator('[data-review-reason]').fill('Unsaved stale-tab decision');
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await page.locator('[data-note-body]').fill('Unsaved stale-tab note');
+    await expect(page.locator('[data-draft-status]')).toContainText('Browser draft saved');
+
+    const removal = await request.delete('/api/runs/1/articles/1/pdf', {
+      headers: { 'If-Match': status.mutation_etag },
+    });
+    expect(removal.ok()).toBeTruthy();
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.locator('[data-pdf-viewer-host]')).toContainText('The selected PDF is not available');
+
+    await page.getByRole('tab', { name: 'Decision' }).click();
+    await expect(page.locator('[data-review-reason]')).toHaveValue('Unsaved stale-tab decision');
+    await page.getByRole('tab', { name: 'Notes' }).click();
+    await expect(page.locator('[data-note-body]')).toHaveValue('Unsaved stale-tab note');
+    await page.getByRole('tab', { name: 'PDF anchors' }).click();
+    await expect(anchorRow).toContainText('PDF changed');
+    page.once('dialog', (dialog) => dialog.accept());
+    await anchorRow.locator('[data-anchor-delete]').click();
+    await expect(anchorRow).toHaveCount(0);
+    await expect(page.locator('[data-anchor-list]')).toContainText('tombstone');
+
+    const removedStatusResponse = await request.get('/api/works/1/pdf-status');
+    expect(removedStatusResponse.ok()).toBeTruthy();
+    const removedStatus = await removedStatusResponse.json();
+    const restoreResponse = await request.put('/api/runs/1/articles/1/pdf', {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'If-Match': removedStatus.mutation_etag,
+        'X-PDF-Size': String(original.length),
+        'X-PDF-SHA256': originalHash,
+      },
+      data: original,
+    });
+    expect(restoreResponse.ok()).toBeTruthy();
+  });
+
   test('traverses 101-record review collection boundaries through UI continuations', async ({ page, request, browserName }) => {
     test.skip(browserName !== 'chromium', 'The API boundary is browser-independent; the complete UI traversal runs once in Chromium.');
     test.setTimeout(180000);
@@ -409,8 +490,12 @@ test.describe('isolated review mutation lifecycle', () => {
       expect(response.status()).toBe(201);
     }
 
+    const pdfStatusResponse = await request.get('/api/works/1/pdf-status');
+    expect(pdfStatusResponse.ok()).toBeTruthy();
+    const pdfHash = (await pdfStatusResponse.json()).content_hash;
+    expect(typeof pdfHash).toBe('string');
     response = await request.post('/api/runs/1/articles/1/anchors', { data: {
-      label: 'boundary-anchor-target', page: 1, selected_text: 'Boundary anchor initial', rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+      label: 'boundary-anchor-target', page: 1, selected_text: 'Boundary anchor initial', rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }], pdf_content_hash: pdfHash,
     } });
     expect(response.status()).toBe(201);
     var targetAnchor = (await response.json()).anchor;
@@ -421,6 +506,7 @@ test.describe('isolated review mutation lifecycle', () => {
         page: 1,
         selected_text: `Boundary anchor version ${index.toString().padStart(3, '0')}`,
         rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        pdf_content_hash: pdfHash,
       } });
       expect(response.status()).toBe(201);
       targetAnchor = (await response.json()).anchor;
@@ -431,6 +517,7 @@ test.describe('isolated review mutation lifecycle', () => {
         page: 1,
         selected_text: `Boundary list anchor ${index}`,
         rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.05 }],
+        pdf_content_hash: pdfHash,
       } });
       expect(response.status()).toBe(201);
     }
