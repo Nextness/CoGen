@@ -1006,12 +1006,16 @@ func (checker *TypeChecker) collectCycleNodes(statements []Statement, prefix str
 		if name == "" {
 			continue
 		}
-		graph[name] = graph[name]
+		if _, ok := graph[name]; !ok {
+			graph[name] = nil
+		}
 		locations[name] = assignment.Location
 		switch value := assignment.Value.(type) {
 		case *SetupDefinition, *EnumDefinition:
 			typeNode := "type:" + name
-			graph[typeNode] = graph[typeNode]
+			if _, ok := graph[typeNode]; !ok {
+				graph[typeNode] = nil
+			}
 			locations[typeNode] = assignment.Location
 		case *ScopeExpression:
 			checker.collectCycleNodes(value.Statements, name+".", graph, locations)

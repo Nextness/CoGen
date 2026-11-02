@@ -47,10 +47,10 @@ const classNames = {
 
 /** Returns a clean Deepdive link target for one complete research context. */
 function deepdiveLink(searchID: Identifier, revisionID: Identifier, planID: Identifier, runID: Identifier): { href: string; state: Record<string, string> } {
-  const updates: Record<string, unknown> = {};
-  for (const key of params().keys()) updates[key] = "";
+  const updates = new Map<string, string>();
+  for (const key of params().keys()) updates.set(key, "");
   const destination = {
-    ...updates,
+    ...Object.fromEntries(updates),
     view: "overview",
     search_id: searchID,
     search_revision_id: revisionID,

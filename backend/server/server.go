@@ -570,8 +570,14 @@ func (s *Server) respond(w http.ResponseWriter, r *http.Request, value any, err 
 		writeDetailedError(w, problem.Status, problem.Code, problem.Message, problem.Details)
 		return
 	}
-	log.Error("viewer request failed", "path", r.URL.Path, "error", err)
+	log.Error("viewer request failed", "path", sanitizeLogValue(r.URL.Path), "error", sanitizeLogValue(err.Error()))
 	writeError(w, http.StatusInternalServerError, "internal_error", "unable to read workspace data")
+}
+
+// sanitizeLogValue removes line breaks so request-derived text cannot forge log entries.
+func sanitizeLogValue(value string) string {
+	value = strings.ReplaceAll(value, "\r", "")
+	return strings.ReplaceAll(value, "\n", "")
 }
 
 // queryContext derives a request context bounded by the server query timeout.
