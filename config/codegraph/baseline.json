@@ -1,0 +1,304 @@
+[
+  {
+    "id": "pdf-store-direct-callers",
+    "method": "rg",
+    "command": "rg -n \"\\\\.Save\\\\(\" backend --glob '*.go'",
+    "resolved": [
+      {
+        "path": "backend/server/pdf_mutation.go",
+        "line": 98,
+        "symbol": "Server.saveArticlePDF",
+        "reason": "direct call on s.pdfWriteStore"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "Only one direct call in maintained Go. No interface dispatch found for this method.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "save-article-pdf-callees",
+    "method": "rg",
+    "command": "rg -n \"func \\\\(s \\\\*Server\\\\) saveArticlePDF\" backend/server && sed -n '41,120p' backend/server/pdf_mutation.go",
+    "resolved": [
+      {
+        "path": "backend/server/pdf_mutation.go",
+        "line": 98,
+        "symbol": "pdfstore.Store.Save",
+        "reason": "direct callee"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "The function also calls validation and response helpers. Only the store call is relevant to the PDF replacement capability.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "upload-pdf-http-entry",
+    "method": "rg",
+    "command": "rg -n \"saveArticlePDF|PUT /api/runs\" backend/server --glob '*.go'",
+    "resolved": [
+      {
+        "path": "backend/server/server.go",
+        "line": 329,
+        "symbol": "PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf",
+        "reason": "route registration"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "The route is registered on the same ServeMux that serves the viewer API.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdfstore-package-dependents",
+    "method": "rg",
+    "command": "rg -l \"analysis/backend/pdfstore\" backend tooling --glob '*.go'",
+    "resolved": [
+      {
+        "path": "backend/bundle/prepare.go",
+        "reason": "direct import"
+      },
+      {
+        "path": "backend/bundle/sync.go",
+        "reason": "direct import"
+      },
+      {
+        "path": "backend/server/pdf_export.go",
+        "reason": "direct import"
+      },
+      {
+        "path": "backend/server/pdf.go",
+        "reason": "direct import"
+      },
+      {
+        "path": "backend/server/pdf_mutation.go",
+        "reason": "direct import"
+      },
+      {
+        "path": "backend/server/server.go",
+        "reason": "direct import"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "Direct imports only. Transitive dependents are not included in this baseline.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-documents-sql-usage",
+    "method": "rg",
+    "command": "rg -n \"pdf_documents\" backend/pdfstore/schema/queries.sql",
+    "resolved": [
+      {
+        "path": "backend/pdfstore/schema/queries.sql",
+        "line": 6,
+        "symbol": "GetPDFDocument",
+        "reason": "SELECT"
+      },
+      {
+        "path": "backend/pdfstore/schema/queries.sql",
+        "line": 24,
+        "symbol": "MarkPDFDocumentAvailable",
+        "reason": "UPDATE"
+      },
+      {
+        "path": "backend/pdfstore/schema/queries.sql",
+        "line": 35,
+        "symbol": "ClearPDFDocumentSelection",
+        "reason": "UPDATE"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "partial",
+    "notes": "Maintained named queries only. Raw SQL and generated wrappers are not fully enumerated in this baseline.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "mark-pdf-document-available-generator",
+    "method": "rg",
+    "command": "rg -n \"MarkPDFDocumentAvailable\" backend/pdfstore && rg -n \"pdfstore\" config/sqlc.yaml",
+    "resolved": [
+      {
+        "path": "backend/pdfstore/schema/queries.sql",
+        "line": 24,
+        "symbol": "MarkPDFDocumentAvailable",
+        "reason": "maintained named query"
+      },
+      {
+        "path": "backend/pdfstore/internal/sql/queries.sql.go",
+        "line": 459,
+        "symbol": "markPDFDocumentAvailable",
+        "reason": "generated Go wrapper"
+      },
+      {
+        "path": "config/sqlc.yaml",
+        "line": 188,
+        "symbol": "pdfstore query input",
+        "reason": "sqlc generation configuration"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "Maintained SQL and generated Go wrapper found. The pdfstore sqlc block is configured in config/sqlc.yaml.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "frontend-upload-pdf-route",
+    "method": "rg",
+    "command": "rg -n \"export function uploadPDF|PUT /api/runs\" frontend/src backend/server --glob '*.tsx' --glob '*.go'",
+    "resolved": [
+      {
+        "path": "frontend/src/api.tsx",
+        "line": 145,
+        "symbol": "uploadPDF",
+        "reason": "TypeScript function constructs the request path"
+      },
+      {
+        "path": "backend/server/server.go",
+        "line": 329,
+        "symbol": "PUT /api/runs/{run_id}/articles/{work_revision_id}/pdf",
+        "reason": "registered Go route"
+      }
+    ],
+    "inferred": [
+      {
+        "path": "frontend/src/api.tsx",
+        "line": 146,
+        "reason": "string path matches the registered route template by convention"
+      }
+    ],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "partial",
+    "notes": "Cross-language link inferred by matching the constructed URL to the registered route. No TypeScript-to-Go extractor.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-replacement-relevant-tests",
+    "method": "rg",
+    "command": "rg -l \"PDF|pdf\" tests --glob '*_test.go' --glob '*.spec.ts'",
+    "resolved": [
+      {
+        "path": "tests/backend/server/integration/pdf_mutation_integration_test.go",
+        "reason": "name-based candidate"
+      },
+      {
+        "path": "tests/backend/server/integration/pdf_mutation_http_integration_test.go",
+        "reason": "name-based candidate"
+      },
+      {
+        "path": "tests/frontend/viewer/integration/pdf-management.spec.ts",
+        "reason": "name-based candidate"
+      },
+      {
+        "path": "tests/frontend/components/pdf-management/functional/pdf-management.test.ts",
+        "reason": "name-based candidate"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "partial",
+    "notes": "Name-based candidate selection. Associations are not proven by import or call relationships.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-replacement-make-commands",
+    "method": "catalog",
+    "command": "rg -n \"^[a-zA-Z0-9_.%-]+:\" Makefile",
+    "resolved": [
+      {
+        "path": "Makefile",
+        "target": "sqlc-generate",
+        "reason": "regenerates committed SQL output"
+      },
+      {
+        "path": "Makefile",
+        "target": "docs-catalog-update",
+        "reason": "regenerates the project catalog"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "Relevant generator targets for SQL and documentation output. Other targets exist.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-replacement-document-review",
+    "method": "catalog",
+    "command": "sed -n '1,80p' docs/DOC-STATE.md",
+    "resolved": [
+      {
+        "path": "docs/DOC-STATE.md",
+        "reason": "declares documentation review dependencies"
+      }
+    ],
+    "inferred": [
+      {
+        "path": "docs/DATABASE.md",
+        "reason": "schema-related document"
+      },
+      {
+        "path": "docs/ARCHITECTURE.md",
+        "reason": "architecture document"
+      }
+    ],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "partial",
+    "notes": "DOC-STATE maps documentation-to-documentation dependencies. Source-to-documentation mappings are not declared; relevant documents are inferred from topic.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-path-instructions",
+    "method": "catalog",
+    "command": "sed -n '1,120p' AGENTS.md && sed -n '1,80p' docs/STANDARDS.md",
+    "resolved": [
+      {
+        "path": "AGENTS.md",
+        "reason": "repository instructions, including data, migration, and security essentials"
+      },
+      {
+        "path": "docs/STANDARDS.md",
+        "reason": "change and test rules"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty": false,
+    "coverage": "complete",
+    "notes": "The AGENTS.md data and security section applies to the PDF companion store.",
+    "reviewed_at": "2026-11-02"
+  },
+  {
+    "id": "pdf-interface-task-owner",
+    "method": "rg",
+    "command": "rg -l '\"task_id\"|\"worktree\"|\"baseline_generation\"' . --glob '!node_modules/**' --glob '!build/**' --glob '!*.db'",
+    "resolved": [],
+    "inferred": [],
+    "unresolved": [
+      {
+        "reason": "no local task ownership records found"
+      }
+    ],
+    "empty": true,
+    "coverage": "unavailable",
+    "notes": "The design document describes local task records, but no records exist in the repository. The worktrees/ directory contains only ignored local worktrees.",
+    "reviewed_at": "2026-11-02"
+  }
+]

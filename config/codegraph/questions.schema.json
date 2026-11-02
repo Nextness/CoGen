@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nextness.example/codegraph/questions.schema.json",
+  "title": "Code graph acceptance question corpus",
+  "description": "Reviewed acceptance questions for the local code graph. The expected-result counts are summaries; the paired fixture evidence lives under tests/tooling/agentgraph/testdata/expected/results.json.",
+  "type": "array",
+  "minItems": 1,
+  "uniqueItems": true,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["id", "domain", "question", "query", "parameters", "fixture", "expect"],
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "domain": {
+        "type": "string",
+        "enum": ["callers", "callees", "routes", "dependencies", "sql", "tests", "commands", "docs", "guidance", "coordination"]
+      },
+      "question": {
+        "type": "string",
+        "minLength": 1
+      },
+      "query": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
+      },
+      "parameters": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": {
+          "type": ["string", "boolean", "number", "integer"]
+        }
+      },
+      "fixture": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+      },
+      "expect": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["resolved", "inferred", "unresolved", "empty", "coverage"],
+        "properties": {
+          "resolved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "inferred": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unresolved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "empty": {
+            "type": "boolean"
+          },
+          "coverage": {
+            "type": "string",
+            "enum": ["complete", "partial", "unavailable"]
+          }
+        }
+      }
+    }
+  }
+}
