@@ -1,296 +1,451 @@
 // Unit tests for views/detail.tsx — article, author, reference detail views.
-import { describe, it, before } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, before } from "node:test";
+import assert from "node:assert/strict";
 
 import "../../../../support/node/setup.ts";
 import { seedViewerState } from "../../../../support/node/seed.ts";
 import { detailView } from "../../../../../frontend/src/views/detail.tsx";
 import { app, state } from "../../../../../frontend/src/state.tsx";
 
-describe('detail.tsx — detailView', function() {
+describe("detail.tsx — detailView", () => {
 
-  before(function() {
+  before(() => {
     state.searches = [];
     state.plans = [];
     state.runs = [];
   });
 
-  it('shows empty state when no id is set', async function() {
-    seedViewerState({'view': 'overview'});
+  it("shows empty state when no id is set", async () => {
+    seedViewerState({ view: "overview" });
 
-    await detailView('article');
-    assert.ok(app.innerHTML.includes('Open a record'));
+    await detailView("article");
+    assert.ok(app.innerHTML.includes("Open a record"));
   });
 
-  it('renders article detail when article_id is set', async function() {
+  it("renders article detail when article_id is set", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
               article: {
-                id: 'a1', work_id: 10, pipeline_run_id: 1, title: 'Test Article', doi: '10.1000/test', year: 2024,
-                abstract: 'Line one.\nLine two.',
-                keywords: '["process mining","BPMN"]',
-                keywords_plus: 'workflow; modelling',
-                extension_data: '{"normalized_journal":"Journal of Tests","validation_status":"valid"}'
+                id: "a1",
+                work_id: 10,
+                pipeline_run_id: 1,
+                title: "Test Article",
+                doi: "10.1000/test",
+                year: 2024,
+                abstract: "Line one.\nLine two.",
+                keywords: `["process mining","BPMN"]`,
+                keywords_plus: "workflow; modelling",
+                extension_data: `{"normalized_journal":"Journal of Tests","validation_status":"valid"}`,
               },
-              authors: [{ id: 'auth1', citation_name: 'Smith, J', author_order: 1 }],
+              authors: [{
+                id: "auth1",
+                citation_name: "Smith, J",
+                author_order: 1,
+              }],
               references: [],
-              pdf_status: { status: 'available', byte_size: 2048, content_hash: 'pdf-hash' },
+              pdf_status: {
+                status: "available",
+                byte_size: 2048,
+                content_hash: "pdf-hash",
+              },
               enriched_fields: [],
               stage_outcomes: [
-                { stage_name: 'parse', outcome: 'parsed', created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z' },
-                { stage_name: 'enrich_metadata', outcome: 'enriched', created_at: '2024-01-01T00:01:00Z', updated_at: '2024-01-01T00:01:00Z' },
-                { stage_name: 'validate', outcome: 'valid', created_at: '2024-01-01T00:02:00Z', updated_at: '2024-01-01T00:02:00Z' },
-                { stage_name: 'normalize', outcome: 'normalized', created_at: '2024-01-01T00:03:00Z', updated_at: '2024-01-01T00:03:00Z' },
+                {
+                  stage_name: "parse",
+                  outcome: "parsed",
+                  created_at: "2024-01-01T00:00:00Z",
+                  updated_at: "2024-01-01T00:00:00Z",
+                },
+                {
+                  stage_name: "enrich_metadata",
+                  outcome: "enriched",
+                  created_at: "2024-01-01T00:01:00Z",
+                  updated_at: "2024-01-01T00:01:00Z",
+                },
+                {
+                  stage_name: "validate",
+                  outcome: "valid",
+                  created_at: "2024-01-01T00:02:00Z",
+                  updated_at: "2024-01-01T00:02:00Z",
+                },
+                {
+                  stage_name: "normalize",
+                  outcome: "normalized",
+                  created_at: "2024-01-01T00:03:00Z",
+                  updated_at: "2024-01-01T00:03:00Z",
+                },
               ],
               audit_events: ([{
-                id: 'field-enriched', action: 'field_enriched', actor: 'crossref', correlation_id: 'run:1:work:1', occurred_at: '2024-01-01T00:00:00Z',
-                metadata_json: '{"field":"title","provider":"crossref"}'
-              }] as any[]).concat(Array.from({ length: 29 }, function(_, index) {
-                return { id: index + 1, action: 'validation_changed', actor: 'pipeline', correlation_id: 'run:1:work:1', occurred_at: '2024-01-01T00:00:00Z' };
+                id: "field-enriched",
+                action: "field_enriched",
+                actor: "crossref",
+                correlation_id: "run:1:work:1",
+                occurred_at: "2024-01-01T00:00:00Z",
+                metadata_json: `{"field":"title","provider":"crossref"}`,
+              }] as any[]).concat(Array.from({ length: 29 }, (_, index) => {
+                return {
+                  id: index + 1,
+                  action: "validation_changed",
+                  actor: "pipeline",
+                  correlation_id: "run:1:work:1",
+                  occurred_at: "2024-01-01T00:00:00Z",
+                };
               })),
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'article_id': 'a1', 'view': 'article', 'origin': 'view=corpus&section=articles&q=preserved+query&page=3&expanded=a1'});
+    seedViewerState({
+      article_id: "a1",
+      view: "article",
+      origin: "view=corpus&section=articles&q=preserved+query&page=3&expanded=a1",
+    });
 
-    await detailView('article');
-    assert.ok(app.innerHTML.includes('Article revision'));
-    assert.ok(app.innerHTML.includes('Test Article'));
-    assert.ok(app.innerHTML.includes('Bibliographic metadata'));
-    assert.ok(app.innerHTML.includes('Provenance summary'));
-    assert.ok(app.innerHTML.includes('rw-reading-workspace'));
-    assert.ok(app.innerHTML.includes('Download PDF'));
-    assert.ok(app.innerHTML.includes('Line one. Line two.'));
-    assert.ok(app.innerHTML.includes('process mining'));
-    assert.ok(app.innerHTML.includes('Show stored keyword value'));
-    assert.ok(app.innerHTML.includes('Normalized Journal'));
-    assert.ok(app.innerHTML.includes('Pipeline stage history'));
-    assert.ok(app.innerHTML.includes('Parse'));
-    assert.ok(app.innerHTML.includes('Enriched'));
-    assert.ok(app.innerHTML.includes('Valid'));
-    assert.ok(app.innerHTML.includes('Normalized'));
-    assert.ok(app.innerHTML.includes('rw-audit-event--validation'));
-    assert.ok(app.innerHTML.includes('rw-audit-event--enrichment'));
-    assert.ok(app.innerHTML.includes('Correlation ID'));
-    assert.equal(document.querySelectorAll('.rw-audit-event').length, 25);
-    const moreEvents = document.querySelector('[data-record-audit-more]') as HTMLButtonElement;
+    await detailView("article");
+    assert.ok(app.innerHTML.includes("Article revision"));
+    assert.ok(app.innerHTML.includes("Test Article"));
+    assert.ok(app.innerHTML.includes("Bibliographic metadata"));
+    assert.ok(app.innerHTML.includes("Provenance summary"));
+    assert.ok(app.innerHTML.includes("rw-reading-workspace"));
+    assert.ok(app.innerHTML.includes("Download PDF"));
+    assert.ok(app.innerHTML.includes("Line one. Line two."));
+    assert.ok(app.innerHTML.includes("process mining"));
+    assert.ok(app.innerHTML.includes("Show stored keyword value"));
+    assert.ok(app.innerHTML.includes("Normalized Journal"));
+    assert.ok(app.innerHTML.includes("Pipeline stage history"));
+    assert.ok(app.innerHTML.includes("Parse"));
+    assert.ok(app.innerHTML.includes("Enriched"));
+    assert.ok(app.innerHTML.includes("Valid"));
+    assert.ok(app.innerHTML.includes("Normalized"));
+    assert.ok(app.innerHTML.includes("rw-audit-event--validation"));
+    assert.ok(app.innerHTML.includes("rw-audit-event--enrichment"));
+    assert.ok(app.innerHTML.includes("Correlation ID"));
+    assert.equal(document.querySelectorAll(".rw-audit-event").length, 25);
+    const moreEvents = document.querySelector("[data-record-audit-more]") as HTMLButtonElement;
     assert.equal(moreEvents.hidden, false);
     moreEvents.click();
-    assert.equal(document.querySelectorAll('.rw-audit-event').length, 30);
+    assert.equal(document.querySelectorAll(".rw-audit-event").length, 30);
     assert.equal(moreEvents.hidden, true);
-    const breadcrumb = document.querySelector('#workspace-breadcrumb') as HTMLElement;
+    const breadcrumb = document.querySelector("#workspace-breadcrumb") as HTMLElement;
     assert.match(breadcrumb.textContent, /Home.*Deepdive.*Corpus.*10.1000\/test/);
-    const corpusCrumb = Array.from(breadcrumb.querySelectorAll('a')).find(function(anchor) { return anchor.textContent === 'Corpus'; }) as HTMLAnchorElement;
-    assert.ok(corpusCrumb.dataset.state!.includes('"q":"preserved query"'));
-    assert.ok(corpusCrumb.dataset.state!.includes('"page":"3"'));
-    assert.ok(corpusCrumb.dataset.state!.includes('"expanded":"a1"'));
-    const authorLink = Array.from(document.querySelectorAll('a')).find(function(anchor) { return anchor.textContent.includes('Smith, J'); }) as HTMLAnchorElement;
-    assert.ok(authorLink.dataset.state!.includes('"origin"'));
-    assert.ok(decodeURIComponent(authorLink.dataset.state!).includes('view=corpus'));
+    const corpusCrumb = Array.from(breadcrumb.querySelectorAll("a")).find((anchor) => {
+      return anchor.textContent === "Corpus";
+    }) as HTMLAnchorElement;
+    assert.ok(corpusCrumb.dataset.state!.includes(`"q":"preserved query"`));
+    assert.ok(corpusCrumb.dataset.state!.includes(`"page":"3"`));
+    assert.ok(corpusCrumb.dataset.state!.includes(`"expanded":"a1"`));
+    const authorLink = Array.from(document.querySelectorAll("a")).find((anchor) => {
+      return anchor.textContent.includes("Smith, J");
+    }) as HTMLAnchorElement;
+    assert.ok(authorLink.dataset.state!.includes(`"origin"`));
+    assert.ok(decodeURIComponent(authorLink.dataset.state!).includes("view=corpus"));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('refreshes article audit evidence after a committed PDF upload', async function() {
+  it("refreshes article audit evidence after a committed PDF upload", async () => {
     const originalFetch = globalThis.fetch;
-    var articleCalls = 0;
+    let articleCalls = 0;
     const initialPDF = {
-      status: 'not_available', registered: true, change_counter: 1, mutation_etag: '"pdf-10-1"',
-      max_upload_bytes: 1024, storage_writable: true, storage_reason: '',
-      actions: { upload: true, replace: false, remove: false, download: false, reason: '' },
+      status: "not_available",
+      registered: true,
+      change_counter: 1,
+      mutation_etag: `"pdf-10-1"`,
+      max_upload_bytes: 1024,
+      storage_writable: true,
+      storage_reason: "",
+      actions: {
+        upload: true,
+        replace: false,
+        remove: false,
+        download: false,
+        reason: "",
+      },
     };
     const changedPDF = {
-      status: 'available', content_hash: 'f'.repeat(64), byte_size: 4, inventoried_at: '2024-01-02T00:00:00Z',
-      registered: true, change_counter: 2, mutation_etag: '"pdf-10-2"',
-      max_upload_bytes: 1024, storage_writable: true, storage_reason: '',
-      actions: { upload: false, replace: true, remove: true, download: true, reason: '' },
+      status: "available",
+      content_hash: "f".repeat(64),
+      byte_size: 4,
+      inventoried_at: "2024-01-02T00:00:00Z",
+      registered: true,
+      change_counter: 2,
+      mutation_etag: `"pdf-10-2"`,
+      max_upload_bytes: 1024,
+      storage_writable: true,
+      storage_reason: "",
+      actions: {
+        upload: false,
+        replace: true,
+        remove: true,
+        download: true,
+        reason: "",
+      },
     };
-    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (init?.method === 'PUT' && url.includes('/pdf')) {
+      if (init?.method === "PUT" && url.includes("/pdf")) {
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: function() {
-            return Promise.resolve({ changed: true, operation: 'uploaded', pdf_status: changedPDF, event_key: 'event-1', audit_delivery: 'pending' });
+          json: () => {
+            return Promise.resolve({
+              changed: true,
+              operation: "uploaded",
+              pdf_status: changedPDF,
+              event_key: "event-1",
+              audit_delivery: "pending",
+            });
           },
         } as unknown as Response);
       }
-      if (url.includes('/review-context')) {
-        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ context_initialized: false, proposed_parent: null }); } } as unknown as Response);
+      if (url.includes("/review-context")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => {
+            return Promise.resolve({
+              context_initialized: false,
+              proposed_parent: null,
+            });
+          },
+        } as unknown as Response);
       }
       articleCalls += 1;
       const auditEvents = articleCalls === 1 ? [] : [{
-        id: 41, action: 'pdf_document_inventoried', actor: 'reviewer', correlation_id: 'pdf:10',
-        occurred_at: '2024-01-02T00:00:00Z', metadata_json: '{"work_id":10}',
+        id: 41,
+        action: "pdf_document_inventoried",
+        actor: "reviewer",
+        correlation_id: "pdf:10",
+        occurred_at: "2024-01-02T00:00:00Z",
+        metadata_json: `{"work_id":10}`,
       }];
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
               article: {
-                id: 'a1', work_id: 10, pipeline_run_id: 1, title: 'Managed article', doi: '10.1000/managed', year: 2024,
-                abstract: null, keywords: null, keywords_plus: null, extension_data: '{}',
+                id: "a1",
+                work_id: 10,
+                pipeline_run_id: 1,
+                title: "Managed article",
+                doi: "10.1000/managed",
+                year: 2024,
+                abstract: null,
+                keywords: null,
+                keywords_plus: null,
+                extension_data: "{}",
               },
-              authors: [], references: [], enriched_fields: [], stage_outcomes: [],
+              authors: [],
+              references: [],
+              enriched_fields: [],
+              stage_outcomes: [],
               pdf_status: articleCalls === 1 ? initialPDF : changedPDF,
               audit_events: auditEvents,
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({ 'article_id': 'a1', 'view': 'article', 'run_id': '1' });
-    await detailView('article');
-    const input = document.querySelector<HTMLInputElement>('[data-pdf-file]')!;
-    Object.defineProperty(input, 'files', { value: [new File([new Uint8Array(4)], 'upload.pdf', { type: 'application/pdf' })], configurable: true });
-    input.dispatchEvent(new Event('change'));
-    document.querySelector<HTMLFormElement>('[data-pdf-form]')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-    await new Promise(function(resolve) { setTimeout(resolve, 50); });
+    seedViewerState({
+      article_id: "a1",
+      view: "article",
+      run_id: "1",
+    });
+    await detailView("article");
+    const input = document.querySelector<HTMLInputElement>("[data-pdf-file]")!;
+    Object.defineProperty(input, "files", {
+      value: [new File([new Uint8Array(4)], "upload.pdf", { type: "application/pdf" })],
+      configurable: true,
+    });
+    input.dispatchEvent(new Event("change"));
+    document.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
 
     assert.equal(articleCalls, 2);
-    assert.match(document.querySelector('[data-article-audit-host]')?.textContent || '', /A validated PDF was added/);
-    assert.match(document.querySelector('[data-pdf-management]')?.textContent || '', new RegExp(changedPDF.content_hash));
+    assert.match(document.querySelector("[data-article-audit-host]")?.textContent || "", /A validated PDF was added/);
+    assert.match(document.querySelector("[data-pdf-management]")?.textContent || "", new RegExp(changedPDF.content_hash));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('renders discarded validation reasons as individual entries', async function() {
+  it("renders discarded validation reasons as individual entries", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
-              article: { id: 'a2', title: 'Discarded article' },
+              article: {
+                id: "a2",
+                title: "Discarded article",
+              },
               authors: [],
               references: [],
               enriched_fields: [],
               audit_events: [],
               stage_outcomes: [{
-                stage_name: 'validate', outcome: 'discarded',
-                reason: '["DOI is missing","Publication year is invalid"]',
-                created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:00:00Z'
+                stage_name: "validate",
+                outcome: "discarded",
+                reason: `["DOI is missing","Publication year is invalid"]`,
+                created_at: "2024-01-01T00:00:00Z",
+                updated_at: "2024-01-01T00:00:00Z",
               }],
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'article_id': 'a2', 'view': 'article'});
+    seedViewerState({
+      article_id: "a2",
+      view: "article",
+    });
 
-    await detailView('article');
-    assert.ok(app.innerHTML.includes('Pipeline stage history'));
-    assert.ok(app.innerHTML.includes('DOI is missing'));
-    assert.ok(app.innerHTML.includes('Publication year is invalid'));
-    assert.ok(!app.innerHTML.includes('[&quot;DOI is missing&quot;'));
+    await detailView("article");
+    assert.ok(app.innerHTML.includes("Pipeline stage history"));
+    assert.ok(app.innerHTML.includes("DOI is missing"));
+    assert.ok(app.innerHTML.includes("Publication year is invalid"));
+    assert.ok(!app.innerHTML.includes("[&quot;DOI is missing&quot;"));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('renders author detail when author_id is set', async function() {
+  it("renders author detail when author_id is set", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
-              author: { id: 'auth1', citation_name: 'Smith, J' },
+              author: {
+                id: "auth1",
+                citation_name: "Smith, J",
+              },
               articles: [],
               audit_events: [],
               identity_evidence: [{
-                resolution_id: 4, status: 'orcid_is_unclear', provider: 'orcid', resolved_at: '2024-01-01T00:00:00Z',
-                candidates: [{ candidate_orcid: '0000-0001-2345-6789', provider_display_name: 'Jane Smith', provider_rank: 1, query_url: 'https://orcid.example/search' }]
+                resolution_id: 4,
+                status: "orcid_is_unclear",
+                provider: "orcid",
+                resolved_at: "2024-01-01T00:00:00Z",
+                candidates: [{
+                  candidate_orcid: "0000-0001-2345-6789",
+                  provider_display_name: "Jane Smith",
+                  provider_rank: 1,
+                  query_url: "https://orcid.example/search",
+                }],
               }],
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'author_id': 'auth1', 'view': 'author'});
+    seedViewerState({
+      author_id: "auth1",
+      view: "author",
+    });
 
-    await detailView('author');
-    assert.ok(app.innerHTML.includes('Author occurrence'));
-    assert.ok(app.innerHTML.includes('Smith, J'));
-    assert.ok(app.innerHTML.includes('ORCID candidate evidence'));
-    assert.ok(app.innerHTML.includes('0000-0001-2345-6789'));
-    assert.ok(app.innerHTML.includes('orcid_is_unclear'));
-    assert.match((document.querySelector('#workspace-breadcrumb') as HTMLElement).textContent, /Home.*Deepdive.*Corpus.*Author/);
-    assert.ok(!app.innerHTML.includes('Back to Article revision'));
+    await detailView("author");
+    assert.ok(app.innerHTML.includes("Author occurrence"));
+    assert.ok(app.innerHTML.includes("Smith, J"));
+    assert.ok(app.innerHTML.includes("ORCID candidate evidence"));
+    assert.ok(app.innerHTML.includes("0000-0001-2345-6789"));
+    assert.ok(app.innerHTML.includes("orcid_is_unclear"));
+    assert.match((document.querySelector("#workspace-breadcrumb") as HTMLElement).textContent, /Home.*Deepdive.*Corpus.*Author/);
+    assert.ok(!app.innerHTML.includes("Back to Article revision"));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('renders the search term coverage panel', async function() {
+  it("renders the search term coverage panel", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
-              article: { id: 'a3', title: 'Coverage article', abstract: 'BPMN abstract', keywords: '["bpmn"]', keywords_plus: '[]' },
+              article: {
+                id: "a3",
+                title: "Coverage article",
+                abstract: "BPMN abstract",
+                keywords: `["bpmn"]`,
+                keywords_plus: "[]",
+              },
               authors: [],
               references: [],
               enriched_fields: [],
               audit_events: [],
               stage_outcomes: [],
               term_matches: {
-                title: ['BPMN'], abstract: ['BPMN'], keywords: ['BPMN'], keywords_plus: [],
-                matched_total: 1, term_total: 3, sources: ['scopus'],
-                terms_with_sources: { BPMN: ['scopus'], scheduling: ['scopus'], metaheuristic: ['wos'] },
-                unmatched: ['scheduling', 'metaheuristic'],
+                title: ["BPMN"],
+                abstract: ["BPMN"],
+                keywords: ["BPMN"],
+                keywords_plus: [],
+                matched_total: 1,
+                term_total: 3,
+                sources: ["scopus"],
+                terms_with_sources: {
+                  BPMN: ["scopus"],
+                  scheduling: ["scopus"],
+                  metaheuristic: ["wos"],
+                },
+                unmatched: ["scheduling", "metaheuristic"],
               },
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'article_id': 'a3', 'view': 'article'});
+    seedViewerState({
+      article_id: "a3",
+      view: "article",
+    });
 
-    await detailView('article');
-    assert.ok(app.innerHTML.includes('Search term coverage'));
-    assert.ok(app.innerHTML.includes('1 of 3 search terms matched this article.'));
-    assert.ok(app.innerHTML.includes('All search terms'));
-    assert.ok(app.innerHTML.includes('Matched terms'));
-    assert.ok(app.innerHTML.includes('Unmatched terms'));
-    assert.ok(app.innerHTML.includes('metaheuristic'));
-    assert.ok(app.innerHTML.includes('(wos)'));
-    assert.ok(app.innerHTML.includes('(scopus)'));
+    await detailView("article");
+    assert.ok(app.innerHTML.includes("Search term coverage"));
+    assert.ok(app.innerHTML.includes("1 of 3 search terms matched this article."));
+    assert.ok(app.innerHTML.includes("All search terms"));
+    assert.ok(app.innerHTML.includes("Matched terms"));
+    assert.ok(app.innerHTML.includes("Unmatched terms"));
+    assert.ok(app.innerHTML.includes("metaheuristic"));
+    assert.ok(app.innerHTML.includes("(wos)"));
+    assert.ok(app.innerHTML.includes("(scopus)"));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('renders no search terms recorded when term_matches is null', async function() {
+  it("renders no search terms recorded when term_matches is null", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
-              article: { id: 'a4', title: 'No coverage article' },
+              article: {
+                id: "a4",
+                title: "No coverage article",
+              },
               authors: [],
               references: [],
               enriched_fields: [],
@@ -301,38 +456,47 @@ describe('detail.tsx — detailView', function() {
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'article_id': 'a4', 'view': 'article'});
+    seedViewerState({
+      article_id: "a4",
+      view: "article",
+    });
 
-    await detailView('article');
-    assert.ok(app.innerHTML.includes('Search term coverage'));
-    assert.ok(app.innerHTML.includes('No search terms recorded for this run.'));
+    await detailView("article");
+    assert.ok(app.innerHTML.includes("Search term coverage"));
+    assert.ok(app.innerHTML.includes("No search terms recorded for this run."));
 
     globalThis.fetch = originalFetch;
   });
 
-  it('renders reference detail when reference_id is set', async function() {
+  it("renders reference detail when reference_id is set", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: function() {
+        json: () => {
           return Promise.resolve({
             data: {
-              reference: { id: 'ref1', doi: '10.1234/test' },
+              reference: {
+                id: "ref1",
+                doi: "10.1234/test",
+              },
             },
           });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
-    seedViewerState({'reference_id': 'ref1', 'view': 'reference'});
+    seedViewerState({
+      reference_id: "ref1",
+      view: "reference",
+    });
 
-    await detailView('reference');
-    assert.ok(app.innerHTML.includes('Reference mention'));
-    assert.ok(app.innerHTML.includes('10.1234/test'));
+    await detailView("reference");
+    assert.ok(app.innerHTML.includes("Reference mention"));
+    assert.ok(app.innerHTML.includes("10.1234/test"));
 
     globalThis.fetch = originalFetch;
   });

@@ -17,7 +17,13 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
   if (section === "summary") {
     return apiResponse({
       version: "1",
-      totals: { searches: 140, revisions: 280, plans: 400, runs: 650, completed_runs: 600 },
+      totals: {
+        searches: 140,
+        revisions: 280,
+        plans: 400,
+        runs: 650,
+        completed_runs: 600,
+      },
       latest_run: {
         id: 31,
         execution_plan_id: 21,
@@ -52,7 +58,14 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
   if (section === "revisions") {
     return apiResponse({
       version: "1",
-      items: [{ id: 11, label: "Revision 1", plan_count: 2, run_count: 3, latest_plan_id: 21, latest_run_id: 31 }],
+      items: [{
+        id: 11,
+        label: "Revision 1",
+        plan_count: 2,
+        run_count: 3,
+        latest_plan_id: 21,
+        latest_run_id: 31,
+      }],
       has_more: true,
       next_cursor: "next-revisions",
     });
@@ -77,31 +90,32 @@ function hierarchyResponse(rawURL: string): Promise<Response> {
   });
 }
 
-describe("home.tsx homeView", function() {
-  beforeEach(function() {
+describe("home.tsx homeView", () => {
+  beforeEach(() => {
     seedViewerState({ view: "home" });
-    globalThis.fetch = function(input) {
+    globalThis.fetch = (input: RequestInfo | URL) => {
       return hierarchyResponse(String(input));
-    } as typeof fetch;
+    };
   });
 
-  afterEach(function() {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     app.replaceChildren();
   });
 
-  it("renders bounded hierarchy metrics, filters, direct actions, and lazy revision pages", async function() {
+  it("renders bounded hierarchy metrics, filters, direct actions, and lazy revision pages", async () => {
     const requested: string[] = [];
-    globalThis.fetch = function(input) {
+    globalThis.fetch = (input: RequestInfo | URL) => {
       requested.push(String(input));
       return hierarchyResponse(String(input));
-    } as typeof fetch;
+    };
 
     await homeView();
 
-    assert.deepEqual(Array.from(app.querySelectorAll(".rw-home-kpis .label"), function(label) {
+    const kpiLabels = Array.from(app.querySelectorAll(".rw-home-kpis .label"), (label) => {
       return label.textContent;
-    }), ["Search terms", "Search revisions", "Execution plans", "Run attempts"]);
+    });
+    assert.deepEqual(kpiLabels, ["Search terms", "Search revisions", "Execution plans", "Run attempts"]);
     assert.match(app.textContent || "", /process-mining/);
     assert.match(app.textContent || "", /12m 34s/);
     assert.doesNotMatch(app.textContent || "", /Latest execution|Open latest run/);
@@ -110,20 +124,21 @@ describe("home.tsx homeView", function() {
     assert.equal(app.querySelectorAll("[data-home-run]").length, 1);
     assert.ok(app.querySelector("[data-more-searches]"));
     assert.ok(app.querySelector("[data-more-runs]"));
-    assert.equal(requested.filter(function(path) {
+    const revisionRequests = requested.filter((path) => {
       return path.includes("section=revisions");
-    }).length, 0);
+    });
+    assert.equal(revisionRequests.length, 0);
 
     const details = app.querySelector<HTMLDetailsElement>("[data-home-search]")!;
     details.open = true;
     details.dispatchEvent(new Event("toggle"));
-    await new Promise(function(resolve) {
+    await new Promise((resolve) => {
       setTimeout(resolve, 0);
     });
     assert.match(details.textContent || "", /Revision 1/);
     assert.ok(details.querySelector("[data-more-revisions]"));
 
-    const explore = Array.from(app.querySelectorAll("a")).find(function(anchor) {
+    const explore = Array.from(app.querySelectorAll("a")).find((anchor) => {
       return anchor.textContent?.trim() === "Explore";
     }) as HTMLAnchorElement;
     assert.equal(explore.href, "http://127.0.0.1:8080/overview");
@@ -133,7 +148,7 @@ describe("home.tsx homeView", function() {
     assert.match(explore.dataset.state || "", /"run_id":"31"/);
   });
 
-  it("uses a native dialog and restores focus to the lifecycle opener after cancellation", async function() {
+  it("uses a native dialog and restores focus to the lifecycle opener after cancellation", async () => {
     await homeView();
     const lifecycle = app.querySelector<HTMLButtonElement>("[data-run-visibility=trashed]")!;
     lifecycle.focus();
@@ -147,12 +162,12 @@ describe("home.tsx homeView", function() {
     assert.equal(document.activeElement, lifecycle);
   });
 
-  it("retains successful sibling sections when run discovery fails", async function() {
-    globalThis.fetch = function(input) {
+  it("retains successful sibling sections when run discovery fails", async () => {
+    globalThis.fetch = (input: RequestInfo | URL) => {
       const url = new URL(String(input), location.origin);
       if (url.searchParams.get("section") === "runs") return Promise.reject(new Error("Run query failed."));
       return hierarchyResponse(String(input));
-    } as typeof fetch;
+    };
 
     await homeView();
 

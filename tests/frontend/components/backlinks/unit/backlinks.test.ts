@@ -5,13 +5,13 @@ import "../../../../support/node/setup.ts";
 import { apiResponse } from "../../../../support/node/helpers/fetch.ts";
 import { mountBacklinks } from "../../../../../frontend/src/components/backlinks.tsx";
 
-describe("backlinks.tsx - mountBacklinks", function() {
-  it("traverses more than one hundred inbound notes without duplicates", async function() {
+describe("backlinks.tsx - mountBacklinks", () => {
+  it("traverses more than one hundred inbound notes without duplicates", async () => {
     const host = document.createElement("div");
     document.body.append(host);
     const originalFetch = globalThis.fetch;
     let requestCount = 0;
-    globalThis.fetch = function(input) {
+    globalThis.fetch = ((input) => {
       requestCount += 1;
       const url = new URL(String(input), location.origin);
       const cursor = url.searchParams.get("cursor") || "page-0";
@@ -21,17 +21,17 @@ describe("backlinks.tsx - mountBacklinks", function() {
       const items = Array.from({ length: count }, (_, index) => {
         const id = start + index + 1;
         return {
-          id: id,
+          id,
           work_revision_id: id,
           version: { title: `Source note ${id}` },
         };
       });
       return apiResponse({
-        items: items,
+        items,
         has_more: page < 4,
         next_cursor: page < 4 ? `page-${page + 1}` : null,
       });
-    } as typeof fetch;
+    }) as typeof fetch;
 
     await mountBacklinks(host, {
       runID: 7,
@@ -49,7 +49,9 @@ describe("backlinks.tsx - mountBacklinks", function() {
 
     assert.equal(requestCount, 5);
     assert.equal(host.querySelectorAll("li").length, 101);
-    assert.equal(new Set(Array.from(host.querySelectorAll("li"), (item) => item.textContent)).size, 101);
+    assert.equal(new Set(Array.from(host.querySelectorAll("li"), (item) => {
+      return item.textContent;
+    })).size, 101);
     assert.equal(host.querySelector("[data-backlinks-more]"), null);
     globalThis.fetch = originalFetch;
     host.remove();

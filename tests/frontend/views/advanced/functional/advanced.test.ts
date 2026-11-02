@@ -10,34 +10,50 @@ import { app, state, value } from "../../../../../frontend/src/state.tsx";
 
 const originalFetch = globalThis.fetch;
 
-describe("advanced.tsx advancedView", function() {
-  beforeEach(function() {
+describe("advanced.tsx advancedView", () => {
+  beforeEach(() => {
     state.tables = [];
     const url = new URL(location.href);
     url.search = "?view=advanced";
     history.replaceState({}, "", url.toString());
   });
 
-  afterEach(function() {
+  afterEach(() => {
     globalThis.fetch = originalFetch;
     state.tables = [];
     app.replaceChildren();
   });
 
-  it("renders a safe table projection without cached discovery counts", async function() {
-    var fetchCount = 0;
-    globalThis.fetch = function(url) {
+  it("renders a safe table projection without cached discovery counts", async () => {
+    let fetchCount = 0;
+    globalThis.fetch = (url: RequestInfo | URL) => {
       fetchCount += 1;
       if (String(url).endsWith("/api/tables")) {
-        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }, { name: "title" }] }] });
+        return apiResponse({
+          tables: [{
+            name: "works",
+            columns: [{ name: "id" }, { name: "title" }],
+          }],
+        });
       }
       return apiResponse({
-        table: { name: "works", columns: [{ name: "id" }, { name: "title" }] },
-        rows: [{ id: 1, title: "Test" }],
+        table: {
+          name: "works",
+          columns: [{ name: "id" }, { name: "title" }],
+        },
+        rows: [{
+          id: 1,
+          title: "Test",
+        }],
         truncated_fields: {},
-        pagination: { page: 1, per_page: 50, total_pages: 1, total_rows: 1 },
+        pagination: {
+          page: 1,
+          per_page: 50,
+          total_pages: 1,
+          total_rows: 1,
+        },
       });
-    } as typeof fetch;
+    };
 
     await advancedView();
 
@@ -48,19 +64,35 @@ describe("advanced.tsx advancedView", function() {
     assert.equal(fetchCount, 2);
   });
 
-  it("replaces an invalid table key with a valid table and explains the correction", async function() {
-    seedViewerState({'table': 'missing_table', 'view': 'advanced'});
-    globalThis.fetch = function(url) {
+  it("replaces an invalid table key with a valid table and explains the correction", async () => {
+    seedViewerState({
+      table: "missing_table",
+      view: "advanced",
+    });
+    globalThis.fetch = (url: RequestInfo | URL) => {
       if (String(url).endsWith("/api/tables")) {
-        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
+        return apiResponse({
+          tables: [{
+            name: "works",
+            columns: [{ name: "id" }],
+          }],
+        });
       }
       return apiResponse({
-        table: { name: "works", columns: [{ name: "id" }] },
+        table: {
+          name: "works",
+          columns: [{ name: "id" }],
+        },
         rows: [{ id: 1 }],
         truncated_fields: {},
-        pagination: { page: 1, per_page: 50, total_pages: 1, total_rows: 1 },
+        pagination: {
+          page: 1,
+          per_page: 50,
+          total_pages: 1,
+          total_rows: 1,
+        },
       });
-    } as typeof fetch;
+    };
 
     await advancedView();
 
@@ -68,19 +100,24 @@ describe("advanced.tsx advancedView", function() {
     assert.match(app.textContent || "", /requested table was not found/i);
   });
 
-  it("keeps the Advanced shell visible when the selected table request fails", async function() {
-    globalThis.fetch = function(url) {
+  it("keeps the Advanced shell visible when the selected table request fails", async () => {
+    globalThis.fetch = (url: RequestInfo | URL) => {
       if (String(url).endsWith("/api/tables")) {
-        return apiResponse({ tables: [{ name: "works", columns: [{ name: "id" }] }] });
+        return apiResponse({
+          tables: [{
+            name: "works",
+            columns: [{ name: "id" }],
+          }],
+        });
       }
       return Promise.resolve({
         ok: false,
         status: 503,
-        json: function() {
+        json: () => {
           return Promise.resolve({ error: { message: "The selected table is temporarily unavailable." } });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    };
 
     await advancedView();
 

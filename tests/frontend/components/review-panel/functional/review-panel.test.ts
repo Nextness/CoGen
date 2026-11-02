@@ -9,7 +9,11 @@ import type { ArticleDetailResponse, ArticleRecord } from "../../../../../fronte
 describe("article review reader refresh", () => {
   for (const contextState of ["uninitialized", "unavailable"]) {
     it(`refreshes PDF state when review is ${contextState}`, async () => {
-      seedViewerState({ view: "article", article_id: "1", run_id: "1" });
+      seedViewerState({
+        view: "article",
+        article_id: "1",
+        run_id: "1",
+      });
       const host = document.createElement("div");
       document.body.append(host);
       const originalFetch = globalThis.fetch;
@@ -17,14 +21,24 @@ describe("article review reader refresh", () => {
       globalThis.fetch = async (input) => {
         if (String(input).includes("/review-context")) {
           if (contextState === "unavailable") throw new Error("Review context unavailable");
-          return new Response(JSON.stringify({ context_initialized: false, proposed_parent: null }));
+          return new Response(JSON.stringify({
+            context_initialized: false,
+            proposed_parent: null,
+          }));
         }
         assert.match(String(input), /\/api\/works\/1\/pdf-status/);
         statusRequests += 1;
-        return new Response(JSON.stringify({ status: "available", content_hash: "a".repeat(64) }));
+        return new Response(JSON.stringify({
+          status: "available",
+          content_hash: "a".repeat(64),
+        }));
       };
       try {
-        const record = { id: 1, pipeline_run_id: 1, work_id: 1 } as ArticleRecord;
+        const record = {
+          id: 1,
+          pipeline_run_id: 1,
+          work_id: 1,
+        } as ArticleRecord;
         const detail = { pdf_status: { status: "not_available" } } as ArticleDetailResponse;
         const controller = await mountArticleReview(host, null, record, detail);
         try {

@@ -1,39 +1,59 @@
 // Unit tests for the shared chronological audit-event presentation.
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 
 import "../../../../support/node/setup.ts";
 import { auditCategory, AuditEventMarkup, AuditStream, bindAuditRecordedData } from "../../../../../frontend/src/components/audit-events.tsx";
 import { apiResponse } from "../../../../support/node/helpers/fetch.ts";
 import { renderToString } from "../../../../support/node/helpers/jsx-render.ts";
 
-const auditEventMarkup = (event: any): string => renderToString(AuditEventMarkup({ event: event }));
-const auditStream = (events: any[]): string => renderToString(AuditStream({ events: events }));
+const auditEventMarkup = (event: any): string => {
+  return renderToString(AuditEventMarkup({ event }));
+};
+const auditStream = (events: any[]): string => {
+  return renderToString(AuditStream({ events }));
+};
 
-describe('audit-events.tsx', function() {
+describe("audit-events.tsx", () => {
   it("expands readable changes once and separates recorded JSON from the default presentation", async () => {
     const originalFetch = globalThis.fetch;
-    var requests = 0;
+    let requests = 0;
     globalThis.fetch = (async () => {
       requests += 1;
       return apiResponse({
         event_id: 22,
         byte_limit: 16384,
-        metadata: { checked: false, count: 0 },
+        metadata: {
+          checked: false,
+          count: 0,
+        },
         before: { unchanged: "same" },
-        after: { status: "valid", empty_value: null, unchanged: "same", title: "<img src=x>", flags: ["has_doi"] },
+        after: {
+          status: "valid",
+          empty_value: null,
+          unchanged: "same",
+          title: "<img src=x>",
+          flags: ["has_doi"],
+        },
       });
     }) as typeof fetch;
 
     try {
       const host = document.createElement("div");
-      host.append(AuditEventMarkup({ event: { id: 22, action: "validation_changed" } }));
+      host.append(AuditEventMarkup({
+        event: {
+          id: 22,
+          action: "validation_changed",
+        },
+      }));
       bindAuditRecordedData(host);
       assert.equal(requests, 0);
       const details = host.querySelector<HTMLDetailsElement>(".rw-event-details")!;
       details.open = true;
       details.dispatchEvent(new window.Event("toggle"));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
 
       assert.equal(requests, 1);
       assert.equal(details.querySelector("summary")!.getAttribute("aria-expanded"), "true");
@@ -51,7 +71,9 @@ describe('audit-events.tsx', function() {
       details.dispatchEvent(new window.Event("toggle"));
       details.open = true;
       details.dispatchEvent(new window.Event("toggle"));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
       assert.equal(requests, 1);
     } finally {
       globalThis.fetch = originalFetch;
@@ -64,20 +86,45 @@ describe('audit-events.tsx', function() {
       return apiResponse({
         event_id: 24,
         byte_limit: 16384,
-        metadata: { source: "manual", operation: "replaced", initiating_run_id: 7, initiating_revision_id: 11 },
-        before: { status: "available", content_hash: "old-hash", byte_size: 10, inventoried_at: "2026-01-01T00:00:00Z", change_counter: 2 },
-        after: { status: "available", content_hash: "new-hash", byte_size: 20, inventoried_at: "2026-01-02T00:00:00Z", change_counter: 3, outgoing_deleted: true },
+        metadata: {
+          source: "manual",
+          operation: "replaced",
+          initiating_run_id: 7,
+          initiating_revision_id: 11,
+        },
+        before: {
+          status: "available",
+          content_hash: "old-hash",
+          byte_size: 10,
+          inventoried_at: "2026-01-01T00:00:00Z",
+          change_counter: 2,
+        },
+        after: {
+          status: "available",
+          content_hash: "new-hash",
+          byte_size: 20,
+          inventoried_at: "2026-01-02T00:00:00Z",
+          change_counter: 3,
+          outgoing_deleted: true,
+        },
       });
     }) as typeof fetch;
 
     try {
       const host = document.createElement("div");
-      host.append(AuditEventMarkup({ event: { id: 24, action: "pdf_document_replaced" } }));
+      host.append(AuditEventMarkup({
+        event: {
+          id: 24,
+          action: "pdf_document_replaced",
+        },
+      }));
       bindAuditRecordedData(host);
       const details = host.querySelector<HTMLDetailsElement>(".rw-event-details")!;
       details.open = true;
       details.dispatchEvent(new window.Event("toggle"));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
       const changes = details.querySelector<HTMLTableElement>(".rw-event-changes")!;
       assert.match(changes.textContent, /Content Hashold-hashnew-hash/);
       assert.match(changes.textContent, /Byte Size1020/);
@@ -91,14 +138,16 @@ describe('audit-events.tsx', function() {
   });
 
   it("shows run completion as a successful outcome with compact UTC time", () => {
-    const event = AuditEventMarkup({ event: {
-      id: 20,
-      action: "run_completed",
-      entity_type: "pipeline_run",
-      entity_id: "7",
-      pipeline_run_id: 7,
-      occurred_at: "2026-09-02T03:22:27Z",
-    } });
+    const event = AuditEventMarkup({
+      event: {
+        id: 20,
+        action: "run_completed",
+        entity_type: "pipeline_run",
+        entity_id: "7",
+        pipeline_run_id: 7,
+        occurred_at: "2026-09-02T03:22:27Z",
+      },
+    });
     const host = document.createElement("div");
     host.append(event);
     assert.equal(host.querySelector("time > span")!.textContent, "03:22:27");
@@ -121,7 +170,13 @@ describe('audit-events.tsx', function() {
       pipeline_run_id: 7,
       before_json: { status: "pending" },
       after_json: { status: "valid" },
-      metadata_json: { reasons: [], stage: "validate", provider: "crossref", duration_seconds: 0, note_body: "must stay private" },
+      metadata_json: {
+        reasons: [],
+        stage: "validate",
+        provider: "crossref",
+        duration_seconds: 0,
+        note_body: "must stay private",
+      },
     });
     assert.ok(html.includes("Validation changed from Pending to Valid."));
     assert.ok(html.includes("Work #3475"));
@@ -147,116 +202,147 @@ describe('audit-events.tsx', function() {
     assert.ok(!validation.includes("Validation result: Valid"));
   });
 
-  it('classifies review and PDF evidence independently from pipeline events', function() {
-    assert.equal(auditCategory({ action: 'work_review_version_created' }), 'review');
-    assert.equal(auditCategory({ action: 'pdf_inventory_registered' }), 'pdf');
-    assert.equal(auditCategory({ action: 'pipeline_completed' }), 'pipeline');
+  it("classifies review and PDF evidence independently from pipeline events", () => {
+    assert.equal(auditCategory({ action: "work_review_version_created" }), "review");
+    assert.equal(auditCategory({ action: "pdf_inventory_registered" }), "pdf");
+    assert.equal(auditCategory({ action: "pipeline_completed" }), "pipeline");
   });
 
   it("summarizes PDF replacement and removal distinctly from addition", () => {
     const replaced = auditEventMarkup({
       action: "pdf_document_replaced",
-      before_json: { status: "available", content_hash: "old-hash", change_counter: 2 },
-      after_json: { status: "available", content_hash: "new-hash", change_counter: 3, outgoing_deleted: true },
+      before_json: {
+        status: "available",
+        content_hash: "old-hash",
+        change_counter: 2,
+      },
+      after_json: {
+        status: "available",
+        content_hash: "new-hash",
+        change_counter: 3,
+        outgoing_deleted: true,
+      },
     });
     assert.ok(replaced.includes("The selected PDF was replaced with validated bytes."));
     assert.ok(replaced.includes("Available"));
     const removed = auditEventMarkup({
       action: "pdf_document_removed",
-      before_json: { status: "available", content_hash: "old-hash", change_counter: 3 },
-      after_json: { status: "not_available", change_counter: 4, outgoing_deleted: true },
+      before_json: {
+        status: "available",
+        content_hash: "old-hash",
+        change_counter: 3,
+      },
+      after_json: {
+        status: "not_available",
+        change_counter: 4,
+        outgoing_deleted: true,
+      },
     });
     assert.ok(removed.includes("The selected PDF was removed; the inventory registration remains."));
     assert.ok(removed.includes("Not Available"));
     const exported = auditEventMarkup({
       action: "pdf_document_export_prepared",
-      after_json: { status: "available", content_hash: "hash", byte_size: 20, change_counter: 3 },
+      after_json: {
+        status: "available",
+        content_hash: "hash",
+        byte_size: 20,
+        change_counter: 3,
+      },
     });
     assert.ok(exported.includes("Validated PDF bytes were prepared for an explicit download."));
     assert.ok(exported.includes("browser may still ask where to save"));
   });
 
   it("distinguishes enriched fields and uses readable PDF and outcome labels", () => {
-    const enriched = auditEventMarkup({ action: "field_enriched", metadata_json: { field: "title", provider: "crossref" } });
+    const enriched = auditEventMarkup({
+      action: "field_enriched",
+      metadata_json: {
+        field: "title",
+        provider: "crossref",
+      },
+    });
     assert.ok(enriched.includes("Title Enriched"));
-    const pdf = auditEventMarkup({ action: "pdf_inventory_registered", after_json: { status: "not_available" } });
+    const pdf = auditEventMarkup({
+      action: "pdf_inventory_registered",
+      after_json: { status: "not_available" },
+    });
     assert.ok(pdf.includes("PDF Inventory Registered"));
     assert.ok(pdf.includes("Not Available"));
     assert.ok(!pdf.includes(">not_available<"));
   });
 
-  it('shows outcome and run context from recorded payloads', function() {
+  it("shows outcome and run context from recorded payloads", () => {
     const html = auditEventMarkup({
       id: 8,
-      action: 'validation_changed',
-      actor: 'pipeline',
+      action: "validation_changed",
+      actor: "pipeline",
       pipeline_run_id: 3,
-      entity_type: 'work_revision',
+      entity_type: "work_revision",
       entity_id: 4,
-      occurred_at: '2024-01-20T10:00:00Z',
-      after_json: '{"status":"discarded"}'
+      occurred_at: "2024-01-20T10:00:00Z",
+      after_json: `{"status":"discarded"}`,
     });
-    assert.ok(html.includes('rw-audit-event--validation'));
-    assert.ok(html.includes('ui red label'));
-    assert.ok(html.includes('Run 3'));
-    assert.ok(html.includes('aria-controls="audit-event-8-information"'));
+    assert.ok(html.includes("rw-audit-event--validation"));
+    assert.ok(html.includes("ui red label"));
+    assert.ok(html.includes("Run 3"));
+    assert.ok(html.includes(`aria-controls="audit-event-8-information"`));
   });
 
-  it('shows the complete previous and new review decision states', function() {
+  it("shows the complete previous and new review decision states", () => {
     const html = auditEventMarkup({
       id: 10,
-      action: 'work_review_version_created',
-      actor: 'reviewer',
+      action: "work_review_version_created",
+      actor: "reviewer",
       pipeline_run_id: 3,
-      entity_type: 'work_review_version',
+      entity_type: "work_review_version",
       entity_id: 8,
-      occurred_at: '2024-01-20T10:00:00Z',
-      before_json: '{"status":"approved","reason":"Initial evidence","sub_statuses":[]}',
-      after_json: '{"status":"not_approved","reason":"Excluded <after review>","sub_statuses":["out_of_scope","not_peer_reviewed"]}'
+      occurred_at: "2024-01-20T10:00:00Z",
+      before_json: `{"status":"approved","reason":"Initial evidence","sub_statuses":[]}`,
+      after_json: `{"status":"not_approved","reason":"Excluded <after review>","sub_statuses":["out_of_scope","not_peer_reviewed"]}`,
     });
-    assert.ok(html.includes('Review decision changed from Approved to Not Approved.'));
-    assert.ok(html.includes('Previous decision'));
-    assert.ok(html.includes('New decision'));
-    assert.ok(html.includes('Initial evidence'));
-    assert.ok(html.includes('Excluded &lt;after review&gt;'));
-    assert.ok(html.includes('Out Of Scope'));
-    assert.ok(html.includes('Not Peer Reviewed'));
+    assert.ok(html.includes("Review decision changed from Approved to Not Approved."));
+    assert.ok(html.includes("Previous decision"));
+    assert.ok(html.includes("New decision"));
+    assert.ok(html.includes("Initial evidence"));
+    assert.ok(html.includes("Excluded &lt;after review&gt;"));
+    assert.ok(html.includes("Out Of Scope"));
+    assert.ok(html.includes("Not Peer Reviewed"));
   });
 
-  it('does not invent decision details for historical review events without state payloads', function() {
+  it("does not invent decision details for historical review events without state payloads", () => {
     const html = auditEventMarkup({
       id: 11,
-      action: 'work_review_version_created',
-      actor: 'reviewer',
+      action: "work_review_version_created",
+      actor: "reviewer",
       pipeline_run_id: 3,
-      entity_type: 'work_review_version',
+      entity_type: "work_review_version",
       entity_id: 7,
-      occurred_at: '2024-01-19T10:00:00Z'
+      occurred_at: "2024-01-19T10:00:00Z",
     });
-    assert.ok(html.includes('An immutable local review version was recorded.'));
-    assert.ok(!html.includes('Review decision changed from'));
-    assert.ok(!html.includes('Previous decision'));
+    assert.ok(html.includes("An immutable local review version was recorded."));
+    assert.ok(!html.includes("Review decision changed from"));
+    assert.ok(!html.includes("Previous decision"));
   });
 
-  it('renders chronological list semantics without exposing review prose or contact fields', function() {
+  it("renders chronological list semantics without exposing review prose or contact fields", () => {
     const html = auditStream([{
       id: 9,
-      action: 'review_note_version_created',
-      actor: 'reviewer',
+      action: "review_note_version_created",
+      actor: "reviewer",
       pipeline_run_id: 3,
-      entity_type: 'work_revision',
+      entity_type: "work_revision",
       entity_id: 4,
-      occurred_at: '2024-01-20T10:00:00Z',
-      metadata_json: '{"note_body":"private prose","reviewer_email":"private@example.test","safe_id":12}',
-      after_json: '{"body":"private version","status":"recorded"}'
+      occurred_at: "2024-01-20T10:00:00Z",
+      metadata_json: `{"note_body":"private prose","reviewer_email":"private@example.test","safe_id":12}`,
+      after_json: `{"body":"private version","status":"recorded"}`,
     }]);
-    assert.ok(html.includes('<ol class="rw-audit-events">'));
-    assert.ok(html.includes('rw-audit-event--review'));
-    assert.ok(html.includes('data-audit-recorded-details="9"'));
-    assert.ok(html.includes('load privacy-scrubbed recorded evidence'));
-    assert.ok(!html.includes('safe_id'));
-    assert.ok(!html.includes('private prose'));
-    assert.ok(!html.includes('private@example.test'));
-    assert.ok(!html.includes('private version'));
+    assert.ok(html.includes(`<ol class="rw-audit-events">`));
+    assert.ok(html.includes("rw-audit-event--review"));
+    assert.ok(html.includes(`data-audit-recorded-details="9"`));
+    assert.ok(html.includes("load privacy-scrubbed recorded evidence"));
+    assert.ok(!html.includes("safe_id"));
+    assert.ok(!html.includes("private prose"));
+    assert.ok(!html.includes("private@example.test"));
+    assert.ok(!html.includes("private version"));
   });
 });

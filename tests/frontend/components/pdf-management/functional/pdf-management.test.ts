@@ -37,11 +37,17 @@ function uploadStatus(): PDFStatus {
     status: "not_available",
     registered: true,
     change_counter: 1,
-    mutation_etag: '"pdf-10-1"',
+    mutation_etag: `"pdf-10-1"`,
     max_upload_bytes: 1024,
     storage_writable: true,
     storage_reason: "",
-    actions: { upload: true, replace: false, remove: false, download: false, reason: "" },
+    actions: {
+      upload: true,
+      replace: false,
+      remove: false,
+      download: false,
+      reason: "",
+    },
   };
 }
 
@@ -54,11 +60,17 @@ function availableStatus(): PDFStatus {
     inventoried_at: "2024-01-02T00:00:00Z",
     registered: true,
     change_counter: 2,
-    mutation_etag: '"pdf-10-2"',
+    mutation_etag: `"pdf-10-2"`,
     max_upload_bytes: 1024,
     storage_writable: true,
     storage_reason: "",
-    actions: { upload: false, replace: true, remove: true, download: true, reason: "" },
+    actions: {
+      upload: false,
+      replace: true,
+      remove: true,
+      download: true,
+      reason: "",
+    },
   };
 }
 
@@ -66,40 +78,46 @@ function availableStatus(): PDFStatus {
 function mount(status: PDFStatus): HTMLElement {
   const host = document.createElement("div");
   document.body.append(host);
-  mountPDFManagement(host, { record: article(), status: status });
+  mountPDFManagement(host, {
+    record: article(),
+    status,
+  });
   return host;
 }
 
 /** Selects one local file through the visible file input. */
 function selectFile(host: HTMLElement, file: File): HTMLInputElement {
   const input = host.querySelector<HTMLInputElement>("[data-pdf-file]")!;
-  Object.defineProperty(input, "files", { value: [file], configurable: true });
+  Object.defineProperty(input, "files", {
+    value: [file],
+    configurable: true,
+  });
   input.dispatchEvent(new Event("change"));
   return input;
 }
 
 /** Waits for asynchronous mutation and digest work to settle. */
 function settle(): Promise<void> {
-  return new Promise(function(resolve) {
+  return new Promise((resolve) => {
     setTimeout(resolve, 30);
   });
 }
 
 /** Waits for one observable test condition instead of relying on a fixed delay. */
 async function waitFor(predicate: () => boolean): Promise<void> {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate()) return;
     await settle();
   }
   assert.fail("Timed out waiting for PDF management state");
 }
 
-describe("pdf-management.tsx", function() {
+describe("pdf-management.tsx", () => {
 
-  it("renders one labeled file input, size guidance, and explicit upload action", function() {
+  it("renders one labeled file input, size guidance, and explicit upload action", () => {
     const host = mount(uploadStatus());
 
-    const label = host.querySelector<HTMLLabelElement>('label[for="pdf-upload-file"]');
+    const label = host.querySelector<HTMLLabelElement>(`label[for="pdf-upload-file"]`);
     const input = host.querySelector<HTMLInputElement>("[data-pdf-file]");
     assert.equal(label?.textContent, "PDF file");
     assert.equal(input?.type, "file");
@@ -111,7 +129,7 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("shows the selected filename and size locally", function() {
+  it("shows the selected filename and size locally", () => {
     const host = mount(uploadStatus());
     selectFile(host, new File([new Uint8Array(4)], "paper.pdf", { type: "application/pdf" }));
 
@@ -123,9 +141,15 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("shows the specific unavailable capability and omits mutation controls", function() {
+  it("shows the specific unavailable capability and omits mutation controls", () => {
     const status = uploadStatus();
-    status.actions = { upload: false, replace: false, remove: false, download: false, reason: "run_trashed" };
+    status.actions = {
+      upload: false,
+      replace: false,
+      remove: false,
+      download: false,
+      reason: "run_trashed",
+    };
     const host = mount(status);
 
     assert.match(host.textContent || "", /This run is in the trash, so PDF changes are disabled\./);
@@ -135,11 +159,14 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("confirms replacement with article identity, global scope, and permanent deletion", function() {
+  it("confirms replacement with article identity, global scope, and permanent deletion", () => {
     const host = mount(availableStatus());
     const input = selectFile(host, new File([new Uint8Array(4)], "replacement.pdf", { type: "application/pdf" }));
     const form = host.querySelector<HTMLFormElement>("[data-pdf-form]")!;
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    form.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
 
     const dialog = host.querySelector<HTMLDialogElement>("[data-pdf-confirm]")!;
     assert.equal(dialog.open || dialog.hasAttribute("open"), true);
@@ -156,7 +183,7 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("confirms removal and keeps the current selection when cancelled", function() {
+  it("confirms removal and keeps the current selection when cancelled", () => {
     const host = mount(availableStatus());
     host.querySelector<HTMLButtonElement>("[data-pdf-remove]")!.click();
 
@@ -171,23 +198,36 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("preserves the selected file and reports a stale precondition", async function() {
+  it("preserves the selected file and reports a stale precondition", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = (() => {
       return Promise.resolve({
         ok: false,
         status: 412,
-        json: function() {
-          return Promise.resolve({ error: { message: "The PDF selection changed; refresh and retry", code: "pdf_state_conflict" } });
+        json: () => {
+          return Promise.resolve({
+            error: {
+              message: "The PDF selection changed; refresh and retry",
+              code: "pdf_state_conflict",
+            },
+          });
         },
       } as unknown as Response);
-    } as typeof fetch;
+    }) as typeof fetch;
     const host = mount(availableStatus());
     selectFile(host, new File([new Uint8Array(4)], "replacement.pdf", { type: "application/pdf" }));
     const form = host.querySelector<HTMLFormElement>("[data-pdf-form]")!;
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("selection changed"));
+    form.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("selection changed");
+    });
 
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /selection changed/);
     assert.match(host.querySelector("[data-pdf-selected]")?.textContent || "", /replacement\.pdf/);
@@ -197,21 +237,33 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("reports an uncertain lost response and refreshes current state explicitly", async function() {
+  it("reports an uncertain lost response and refreshes current state explicitly", async () => {
     const originalFetch = globalThis.fetch;
     const changed = availableStatus();
     changed.content_hash = "c".repeat(64);
-    changed.mutation_etag = '"pdf-10-3"';
-    var calls = 0;
-    var refreshes = 0;
-    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+    changed.mutation_etag = `"pdf-10-3"`;
+    let calls = 0;
+    let refreshes = 0;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
       calls += 1;
       if (init?.method === "PUT") return Promise.reject(new TypeError("connection lost"));
       if (String(input).includes("/api/articles/")) {
-        return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve({ pdf_status: changed }); } } as unknown as Response);
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => {
+            return Promise.resolve({ pdf_status: changed });
+          },
+        } as unknown as Response);
       }
-      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(changed); } } as unknown as Response);
-    } as typeof fetch;
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => {
+          return Promise.resolve(changed);
+        },
+      } as unknown as Response);
+    }) as typeof fetch;
     const host = document.createElement("div");
     document.body.append(host);
     mountPDFManagement(host, {
@@ -222,15 +274,25 @@ describe("pdf-management.tsx", function() {
       },
     });
     selectFile(host, new File([new Uint8Array(4)], "replacement.pdf", { type: "application/pdf" }));
-    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("may have committed"));
+    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("may have committed");
+    });
 
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /may have committed/);
     assert.match(host.querySelector("[data-pdf-selected]")?.textContent || "", /replacement\.pdf/);
     assert.equal(calls, 2);
     host.querySelector<HTMLButtonElement>("[data-pdf-refresh]")!.click();
-    await waitFor(() => refreshes === 1);
+    await waitFor(() => {
+      return refreshes === 1;
+    });
 
     assert.equal(refreshes, 1);
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /Current PDF state refreshed/);
@@ -241,42 +303,52 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-
-  it("prepares an explicit original-byte download with comments off by default", async function() {
+  it("prepares an explicit original-byte download with comments off by default", async () => {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
-    var request: RequestInit | undefined;
-    var clicked = 0;
-    URL.createObjectURL = function() { return "blob:pdf"; };
-    URL.revokeObjectURL = function() {};
-    HTMLAnchorElement.prototype.click = function() { clicked += 1; };
-    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+    let request: RequestInit | undefined;
+    let clicked = 0;
+    URL.createObjectURL = () => {
+      return "blob:pdf";
+    };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => {
+      clicked += 1;
+    };
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
       request = init;
       return Promise.resolve({
         ok: true,
         status: 200,
         headers: new Headers({
           "Content-Type": "application/pdf",
-          "Content-Disposition": 'attachment; filename="managed.pdf"',
+          "Content-Disposition": `attachment; filename="managed.pdf"`,
           "Content-Length": "3",
           "X-PDF-Export-Correlation-Id": "corr-pdf",
         }),
         body: null,
-        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+        arrayBuffer: () => {
+          return Promise.resolve(new TextEncoder().encode("pdf").buffer);
+        },
       } as unknown as Response);
-    } as typeof fetch;
+    }) as typeof fetch;
     const host = mount(availableStatus());
 
     const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
     assert.equal(comments.checked, false);
     assert.equal(comments.disabled, false);
     host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("Download prepared"));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("Download prepared");
+    });
 
     assert.equal(request?.method, "POST");
-    assert.deepEqual(JSON.parse(String(request?.body)), { content_hash: "a".repeat(64), include_comments: false });
+    assert.deepEqual(JSON.parse(String(request?.body)), {
+      content_hash: "a".repeat(64),
+      include_comments: false,
+    });
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /managed\.pdf/);
     assert.equal(clicked, 1);
 
@@ -287,40 +359,49 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("requests saved comments only when the toggle is on and reports inclusion", async function() {
+  it("requests saved comments only when the toggle is on and reports inclusion", async () => {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
-    var request: RequestInit | undefined;
-    URL.createObjectURL = function() { return "blob:pdf-comments"; };
-    URL.revokeObjectURL = function() {};
-    HTMLAnchorElement.prototype.click = function() {};
-    globalThis.fetch = function(_input: RequestInfo | URL, init?: RequestInit) {
+    let request: RequestInit | undefined;
+    URL.createObjectURL = () => {
+      return "blob:pdf-comments";
+    };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => {};
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
       request = init;
       return Promise.resolve({
         ok: true,
         status: 200,
         headers: new Headers({
           "Content-Type": "application/pdf",
-          "Content-Disposition": 'attachment; filename="managed (annotated).pdf"',
+          "Content-Disposition": `attachment; filename="managed (annotated).pdf"`,
           "Content-Length": "3",
           "X-PDF-Export-Comments": "2",
           "X-PDF-Export-Comments-Status": "included",
           "X-PDF-Export-Output-Hash": "b".repeat(64),
         }),
         body: null,
-        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+        arrayBuffer: () => {
+          return Promise.resolve(new TextEncoder().encode("pdf").buffer);
+        },
       } as unknown as Response);
-    } as typeof fetch;
+    }) as typeof fetch;
     const host = mount(availableStatus());
     const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
     comments.checked = true;
     comments.dispatchEvent(new Event("change"));
     host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("saved comments included"));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("saved comments included");
+    });
 
-    assert.deepEqual(JSON.parse(String(request?.body)), { content_hash: "a".repeat(64), include_comments: true });
+    assert.deepEqual(JSON.parse(String(request?.body)), {
+      content_hash: "a".repeat(64),
+      include_comments: true,
+    });
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /2 saved comments included/);
 
     globalThis.fetch = originalFetch;
@@ -330,35 +411,41 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("reports no matching saved comments without failing the download", async function() {
+  it("reports no matching saved comments without failing the download", async () => {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
-    URL.createObjectURL = function() { return "blob:pdf-original"; };
-    URL.revokeObjectURL = function() {};
-    HTMLAnchorElement.prototype.click = function() {};
-    globalThis.fetch = function() {
+    URL.createObjectURL = () => {
+      return "blob:pdf-original";
+    };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => {};
+    globalThis.fetch = (() => {
       return Promise.resolve({
         ok: true,
         status: 200,
         headers: new Headers({
           "Content-Type": "application/pdf",
-          "Content-Disposition": 'attachment; filename="managed.pdf"',
+          "Content-Disposition": `attachment; filename="managed.pdf"`,
           "Content-Length": "3",
           "X-PDF-Export-Comments": "0",
           "X-PDF-Export-Comments-Status": "no_matching_comments",
         }),
         body: null,
-        arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("pdf").buffer); },
+        arrayBuffer: () => {
+          return Promise.resolve(new TextEncoder().encode("pdf").buffer);
+        },
       } as unknown as Response);
-    } as typeof fetch;
+    }) as typeof fetch;
     const host = mount(availableStatus());
     const comments = host.querySelector<HTMLInputElement>("[data-pdf-include-comments]")!;
     comments.checked = true;
     comments.dispatchEvent(new Event("change"));
     host.querySelector<HTMLButtonElement>("[data-pdf-download]")!.click();
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("No matching saved comments"));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("No matching saved comments");
+    });
 
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /original PDF was downloaded/);
 
@@ -369,7 +456,7 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("reports an unchanged save without claiming a mutation", async function() {
+  it("reports an unchanged save without claiming a mutation", async () => {
     const originalFetch = globalThis.fetch;
     const response: PDFMutationResponse = {
       changed: false,
@@ -378,13 +465,24 @@ describe("pdf-management.tsx", function() {
       event_key: null,
       audit_delivery: "not_applicable",
     };
-    globalThis.fetch = function() {
-      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(response); } } as unknown as Response);
-    } as typeof fetch;
+    globalThis.fetch = (() => {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => {
+          return Promise.resolve(response);
+        },
+      } as unknown as Response);
+    }) as typeof fetch;
     const host = mount(uploadStatus());
     selectFile(host, new File([new Uint8Array(4)], "same.pdf", { type: "application/pdf" }));
-    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("already matches"));
+    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("already matches");
+    });
 
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /already matches the selected file/);
     assert.equal(host.querySelector<HTMLElement>("[data-pdf-feedback]")?.getAttribute("role"), "status");
@@ -393,7 +491,7 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("warns when a committed PDF change cannot refresh the article display", async function() {
+  it("warns when a committed PDF change cannot refresh the article display", async () => {
     const originalFetch = globalThis.fetch;
     const response: PDFMutationResponse = {
       changed: true,
@@ -402,9 +500,15 @@ describe("pdf-management.tsx", function() {
       event_key: "event-3",
       audit_delivery: "pending",
     };
-    globalThis.fetch = function() {
-      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(response); } } as unknown as Response);
-    } as typeof fetch;
+    globalThis.fetch = (() => {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => {
+          return Promise.resolve(response);
+        },
+      } as unknown as Response);
+    }) as typeof fetch;
     const host = document.createElement("div");
     document.body.append(host);
     mountPDFManagement(host, {
@@ -415,8 +519,13 @@ describe("pdf-management.tsx", function() {
       },
     });
     selectFile(host, new File([new Uint8Array(4)], "upload.pdf", { type: "application/pdf" }));
-    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await waitFor(() => (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("saved, but the article display"));
+    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    await waitFor(() => {
+      return (host.querySelector("[data-pdf-feedback]")?.textContent || "").includes("saved, but the article display");
+    });
 
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /saved, but the article display could not be refreshed/);
     assert.equal(host.querySelector<HTMLElement>("[data-pdf-feedback]")?.getAttribute("role"), "status");
@@ -425,7 +534,7 @@ describe("pdf-management.tsx", function() {
     host.remove();
   });
 
-  it("updates the visible status after a successful replacement", async function() {
+  it("updates the visible status after a successful replacement", async () => {
     const originalFetch = globalThis.fetch;
     const response: PDFMutationResponse = {
       changed: true,
@@ -435,10 +544,16 @@ describe("pdf-management.tsx", function() {
       audit_delivery: "pending",
     };
     response.pdf_status.content_hash = "b".repeat(64);
-    var changed: PDFMutationResponse | null = null;
-    globalThis.fetch = function() {
-      return Promise.resolve({ ok: true, status: 200, json: function() { return Promise.resolve(response); } } as unknown as Response);
-    } as typeof fetch;
+    let changed: PDFMutationResponse | null = null;
+    globalThis.fetch = (() => {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => {
+          return Promise.resolve(response);
+        },
+      } as unknown as Response);
+    }) as typeof fetch;
     const host = document.createElement("div");
     document.body.append(host);
     mountPDFManagement(host, {
@@ -449,9 +564,17 @@ describe("pdf-management.tsx", function() {
       },
     });
     selectFile(host, new File([new Uint8Array(4)], "replacement.pdf", { type: "application/pdf" }));
-    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    await waitFor(() => changed === response);
+    host.querySelector<HTMLFormElement>("[data-pdf-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    host.querySelector<HTMLFormElement>("[data-pdf-confirm-form]")!.dispatchEvent(new Event("submit", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    await waitFor(() => {
+      return changed === response;
+    });
 
     assert.equal(changed, response);
     assert.match(host.querySelector("[data-pdf-feedback]")?.textContent || "", /PDF replaced.*Audit delivery is pending/);
