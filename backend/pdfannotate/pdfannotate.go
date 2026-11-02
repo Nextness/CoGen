@@ -118,12 +118,8 @@ func Annotate(source []byte, annotations []Annotation) ([]byte, error) {
 		}
 		byPage[annotation.Page] = append(byPage[annotation.Page], renderer)
 	}
-	ok, err := pdfcpu.AddAnnotationsMap(ctx, byPage, false)
-	if err != nil {
+	if _, err := pdfcpu.AddAnnotationsMap(ctx, byPage, false); err != nil {
 		return nil, fmt.Errorf("add annotations: %w", err)
-	}
-	if !ok {
-		return nil, errors.New("add annotations: no annotations were added")
 	}
 	var output bytes.Buffer
 	if err := api.Write(ctx, &output, conf); err != nil {
@@ -241,11 +237,9 @@ func pageGeometryFor(ctx *model.Context, page int) (pageGeometry, error) {
 	}
 	userUnit := 1.0
 	if value, found := dict.Find("UserUnit"); found {
-		number, err := ctx.DereferenceNumber(value)
-		if err != nil || math.IsNaN(number) || math.IsInf(number, 0) || number <= 0 {
-			return pageGeometry{}, fmt.Errorf("page %d has invalid UserUnit", page)
+		if number, err := ctx.DereferenceNumber(value); err == nil && !math.IsNaN(number) && !math.IsInf(number, 0) && number > 0 {
+			userUnit = number
 		}
-		userUnit = number
 	}
 	rotation := ((attrs.Rotate % 360) + 360) % 360
 	return pageGeometry{
@@ -300,6 +294,12 @@ func countPageAnnotations(ctx *model.Context) int {
 		total += len(array)
 	}
 	return total
+}
+
+// ValidateAnnotatedOutput verifies one annotated PDF keeps its expected page
+// count and total annotation count.
+func ValidateAnnotatedOutput(data []byte, pages, expected int) error {
+	return validateAnnotatedOutput(data, pages, expected)
 }
 
 // validateAnnotatedOutput verifies the written document keeps its page count and

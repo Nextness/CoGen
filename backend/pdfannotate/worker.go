@@ -21,7 +21,7 @@ const (
 	// MaxPDFBytes bounds the source PDF accepted by the worker.
 	MaxPDFBytes = 20_000_000
 	// MaxOutputBytes bounds the annotated PDF returned by the worker.
-	MaxOutputBytes = 25 * 1024 * 1024
+	MaxOutputBytes = 25_000_000
 	// MaxAnnotations bounds the application annotations accepted by the worker.
 	MaxAnnotations = 200
 	// MaxTextBytes bounds the annotation contents, title, and subject text.
@@ -192,18 +192,19 @@ type limitedBuffer struct {
 
 // Write retains a bounded prefix of p and discards the remainder.
 func (b *limitedBuffer) Write(p []byte) (int, error) {
-	b.written += len(p)
+	original := len(p)
+	b.written += original
 	remaining := b.limit - b.data.Len()
 	if remaining <= 0 {
 		b.overflow = true
-		return len(p), nil
+		return original, nil
 	}
 	if len(p) > remaining {
 		b.overflow = true
 		p = p[:remaining]
 	}
 	_, _ = b.data.Write(p)
-	return len(p), nil
+	return original, nil
 }
 
 // Bytes returns the retained bounded prefix.

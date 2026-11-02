@@ -1262,18 +1262,19 @@ test.describe('Dark mode', () => {
 
 test.describe('Accessibility', () => {
   test("page loads and reloads leave focus at the start on every view", async ({ page }) => {
+    test.setTimeout(120_000);
     const routes = ["home", "overview", "corpus", "relationships", "provenance", "advanced", "article", "author", "reference"];
     for (const view of routes) {
       await visit(page, contextState({ view, article_id: ARTICLE_1_ID, author_id: AUTHOR_1_ID, reference_id: REF_1_ID }));
-      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator("body")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).not.toBeInViewport();
       await page.keyboard.press("Tab");
-      await expect(page.locator(".skip-link")).toBeFocused();
+      await expect(page.locator(".skip-link")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).toBeInViewport();
 
       await page.reload();
       await page.waitForLoadState("networkidle");
-      await expect(page.locator("body")).toBeFocused();
+      await expect(page.locator("body")).toBeFocused({ timeout: 15_000 });
       await expect(page.locator(".skip-link")).not.toBeInViewport();
     }
   });

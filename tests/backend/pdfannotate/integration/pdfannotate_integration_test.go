@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -377,5 +378,126 @@ func TestWorkerRunnerRejectsOversizedInputs(t *testing.T) {
 	annotations = []pdfannotate.Annotation{{Contents: strings.Repeat("x", pdfannotate.MaxTextBytes+1)}}
 	if _, err := runner.Annotate(context.Background(), []byte("%PDF-1.7"), annotations); !errors.Is(err, pdfannotate.ErrLimit) {
 		t.Fatalf("oversized annotation text error=%v", err)
+	}
+}
+
+// writeWorkerScript writes one executable shell worker for a failure-path test.
+func writeWorkerScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "worker")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+body+"\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestWorkerRunnerRejectsInvalidInputs verifies empty and nil worker boundaries.
+func TestWorkerRunnerRejectsInvalidInputs(t *testing.T) {
+	var missing *pdfannotate.Worker
+	if _, err := missing.Annotate(context.Background(), pdffixture.Bytes("Nil worker"), nil); err == nil {
+		t.Fatal("nil worker accepted input")
+	}
+	if _, err := pdfannotate.NewWorkerAt("/does/not/exist").Annotate(context.Background(), nil, nil); err == nil {
+		t.Fatal("empty source accepted")
+	}
+}
+
+// TestWorkerRunnerReportsStderrAndInvalidOutput verifies explicit process failures.
+func TestWorkerRunnerReportsStderrAndInvalidOutput(t *testing.T) {
+	stderrWorker := writeWorkerScript(t, "echo 'synthetic worker failure' >&2\nexit 1")
+	if _, err := pdfannotate.NewWorkerAt(stderrWorker).Annotate(context.Background(), pdffixture.Bytes("Stderr fixture"), nil); err == nil || !strings.Contains(err.Error(), "synthetic worker failure") {
+		t.Fatalf("stderr failure error=%v", err)
+	}
+	invalidWorker := writeWorkerScript(t, "printf 'not a pdf'")
+	if _, err := pdfannotate.NewWorkerAt(invalidWorker).Annotate(context.Background(), pdffixture.Bytes("Invalid output fixture"), nil); err == nil || !strings.Contains(err.Error(), "non-PDF") {
+		t.Fatalf("invalid output error=%v", err)
+	}
+	emptyWorker := writeWorkerScript(t, "exit 0")
+	if _, err := pdfannotate.NewWorkerAt(emptyWorker).Annotate(context.Background(), pdffixture.Bytes("Empty output fixture"), nil); err == nil || !strings.Contains(err.Error(), "no PDF bytes") {
+		t.Fatalf("empty output error=%v", err)
+	}
+}
+
+// TestWorkerRunnerMapsExitCodes verifies stable worker failures become typed errors.
+func TestWorkerRunnerMapsExitCodes(t *testing.T) {
+	cases := []struct {
+		code   int
+		target error
+	}{
+		{pdfannotate.WorkerExitProtected, pdfannotate.ErrProtectedPDF},
+		{pdfannotate.WorkerExitSigned, pdfannotate.ErrSignedPDF},
+		{pdfannotate.WorkerExitMissingPage, pdfannotate.ErrMissingPage},
+		{pdfannotate.WorkerExitInvalidGeometry, pdfannotate.ErrInvalidGeometry},
+		{pdfannotate.WorkerExitLimit, pdfannotate.ErrLimit},
+	}
+	for _, test := range cases {
+		script := writeWorkerScript(t, fmt.Sprintf("exit %d", test.code))
+		if _, err := pdfannotate.NewWorkerAt(script).Annotate(context.Background(), pdffixture.Bytes("Exit code fixture"), nil); !errors.Is(err, test.target) {
+			t.Fatalf("exit code %d error=%v", test.code, err)
+		}
+	}
+}
+
+// TestWorkerRunnerRejectsOversizedOutput verifies bounded output retention.
+func TestWorkerRunnerRejectsOversizedOutput(t *testing.T) {
+	script := writeWorkerScript(t, "head -c 27000000 /dev/zero")
+	if _, err := pdfannotate.NewWorkerAt(script).Annotate(context.Background(), pdffixture.Bytes("Output bound fixture"), nil); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("oversized output error=%v", err)
+	}
+}
+
+// TestWorkerRunnerCanceledContext verifies caller cancellation is reported.
+func TestWorkerRunnerCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := pdfannotate.NewWorkerAt("/does/not/exist").Annotate(ctx, pdffixture.Bytes("Canceled fixture"), nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled context error=%v", err)
+	}
+}
+
+// TestWorkerLimitDiagnostics verifies bounded limit errors expose their count and sentinel.
+func TestWorkerLimitDiagnostics(t *testing.T) {
+	limitErr := &pdfannotate.LimitError{Kind: "annotation text", Count: 2, Limit: 1}
+	if !errors.Is(limitErr, pdfannotate.ErrLimit) || !strings.Contains(limitErr.Error(), "2 exceeds 1") {
+		t.Fatalf("limit diagnostics=%v", limitErr)
+	}
+	worker, err := pdfannotate.NewWorker()
+	if err != nil || worker.Executable == "" {
+		t.Fatalf("new worker=%+v err=%v", worker, err)
+	}
+}
+
+// TestWorkerRunnerAcceptsNilContext verifies the default caller context.
+func TestWorkerRunnerAcceptsNilContext(t *testing.T) {
+	script := writeWorkerScript(t, "printf '%%PDF-1.7'")
+	output, err := pdfannotate.NewWorkerAt(script).Annotate(nil, pdffixture.Bytes("Nil context fixture"), nil)
+	if err != nil || !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatalf("nil context output=%q err=%v", output, err)
+	}
+}
+
+// TestWorkerRunnerRejectsOversizedRequest verifies the framed request bound.
+func TestWorkerRunnerRejectsOversizedRequest(t *testing.T) {
+	annotations := []pdfannotate.Annotation{{ID: strings.Repeat("x", pdfannotate.MaxRequestBytes+1)}}
+	if _, err := pdfannotate.NewWorkerAt("/does/not/exist").Annotate(context.Background(), []byte("%PDF-1.7"), annotations); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("oversized request error=%v", err)
+	}
+}
+
+// TestWorkerRunnerRejectsOutputOneByteOverLimit verifies partial-write overflow detection.
+func TestWorkerRunnerRejectsOutputOneByteOverLimit(t *testing.T) {
+	script := writeWorkerScript(t, fmt.Sprintf("dd if=/dev/zero bs=%d count=1 2>/dev/null", pdfannotate.MaxOutputBytes+1))
+	if _, err := pdfannotate.NewWorkerAt(script).Annotate(context.Background(), pdffixture.Bytes("Partial overflow fixture"), nil); !errors.Is(err, pdfannotate.ErrLimit) {
+		t.Fatalf("partial overflow error=%v", err)
+	}
+}
+
+// TestWorkerRunnerWithoutTimeout verifies the no-timeout path still cleans up.
+func TestWorkerRunnerWithoutTimeout(t *testing.T) {
+	script := writeWorkerScript(t, "printf '%%PDF-1.7'")
+	worker := pdfannotate.NewWorkerAt(script)
+	worker.Timeout = 0
+	if _, err := worker.Annotate(context.Background(), pdffixture.Bytes("No timeout fixture"), nil); err != nil {
+		t.Fatal(err)
 	}
 }

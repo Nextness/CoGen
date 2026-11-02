@@ -295,3 +295,164 @@ func TestAnnotateRejectsProtectedAndSignedSources(t *testing.T) {
 		t.Fatalf("signed source error=%v", err)
 	}
 }
+
+// TestAnnotateRejectsAnnotationCountLimit verifies the application annotation bound is enforced.
+func TestAnnotateRejectsAnnotationCountLimit(t *testing.T) {
+	source := pdffixture.Bytes("Limit fixture")
+	annotations := make([]subject.Annotation, subject.MaxAnnotations+1)
+	if _, err := subject.Annotate(source, annotations); !errors.Is(err, subject.ErrLimit) {
+		t.Fatalf("annotation count limit error=%v", err)
+	}
+}
+
+// TestAnnotateRejectsMalformedSource verifies parser failures are explicit.
+func TestAnnotateRejectsMalformedSource(t *testing.T) {
+	if _, err := subject.Annotate([]byte("not a PDF document"), []subject.Annotation{{Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}}}); err == nil {
+		t.Fatal("malformed source produced annotations")
+	}
+}
+
+// TestAnnotateRejectsInvalidModificationDate verifies invalid recorded timestamps fail.
+func TestAnnotateRejectsInvalidModificationDate(t *testing.T) {
+	source := pdffixture.Bytes("Date fixture")
+	if _, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "date", ModifiedAt: "not-a-date",
+	}}); err == nil {
+		t.Fatal("invalid modification date was accepted")
+	}
+}
+
+// TestAnnotateAcceptsPDFModificationDate verifies stored PDF date syntax is retained.
+func TestAnnotateAcceptsPDFModificationDate(t *testing.T) {
+	source := pdffixture.Bytes("PDF date fixture")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "date", ModifiedAt: "D:20240101120000Z",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatal("annotated output is not a PDF")
+	}
+}
+
+// TestAnnotateRejectsNonFiniteUserSpaceRectangle verifies explicit geometry validation.
+func TestAnnotateRejectsNonFiniteUserSpaceRectangle(t *testing.T) {
+	source := pdffixture.Bytes("Finite fixture")
+	if _, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: math.NaN(), Y1: 10, X2: 20, Y2: 20},
+		Contents: "invalid",
+	}}); !errors.Is(err, subject.ErrInvalidGeometry) {
+		t.Fatalf("non-finite rectangle error=%v", err)
+	}
+}
+
+// TestAnnotateTextWithNormalizedRectangles verifies text annotations use mapped normalized geometry.
+func TestAnnotateTextWithNormalizedRectangles(t *testing.T) {
+	source := pdffixture.Bytes("Text normalized fixture")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText,
+		Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.2, Width: 0.3, Height: 0.1}},
+		Contents:   "Mapped text",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotations := readPageAnnotations(t, output, 1)
+	if len(annotations) != 1 {
+		t.Fatalf("annotations=%d", len(annotations))
+	}
+}
+
+// TestAnnotateAcceptsRFC3339ModificationDate verifies application timestamps are converted.
+func TestAnnotateAcceptsRFC3339ModificationDate(t *testing.T) {
+	source := pdffixture.Bytes("RFC3339 date fixture")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20},
+		Contents: "date", ModifiedAt: "2024-01-01T12:00:00Z",
+	}})
+	if err != nil || !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatalf("RFC3339 date output=%v err=%v", len(output), err)
+	}
+}
+
+// TestAnnotateRejectsInvalidUserUnit verifies invalid page scaling fails explicitly.
+func TestAnnotateRejectsInvalidUserUnit(t *testing.T) {
+	source := bytes.Replace(pdffixture.ComplexBytes("UserUnit fixture"), []byte("/UserUnit 2.0"), []byte("/UserUnit 0"), 1)
+	if _, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationHighlight,
+		Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.1}},
+		Contents:   "invalid unit",
+	}}); err == nil || !strings.Contains(err.Error(), "UserUnit") {
+		t.Fatalf("invalid UserUnit error=%v", err)
+	}
+}
+
+// TestAnnotateRejectsPageWithoutVisibleBox verifies missing usable page geometry fails.
+func TestAnnotateRejectsPageWithoutVisibleBox(t *testing.T) {
+	source := pdffixture.ComplexBytes("No box fixture")
+	source = bytes.Replace(source, []byte("/MediaBox [0 0 612 792]"), []byte("/MediaBox [0 0 0 0]"), 1)
+	source = bytes.Replace(source, []byte("/CropBox [10 10 602 782]"), []byte("/CropBox [0 0 0 0]"), 1)
+	if _, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationHighlight,
+		Rectangles: []subject.NormalizedRectangle{{X: 0.1, Y: 0.1, Width: 0.2, Height: 0.1}},
+		Contents:   "no box",
+	}}); err == nil || !strings.Contains(err.Error(), "visible") {
+		t.Fatalf("no visible box error=%v", err)
+	}
+}
+
+// TestAnnotateToleratesNullAnnotationArray verifies existing annotation evidence is counted safely.
+func TestAnnotateToleratesNullAnnotationArray(t *testing.T) {
+	source := bytes.Replace(pdffixture.Bytes("Null Annots fixture"), []byte("/Contents 5 0 R >>"), []byte("/Contents 5 0 R /Annots null >>"), 1)
+	if !bytes.Contains(source, []byte("/Annots null")) {
+		t.Fatal("fixture mutation did not add null Annots")
+	}
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "null annots",
+	}})
+	if err != nil || !bytes.HasPrefix(output, []byte("%PDF-")) {
+		t.Fatalf("null Annots output=%v err=%v", len(output), err)
+	}
+}
+
+// TestValidateAnnotatedOutputRejectsInvalidDocuments verifies independent output checks.
+func TestValidateAnnotatedOutputRejectsInvalidDocuments(t *testing.T) {
+	if err := subject.ValidateAnnotatedOutput([]byte("not a PDF"), 1, 0); err == nil {
+		t.Fatal("non-PDF output was accepted")
+	}
+	if err := subject.ValidateAnnotatedOutput([]byte("%PDF-1.7\nbroken"), 1, 0); err == nil {
+		t.Fatal("malformed output was accepted")
+	}
+	source := pdffixture.Bytes("Validation fixture")
+	output, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "validation",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := subject.ValidateAnnotatedOutput(output, 2, 1); err == nil || !strings.Contains(err.Error(), "page count") {
+		t.Fatalf("page count mismatch error=%v", err)
+	}
+	if err := subject.ValidateAnnotatedOutput(output, 1, 2); err == nil || !strings.Contains(err.Error(), "annotations") {
+		t.Fatalf("annotation count mismatch error=%v", err)
+	}
+	if err := subject.ValidateAnnotatedOutput(output, 1, 1); err != nil {
+		t.Fatalf("valid output error=%v", err)
+	}
+}
+
+// TestAnnotateRejectsDanglingAnnotationReference verifies writer failures remain explicit.
+func TestAnnotateRejectsDanglingAnnotationReference(t *testing.T) {
+	source := bytes.Replace(pdffixture.Bytes("Dangling Annots fixture"), []byte("/Contents 5 0 R >>"), []byte("/Contents 5 0 R /Annots 99 0 R >>"), 1)
+	if !bytes.Contains(source, []byte("/Annots 99 0 R")) {
+		t.Fatal("fixture mutation did not add dangling Annots")
+	}
+	if _, err := subject.Annotate(source, []subject.Annotation{{
+		Page: 1, Type: subject.AnnotationText, Rect: subject.Rectangle{X1: 10, Y1: 10, X2: 20, Y2: 20}, Contents: "dangling",
+	}}); err == nil || !strings.Contains(err.Error(), "dereference") {
+		t.Fatalf("dangling Annots error=%v", err)
+	}
+}
