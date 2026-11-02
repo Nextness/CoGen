@@ -531,7 +531,7 @@ export async function mountArticleReview(host: HTMLElement, pdfHost: HTMLElement
     host.querySelector<HTMLElement>(".rw-review-nav")!.addEventListener("keydown", (event: KeyboardEvent) => {
       const current = sectionButtons.indexOf(document.activeElement as HTMLButtonElement);
       if (current < 0) return;
-      let target = current;
+      let target: number;
       if (event.key === "ArrowRight" || event.key === "ArrowDown") target = (current + 1) % sectionButtons.length;
       else if (event.key === "ArrowLeft" || event.key === "ArrowUp") target = (current - 1 + sectionButtons.length) % sectionButtons.length;
       else if (event.key === "Home") target = 0;

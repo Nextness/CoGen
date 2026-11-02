@@ -88,6 +88,7 @@ if (!globalThis.cancelAnimationFrame) {
 // ResizeObserver
 if (!globalThis.ResizeObserver) {
   globalThis.ResizeObserver = class {
+    constructor(_callback: ResizeObserverCallback) {}
     observe() {}
     unobserve() {}
     disconnect() {}

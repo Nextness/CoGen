@@ -1926,7 +1926,8 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`writeError`](../backend/server/server.go#L549) | function | 549-551 | `func writeError(w http.ResponseWriter, status int, code, message string)` | writeError writes the stable JSON error envelope. |
 | [`writeDetailedError`](../backend/server/server.go#L554) | function | 554-560 | `func writeDetailedError(w http.ResponseWriter, status int, code, message string, details any)` | writeDetailedError writes the stable JSON error envelope with optional structured details. |
 | [`(*Server).respond`](../backend/server/server.go#L563) | method | 563-575 | `func (*Server).respond(w http.ResponseWriter, r *http.Request, value any, err error)` | respond maps successful values, client problems, and internal failures to safe JSON responses. |
-| [`queryContext`](../backend/server/server.go#L578) | function | 578-580 | `func queryContext(r *http.Request) (context.Context, context.CancelFunc)` | queryContext derives a request context bounded by the server query timeout. |
+| [`sanitizeLogValue`](../backend/server/server.go#L578) | function | 578-581 | `func sanitizeLogValue(value string) string` | sanitizeLogValue removes line breaks so request-derived text cannot forge log entries. |
+| [`queryContext`](../backend/server/server.go#L584) | function | 584-586 | `func queryContext(r *http.Request) (context.Context, context.CancelFunc)` | queryContext derives a request context bounded by the server query timeout. |
 
 ### [`backend/server/term_matches.go`](../backend/server/term_matches.go)
 
@@ -2388,13 +2389,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`(*TypeChecker).structurallyAssignable`](../backend/something/typechecker.go#L924) | method | 924-935 | `func (*TypeChecker).structurallyAssignable(expected, actual map[string]*BindingType) bool` | structurallyAssignable reports whether two compound types have compatible structure. |
 | [`enumHasMember`](../backend/something/typechecker.go#L938) | function | 938-945 | `func enumHasMember(enumType *EnumType, name string) bool` | enumHasMember reports whether a resolved enum contains a named member. |
 | [`(*TypeChecker).detectDependencyCycles`](../backend/something/typechecker.go#L949) | method | 949-984 | `func (*TypeChecker).detectDependencyCycles()` | detectDependencyCycles reports direct and indirect value or type cycles before source-order checking reports a less useful forward-reference error. |
-| [`(*TypeChecker).collectCycleNodes`](../backend/something/typechecker.go#L987) | method | 987-1022 | `func (*TypeChecker).collectCycleNodes(statements []Statement, prefix string, graph map[string][]string, locations map[string]*SourceLocation)` | collectCycleNodes collects cycle nodes from the supplied inputs. |
-| [`(*TypeChecker).collectCycleEdges`](../backend/something/typechecker.go#L1025) | method | 1025-1100 | `func (*TypeChecker).collectCycleEdges(statements []Statement, prefix string, graph map[string][]string, visibleValues, visibleTypes map[string]string)` | collectCycleEdges collects cycle edges from the supplied inputs. |
-| [`copyCycleNames`](../backend/something/typechecker.go#L1103) | function | 1103-1109 | `func copyCycleNames(source map[string]string) map[string]string` | copyCycleNames copies cycle names into an independent value. |
-| [`cycleTargetName`](../backend/something/typechecker.go#L1112) | function | 1112-1130 | `func cycleTargetName(target LValue, prefix string) string` | cycleTargetName returns the declared root name participating in dependency analysis. |
-| [`typeDependencies`](../backend/something/typechecker.go#L1133) | function | 1133-1146 | `func typeDependencies(typeRef TypeRef) []string` | typeDependencies collects named types referenced by a type expression. |
-| [`expressionDependencies`](../backend/something/typechecker.go#L1149) | function | 1149-1236 | `func expressionDependencies(expression Expression) []string` | expressionDependencies collects root bindings referenced by an expression. |
-| [`referencePath`](../backend/something/typechecker.go#L1239) | function | 1239-1251 | `func referencePath(reference *ReferenceExpression) string` | referencePath renders a reference root and accesses for dependency diagnostics. |
+| [`(*TypeChecker).collectCycleNodes`](../backend/something/typechecker.go#L987) | method | 987-1026 | `func (*TypeChecker).collectCycleNodes(statements []Statement, prefix string, graph map[string][]string, locations map[string]*SourceLocation)` | collectCycleNodes collects cycle nodes from the supplied inputs. |
+| [`(*TypeChecker).collectCycleEdges`](../backend/something/typechecker.go#L1029) | method | 1029-1104 | `func (*TypeChecker).collectCycleEdges(statements []Statement, prefix string, graph map[string][]string, visibleValues, visibleTypes map[string]string)` | collectCycleEdges collects cycle edges from the supplied inputs. |
+| [`copyCycleNames`](../backend/something/typechecker.go#L1107) | function | 1107-1113 | `func copyCycleNames(source map[string]string) map[string]string` | copyCycleNames copies cycle names into an independent value. |
+| [`cycleTargetName`](../backend/something/typechecker.go#L1116) | function | 1116-1134 | `func cycleTargetName(target LValue, prefix string) string` | cycleTargetName returns the declared root name participating in dependency analysis. |
+| [`typeDependencies`](../backend/something/typechecker.go#L1137) | function | 1137-1150 | `func typeDependencies(typeRef TypeRef) []string` | typeDependencies collects named types referenced by a type expression. |
+| [`expressionDependencies`](../backend/something/typechecker.go#L1153) | function | 1153-1240 | `func expressionDependencies(expression Expression) []string` | expressionDependencies collects root bindings referenced by an expression. |
+| [`referencePath`](../backend/something/typechecker.go#L1243) | function | 1243-1255 | `func referencePath(reference *ReferenceExpression) string` | referencePath renders a reference root and accesses for dependency diagnostics. |
 
 ### [`backend/something/utils.go`](../backend/something/utils.go)
 

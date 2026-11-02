@@ -1063,7 +1063,7 @@ export async function detailView(kind: string): Promise<void> {
     }
   }
 
-  var title = labels[kind];
+  var title: string;
   if (kind === "article") title = record.title || labels[kind];
   else if (kind === "author") title = record.citation_name || labels[kind];
   else title = record.title || record.doi || labels[kind];
