@@ -38,6 +38,8 @@ make check
 
 All intentional executables are written beneath `build/`; routine work does not use a bare package-level `go build`. `build/` can contain useful reports and generated evidence, so inspect it before running `make clean`.
 
+Concurrent agent editing uses separate branches and linked Git worktrees under the primary checkout's `worktrees/` directory. Keep [worktrees/.gitkeep](../worktrees/.gitkeep) in Git so the directory exists in fresh checkouts. The root [.gitignore](../.gitignore) ignores `/worktrees/*` with an exception for `/worktrees/.gitkeep`; every other file and subdirectory stays local. Run repository commands from the owning worktree root so relative builds, fixture databases, and reports stay isolated. Source changes inside a linked worktree are committed normally on its branch when authorized; the parent checkout tracks only the placeholder within `worktrees/`. Related dependent changes use stacked PRs, while independent changes can target the agreed base directly. Coordinate parent updates, rebases, integration, and cleanup with the owning task. The [concurrent-agent design](CODE-GRAPH-RAG-DISCUSSION.md#7-concurrent-agents-worktrees-and-stacked-prs) documents the workflow and proposed graph isolation; the graph tool and agent hooks are not implemented yet.
+
 ## 4. Build outputs and tools
 
 | Output | Build target | Purpose |

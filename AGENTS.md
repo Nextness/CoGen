@@ -137,6 +137,8 @@ Read repository state and relevant instructions before editing, preserve unrelat
 
 Do not commit, push, merge, publish, deploy, release, alter remote state, or use destructive Git or filesystem operations unless explicitly requested.
 
+Use a separate branch and linked worktree under the primary checkout's `worktrees/` directory for each independently writing agent task. Keep `worktrees/.gitkeep` in Git so the directory exists in fresh checkouts; all other contents are local and ignored. One task owns each writable branch and worktree; read-only reviewers may share a pinned snapshot. Never force-add ignored workspace contents from the parent checkout; commit authorized source changes from inside the owning worktree. Use stacked PRs for related tasks with explicit dependencies and independent PRs for unrelated work. Coordinate parent updates, rebases, integration, and cleanup at synchronization points so no branch is rewritten beneath an active writer. Builds, fixture databases, reports, and mutable graph indexes stay scoped to the owning worktree. See [the concurrency design](docs/CODE-GRAPH-RAG-DISCUSSION.md#7-concurrent-agents-worktrees-and-stacked-prs) for the full proposed lifecycle; this convention does not authorize spawning agents or publishing changes by itself.
+
 ## 9. Documentation workflow
 
 Keep every prose paragraph, bullet, numbered item, and table row on one physical Markdown line; fenced code and ASCII diagrams may span lines. Documentation describes current supported state only; use Git history for superseded states.
