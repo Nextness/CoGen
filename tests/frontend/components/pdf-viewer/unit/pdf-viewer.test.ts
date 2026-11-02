@@ -15,23 +15,48 @@ async function waitForStatus(host: HTMLElement, expected: string): Promise<void>
   assert.equal(host.querySelector("[data-pdf-status]")?.textContent, expected);
 }
 
-describe("pdf-viewer.tsx", function() {
-  it("projects displayed rectangles back through all supported rotations", function() {
-    const rectangle = { x: 0.1, y: 0.2, width: 0.3, height: 0.4 };
+describe("pdf-viewer.tsx", () => {
+  it("projects displayed rectangles back through all supported rotations", () => {
+    const rectangle = {
+      x: 0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4,
+    };
     assert.deepEqual(unrotateRectangles([rectangle], 0)[0], rectangle);
-    assert.deepEqual(unrotateRectangles([rectangle], 90)[0], { x: 0.2, y: 0.6, width: 0.4, height: 0.3 });
-    assert.deepEqual(unrotateRectangles([rectangle], 180)[0], { x: 0.6, y: 0.4, width: 0.3, height: 0.4 });
-    assert.deepEqual(unrotateRectangles([rectangle], 270)[0], { x: 0.4, y: 0.1, width: 0.4, height: 0.3 });
+    assert.deepEqual(unrotateRectangles([rectangle], 90)[0], {
+      x: 0.2,
+      y: 0.6,
+      width: 0.4,
+      height: 0.3,
+    });
+    assert.deepEqual(unrotateRectangles([rectangle], 180)[0], {
+      x: 0.6,
+      y: 0.4,
+      width: 0.3,
+      height: 0.4,
+    });
+    assert.deepEqual(unrotateRectangles([rectangle], 270)[0], {
+      x: 0.4,
+      y: 0.1,
+      width: 0.4,
+      height: 0.3,
+    });
   });
 
-  it("round-trips stored rectangles into each displayed rotation", function() {
-    const rectangle = { x: 0.1, y: 0.2, width: 0.3, height: 0.4 };
+  it("round-trips stored rectangles into each displayed rotation", () => {
+    const rectangle = {
+      x: 0.1,
+      y: 0.2,
+      width: 0.3,
+      height: 0.4,
+    };
     for (const rotation of [0, 90, 180, 270]) {
       assert.deepEqual(unrotateRectangles(rotateRectangles([rectangle], rotation), rotation)[0], rectangle);
     }
   });
 
-  it("caches pages and text, redraws anchors without rerendering, and supports keyboard paging", async function() {
+  it("caches pages and text, redraws anchors without rerendering, and supports keyboard paging", async () => {
     const renderedPages: number[] = [];
     const requestedPages: number[] = [];
     const requestedText: number[] = [];
@@ -41,16 +66,27 @@ describe("pdf-viewer.tsx", function() {
         requestedPages.push(pageNumber);
         return {
           getViewport: () => {
-            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+            return {
+              width: 240,
+              height: 320,
+              transform: [1, 0, 0, 1, 0, 0],
+            };
           },
           render: () => {
             renderedPages.push(pageNumber);
-            return { cancel: () => {}, promise: Promise.resolve() };
+            return {
+              cancel: () => {},
+              promise: Promise.resolve(),
+            };
           },
           getTextContent: async () => {
             requestedText.push(pageNumber);
             return {
-              items: [{ str: `Page ${pageNumber}`, transform: [1, 0, 0, 12, 10, 20], fontName: "sans" }],
+              items: [{
+                str: `Page ${pageNumber}`,
+                transform: [1, 0, 0, 12, 10, 20],
+                fontName: "sans",
+              }],
               styles: { sans: { fontFamily: "sans-serif" } },
             };
           },
@@ -58,7 +94,10 @@ describe("pdf-viewer.tsx", function() {
       },
       destroy: async () => {},
     };
-    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const loadingTask = {
+      promise: Promise.resolve(documentMock),
+      destroy: async () => {},
+    };
     const pdfjsMock = {
       GlobalWorkerOptions: {},
       Util: {
@@ -88,13 +127,27 @@ describe("pdf-viewer.tsx", function() {
     assert.equal(host.querySelector("[data-pdf-pages]")?.hasAttribute("aria-live"), false);
     assert.ok(host.querySelector("[data-pdf-fit-width]"));
 
-    controller.setAnchors([{ id: "a1", version: { page: 1, rectangles: [{ x: 0.1, y: 0.1, width: 0.2, height: 0.1 }] } }]);
+    controller.setAnchors([{
+      id: "a1",
+      version: {
+        page: 1,
+        rectangles: [{
+          x: 0.1,
+          y: 0.1,
+          width: 0.2,
+          height: 0.1,
+        }],
+      },
+    }]);
     assert.equal(host.querySelectorAll(".rw-pdf-anchor-highlight").length, 1);
     assert.deepEqual(renderedPages, [1]);
     assert.deepEqual(requestedText, [1]);
 
     const viewport = host.querySelector("[data-pdf-pages]") as HTMLElement;
-    viewport.dispatchEvent(new KeyboardEvent("keydown", { key: "PageDown", bubbles: true }));
+    viewport.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "PageDown",
+      bubbles: true,
+    }));
     await waitForStatus(host, "PDF page 2 of 3.");
     assert.equal((host.querySelector(".rw-pdf-page") as HTMLElement).dataset.pdfPageNumber, "2");
 
@@ -107,33 +160,55 @@ describe("pdf-viewer.tsx", function() {
     host.remove();
   });
 
-  it("clamps page navigation at both document boundaries", async function() {
+  it("clamps page navigation at both document boundaries", async () => {
     const documentMock = {
       numPages: 2,
       getPage: async () => {
         return {
           getViewport: () => {
-            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+            return {
+              width: 240,
+              height: 320,
+              transform: [1, 0, 0, 1, 0, 0],
+            };
           },
           render: () => {
-            return { cancel: () => {}, promise: Promise.resolve() };
+            return {
+              cancel: () => {},
+              promise: Promise.resolve(),
+            };
           },
           getTextContent: async () => {
-            return { items: [], styles: {} };
+            return {
+              items: [],
+              styles: {},
+            };
           },
         };
       },
       destroy: async () => {},
     };
-    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const loadingTask = {
+      promise: Promise.resolve(documentMock),
+      destroy: async () => {},
+    };
     const pdfjsMock = {
       GlobalWorkerOptions: {},
-      Util: { transform: (_viewport: unknown, item: unknown) => item },
-      getDocument: () => loadingTask,
+      Util: {
+        transform: (_viewport: unknown, item: unknown) => {
+          return item;
+        },
+      },
+      getDocument: () => {
+        return loadingTask;
+      },
     };
     const host = document.createElement("div");
     document.body.append(host);
-    const controller = await mountPDFViewer(host, { url: "/fixture.pdf", page: 99 }, async () => {
+    const controller = await mountPDFViewer(host, {
+      url: "/fixture.pdf",
+      page: 99,
+    }, async () => {
       return pdfjsMock;
     });
     assert.equal((host.querySelector(".rw-pdf-page") as HTMLElement).dataset.pdfPageNumber, "2");
@@ -145,21 +220,31 @@ describe("pdf-viewer.tsx", function() {
     host.remove();
   });
 
-  it("destroys the PDF document, loading task, and host on teardown", async function() {
-    var documentDestroyed = false;
-    var taskDestroyed = false;
+  it("destroys the PDF document, loading task, and host on teardown", async () => {
+    let documentDestroyed = false;
+    let taskDestroyed = false;
     const documentMock = {
       numPages: 1,
       getPage: async () => {
         return {
           getViewport: () => {
-            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+            return {
+              width: 240,
+              height: 320,
+              transform: [1, 0, 0, 1, 0, 0],
+            };
           },
           render: () => {
-            return { cancel: () => {}, promise: Promise.resolve() };
+            return {
+              cancel: () => {},
+              promise: Promise.resolve(),
+            };
           },
           getTextContent: async () => {
-            return { items: [], styles: {} };
+            return {
+              items: [],
+              styles: {},
+            };
           },
         };
       },
@@ -167,17 +252,31 @@ describe("pdf-viewer.tsx", function() {
         documentDestroyed = true;
       },
     };
-    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {
-      taskDestroyed = true;
-    } };
+    const loadingTask = {
+      promise: Promise.resolve(documentMock),
+      destroy: async () => {
+        taskDestroyed = true;
+      },
+    };
     const pdfjsMock = {
       GlobalWorkerOptions: {},
-      Util: { transform: (_viewport: unknown, item: unknown) => item },
-      getDocument: () => loadingTask,
+      Util: {
+        transform: (_viewport: unknown, item: unknown) => {
+          return item;
+        },
+      },
+      getDocument: () => {
+        return loadingTask;
+      },
     };
     const host = document.createElement("div");
     document.body.append(host);
-    const controller = await mountPDFViewer(host, { url: "/fixture.pdf", page: 1 }, async () => pdfjsMock);
+    const controller = await mountPDFViewer(host, {
+      url: "/fixture.pdf",
+      page: 1,
+    }, async () => {
+      return pdfjsMock;
+    });
     await controller.destroy();
     assert.equal(documentDestroyed, true);
     assert.equal(taskDestroyed, true);
@@ -185,33 +284,52 @@ describe("pdf-viewer.tsx", function() {
     host.remove();
   });
 
-  it("renders the fullscreen toggle and calls onFullscreenToggle", async function() {
+  it("renders the fullscreen toggle and calls onFullscreenToggle", async () => {
     const documentMock = {
       numPages: 1,
       getPage: async () => {
         return {
           getViewport: () => {
-            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+            return {
+              width: 240,
+              height: 320,
+              transform: [1, 0, 0, 1, 0, 0],
+            };
           },
           render: () => {
-            return { cancel: () => {}, promise: Promise.resolve() };
+            return {
+              cancel: () => {},
+              promise: Promise.resolve(),
+            };
           },
           getTextContent: async () => {
-            return { items: [], styles: {} };
+            return {
+              items: [],
+              styles: {},
+            };
           },
         };
       },
       destroy: async () => {},
     };
-    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const loadingTask = {
+      promise: Promise.resolve(documentMock),
+      destroy: async () => {},
+    };
     const pdfjsMock = {
       GlobalWorkerOptions: {},
-      Util: { transform: (_viewport: unknown, item: unknown) => item },
-      getDocument: () => loadingTask,
+      Util: {
+        transform: (_viewport: unknown, item: unknown) => {
+          return item;
+        },
+      },
+      getDocument: () => {
+        return loadingTask;
+      },
     };
     const host = document.createElement("div");
     document.body.append(host);
-    var toggleCount = 0;
+    let toggleCount = 0;
     const controller = await mountPDFViewer(host, {
       url: "/fixture.pdf",
       page: 1,
@@ -233,29 +351,48 @@ describe("pdf-viewer.tsx", function() {
     host.remove();
   });
 
-  it("toggles the inverted theme class and button state", async function() {
+  it("toggles the inverted theme class and button state", async () => {
     const documentMock = {
       numPages: 1,
       getPage: async () => {
         return {
           getViewport: () => {
-            return { width: 240, height: 320, transform: [1, 0, 0, 1, 0, 0] };
+            return {
+              width: 240,
+              height: 320,
+              transform: [1, 0, 0, 1, 0, 0],
+            };
           },
           render: () => {
-            return { cancel: () => {}, promise: Promise.resolve() };
+            return {
+              cancel: () => {},
+              promise: Promise.resolve(),
+            };
           },
           getTextContent: async () => {
-            return { items: [], styles: {} };
+            return {
+              items: [],
+              styles: {},
+            };
           },
         };
       },
       destroy: async () => {},
     };
-    const loadingTask = { promise: Promise.resolve(documentMock), destroy: async () => {} };
+    const loadingTask = {
+      promise: Promise.resolve(documentMock),
+      destroy: async () => {},
+    };
     const pdfjsMock = {
       GlobalWorkerOptions: {},
-      Util: { transform: (_viewport: unknown, item: unknown) => item },
-      getDocument: () => loadingTask,
+      Util: {
+        transform: (_viewport: unknown, item: unknown) => {
+          return item;
+        },
+      },
+      getDocument: () => {
+        return loadingTask;
+      },
     };
     const host = document.createElement("div");
     document.body.append(host);

@@ -14,9 +14,9 @@ function setLocation(values: Record<string, string>): void {
 
 /** Waits for one observable asynchronous state instead of a fixed delay. */
 async function waitFor(predicate: () => boolean): Promise<void> {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
     if (predicate()) return;
-    await new Promise(function(resolve) { setTimeout(resolve, 10); });
+    await new Promise((resolve) => { setTimeout(resolve, 10); });
   }
   assert.fail("Timed out waiting for evaluation state");
 }
@@ -28,7 +28,10 @@ function evaluationResponse(overrides: Record<string, any> = {}): Record<string,
     review_context: null,
     proposed_parent: null,
     run_writable: true,
-    queue_navigation: { previous_work_revision_id: 2, next_work_revision_id: 1 },
+    queue_navigation: {
+      previous_work_revision_id: 2,
+      next_work_revision_id: 1,
+    },
     review_summary: {
       total: 2,
       reviewed: 0,
@@ -37,37 +40,103 @@ function evaluationResponse(overrides: Record<string, any> = {}): Record<string,
       pdf_not_available: 1,
       percent_reviewed: 0,
       facets: {
-        pdf_status: [{ value: "available", count: 1 }, { value: "not_available", count: 1 }],
-        review_status: [{ value: "not_evaluated", count: 2 }],
-        review_source: [{ value: "not_started", count: 2 }],
+        pdf_status: [
+          {
+            value: "available",
+            count: 1,
+          },
+          {
+            value: "not_available",
+            count: 1,
+          },
+        ],
+        review_status: [
+          {
+            value: "not_evaluated",
+            count: 2,
+          },
+        ],
+        review_source: [
+          {
+            value: "not_started",
+            count: 2,
+          },
+        ],
         qualifier: [],
-        source: [{ value: "crossref", count: 2 }],
+        source: [
+          {
+            value: "crossref",
+            count: 2,
+          },
+        ],
       },
     },
-    columns: ["title", "doi", "year", "journal", "source", "inventory_status", "inventoried_at", "review_status", "review_inherited", "review_sub_statuses"],
-    rows: [
-      { work_revision_id: 1, title: "Available article", doi: "10.1000/available", source: "crossref", inventory_status: "available", inventoried_at: "2026-07-29T12:00:00Z", content_hash: "a".repeat(64), byte_size: 512, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
-      { work_revision_id: 2, title: "Missing article", doi: "10.1000/missing", source: "crossref", inventory_status: "not_available", inventoried_at: null, content_hash: null, byte_size: null, review_status: "not_evaluated", review_inherited: false, review_version_id: null, review_sub_statuses: [] },
+    columns: [
+      "title",
+      "doi",
+      "year",
+      "journal",
+      "source",
+      "inventory_status",
+      "inventoried_at",
+      "review_status",
+      "review_inherited",
+      "review_sub_statuses",
     ],
-    pagination: { page: 1, per_page: 50, total_rows: 2, total_pages: 1 },
+    rows: [
+      {
+        work_revision_id: 1,
+        title: "Available article",
+        doi: "10.1000/available",
+        source: "crossref",
+        inventory_status: "available",
+        inventoried_at: "2026-07-29T12:00:00Z",
+        content_hash: "a".repeat(64),
+        byte_size: 512,
+        review_status: "not_evaluated",
+        review_inherited: false,
+        review_version_id: null,
+        review_sub_statuses: [],
+      },
+      {
+        work_revision_id: 2,
+        title: "Missing article",
+        doi: "10.1000/missing",
+        source: "crossref",
+        inventory_status: "not_available",
+        inventoried_at: null,
+        content_hash: null,
+        byte_size: null,
+        review_status: "not_evaluated",
+        review_inherited: false,
+        review_version_id: null,
+        review_sub_statuses: [],
+      },
+    ],
+    pagination: {
+      page: 1,
+      per_page: 50,
+      total_rows: 2,
+      total_pages: 1,
+    },
     ...overrides,
   };
 }
 
-describe("evaluation.tsx - evaluationView", function() {
-  before(function() {
+describe("evaluation.tsx - evaluationView", () => {
+  before(() => {
     state.searches = [];
     state.plans = [];
     state.runs = [];
   });
 
-  it("requires a selected run without requesting evaluation data", async function() {
+  it("requires a selected run without requesting evaluation data", async () => {
     const originalFetch = globalThis.fetch;
-    var requested = false;
-    globalThis.fetch = function() {
+    let requested = false;
+    globalThis.fetch = () => {
       requested = true;
       return apiResponse([]);
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus" });
 
     await articleCollectionView(document.createElement("div"), async () => {});
@@ -77,13 +146,13 @@ describe("evaluation.tsx - evaluationView", function() {
     globalThis.fetch = originalFetch;
   });
 
-  it("renders queue progress, explicit lineage, facets, and inventory states", async function() {
+  it("renders queue progress, explicit lineage, facets, and inventory states", async () => {
     const originalFetch = globalThis.fetch;
-    var requested = "";
-    globalThis.fetch = function(input) {
+    let requested = "";
+    globalThis.fetch = (input: RequestInfo | URL) => {
       requested = String(input);
       return apiResponse(evaluationResponse());
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7" });
 
     await articleCollectionView(document.createElement("div"), async () => {});
@@ -95,9 +164,21 @@ describe("evaluation.tsx - evaluationView", function() {
     assert.equal(app.querySelectorAll(".ui.orange.label").length >= 3, true);
     assert.match(app.querySelector(".ui.green.label")?.textContent || "", /Available/);
     assert.match(app.querySelector(".rw-corpus-table")?.textContent || "", /Not started/);
-    assert.deepEqual(Array.from(app.querySelectorAll(".rw-corpus-table thead th"), (cell) => {
+    const tableHeaders = Array.from(app.querySelectorAll(".rw-corpus-table thead th"), (cell) => {
       return cell.textContent?.trim();
-    }), ["", "", "DOI", "Title", "Year", "Journal", "Source", "PDF", "Review status", "Review source"]);
+    });
+    assert.deepEqual(tableHeaders, [
+      "",
+      "",
+      "DOI",
+      "Title",
+      "Year",
+      "Journal",
+      "Source",
+      "PDF",
+      "Review status",
+      "Review source",
+    ]);
     assert.equal(app.querySelector(".rw-corpus-table time")?.textContent, "Jul 29, 2026");
     assert.ok(app.querySelector(".rw-evaluation-filters__advanced"));
     assert.ok(app.querySelector("[data-start-review]"));
@@ -105,8 +186,8 @@ describe("evaluation.tsx - evaluationView", function() {
     assert.equal(app.querySelector<HTMLButtonElement>("[data-export-selected]")?.disabled, true);
     assert.match(app.querySelector("[data-export-count]")?.textContent || "", /0 selected/);
     assert.match(app.querySelector("[data-export-unavailable]")?.textContent || "", /1 PDF is unavailable/);
-    assert.equal(app.querySelector<HTMLInputElement>('[data-select-row="1"]')?.disabled, false);
-    assert.equal(app.querySelector<HTMLInputElement>('[data-select-row="2"]')?.disabled, true);
+    assert.equal(app.querySelector<HTMLInputElement>(`[data-select-row="1"]`)?.disabled, false);
+    assert.equal(app.querySelector<HTMLInputElement>(`[data-select-row="2"]`)?.disabled, true);
     const nextUnreviewed = Array.from(app.querySelectorAll<HTMLAnchorElement>("a")).find((anchor) => {
       return anchor.textContent?.includes("Next unreviewed");
     });
@@ -114,16 +195,24 @@ describe("evaluation.tsx - evaluationView", function() {
     globalThis.fetch = originalFetch;
   });
 
-  it("uses top-level initialized state when a filtered page has no rows", async function() {
+  it("uses top-level initialized state when a filtered page has no rows", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return apiResponse(evaluationResponse({
         review_context_initialized: true,
-        review_context: { id: 11, pipeline_run_id: 7 },
+        review_context: {
+          id: 11,
+          pipeline_run_id: 7,
+        },
         rows: [],
-        pagination: { page: 9, per_page: 50, total_rows: 0, total_pages: 0 },
+        pagination: {
+          page: 9,
+          per_page: 50,
+          total_rows: 0,
+          total_pages: 0,
+        },
       }));
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7", q: "no match", page: "9" });
 
     await articleCollectionView(document.createElement("div"), async () => {});
@@ -134,17 +223,17 @@ describe("evaluation.tsx - evaluationView", function() {
   });
 
 
-  it("downloads only the selected current-page PDFs and reports partial results", async function() {
+  it("downloads only the selected current-page PDFs and reports partial results", async () => {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
-    var exportBody: any = null;
-    var clicked = 0;
-    URL.createObjectURL = function() { return "blob:selected"; };
-    URL.revokeObjectURL = function() {};
-    HTMLAnchorElement.prototype.click = function() { clicked += 1; };
-    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+    let exportBody: any = null;
+    let clicked = 0;
+    URL.createObjectURL = () => { return "blob:selected"; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => { clicked += 1; };
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
         exportBody = JSON.parse(String(init.body));
         return Promise.resolve({
@@ -160,11 +249,11 @@ describe("evaluation.tsx - evaluationView", function() {
             "X-PDF-Export-Comments": "0",
           }),
           body: null,
-          arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
+          arrayBuffer: () => { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
         } as unknown as Response);
       }
       return apiResponse(evaluationResponse());
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7" });
     await articleCollectionView(document.createElement("div"), async () => {});
 
@@ -179,7 +268,12 @@ describe("evaluation.tsx - evaluationView", function() {
     app.querySelector<HTMLButtonElement>("[data-export-selected]")!.click();
     await waitFor(() => (app.querySelector("[data-export-feedback]")?.textContent || "").includes("1 included, 0 skipped"));
     assert.deepEqual(exportBody, {
-      articles: [{ work_revision_id: 1, content_hash: "a".repeat(64) }],
+      articles: [
+        {
+          work_revision_id: 1,
+          content_hash: "a".repeat(64),
+        },
+      ],
       include_comments: false,
     });
     assert.equal(clicked, 1);
@@ -191,16 +285,16 @@ describe("evaluation.tsx - evaluationView", function() {
     HTMLAnchorElement.prototype.click = originalClick;
   });
 
-  it("sends the comments toggle for selected-set exports and reports inclusion", async function() {
+  it("sends the comments toggle for selected-set exports and reports inclusion", async () => {
     const originalFetch = globalThis.fetch;
     const originalCreate = URL.createObjectURL;
     const originalRevoke = URL.revokeObjectURL;
     const originalClick = HTMLAnchorElement.prototype.click;
-    var exportBody: any = null;
-    URL.createObjectURL = function() { return "blob:selected-comments"; };
-    URL.revokeObjectURL = function() {};
-    HTMLAnchorElement.prototype.click = function() {};
-    globalThis.fetch = function(input: RequestInfo | URL, init?: RequestInit) {
+    let exportBody: any = null;
+    URL.createObjectURL = () => { return "blob:selected-comments"; };
+    URL.revokeObjectURL = () => {};
+    HTMLAnchorElement.prototype.click = () => {};
+    globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
       if (init?.method === "POST") {
         exportBody = JSON.parse(String(init.body));
         return Promise.resolve({
@@ -216,11 +310,11 @@ describe("evaluation.tsx - evaluationView", function() {
             "X-PDF-Export-Comments": "2",
           }),
           body: null,
-          arrayBuffer: function() { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
+          arrayBuffer: () => { return Promise.resolve(new TextEncoder().encode("zip").buffer); },
         } as unknown as Response);
       }
       return apiResponse(evaluationResponse());
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7" });
     await articleCollectionView(document.createElement("div"), async () => {});
 
@@ -234,7 +328,12 @@ describe("evaluation.tsx - evaluationView", function() {
     await waitFor(() => (app.querySelector("[data-export-feedback]")?.textContent || "").includes("saved comments included"));
 
     assert.deepEqual(exportBody, {
-      articles: [{ work_revision_id: 1, content_hash: "a".repeat(64) }],
+      articles: [
+        {
+          work_revision_id: 1,
+          content_hash: "a".repeat(64),
+        },
+      ],
       include_comments: true,
     });
     assert.match(app.querySelector("[data-export-feedback]")?.textContent || "", /2 saved comments included in 1 file/);
@@ -245,9 +344,9 @@ describe("evaluation.tsx - evaluationView", function() {
     HTMLAnchorElement.prototype.click = originalClick;
   });
 
-  it("limits select-all to twenty current-page rows and clears selection on rerender", async function() {
+  it("limits select-all to twenty current-page rows and clears selection on rerender", async () => {
     const originalFetch = globalThis.fetch;
-    const rows = Array.from({ length: 25 }, function(_, index) {
+    const rows = Array.from({ length: 25 }, (_, index) => {
       return {
         work_revision_id: index + 1,
         title: `Article ${index + 1}`,
@@ -263,12 +362,17 @@ describe("evaluation.tsx - evaluationView", function() {
         review_sub_statuses: [],
       };
     });
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return apiResponse(evaluationResponse({
         rows: rows,
-        pagination: { page: 1, per_page: 50, total_rows: 25, total_pages: 1 },
+        pagination: {
+          page: 1,
+          per_page: 50,
+          total_rows: 25,
+          total_pages: 1,
+        },
       }));
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7" });
     await articleCollectionView(document.createElement("div"), async () => {});
 
@@ -285,11 +389,11 @@ describe("evaluation.tsx - evaluationView", function() {
     globalThis.fetch = originalFetch;
   });
 
-  it("submits every queue filter as destination-owned URL state", async function() {
+  it("submits every queue filter as destination-owned URL state", async () => {
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = function() {
+    globalThis.fetch = () => {
       return apiResponse(evaluationResponse());
-    } as typeof fetch;
+    };
     setLocation({ view: "corpus", run_id: "7" });
     await articleCollectionView(document.createElement("div"), async () => {});
 

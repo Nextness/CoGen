@@ -18,14 +18,21 @@ function buildWorkspace(): { workspace: HTMLElement; reviewHost: HTMLElement; bu
   reviewHost.dataset.reviewHost = "";
   workspace.append(reviewHost);
   document.body.append(workspace);
-  return { workspace: workspace, reviewHost: reviewHost, button: button };
+  return {
+    workspace,
+    reviewHost,
+    button,
+  };
 }
 
-describe("pdf-fullscreen.tsx", function() {
+describe("pdf-fullscreen.tsx", () => {
 
-  it("falls back to the expanded class when the Fullscreen API is absent and exits on toggle", function() {
+  it("falls back to the expanded class when the Fullscreen API is absent and exits on toggle", () => {
     const { workspace, button } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), false);
     assert.equal(button.textContent, "Fullscreen");
@@ -45,9 +52,12 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
-  it("starts the drawer expanded and toggles it through the edge control", function() {
+  it("starts the drawer expanded and toggles it through the edge control", () => {
     const { workspace } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(workspace.querySelector("[data-pdf-fullscreen]") as HTMLButtonElement);
     assert.equal(workspace.classList.contains("rw-reading-workspace--drawer-collapsed"), false);
@@ -69,9 +79,12 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
-  it("expands a collapsed drawer on the rw-pdf-selection event", function() {
+  it("expands a collapsed drawer on the rw-pdf-selection event", () => {
     const { workspace } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(workspace.querySelector("[data-pdf-fullscreen]") as HTMLButtonElement);
     const edge = workspace.querySelector<HTMLButtonElement>("[data-drawer-edge]")!;
@@ -86,9 +99,12 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
-  it("removes the drawer-collapsed class and edge control when exiting fullscreen", function() {
+  it("removes the drawer-collapsed class and edge control when exiting fullscreen", () => {
     const { workspace } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(workspace.querySelector("[data-pdf-fullscreen]") as HTMLButtonElement);
     const edge = workspace.querySelector<HTMLButtonElement>("[data-drawer-edge]")!;
@@ -104,9 +120,12 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
-  it("exits fallback expansion and restores the drawer on PDF content change", function() {
+  it("exits fallback expansion and restores the drawer on PDF content change", () => {
     const { workspace, button } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(button);
     const edge = workspace.querySelector<HTMLButtonElement>("[data-drawer-edge]")!;
@@ -125,23 +144,32 @@ describe("pdf-fullscreen.tsx", function() {
     workspace.remove();
   });
 
-  it("closes the fallback expansion on Escape", function() {
+  it("closes the fallback expansion on Escape", () => {
     const { workspace } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(workspace.querySelector("[data-pdf-fullscreen]") as HTMLButtonElement);
     assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), true);
 
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+    }));
     assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), false);
 
     controller.destroy();
     workspace.remove();
   });
 
-  it("destroy removes listeners, the fallback class, and the edge control", function() {
+  it("destroy removes listeners, the fallback class, and the edge control", () => {
     const { workspace, button } = buildWorkspace();
-    const controller = mountPDFFullscreen({ workspace: workspace, reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement });
+    const controller = mountPDFFullscreen({
+      workspace,
+      reviewHost: workspace.querySelector("[data-review-host]") as HTMLElement,
+    });
 
     buttonClick(button);
     assert.equal(workspace.classList.contains("rw-reading-workspace--expanded"), true);
