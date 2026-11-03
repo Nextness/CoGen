@@ -2696,10 +2696,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`WalkGo`](../internal/projectlayout/layout.go#L13) | function | 13-40 | `func WalkGo(root string, visit fs.WalkDirFunc) error` | WalkGo visits maintained Go files across production, tooling, and external tests. |
-| [`WalkGoFS`](../internal/projectlayout/layout.go#L44) | function | 44-70 | `func WalkGoFS(fsys fs.FS, visit fs.WalkDirFunc) error` | WalkGoFS visits maintained Go files in a read-only filesystem snapshot. Paths are relative to fsys rather than an operating-system root. |
-| [`IsTestPath`](../internal/projectlayout/layout.go#L73) | function | 73 | `func IsTestPath(relative string) bool` | IsTestPath reports canonical external test and support ownership. |
-| [`JavaScriptRoots`](../internal/projectlayout/layout.go#L76) | function | 76 | `func JavaScriptRoots() []string` | JavaScriptRoots lists product, developer tooling, and testing sources for catalog discovery. |
+| [`ModuleRoot`](../internal/projectlayout/layout.go#L14) | struct | 14-17 | `type ModuleRoot struct { Root string Module string }` | ModuleRoot describes one maintained Go module outside the root module. |
+| [`OptionalTestModules`](../internal/projectlayout/layout.go#L20) | function | 20 | `func OptionalTestModules() []string` | OptionalTestModules lists repository-relative optional test modules. |
+| [`OptionalProductionModules`](../internal/projectlayout/layout.go#L23) | function | 23 | `func OptionalProductionModules() []string` | OptionalProductionModules lists repository-relative optional production modules. |
+| [`OptionalGoRoots`](../internal/projectlayout/layout.go#L26) | function | 26-36 | `func OptionalGoRoots(root string) ([]ModuleRoot, error)` | OptionalGoRoots returns the optional production and test modules with their declared identities. |
+| [`OptionalGoRootsFS`](../internal/projectlayout/layout.go#L39) | function | 39-53 | `func OptionalGoRootsFS(fsys fs.FS) ([]ModuleRoot, error)` | OptionalGoRootsFS returns the optional modules from a read-only snapshot. |
+| [`readModulePath`](../internal/projectlayout/layout.go#L56) | function | 56-62 | `func readModulePath(path string) (string, error)` | readModulePath returns the module path from a go.mod file. |
+| [`parseModulePath`](../internal/projectlayout/layout.go#L65) | function | 65-73 | `func parseModulePath(data string) (string, error)` | parseModulePath extracts the module directive from go.mod content. |
+| [`HasGoMod`](../internal/projectlayout/layout.go#L76) | function | 76-79 | `func HasGoMod(path string) bool` | HasGoMod reports whether a directory contains a go.mod file. |
+| [`HasGoModFS`](../internal/projectlayout/layout.go#L82) | function | 82-85 | `func HasGoModFS(fsys fs.FS, path string) bool` | HasGoModFS reports whether a directory in fsys contains a go.mod file. |
+| [`WalkGo`](../internal/projectlayout/layout.go#L88) | function | 88-118 | `func WalkGo(root string, visit fs.WalkDirFunc) error` | WalkGo visits maintained Go files across production, tooling, and external tests. |
+| [`WalkOptionalGo`](../internal/projectlayout/layout.go#L121) | function | 121-151 | `func WalkOptionalGo(root string, visit fs.WalkDirFunc) error` | WalkOptionalGo visits maintained Go files in the declared optional modules. |
+| [`WalkGoFS`](../internal/projectlayout/layout.go#L155) | function | 155-184 | `func WalkGoFS(fsys fs.FS, visit fs.WalkDirFunc) error` | WalkGoFS visits maintained Go files in a read-only filesystem snapshot. Paths are relative to fsys rather than an operating-system root. |
+| [`WalkOptionalGoFS`](../internal/projectlayout/layout.go#L187) | function | 187-216 | `func WalkOptionalGoFS(fsys fs.FS, visit fs.WalkDirFunc) error` | WalkOptionalGoFS visits maintained Go files in the declared optional modules. |
+| [`IsTestPath`](../internal/projectlayout/layout.go#L219) | function | 219 | `func IsTestPath(relative string) bool` | IsTestPath reports canonical external test and support ownership. |
+| [`JavaScriptRoots`](../internal/projectlayout/layout.go#L222) | function | 222 | `func JavaScriptRoots() []string` | JavaScriptRoots lists product, developer tooling, and testing sources for catalog discovery. |
 
 ### [`internal/querybudget/driver.go`](../internal/querybudget/driver.go)
 
@@ -5623,6 +5634,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestCheckReportsMissingInputs`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L152) | test | 152-166 | `func TestCheckReportsMissingInputs(t *testing.T)` | TestCheckReportsMissingInputs verifies absent family roots and configuration fail with the could-not-run status. |
 | [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L169) | test | 169-181 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
 | [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L184) | test | 184-191 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
+| [`TestImportCheckSkipsNestedModule`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L194) | test | 194-205 | `func TestImportCheckSkipsNestedModule(t *testing.T)` | TestImportCheckSkipsNestedModule verifies nested Go modules are not treated as root packages. |
 
 ### [`tests/tooling/go/prepare-osf/integration/main_integration_test.go`](../tests/tooling/go/prepare-osf/integration/main_integration_test.go)
 
@@ -5696,18 +5708,23 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure`](../tests/tooling/go/testselect/functional/run_functional_test.go#L14) | test | 14-63 | `func TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure(t *testing.T)` | TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure verifies actual execution rather than discovery alone. |
+| [`TestRunGoModuleSelectsRelativePackage`](../tests/tooling/go/testselect/functional/run_functional_test.go#L66) | test | 66-105 | `func TestRunGoModuleSelectsRelativePackage(t *testing.T)` | TestRunGoModuleSelectsRelativePackage verifies explicit module selection runs from the module root. |
 
 ### [`tests/tooling/go/testselect/unit/select_test.go`](../tests/tooling/go/testselect/unit/select_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`writeSuite`](../tests/tooling/go/testselect/unit/select_test.go#L14) | function | 14-23 | `func writeSuite(t *testing.T, root, name string)` | writeSuite creates a discoverable test input without requiring an installed runner. |
-| [`selectionTree`](../tests/tooling/go/testselect/unit/select_test.go#L26) | function | 26-46 | `func selectionTree(t *testing.T) string` | selectionTree provides one suite per runner, along with ignored E2E/support inputs. |
-| [`TestSelectKeepsDomainComponentAndLayerOwnership`](../tests/tooling/go/testselect/unit/select_test.go#L49) | test | 49-63 | `func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T)` | TestSelectKeepsDomainComponentAndLayerOwnership verifies narrow requests do not pull in unrelated runners. |
-| [`TestSelectGoPackageDoesNotRecurse`](../tests/tooling/go/testselect/unit/select_test.go#L66) | test | 66-81 | `func TestSelectGoPackageDoesNotRecurse(t *testing.T)` | TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection. |
-| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L84) | test | 84-92 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
-| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L95) | test | 95-124 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
-| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L127) | test | 127-135 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
+| [`writeSuite`](../tests/tooling/go/testselect/unit/select_test.go#L15) | function | 15-24 | `func writeSuite(t *testing.T, root, name string)` | writeSuite creates a discoverable test input without requiring an installed runner. |
+| [`selectionTree`](../tests/tooling/go/testselect/unit/select_test.go#L27) | function | 27-47 | `func selectionTree(t *testing.T) string` | selectionTree provides one suite per runner, along with ignored E2E/support inputs. |
+| [`TestSelectKeepsDomainComponentAndLayerOwnership`](../tests/tooling/go/testselect/unit/select_test.go#L50) | test | 50-64 | `func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T)` | TestSelectKeepsDomainComponentAndLayerOwnership verifies narrow requests do not pull in unrelated runners. |
+| [`TestSelectGoPackageDoesNotRecurse`](../tests/tooling/go/testselect/unit/select_test.go#L67) | test | 67-82 | `func TestSelectGoPackageDoesNotRecurse(t *testing.T)` | TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection. |
+| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L85) | test | 85-93 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
+| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L96) | test | 96-125 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
+| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L128) | test | 128-136 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
+| [`TestSelectSkipsNestedModulesByDefault`](../tests/tooling/go/testselect/unit/select_test.go#L139) | test | 139-152 | `func TestSelectSkipsNestedModulesByDefault(t *testing.T)` | TestSelectSkipsNestedModulesByDefault verifies ordinary discovery does not cross module boundaries. |
+| [`TestSelectGoModuleSelectsOnlyThatModule`](../tests/tooling/go/testselect/unit/select_test.go#L155) | test | 155-170 | `func TestSelectGoModuleSelectsOnlyThatModule(t *testing.T)` | TestSelectGoModuleSelectsOnlyThatModule verifies explicit module selection. |
+| [`TestSelectRejectsUnknownGoModule`](../tests/tooling/go/testselect/unit/select_test.go#L173) | test | 173-180 | `func TestSelectRejectsUnknownGoModule(t *testing.T)` | TestSelectRejectsUnknownGoModule verifies only declared optional modules are allowed. |
+| [`TestSelectGoModuleRejectsIncompatibleSelectors`](../tests/tooling/go/testselect/unit/select_test.go#L183) | test | 183-194 | `func TestSelectGoModuleRejectsIncompatibleSelectors(t *testing.T)` | TestSelectGoModuleRejectsIncompatibleSelectors verifies module mode stays narrow. |
 
 ### [`tests/tooling/go/viewer-fixture/integration/generate_integration_test.go`](../tests/tooling/go/viewer-fixture/integration/generate_integration_test.go)
 
@@ -6094,13 +6111,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Options`](../tooling/go/testselect/select.go#L18) | struct | 18-22 | `type Options struct { Domain, Layer, Component, Package, Runner, Test, TestFile string Browser, Workers string Race, Headed, Debug bool }` | Options narrows ordinary offline suites by ownership, layer, and runner. |
-| [`Selection`](../tooling/go/testselect/select.go#L25) | struct | 25-29 | `type Selection struct { GoPackages []string NodeFiles []string BrowserFiles []string }` | Selection contains canonical repository-relative packages and test files. |
-| [`validRelative`](../tooling/go/testselect/select.go#L32) | function | 32-34 | `func validRelative(value string) bool` | validRelative rejects noncanonical or escaping selector paths. |
-| [`Select`](../tooling/go/testselect/select.go#L37) | function | 37-187 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
-| [`execute`](../tooling/go/testselect/select.go#L190) | function | 190-204 | `func execute(root, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
-| [`runGo`](../tooling/go/testselect/select.go#L207) | function | 207-263 | `func runGo(root string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
-| [`Run`](../tooling/go/testselect/select.go#L266) | function | 266-359 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
+| [`Options`](../tooling/go/testselect/select.go#L20) | struct | 20-24 | `type Options struct { Domain, Layer, Component, Package, Runner, Test, TestFile, GoModule string Browser, Workers string Race, Headed, Debug bool }` | Options narrows ordinary offline suites by ownership, layer, and runner. |
+| [`Selection`](../tooling/go/testselect/select.go#L27) | struct | 27-32 | `type Selection struct { GoPackages []string NodeFiles []string BrowserFiles []string GoModule string }` | Selection contains canonical repository-relative packages and test files. |
+| [`validRelative`](../tooling/go/testselect/select.go#L35) | function | 35-37 | `func validRelative(value string) bool` | validRelative rejects noncanonical or escaping selector paths. |
+| [`Select`](../tooling/go/testselect/select.go#L40) | function | 40-220 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
+| [`execute`](../tooling/go/testselect/select.go#L223) | function | 223-237 | `func execute(dir, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
+| [`runGo`](../tooling/go/testselect/select.go#L240) | function | 240-311 | `func runGo(root, moduleRoot string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
+| [`Run`](../tooling/go/testselect/select.go#L314) | function | 314-408 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
 
 ### [`tooling/go/testselect/snapshot.go`](../tooling/go/testselect/snapshot.go)
 

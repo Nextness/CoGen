@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"analysis/tooling/go/testselect"
@@ -131,5 +132,63 @@ func TestSelectRejectsSymlinkEscape(t *testing.T) {
 	}
 	if _, err := testselect.Select(root, testselect.Options{Domain: "backend", Component: "escape"}); err == nil {
 		t.Fatal("accepted a component escaping its domain")
+	}
+}
+
+// TestSelectSkipsNestedModulesByDefault verifies ordinary discovery does not cross module boundaries.
+func TestSelectSkipsNestedModulesByDefault(t *testing.T) {
+	root := selectionTree(t)
+	writeSuite(t, root, "tests/tooling/agentgraph/go.mod")
+	writeSuite(t, root, "tests/tooling/agentgraph/unit/agentgraph_test.go")
+	got, err := testselect.Select(root, testselect.Options{Domain: "tooling"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range got.GoPackages {
+		if strings.Contains(pkg, "agentgraph") {
+			t.Fatalf("ordinary discovery included nested module package %q", pkg)
+		}
+	}
+}
+
+// TestSelectGoModuleSelectsOnlyThatModule verifies explicit module selection.
+func TestSelectGoModuleSelectsOnlyThatModule(t *testing.T) {
+	root := selectionTree(t)
+	writeSuite(t, root, "tests/tooling/agentgraph/go.mod")
+	writeSuite(t, root, "tests/tooling/agentgraph/unit/agentgraph_test.go")
+	got, err := testselect.Select(root, testselect.Options{GoModule: "tests/tooling/agentgraph"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"./tests/tooling/agentgraph/unit"}
+	if !reflect.DeepEqual(got.GoPackages, want) {
+		t.Fatalf("GoPackages=%v want %v", got.GoPackages, want)
+	}
+	if got.GoModule != "tests/tooling/agentgraph" {
+		t.Fatalf("GoModule=%q", got.GoModule)
+	}
+}
+
+// TestSelectRejectsUnknownGoModule verifies only declared optional modules are allowed.
+func TestSelectRejectsUnknownGoModule(t *testing.T) {
+	root := selectionTree(t)
+	for _, module := range []string{"tests/tooling/unknown", "tooling/agentgraph", "tests/tooling"} {
+		if _, err := testselect.Select(root, testselect.Options{GoModule: module}); err == nil {
+			t.Fatalf("accepted unknown module %q", module)
+		}
+	}
+}
+
+// TestSelectGoModuleRejectsIncompatibleSelectors verifies module mode stays narrow.
+func TestSelectGoModuleRejectsIncompatibleSelectors(t *testing.T) {
+	root := selectionTree(t)
+	for _, options := range []testselect.Options{
+		{GoModule: "tests/tooling/agentgraph", Component: "agentgraph"},
+		{GoModule: "tests/tooling/agentgraph", Package: "./tests/tooling/agentgraph/unit"},
+		{GoModule: "tests/tooling/agentgraph", Runner: "node"},
+	} {
+		if _, err := testselect.Select(root, options); err == nil {
+			t.Fatalf("accepted incompatible options %+v", options)
+		}
 	}
 }

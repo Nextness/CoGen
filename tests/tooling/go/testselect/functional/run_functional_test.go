@@ -61,3 +61,45 @@ func TestFailure(t *testing.T) { t.Fatal("expected fixture failure") }
 		}
 	}
 }
+
+// TestRunGoModuleSelectsRelativePackage verifies explicit module selection runs from the module root.
+func TestRunGoModuleSelectsRelativePackage(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"go.mod":                          "module selectionfixture\n\ngo 1.25.0\n",
+		"tests/tooling/agentgraph/go.mod": "module analysis/tests/tooling/agentgraph\n\ngo 1.25.0\n",
+		"tests/tooling/agentgraph/unit/agentgraph_test.go": `package unit
+import "testing"
+func TestAgentgraphSelected(t *testing.T) {}
+`,
+	}
+	for name, contents := range files {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(root)
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOTOOLCHAIN", "local")
+	t.Setenv("CGO_ENABLED", "0")
+	for _, test := range []struct {
+		expression string
+		code       int
+		diagnostic string
+	}{
+		{"^TestAgentgraphSelected$", 0, "PASS"},
+		{"^TestMissing$", 1, "matched no tests"},
+	} {
+		t.Run(test.expression, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := testselect.Run([]string{"--go-module", "tests/tooling/agentgraph", "--test", test.expression}, &stdout, &stderr)
+			if code != test.code || !strings.Contains(stdout.String()+stderr.String(), test.diagnostic) {
+				t.Fatalf("code=%d stdout=%s stderr=%s", code, &stdout, &stderr)
+			}
+		})
+	}
+}
