@@ -189,3 +189,17 @@ func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T) {
 		}
 	}
 }
+
+// TestImportCheckSkipsNestedModule verifies nested Go modules are not treated as root packages.
+func TestImportCheckSkipsNestedModule(t *testing.T) {
+	root := repositoryFixture(t)
+	writeTestFile(t, root, "tests/tooling/agentgraph/go.mod", "module analysis/tests/tooling/agentgraph\n\ngo 1.25.0\n")
+	writeTestFile(t, root, "tests/tooling/agentgraph/unit/agentgraph.go", "package unit\nimport \"analysis/backend/database/run\"\n")
+	code, output, diagnostic := invoke(root, "check")
+	if code != 0 {
+		t.Fatalf("code=%d output=%s diagnostic=%s", code, output, diagnostic)
+	}
+	if !strings.Contains(output, "passed: 3 packages") {
+		t.Fatalf("nested module affected package count: %s", output)
+	}
+}

@@ -38,6 +38,8 @@ make check
 
 All intentional executables are written beneath `build/`; routine work does not use a bare package-level `go build`. `build/` can contain useful reports and generated evidence, so inspect it before running `make clean`.
 
+Concurrent agent editing uses separate branches and linked Git worktrees under the primary checkout's `worktrees/` directory. Keep [worktrees/.gitkeep](../worktrees/.gitkeep) in Git so the directory exists in fresh checkouts. The root [.gitignore](../.gitignore) ignores `/worktrees/*` with an exception for `/worktrees/.gitkeep`; every other file and subdirectory stays local. Run repository commands from the owning worktree root so relative builds, fixture databases, and reports stay isolated. Source changes inside a linked worktree are committed normally on its branch when authorized; the parent checkout tracks only the placeholder within `worktrees/`. Related dependent changes use stacked PRs, while independent changes can target the agreed base directly. Coordinate parent updates, rebases, integration, and cleanup with the owning task. The [concurrent-agent design](CODE-GRAPH-RAG-DISCUSSION.md#7-concurrent-agents-worktrees-and-stacked-prs) documents the workflow and proposed graph isolation; the graph tool and agent hooks are not implemented yet.
+
 ## 4. Build outputs and tools
 
 | Output | Build target | Purpose |
@@ -50,9 +52,12 @@ All intentional executables are written beneath `build/`; routine work does not 
 | `build/rawsqlcheck` | `make rawsqlcheck`, `make tools`, `make check-sql`, or `make sql-report` | Checks and reports raw SQL ownership across maintained Go sources. |
 | `build/importcheck` | `make importcheck`, `make tools`, `make check-imports`, or `make import-report` | Checks and reports the package import and transaction graph. |
 | `build/testselect` | `make testselect`, `make tools`, or ordinary test targets | Discovers domain/component/layer suites and invokes their standard runners with strict focused-selection validation. |
+| `build/code-facts` | `make code-facts-build` or `make tools` | Exports deterministic portable repository facts as JSON without CGO or native dependencies. |
+| `build/code-graph` | `make code-graph-build` | Builds the optional code-graph command from its separate module; native setup remains explicit and is never part of this target. |
 | `build/sqlc` | `make sqlc-install` | Pinned sqlc development generator used only for family SQL code generation and freshness checking; normal builds, tests, and checks never invoke it. |
 | `build/gitleaks` | `make gitleaks-install` or `make gitleaks` | Scans repository history and the working tree for secrets; part of `make check` and the CI merge gate. |
 | `build/coverage/coverage.out` | `make coverage` | Atomic Go coverage profile used by the policy checker. |
+| `build/coverage/code-graph.out` | `make coverage-code-graph` | Separate reported coverage profile for the optional code-graph production module. |
 | `build/e2e/<variant>/` | `make test-e2e` or `make test-e2e-live E2E_LIVE=1` | Generated metadata and companion PDF databases, evaluated workspace configuration, browser upload fixtures, and preserved PDF and review mutation evidence for pipeline-to-viewer verification. |
 | `build/playwright/run-*/` | Browser test targets | Isolated traces, screenshots, results, and HTML reports. |
 
@@ -61,6 +66,8 @@ All intentional executables are written beneath `build/`; routine work does not 
 `build/rawsqlcheck` is normally executed by `make check-sql` or `make sql-report`; developers should use the Make targets so it scans the repository root with the committed ownership table.
 
 `build/importcheck` is normally executed by `make check-imports` or `make import-report`; developers should use the Make targets so it scans the repository root with the committed layer rules.
+
+Optional code-graph tooling has explicit build and verification targets outside the ordinary root `build`, `tools`, `test`, and `check` aggregates. Run `make code-graph-build` to build the optional command, `make check-code-graph` for optional formatting and vet, `make test-code-graph LAYER=unit` or `make test-code-graph-race` for module tests, and `make coverage-code-graph` for a separate reported coverage profile. Native engine setup remains a separate explicit action and is never triggered by these targets.
 
 `build/sqlc` is normally executed by `make sqlc-generate` or `make sqlc-check`; both targets pass `-f config/sqlc.yaml` from the repository root. Section 11 documents the generation workflow, maintained versus generated files, and common inference problems.
 

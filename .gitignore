@@ -22,6 +22,10 @@ corpus.pdf.db*
 workspace.fixture.pdf.db
 workspace.fixture.db
 
+# Keep the workspace directory in Git; agent worktree contents stay local.
+/worktrees/*
+!/worktrees/.gitkeep
+
 # Go test coverage
 coverage.out
 

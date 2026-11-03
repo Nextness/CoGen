@@ -1,0 +1,214 @@
+[
+  {
+    "id": "pdf-store-direct-callers",
+    "domain": "callers",
+    "question": "What directly calls pdfstore.Store.Save?",
+    "query": "symbol.context",
+    "parameters": {
+      "symbol": "go:example.com/pdfreplacement/store#(*Store).Save",
+      "direction": "callers"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 1,
+      "empty": false,
+      "coverage": "partial"
+    }
+  },
+  {
+    "id": "save-article-pdf-callees",
+    "domain": "callees",
+    "question": "What does saveArticlePDF call?",
+    "query": "symbol.context",
+    "parameters": {
+      "symbol": "go:example.com/pdfreplacement/handler#saveArticlePDF",
+      "direction": "callees"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "upload-pdf-http-entry",
+    "domain": "routes",
+    "question": "Which HTTP entry point reaches that store operation?",
+    "query": "route.trace",
+    "parameters": {
+      "route": "/upload",
+      "method": "PUT"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdfstore-package-dependents",
+    "domain": "dependencies",
+    "question": "Which packages depend on backend/pdfstore?",
+    "query": "change.impact",
+    "parameters": {
+      "path": "example.com/pdfreplacement/store",
+      "direction": "dependents"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdf-documents-sql-usage",
+    "domain": "sql",
+    "question": "Which SQL queries read or modify pdf_documents?",
+    "query": "sql.usage",
+    "parameters": {
+      "table": "pdf_documents"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 2,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "mark-pdf-document-available-generator",
+    "domain": "sql",
+    "question": "What maintained SQL generates MarkPDFDocumentAvailable?",
+    "query": "sql.usage",
+    "parameters": {
+      "symbol": "MarkPDFDocumentAvailable",
+      "direction": "generator"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 2,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "frontend-upload-pdf-route",
+    "domain": "routes",
+    "question": "How does frontend uploadPDF reach the Go handler?",
+    "query": "route.trace",
+    "parameters": {
+      "symbol": "uploadPDF",
+      "path": "frontend/upload.ts"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 1,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "partial"
+    }
+  },
+  {
+    "id": "pdf-replacement-relevant-tests",
+    "domain": "tests",
+    "question": "Which tests are relevant to changing PDF replacement?",
+    "query": "tests.for_path",
+    "parameters": {
+      "path": "example.com/pdfreplacement/handler"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdf-replacement-make-commands",
+    "domain": "commands",
+    "question": "Which supported Make commands regenerate affected output?",
+    "query": "command.for_path",
+    "parameters": {
+      "path": "example.com/pdfreplacement",
+      "purpose": "regenerate"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdf-replacement-document-review",
+    "domain": "docs",
+    "question": "Which documents need review after this change?",
+    "query": "guidance.for_path",
+    "parameters": {
+      "path": "example.com/pdfreplacement/handler",
+      "purpose": "review"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdf-path-instructions",
+    "domain": "guidance",
+    "question": "Which instructions apply to this path and task?",
+    "query": "guidance.for_path",
+    "parameters": {
+      "path": "example.com/pdfreplacement/handler"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  },
+  {
+    "id": "pdf-interface-task-owner",
+    "domain": "coordination",
+    "question": "Which agent task owns a related interface or file scope?",
+    "query": "task.owner",
+    "parameters": {
+      "path": "example.com/pdfreplacement/store"
+    },
+    "fixture": "pdf-replacement",
+    "expect": {
+      "resolved": 1,
+      "inferred": 0,
+      "unresolved": 0,
+      "empty": false,
+      "coverage": "complete"
+    }
+  }
+]

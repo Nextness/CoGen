@@ -12,13 +12,15 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"analysis/internal/projectlayout"
 )
 
 // Options narrows ordinary offline suites by ownership, layer, and runner.
 type Options struct {
-	Domain, Layer, Component, Package, Runner, Test, TestFile string
-	Browser, Workers                                          string
-	Race, Headed, Debug                                       bool
+	Domain, Layer, Component, Package, Runner, Test, TestFile, GoModule string
+	Browser, Workers                                                    string
+	Race, Headed, Debug                                                 bool
 }
 
 // Selection contains canonical repository-relative packages and test files.
@@ -26,6 +28,7 @@ type Selection struct {
 	GoPackages   []string
 	NodeFiles    []string
 	BrowserFiles []string
+	GoModule     string
 }
 
 // validRelative rejects noncanonical or escaping selector paths.
@@ -47,6 +50,33 @@ func Select(root string, options Options) (Selection, error) {
 	}
 	if options.Runner == "go" && options.Domain == "all" && options.Component != "" {
 		options.Domain = "backend"
+	}
+	if options.GoModule != "" {
+		if options.Component != "" || options.Package != "" {
+			return selected, fmt.Errorf("GO_MODULE cannot be combined with COMPONENT or PACKAGE")
+		}
+		allowed := false
+		for _, module := range projectlayout.OptionalTestModules() {
+			if module == options.GoModule {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return selected, fmt.Errorf("unknown Go module %q", options.GoModule)
+		}
+		relative := strings.TrimPrefix(options.GoModule, "tests/")
+		parts := strings.SplitN(relative, "/", 2)
+		if len(parts) != 2 {
+			return selected, fmt.Errorf("GO_MODULE must name a module under a test domain")
+		}
+		options.Domain = parts[0]
+		options.Component = parts[1]
+		if options.Runner != "all" && options.Runner != "go" {
+			return selected, fmt.Errorf("GO_MODULE requires the Go runner")
+		}
+		options.Runner = "go"
+		selected.GoModule = options.GoModule
 	}
 	domains := map[string]bool{"all": true, "backend": true, "frontend": true, "tooling": true, "shared": true, "contracts": true}
 	layers := map[string]bool{"all": true, "unit": true, "functional": true, "integration": true}
@@ -113,6 +143,9 @@ func Select(root string, options Options) (Selection, error) {
 			}
 			if entry.IsDir() {
 				if options.Package != "" && path != base {
+					return filepath.SkipDir
+				}
+				if path != base && projectlayout.HasGoMod(path) {
 					return filepath.SkipDir
 				}
 				if entry.Name() == "testdata" || entry.Name() == "node_modules" || strings.HasSuffix(entry.Name(), "-snapshots") {
@@ -187,9 +220,9 @@ func Select(root string, options Options) (Selection, error) {
 }
 
 // execute runs one standard command from the repository root and preserves its exit code.
-func execute(root, name string, args []string, stdout, stderr io.Writer) int {
+func execute(dir, name string, args []string, stdout, stderr io.Writer) int {
 	command := exec.Command(name, args...)
-	command.Dir = root
+	command.Dir = dir
 	command.Stdout = stdout
 	command.Stderr = stderr
 	command.Stdin = os.Stdin
@@ -204,18 +237,33 @@ func execute(root, name string, args []string, stdout, stderr io.Writer) int {
 }
 
 // runGo observes actual test execution so a focused expression cannot silently match nothing.
-func runGo(root string, options Options, packages []string, stdout, stderr io.Writer) int {
+func runGo(root, moduleRoot string, options Options, packages []string, stdout, stderr io.Writer) int {
+	dir := root
+	if moduleRoot != "" {
+		dir = filepath.Join(root, moduleRoot)
+		relative := make([]string, 0, len(packages))
+		for _, pkg := range packages {
+			trimmed := strings.TrimPrefix(pkg, "./")
+			rel, err := filepath.Rel(moduleRoot, trimmed)
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return 1
+			}
+			relative = append(relative, "./"+filepath.ToSlash(rel))
+		}
+		packages = relative
+	}
 	args := []string{"test", "-count=1"}
 	if options.Race {
 		args = append(args, "-race")
 	}
 	if options.Test == "" {
-		return execute(root, "go", append(args, packages...), stdout, stderr)
+		return execute(dir, "go", append(args, packages...), stdout, stderr)
 	}
 	args = append(args, "-json", "-run", options.Test)
 	args = append(args, packages...)
 	command := exec.Command("go", args...)
-	command.Dir = root
+	command.Dir = dir
 	command.Stderr = stderr
 	pipe, err := command.StdoutPipe()
 	if err != nil {
@@ -274,6 +322,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	flags.StringVar(&options.Runner, "runner", "all", "all, go, node, or browser")
 	flags.StringVar(&options.Test, "test", "", "Go -run expression")
 	flags.StringVar(&options.TestFile, "test-file", "", "repository-relative browser spec")
+	flags.StringVar(&options.GoModule, "go-module", "", "repository-relative optional Go module")
 	flags.StringVar(&options.Browser, "browser", "chromium", "browser project, or all")
 	flags.StringVar(&options.Workers, "workers", "", "browser workers")
 	flags.BoolVar(&options.Race, "race", false, "Go race detector")
@@ -294,7 +343,7 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	}
 	fmt.Fprintf(stdout, "Test scope: domain=%s component=%s layer=%s; %d Go packages, %d Node files, %d browser files\n", options.Domain, options.Component, options.Layer, len(selected.GoPackages), len(selected.NodeFiles), len(selected.BrowserFiles))
 	if len(selected.GoPackages) > 0 {
-		if code := runGo(root, options, selected.GoPackages, stdout, stderr); code != 0 {
+		if code := runGo(root, selected.GoModule, options, selected.GoPackages, stdout, stderr); code != 0 {
 			return code
 		}
 	}

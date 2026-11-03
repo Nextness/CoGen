@@ -4,7 +4,7 @@
 
 This generated catalog maps maintained Go and JavaScript declarations and tests to exact repository-relative source locations. Use [ARCHITECTURE.md](ARCHITECTURE.md) for system behavior and [STANDARDS.md](STANDARDS.md) for source documentation conventions.
 
-Go coverage includes named functions, methods, tests, benchmarks, types, structs, interfaces, and aliases under `src/`. JavaScript coverage includes named function declarations, classes, methods, and `test` or `it` titles under `frontend/`. Generated vendor code, generated sqlc output under reserved `internal/sql` directories, installed dependencies, anonymous implementation callbacks, and non-Go or non-JavaScript utilities are outside the catalog.
+Go coverage includes named functions, methods, tests, benchmarks, types, structs, interfaces, and aliases under `backend/`, `tooling/go/`, `internal/`, `tests/`, and the declared optional Go modules. JavaScript coverage includes named function declarations, classes, methods, and `test` or `it` titles under `frontend/`, `tooling/node/`, and `tests/`. Generated vendor code, generated sqlc output under reserved `internal/sql` directories, installed dependencies, anonymous implementation callbacks, and non-Go or non-JavaScript utilities are outside the catalog.
 
 Declarations and signatures are source-derived and show syntactic inputs and outputs. Descriptions come only from attached Go documentation comments, adjacent JavaScript JSDoc, or JavaScript test titles. Catalog update exposes a missing comment as `No source description` without inferring behavior from a symbol name, and `make check-docs` rejects that incomplete state.
 
@@ -2696,9 +2696,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`WalkGo`](../internal/projectlayout/layout.go#L12) | function | 12-39 | `func WalkGo(root string, visit fs.WalkDirFunc) error` | WalkGo visits maintained Go files across production, tooling, and external tests. |
-| [`IsTestPath`](../internal/projectlayout/layout.go#L42) | function | 42 | `func IsTestPath(relative string) bool` | IsTestPath reports canonical external test and support ownership. |
-| [`JavaScriptRoots`](../internal/projectlayout/layout.go#L45) | function | 45 | `func JavaScriptRoots() []string` | JavaScriptRoots lists product, developer tooling, and testing sources for catalog discovery. |
+| [`ModuleRoot`](../internal/projectlayout/layout.go#L14) | struct | 14-17 | `type ModuleRoot struct { Root string Module string }` | ModuleRoot describes one maintained Go module outside the root module. |
+| [`OptionalTestModules`](../internal/projectlayout/layout.go#L20) | function | 20 | `func OptionalTestModules() []string` | OptionalTestModules lists repository-relative optional test modules. |
+| [`OptionalProductionModules`](../internal/projectlayout/layout.go#L23) | function | 23 | `func OptionalProductionModules() []string` | OptionalProductionModules lists repository-relative optional production modules. |
+| [`OptionalGoRoots`](../internal/projectlayout/layout.go#L26) | function | 26-36 | `func OptionalGoRoots(root string) ([]ModuleRoot, error)` | OptionalGoRoots returns the optional production and test modules with their declared identities. |
+| [`OptionalGoRootsFS`](../internal/projectlayout/layout.go#L39) | function | 39-53 | `func OptionalGoRootsFS(fsys fs.FS) ([]ModuleRoot, error)` | OptionalGoRootsFS returns the optional modules from a read-only snapshot. |
+| [`readModulePath`](../internal/projectlayout/layout.go#L56) | function | 56-62 | `func readModulePath(path string) (string, error)` | readModulePath returns the module path from a go.mod file. |
+| [`parseModulePath`](../internal/projectlayout/layout.go#L65) | function | 65-73 | `func parseModulePath(data string) (string, error)` | parseModulePath extracts the module directive from go.mod content. |
+| [`HasGoMod`](../internal/projectlayout/layout.go#L76) | function | 76-79 | `func HasGoMod(path string) bool` | HasGoMod reports whether a directory contains a go.mod file. |
+| [`HasGoModFS`](../internal/projectlayout/layout.go#L82) | function | 82-85 | `func HasGoModFS(fsys fs.FS, path string) bool` | HasGoModFS reports whether a directory in fsys contains a go.mod file. |
+| [`WalkGo`](../internal/projectlayout/layout.go#L88) | function | 88-118 | `func WalkGo(root string, visit fs.WalkDirFunc) error` | WalkGo visits maintained Go files across production, tooling, and external tests. |
+| [`WalkOptionalGo`](../internal/projectlayout/layout.go#L121) | function | 121-151 | `func WalkOptionalGo(root string, visit fs.WalkDirFunc) error` | WalkOptionalGo visits maintained Go files in the declared optional modules. |
+| [`WalkGoFS`](../internal/projectlayout/layout.go#L155) | function | 155-184 | `func WalkGoFS(fsys fs.FS, visit fs.WalkDirFunc) error` | WalkGoFS visits maintained Go files in a read-only filesystem snapshot. Paths are relative to fsys rather than an operating-system root. |
+| [`WalkOptionalGoFS`](../internal/projectlayout/layout.go#L187) | function | 187-216 | `func WalkOptionalGoFS(fsys fs.FS, visit fs.WalkDirFunc) error` | WalkOptionalGoFS visits maintained Go files in the declared optional modules. |
+| [`IsTestPath`](../internal/projectlayout/layout.go#L219) | function | 219 | `func IsTestPath(relative string) bool` | IsTestPath reports canonical external test and support ownership. |
+| [`JavaScriptRoots`](../internal/projectlayout/layout.go#L222) | function | 222 | `func JavaScriptRoots() []string` | JavaScriptRoots lists product, developer tooling, and testing sources for catalog discovery. |
 
 ### [`internal/querybudget/driver.go`](../internal/querybudget/driver.go)
 
@@ -5497,6 +5509,43 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`normalizeFixtureTimestamps`](../tests/support/go/viewerfixture/generate.go#L578) | function | 578-633 | `func normalizeFixtureTimestamps(db *sql.DB)` | normalizeFixtureTimestamps replaces SQLite-generated timestamps with one fixed instant while preserving explicit fixture evidence. |
 | [`validFixtureIdentifier`](../tests/support/go/viewerfixture/generate.go#L636) | function | 636-646 | `func validFixtureIdentifier(value string) bool` | validFixtureIdentifier reports whether a discovered SQLite identifier is safe to quote in fixture-only SQL. |
 
+### [`tests/tooling/agentgraph/unit/agentgraph_test.go`](../tests/tooling/agentgraph/unit/agentgraph_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestVersion`](../tests/tooling/agentgraph/unit/agentgraph_test.go#L10) | test | 10-14 | `func TestVersion(t *testing.T)` | TestVersion verifies the optional module resolves through its local replacement. |
+
+### [`tests/tooling/agentgraph/unit/command_test.go`](../tests/tooling/agentgraph/unit/command_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`TestRunPrintsVersion`](../tests/tooling/agentgraph/unit/command_test.go#L12) | test | 12-20 | `func TestRunPrintsVersion(t *testing.T)` | TestRunPrintsVersion verifies the thin command reports the optional module version. |
+| [`TestRunRejectsUnknownCommands`](../tests/tooling/agentgraph/unit/command_test.go#L23) | test | 23-31 | `func TestRunRejectsUnknownCommands(t *testing.T)` | TestRunRejectsUnknownCommands verifies usage mistakes cannot report success. |
+
+### [`tests/tooling/go/codefacts/functional/capture_functional_test.go`](../tests/tooling/go/codefacts/functional/capture_functional_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`writeFile`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L15) | function | 15-24 | `func writeFile(t *testing.T, root, relative, content string)` | writeFile creates one fixture file beneath root. |
+| [`captureFixture`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L27) | function | 27-39 | `func captureFixture(t *testing.T) string` | captureFixture writes a repository with generated, testdata, and docs/ref exclusions. |
+| [`TestCaptureExcludesGeneratedTestdataAndReference`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L42) | test | 42-62 | `func TestCaptureExcludesGeneratedTestdataAndReference(t *testing.T)` | TestCaptureExcludesGeneratedTestdataAndReference verifies the default policy boundaries. |
+| [`TestCaptureStableOutput`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L65) | test | 65-78 | `func TestCaptureStableOutput(t *testing.T)` | TestCaptureStableOutput verifies repeated captures of unchanged bytes are identical. |
+| [`TestBuildUsesCapturedBytesAfterLiveEdit`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L81) | test | 81-123 | `func TestBuildUsesCapturedBytesAfterLiveEdit(t *testing.T)` | TestBuildUsesCapturedBytesAfterLiveEdit verifies owner scans never reread the live tree. |
+| [`TestRunWritesPureJSONToStdout`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L126) | test | 126-150 | `func TestRunWritesPureJSONToStdout(t *testing.T)` | TestRunWritesPureJSONToStdout verifies the command contract. |
+| [`TestRunReportsDiagnosticsToStderr`](../tests/tooling/go/codefacts/functional/capture_functional_test.go#L153) | test | 153-164 | `func TestRunReportsDiagnosticsToStderr(t *testing.T)` | TestRunReportsDiagnosticsToStderr verifies failures stay off stdout. |
+
+### [`tests/tooling/go/codefacts/unit/build_unit_test.go`](../tests/tooling/go/codefacts/unit/build_unit_test.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`fixtureFiles`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L15) | function | 15-87 | `func fixtureFiles() map[string][]byte` | fixtureFiles returns a small frozen repository snapshot for portable facts. |
+| [`TestBuildProducesDeterministicEnvelope`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L90) | test | 90-173 | `func TestBuildProducesDeterministicEnvelope(t *testing.T)` | TestBuildProducesDeterministicEnvelope verifies stable ordering, versions, and facts. |
+| [`TestBuildPreservesMissingCommentFallback`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L176) | test | 176-199 | `func TestBuildPreservesMissingCommentFallback(t *testing.T)` | TestBuildPreservesMissingCommentFallback verifies declarations without comments do not fail. |
+| [`TestBuildChangesInputFingerprintWhenCapturedBytesChange`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L202) | test | 202-228 | `func TestBuildChangesInputFingerprintWhenCapturedBytesChange(t *testing.T)` | TestBuildChangesInputFingerprintWhenCapturedBytesChange verifies the fingerprint tracks source bytes. |
+| [`TestNewSnapshotRejectsEscapedPaths`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L231) | test | 231-237 | `func TestNewSnapshotRejectsEscapedPaths(t *testing.T)` | TestNewSnapshotRejectsEscapedPaths verifies invalid captured paths are rejected. |
+| [`TestSnapshotReadFileReturnsCapturedBytes`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L240) | test | 240-254 | `func TestSnapshotReadFileReturnsCapturedBytes(t *testing.T)` | TestSnapshotReadFileReturnsCapturedBytes verifies the frozen view does not alias caller data. |
+| [`TestNewSnapshotPreservesSiblingDirectories`](../tests/tooling/go/codefacts/unit/build_unit_test.go#L257) | test | 257-285 | `func TestNewSnapshotPreservesSiblingDirectories(t *testing.T)` | TestNewSnapshotPreservesSiblingDirectories verifies directory children are not collapsed by shared keys. |
+
 ### [`tests/tooling/go/coveragecheck/functional/main_functional_test.go`](../tests/tooling/go/coveragecheck/functional/main_functional_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -5598,6 +5647,7 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`TestCheckReportsMissingInputs`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L152) | test | 152-166 | `func TestCheckReportsMissingInputs(t *testing.T)` | TestCheckReportsMissingInputs verifies absent family roots and configuration fail with the could-not-run status. |
 | [`TestCheckPassesAndReportsActionableFailures`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L169) | test | 169-181 | `func TestCheckPassesAndReportsActionableFailures(t *testing.T)` | TestCheckPassesAndReportsActionableFailures verifies success counts and exact remediation survive public dispatch. |
 | [`TestRunRejectsUnknownCommandAndExtraArguments`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L184) | test | 184-191 | `func TestRunRejectsUnknownCommandAndExtraArguments(t *testing.T)` | TestRunRejectsUnknownCommandAndExtraArguments verifies usage mistakes cannot report a passing check. |
+| [`TestImportCheckSkipsNestedModule`](../tests/tooling/go/importcheck/unit/main_unit_test.go#L194) | test | 194-205 | `func TestImportCheckSkipsNestedModule(t *testing.T)` | TestImportCheckSkipsNestedModule verifies nested Go modules are not treated as root packages. |
 
 ### [`tests/tooling/go/prepare-osf/integration/main_integration_test.go`](../tests/tooling/go/prepare-osf/integration/main_integration_test.go)
 
@@ -5671,24 +5721,48 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure`](../tests/tooling/go/testselect/functional/run_functional_test.go#L14) | test | 14-63 | `func TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure(t *testing.T)` | TestRunFocusedGoRejectsZeroMatchesAndPreservesFailure verifies actual execution rather than discovery alone. |
+| [`TestRunGoModuleSelectsRelativePackage`](../tests/tooling/go/testselect/functional/run_functional_test.go#L66) | test | 66-105 | `func TestRunGoModuleSelectsRelativePackage(t *testing.T)` | TestRunGoModuleSelectsRelativePackage verifies explicit module selection runs from the module root. |
 
 ### [`tests/tooling/go/testselect/unit/select_test.go`](../tests/tooling/go/testselect/unit/select_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`writeSuite`](../tests/tooling/go/testselect/unit/select_test.go#L14) | function | 14-23 | `func writeSuite(t *testing.T, root, name string)` | writeSuite creates a discoverable test input without requiring an installed runner. |
-| [`selectionTree`](../tests/tooling/go/testselect/unit/select_test.go#L26) | function | 26-46 | `func selectionTree(t *testing.T) string` | selectionTree provides one suite per runner, along with ignored E2E/support inputs. |
-| [`TestSelectKeepsDomainComponentAndLayerOwnership`](../tests/tooling/go/testselect/unit/select_test.go#L49) | test | 49-63 | `func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T)` | TestSelectKeepsDomainComponentAndLayerOwnership verifies narrow requests do not pull in unrelated runners. |
-| [`TestSelectGoPackageDoesNotRecurse`](../tests/tooling/go/testselect/unit/select_test.go#L66) | test | 66-81 | `func TestSelectGoPackageDoesNotRecurse(t *testing.T)` | TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection. |
-| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L84) | test | 84-92 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
-| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L95) | test | 95-124 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
-| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L127) | test | 127-135 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
+| [`writeSuite`](../tests/tooling/go/testselect/unit/select_test.go#L15) | function | 15-24 | `func writeSuite(t *testing.T, root, name string)` | writeSuite creates a discoverable test input without requiring an installed runner. |
+| [`selectionTree`](../tests/tooling/go/testselect/unit/select_test.go#L27) | function | 27-47 | `func selectionTree(t *testing.T) string` | selectionTree provides one suite per runner, along with ignored E2E/support inputs. |
+| [`TestSelectKeepsDomainComponentAndLayerOwnership`](../tests/tooling/go/testselect/unit/select_test.go#L50) | test | 50-64 | `func TestSelectKeepsDomainComponentAndLayerOwnership(t *testing.T)` | TestSelectKeepsDomainComponentAndLayerOwnership verifies narrow requests do not pull in unrelated runners. |
+| [`TestSelectGoPackageDoesNotRecurse`](../tests/tooling/go/testselect/unit/select_test.go#L67) | test | 67-82 | `func TestSelectGoPackageDoesNotRecurse(t *testing.T)` | TestSelectGoPackageDoesNotRecurse verifies PACKAGE selects one package while COMPONENT retains subtree selection. |
+| [`TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions`](../tests/tooling/go/testselect/unit/select_test.go#L85) | test | 85-93 | `func TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions(t *testing.T)` | TestSelectAllExcludesE2ESupportFixturesAndCompileOnlyAssertions verifies default ordinary discovery has one owner per suite. |
+| [`TestSelectRejectsInvalidOrIneffectiveRequests`](../tests/tooling/go/testselect/unit/select_test.go#L96) | test | 96-125 | `func TestSelectRejectsInvalidOrIneffectiveRequests(t *testing.T)` | TestSelectRejectsInvalidOrIneffectiveRequests verifies malformed filters cannot produce a green empty run. |
+| [`TestSelectRejectsSymlinkEscape`](../tests/tooling/go/testselect/unit/select_test.go#L128) | test | 128-136 | `func TestSelectRejectsSymlinkEscape(t *testing.T)` | TestSelectRejectsSymlinkEscape verifies an apparently local component cannot redirect discovery outside its domain. |
+| [`TestSelectSkipsNestedModulesByDefault`](../tests/tooling/go/testselect/unit/select_test.go#L139) | test | 139-152 | `func TestSelectSkipsNestedModulesByDefault(t *testing.T)` | TestSelectSkipsNestedModulesByDefault verifies ordinary discovery does not cross module boundaries. |
+| [`TestSelectGoModuleSelectsOnlyThatModule`](../tests/tooling/go/testselect/unit/select_test.go#L155) | test | 155-170 | `func TestSelectGoModuleSelectsOnlyThatModule(t *testing.T)` | TestSelectGoModuleSelectsOnlyThatModule verifies explicit module selection. |
+| [`TestSelectRejectsUnknownGoModule`](../tests/tooling/go/testselect/unit/select_test.go#L173) | test | 173-180 | `func TestSelectRejectsUnknownGoModule(t *testing.T)` | TestSelectRejectsUnknownGoModule verifies only declared optional modules are allowed. |
+| [`TestSelectGoModuleRejectsIncompatibleSelectors`](../tests/tooling/go/testselect/unit/select_test.go#L183) | test | 183-194 | `func TestSelectGoModuleRejectsIncompatibleSelectors(t *testing.T)` | TestSelectGoModuleRejectsIncompatibleSelectors verifies module mode stays narrow. |
 
 ### [`tests/tooling/go/viewer-fixture/integration/generate_integration_test.go`](../tests/tooling/go/viewer-fixture/integration/generate_integration_test.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
 | [`TestGeneratedPairRetainsBindingAtCustomPaths`](../tests/tooling/go/viewer-fixture/integration/generate_integration_test.go#L16) | test | 16-43 | `func TestGeneratedPairRetainsBindingAtCustomPaths(t *testing.T)` | TestGeneratedPairRetainsBindingAtCustomPaths verifies both supported metadata filename forms produce a usable portable bundle. |
+
+### [`tooling/agentgraph/agentgraph.go`](../tooling/agentgraph/agentgraph.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Version`](../tooling/agentgraph/agentgraph.go#L10) | function | 10 | `func Version() string` | Version identifies the maintained optional module. |
+| [`Run`](../tooling/agentgraph/agentgraph.go#L13) | function | 13-20 | `func Run(args []string, stdout, stderr io.Writer) int` | Run dispatches the thin optional code-graph command without native setup. |
+
+### [`tooling/agentgraph/cmd/code-graph/main.go`](../tooling/agentgraph/cmd/code-graph/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`main`](../tooling/agentgraph/cmd/code-graph/main.go#L11) | function | 11 | `func main()` | main runs the command and preserves its exit status. |
+
+### [`tooling/go/cmd/code-facts/main.go`](../tooling/go/cmd/code-facts/main.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`main`](../tooling/go/cmd/code-facts/main.go#L11) | function | 11 | `func main()` | main runs the command and preserves its exit status. |
 
 ### [`tooling/go/cmd/coveragecheck/main.go`](../tooling/go/cmd/coveragecheck/main.go)
 
@@ -5732,6 +5806,75 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`main`](../tooling/go/cmd/testselect/main.go#L10) | function | 10 | `func main()` | main preserves the selector's exit status. |
 
+### [`tooling/go/codefacts/codefacts.go`](../tooling/go/codefacts/codefacts.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Workspace`](../tooling/go/codefacts/codefacts.go#L23) | struct | 23-27 | ``type Workspace struct { RepositoryID string `json:"repository_id"` WorktreeID string `json:"worktree_id"` InputFingerprint string `json:"input_fingerprint"` }`` | Workspace identifies the repository, worktree, and captured input. |
+| [`Declaration`](../tooling/go/codefacts/codefacts.go#L30) | struct | 30-41 | ``type Declaration struct { Module string `json:"module"` Path string `json:"path"` Kind string `json:"kind"` Name string `json:"name"` Signature string `json:"signature"` Description string `json:"description"` StartLine int `json:"start_line"` EndLine int `json:"end_line"` SourceHash string `json:"source_hash"` Evidence string `json:"evidence"` }`` | Declaration is one syntactic source declaration owned by doccheck. |
+| [`Import`](../tooling/go/codefacts/codefacts.go#L44) | struct | 44-48 | ``type Import struct { Importer string `json:"importer"` Target string `json:"target"` Test bool `json:"test"` }`` | Import is one maintained Go import edge owned by importcheck. |
+| [`SQLCall`](../tooling/go/codefacts/codefacts.go#L51) | struct | 51-57 | ``type SQLCall struct { Path string `json:"path"` Line int `json:"line"` Method string `json:"method"` Category string `json:"category"` Reason string `json:"reason"` }`` | SQLCall is one raw SQL call site owned by rawsqlcheck/ownership. |
+| [`SQLGenerationMapping`](../tooling/go/codefacts/codefacts.go#L60) | struct | 60-64 | ``type SQLGenerationMapping struct { Schema string `json:"schema"` Queries []string `json:"queries"` Output string `json:"output"` }`` | SQLGenerationMapping is one sqlc generation unit owned by importcheck. |
+| [`Suite`](../tooling/go/codefacts/codefacts.go#L67) | struct | 67-70 | ``type Suite struct { Path string `json:"path"` Runner string `json:"runner"` }`` | Suite is one ordinary test suite file owned by testselect. |
+| [`ReviewMetadata`](../tooling/go/codefacts/codefacts.go#L73) | struct | 73-77 | ``type ReviewMetadata struct { Document string `json:"document"` Hash string `json:"hash"` Dependents []string `json:"dependents"` }`` | ReviewMetadata is one acknowledged document owned by doccheck. |
+| [`PolicyFact`](../tooling/go/codefacts/codefacts.go#L80) | struct | 80-84 | ``type PolicyFact struct { Roots []string `json:"roots"` ExcludeDirs []string `json:"exclude_dirs"` ExcludeInternalSQL bool `json:"exclude_internal_sql"` }`` | PolicyFact describes the capture policy used for one envelope. |
+| [`Envelope`](../tooling/go/codefacts/codefacts.go#L87) | struct | 87-99 | ``type Envelope struct { FormatVersion int `json:"format_version"` Producer string `json:"producer"` Workspace Workspace `json:"workspace"` Policy PolicyFact `json:"policy"` Files []FileFact `json:"files"` Declarations []Declaration `json:"declarations"` Imports []Import `json:"imports"` SQLCalls []SQLCall `json:"sql_calls"` SQLGenerationMappings []SQLGenerationMapping `json:"sql_generation_mappings"` Suites []Suite `json:"suites"` ReviewMetadata []ReviewMetadata `json:"review_metadata"` }`` | Envelope is the versioned portable fact export. |
+| [`Options`](../tooling/go/codefacts/codefacts.go#L102) | struct | 102-106 | `type Options struct { RepositoryID string WorktreeID string Policy Policy }` | Options carries the explicit workspace identity and capture policy. |
+| [`Build`](../tooling/go/codefacts/codefacts.go#L110) | function | 110-168 | `func Build(fsys fs.FS, options Options) (Envelope, error)` | Build derives the portable facts envelope from a frozen read-only snapshot. Owner extractors read only the captured bytes; the live tree is never reread. |
+| [`readModulePath`](../tooling/go/codefacts/codefacts.go#L171) | function | 171-173 | `func readModulePath(fsys fs.FS) (string, error)` | readModulePath returns the module path declared by go.mod in a read-only snapshot. |
+| [`readModulePathAt`](../tooling/go/codefacts/codefacts.go#L176) | function | 176-188 | `func readModulePathAt(fsys fs.FS, filePath string) (string, error)` | readModulePathAt returns the module path declared by one go.mod file in a read-only snapshot. |
+| [`optionalModulePaths`](../tooling/go/codefacts/codefacts.go#L192) | function | 192-202 | `func optionalModulePaths(fsys fs.FS) map[string]string` | optionalModulePaths returns captured optional module identities keyed by repository-relative root. Absent optional modules are ignored so partial snapshots still build. |
+| [`moduleForPath`](../tooling/go/codefacts/codefacts.go#L205) | function | 205-215 | `func moduleForPath(filePath, rootModule string, optional map[string]string) string` | moduleForPath returns the owning module identity for one captured source path. |
+| [`buildDeclarations`](../tooling/go/codefacts/codefacts.go#L218) | function | 218-239 | `func buildDeclarations(fsys fs.FS, module string, optional map[string]string) ([]Declaration, error)` | buildDeclarations converts doccheck's catalog DTO into portable declarations. |
+| [`buildImports`](../tooling/go/codefacts/codefacts.go#L242) | function | 242-261 | `func buildImports(fsys fs.FS) ([]Import, error)` | buildImports converts importcheck's import DTO into portable imports. |
+| [`buildSQLCalls`](../tooling/go/codefacts/codefacts.go#L264) | function | 264-280 | `func buildSQLCalls(fsys fs.FS) ([]SQLCall, error)` | buildSQLCalls converts ownership's raw SQL call DTO into portable calls. |
+| [`buildSQLGenerationMappings`](../tooling/go/codefacts/codefacts.go#L283) | function | 283-297 | `func buildSQLGenerationMappings(fsys fs.FS) ([]SQLGenerationMapping, error)` | buildSQLGenerationMappings converts importcheck's sqlc DTO into portable mappings. |
+| [`buildSuites`](../tooling/go/codefacts/codefacts.go#L300) | function | 300-310 | `func buildSuites(fsys fs.FS) ([]Suite, error)` | buildSuites converts testselect's suite DTO into portable suites. |
+| [`buildReviewMetadata`](../tooling/go/codefacts/codefacts.go#L313) | function | 313-327 | `func buildReviewMetadata(fsys fs.FS) ([]ReviewMetadata, error)` | buildReviewMetadata converts doccheck's review DTO into portable metadata. |
+
+### [`tooling/go/codefacts/command.go`](../tooling/go/codefacts/command.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Run`](../tooling/go/codefacts/command.go#L13) | function | 13-54 | `func Run(args []string, stdout, stderr io.Writer) int` | Run captures portable facts from root, builds the envelope, and writes pure JSON to stdout. |
+| [`gitValue`](../tooling/go/codefacts/command.go#L57) | function | 57-64 | `func gitValue(root string, arguments ...string) string` | gitValue returns one trimmed git configuration value or an empty string. |
+
+### [`tooling/go/codefacts/snapshot.go`](../tooling/go/codefacts/snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Policy`](../tooling/go/codefacts/snapshot.go#L21) | struct | 21-25 | `type Policy struct { Roots []string ExcludeDirs []string ExcludeInternalSQL bool }` | Policy selects eligible source bytes for one portable fact snapshot. |
+| [`FileFact`](../tooling/go/codefacts/snapshot.go#L35) | struct | 35-38 | `type FileFact struct { Path string Hash string }` | FileFact records one eligible file and its SHA-256 digest. |
+| [`Snapshot`](../tooling/go/codefacts/snapshot.go#L43) | struct | 43-47 | `type Snapshot struct { files map[string][]byte dirs map[string][]fs.DirEntry facts []FileFact }` | Snapshot is a frozen in-memory view of captured source bytes. It implements fs.FS, fs.ReadFileFS, and fs.ReadDirFS so owners can read the same bytes without touching the live tree. |
+| [`Capture`](../tooling/go/codefacts/snapshot.go#L51) | function | 51-101 | `func Capture(root string, policy Policy) (*Snapshot, error)` | Capture reads eligible files under root according to policy and returns an immutable snapshot plus their deterministic file facts. |
+| [`FileFacts`](../tooling/go/codefacts/snapshot.go#L104) | function | 104-154 | `func FileFacts(fsys fs.FS, policy Policy) ([]FileFact, error)` | FileFacts reads eligible files from fsys according to policy and returns their ordered facts. |
+| [`NewSnapshot`](../tooling/go/codefacts/snapshot.go#L157) | function | 157-202 | `func NewSnapshot(files map[string][]byte) (*Snapshot, error)` | NewSnapshot builds an immutable filesystem and deterministic file facts from captured bytes. |
+| [`(*Snapshot).Facts`](../tooling/go/codefacts/snapshot.go#L205) | method | 205-207 | `func (*Snapshot).Facts() []FileFact` | Facts returns the deterministic file facts captured by this snapshot. |
+| [`(*Snapshot).InputFingerprint`](../tooling/go/codefacts/snapshot.go#L210) | method | 210-212 | `func (*Snapshot).InputFingerprint() string` | InputFingerprint hashes the ordered captured path and digest pairs. |
+| [`Fingerprint`](../tooling/go/codefacts/snapshot.go#L215) | function | 215-224 | `func Fingerprint(facts []FileFact) string` | Fingerprint hashes ordered path and digest pairs exactly as the envelope contract requires. |
+| [`(*Snapshot).Open`](../tooling/go/codefacts/snapshot.go#L227) | method | 227-238 | `func (*Snapshot).Open(name string) (fs.File, error)` | Open implements fs.FS for captured files and directories. |
+| [`(*Snapshot).ReadFile`](../tooling/go/codefacts/snapshot.go#L241) | method | 241-247 | `func (*Snapshot).ReadFile(name string) ([]byte, error)` | ReadFile implements fs.ReadFileFS for captured files. |
+| [`(*Snapshot).ReadDir`](../tooling/go/codefacts/snapshot.go#L250) | method | 250-256 | `func (*Snapshot).ReadDir(name string) ([]fs.DirEntry, error)` | ReadDir implements fs.ReadDirFS for captured directories. |
+| [`excludedDir`](../tooling/go/codefacts/snapshot.go#L259) | function | 259-266 | `func excludedDir(name string, excludes []string) bool` | excludedDir reports whether a directory name is excluded by policy. |
+| [`generatedInternalSQL`](../tooling/go/codefacts/snapshot.go#L269) | function | 269-277 | `func generatedInternalSQL(relativePath string) bool` | generatedInternalSQL reports whether a path lives under a generated internal/sql directory. |
+| [`hashBytes`](../tooling/go/codefacts/snapshot.go#L280) | function | 280-283 | `func hashBytes(data []byte) string` | hashBytes returns the prefixed SHA-256 digest of data. |
+| [`fileInfo`](../tooling/go/codefacts/snapshot.go#L286) | struct | 286-290 | `type fileInfo struct { name string size int64 mode fs.FileMode }` | fileInfo is a minimal fs.FileInfo for captured files and directories. |
+| [`(fileInfo).Name`](../tooling/go/codefacts/snapshot.go#L293) | method | 293 | `func (fileInfo).Name() string` | Name returns the base name. |
+| [`(fileInfo).Size`](../tooling/go/codefacts/snapshot.go#L296) | method | 296 | `func (fileInfo).Size() int64` | Size returns the captured byte length. |
+| [`(fileInfo).Mode`](../tooling/go/codefacts/snapshot.go#L299) | method | 299 | `func (fileInfo).Mode() fs.FileMode` | Mode returns the file mode. |
+| [`(fileInfo).ModTime`](../tooling/go/codefacts/snapshot.go#L302) | method | 302 | `func (fileInfo).ModTime() time.Time` | ModTime returns a zero time for deterministic facts. |
+| [`(fileInfo).IsDir`](../tooling/go/codefacts/snapshot.go#L305) | method | 305 | `func (fileInfo).IsDir() bool` | IsDir reports whether the entry is a directory. |
+| [`(fileInfo).Sys`](../tooling/go/codefacts/snapshot.go#L308) | method | 308 | `func (fileInfo).Sys() any` | Sys returns no host-specific metadata. |
+| [`snapshotFile`](../tooling/go/codefacts/snapshot.go#L311) | struct | 311-316 | `type snapshotFile struct { name string data []byte offset int info fileInfo }` | snapshotFile is an immutable captured regular file. |
+| [`(*snapshotFile).Stat`](../tooling/go/codefacts/snapshot.go#L319) | method | 319 | `func (*snapshotFile).Stat() (fs.FileInfo, error)` | Stat returns the captured file info. |
+| [`(*snapshotFile).Read`](../tooling/go/codefacts/snapshot.go#L322) | method | 322-329 | `func (*snapshotFile).Read(buffer []byte) (int, error)` | Read returns captured bytes from the current offset. |
+| [`(*snapshotFile).Close`](../tooling/go/codefacts/snapshot.go#L332) | method | 332 | `func (*snapshotFile).Close() error` | Close releases the file handle. |
+| [`snapshotDir`](../tooling/go/codefacts/snapshot.go#L335) | struct | 335-339 | `type snapshotDir struct { name string entries []fs.DirEntry offset int }` | snapshotDir is an immutable captured directory. |
+| [`(*snapshotDir).Stat`](../tooling/go/codefacts/snapshot.go#L342) | method | 342-344 | `func (*snapshotDir).Stat() (fs.FileInfo, error)` | Stat returns directory info. |
+| [`(*snapshotDir).Read`](../tooling/go/codefacts/snapshot.go#L347) | method | 347-349 | `func (*snapshotDir).Read([]byte) (int, error)` | Read rejects byte reads on directories. |
+| [`(*snapshotDir).Close`](../tooling/go/codefacts/snapshot.go#L352) | method | 352 | `func (*snapshotDir).Close() error` | Close releases the directory handle. |
+| [`(*snapshotDir).ReadDir`](../tooling/go/codefacts/snapshot.go#L355) | method | 355-364 | `func (*snapshotDir).ReadDir(n int) ([]fs.DirEntry, error)` | ReadDir returns directory entries, honoring the n limit. |
+
 ### [`tooling/go/configredaction/redaction.go`](../tooling/go/configredaction/redaction.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -5774,14 +5917,21 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`sourceDescription`](../tooling/go/doccheck/catalog.go#L62) | function | 62-67 | `func sourceDescription(group *ast.CommentGroup) string` | sourceDescription returns only an attached source comment or the explicit fallback. |
 | [`goDeclarationKind`](../tooling/go/doccheck/catalog.go#L70) | function | 70-82 | `func goDeclarationKind(spec *ast.TypeSpec) string` | goDeclarationKind identifies the catalog kind of a Go type declaration. |
 | [`generatedGoPath`](../tooling/go/doccheck/catalog.go#L85) | function | 85-93 | `func generatedGoPath(relativePath string) bool` | generatedGoPath reports whether a repository-relative Go path lives under a reserved internal/sql directory. |
-| [`collectGoDeclarations`](../tooling/go/doccheck/catalog.go#L96) | function | 96-163 | `func collectGoDeclarations(root string) ([]catalogEntry, error)` | collectGoDeclarations walks src and returns named functions, methods, types, and tests. |
-| [`renderCatalogEntries`](../tooling/go/doccheck/catalog.go#L166) | function | 166-187 | `func renderCatalogEntries(entries []catalogEntry) string` | renderCatalogEntries renders declarations in per-file Markdown tables. |
-| [`generatedCatalog`](../tooling/go/doccheck/catalog.go#L190) | function | 190-208 | `func generatedCatalog(root string) (string, error)` | generatedCatalog composes the source-derived catalog sections. |
-| [`checkCatalogDescriptions`](../tooling/go/doccheck/catalog.go#L211) | function | 211-254 | `func checkCatalogDescriptions(root string) error` | checkCatalogDescriptions rejects maintained declarations without attached source documentation. |
-| [`replaceGeneratedRegion`](../tooling/go/doccheck/catalog.go#L257) | function | 257-264 | `func replaceGeneratedRegion(document, begin, end, generated, label string) (string, error)` | replaceGeneratedRegion replaces exactly one marked block without changing maintained prose. |
-| [`catalogContent`](../tooling/go/doccheck/catalog.go#L267) | function | 267-282 | `func catalogContent(root string) (string, string, string, error)` | catalogContent returns current and generated catalog document content. |
-| [`checkCatalog`](../tooling/go/doccheck/catalog.go#L285) | function | 285-294 | `func checkCatalog(root string) error` | checkCatalog verifies that PROJECT_CATALOG.md matches source without writing it. |
-| [`runCatalogCommand`](../tooling/go/doccheck/catalog.go#L297) | function | 297-345 | `func runCatalogCommand(args []string, stdout, stderr io.Writer) int` | runCatalogCommand checks or updates the source catalog. |
+| [`collectGoDeclarations`](../tooling/go/doccheck/catalog.go#L96) | function | 96-166 | `func collectGoDeclarations(root string) ([]catalogEntry, error)` | collectGoDeclarations walks maintained and optional source and returns named functions, methods, types, and tests. |
+| [`renderCatalogEntries`](../tooling/go/doccheck/catalog.go#L169) | function | 169-190 | `func renderCatalogEntries(entries []catalogEntry) string` | renderCatalogEntries renders declarations in per-file Markdown tables. |
+| [`generatedCatalog`](../tooling/go/doccheck/catalog.go#L193) | function | 193-211 | `func generatedCatalog(root string) (string, error)` | generatedCatalog composes the source-derived catalog sections. |
+| [`checkCatalogDescriptions`](../tooling/go/doccheck/catalog.go#L214) | function | 214-257 | `func checkCatalogDescriptions(root string) error` | checkCatalogDescriptions rejects maintained declarations without attached source documentation. |
+| [`replaceGeneratedRegion`](../tooling/go/doccheck/catalog.go#L260) | function | 260-267 | `func replaceGeneratedRegion(document, begin, end, generated, label string) (string, error)` | replaceGeneratedRegion replaces exactly one marked block without changing maintained prose. |
+| [`catalogContent`](../tooling/go/doccheck/catalog.go#L270) | function | 270-285 | `func catalogContent(root string) (string, string, string, error)` | catalogContent returns current and generated catalog document content. |
+| [`checkCatalog`](../tooling/go/doccheck/catalog.go#L288) | function | 288-297 | `func checkCatalog(root string) error` | checkCatalog verifies that PROJECT_CATALOG.md matches source without writing it. |
+| [`runCatalogCommand`](../tooling/go/doccheck/catalog.go#L300) | function | 300-348 | `func runCatalogCommand(args []string, stdout, stderr io.Writer) int` | runCatalogCommand checks or updates the source catalog. |
+
+### [`tooling/go/doccheck/catalog_snapshot.go`](../tooling/go/doccheck/catalog_snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`CatalogEntry`](../tooling/go/doccheck/catalog_snapshot.go#L20) | struct | 20-29 | `type CatalogEntry struct { Path string Kind string Name string Signature string Description string StartLine int EndLine int SourceHash string }` | CatalogEntry is a narrow read-only declaration DTO owned by doccheck. It contains only source-derived facts and is safe to serialize. |
+| [`SnapshotCatalog`](../tooling/go/doccheck/catalog_snapshot.go#L33) | function | 33-124 | `func SnapshotCatalog(fsys fs.FS) ([]CatalogEntry, error)` | SnapshotCatalog derives catalog entries from a read-only source snapshot. It covers maintained and optional source; the same captured bytes produce the same ordered entries. |
 
 ### [`tooling/go/doccheck/javascript_catalog.go`](../tooling/go/doccheck/javascript_catalog.go)
 
@@ -5820,6 +5970,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`markdownLineKind`](../tooling/go/doccheck/markdown_format.go#L18) | function | 18-38 | `func markdownLineKind(line string) string` | markdownLineKind classifies lines relevant to the one-physical-line contract. |
 | [`checkSingleLineMarkdown`](../tooling/go/doccheck/markdown_format.go#L41) | function | 41-76 | `func checkSingleLineMarkdown(root string, markdownFiles []string) []string` | checkSingleLineMarkdown reports prose or list continuations outside fenced blocks. |
+
+### [`tooling/go/doccheck/review_snapshot.go`](../tooling/go/doccheck/review_snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ReviewMetadata`](../tooling/go/doccheck/review_snapshot.go#L12) | struct | 12-16 | `type ReviewMetadata struct { Document string Hash string Dependents []string }` | ReviewMetadata is a narrow read-only DTO for one acknowledged document. It carries only the stored digest and its reviewed dependents. |
+| [`SnapshotReviewMetadata`](../tooling/go/doccheck/review_snapshot.go#L20) | function | 20-47 | `func SnapshotReviewMetadata(fsys fs.FS) ([]ReviewMetadata, error)` | SnapshotReviewMetadata reads the acknowledged documentation state from a read-only source snapshot. A missing DOC-STATE.md yields no metadata. |
 
 ### [`tooling/go/doccheck/state.go`](../tooling/go/doccheck/state.go)
 
@@ -5871,6 +6028,16 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`runCheck`](../tooling/go/importcheck/main.go#L577) | function | 577-597 | `func runCheck(args []string, stdout, stderr io.Writer) int` | runCheck parses check arguments, scans the repository, and returns a process exit status. |
 | [`runReport`](../tooling/go/importcheck/main.go#L600) | function | 600-612 | `func runReport(args []string, stdout, stderr io.Writer) int` | runReport parses report arguments, prints the graph report, and returns a process exit status. |
 | [`Run`](../tooling/go/importcheck/main.go#L615) | function | 615-631 | `func Run(args []string, stdout, stderr io.Writer) int` | Run parses the command hierarchy and returns a process exit status. |
+
+### [`tooling/go/importcheck/snapshot.go`](../tooling/go/importcheck/snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`ImportEdge`](../tooling/go/importcheck/snapshot.go#L20) | struct | 20-24 | `type ImportEdge struct { Importer string Target string Test bool }` | ImportEdge is a narrow read-only import relationship DTO owned by importcheck. |
+| [`readModulePathFS`](../tooling/go/importcheck/snapshot.go#L27) | function | 27-39 | `func readModulePathFS(fsys fs.FS) (string, error)` | readModulePathFS returns the module path declared by go.mod in a read-only snapshot. |
+| [`SnapshotImportsFS`](../tooling/go/importcheck/snapshot.go#L42) | function | 42-95 | `func SnapshotImportsFS(fsys fs.FS) ([]ImportEdge, error)` | SnapshotImportsFS returns maintained Go import edges from a read-only source snapshot. |
+| [`SQLCUnit`](../tooling/go/importcheck/snapshot.go#L98) | struct | 98-102 | `type SQLCUnit struct { Schema string Queries []string Output string }` | SQLCUnit is a narrow read-only DTO for one sqlc generation unit. |
+| [`SnapshotSQLCUnitsFS`](../tooling/go/importcheck/snapshot.go#L106) | function | 106-137 | `func SnapshotSQLCUnitsFS(fsys fs.FS) ([]SQLCUnit, error)` | SnapshotSQLCUnitsFS parses config/sqlc.yaml from a read-only source snapshot. A missing configuration yields no units. |
 
 ### [`tooling/go/prepare-osf/export.go`](../tooling/go/prepare-osf/export.go)
 
@@ -5947,6 +6114,13 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 | [`WriteReport`](../tooling/go/rawsqlcheck/ownership/analysis.go#L291) | function | 291-315 | `func WriteReport(output io.Writer, report Report)` | WriteReport renders the ownership report for one scan. |
 | [`Check`](../tooling/go/rawsqlcheck/ownership/analysis.go#L318) | function | 318-334 | `func Check(root string, locations []Location, stdout, stderr io.Writer) int` | Check scans root with the supplied ownership table and reports the result. |
 
+### [`tooling/go/rawsqlcheck/ownership/snapshot.go`](../tooling/go/rawsqlcheck/ownership/snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`generatedSnapshotPath`](../tooling/go/rawsqlcheck/ownership/snapshot.go#L17) | function | 17-25 | `func generatedSnapshotPath(relativePath string) bool` | generatedSnapshotPath reports whether a repository-relative Go path lives under a reserved internal/sql directory. |
+| [`SnapshotCalls`](../tooling/go/rawsqlcheck/ownership/snapshot.go#L29) | function | 29-79 | `func SnapshotCalls(fsys fs.FS) ([]Call, error)` | SnapshotCalls returns raw SQL call sites from a read-only source snapshot. It does not read approved-location configuration or classify categories. |
+
 ### [`tooling/go/something-printer/main.go`](../tooling/go/something-printer/main.go)
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
@@ -5966,13 +6140,20 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 
 | Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
 |---|---|---:|---|---|
-| [`Options`](../tooling/go/testselect/select.go#L18) | struct | 18-22 | `type Options struct { Domain, Layer, Component, Package, Runner, Test, TestFile string Browser, Workers string Race, Headed, Debug bool }` | Options narrows ordinary offline suites by ownership, layer, and runner. |
-| [`Selection`](../tooling/go/testselect/select.go#L25) | struct | 25-29 | `type Selection struct { GoPackages []string NodeFiles []string BrowserFiles []string }` | Selection contains canonical repository-relative packages and test files. |
-| [`validRelative`](../tooling/go/testselect/select.go#L32) | function | 32-34 | `func validRelative(value string) bool` | validRelative rejects noncanonical or escaping selector paths. |
-| [`Select`](../tooling/go/testselect/select.go#L37) | function | 37-187 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
-| [`execute`](../tooling/go/testselect/select.go#L190) | function | 190-204 | `func execute(root, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
-| [`runGo`](../tooling/go/testselect/select.go#L207) | function | 207-263 | `func runGo(root string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
-| [`Run`](../tooling/go/testselect/select.go#L266) | function | 266-359 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
+| [`Options`](../tooling/go/testselect/select.go#L20) | struct | 20-24 | `type Options struct { Domain, Layer, Component, Package, Runner, Test, TestFile, GoModule string Browser, Workers string Race, Headed, Debug bool }` | Options narrows ordinary offline suites by ownership, layer, and runner. |
+| [`Selection`](../tooling/go/testselect/select.go#L27) | struct | 27-32 | `type Selection struct { GoPackages []string NodeFiles []string BrowserFiles []string GoModule string }` | Selection contains canonical repository-relative packages and test files. |
+| [`validRelative`](../tooling/go/testselect/select.go#L35) | function | 35-37 | `func validRelative(value string) bool` | validRelative rejects noncanonical or escaping selector paths. |
+| [`Select`](../tooling/go/testselect/select.go#L40) | function | 40-220 | `func Select(root string, options Options) (Selection, error)` | Select discovers runnable suites without installing dependencies or starting services. |
+| [`execute`](../tooling/go/testselect/select.go#L223) | function | 223-237 | `func execute(dir, name string, args []string, stdout, stderr io.Writer) int` | execute runs one standard command from the repository root and preserves its exit code. |
+| [`runGo`](../tooling/go/testselect/select.go#L240) | function | 240-311 | `func runGo(root, moduleRoot string, options Options, packages []string, stdout, stderr io.Writer) int` | runGo observes actual test execution so a focused expression cannot silently match nothing. |
+| [`Run`](../tooling/go/testselect/select.go#L314) | function | 314-408 | `func Run(args []string, stdout, stderr io.Writer) int` | Run selects and executes ordinary suites with the standard Go, Node, and Playwright runners. |
+
+### [`tooling/go/testselect/snapshot.go`](../tooling/go/testselect/snapshot.go)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`Suite`](../tooling/go/testselect/snapshot.go#L12) | struct | 12-15 | `type Suite struct { Path string Runner string }` | Suite is a narrow read-only suite inventory DTO owned by testselect. |
+| [`SnapshotSuitesFS`](../tooling/go/testselect/snapshot.go#L18) | function | 18-63 | `func SnapshotSuitesFS(fsys fs.FS) ([]Suite, error)` | SnapshotSuitesFS lists ordinary suite files from a read-only source snapshot. |
 
 ## JavaScript declarations
 
@@ -6791,6 +6972,12 @@ Run `make docs-catalog-update` after maintained declarations or source comments 
 |---|---|---:|---|---|
 | [`visit`](../tests/support/node/visit.ts#L14) | function | 14 | `async function visit(page: Page, state: Record<string, string>, path?: string)` | Seeds viewer state through sessionStorage and navigates to a clean route. The seeding semantics are load-bearing and shared by every spec: - `window.name` carries the seed across the initial about:blank document. - `sessionStorage` is cleared first so a prior visit cannot leak state. - When the current pathname already equals the target, the history entry is replaced so browser back/forward cannot restore a stale adopted state. - The init script writes the seed only when sessionStorage is still empty, preserving the precedence of any state the app itself persisted. |
 | [`viewerState`](../tests/support/node/visit.ts#L34) | function | 34 | `async function viewerState(page: Page)` | Reads the current viewer state from sessionStorage. |
+
+### [`tests/tooling/agentgraph/testdata/repository/pdf-replacement/frontend/upload.ts`](../tests/tooling/agentgraph/testdata/repository/pdf-replacement/frontend/upload.ts)
+
+| Symbol | Kind | Lines | Declaration, inputs, and outputs | Source description |
+|---|---|---:|---|---|
+| [`uploadPDF`](../tests/tooling/agentgraph/testdata/repository/pdf-replacement/frontend/upload.ts#L2) | function | 2 | `async function uploadPDF(file: File)` | Uploads one PDF file to the fixture upload endpoint. |
 
 ### [`tests/tooling/node/viewer-fixture/integration/fixture-contract.test.ts`](../tests/tooling/node/viewer-fixture/integration/fixture-contract.test.ts)
 

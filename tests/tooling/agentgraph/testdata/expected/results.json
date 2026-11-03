@@ -1,0 +1,300 @@
+{
+  "pdf-store-direct-callers": {
+    "resolved": [
+      {
+        "path": "handler/handler.go",
+        "line": 20,
+        "symbol": "example.com/pdfreplacement/handler.saveArticlePDF",
+        "reason": "direct call on h.store.Save"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [
+      {
+        "path": "store/saver.go",
+        "line": 12,
+        "symbol": "example.com/pdfreplacement/store.CallSaver",
+        "reason": "interface dispatch through Saver; concrete target unknown"
+      }
+    ],
+    "empty_case": {
+      "parameters": {
+        "symbol": "go:example.com/pdfreplacement/store#(*Store).Delete",
+        "direction": "callers"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "partial"
+  },
+  "save-article-pdf-callees": {
+    "resolved": [
+      {
+        "path": "store/store.go",
+        "line": 7,
+        "symbol": "example.com/pdfreplacement/store.(*Store).Save",
+        "reason": "direct callee"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "symbol": "go:example.com/pdfreplacement/empty#DoNothing",
+        "direction": "callees"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "upload-pdf-http-entry": {
+    "resolved": [
+      {
+        "path": "handler/handler.go",
+        "line": 28,
+        "symbol": "example.com/pdfreplacement/handler.NewServer",
+        "reason": "route registration for PUT /upload"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "route": "/missing",
+        "method": "GET"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdfstore-package-dependents": {
+    "resolved": [
+      {
+        "path": "handler/handler.go",
+        "line": 6,
+        "symbol": "example.com/pdfreplacement/handler",
+        "reason": "direct import of example.com/pdfreplacement/store"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty",
+        "direction": "dependents"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdf-documents-sql-usage": {
+    "resolved": [
+      {
+        "path": "queries.sql",
+        "line": 2,
+        "symbol": "MarkPDFDocumentAvailable",
+        "reason": "UPDATE on pdf_documents"
+      },
+      {
+        "path": "queries.sql",
+        "line": 7,
+        "symbol": "GetPDFDocument",
+        "reason": "SELECT from pdf_documents"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "table": "empty_table"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "mark-pdf-document-available-generator": {
+    "resolved": [
+      {
+        "path": "queries.sql",
+        "line": 1,
+        "symbol": "MarkPDFDocumentAvailable",
+        "reason": "maintained named query input"
+      },
+      {
+        "path": "sqlc.yaml",
+        "line": 3,
+        "symbol": "sqlc generation block",
+        "reason": "generator configuration"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "symbol": "MissingQuery",
+        "direction": "generator"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "frontend-upload-pdf-route": {
+    "resolved": [
+      {
+        "path": "frontend/upload.ts",
+        "line": 2,
+        "symbol": "uploadPDF",
+        "reason": "fetch target"
+      }
+    ],
+    "inferred": [
+      {
+        "path": "handler/handler.go",
+        "line": 28,
+        "symbol": "example.com/pdfreplacement/handler.NewServer",
+        "reason": "route convention /upload"
+      }
+    ],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "symbol": "missingUpload",
+        "path": "frontend/missing.ts"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "partial"
+  },
+  "pdf-replacement-relevant-tests": {
+    "resolved": [
+      {
+        "path": "handler/handler_test.go",
+        "line": 5,
+        "symbol": "TestSaveArticlePDF",
+        "reason": "test function exercises the handler package"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdf-replacement-make-commands": {
+    "resolved": [
+      {
+        "path": "Makefile",
+        "line": 3,
+        "target": "generate",
+        "reason": "supported regeneration command"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty",
+        "purpose": "regenerate"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdf-replacement-document-review": {
+    "resolved": [
+      {
+        "path": "README.md",
+        "line": 7,
+        "symbol": "Review dependencies",
+        "reason": "declares README.md as a review dependency"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty",
+        "purpose": "review"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdf-path-instructions": {
+    "resolved": [
+      {
+        "path": "AGENTS.md",
+        "line": 1,
+        "symbol": "Fixture Instructions",
+        "reason": "applies to handler changes"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  },
+  "pdf-interface-task-owner": {
+    "resolved": [
+      {
+        "path": "task.json",
+        "line": 1,
+        "symbol": "RAG-S01-T01",
+        "reason": "task record owns example.com/pdfreplacement/store"
+      }
+    ],
+    "inferred": [],
+    "unresolved": [],
+    "empty_case": {
+      "parameters": {
+        "path": "example.com/pdfreplacement/empty"
+      },
+      "resolved": [],
+      "inferred": [],
+      "unresolved": [],
+      "coverage": "complete"
+    },
+    "coverage": "complete"
+  }
+}

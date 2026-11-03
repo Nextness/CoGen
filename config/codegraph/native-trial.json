@@ -1,0 +1,82 @@
+{
+  "trial": "RAG-S01-T02 and RAG-S01-T03",
+  "status": "pass",
+  "platform": "linux/amd64",
+  "binding": {
+    "module": "github.com/LadybugDB/go-ladybug",
+    "version": "v0.13.1",
+    "go_version": "1.20",
+    "license": "MIT"
+  },
+  "engine": {
+    "version": "v0.22.1",
+    "download": "https://github.com/LadybugDB/ladybug/releases/latest/download/liblbug-linux-x86_64.tar.gz",
+    "artifact_sha256": "652f577d3724635fb057d3f0ebeff7dbb77326ac1b5951355b32469e7681269f",
+    "license": "MIT"
+  },
+  "native_build": {
+    "cgo": true,
+    "compiler": "gcc (GCC) 16.2.1 20260810",
+    "prerequisites": [
+      "linux/amd64",
+      "cgo",
+      "gcc",
+      "g++",
+      "pkg-config",
+      "curl",
+      "tar",
+      "network access for explicit setup"
+    ],
+    "network_for_setup": true,
+    "root_module_dependency": false
+  },
+  "offline_verification": {
+    "command": "GOWORK=off GOPROXY=off GOSUMDB=off go -C build/codegraph/trial test -v ./...",
+    "result": "pass",
+    "timestamp_utc": "2026-11-03T00:12:46Z"
+  },
+  "cancellation": {
+    "query": "UNWIND RANGE(1,100000) AS x UNWIND RANGE(1, 100000) AS y RETURN COUNT(x + y);",
+    "timeout_milliseconds": 100,
+    "timeout_elapsed": "117.750419ms",
+    "interrupt_elapsed": "100.535761ms",
+    "result": "interrupted"
+  },
+  "handle_cleanup": {
+    "method": "Close connection and database after interrupted query",
+    "result": "pass"
+  },
+  "resource_bounds": {
+    "max_threads_per_connection": 1,
+    "buffer_pool_per_reader_bytes": 67108864,
+    "configured_aggregate_bytes": 201326592,
+    "readers": 3,
+    "read_only": true,
+    "measured_rss_before_bytes": 33144832,
+    "measured_rss_after_bytes": 35778560,
+    "measured_rss_delta_bytes": 2633728,
+    "measured_cpu_delta": "8.022ms",
+    "wall_time": "2.903248ms",
+    "aggregate_target_bytes": 1073741824,
+    "within_target": true
+  },
+  "single_connection_memory": {
+    "alloc_bytes": 349000,
+    "total_alloc_bytes": 349000,
+    "sys_bytes": 8083720
+  },
+  "extensions": {
+    "fts": "not provisioned or tested",
+    "vector": "not provisioned or tested"
+  },
+  "limitations": [
+    "The binding is v0.13.1 while the downloaded engine is the latest release v0.22.1. The tested API worked, but a matching engine version should be pinned before production use.",
+    "Optional FTS and vector extensions were not provisioned or tested; their offline reopening behavior remains unavailable.",
+    "The trial used an in-memory database for timeout and interrupt probes and a file-backed database for the three-reader probe. A full graph-generation build interruption remains for later tasks."
+  ],
+  "source": {
+    "ignored_trial": "build/codegraph/trial/",
+    "ignored_report": "build/codegraph/reports/resource-trial.log",
+    "repository_head": "a6864db0624df8ce41d85555c10b5c453789d6b3"
+  }
+}
