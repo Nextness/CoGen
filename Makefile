@@ -23,7 +23,10 @@ LAYER            ?= all
 COMPONENT        ?=
 TEST_SELECTOR    ?= build/testselect
 TEST             ?=
+CODE_FACTS       ?= build/code-facts
+CODE_GRAPH       ?= build/code-graph
 COVERAGE_OUT     ?= build/coverage/coverage.out
+CODE_GRAPH_COVERAGE_OUT ?= build/coverage/code-graph.out
 COVERAGE_POLICY  ?= config/coverage_policy.something
 FIXTURE_DB       ?= build/fixtures/viewer/workspace.fixture.db
 BROWSER          ?= chromium
@@ -42,7 +45,7 @@ export FIXTURE_DB ASSETS_DIR
 
 .DEFAULT_GOAL := help
 
-.PHONY: recover help all build tools something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report
+.PHONY: recover help all build tools something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf gitleaks gitleaks-install sqlc-install sqlc-generate sqlc-check docs-catalog-update docs-state-update clean fmt format-check vet check check-frontend check-sql check-imports check-docs test test-go test-unit test-functional test-integration test-all test-race test-docs test-e2e test-e2e-live coverage fixture run migrate serve dev prepare-to-osf frontend-install frontend-browsers frontend-build frontend-classes frontend-classes-check frontend-vendor frontend-pdfjs-vendor frontend-pdfjs-vendor-check test-frontend test-frontend-all test-frontend-headed test-frontend-debug test-frontend-visual test-frontend-unit test-frontend-functional testselect frontend-report database-backup sql-report import-report code-facts-build code-graph-build format-check-code-graph vet-code-graph check-code-graph test-code-graph test-code-graph-race coverage-code-graph
 
 help: ## List supported local development commands, variables, and examples.
 	@printf '%s\n' 'Research analysis local development interface'
@@ -82,7 +85,15 @@ build: ## Build build/analysis; no Go default-output binaries are created.
 	@mkdir -p "$(dir $(BIN))"
 	cd $(GOWD) && $(GO) build -o "$(BIN)" ./backend/cmd/analysis
 
-tools: something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect ## Build every maintained Go tool under build/.
+tools: something-printer doccheck coveragecheck rawsqlcheck importcheck prepare-osf testselect code-facts-build ## Build every maintained Go tool under build/.
+
+code-facts-build: ## Build build/code-facts, the portable repository facts exporter.
+	@mkdir -p "$(dir $(CODE_FACTS))"
+	cd $(GOWD) && $(GO) build -o "$(CODE_FACTS)" ./tooling/go/cmd/code-facts
+
+code-graph-build: ## Build build/code-graph from the optional module; setup is explicit and never implicit.
+	@mkdir -p "$(dir $(CODE_GRAPH))"
+	cd tooling/agentgraph && GOWORK=off $(GO) build -o "$(abspath $(CODE_GRAPH))" ./cmd/code-graph
 
 something-printer: ## Build build/something-printer, a tool to inspect evaluated .something configs.
 	@mkdir -p "$(dir $(SOMETHING_PRINTER))"
@@ -114,18 +125,31 @@ docs-catalog-update: doccheck ## Regenerate docs/PROJECT_CATALOG.md from maintai
 docs-state-update: doccheck ## Acknowledge reviewed docs by updating docs/DOC-STATE.md hashes.
 	./$(DOC_CHECK) state update
 
-fmt: ## Format maintained Go source and tests.
-	@rg --files backend internal tooling/go tests -g '*.go' -0 | xargs -0 gofmt -w
+fmt: ## Format maintained Go source and tests, including the optional module.
+	@rg --files backend internal tooling/go tooling/agentgraph tests -g '*.go' -0 | xargs -0 gofmt -w
 
 format-check: ## Fail if any Go source file needs gofmt.
-	@unformatted="$$(rg --files backend internal tooling/go tests -g '*.go' -0 | xargs -0 gofmt -l)"; \
+	@unformatted="$$(rg --files backend internal tooling/go tooling/agentgraph tests -g '*.go' -0 | xargs -0 gofmt -l)"; \
 	if [ -n "$$unformatted" ]; then \
 		printf '%s\n%s\n' 'Run make fmt; unformatted Go files:' "$$unformatted"; \
 		exit 1; \
 	fi
 
+format-check-code-graph: ## Fail if optional module Go sources need gofmt.
+	@unformatted="$$(rg --files tooling/agentgraph tests/tooling/agentgraph -g '*.go' -0 | xargs -0 gofmt -l)"; \
+	if [ -n "$$unformatted" ]; then \
+		printf '%s\n%s\n' 'Run make fmt; unformatted optional Go files:' "$$unformatted"; \
+		exit 1; \
+	fi
+
 vet: ## Run go vet across the module.
 	cd $(GOWD) && $(GO) vet ./...
+
+vet-code-graph: ## Run go vet across the optional production and test modules.
+	GOWORK=off $(GO) -C tooling/agentgraph vet ./...
+	GOWORK=off $(GO) -C tests/tooling/agentgraph vet ./...
+
+check-code-graph: format-check-code-graph vet-code-graph ## Check optional module formatting and vet without native prerequisites.
 
 check: format-check vet check-sql check-imports check-docs gitleaks ## Run local Go, SQL ownership, import graph, documentation, and secret checks.
 
@@ -184,6 +208,12 @@ test-go: testselect ## Run ordinary Go suites. PACKAGE accepts a canonical tests
 test-race: testselect ## Run ordinary Go suites with race detection; selectors narrow the scope.
 	CGO_ENABLED=1 ./$(TEST_SELECTOR) $(selector_args) --runner go --race
 
+test-code-graph: testselect ## Run optional module Go suites; narrow with LAYER and TEST.
+	./$(TEST_SELECTOR) --go-module tests/tooling/agentgraph --runner go --layer $(call shellquote,$(LAYER)) --test $(call shellquote,$(TEST))
+
+test-code-graph-race: testselect ## Run optional module Go suites with race detection; narrow with LAYER and TEST.
+	CGO_ENABLED=1 ./$(TEST_SELECTOR) --go-module tests/tooling/agentgraph --runner go --race --layer $(call shellquote,$(LAYER)) --test $(call shellquote,$(TEST))
+
 test-docs: ## Run the documentation command functional regression suites.
 	$(MAKE) test-go DOMAIN=tooling COMPONENT=go/doccheck
 
@@ -201,6 +231,11 @@ coverage: coveragecheck ## Instrument all production packages, retain uncovered 
 	@production_packages="$$($(GO) list ./backend/... ./internal/... ./tooling/go/... | paste -sd, -)"; \
 	$(GO) test ./backend/... ./internal/... ./tooling/go/... ./tests/... -count=1 -covermode=atomic -coverpkg="$$production_packages" -coverprofile="$(COVERAGE_OUT)"
 	./$(COVERAGE_CHECK) --profile "$(COVERAGE_OUT)" --policy "$(COVERAGE_POLICY)"
+
+coverage-code-graph: ## Instrument optional production code and report a separate profile under build/coverage.
+	@mkdir -p "$(dir $(CODE_GRAPH_COVERAGE_OUT))"
+	cd tests/tooling/agentgraph && GOWORK=off $(GO) test ./... -count=1 -covermode=atomic -coverpkg=analysis/tooling/agentgraph/... -coverprofile="$(abspath $(CODE_GRAPH_COVERAGE_OUT))"
+	cd tests/tooling/agentgraph && GOWORK=off $(GO) tool cover -func="$(abspath $(CODE_GRAPH_COVERAGE_OUT))"
 
 fixture: ## Generate the disposable viewer fixture pair from the normal test-support command.
 	$(GO) run ./tests/support/go/cmd/viewer-fixture --out "$(FIXTURE_DB)" --registry config/database.something

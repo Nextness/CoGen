@@ -24,9 +24,9 @@ type Policy struct {
 	ExcludeInternalSQL bool
 }
 
-// DefaultPolicy selects maintained source, tests, documentation, and configuration.
+// DefaultPolicy selects maintained source, optional production source, tests, documentation, and configuration.
 var DefaultPolicy = Policy{
-	Roots:              []string{"backend", "tooling/go", "internal", "tests", "docs", "config"},
+	Roots:              []string{"backend", "tooling/go", "tooling/agentgraph", "internal", "tests", "docs", "config"},
 	ExcludeDirs:        []string{"testdata", "node_modules", "ref"},
 	ExcludeInternalSQL: true,
 }

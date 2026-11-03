@@ -40,6 +40,20 @@ import "testing"
 
 func TestThing(t *testing.T) {}
 `),
+		"tooling/agentgraph/go.mod": []byte("module analysis/tooling/agentgraph\n\ngo 1.25.0\n"),
+		"tooling/agentgraph/agentgraph.go": []byte(`package agentgraph
+
+// Version identifies the optional production module.
+func Version() string { return "dev" }
+`),
+		"tests/tooling/agentgraph/go.mod": []byte("module analysis/tests/tooling/agentgraph\n\ngo 1.25.0\n\nrequire analysis/tooling/agentgraph v0.0.0\n\nreplace analysis/tooling/agentgraph => ../../../tooling/agentgraph\n"),
+		"tests/tooling/agentgraph/unit/agentgraph_test.go": []byte(`package unit
+
+import "testing"
+
+// TestVersion verifies the optional module resolves through its local replacement.
+func TestVersion(t *testing.T) {}
+`),
 		"config/sqlc.yaml": []byte(`version: "2"
 sql:
   - engine: "sqlite"
@@ -127,6 +141,16 @@ func TestBuildProducesDeterministicEnvelope(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("missing Save declaration")
+	}
+	modules := make(map[string]string)
+	for _, declaration := range first.Declarations {
+		modules[declaration.Name] = declaration.Module
+	}
+	if modules["Version"] != "analysis/tooling/agentgraph" {
+		t.Fatalf("optional production module %q", modules["Version"])
+	}
+	if modules["TestVersion"] != "analysis/tests/tooling/agentgraph" {
+		t.Fatalf("optional test module %q", modules["TestVersion"])
 	}
 	if len(first.Imports) == 0 {
 		t.Fatal("expected imports")

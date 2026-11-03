@@ -29,11 +29,11 @@ type CatalogEntry struct {
 }
 
 // SnapshotCatalog derives catalog entries from a read-only source snapshot.
-// The same captured bytes produce the same ordered entries.
+// It covers maintained and optional source; the same captured bytes produce the same ordered entries.
 func SnapshotCatalog(fsys fs.FS) ([]CatalogEntry, error) {
 	files := token.NewFileSet()
 	var entries []CatalogEntry
-	err := projectlayout.WalkGoFS(fsys, func(filePath string, item fs.DirEntry, walkErr error) error {
+	visit := func(filePath string, item fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -104,8 +104,11 @@ func SnapshotCatalog(fsys fs.FS) ([]CatalogEntry, error) {
 			}
 		}
 		return nil
-	})
-	if err != nil {
+	}
+	if err := projectlayout.WalkGoFS(fsys, visit); err != nil {
+		return nil, err
+	}
+	if err := projectlayout.WalkOptionalGoFS(fsys, visit); err != nil {
 		return nil, err
 	}
 	sort.Slice(entries, func(left, right int) bool {

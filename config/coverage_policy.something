@@ -128,8 +128,12 @@ coverage_policy: coverage_policy_config = {
             rationale = "Raw SQL ownership scanning and classification paths are exercised by focused unit and functional tests."
         },
         ["analysis/tooling/go/importcheck"] => {
-            minimum = 85.0,
+            minimum =  85.0,
             rationale = "Import graph scanning, layer classification, and sqlc unit ownership paths are exercised by focused unit and functional tests."
+        },
+        ["analysis/tooling/go/codefacts"] => {
+            minimum =  70.0,
+            rationale = "Portable repository facts are deterministic and exercised by focused unit and functional tests."
         },
         ["analysis/backend/validation"]        => { minimum =  92.0 },
         ["analysis/backend/workspace"]         => { minimum =  72.0 },

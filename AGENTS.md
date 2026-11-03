@@ -73,7 +73,11 @@ Run built tools from the repository root:
 ./build/importcheck check
 ./build/importcheck report
 ./build/prepare-osf --db ./corpus.metadata.db --config ./config/workspace.something --out ./build/osf-export
+./build/code-facts
+./build/code-graph version
 ```
+
+Optional code-graph tooling uses explicit targets outside ordinary root `build`, `tools`, `test`, and `check`: `make code-facts-build`, `make code-graph-build`, `make check-code-graph`, `make test-code-graph`, `make test-code-graph-race`, and `make coverage-code-graph`. Native engine setup remains an explicit separate action and is never triggered by ordinary commands.
 
 There is no separate lint or pre-commit target. CI merge-gate workflows live under `.github/workflows/`; the `ci` workflow runs on every pull request and covers a gitleaks secret scan before backend, race, coverage, documentation, frontend, browser, and offline end-to-end checks, while the manual `e2e-live` workflow runs the opt-in live-provider target after its own gitleaks gate. Format changed Go with `gofmt`, run the narrowest relevant tests, and use `make vet` or `make check`. Use `make test-race` for concurrency, cache, HTTP-client, database, or lifecycle changes. Rebuild when `main` or build behavior changes. Raw SQL calls outside generated `internal/sql/` output must be classified by `make check-sql`, and the package import and transaction graph is enforced by `make check-imports`; `make sql-report` and `make import-report` print the current ownership inventories.
 

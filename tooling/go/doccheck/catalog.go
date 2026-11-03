@@ -92,11 +92,11 @@ func generatedGoPath(relativePath string) bool {
 	return false
 }
 
-// collectGoDeclarations walks src and returns named functions, methods, types, and tests.
+// collectGoDeclarations walks maintained and optional source and returns named functions, methods, types, and tests.
 func collectGoDeclarations(root string) ([]catalogEntry, error) {
 	files := token.NewFileSet()
 	var entries []catalogEntry
-	err := projectlayout.WalkGo(root, func(path string, item os.DirEntry, walkErr error) error {
+	visit := func(path string, item os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -149,8 +149,11 @@ func collectGoDeclarations(root string) ([]catalogEntry, error) {
 			}
 		}
 		return nil
-	})
-	if err != nil {
+	}
+	if err := projectlayout.WalkGo(root, visit); err != nil {
+		return nil, err
+	}
+	if err := projectlayout.WalkOptionalGo(root, visit); err != nil {
 		return nil, err
 	}
 	sort.Slice(entries, func(left, right int) bool {

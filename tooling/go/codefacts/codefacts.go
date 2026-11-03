@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"analysis/internal/projectlayout"
 	"analysis/tooling/go/doccheck"
 	"analysis/tooling/go/importcheck"
 	"analysis/tooling/go/rawsqlcheck/ownership"
@@ -119,7 +120,7 @@ func Build(fsys fs.FS, options Options) (Envelope, error) {
 	if err != nil {
 		return Envelope{}, err
 	}
-	declarations, err := buildDeclarations(fsys, module)
+	declarations, err := buildDeclarations(fsys, module, optionalModulePaths(fsys))
 	if err != nil {
 		return Envelope{}, err
 	}
@@ -168,9 +169,14 @@ func Build(fsys fs.FS, options Options) (Envelope, error) {
 
 // readModulePath returns the module path declared by go.mod in a read-only snapshot.
 func readModulePath(fsys fs.FS) (string, error) {
-	data, err := fs.ReadFile(fsys, "go.mod")
+	return readModulePathAt(fsys, "go.mod")
+}
+
+// readModulePathAt returns the module path declared by one go.mod file in a read-only snapshot.
+func readModulePathAt(fsys fs.FS, filePath string) (string, error) {
+	data, err := fs.ReadFile(fsys, filePath)
 	if err != nil {
-		return "", fmt.Errorf("read go.mod: %w", err)
+		return "", fmt.Errorf("read %s: %w", filePath, err)
 	}
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(line)
@@ -178,11 +184,38 @@ func readModulePath(fsys fs.FS) (string, error) {
 			return fields[1], nil
 		}
 	}
-	return "", fmt.Errorf("go.mod does not declare a module path")
+	return "", fmt.Errorf("%s does not declare a module path", filePath)
+}
+
+// optionalModulePaths returns captured optional module identities keyed by repository-relative root.
+// Absent optional modules are ignored so partial snapshots still build.
+func optionalModulePaths(fsys fs.FS) map[string]string {
+	paths := make(map[string]string)
+	for _, relative := range append(projectlayout.OptionalProductionModules(), projectlayout.OptionalTestModules()...) {
+		module, err := readModulePathAt(fsys, relative+"/go.mod")
+		if err != nil {
+			continue
+		}
+		paths[relative] = module
+	}
+	return paths
+}
+
+// moduleForPath returns the owning module identity for one captured source path.
+func moduleForPath(filePath, rootModule string, optional map[string]string) string {
+	owner, ownerLength := rootModule, -1
+	for relative, module := range optional {
+		if filePath == relative || strings.HasPrefix(filePath, relative+"/") {
+			if len(relative) > ownerLength {
+				owner, ownerLength = module, len(relative)
+			}
+		}
+	}
+	return owner
 }
 
 // buildDeclarations converts doccheck's catalog DTO into portable declarations.
-func buildDeclarations(fsys fs.FS, module string) ([]Declaration, error) {
+func buildDeclarations(fsys fs.FS, module string, optional map[string]string) ([]Declaration, error) {
 	entries, err := doccheck.SnapshotCatalog(fsys)
 	if err != nil {
 		return nil, err
@@ -190,7 +223,7 @@ func buildDeclarations(fsys fs.FS, module string) ([]Declaration, error) {
 	declarations := make([]Declaration, 0, len(entries))
 	for _, entry := range entries {
 		declarations = append(declarations, Declaration{
-			Module:      module,
+			Module:      moduleForPath(entry.Path, module, optional),
 			Path:        entry.Path,
 			Kind:        entry.Kind,
 			Name:        entry.Name,
